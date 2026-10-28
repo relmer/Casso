@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 class ExplorerPreview;
 
 
@@ -24,7 +24,7 @@ class ExplorerPreview;
 class ExplorerPreviewArchive
 {
 public:
-    ExplorerPreviewArchive (ExplorerPreview & preview, CassoExplorerWindow & window);
+    ExplorerPreviewArchive (ExplorerPreview & preview, ExplorerContext & context);
 
     //  True when the event is taken here.
     bool  HandleMouse         (const DxuiMouseEvent & ev, POINT point);
@@ -37,8 +37,8 @@ private:
     std::vector<std::wstring>  GetSelectedIds  () const;
     void                       ShowContextMenu (int x, int y);
 
-    ExplorerPreview      & m_preview;
-    CassoExplorerWindow  & m_window;
+    ExplorerPreview  & m_preview;
+    ExplorerContext  & m_context;
 
     bool   m_dragArmed = false;   // a left press on a file, which may become a drag
     bool   m_menuArmed = false;   // a right press on one, whose menu opens on release

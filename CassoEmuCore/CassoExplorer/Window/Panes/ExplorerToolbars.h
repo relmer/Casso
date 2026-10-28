@@ -4,7 +4,7 @@
 
 #include "CassoExplorer/CassoExplorerCommands.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -25,7 +25,7 @@ class CassoExplorerWindow;
 class ExplorerToolbars
 {
 public:
-    explicit ExplorerToolbars (CassoExplorerWindow & window);
+    explicit ExplorerToolbars (ExplorerContext & context);
 
     //  Explorer's navigation glyphs are smaller than Casso's toolbar icons:
     //  15 pixels of ink at 120 DPI.
@@ -97,7 +97,7 @@ public:
     DxuiToolbar &  GetCommandBar () const { return *m_commandBar; }
 
 private:
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiToolbar          * m_toolbar    = nullptr;
     DxuiToolbar          * m_commandBar = nullptr;

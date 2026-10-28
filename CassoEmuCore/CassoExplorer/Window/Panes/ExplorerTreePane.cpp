@@ -14,8 +14,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerTreePane::ExplorerTreePane (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerTreePane::ExplorerTreePane (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -31,7 +31,7 @@ ExplorerTreePane::ExplorerTreePane (CassoExplorerWindow & window)
 
 void ExplorerTreePane::Create()
 {
-    CassoExplorerNamedControl<DxuiTreeView>  * tree = m_window.CreateChild<CassoExplorerNamedControl<DxuiTreeView>>();
+    CassoExplorerNamedControl<DxuiTreeView>  * tree = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiTreeView>>();
 
 
 
@@ -56,8 +56,8 @@ void ExplorerTreePane::Configure()
 
 
 
-    m_labelTip.SetPopupHost (m_window.GetPopupHost());
-    m_window.m_browser.GetTreeRoots (roots);
+    m_labelTip.SetPopupHost (m_context.window.GetPopupHost());
+    m_context.browser.GetTreeRoots (roots);
 
     m_tree->SetShowCheckboxes (false);
     m_tree->SetFontDip (CassoExplorerWindow::kProseFontDip);
@@ -67,7 +67,7 @@ void ExplorerTreePane::Configure()
     m_tree->SetLeftPadDip  (kTreeLeftPadDip);
     m_tree->SetHorizontalScrollEnabled (false);
     m_tree->SetNodes (std::move (roots));
-    m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_window.m_browser.GetTreeChildren (id); });
+    m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_context.browser.GetTreeChildren (id); });
 
     //  A known folder whose drive is away has nothing to show, so selecting
     //  it opens nothing; it stays in the tree to be removed.
@@ -87,21 +87,21 @@ void ExplorerTreePane::Configure()
         //  to where the list is.
         if (TreeModel::StripLinkCopy (id) == TreeModel::kAddLinkId)
         {
-            m_window.m_cassoLinkManager.EditConnection (std::string());
+            m_context.cassoLinkManager.EditConnection (std::string());
             RevealLocationInTree();
-            m_window.Invalidate();
+            m_context.window.Invalidate();
             return;
         }
 
-        hr = m_window.m_browser.SelectTreeNode (id);
+        hr = m_context.browser.SelectTreeNode (id);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        m_window.m_listPane.FillList();
+        m_context.listPane.FillList();
     });
 
     //  Opening or closing a folder changes which folders are on screen.
     m_tree->SetOnExpand ([this] (const std::wstring &, bool)
     {
-        m_window.m_folderSync.UpdateWatchedFolders();
+        m_context.folderSync.UpdateWatchedFolders();
     });
 
     //  The Casso places and This PC open on their first level; the shell's
@@ -130,7 +130,7 @@ void ExplorerTreePane::Configure()
 
 void ExplorerTreePane::Layout (const RECT & rect)
 {
-    m_tree->Layout (rect, m_window.m_scaler);
+    m_tree->Layout (rect, m_context.scaler);
 
     if (m_revealPending && m_tree->GetRowCap() > 0)
     {
@@ -196,8 +196,8 @@ bool ExplorerTreePane::HandleCapturedMouse (const DxuiMouseEvent & ev)
                || abs (point.y - m_drag.start.y) > GetSystemMetrics (SM_CYDRAG)))
         {
             m_drag.armed = false;
-            m_window.m_dragDrop.BeginTreeDrag (m_drag.location);
-            m_window.Invalidate();
+            m_context.dragDrop.BeginTreeDrag (m_drag.location);
+            m_context.window.Invalidate();
             return true;
         }
     }
@@ -205,14 +205,14 @@ bool ExplorerTreePane::HandleCapturedMouse (const DxuiMouseEvent & ev)
     if (m_tree->IsInteracting())
     {
         m_tree->OnMouse (ev);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
-    if (m_tree->GetHoverRow() >= 0 && (ev.kind == DxuiMouseEventKind::Leave || !CassoExplorerWindow::Contains (m_tree->GetBounds(), point)))
+    if (m_tree->GetHoverRow() >= 0 && (ev.kind == DxuiMouseEventKind::Leave || !ExplorerLayout::Contains (m_tree->GetBounds(), point)))
     {
         m_tree->SetHoverRow (-1);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     }
 
     return false;
@@ -242,7 +242,7 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (!CassoExplorerWindow::Contains (m_tree->GetBounds(), point))
+    if (!ExplorerLayout::Contains (m_tree->GetBounds(), point))
     {
         return false;
     }
@@ -255,7 +255,7 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
 
     if (press && ev.button != DxuiMouseButton::Right)
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::Tree);
+        m_context.input.SetFocusPane (ExplorerPane::Tree);
     }
 
     if (press && ev.button == DxuiMouseButton::Right && row < 0)
@@ -269,14 +269,14 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
         if (node != nullptr)
         {
             m_tree->SetHoverRow (row);
-            m_window.Invalidate();
+            m_context.window.Invalidate();
             ShowTreeContextMenu (point.x, point.y, node->id);
         }
 
         return true;
     }
 
-    if (press && ev.button == DxuiMouseButton::Left && node != nullptr && !node->dimmed && m_window.m_browser.TryGetNodeLocation (node->id, at)
+    if (press && ev.button == DxuiMouseButton::Left && node != nullptr && !node->dimmed && m_context.browser.TryGetNodeLocation (node->id, at)
         && ((at.kind == Location::Kind::AppleDrive && at.innerPath.empty()) || at.kind == Location::Kind::HostFolder || at.kind == Location::Kind::DiskImage))
     {
         m_drag.armed    = true;
@@ -285,7 +285,7 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
     }
 
     m_tree->OnMouse (ev);
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 
     return true;
 }
@@ -318,16 +318,16 @@ bool ExplorerTreePane::TryShortcutKey (const DxuiKeyEvent & ev, bool & outHandle
     }
 
     node     = m_tree->GetNodeAt (m_tree->GetHighlight());
-    copyable = node != nullptr && m_window.m_browser.TryGetNodeLocation (node->id, location)
+    copyable = node != nullptr && m_context.browser.TryGetNodeLocation (node->id, location)
                && location.kind != Location::Kind::Root && location.kind != Location::Kind::RecycleBin;
 
     if (copyable && ev.vk == 'C')
     {
-        DxuiClipboard::SetText (m_window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
+        DxuiClipboard::SetText (m_context.window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
     }
     else if (copyable)
     {
-        m_window.m_fileOps.ShowLocationProperties (location);
+        m_context.fileOps.ShowLocationProperties (location);
     }
 
     outHandled = copyable;
@@ -347,7 +347,7 @@ bool ExplorerTreePane::TryShortcutKey (const DxuiKeyEvent & ev, bool & outHandle
 
 std::vector<DxuiPopupMenuItem> ExplorerTreePane::GetScrollbarMenu (POINT point) const
 {
-    if (!m_tree->IsVisible() || !CassoExplorerWindow::Contains (m_tree->GetBounds(), point))
+    if (!m_tree->IsVisible() || !ExplorerLayout::Contains (m_tree->GetBounds(), point))
     {
         return {};
     }
@@ -375,7 +375,7 @@ void ExplorerTreePane::ReloadChildren (const std::wstring & id)
         return;
     }
 
-    m_tree->ReplaceChildren (id, m_window.m_browser.GetTreeChildren (id));
+    m_tree->ReplaceChildren (id, m_context.browser.GetTreeChildren (id));
 }
 
 
@@ -399,7 +399,7 @@ void ExplorerTreePane::ExpandRowForDrop (int row)
 
     if (node != nullptr && !node->expanded && (!node->childrenLoaded || !node->children.empty()) && m_tree->SetRowExpanded (row, true))
     {
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     }
 }
 
@@ -475,7 +475,7 @@ bool ExplorerTreePane::TryGetRenameRect (const std::wstring & id, RECT & outRect
         return false;
     }
 
-    outRect.right = (std::max) (outRect.right, (LONG) tree.right - m_window.m_scaler.ToPx (kRenameEdgeDip));
+    outRect.right = (std::max) (outRect.right, (LONG) tree.right - m_context.scaler.ToPx (kRenameEdgeDip));
 
     return true;
 }
@@ -498,7 +498,7 @@ bool ExplorerTreePane::TryGetRenameRect (const std::wstring & id, RECT & outRect
 
 void ExplorerTreePane::RevealLocationInTree()
 {
-    Location              location = m_window.m_browser.GetLocation();
+    Location              location = m_context.browser.GetLocation();
     std::wstring          path     = location.path;
     std::wstring          current  = m_tree->GetHighlightedId();
     int                   casso    = m_tree->FindRowById (TreeModel::kCassoRootId);
@@ -757,20 +757,20 @@ void ExplorerTreePane::RefreshTree()
         }
     }
 
-    m_window.m_browser.GetTreeModel().InvalidateAll();
-    m_window.m_browser.GetTreeRoots (roots);
+    m_context.browser.GetTreeModel().InvalidateAll();
+    m_context.browser.GetTreeRoots (roots);
     m_tree->ReplaceRoots (std::move (roots));
 
     for (const std::wstring & id : open)
     {
         if (m_tree->FindRowById (id) >= 0)
         {
-            m_tree->ReplaceChildren (id, m_window.m_browser.GetTreeChildren (id));
+            m_tree->ReplaceChildren (id, m_context.browser.GetTreeChildren (id));
         }
     }
 
-    m_window.m_folderSync.UpdateWatchedFolders();
-    m_window.Invalidate();
+    m_context.folderSync.UpdateWatchedFolders();
+    m_context.window.Invalidate();
 }
 
 
@@ -788,13 +788,13 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     std::vector<DxuiPopupMenuItem>  items;
     std::wstring                    folder;
     Location                        location;
-    bool                            hasFolder   = m_window.m_browser.TryGetNodePath (id, folder);
-    bool                            hasLocation = m_window.m_browser.TryGetNodeLocation (id, location);
+    bool                            hasFolder   = m_context.browser.TryGetNodePath (id, folder);
+    bool                            hasLocation = m_context.browser.TryGetNodeLocation (id, location);
     const DxuiTreeNode            * node        = m_tree->GetNodeAt (m_tree->FindRowById (id));
 
 
 
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
     //  A known folder that is not there offers only its removal; every other
     //  command acts on a folder that cannot be opened.
@@ -814,24 +814,24 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     //  of its own.
     if (node != nullptr && (!node->childrenLoaded || !node->children.empty()))
     {
-        m_window.m_menus.AddMenuCommand (items, node->expanded ? L"&Collapse" : L"&Expand", [this, id, expand = !node->expanded]()
+        m_context.menus.AddMenuCommand (items, node->expanded ? L"&Collapse" : L"&Expand", [this, id, expand = !node->expanded]()
         {
             int   row     = m_tree->FindRowById (id);
             bool  changed = (row >= 0) && m_tree->SetRowExpanded (row, expand);
 
             if (changed)
             {
-                m_window.Invalidate();
+                m_context.window.Invalidate();
             }
         });
-        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (node->expanded ? L"windows.collapse" : L"windows.expand");
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (node->expanded ? L"windows.collapse" : L"windows.expand");
     }
 
     //  The open rows follow Collapse in its group, with no Open, as in File
     //  Explorer's navigation pane.
     if (hasLocation)
     {
-        m_window.m_menus.AddOpenRows (items, location, false);
+        m_context.menus.AddOpenRows (items, location, false);
     }
 
     //  A disk image's Casso commands, as its row in the list has them.
@@ -840,35 +840,35 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         std::wstring  image = location.path;
 
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { m_window.m_fileOps.InsertIntoDrive (image, 1); });
-        m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_window.m_fileOps.InsertIntoDrive (image, 2); });
-        m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_window.m_fileOps.OpenInNewCasso (image); });
-        m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_window.m_commandManager.ExtractImageFiles (image); });
-        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.compressedfile.extract");
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { m_context.fileOps.InsertIntoDrive (image, 1); });
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_context.fileOps.InsertIntoDrive (image, 2); });
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.fileOps.OpenInNewCasso (image); });
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.commandManager.ExtractImageFiles (image); });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
     }
 
-    if (hasFolder && m_window.m_browser.CanRemoveFromCasso (id))
+    if (hasFolder && m_context.browser.CanRemoveFromCasso (id))
     {
-        m_window.m_menus.AddMenuCommand (items, L"&Remove from Casso", [this, folder]() { m_window.m_folderSync.ChangeKnownFolder (folder, false); });
+        m_context.menus.AddMenuCommand (items, L"&Remove from Casso", [this, folder]() { m_context.folderSync.ChangeKnownFolder (folder, false); });
     }
-    else if (hasFolder && m_window.m_browser.CanAddToCasso (id))
+    else if (hasFolder && m_context.browser.CanAddToCasso (id))
     {
-        m_window.m_menus.AddMenuCommand (items, L"&Add to Casso", [this, folder]() { m_window.m_folderSync.ChangeKnownFolder (folder, true); });
+        m_context.menus.AddMenuCommand (items, L"&Add to Casso", [this, folder]() { m_context.folderSync.ChangeKnownFolder (folder, true); });
     }
 
-    m_window.m_cassoLinkManager.AddConnectionRows (items, hasLocation, location);
+    m_context.cassoLinkManager.AddConnectionRows (items, hasLocation, location);
 
     //  The Recycle Bin's node empties it, as Explorer's does.
     if (hasLocation && location.kind == Location::Kind::RecycleBin)
     {
-        m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::EmptyRecycleBin), [this]()
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::EmptyRecycleBin), [this]()
         {
-            HRESULT  hr = m_window.m_shellVerbs.EmptyRecycleBin (m_window.GetHwnd());
+            HRESULT  hr = m_context.shellVerbs.EmptyRecycleBin (m_context.window.GetHwnd());
 
             IGNORE_RETURN_VALUE (hr, S_OK);
-            m_window.m_folderSync.RefreshAfterHostChange();
+            m_context.folderSync.RefreshAfterHostChange();
         });
-        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::EmptyRecycleBin));
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::EmptyRecycleBin));
     }
     else if (hasLocation && location.kind != Location::Kind::Root && location.kind != Location::Kind::AppleDrive)
     {
@@ -876,14 +876,14 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         //  New and Properties follow the open and pin rows.
         if (location.kind == Location::Kind::HostFolder && location.path.size() > 3)
         {
-            m_window.m_menus.AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
+            m_context.menus.AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
         }
 
-        m_window.m_menus.AddMenuCommand (items, L"Copy as &path", [this, location]()
+        m_context.menus.AddMenuCommand (items, L"Copy as &path", [this, location]()
         {
-            DxuiClipboard::SetText (m_window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
+            DxuiClipboard::SetText (m_context.window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
         }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
-        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.copyaspath");
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
 
         if (location.kind == Location::Kind::HostFolder)
         {
@@ -893,27 +893,27 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             std::vector<DxuiPopupMenuItem>  choices;
 
             newFolder->label    = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::NewFolder);
-            newFolder->menuSvg  = m_window.m_menus.GetMenuSvg (L"newfolder");
-            newFolder->dispatch = [this, location]() { m_window.m_addressBar.GoToLocation (location); m_window.m_commandManager.RunVerb (CassoExplorerActions::Verb::NewFolder); };
+            newFolder->menuSvg  = m_context.menus.GetMenuSvg (L"newfolder");
+            newFolder->dispatch = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.commandManager.RunVerb (CassoExplorerActions::Verb::NewFolder); };
             newDisk->label      = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::NewDisk);
-            newDisk->menuSvg    = m_window.m_menus.GetMenuSvg (L"casso.floppy525");
-            newDisk->dispatch   = [this, location]() { m_window.m_addressBar.GoToLocation (location); m_window.m_commandManager.RunVerb (CassoExplorerActions::Verb::NewDisk); };
+            newDisk->menuSvg    = m_context.menus.GetMenuSvg (L"casso.floppy525");
+            newDisk->dispatch   = [this, location]() { m_context.addressBar.GoToLocation (location); m_context.commandManager.RunVerb (CassoExplorerActions::Verb::NewDisk); };
 
-            m_window.m_menus.AddNewChoices (choices, location, newFolder, newDisk);
+            m_context.menus.AddNewChoices (choices, location, newFolder, newDisk);
 
             parent->label     = L"Ne&w";
             parent->menuGlyph = s_kpszMdl2Add;
-            parent->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.newitem");
+            parent->menuSvg   = m_context.menus.GetMenuSvg (L"windows.newitem");
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
 
-            m_window.m_menus.GetMenuCommands().push_back (std::move (parent));
-            m_window.m_menus.GetMenuCommands().push_back (std::move (newFolder));
-            m_window.m_menus.GetMenuCommands().push_back (std::move (newDisk));
+            m_context.menus.GetMenuCommands().push_back (std::move (parent));
+            m_context.menus.GetMenuCommands().push_back (std::move (newFolder));
+            m_context.menus.GetMenuCommands().push_back (std::move (newDisk));
         }
 
-        m_window.m_menus.AddMenuCommand (items, L"P&roperties", [this, location]() { m_window.m_fileOps.ShowLocationProperties (location); }, L"Alt+Enter");
-        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
-        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
+        m_context.menus.AddMenuCommand (items, L"P&roperties", [this, location]() { m_context.fileOps.ShowLocationProperties (location); }, L"Alt+Enter");
+        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
     }
 
     //  A folder on the disk has the commands installed apps add, then the
@@ -922,24 +922,24 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     {
         POINT  screen = { x, y };
 
-        ClientToScreen (m_window.GetHwnd(), &screen);
+        ClientToScreen (m_context.window.GetHwnd(), &screen);
 
-        m_window.m_menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32PackagedCommands::ItemKind::Drive : Win32PackagedCommands::ItemKind::Folder);
+        m_context.menus.AddPackagedCommandsFor (items, { location.path }, (location.path.size() <= 3) ? Win32PackagedCommands::ItemKind::Drive : Win32PackagedCommands::ItemKind::Folder);
 
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, location, screen]()
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, location, screen]()
         {
-            HRESULT  hr = m_window.m_shellVerbs.ShowShellMenu (m_window.GetHwnd(), { location.path }, screen, {});
+            HRESULT  hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), { location.path }, screen, {});
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     if (!items.empty())
     {
-        DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
+        DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
     }
 }
 
@@ -978,7 +978,7 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
         //  Paste is added only with files to paste, as on a folder's row.
-        if (verb == CassoExplorerActions::Verb::Paste && !m_window.m_shellVerbs.ClipboardHasFiles())
+        if (verb == CassoExplorerActions::Verb::Paste && !m_context.shellVerbs.ClipboardHasFiles())
         {
             continue;
         }
@@ -986,37 +986,37 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
         command->id       = (int) verb;
         command->label    = ExplorerMenus::GetVerbLabel (verb);
         command->glyph    = ExplorerMenus::GetVerbGlyph (verb);
-        command->menuSvg  = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
+        command->menuSvg  = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
         command->dispatch = [this, verb, folder, id]()
         {
             HRESULT  hr = S_OK;
 
             if (verb == CassoExplorerActions::Verb::Paste)
             {
-                m_window.m_fileOps.PasteHere (folder);
+                m_context.fileOps.PasteHere (folder);
                 return;
             }
 
             if (verb == CassoExplorerActions::Verb::Rename)
             {
-                m_window.m_fileOps.BeginTreeRename (id);
+                m_context.fileOps.BeginTreeRename (id);
                 return;
             }
 
             if (verb == CassoExplorerActions::Verb::Delete)
             {
-                hr = m_window.m_shellVerbs.Recycle (m_window.GetHwnd(), { folder });
-                m_window.m_folderSync.RefreshAfterHostChange();
+                hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), { folder });
+                m_context.folderSync.RefreshAfterHostChange();
             }
             else
             {
-                hr = m_window.m_shellVerbs.PlaceOnClipboard (m_window.GetHwnd(), { folder }, verb == CassoExplorerActions::Verb::Cut);
+                hr = m_context.shellVerbs.PlaceOnClipboard (m_context.window.GetHwnd(), { folder }, verb == CassoExplorerActions::Verb::Cut);
             }
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         };
         iconCommands.push_back (command);
-        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
+        m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
     items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
@@ -1042,7 +1042,7 @@ void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
 
 
 
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
     AddNavPaneToggle (items, L"Show This &PC",          &CassoExplorerPrefs::navShowThisPc);
     AddNavPaneToggle (items, L"Show &Network",          &CassoExplorerPrefs::navShowNetwork);
@@ -1050,13 +1050,13 @@ void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
     AddNavPaneToggle (items, L"Show &all folders",      &CassoExplorerPrefs::navShowAllFolders);
     AddNavPaneToggle (items, L"&Expand to open folder", &CassoExplorerPrefs::navExpandToCurrent);
 
-    if (m_window.m_context.links != nullptr)
+    if (m_context.app.links != nullptr)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_window.m_menus.AddMenuCommand (items, L"Add a &CassoLink machine...", [this]() { m_window.m_cassoLinkManager.EditConnection (std::string()); });
+        m_context.menus.AddMenuCommand (items, L"Add a &CassoLink machine...", [this]() { m_context.cassoLinkManager.EditConnection (std::string()); });
     }
 
-    DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -1072,9 +1072,9 @@ void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
 void ExplorerTreePane::AddNavPaneToggle (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option)
 {
     //  The first change parts this option from File Explorer's for good.
-    m_window.m_menus.AddMenuCommand (items, label, [this, option]()
+    m_context.menus.AddMenuCommand (items, label, [this, option]()
     {
-        m_window.m_prefs.*option = !IsNavOptionOn (option);
+        m_context.prefs.*option = !IsNavOptionOn (option);
         ApplyNavPaneOptions();
         RefreshTree();
 
@@ -1083,7 +1083,7 @@ void ExplorerTreePane::AddNavPaneToggle (std::vector<DxuiPopupMenuItem> & items,
             RevealLocationInTree();
         }
     });
-    m_window.m_menus.GetMenuCommands().back()->isChecked = [this, option]() { return IsNavOptionOn (option); };
+    m_context.menus.GetMenuCommands().back()->isChecked = [this, option]() { return IsNavOptionOn (option); };
 }
 
 
@@ -1102,7 +1102,7 @@ void ExplorerTreePane::AddNavPaneToggle (std::vector<DxuiPopupMenuItem> & items,
 
 bool ExplorerTreePane::IsNavOptionOn (CassoExplorerPrefs::NavOption option) const
 {
-    const TreeModel &  tree = m_window.m_browser.GetTreeModel();
+    const TreeModel &  tree = m_context.browser.GetTreeModel();
 
 
 
@@ -1123,10 +1123,10 @@ bool ExplorerTreePane::IsNavOptionOn (CassoExplorerPrefs::NavOption option) cons
 
     if (option == &CassoExplorerPrefs::navShowAllFolders)
     {
-        return m_window.m_prefs.navShowAllFolders.value_or (m_window.m_explorerOptions.paneShowsAllFolders);
+        return m_context.prefs.navShowAllFolders.value_or (m_context.explorerOptions.paneShowsAllFolders);
     }
 
-    return m_window.m_prefs.navExpandToCurrent.value_or (m_window.m_explorerOptions.paneExpandsToCurrent);
+    return m_context.prefs.navExpandToCurrent.value_or (m_context.explorerOptions.paneExpandsToCurrent);
 }
 
 
@@ -1145,12 +1145,12 @@ void ExplorerTreePane::ApplyNavPaneOptions()
 
 
 
-    options.showThisPc     = m_window.m_prefs.navShowThisPc;
-    options.showNetwork    = m_window.m_prefs.navShowNetwork;
-    options.showLibraries  = m_window.m_prefs.navShowLibraries;
+    options.showThisPc     = m_context.prefs.navShowThisPc;
+    options.showNetwork    = m_context.prefs.navShowNetwork;
+    options.showLibraries  = m_context.prefs.navShowLibraries;
     options.showAllFolders = IsNavOptionOn (&CassoExplorerPrefs::navShowAllFolders);
 
-    m_window.m_browser.GetTreeModel().SetNavPaneOptions (options);
+    m_context.browser.GetTreeModel().SetNavPaneOptions (options);
 }
 
 
@@ -1170,20 +1170,20 @@ void ExplorerTreePane::ShowLabelTipAt (POINT point)
 
 
 
-    if (m_tree->IsVisible() && CassoExplorerWindow::Contains (m_tree->GetBounds(), point))
+    if (m_tree->IsVisible() && ExplorerLayout::Contains (m_tree->GetBounds(), point))
     {
         row = m_tree->HitTestRow (point.x, point.y);
     }
 
-    if (row < 0 || m_window.m_theme == nullptr || !m_tree->GetClippedLabelRect (row, box))
+    if (row < 0 || m_context.theme == nullptr || !m_tree->GetClippedLabelRect (row, box))
     {
         m_labelTip.Hide();
         return;
     }
 
-    m_labelTip.Show (box, m_tree->GetLabelFill (row, *m_window.m_theme), [this, row] (IDxuiPainter & painter, IDxuiTextRenderer & text)
+    m_labelTip.Show (box, m_tree->GetLabelFill (row, *m_context.theme), [this, row] (IDxuiPainter & painter, IDxuiTextRenderer & text)
     {
-        m_tree->PaintLabel (row, painter, text, *m_window.m_theme);
+        m_tree->PaintLabel (row, painter, text, *m_context.theme);
     });
 }
 
@@ -1212,7 +1212,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Move && CassoExplorerWindow::Contains (tree, point))
+    if (ev.kind == DxuiMouseEventKind::Move && ExplorerLayout::Contains (tree, point))
     {
         row  = m_tree->HitTestRow (point.x, point.y);
         node = m_tree->GetNodeAt (row);
@@ -1227,7 +1227,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     if (broken && node->id != m_treeTipId)
     {
         m_treeTipId   = node->id;
-        m_treeTipText = m_window.m_browser.TryGetNodeLocation (node->id, location) ? m_window.m_browser.GetImageProblem (location.path) : std::wstring();
+        m_treeTipText = m_context.browser.TryGetNodeLocation (node->id, location) ? m_context.browser.GetImageProblem (location.path) : std::wstring();
     }
 
     //  A connection the firewall blocks has the cause as its tip.
@@ -1239,7 +1239,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
         LinkTreeEntry  entry;
 
         m_treeTipId   = node->id;
-        m_treeTipText = TreeModel::TryParseLinkId (TreeModel::StripLinkCopy (node->id), link, slot, drive) && m_window.m_cassoLinkManager.TryGetConnectionEntry (link, entry)
+        m_treeTipText = TreeModel::TryParseLinkId (TreeModel::StripLinkCopy (node->id), link, slot, drive) && m_context.cassoLinkManager.TryGetConnectionEntry (link, entry)
                       ? entry.firewall : std::wstring();
     }
 
@@ -1247,7 +1247,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 
     if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro && !problem))
     {
-        m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::Tree);
+        m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Tree);
         return;
     }
 
@@ -1256,7 +1256,7 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     anchor.top    = tree.top + (row - m_tree->GetTopRow()) * m_tree->GetRowHeight();
     anchor.bottom = anchor.top + m_tree->GetRowHeight();
 
-    m_window.m_tips.ShowHoverTip (ExplorerTips::TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
+    m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
                                         : problem      ? m_treeTipText.c_str()
                                         : node->dimmed ? kMissingNodeTip : kCassoNodeTip);
 }

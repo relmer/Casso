@@ -17,8 +17,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerLayout::ExplorerLayout (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerLayout::ExplorerLayout (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -40,60 +40,60 @@ void ExplorerLayout::ConfigureWidgets()
 
     //  CassoExplorer has no menu bar: Explorer's command bar takes its place. The
     //  strip stays, empty and hidden, so its Alt handling finds nothing.
-    m_window.m_toolbars.Configure();
-    m_window.m_treePane.Configure();
+    m_context.toolbars.Configure();
+    m_context.treePane.Configure();
 
-    m_window.m_listPane.Configure();
-    m_window.m_previewPane.Configure();
+    m_context.listPane.Configure();
+    m_context.preview.Configure();
 
     //  The commands installed apps add to Explorer's menus, and New's
     //  choices, read once.
-    m_window.m_menus.StartPackagedCommands (m_window.GetHwnd(), (UINT) ExplorerMessage::NewChoices);
+    m_context.menus.StartPackagedCommands (m_context.window.GetHwnd(), (UINT) ExplorerMessage::NewChoices);
 
-    m_window.m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
-    m_window.m_treeSplitter->SetOnMoved ([this] (int dip)
+    m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
+    m_treeSplitter->SetOnMoved ([this] (int dip)
     {
-        m_window.m_prefs.treeWidthDip = dip;
+        m_context.prefs.treeWidthDip = dip;
         RecomputeLayout();
     });
 
-    m_window.m_previewSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
-    m_window.m_previewSplitter->SetOnMoved ([this] (int dip)
+    m_previewSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
+    m_previewSplitter->SetOnMoved ([this] (int dip)
     {
-        RECT  bounds = m_window.m_previewSplitter->GetBounds();
-        int   width  = MulDiv (bounds.right - bounds.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_window.m_scaler.GetDpi());
+        RECT  bounds = m_previewSplitter->GetBounds();
+        int   width  = MulDiv (bounds.right - bounds.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_context.scaler.GetDpi());
 
-        m_window.m_prefs.previewWidthDip = width - dip - DxuiSplitter::kSashDip;
+        m_context.prefs.previewWidthDip = width - dip - DxuiSplitter::kSashDip;
         RecomputeLayout();
     });
 
-    m_window.m_statusBar.Configure();
+    m_context.statusBar.Configure();
 
     //  The tabs of the request, from the session or a torn-off tab, or Home.
-    m_window.m_browser.RestoreTabs (std::move (m_window.m_context.request.tabs), m_window.m_context.request.activeTab);
-    m_window.m_browser.LeaveMissingLocation();
+    m_context.browser.RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
+    m_context.browser.LeaveMissingLocation();
 
-    m_window.m_folderSync.StartPolling();
+    m_context.folderSync.StartPolling();
 
-    m_window.m_treePane.HandleFocusChanged (true);
+    m_context.treePane.HandleFocusChanged (true);
 
-    if (!m_window.m_context.request.openPath.empty())
+    if (!m_context.app.request.openPath.empty())
     {
-        bool  onHome = m_window.m_browser.GetBrowserModel().GetTabCount() == 1 && m_window.m_browser.GetLocation().kind == Location::Kind::None;
+        bool  onHome = m_context.browser.GetBrowserModel().GetTabCount() == 1 && m_context.browser.GetLocation().kind == Location::Kind::None;
 
-        m_window.m_tabManager.OpenPathInNewTab (m_window.m_context.request.openPath);
+        m_context.tabManager.OpenPathInNewTab (m_context.app.request.openPath);
 
         //  A window opened for a path alone has no Home tab beside it, as File
         //  Explorer's new window has none.
-        if (onHome && m_window.m_browser.GetBrowserModel().GetTabCount() > 1)
+        if (onHome && m_context.browser.GetBrowserModel().GetTabCount() > 1)
         {
-            bool  closed = m_window.m_browser.CloseTab (0);
+            bool  closed = m_context.browser.CloseTab (0);
 
             IGNORE_RETURN_VALUE (closed, true);
         }
     }
 
-    m_window.m_listPane.FillList();
+    m_context.listPane.FillList();
 }
 
 
@@ -114,93 +114,93 @@ void ExplorerLayout::ConfigureWidgets()
 
 void ExplorerLayout::RecomputeLayout()
 {
-    IDxuiControl  * bands[]     = { &m_window.m_tabBand, &m_window.m_toolbarBand, &m_window.m_menuBand, &m_window.m_statusBand, &m_window.m_bodyBand };
+    IDxuiControl  * bands[]     = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_bodyBand };
     RECT            body        = {};
     RECT            right       = {};
     RECT            sashRect    = {};
     int             rightDip    = 0;
-    bool            preview     = m_window.m_prefs.previewVisible;
+    bool            preview     = m_context.prefs.previewVisible;
     PaneWidths      panes;
 
 
 
-    if (!m_window.m_toolbars.IsCreated() || m_window.m_client.bottom <= m_window.m_client.top)
+    if (!m_context.toolbars.IsCreated() || m_client.bottom <= m_client.top)
     {
         return;
     }
 
-    m_window.m_toolbars.PlanForWidth (m_window.m_client.right - m_window.m_client.left);
+    m_context.toolbars.PlanForWidth (m_client.right - m_client.left);
 
-    m_window.m_tabBand.SetThickness     (m_window.m_scaler.ToPx (kTabHeightDip));
-    m_window.m_menuBand.SetThickness    ((int) std::floor (m_window.m_scaler.ToPxf (kCommandBarDip)));
-    m_window.m_toolbarBand.SetThickness ((int) std::floor (m_window.m_scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_window.m_scaler));
-    m_window.m_statusBand.SetThickness  (m_window.m_scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
+    m_tabBand.SetThickness     (m_context.scaler.ToPx (kTabHeightDip));
+    m_menuBand.SetThickness    ((int) std::floor (m_context.scaler.ToPxf (kCommandBarDip)));
+    m_toolbarBand.SetThickness ((int) std::floor (m_context.scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_context.scaler));
+    m_statusBand.SetThickness  (m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
 
-    m_window.m_dock.Arrange (m_window.m_client, m_window.m_scaler, bands);
+    m_dock.Arrange (m_client, m_context.scaler, bands);
 
-    body = m_window.m_bodyBand.GetBounds();
+    body = m_bodyBand.GetBounds();
 
     if (body.bottom <= body.top)
     {
         return;
     }
 
-    m_window.m_tabManager.Layout (m_window.m_tabBand.GetBounds());
+    m_context.tabManager.Layout (m_tabBand.GetBounds());
 
-    m_window.m_toolbars.Layout (m_window.m_menuBand.GetBounds(), m_window.m_toolbarBand.GetBounds());
+    m_context.toolbars.Layout (m_menuBand.GetBounds(), m_toolbarBand.GetBounds());
 
-    panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_window.m_scaler.GetDpi()),
-                      m_window.m_prefs.treeWidthDip, preview ? m_window.m_prefs.previewWidthDip : 0);
+    panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_context.scaler.GetDpi()),
+                      m_context.prefs.treeWidthDip, preview ? m_context.prefs.previewWidthDip : 0);
 
-    m_window.m_addressBar.Layout (m_window.m_toolbars.GetFreeRect(), m_window.m_toolbarBand.GetBounds(), body.right - body.left - m_window.m_scaler.ToPx (panes.tree));
+    m_context.addressBar.Layout (m_context.toolbars.GetFreeRect(), m_toolbarBand.GetBounds(), body.right - body.left - m_context.scaler.ToPx (panes.tree));
 
-    m_window.m_tips.Layout (m_window.m_scaler.GetDpi(), m_window.m_client.right - m_window.m_client.left, m_window.m_client.bottom - m_window.m_client.top);
+    m_context.tips.Layout (m_context.scaler.GetDpi(), m_client.right - m_client.left, m_client.bottom - m_client.top);
 
     //  A narrow window has already taken each pane below its minimum, so
     //  the sash can go no further than where the fit put it.
-    m_window.m_treeSplitter->Layout (body, m_window.m_scaler);
-    m_window.m_treeSplitter->SetLimitsDip ((std::min) (kMinTreeWidthDip, panes.tree),
+    m_treeSplitter->Layout (body, m_context.scaler);
+    m_treeSplitter->SetLimitsDip ((std::min) (kMinTreeWidthDip, panes.tree),
                                            (std::min) (kMinListWidthDip, panes.list) + (preview ? (std::min) (kMinPreviewWidthDip, panes.preview) + DxuiSplitter::kSashDip : 0));
-    m_window.m_treeSplitter->SetPositionDip (panes.tree);
+    m_treeSplitter->SetPositionDip (panes.tree);
 
-    sashRect = m_window.m_treeSplitter->GetSashRect();
-    m_window.m_treePane.Layout (RECT { body.left, body.top, sashRect.left, body.bottom });
+    sashRect = m_treeSplitter->GetSashRect();
+    m_context.treePane.Layout (RECT { body.left, body.top, sashRect.left, body.bottom });
 
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
-    rightDip = MulDiv (right.right - right.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_window.m_scaler.GetDpi());
+    rightDip = MulDiv (right.right - right.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_context.scaler.GetDpi());
 
-    m_window.m_previewSplitter->SetVisible (preview);
+    m_previewSplitter->SetVisible (preview);
 
     if (preview)
     {
-        m_window.m_previewSplitter->Layout (right, m_window.m_scaler);
-        m_window.m_previewSplitter->SetLimitsDip ((std::min) (kMinListWidthDip, panes.list), (std::min) (kMinPreviewWidthDip, panes.preview));
-        m_window.m_previewSplitter->SetPositionDip (rightDip - panes.preview - DxuiSplitter::kSashDip);
+        m_previewSplitter->Layout (right, m_context.scaler);
+        m_previewSplitter->SetLimitsDip ((std::min) (kMinListWidthDip, panes.list), (std::min) (kMinPreviewWidthDip, panes.preview));
+        m_previewSplitter->SetPositionDip (rightDip - panes.preview - DxuiSplitter::kSashDip);
 
-        sashRect = m_window.m_previewSplitter->GetSashRect();
+        sashRect = m_previewSplitter->GetSashRect();
 
         RECT  listRect    = { right.left, right.top, sashRect.left, right.bottom };
         RECT  previewRect = { sashRect.right, right.top, right.right, right.bottom };
 
-        m_window.m_listPane.Layout        (listRect);
-        m_window.m_cassoLinkManager.LayoutListActions();
-        m_window.m_previewPane.Layout     (previewRect);
+        m_context.listPane.Layout        (listRect);
+        m_context.cassoLinkManager.LayoutListActions();
+        m_context.preview.Layout     (previewRect);
     }
     else
     {
-        m_window.m_previewPane.Hide();
-        m_window.m_listPane.Layout       (right);
-        m_window.m_cassoLinkManager.LayoutListActions();
+        m_context.preview.Hide();
+        m_context.listPane.Layout       (right);
+        m_context.cassoLinkManager.LayoutListActions();
     }
 
-    m_window.m_statusBar.Layout (m_window.m_statusBand.GetBounds());
+    m_context.statusBar.Layout (m_statusBand.GetBounds());
 
     m_dropHits.Clear();
-    m_dropHits.Register (DxuiHitRect { m_window.m_listPane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
-    m_dropHits.Register (DxuiHitRect { m_window.m_treePane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTree });
-    m_dropHits.Register (DxuiHitRect { m_window.m_tabManager.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
+    m_dropHits.Register (DxuiHitRect { m_context.listPane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
+    m_dropHits.Register (DxuiHitRect { m_context.treePane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTree });
+    m_dropHits.Register (DxuiHitRect { m_context.tabManager.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -218,7 +218,7 @@ void ExplorerLayout::RecomputeLayout()
 
 RECT ExplorerLayout::GetMessageRect (const RECT & pane) const
 {
-    int   width = (std::min) ((int) (pane.right - pane.left), m_window.m_scaler.ToPx (kMessageWidthDip));
+    int   width = (std::min) ((int) (pane.right - pane.left), m_context.scaler.ToPx (kMessageWidthDip));
     RECT  rect  = pane;
 
 
@@ -303,4 +303,78 @@ int ExplorerLayout::GetListRowHeightPx (UINT dpi)
 
 
     return 2 * half + partial;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLayout::DockBands
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerLayout::DockBands()
+{
+    m_dock.SetDock (m_tabBand,     DxuiDock::Top);
+    m_dock.SetDock (m_menuBand,    DxuiDock::Top);
+    m_dock.SetDock (m_toolbarBand, DxuiDock::Top);
+    m_dock.SetDock (m_statusBand,  DxuiDock::Bottom);
+    m_dock.SetDock (m_bodyBand,    DxuiDock::Fill);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLayout::SetSplitters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerLayout::SetSplitters (DxuiSplitter * treeSplitter, DxuiSplitter * previewSplitter)
+{
+    m_treeSplitter    = treeSplitter;
+    m_previewSplitter = previewSplitter;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLayout::Contains
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerLayout::Contains (const RECT & rect, POINT point)
+{
+    return point.x >= rect.left && point.x < rect.right && point.y >= rect.top && point.y < rect.bottom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLayout::ToLocal
+//
+//  List views take their events relative to their own origin.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMouseEvent ExplorerLayout::ToLocal (const DxuiMouseEvent & ev, const RECT & bounds)
+{
+    DxuiMouseEvent  local = ev;
+
+
+
+    local.positionDip.x -= bounds.left;
+    local.positionDip.y -= bounds.top;
+
+    return local;
 }

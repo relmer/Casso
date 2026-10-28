@@ -9,7 +9,7 @@
 #include "Seams/Win32ContentDetails.h"
 #include "Seams/Win32ShellIcons.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -30,7 +30,7 @@ class CassoExplorerWindow;
 class ExplorerListPane
 {
 public:
-    explicit ExplorerListPane (CassoExplorerWindow & window);
+    explicit ExplorerListPane (ExplorerContext & context);
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
@@ -87,6 +87,7 @@ public:
     bool            HandleKey          (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
     void            HandleFocusChanged (bool focused) { m_list->OnFocusChanged (focused); }
     IDxuiControl *  GetControl     () const { return m_list; }
+    DxuiListView *  GetListView    () const { return m_list; }
     RECT            GetBounds      () const { return m_list->GetBounds(); }
 
     //  Rows cut to the clipboard and not yet pasted, drawn dimmed.
@@ -115,8 +116,6 @@ public:
     bool  Tick             (int64_t nowMs);
 
 private:
-    friend class ExplorerListColumns;
-    friend class ExplorerListMenus;
 
     //  A right press, which opens the menu on its release or drags the
     //  selection when it moves far enough first.
@@ -128,7 +127,7 @@ private:
         POINT  start   = {};
     };
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiListView         * m_list           = nullptr;
     DxuiLabel            * m_listMessage    = nullptr;
@@ -156,6 +155,6 @@ private:
     POINT       m_listTipPoint  = {};      // where the pointer last was over the list
     bool        m_listTipActive = false;
 
-    ExplorerListColumns  m_columns { *this, m_window };
-    ExplorerListMenus    m_menus   { *this, m_window };
+    ExplorerListColumns  m_columns { *this, m_context };
+    ExplorerListMenus    m_menus   { *this, m_context };
 };

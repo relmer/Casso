@@ -4,7 +4,7 @@
 
 #include "CassoExplorer/CassoExplorerCommands.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -23,7 +23,7 @@ class CassoExplorerWindow;
 class ExplorerLayout
 {
 public:
-    explicit ExplorerLayout (CassoExplorerWindow & window);
+    explicit ExplorerLayout (ExplorerContext & context);
 
     //  Explorer's tabs are 33 dip tall. Its strip is 9 dip taller because it is
     //  also the window's caption; this window has a caption bar of its own, so
@@ -72,16 +72,42 @@ public:
     //  The part of a pane a message wraps within.
     RECT  GetMessageRect (const RECT & pane) const;
 
-private:
-    friend class CassoExplorerWindow;
-    friend class ExplorerCommandManager;
-    friend class ExplorerInput;
-    friend class CassoLinkManager;
-    friend class ExplorerTips;
+    static bool            Contains (const RECT & rect, POINT point);
+    static DxuiMouseEvent  ToLocal  (const DxuiMouseEvent & ev, const RECT & bounds);
 
-    CassoExplorerWindow  & m_window;
+    void  DockBands    ();
+    void  SetSplitters (DxuiSplitter * treeSplitter, DxuiSplitter * previewSplitter);
+    void  SetClient    (const RECT & client) { m_client = client; }
+
+    DxuiSplitter    * GetTreeSplitter    () const { return m_treeSplitter; }
+    DxuiSplitter    * GetPreviewSplitter () const { return m_previewSplitter; }
+    const RECT      & GetClient          () const { return m_client; }
+    DxuiDockLayout  & GetDock            ()       { return m_dock; }
+    DxuiLayoutBand  & GetTabBand         ()       { return m_tabBand; }
+    DxuiLayoutBand  & GetMenuBand        ()       { return m_menuBand; }
+    DxuiLayoutBand  & GetToolbarBand     ()       { return m_toolbarBand; }
+    DxuiLayoutBand  & GetStatusBand      ()       { return m_statusBand; }
+    DxuiLayoutBand  & GetBodyBand        ()       { return m_bodyBand; }
+    DxuiHitTester   & GetDropHits        ()       { return m_dropHits; }
+
+private:
+    ExplorerContext  & m_context;
 
     DxuiHitTester                             m_dropHits;
+    DxuiSplitter                            * m_treeSplitter    = nullptr;
+    DxuiSplitter                            * m_previewSplitter = nullptr;
+    RECT                                      m_client          = {};
+
+    //  The window's edges, docked. Each band is stamped with the thickness
+    //  its widget needs and comes back with the rect that widget is laid
+    //  into; the body band takes what the edges leave, and the panes and
+    //  their splitters divide it.
+    DxuiDockLayout                            m_dock;
+    DxuiLayoutBand                            m_tabBand;
+    DxuiLayoutBand                            m_menuBand;
+    DxuiLayoutBand                            m_toolbarBand;
+    DxuiLayoutBand                            m_statusBand;
+    DxuiLayoutBand                            m_bodyBand;
 
     //  The location's buttons on the command bar, if any.
     CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;

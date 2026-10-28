@@ -5,7 +5,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 struct FocusStop;
 
 
@@ -25,7 +25,7 @@ struct FocusStop;
 class ExplorerInput
 {
 public:
-    explicit ExplorerInput (CassoExplorerWindow & window);
+    explicit ExplorerInput (ExplorerContext & context);
 
     bool    HandleMouse           (const DxuiMouseEvent & ev);
     bool    HandleKey             (const DxuiKeyEvent & ev);
@@ -33,7 +33,9 @@ public:
 
     //  Keyboard focus. The toolbar is one pane, with its focused button in
     //  m_toolbarFocus.
-    void  SetFocusPane (ExplorerPane pane);
+    void          SetFocusPane (ExplorerPane pane);
+    ExplorerPane  GetFocusPane () const { return m_focus; }
+    bool          HasCaretFocus () const { return m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch; }
 
     FocusStop               GetFocusStop     () const;
     void                    SetFocusStop     (const FocusStop & stop);
@@ -55,10 +57,10 @@ public:
     };
 
 private:
-    friend class CassoExplorerWindow;
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
+    ExplorerPane                              m_focus               = ExplorerPane::Tree;
     POINT                                     m_dragStart           = {};
 
     int       m_toolbarFocus    = 0;

@@ -4,7 +4,7 @@
 
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 class ExplorerPreview;
 
 
@@ -24,7 +24,7 @@ class ExplorerPreview;
 class ExplorerPreviewFind
 {
 public:
-    ExplorerPreviewFind (ExplorerPreview & preview, CassoExplorerWindow & window);
+    ExplorerPreviewFind (ExplorerPreview & preview, ExplorerContext & context);
 
     void  Create          ();
     void  HandleFocusChanged  (ExplorerPane focus);
@@ -45,8 +45,8 @@ public:
     void  HandleSearchChanged (const std::wstring & text);
 
 private:
-    ExplorerPreview      & m_preview;
-    CassoExplorerWindow  & m_window;
+    ExplorerPreview  & m_preview;
+    ExplorerContext  & m_context;
 
     DxuiToolbarEditBox     m_searchBox;
     DxuiToolbarEditBox     m_goToBox;

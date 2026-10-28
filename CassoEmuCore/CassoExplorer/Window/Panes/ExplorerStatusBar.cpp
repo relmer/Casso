@@ -13,8 +13,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerStatusBar::ExplorerStatusBar (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerStatusBar::ExplorerStatusBar (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -32,7 +32,7 @@ ExplorerStatusBar::ExplorerStatusBar (CassoExplorerWindow & window)
 
 void ExplorerStatusBar::Create()
 {
-    m_status = m_window.CreateChild<DxuiStatusBar>();
+    m_status = m_context.window.CreateChild<DxuiStatusBar>();
 
     m_status->SetDividers (false);
     m_status->SetLeadDip  (kStatusLeadDip);
@@ -68,12 +68,12 @@ void ExplorerStatusBar::Configure()
 
 bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
 {
-    if (ev.kind != DxuiMouseEventKind::Up || ev.button != DxuiMouseButton::Left || !CassoExplorerWindow::Contains (m_status->GetFieldRect (kStatusZoom), ev.positionDip))
+    if (ev.kind != DxuiMouseEventKind::Up || ev.button != DxuiMouseButton::Left || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusZoom), ev.positionDip))
     {
         return false;
     }
 
-    m_window.m_commandManager.Dispatch (CassoExplorerCommands::kZoomReset);
+    m_context.commandManager.Dispatch (CassoExplorerCommands::kZoomReset);
 
     return true;
 }
@@ -93,12 +93,12 @@ bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
 bool ExplorerStatusBar::HandleActivityClick (const DxuiMouseEvent & ev)
 {
     if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left
-        || !CassoExplorerWindow::Contains (m_status->GetFieldRect (kStatusFill), ev.positionDip) || m_window.m_cassoLinkManager.GetLatestActivity().empty())
+        || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusFill), ev.positionDip) || m_context.cassoLinkManager.GetLatestActivity().empty())
     {
         return false;
     }
 
-    m_window.m_cassoLinkManager.ShowActivityLog();
+    m_context.cassoLinkManager.ShowActivityLog();
 
     return true;
 }
@@ -115,29 +115,29 @@ bool ExplorerStatusBar::HandleActivityClick (const DxuiMouseEvent & ev)
 
 void ExplorerStatusBar::Fill()
 {
-    const CassoExplorerBrowser::Status &  status = m_window.m_browser.GetStatus();
+    const CassoExplorerBrowser::Status &  status = m_context.browser.GetStatus();
     std::wstring                          detail = status.detail;
 
 
 
     //  Bytes or characters selected in the preview take the detail section.
-    m_window.m_previewPane.TryGetSelectionDetail (detail);
+    m_context.preview.TryGetSelectionDetail (detail);
 
     //  A link operation's progress has the field while one is pending, so a
     //  refill on a hover or a selection does not replace it between its
     //  updates.
-    if (m_window.m_context.links != nullptr && !m_window.m_context.links->GetPendingJobs().empty())
+    if (m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty())
     {
-        detail                   = CassoLinkConnections::DescribeJobs (m_window.m_context.links->GetPendingJobs());
-        m_window.m_cassoLinkManager.MarkJobsShown();
+        detail                   = CassoLinkConnections::DescribeJobs (m_context.app.links->GetPendingJobs());
+        m_context.cassoLinkManager.MarkJobsShown();
     }
 
     m_status->SetText (kStatusCount,    status.selection);
     m_status->SetText (kStatusSelected, status.selected);
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
-    m_status->SetText (kStatusZoom,     std::format (L"{}%", m_window.m_prefs.previewZoom));
-    m_status->SetText (kStatusFill,     m_window.m_cassoLinkManager.GetLatestActivity());
+    m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.prefs.previewZoom));
+    m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
 }
 
 
@@ -156,11 +156,11 @@ void ExplorerStatusBar::Fill()
 
 void ExplorerStatusBar::Layout (const RECT & band)
 {
-    bool   preview = m_window.m_prefs.previewVisible && (m_window.m_previewPane.GetRect().right > m_window.m_previewPane.GetRect().left);
-    RECT   sash    = m_window.m_previewSplitter->GetSashRect();
-    int    seam    = (int) (DxuiSplitter::GetSeam (sash.left, sash.right, m_window.m_scaler) + DxuiSplitter::GetLinePx (m_window.m_scaler));
-    int    zoomPx  = m_window.m_scaler.ToPx (kStatusZoomDip);
-    int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_window.m_scaler.ToPx (kStatusDetailDip);
+    bool   preview = m_context.prefs.previewVisible && (m_context.preview.GetRect().right > m_context.preview.GetRect().left);
+    RECT   sash    = m_context.layout.GetPreviewSplitter()->GetSashRect();
+    int    seam    = (int) (DxuiSplitter::GetSeam (sash.left, sash.right, m_context.scaler) + DxuiSplitter::GetLinePx (m_context.scaler));
+    int    zoomPx  = m_context.scaler.ToPx (kStatusZoomDip);
+    int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_context.scaler.ToPx (kStatusDetailDip);
 
 
 
@@ -173,7 +173,7 @@ void ExplorerStatusBar::Layout (const RECT & band)
                            { L"", kStatusFreeDip, false },
                            { L"", 0, false, detail },
                            { L"", kStatusZoomDip, false } });
-    m_status->Layout (band, m_window.m_scaler);
+    m_status->Layout (band, m_context.scaler);
 
     Fill();
 }
@@ -192,25 +192,25 @@ void ExplorerStatusBar::Layout (const RECT & band)
 
 void ExplorerStatusBar::UpdateTip (const DxuiMouseEvent & ev, POINT point)
 {
-    const std::wstring &  tip      = m_window.m_browser.GetStatus().freeSpaceTip;
+    const std::wstring &  tip      = m_context.browser.GetStatus().freeSpaceTip;
     RECT                  anchor   = m_status->GetFieldRect (kStatusFree);
     RECT                  activity = m_status->GetFieldRect (kStatusFill);
 
 
 
     //  The CassoLink line's tip has the latest entries of the log.
-    if (ev.kind == DxuiMouseEventKind::Move && CassoExplorerWindow::Contains (activity, point) && !m_window.m_cassoLinkManager.GetLatestActivity().empty())
+    if (ev.kind == DxuiMouseEventKind::Move && ExplorerLayout::Contains (activity, point) && !m_context.cassoLinkManager.GetLatestActivity().empty())
     {
-        m_activityTip = m_window.m_cassoLinkManager.FormatActivity (kActivityTipLines) + L"\nClick for the whole log.";
-        m_window.m_tips.ShowHoverTip (ExplorerTips::TipOwner::Status, activity, m_activityTip.c_str(), kActivityTipWidthDip);
+        m_activityTip = m_context.cassoLinkManager.FormatActivity (kActivityTipLines) + L"\nClick for the whole log.";
+        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Status, activity, m_activityTip.c_str(), kActivityTipWidthDip);
         return;
     }
 
-    if (ev.kind != DxuiMouseEventKind::Move || tip.empty() || !CassoExplorerWindow::Contains (anchor, point))
+    if (ev.kind != DxuiMouseEventKind::Move || tip.empty() || !ExplorerLayout::Contains (anchor, point))
     {
-        m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::Status);
+        m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Status);
         return;
     }
 
-    m_window.m_tips.ShowHoverTip (ExplorerTips::TipOwner::Status, anchor, tip.c_str());
+    m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Status, anchor, tip.c_str());
 }

@@ -26,8 +26,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerFileOps::ExplorerFileOps (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerFileOps::ExplorerFileOps (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -46,12 +46,12 @@ ExplorerFileOps::ExplorerFileOps (CassoExplorerWindow & window)
 
 void ExplorerFileOps::Create()
 {
-    m_renameBox = m_window.CreateChild<DxuiTextInput>();
+    m_renameBox = m_context.window.CreateChild<DxuiTextInput>();
 
     m_renameBox->SetVisible      (false);
     m_renameBox->SetOverText     (true);
-    m_renameBox->SetHwnd         (m_window.GetHwnd());
-    m_renameBox->SetTextRenderer (m_window.GetTextRenderer());
+    m_renameBox->SetHwnd         (m_context.window.GetHwnd());
+    m_renameBox->SetTextRenderer (m_context.window.GetTextRenderer());
 }
 
 
@@ -70,7 +70,7 @@ void ExplorerFileOps::Create()
 
 bool ExplorerFileOps::HandleRenameMouse (const DxuiMouseEvent & ev)
 {
-    bool  over = CassoExplorerWindow::Contains (m_renameBox->GetBounds(), ev.positionDip);
+    bool  over = ExplorerLayout::Contains (m_renameBox->GetBounds(), ev.positionDip);
 
 
 
@@ -86,7 +86,7 @@ bool ExplorerFileOps::HandleRenameMouse (const DxuiMouseEvent & ev)
     }
 
     m_renameBox->OnMouse (ev);
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 
     return over;
 }
@@ -115,7 +115,7 @@ void ExplorerFileOps::HandleRenameKey (const DxuiKeyEvent & ev)
         m_renameBox->OnKey (ev);
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -137,34 +137,34 @@ void ExplorerFileOps::BeginRename()
     int           row  = -1;
     std::wstring  name;
     size_t        dot  = std::wstring::npos;
-    bool          host = !m_window.m_browser.IsVolumeLocation();
+    bool          host = !m_context.browser.IsVolumeLocation();
 
 
 
     //  The focused item, as Explorer renames, even with others selected
     //  around it.
-    row = m_window.m_listPane.GetFocusedRow();
+    row = m_context.listPane.GetFocusedRow();
 
-    if (row < 0 || std::find (m_window.m_browser.GetSelectedRows().begin(), m_window.m_browser.GetSelectedRows().end(), row) == m_window.m_browser.GetSelectedRows().end())
+    if (row < 0 || std::find (m_context.browser.GetSelectedRows().begin(), m_context.browser.GetSelectedRows().end(), row) == m_context.browser.GetSelectedRows().end())
     {
-        row = m_window.m_browser.GetSelectedRows().empty() ? -1 : m_window.m_browser.GetSelectedRows()[0];
+        row = m_context.browser.GetSelectedRows().empty() ? -1 : m_context.browser.GetSelectedRows()[0];
     }
 
-    if (row < 0 || row >= (int) m_window.m_browser.GetRows().size())
-    {
-        return;
-    }
-
-    if (!m_window.m_listPane.TryGetRenameRect (row, cell))
+    if (row < 0 || row >= (int) m_context.browser.GetRows().size())
     {
         return;
     }
 
-    name = m_window.m_browser.GetRows()[(size_t) row].name;
+    if (!m_context.listPane.TryGetRenameRect (row, cell))
+    {
+        return;
+    }
+
+    name = m_context.browser.GetRows()[(size_t) row].name;
 
     m_renameBox->SetMaxLength (host ? MAX_PATH : kMaxCatalogName);
     m_renameBox->SetText      (name);
-    m_renameBox->Layout       (cell, m_window.m_scaler);
+    m_renameBox->Layout       (cell, m_context.scaler);
     m_renameBox->SetVisible   (true);
     m_renameBox->SetFocused   (true);
     m_renameBox->SelectAll();
@@ -172,13 +172,13 @@ void ExplorerFileOps::BeginRename()
     dot = host ? name.find_last_of (L'.') : std::wstring::npos;
 
     //  The stem only, so typing keeps the type.
-    if (dot != std::wstring::npos && dot > 0 && !m_window.m_browser.GetRows()[(size_t) row].isDirectory)
+    if (dot != std::wstring::npos && dot > 0 && !m_context.browser.GetRows()[(size_t) row].isDirectory)
     {
         m_renameBox->SetSelection (0, dot);
     }
 
     m_renameRow = row;
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -201,7 +201,7 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
 
 
 
-    if (!m_window.m_treePane.HasNode (id) || !m_window.m_browser.TryGetNodePath (id, path))
+    if (!m_context.treePane.HasNode (id) || !m_context.browser.TryGetNodePath (id, path))
     {
         return;
     }
@@ -211,20 +211,20 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
         EndRename (false);
     }
 
-    if (!m_window.m_treePane.TryGetRenameRect (id, label))
+    if (!m_context.treePane.TryGetRenameRect (id, label))
     {
         return;
     }
 
     m_renameBox->SetMaxLength (MAX_PATH);
     m_renameBox->SetText      (std::filesystem::path (path).filename().wstring());
-    m_renameBox->Layout       (label, m_window.m_scaler);
+    m_renameBox->Layout       (label, m_context.scaler);
     m_renameBox->SetVisible   (true);
     m_renameBox->SetFocused   (true);
     m_renameBox->SelectAll();
 
     m_renameTreeId = id;
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -254,45 +254,45 @@ void ExplorerFileOps::EndRename (bool commit)
     m_renameTreeId.clear();
     m_renameBox->SetFocused (false);
     m_renameBox->SetVisible (false);
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 
     //  A folder renamed from its node in the tree, as in File Explorer.
     if (!treeId.empty())
     {
-        oldName = std::filesystem::path (m_window.m_browser.TryGetNodePath (treeId, path) ? path : std::wstring()).filename().wstring();
+        oldName = std::filesystem::path (m_context.browser.TryGetNodePath (treeId, path) ? path : std::wstring()).filename().wstring();
 
         if (commit && !path.empty() && !newName.empty() && newName != oldName)
         {
-            hr = m_window.m_shellVerbs.RenameItem (m_window.GetHwnd(), path, newName);
+            hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), path, newName);
 
             if (SUCCEEDED (hr))
             {
                 PushUndo (UndoStep { UndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
             }
 
-            m_window.m_folderSync.RefreshAfterHostChange();
+            m_context.folderSync.RefreshAfterHostChange();
         }
 
         return;
     }
 
-    if (!commit || row < 0 || row >= (int) m_window.m_browser.GetRows().size())
+    if (!commit || row < 0 || row >= (int) m_context.browser.GetRows().size())
     {
         return;
     }
 
-    oldName = m_window.m_browser.GetRows()[(size_t) row].name;
+    oldName = m_context.browser.GetRows()[(size_t) row].name;
 
     if (newName.empty() || newName == oldName)
     {
         return;
     }
 
-    if (!m_window.m_browser.IsVolumeLocation())
+    if (!m_context.browser.IsVolumeLocation())
     {
-        if (m_window.m_browser.TryGetRowPath (row, path))
+        if (m_context.browser.TryGetRowPath (row, path))
         {
-            hr = m_window.m_shellVerbs.RenameItem (m_window.GetHwnd(), path, newName);
+            hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), path, newName);
 
             if (SUCCEEDED (hr))
             {
@@ -300,7 +300,7 @@ void ExplorerFileOps::EndRename (bool commit)
             }
         }
 
-        m_window.m_folderSync.RefreshAfterHostChange();
+        m_context.folderSync.RefreshAfterHostChange();
         return;
     }
 
@@ -309,18 +309,18 @@ void ExplorerFileOps::EndRename (bool commit)
 
         //  The row renamed is the one the box was over, whatever else is
         //  selected.
-        m_window.m_browser.SetSelectedRows ({ row });
-        renamed = m_window.m_actions.RenameSelected (newName);
+        m_context.browser.SetSelectedRows ({ row });
+        renamed = m_context.actions.RenameSelected (newName);
 
         if (renamed.Succeeded())
         {
-            PushUndo (UndoStep { UndoStep::Kind::ImageRename, m_window.m_browser.GetLocation(), {}, oldName, newName });
+            PushUndo (UndoStep { UndoStep::Kind::ImageRename, m_context.browser.GetLocation(), {}, oldName, newName });
         }
 
-        m_window.m_commandManager.ReportOutcome (renamed, L"Rename");
+        m_context.commandManager.ReportOutcome (renamed, L"Rename");
     }
 
-    m_window.m_listPane.FillList();
+    m_context.listPane.FillList();
 }
 
 
@@ -345,10 +345,10 @@ void ExplorerFileOps::DeleteSelectionPermanently()
         return;
     }
 
-    hr = m_window.m_shellVerbs.DeletePermanently (m_window.GetHwnd(), ids);
+    hr = m_context.shellVerbs.DeletePermanently (m_context.window.GetHwnd(), ids);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    m_window.m_folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshAfterHostChange();
 }
 
 
@@ -367,30 +367,30 @@ void ExplorerFileOps::DeleteSelectionPermanently()
 
 bool ExplorerFileOps::TryGetSelectedShellIds (std::vector<std::wstring> & outIds) const
 {
-    const std::vector<CatalogRow> &  rows = m_window.m_browser.GetRows();
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
 
 
 
     outIds.clear();
 
-    if (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder)
+    if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
     {
-        m_window.m_browser.GetSelectedHostPaths (outIds);
+        m_context.browser.GetSelectedHostPaths (outIds);
         return !outIds.empty();
     }
 
     //  CassoLink's items drag as the files they are written to.
-    if (m_window.m_browser.TryGetSelectedCassoLinkPaths (outIds))
+    if (m_context.browser.TryGetSelectedCassoLinkPaths (outIds))
     {
         return true;
     }
 
-    if (m_window.m_browser.GetLocation().kind != Location::Kind::ShellFolder)
+    if (m_context.browser.GetLocation().kind != Location::Kind::ShellFolder)
     {
         return false;
     }
 
-    for (int row : m_window.m_browser.GetSelectedRows())
+    for (int row : m_context.browser.GetSelectedRows())
     {
         if (row < 0 || (size_t) row >= rows.size() || !rows[(size_t) row].imagePath.empty())
         {
@@ -420,7 +420,7 @@ bool ExplorerFileOps::TryGetSelectedShellIds (std::vector<std::wstring> & outIds
 
 HRESULT ExplorerFileOps::RecycleHostFiles (const std::vector<std::wstring> & paths)
 {
-    HRESULT  hr = m_window.m_shellVerbs.Recycle (m_window.GetHwnd(), paths);
+    HRESULT  hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), paths);
 
 
 
@@ -445,14 +445,14 @@ std::wstring ExplorerFileOps::GetPasteFolder() const
 
 
 
-    if (m_window.m_browser.GetSelectedRows().size() == 1
-     && m_window.m_browser.TryGetRowLocation (m_window.m_browser.GetSelectedRows()[0], location)
+    if (m_context.browser.GetSelectedRows().size() == 1
+     && m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location)
      && location.kind == Location::Kind::HostFolder)
     {
         return location.path;
     }
 
-    return m_window.m_browser.GetLocation().path;
+    return m_context.browser.GetLocation().path;
 }
 
 
@@ -471,7 +471,7 @@ std::wstring ExplorerFileOps::GetSelectedImagePath() const
 
 
 
-    m_window.m_browser.GetSelectedHostPaths (paths);
+    m_context.browser.GetSelectedHostPaths (paths);
 
     return (paths.size() == 1) ? paths[0] : std::wstring();
 }
@@ -510,12 +510,12 @@ void ExplorerFileOps::InsertIntoDrive (const std::wstring & imagePath, int drive
         return;
     }
 
-    sent = Win32IntentChannel::SendTo (target, m_window.GetHwnd(), Win32IntentChannel::GetMessageId(),
+    sent = Win32IntentChannel::SendTo (target, m_context.window.GetHwnd(), Win32IntentChannel::GetMessageId(),
                                        Win32IntentChannel::EncodeInsert (TextEncoding::WideToNarrow (imagePath), drive));
 
     if (!sent)
     {
-        m_window.ShowMessage (L"Casso did not answer the request to insert the disk.", MB_ICONWARNING);
+        m_context.window.ShowMessage (L"Casso did not answer the request to insert the disk.", MB_ICONWARNING);
     }
 }
 
@@ -550,21 +550,21 @@ void ExplorerFileOps::OpenInNewCasso (const std::wstring & imagePath)
 
     if (!m_launcher.Exists (exe))
     {
-        m_window.ShowMessage (LaunchCommand::DescribeMissing (exe), MB_ICONERROR);
+        m_context.window.ShowMessage (LaunchCommand::DescribeMissing (exe), MB_ICONERROR);
         return;
     }
 
-    hr = m_launcher.Launch (exe, LaunchCommand::MakeCassoArguments (imagePath, m_window.m_context.titlePrefix));
+    hr = m_launcher.Launch (exe, LaunchCommand::MakeCassoArguments (imagePath, m_context.app.titlePrefix));
 
     if (FAILED (hr))
     {
-        m_window.ShowMessage (L"Casso could not be started.", MB_ICONERROR);
+        m_context.window.ShowMessage (L"Casso could not be started.", MB_ICONERROR);
         return;
     }
 
-    if (m_window.m_context.fs != nullptr)
+    if (m_context.app.fs != nullptr)
     {
-        KnownFolderStore  store (*m_window.m_context.fs, m_window.m_context.baseDir);
+        KnownFolderStore  store (*m_context.app.fs, m_context.app.baseDir);
 
         hr = store.Append (std::filesystem::path (imagePath).parent_path().wstring(), (int64_t) _time64 (nullptr));
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -584,7 +584,7 @@ void ExplorerFileOps::OpenInNewCasso (const std::wstring & imagePath)
 void ExplorerFileOps::CopyEntriesToClipboard (HostFileNaming::Style style)
 {
     std::wstring  failure;
-    HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_window.m_browser, style, failure);
+    HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_context.browser, style, failure);
 
 
 
@@ -593,7 +593,7 @@ void ExplorerFileOps::CopyEntriesToClipboard (HostFileNaming::Style style)
     //  its code.
     if (FAILED (hr))
     {
-        m_window.ShowMessage ((failure.empty() ? L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
+        m_context.window.ShowMessage ((failure.empty() ? L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
     }
 }
 
@@ -616,9 +616,9 @@ void ExplorerFileOps::CopySelectedPaths()
 
 
 
-    for (int row : m_window.m_browser.GetSelectedRows())
+    for (int row : m_context.browser.GetSelectedRows())
     {
-        if (!m_window.m_browser.TryGetRowPath (row, path))
+        if (!m_context.browser.TryGetRowPath (row, path))
         {
             continue;
         }
@@ -633,7 +633,7 @@ void ExplorerFileOps::CopySelectedPaths()
 
     if (!text.empty())
     {
-        DxuiClipboard::SetText (m_window.GetHwnd(), text);
+        DxuiClipboard::SetText (m_context.window.GetHwnd(), text);
     }
 }
 
@@ -653,19 +653,19 @@ void ExplorerFileOps::CopySelectedPaths()
 void ExplorerFileOps::OpenSelectedEntries()
 {
     std::vector<std::wstring>  paths;
-    HRESULT                    hr    = CassoExplorerDragOut::WriteToTempFolder (m_window.m_browser, m_window.m_commandManager.GetNamingStyle(), paths);
+    HRESULT                    hr    = CassoExplorerDragOut::WriteToTempFolder (m_context.browser, m_context.commandManager.GetNamingStyle(), paths);
 
 
 
     if (FAILED (hr))
     {
-        m_window.ShowMessage (L"The files could not be read out of the image to open.", MB_ICONWARNING);
+        m_context.window.ShowMessage (L"The files could not be read out of the image to open.", MB_ICONWARNING);
         return;
     }
 
     for (const std::wstring & path : paths)
     {
-        hr = m_window.m_shellVerbs.Open (m_window.GetHwnd(), path);
+        hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), path);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -691,17 +691,17 @@ void ExplorerFileOps::OpenEachSelected()
     std::vector<std::wstring>  files;
     Location                   place;
     std::wstring               path;
-    bool                       written = m_window.m_browser.PrepareCassoLinkItems();
+    bool                       written = m_context.browser.PrepareCassoLinkItems();
 
 
 
-    for (int row : m_window.m_browser.GetSelectedRows())
+    for (int row : m_context.browser.GetSelectedRows())
     {
-        if (m_window.m_browser.TryGetRowLocation (row, place))
+        if (m_context.browser.TryGetRowLocation (row, place))
         {
             places.push_back (place);
         }
-        else if (written && !m_window.m_browser.IsImageLocation() && m_window.m_browser.TryGetRowPath (row, path))
+        else if (written && !m_context.browser.IsImageLocation() && m_context.browser.TryGetRowPath (row, path))
         {
             files.push_back (path);
         }
@@ -709,18 +709,18 @@ void ExplorerFileOps::OpenEachSelected()
 
     for (const std::wstring & file : files)
     {
-        hr = m_window.m_shellVerbs.Open (m_window.GetHwnd(), file);
+        hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), file);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     for (const Location & each : places)
     {
-        m_window.m_browser.OpenInNewTab (each);
+        m_context.browser.OpenInNewTab (each);
     }
 
     if (!places.empty())
     {
-        m_window.m_listPane.FillList();
+        m_context.listPane.FillList();
     }
 }
 
@@ -739,7 +739,7 @@ void ExplorerFileOps::OpenEachSelected()
 
 void ExplorerFileOps::ShowRowProperties (int row)
 {
-    Location                           location = m_window.m_browser.GetLocation();
+    Location                           location = m_context.browser.GetLocation();
     std::vector<DxuiListView::Column>  columns  = BrowserCells::GetColumns();
     std::vector<DxuiListView::Cell>    cells;
     std::wstring                       path;
@@ -751,7 +751,7 @@ void ExplorerFileOps::ShowRowProperties (int row)
 
 
 
-    if (!m_window.m_browser.TryGetRowPath (row, path))
+    if (!m_context.browser.TryGetRowPath (row, path))
     {
         return;
     }
@@ -764,9 +764,9 @@ void ExplorerFileOps::ShowRowProperties (int row)
     }
 
     //  A search's match inside an image has the sheet it has in its image.
-    if (m_window.m_browser.TryFindSearchMatch (m_window.m_browser.GetRows()[(size_t) row], match, error))
+    if (m_context.browser.TryFindSearchMatch (m_context.browser.GetRows()[(size_t) row], match, error))
     {
-        CassoExplorerPropertiesDialog::Show (m_window.GetHwnd(), m_window.m_theme, m_window.m_browser.GetRows()[(size_t) row].name,
+        CassoExplorerPropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, m_context.browser.GetRows()[(size_t) row].name,
                                             CassoExplorerProperties::DescribeEntry (match.entry, match.kind,
                                                 BrowserModel::FormatAddress (match.directory.empty() ? Location::MakeDiskImage (match.imagePath)
                                                                                                      : Location::MakeDiskDirectory (match.imagePath, match.directory))));
@@ -774,14 +774,14 @@ void ExplorerFileOps::ShowRowProperties (int row)
     }
 
     //  An entry inside an image: Explorer's General tab, from its catalog.
-    if (m_window.m_browser.TryGetRowEntry (row, entry))
+    if (m_context.browser.TryGetRowEntry (row, entry))
     {
-        CassoExplorerPropertiesDialog::Show (m_window.GetHwnd(), m_window.m_theme, m_window.m_browser.GetRows()[(size_t) row].name,
-                                            CassoExplorerProperties::DescribeEntry (entry, m_window.m_browser.GetVolumeKind(), BrowserModel::FormatAddress (location)));
+        CassoExplorerPropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, m_context.browser.GetRows()[(size_t) row].name,
+                                            CassoExplorerProperties::DescribeEntry (entry, m_context.browser.GetVolumeKind(), BrowserModel::FormatAddress (location)));
         return;
     }
 
-    cells = BrowserCells::ToCells (m_window.m_browser.GetRows()[(size_t) row], location);
+    cells = BrowserCells::ToCells (m_context.browser.GetRows()[(size_t) row], location);
     text  = path + L"\n\n";
 
     for (i = 0; i < columns.size() && i < cells.size(); i++)
@@ -792,7 +792,7 @@ void ExplorerFileOps::ShowRowProperties (int row)
         }
     }
 
-    m_window.ShowMessage (text, MB_ICONINFORMATION);
+    m_context.window.ShowMessage (text, MB_ICONINFORMATION);
 }
 
 
@@ -815,7 +815,7 @@ void ExplorerFileOps::ShowLocationProperties (const Location & location)
 
     if (location.kind == Location::Kind::DiskDirectory)
     {
-        m_window.ShowMessage (BrowserModel::FormatAddress (location), MB_ICONINFORMATION);
+        m_context.window.ShowMessage (BrowserModel::FormatAddress (location), MB_ICONINFORMATION);
         return;
     }
 
@@ -834,7 +834,7 @@ void ExplorerFileOps::ShowLocationProperties (const Location & location)
 
 void ExplorerFileOps::ShowHostProperties (const std::wstring & path)
 {
-    BOOL  shown = SHObjectProperties (m_window.GetHwnd(), SHOP_FILEPATH, path.c_str(), nullptr);
+    BOOL  shown = SHObjectProperties (m_context.window.GetHwnd(), SHOP_FILEPATH, path.c_str(), nullptr);
 
 
 
@@ -987,53 +987,53 @@ void ExplorerFileOps::UndoLast()
     switch (step.kind)
     {
         case UndoStep::Kind::Recycle:
-            hr = m_window.m_shellVerbs.RestoreRecycled (m_window.GetHwnd(), step.paths);
+            hr = m_context.shellVerbs.RestoreRecycled (m_context.window.GetHwnd(), step.paths);
             m_restoreTicks = kRestoreRetries;
-            SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore, 1000, nullptr);
+            SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore, 1000, nullptr);
             break;
 
         case UndoStep::Kind::HostRename:
-            hr = m_window.m_shellVerbs.RenameItem (m_window.GetHwnd(), step.paths[0], step.oldName);
+            hr = m_context.shellVerbs.RenameItem (m_context.window.GetHwnd(), step.paths[0], step.oldName);
             break;
 
         case UndoStep::Kind::HostNewFolder:
         case UndoStep::Kind::HostNewItem:
         case UndoStep::Kind::HostCopy:
-            hr = m_window.m_shellVerbs.Recycle (m_window.GetHwnd(), step.paths);
+            hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), step.paths);
             break;
 
         case UndoStep::Kind::HostMove:
-            hr = m_window.m_shellVerbs.MoveItemsTo (m_window.GetHwnd(), step.paths, step.sources);
+            hr = m_context.shellVerbs.MoveItemsTo (m_context.window.GetHwnd(), step.paths, step.sources);
             break;
 
         default:
-            if (m_window.m_browser.GetLocation() != step.location)
+            if (m_context.browser.GetLocation() != step.location)
             {
-                m_window.m_browser.NavigateToLocation (step.location);
-                m_window.m_listPane.FillList();
+                m_context.browser.NavigateToLocation (step.location);
+                m_context.listPane.FillList();
             }
 
             //  A rename and a new folder are undone through the selection, so
             //  the list has to be where the step was made, with the entry in it;
             //  otherwise the undo would act on whatever is selected.
-            if (m_window.m_browser.GetLocation() != step.location
-                || ((step.kind == UndoStep::Kind::ImageRename || step.kind == UndoStep::Kind::ImageNewFolder) && !m_window.m_listPane.SelectRowNamed (step.newName)))
+            if (m_context.browser.GetLocation() != step.location
+                || ((step.kind == UndoStep::Kind::ImageRename || step.kind == UndoStep::Kind::ImageNewFolder) && !m_context.listPane.SelectRowNamed (step.newName)))
             {
-                m_window.ShowMessage (L"That could not be undone.", MB_ICONWARNING);
+                m_context.window.ShowMessage (L"That could not be undone.", MB_ICONWARNING);
                 return;
             }
 
             if (step.kind == UndoStep::Kind::ImageRename)
             {
-                m_window.m_commandManager.ReportOutcome (m_window.m_actions.RenameSelected (step.oldName), L"Undo rename");
+                m_context.commandManager.ReportOutcome (m_context.actions.RenameSelected (step.oldName), L"Undo rename");
             }
             else if (step.kind == UndoStep::Kind::ImageNewFolder)
             {
-                m_window.m_commandManager.ReportOutcome (m_window.m_actions.DeleteSelected(), L"Undo new folder");
+                m_context.commandManager.ReportOutcome (m_context.actions.DeleteSelected(), L"Undo new folder");
             }
             else if (step.kind == UndoStep::Kind::ImagePut)
             {
-                m_window.m_commandManager.ReportOutcome (m_window.m_actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
+                m_context.commandManager.ReportOutcome (m_context.actions.DeleteEntries (TextEncoding::WideToNarrow (step.location.path), step.entries), L"Undo copy");
             }
             else
             {
@@ -1042,8 +1042,8 @@ void ExplorerFileOps::UndoLast()
                     saved.push_back (entry.path().wstring());
                 }
 
-                restored = m_window.m_actions.PutFiles (saved, MakeAddressPrompt());
-                m_window.m_commandManager.ReportOutcome (restored, L"Undo delete");
+                restored = m_context.actions.PutFiles (saved, MakeAddressPrompt());
+                m_context.commandManager.ReportOutcome (restored, L"Undo delete");
 
                 //  The saved copies are the only ones, so they go only once
                 //  every file is back.
@@ -1057,7 +1057,7 @@ void ExplorerFileOps::UndoLast()
                 }
             }
 
-            m_window.m_listPane.FillList();
+            m_context.listPane.FillList();
             return;
     }
 
@@ -1068,10 +1068,10 @@ void ExplorerFileOps::UndoLast()
     }
     else if (FAILED (hr))
     {
-        m_window.ShowMessage (L"That could not be undone.", MB_ICONWARNING);
+        m_context.window.ShowMessage (L"That could not be undone.", MB_ICONWARNING);
     }
 
-    m_window.m_folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshAfterHostChange();
 }
 
 
@@ -1100,19 +1100,19 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
     //  gives the files a folder they never came from.
     if (SUCCEEDED (hr) && ActionsCopy::IsCassoCopy (data.Get()))
     {
-        m_window.m_commandManager.ReportOutcome (m_window.m_actions.PasteVirtualFiles (data.Get(), folder, MakeCollisionPrompt(), pasted.created), L"Copy");
+        m_context.commandManager.ReportOutcome (m_context.actions.PasteVirtualFiles (data.Get(), folder, MakeCollisionPrompt(), pasted.created), L"Copy");
         pasted.sources.assign (pasted.created.size(), std::wstring());
     }
     else
     {
-        hr = m_window.m_shellVerbs.PasteInto (m_window.GetHwnd(), folder, pasted);
+        hr = m_context.shellVerbs.PasteInto (m_context.window.GetHwnd(), folder, pasted);
     }
 
     //  After a paste that failed or was canceled, the cut files remain cut,
     //  as in File Explorer. Any error is in the shell's dialog.
     if (SUCCEEDED (hr))
     {
-        m_window.m_listPane.ClearCutPaths();
+        m_context.listPane.ClearCutPaths();
     }
 
     if (!pasted.created.empty())
@@ -1126,7 +1126,7 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
         PushUndo (std::move (step));
     }
 
-    m_window.m_folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshAfterHostChange();
 }
 
 
@@ -1148,7 +1148,7 @@ void ExplorerFileOps::PasteIntoVolume()
     HRESULT                        hr         = S_OK;
     ComPtr<IDataObject>            data;
     ExplorerDragDrop::DropSource   source;
-    Location                       location   = m_window.m_browser.GetLocation();
+    Location                       location   = m_context.browser.GetLocation();
     VolumeKind                     targetKind = VolumeKind::Unknown;
     std::string                    inner;
     VolumeListing                  listing;
@@ -1158,34 +1158,34 @@ void ExplorerFileOps::PasteIntoVolume()
 
     hr = OleGetClipboard (&data);
 
-    if (FAILED (hr) || !m_window.m_dragDrop.ReadDropSource (data.Get(), source))
+    if (FAILED (hr) || !m_context.dragDrop.ReadDropSource (data.Get(), source))
     {
         return;
     }
 
-    if (m_window.m_browser.IsAppleDriveLocation())
+    if (m_context.browser.IsAppleDriveLocation())
     {
-        outcome = source.fromImage ? m_window.m_actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
-                                   : m_window.m_actions.PutFiles (source.hostPaths, MakeAddressPrompt());
+        outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
+                                   : m_context.actions.PutFiles (source.hostPaths, MakeAddressPrompt());
 
-        m_window.m_commandManager.ReportOutcome (outcome, L"Put");
+        m_context.commandManager.ReportOutcome (outcome, L"Put");
         return;
     }
 
     inner = (location.kind == Location::Kind::DiskDirectory) ? location.innerPath : std::string();
 
-    if (!m_window.m_browser.GetOperations().List (TextEncoding::WideToNarrow (location.path), inner, listing, targetKind).Succeeded())
+    if (!m_context.browser.GetOperations().List (TextEncoding::WideToNarrow (location.path), inner, listing, targetKind).Succeeded())
     {
-        m_window.ShowMessage (L"The disk image could not be read.", MB_ICONWARNING);
+        m_context.window.ShowMessage (L"The disk image could not be read.", MB_ICONWARNING);
         return;
     }
 
-    outcome = source.fromImage ? m_window.m_actions.CopyEntriesInto (source.image, source.kind, source.catalogPaths, location.path, targetKind, inner)
-                               : m_window.m_actions.PutInto (location.path, targetKind, inner, source.hostPaths, MakeAddressPrompt());
+    outcome = source.fromImage ? m_context.actions.CopyEntriesInto (source.image, source.kind, source.catalogPaths, location.path, targetKind, inner)
+                               : m_context.actions.PutInto (location.path, targetKind, inner, source.hostPaths, MakeAddressPrompt());
 
     PushPutUndo (outcome, location.path, inner);
-    m_window.m_commandManager.ReportOutcome (outcome, L"Put");
-    m_window.m_folderSync.RefreshAfterHostChange();
+    m_context.commandManager.ReportOutcome (outcome, L"Put");
+    m_context.folderSync.RefreshAfterHostChange();
 }
 
 
@@ -1240,7 +1240,7 @@ CassoExplorerActions::AddressFn ExplorerFileOps::MakeAddressPrompt()
 
         for (;;)
         {
-            if (!CassoExplorerPromptDialog::Ask (m_window.GetHwnd(), m_window.m_theme, L"Load address",
+            if (!CassoExplorerPromptDialog::Ask (m_context.window.GetHwnd(), m_context.theme, L"Load address",
                                            hostName + L" is a binary. Load address:", text, 8, text))
             {
                 return false;
@@ -1251,7 +1251,7 @@ CassoExplorerActions::AddressFn ExplorerFileOps::MakeAddressPrompt()
                 return true;
             }
 
-            m_window.ShowMessage (L"Type an address from $0000 to $FFFF.", MB_ICONWARNING);
+            m_context.window.ShowMessage (L"Type an address from $0000 to $FFFF.", MB_ICONWARNING);
         }
     };
 }
@@ -1278,7 +1278,7 @@ CassoExplorerActions::CollisionFn ExplorerFileOps::MakeCollisionPrompt()
         std::wstring           ofCount = (count > 1) ? std::format (L" ({} of {})", index, count) : std::wstring();
         std::wstring           text    = std::format (L"{} already has a file called \"{}\".{}\n\nReplace it with the copy, skip this file, or keep both?",
                                                       path.parent_path().filename().wstring(), path.filename().wstring(), ofCount);
-        int                    choice  = DxuiMessageBox (m_window.GetHwnd(), m_window.m_theme, text.c_str(), L"Replace or skip files", MB_YESNOCANCEL | MB_DEFBUTTON3,
+        int                    choice  = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Replace or skip files", MB_YESNOCANCEL | MB_DEFBUTTON3,
                                                          { L"Replace", L"Skip", L"Keep both" });
 
         return (choice == IDYES) ? CassoExplorerActions::Collision::Replace
@@ -1315,7 +1315,7 @@ HWND ExplorerFileOps::FindCassoTarget() const
         running.push_back (window);
     }
 
-    target = CassoTargeting::Choose (m_window.m_context.request.owner, m_window.m_context.request.owner != nullptr && IsWindow (m_window.m_context.request.owner) != FALSE,
+    target = CassoTargeting::Choose (m_context.app.request.owner, m_context.app.request.owner != nullptr && IsWindow (m_context.app.request.owner) != FALSE,
                                      running, MachineConfig());
 
     return target.hwnd;
@@ -1469,6 +1469,6 @@ void ExplorerFileOps::AskCassoToDescribe()
         return;
     }
 
-    sent = Win32IntentChannel::SendTo (target, m_window.GetHwnd(), Win32IntentChannel::GetMessageId(), Win32IntentChannel::EncodeDescribe());
+    sent = Win32IntentChannel::SendTo (target, m_context.window.GetHwnd(), Win32IntentChannel::GetMessageId(), Win32IntentChannel::EncodeDescribe());
     IGNORE_RETURN_VALUE (sent, true);
 }

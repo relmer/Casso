@@ -22,8 +22,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerPreview::ExplorerPreview (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerPreview::ExplorerPreview (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -39,9 +39,9 @@ ExplorerPreview::ExplorerPreview (CassoExplorerWindow & window)
 
 void ExplorerPreview::Create()
 {
-    CassoExplorerNamedControl<DxuiListView>         * list    = m_window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
-    CassoExplorerNamedControl<DxuiFramebufferView>  * picture = m_window.CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
-    CassoExplorerNamedControl<DxuiHexView>          * hexView = m_window.CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
+    CassoExplorerNamedControl<DxuiListView>         * list    = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
+    CassoExplorerNamedControl<DxuiFramebufferView>  * picture = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
+    CassoExplorerNamedControl<DxuiHexView>          * hexView = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
 
 
 
@@ -52,8 +52,8 @@ void ExplorerPreview::Create()
     m_previewList    = list;
     m_picture        = picture;
     m_hexView        = hexView;
-    m_textView       = m_window.CreateChild<DxuiTextView>();
-    m_previewMessage = m_window.CreateChild<DxuiSelectableText>();
+    m_textView       = m_context.window.CreateChild<DxuiTextView>();
+    m_previewMessage = m_context.window.CreateChild<DxuiSelectableText>();
     m_previewMessage->SetTextRole (DxuiTextRole::Muted);
     m_previewMessage->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
@@ -75,10 +75,10 @@ void ExplorerPreview::Create()
 
 void ExplorerPreview::CreateToolbar()
 {
-    m_previewToolbar = m_window.CreateChild<DxuiToolbar>();
+    m_previewToolbar = m_context.window.CreateChild<DxuiToolbar>();
     m_previewToolbar->SetFlatStyle    (true);
-    m_previewToolbar->SetTextRenderer (m_window.GetTextRenderer());
-    m_previewToolbar->SetPopupHost    (m_window.GetPopupHost());
+    m_previewToolbar->SetTextRenderer (m_context.window.GetTextRenderer());
+    m_previewToolbar->SetPopupHost    (m_context.window.GetPopupHost());
     m_previewToolbar->SetIconDip      (ExplorerToolbars::kNavIconDip);
     m_previewToolbar->SetVisible      (false);
 }
@@ -95,7 +95,7 @@ void ExplorerPreview::CreateToolbar()
 
 void ExplorerPreview::Configure()
 {
-    const CassoExplorerPrefs  & prefs   = m_window.m_prefs;
+    const CassoExplorerPrefs  & prefs   = m_context.prefs;
     float                       zoom    = (float) prefs.previewZoom / 100.0f;
     bool                        grouped = false;
     HRESULT                     hr      = S_OK;
@@ -114,7 +114,7 @@ void ExplorerPreview::Configure()
     m_previewList->SetMultiSelect (true);
     m_previewList->SetAlwaysShowSelection (true);
     m_previewList->SetTextSelectionColors (true);
-    m_previewList->SetOwnerWindow (m_window.GetHwnd());
+    m_previewList->SetOwnerWindow (m_context.window.GetHwnd());
 
     //  An archive's files open on a double-click, as the file list's do.
     m_previewList->SetActivateOnDoubleClick (true);
@@ -126,7 +126,7 @@ void ExplorerPreview::Configure()
         }
     });
 
-    m_textView->SetOwnerWindow   (m_window.GetHwnd());
+    m_textView->SetOwnerWindow   (m_context.window.GetHwnd());
     m_textView->SetIconFace      (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                                   ? DxuiToolbar::kFluentIconFace
                                   : DxuiToolbar::kMdl2IconFace);
@@ -135,7 +135,7 @@ void ExplorerPreview::Configure()
     //  The bytes are Apple text in the column on the right, which is what
     //  the files here hold; the grouping is the user's, kept between runs.
     m_hexView->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
-    m_hexView->SetOwnerWindow  (m_window.GetHwnd());
+    m_hexView->SetOwnerWindow  (m_context.window.GetHwnd());
     m_hexView->SetPaddingDip   (6);
     m_hexView->SetColumns      (prefs.hexColumns);
     m_hexView->SetValueFormat  (ParseHexFormat (prefs.hexFormat));
@@ -151,23 +151,23 @@ void ExplorerPreview::Configure()
     //  only at whole multiples of its own.
     m_picture->SetScaling (false, true);
 
-    m_previewMessage->SetTextRenderer (m_window.GetTextRenderer());
-    m_previewMessage->SetOwnerWindow  (m_window.GetHwnd());
+    m_previewMessage->SetTextRenderer (m_context.window.GetTextRenderer());
+    m_previewMessage->SetOwnerWindow  (m_context.window.GetHwnd());
 
     //  Windows' own previews of host files, hosted over the pane.
-    hr = m_shellPreview.Start (m_window.GetHwnd(), (UINT) ExplorerMessage::ShellPreview);
+    hr = m_shellPreview.Start (m_context.window.GetHwnd(), (UINT) ExplorerMessage::ShellPreview);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     grouped = m_hexView->SetGrouping (prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
 
-    m_hexView->SetOnSelectionChanged ([this] () { m_window.m_statusBar.Fill(); });
+    m_hexView->SetOnSelectionChanged ([this] () { m_context.statusBar.Fill(); });
 
     //  The hex view's menu is its own; Go to is the browser's, added to it,
     //  and the view's choices are kept for the next run.
     m_hexView->SetOnBuildContextMenu ([this] (std::vector<DxuiPopupMenuItem> & items)
     {
-        std::shared_ptr<const DxuiCommand>  goTo = m_window.m_commands.Find (CassoExplorerCommands::kGoToOffset);
+        std::shared_ptr<const DxuiCommand>  goTo = m_context.commands.Find (CassoExplorerCommands::kGoToOffset);
 
         if (goTo != nullptr)
         {
@@ -177,7 +177,7 @@ void ExplorerPreview::Configure()
 
     m_hexView->SetOnSettingsChanged ([this]()
     {
-        CassoExplorerPrefs &  settings = m_window.m_prefs;
+        CassoExplorerPrefs &  settings = m_context.prefs;
 
         settings.hexShowValues = m_hexView->IsShowingValues();
         settings.hexGrouping   = m_hexView->GetGrouping();
@@ -185,7 +185,7 @@ void ExplorerPreview::Configure()
         settings.hexFormat     = (m_hexView->GetValueFormat() == DxuiHexView::ValueFormat::Signed)   ? CassoExplorerPrefs::kHexFormatSigned
                                : (m_hexView->GetValueFormat() == DxuiHexView::ValueFormat::Unsigned) ? CassoExplorerPrefs::kHexFormatUnsigned
                                                                                                       : CassoExplorerPrefs::kHexFormatHex;
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     });
 }
 
@@ -201,7 +201,7 @@ void ExplorerPreview::Configure()
 
 void ExplorerPreview::Layout (const RECT & rect)
 {
-    const DxuiDpiScaler  & scaler  = m_window.m_scaler;
+    const DxuiDpiScaler  & scaler  = m_context.scaler;
     RECT                   content = rect;
     int                    barPx   = 0;
     int                    insetPx = scaler.ToPx (kPictureInsetDip);
@@ -217,7 +217,7 @@ void ExplorerPreview::Layout (const RECT & rect)
         m_previewToolbar->PlanForWidth (rect.right - rect.left, scaler);
         barPx = scaler.ToPx (m_previewToolbar->GetBandDp());
 
-        m_previewToolbar->SetHostClientRect (m_window.m_client);
+        m_previewToolbar->SetHostClientRect (m_context.layout.GetClient());
         m_previewToolbar->Layout (RECT { rect.left, rect.top, rect.right, rect.top + barPx }, scaler);
         content.top += barPx;
     }
@@ -233,7 +233,7 @@ void ExplorerPreview::Layout (const RECT & rect)
     m_textView->Layout       (content, scaler);
     m_hexView->Layout        (content, scaler);
     m_picture->Layout        (RECT { content.left + insetPx, content.top + insetPx, content.right - insetPx, content.bottom - insetPx }, scaler);
-    m_previewMessage->Layout (m_window.m_layout.GetMessageRect (content), scaler);
+    m_previewMessage->Layout (m_context.layout.GetMessageRect (content), scaler);
 
     UpdateCrtPicture (false);
 }
@@ -277,7 +277,7 @@ void ExplorerPreview::Hide()
 
 void ExplorerPreview::PaintBackground (IDxuiPainter & painter, const IDxuiTheme & theme) const
 {
-    if (!m_window.m_prefs.previewVisible || m_previewRect.right <= m_previewRect.left)
+    if (!m_context.prefs.previewVisible || m_previewRect.right <= m_previewRect.left)
     {
         return;
     }
@@ -340,7 +340,7 @@ bool ExplorerPreview::HandleMessageMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (!m_previewMessage->IsVisible() || (!m_previewMessage->IsInteracting() && !CassoExplorerWindow::Contains (m_previewMessage->GetBounds(), point)))
+    if (!m_previewMessage->IsVisible() || (!m_previewMessage->IsInteracting() && !ExplorerLayout::Contains (m_previewMessage->GetBounds(), point)))
     {
         return false;
     }
@@ -349,17 +349,17 @@ bool ExplorerPreview::HandleMessageMouse (const DxuiMouseEvent & ev)
     {
         std::vector<DxuiPopupMenuItem>  items;
 
-        m_window.m_input.SetFocusPane (ExplorerPane::Preview);
-        m_window.m_menus.GetMenuCommands().clear();
-        m_window.m_menus.AddMenuCommand (items, L"&Copy",       [this]() { m_previewMessage->Copy(); });
-        m_window.m_menus.AddMenuCommand (items, L"Select &all", [this]() { m_previewMessage->SelectAll(); m_window.Invalidate(); });
-        DxuiContextMenu::Show (*m_window.GetPopupHost(), point.x, point.y, std::move (items));
+        m_context.input.SetFocusPane (ExplorerPane::Preview);
+        m_context.menus.GetMenuCommands().clear();
+        m_context.menus.AddMenuCommand (items, L"&Copy",       [this]() { m_previewMessage->Copy(); });
+        m_context.menus.AddMenuCommand (items, L"Select &all", [this]() { m_previewMessage->SelectAll(); m_context.window.Invalidate(); });
+        DxuiContextMenu::Show (*m_context.window.GetPopupHost(), point.x, point.y, std::move (items));
         return true;
     }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+        m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
     if (!m_previewMessage->OnMouse (ev))
@@ -367,7 +367,7 @@ bool ExplorerPreview::HandleMessageMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
     return true;
 }
 
@@ -393,7 +393,7 @@ bool ExplorerPreview::HandleMouse (const DxuiMouseEvent & ev)
 
     if (m_previewArchive && m_archive.HandleMouse (ev, point))
     {
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -401,24 +401,24 @@ bool ExplorerPreview::HandleMouse (const DxuiMouseEvent & ev)
     //  the file list's does.
     if (m_previewList->IsInteracting())
     {
-        m_previewList->OnMouse (CassoExplorerWindow::ToLocal (ev, m_previewList->GetBounds()));
-        m_window.Invalidate();
+        m_previewList->OnMouse (ExplorerLayout::ToLocal (ev, m_previewList->GetBounds()));
+        m_context.window.Invalidate();
         return true;
     }
 
     if (m_hexView->IsDragging())
     {
         m_hexView->OnMouse (ev);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
     //  A double hi-res picture's own menu switches it between color and its
     //  bits, whichever the file's name or dots chose.
-    if (press && ev.button == DxuiMouseButton::Right && m_picture->IsVisible() && CassoExplorerWindow::Contains (m_picture->GetBounds(), point)
-        && m_window.m_browser.CanTogglePictureColor())
+    if (press && ev.button == DxuiMouseButton::Right && m_picture->IsVisible() && ExplorerLayout::Contains (m_picture->GetBounds(), point)
+        && m_context.browser.CanTogglePictureColor())
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+        m_context.input.SetFocusPane (ExplorerPane::Preview);
         ShowPictureContextMenu (point.x, point.y);
         return true;
     }
@@ -426,7 +426,7 @@ bool ExplorerPreview::HandleMouse (const DxuiMouseEvent & ev)
     //  A zoomed picture pans by dragging, its scrollbars and the wheel, and
     //  keeps the pointer while a drag is under way.
     if (m_picture->IsInteracting()
-        || (m_picture->IsVisible() && CassoExplorerWindow::Contains (m_picture->GetBounds(), point) && m_picture->OnMouse (ev)))
+        || (m_picture->IsVisible() && ExplorerLayout::Contains (m_picture->GetBounds(), point) && m_picture->OnMouse (ev)))
     {
         if (m_picture->IsInteracting())
         {
@@ -435,58 +435,58 @@ bool ExplorerPreview::HandleMouse (const DxuiMouseEvent & ev)
 
         if (press)
         {
-            m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+            m_context.input.SetFocusPane (ExplorerPane::Preview);
         }
 
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
     if (m_textView->IsInteracting())
     {
         m_textView->OnMouse (ev);
-        m_window.m_statusBar.Fill();
-        m_window.Invalidate();
+        m_context.statusBar.Fill();
+        m_context.window.Invalidate();
         return true;
     }
 
     //  DxuiHexView takes points in the same coordinates as its bounds, so the
     //  event is passed unchanged, not converted to widget-local coordinates as
     //  the older list views require.
-    if (m_hexView->IsVisible() && CassoExplorerWindow::Contains (m_hexView->GetBounds(), point))
+    if (m_hexView->IsVisible() && ExplorerLayout::Contains (m_hexView->GetBounds(), point))
     {
         if (press)
         {
-            m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+            m_context.input.SetFocusPane (ExplorerPane::Preview);
         }
 
         m_hexView->OnMouse (ev);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
-    if (m_textView->IsVisible() && CassoExplorerWindow::Contains (m_textView->GetBounds(), point))
+    if (m_textView->IsVisible() && ExplorerLayout::Contains (m_textView->GetBounds(), point))
     {
         if (press)
         {
-            m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+            m_context.input.SetFocusPane (ExplorerPane::Preview);
         }
 
         m_textView->OnMouse (ev);
-        m_window.m_statusBar.Fill();
-        m_window.Invalidate();
+        m_context.statusBar.Fill();
+        m_context.window.Invalidate();
         return true;
     }
 
-    if (m_previewList->IsVisible() && CassoExplorerWindow::Contains (m_previewList->GetBounds(), point))
+    if (m_previewList->IsVisible() && ExplorerLayout::Contains (m_previewList->GetBounds(), point))
     {
         if (press)
         {
-            m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+            m_context.input.SetFocusPane (ExplorerPane::Preview);
         }
 
-        m_previewList->OnMouse (CassoExplorerWindow::ToLocal (ev, m_previewList->GetBounds()));
-        m_window.Invalidate();
+        m_previewList->OnMouse (ExplorerLayout::ToLocal (ev, m_previewList->GetBounds()));
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -551,7 +551,7 @@ bool ExplorerPreview::TickScrollbars (int64_t nowMs)
 
 bool ExplorerPreview::IsOverPane (POINT point) const
 {
-    return m_window.m_prefs.previewVisible && CassoExplorerWindow::Contains (m_previewRect, point);
+    return m_context.prefs.previewVisible && ExplorerLayout::Contains (m_previewRect, point);
 }
 
 
@@ -576,14 +576,14 @@ LPCWSTR ExplorerPreview::GetCursorForPoint (POINT clientPx) const
 
     for (IDxuiControl * view : { (IDxuiControl *) m_textView, (IDxuiControl *) m_hexView })
     {
-        if (cursor == nullptr && view->IsVisible() && CassoExplorerWindow::Contains (view->GetBounds(), clientPx) && !view->IsOverScrollbar (clientPx))
+        if (cursor == nullptr && view->IsVisible() && ExplorerLayout::Contains (view->GetBounds(), clientPx) && !view->IsOverScrollbar (clientPx))
         {
             cursor = IDC_IBEAM;
         }
     }
 
     //  The list tests points in its own terms.
-    if (cursor == nullptr && m_previewList->IsVisible() && CassoExplorerWindow::Contains (m_previewList->GetBounds(), clientPx))
+    if (cursor == nullptr && m_previewList->IsVisible() && ExplorerLayout::Contains (m_previewList->GetBounds(), clientPx))
     {
         RECT    list  = m_previewList->GetBounds();
         POINT   local = { clientPx.x - list.left, clientPx.y - list.top };
@@ -615,7 +615,7 @@ LPCWSTR ExplorerPreview::GetCursorForPoint (POINT clientPx) const
 
 LPCWSTR ExplorerPreview::GetPictureCursor (POINT clientPx) const
 {
-    if (!m_picture->IsVisible() || !CassoExplorerWindow::Contains (m_picture->GetBounds(), clientPx))
+    if (!m_picture->IsVisible() || !ExplorerLayout::Contains (m_picture->GetBounds(), clientPx))
     {
         return nullptr;
     }
@@ -643,22 +643,22 @@ std::vector<DxuiPopupMenuItem> ExplorerPreview::GetScrollbarMenu (const DxuiMous
 
 
 
-    if (m_previewList->IsVisible() && CassoExplorerWindow::Contains (m_previewList->GetBounds(), point))
+    if (m_previewList->IsVisible() && ExplorerLayout::Contains (m_previewList->GetBounds(), point))
     {
-        return m_previewList->GetScrollbarMenu (CassoExplorerWindow::ToLocal (ev, m_previewList->GetBounds()).positionDip);
+        return m_previewList->GetScrollbarMenu (ExplorerLayout::ToLocal (ev, m_previewList->GetBounds()).positionDip);
     }
 
-    if (m_textView->IsVisible() && CassoExplorerWindow::Contains (m_textView->GetBounds(), point))
+    if (m_textView->IsVisible() && ExplorerLayout::Contains (m_textView->GetBounds(), point))
     {
         return m_textView->GetScrollbarMenu (point);
     }
 
-    if (m_hexView->IsVisible() && CassoExplorerWindow::Contains (m_hexView->GetBounds(), point))
+    if (m_hexView->IsVisible() && ExplorerLayout::Contains (m_hexView->GetBounds(), point))
     {
         return m_hexView->GetScrollbarMenu (point);
     }
 
-    if (m_picture->IsVisible() && CassoExplorerWindow::Contains (m_picture->GetBounds(), point))
+    if (m_picture->IsVisible() && ExplorerLayout::Contains (m_picture->GetBounds(), point))
     {
         return m_picture->GetScrollbarMenu (point);
     }
@@ -691,7 +691,7 @@ bool ExplorerPreview::HandleShortcutKey (const DxuiKeyEvent & ev)
     if (m_previewArchive && ev.ctrl && ev.vk == 'A')
     {
         m_previewList->SelectAllRows();
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -710,7 +710,7 @@ bool ExplorerPreview::HandleShortcutKey (const DxuiKeyEvent & ev)
     if (m_previewMessage->IsVisible() && ev.ctrl && (ev.vk == 'C' || ev.vk == 'A'))
     {
         m_previewMessage->InvokeCommand ((ev.vk == 'C') ? DxuiStandardCommand::Copy : DxuiStandardCommand::SelectAll);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -775,7 +775,7 @@ bool ExplorerPreview::HandleKey (const DxuiKeyEvent & ev)
 
 
 
-    m_window.m_statusBar.Fill();
+    m_context.statusBar.Fill();
 
     return handled;
 }
@@ -828,10 +828,10 @@ IDxuiControl * ExplorerPreview::GetFocusedControl() const
 
 void ExplorerPreview::ToggleLineAddresses()
 {
-    m_window.m_prefs.lineAddresses = !m_window.m_prefs.lineAddresses;
+    m_context.prefs.lineAddresses = !m_context.prefs.lineAddresses;
 
-    m_textView->SetRows (PreviewText::BuildTextRows (m_window.m_browser.GetPreview(), m_window.m_prefs.lineAddresses, PreviewText::GetSourceColors (m_window.m_theme)));
-    m_window.Invalidate();
+    m_textView->SetRows (PreviewText::BuildTextRows (m_context.browser.GetPreview(), m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
+    m_context.window.Invalidate();
 }
 
 
@@ -921,7 +921,7 @@ PicturePreview::Monitor ExplorerPreview::GetPreviewMonitor() const
 {
     for (int index = 0; index < PicturePreview::kMonitorCount; index++)
     {
-        if (m_window.m_prefs.previewMonitor == CassoExplorerPrefs::kMonitorNames[index])
+        if (m_context.prefs.previewMonitor == CassoExplorerPrefs::kMonitorNames[index])
         {
             return (PicturePreview::Monitor) index;
         }
@@ -946,8 +946,8 @@ PicturePreview::Monitor ExplorerPreview::GetPreviewMonitor() const
 
 const ThemeCrtDefaults * ExplorerPreview::GetPreviewCrtDefaults()
 {
-    bool             casso = ExplorerThemes::IsCassoThemeName (m_window.m_prefs.theme);
-    std::string      name  = casso ? m_window.m_prefs.theme : std::string (CassoExplorerPrefs::kThemeRetroTerminal);
+    bool             casso = ExplorerThemes::IsCassoThemeName (m_context.prefs.theme);
+    std::string      name  = casso ? m_context.prefs.theme : std::string (CassoExplorerPrefs::kThemeRetroTerminal);
     Win32FileSystem  fs;
     ThemeLoadError   error;
     std::wstring     dir;
@@ -985,7 +985,7 @@ const ThemeCrtDefaults * ExplorerPreview::GetPreviewCrtDefaults()
 
 void ExplorerPreview::UpdateCrtPicture (bool force)
 {
-    const PreviewContent   & preview  = m_window.m_browser.GetPreview();
+    const PreviewContent   & preview  = m_context.browser.GetPreview();
     int                      width    = 0;
     int                      height   = 0;
     int                      margin   = 0;
@@ -993,11 +993,11 @@ void ExplorerPreview::UpdateCrtPicture (bool force)
     CrtParams                params;
     std::vector<uint32_t>    drawn;
     HRESULT                  hr       = S_OK;
-    auto                     found    = m_window.m_prefs.crtOverrides.end();
+    auto                     found    = m_context.prefs.crtOverrides.end();
 
 
 
-    if (preview.kind != PreviewContent::Kind::Picture || preview.bgra.empty() || m_window.GetPopupHost() == nullptr)
+    if (preview.kind != PreviewContent::Kind::Picture || preview.bgra.empty() || m_context.window.GetPopupHost() == nullptr)
     {
         return;
     }
@@ -1009,13 +1009,13 @@ void ExplorerPreview::UpdateCrtPicture (bool force)
         return;
     }
 
-    found    = m_window.m_prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_window.m_browser.GetPictureMonitor()]);
-    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_window.m_browser.GetPictureMonitor())), GetPreviewCrtDefaults(),
-                                               (found != m_window.m_prefs.crtOverrides.end()) ? found->second : CrtOverrides());
+    found    = m_context.prefs.crtOverrides.find (CassoExplorerPrefs::kMonitorNames[(int) m_context.browser.GetPictureMonitor()]);
+    resolved = CrtResolver::Resolve (CrtPresets::GetPreset (PicturePreview::GetPresetIndex (m_context.browser.GetPictureMonitor())), GetPreviewCrtDefaults(),
+                                               (found != m_context.prefs.crtOverrides.end()) ? found->second : CrtOverrides());
     params             = MakeCrtParams (resolved, (float) width, (float) height);
     params.persistence = 0.0f;
 
-    hr = m_crtPicture.Render (m_window.GetPopupHost()->GetDevice(), m_window.GetPopupHost()->GetContext(), preview.bgra, preview.width, preview.height,
+    hr = m_crtPicture.Render (m_context.window.GetPopupHost()->GetDevice(), m_context.window.GetPopupHost()->GetContext(), preview.bgra, preview.width, preview.height,
                               width, height, params, drawn, margin);
 
     if (SUCCEEDED (hr))
@@ -1041,9 +1041,9 @@ void ExplorerPreview::UpdateCrtPicture (bool force)
 
 void ExplorerPreview::FillPreview()
 {
-    const PreviewContent                          & preview  = m_window.m_browser.GetPreview();
+    const PreviewContent                          & preview  = m_context.browser.GetPreview();
     std::vector<std::vector<DxuiListView::Cell>>    rows;
-    bool                                            visible  = m_window.m_prefs.previewVisible;
+    bool                                            visible  = m_context.prefs.previewVisible;
     bool                                            picture  = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
     bool                                            hostFile = preview.kind == PreviewContent::Kind::Hex && !preview.hostPath.empty();
     bool                                            current  = hostFile && m_fileBytes.GetPath() == preview.hostPath && m_fileBytes.IsCurrent();
@@ -1055,7 +1055,7 @@ void ExplorerPreview::FillPreview()
     bool                                            disasm   = preview.kind == PreviewContent::Kind::Hex && preview.bytes.empty() && !preview.lines.empty();
     bool                                            columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
     bool                                            program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
-    bool                                            forms    = picture && m_window.m_browser.CanTogglePictureColor();
+    bool                                            forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                                            shell    = preview.kind == PreviewContent::Kind::Shell;
     int                                             mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                                              : hex      ? CassoExplorerCommands::kPreviewBarHex
@@ -1100,7 +1100,7 @@ void ExplorerPreview::FillPreview()
 
         for (const CatalogRow & row : preview.rows)
         {
-            rows.push_back (preview.archive ? m_window.m_browser.GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
+            rows.push_back (preview.archive ? m_context.browser.GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
         }
     }
 
@@ -1110,7 +1110,7 @@ void ExplorerPreview::FillPreview()
     m_previewList->UpdateAutoFitFromRows();
     m_previewList->SetTopRow (0);
 
-    m_textView->SetRows (PreviewText::BuildTextRows (preview, m_window.m_prefs.lineAddresses, PreviewText::GetSourceColors (m_window.m_theme)));
+    m_textView->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
 
     //  A new kind of preview brings its own toolbar, which changes the height
     //  left for the content.
@@ -1120,16 +1120,16 @@ void ExplorerPreview::FillPreview()
 
         if (mode != CassoExplorerCommands::kPreviewBarNone)
         {
-            m_previewToolbar->SetEntries (m_window.m_commands.BuildPreviewToolbarEntries (mode, m_find.GetSearchBox(), m_find.GetGoToBox()));
+            m_previewToolbar->SetEntries (m_context.commands.BuildPreviewToolbarEntries (mode, m_find.GetSearchBox(), m_find.GetGoToBox()));
         }
 
         //  The boxes go with the hex view's toolbar, and their focus with it.
-        if (mode != CassoExplorerCommands::kPreviewBarHex && (m_window.m_focus == ExplorerPane::Search || m_window.m_focus == ExplorerPane::GoTo))
+        if (mode != CassoExplorerCommands::kPreviewBarHex && (m_context.input.GetFocusPane() == ExplorerPane::Search || m_context.input.GetFocusPane() == ExplorerPane::GoTo))
         {
-            m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+            m_context.input.SetFocusPane (ExplorerPane::Preview);
         }
 
-        m_window.m_layout.RecomputeLayout();
+        m_context.layout.RecomputeLayout();
     }
 
     //  The hex view reads the preview's own bytes where they lie. The source
@@ -1155,7 +1155,7 @@ void ExplorerPreview::FillPreview()
     }
 
     //  With nothing selected the pane says so, as Explorer's does.
-    blank = !m_window.m_listPane.HasSelection() && !picture && !shell && !error && !hex && !columns && !program;
+    blank = !m_context.listPane.HasSelection() && !picture && !shell && !error && !hex && !columns && !program;
 
     m_previewMessage->SetText (blank                   ? std::wstring (kSelectToPreview)
                                         : !error                ? std::wstring()
@@ -1173,7 +1173,7 @@ void ExplorerPreview::FillPreview()
     m_textView->SetVisible (visible && !picture && !shell && !error && !hex && !columns && !blank);
     m_hexView->SetVisible (visible && hex);
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1192,9 +1192,9 @@ void ExplorerPreview::FillPreview()
 
 void ExplorerPreview::UpdateShellPreview (const PreviewContent & preview)
 {
-    bool      shell      = preview.kind == PreviewContent::Kind::Shell && m_window.m_prefs.previewVisible;
-    uint32_t  background = m_window.m_theme->ContentBackground();
-    uint32_t  text       = m_window.m_theme->Foreground();
+    bool      shell      = preview.kind == PreviewContent::Kind::Shell && m_context.prefs.previewVisible;
+    uint32_t  background = m_context.theme->ContentBackground();
+    uint32_t  text       = m_context.theme->Foreground();
 
 
 
@@ -1202,7 +1202,7 @@ void ExplorerPreview::UpdateShellPreview (const PreviewContent & preview)
     {
         if (!m_shellPreviewPath.empty())
         {
-            KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
+            KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
             m_shellPreview.Unload();
             m_shellPreviewPath.clear();
             m_shellPicture = false;
@@ -1224,7 +1224,7 @@ void ExplorerPreview::UpdateShellPreview (const PreviewContent & preview)
                                   RGB ((background >> 16) & 0xFF, (background >> 8) & 0xFF, background & 0xFF),
                                   RGB ((text >> 16) & 0xFF, (text >> 8) & 0xFF, text & 0xFF));
 
-    SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview, kShellPreviewTimeoutMs, nullptr);
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview, kShellPreviewTimeoutMs, nullptr);
 }
 
 
@@ -1251,7 +1251,7 @@ void ExplorerPreview::HandleShellPreviewResult()
         return;
     }
 
-    KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
+    KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
 
     switch (result.outcome)
     {
@@ -1261,7 +1261,7 @@ void ExplorerPreview::HandleShellPreviewResult()
 
         case Win32ShellPreview::Outcome::Picture:
             m_picture->SetFramebuffer (result.bgra.data(), result.width, result.height);
-            m_picture->SetVisible (m_window.m_prefs.previewVisible);
+            m_picture->SetVisible (m_context.prefs.previewVisible);
             m_shellPicture = true;
             break;
 
@@ -1271,7 +1271,7 @@ void ExplorerPreview::HandleShellPreviewResult()
             break;
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1286,12 +1286,12 @@ void ExplorerPreview::HandleShellPreviewResult()
 
 void ExplorerPreview::ShowShellPreviewBytes()
 {
-    KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
+    KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
     m_shellPreview.Unload();
     m_shellPreviewPath.clear();
     m_shellPicture = false;
 
-    m_window.m_browser.ShowShellPreviewBytes();
+    m_context.browser.ShowShellPreviewBytes();
     FillPreview();
 }
 
@@ -1307,7 +1307,7 @@ void ExplorerPreview::ShowShellPreviewBytes()
 
 bool ExplorerPreview::IsHexPreviewShowing() const
 {
-    return m_window.m_prefs.previewVisible && m_hexView->IsVisible();
+    return m_context.prefs.previewVisible && m_hexView->IsVisible();
 }
 
 
@@ -1322,7 +1322,7 @@ bool ExplorerPreview::IsHexPreviewShowing() const
 
 bool ExplorerPreview::IsTextPreviewShowing() const
 {
-    return m_window.m_prefs.previewVisible && m_textView->IsVisible();
+    return m_context.prefs.previewVisible && m_textView->IsVisible();
 }
 
 
@@ -1344,15 +1344,15 @@ void ExplorerPreview::SetPreviewZoom (int percent)
 
 
 
-    m_window.m_prefs.previewZoom = clamped;
+    m_context.prefs.previewZoom = clamped;
 
     m_textView->SetZoom ((float) clamped / 100.0f);
     m_hexView->SetZoom  ((float) clamped / 100.0f);
     m_picture->SetZoom  ((float) clamped / 100.0f);
     UpdateCrtPicture (false);
 
-    m_window.m_statusBar.Fill();
-    m_window.Invalidate();
+    m_context.statusBar.Fill();
+    m_context.window.Invalidate();
 }
 
 
@@ -1368,9 +1368,9 @@ void ExplorerPreview::SetPreviewZoom (int percent)
 void ExplorerPreview::SetHexColumns (int columns)
 {
     m_hexView->SetColumns (columns);
-    m_window.m_prefs.hexColumns = columns;
+    m_context.prefs.hexColumns = columns;
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1387,13 +1387,13 @@ void ExplorerPreview::SetHexColumns (int columns)
 
 void ExplorerPreview::SetHexFormat (const char * format)
 {
-    m_window.m_prefs.hexFormat     = format;
-    m_window.m_prefs.hexShowValues = true;
+    m_context.prefs.hexFormat     = format;
+    m_context.prefs.hexShowValues = true;
 
     m_hexView->SetShowValues  (true);
-    m_hexView->SetValueFormat (ParseHexFormat (m_window.m_prefs.hexFormat));
+    m_hexView->SetValueFormat (ParseHexFormat (m_context.prefs.hexFormat));
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1408,10 +1408,10 @@ void ExplorerPreview::SetHexFormat (const char * format)
 
 void ExplorerPreview::SetHexShowValues (bool show)
 {
-    m_window.m_prefs.hexShowValues = show;
+    m_context.prefs.hexShowValues = show;
     m_hexView->SetShowValues (show);
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1494,12 +1494,12 @@ void ExplorerPreview::SetHexGrouping (int grouping)
         return;
     }
 
-    m_window.m_prefs.hexGrouping   = grouping;
-    m_window.m_prefs.hexShowValues = true;
+    m_context.prefs.hexGrouping   = grouping;
+    m_context.prefs.hexShowValues = true;
 
     m_hexView->SetShowValues (true);
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1518,21 +1518,21 @@ void ExplorerPreview::SetHexGrouping (int grouping)
 void ExplorerPreview::ShowPictureContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    bool                            color = m_window.m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
+    bool                            color = m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
 
 
 
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
     for (bool asColor : { true, false })
     {
-        m_window.m_menus.AddMenuCommand (items, asColor ? L"&Color" : L"&Monochrome", [this, asColor]() { ShowPictureForm (asColor); });
+        m_context.menus.AddMenuCommand (items, asColor ? L"&Color" : L"&Monochrome", [this, asColor]() { ShowPictureForm (asColor); });
 
-        m_window.m_menus.GetMenuCommands().back()->radio     = true;
-        m_window.m_menus.GetMenuCommands().back()->isChecked = [color, asColor]() { return color == asColor; };
+        m_context.menus.GetMenuCommands().back()->radio     = true;
+        m_context.menus.GetMenuCommands().back()->isChecked = [color, asColor]() { return color == asColor; };
     }
 
-    DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -1551,10 +1551,10 @@ void ExplorerPreview::ShowPictureContextMenu (int x, int y)
 
 void ExplorerPreview::ShowPictureForm (bool color)
 {
-    if ((m_window.m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes) != color && m_window.m_browser.TogglePictureColor())
+    if ((m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes) != color && m_context.browser.TogglePictureColor())
     {
         FillPreview();
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     }
 }
 
@@ -1578,7 +1578,7 @@ void ExplorerPreview::ShowTextContextMenu (int x, int y)
 
     for (int id : { (int) CassoExplorerCommands::kCopy, (int) CassoExplorerCommands::kSelectAll })
     {
-        std::shared_ptr<const DxuiCommand>  command = m_window.m_commands.Find (id);
+        std::shared_ptr<const DxuiCommand>  command = m_context.commands.Find (id);
 
         if (command != nullptr)
         {
@@ -1586,7 +1586,7 @@ void ExplorerPreview::ShowTextContextMenu (int x, int y)
         }
     }
 
-    DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -1604,12 +1604,12 @@ void ExplorerPreview::ShowTextContextMenu (int x, int y)
 
 bool ExplorerPreview::IsArchiveLocation() const
 {
-    const Location &  location = m_window.m_browser.GetLocation();
+    const Location &  location = m_context.browser.GetLocation();
 
 
 
     return location.kind == Location::Kind::ShellFolder && location.path.size() > 3 && location.path[1] == L':'
-        && m_window.m_context.fs != nullptr && !m_window.m_context.fs->DirectoryExists (location.path);
+        && m_context.app.fs != nullptr && !m_context.app.fs->DirectoryExists (location.path);
 }
 
 
@@ -1628,8 +1628,8 @@ bool ExplorerPreview::IsArchiveLocation() const
 
 void ExplorerPreview::SelectMonitor (PicturePreview::Monitor monitor)
 {
-    m_window.m_prefs.previewMonitor = CassoExplorerPrefs::kMonitorNames[(int) monitor];
-    m_window.m_browser.SetPreviewMonitor (monitor, m_window.m_prefs.previewCustomArgb);
+    m_context.prefs.previewMonitor = CassoExplorerPrefs::kMonitorNames[(int) monitor];
+    m_context.browser.SetPreviewMonitor (monitor, m_context.prefs.previewCustomArgb);
     FillPreview();
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }

@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/ICassoExplorerHost.h"
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -22,7 +22,7 @@ class CassoExplorerWindow;
 class ExplorerTabManager
 {
 public:
-    explicit ExplorerTabManager (CassoExplorerWindow & window);
+    explicit ExplorerTabManager (ExplorerContext & context);
 
     //  The strip, as a child of the window, and its settings and handlers
     //  once the window has its HWND.
@@ -86,9 +86,8 @@ public:
     void  OpenInNewWindow     (const std::wstring & path);
 
 private:
-    friend class CassoExplorerWindow;
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiTabStrip           * m_tabs          = nullptr;
     DxuiTabDragVisual        m_tabDragVisual;

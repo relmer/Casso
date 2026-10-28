@@ -6,7 +6,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -26,7 +26,7 @@ class CassoExplorerWindow;
 class ExplorerDragDrop
 {
 public:
-    explicit ExplorerDragDrop (CassoExplorerWindow & window);
+    explicit ExplorerDragDrop (ExplorerContext & context);
 
     //  A dragged item's icon, as File Explorer draws it, and the DPI it is
     //  drawn at, the list's.
@@ -112,10 +112,11 @@ public:
         std::vector<std::string>   catalogPaths;
     };
 
-private:
-    friend class CassoExplorerWindow;
+    DxuiDragDropTarget  & GetDropTarget () { return m_dropTarget; }
 
-    CassoExplorerWindow  & m_window;
+private:
+
+    ExplorerContext  & m_context;
 
     Win32ShellIcons        m_dragIcons;   // drawn as each drag starts, so not in the background
 

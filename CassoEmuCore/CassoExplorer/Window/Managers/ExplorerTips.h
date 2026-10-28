@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -21,7 +21,7 @@ class CassoExplorerWindow;
 class ExplorerTips
 {
 public:
-    explicit ExplorerTips (CassoExplorerWindow & window);
+    explicit ExplorerTips (ExplorerContext & context);
 
 
     //  Which part of the window the hover tooltip belongs to.
@@ -40,9 +40,8 @@ public:
     void  Tick          (int64_t nowMs);
 
 private:
-    friend class CassoExplorerWindow;
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiTooltip  m_tooltip;
     POINT        m_listTipPoint  = {};   // where the pointer last was over the list

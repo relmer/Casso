@@ -15,8 +15,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerTabManager::ExplorerTabManager (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerTabManager::ExplorerTabManager (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -32,7 +32,7 @@ ExplorerTabManager::ExplorerTabManager (CassoExplorerWindow & window)
 
 void ExplorerTabManager::Create()
 {
-    m_tabs = m_window.CreateChild<DxuiTabStrip>();
+    m_tabs = m_context.window.CreateChild<DxuiTabStrip>();
 }
 
 
@@ -59,14 +59,14 @@ void ExplorerTabManager::Configure()
     m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
     m_tabs->SetOnMove   ([this] (int from, int to)
     {
-        bool  moved = m_window.m_browser.MoveTab ((size_t) from, (size_t) to);
+        bool  moved = m_context.browser.MoveTab ((size_t) from, (size_t) to);
 
         IGNORE_RETURN_VALUE (moved, true);
-        m_window.SaveSession();
+        m_context.window.SaveSession();
     });
     m_tabs->SetOnDragMove ([this] (int index, POINT point, bool tornOff) { HandleTabDragMove (index, point, tornOff); });
     m_tabs->SetOnDragEnd  ([this] (int index, POINT point, bool tornOff) { HandleTabDragEnd  (index, point, tornOff); });
-    m_tabs->SetOnNewTab   ([this]() { m_window.m_commandManager.Dispatch (CassoExplorerCommands::kNewTab); });
+    m_tabs->SetOnNewTab   ([this]() { m_context.commandManager.Dispatch (CassoExplorerCommands::kNewTab); });
     m_tabs->SetOnClose    ([this] (int index) { CloseTabAt ((size_t) index); });
 }
 
@@ -106,7 +106,7 @@ void ExplorerTabManager::ApplyTheme (const DxuiTheme & theme)
 
 void ExplorerTabManager::Layout (const RECT & rect)
 {
-    m_tabs->Layout (rect, m_window.m_scaler);
+    m_tabs->Layout (rect, m_context.scaler);
     FillTabs();
 }
 
@@ -134,7 +134,7 @@ void ExplorerTabManager::ClearHoverOnLeave (const DxuiMouseEvent & ev)
         return;
     }
 
-    if ((ev.kind != DxuiMouseEventKind::Move || CassoExplorerWindow::Contains (m_tabs->GetBounds(), ev.positionDip)) && ev.kind != DxuiMouseEventKind::Leave)
+    if ((ev.kind != DxuiMouseEventKind::Move || ExplorerLayout::Contains (m_tabs->GetBounds(), ev.positionDip)) && ev.kind != DxuiMouseEventKind::Leave)
     {
         return;
     }
@@ -143,7 +143,7 @@ void ExplorerTabManager::ClearHoverOnLeave (const DxuiMouseEvent & ev)
     away.positionDip = { -1, -1 };
 
     m_tabs->OnMouse (away);
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -175,7 +175,7 @@ bool ExplorerTabManager::HandleCapturedMouse (const DxuiMouseEvent & ev)
     }
 
     m_tabs->OnMouse (ev);
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 
     return true;
 }
@@ -195,7 +195,7 @@ bool ExplorerTabManager::HandleCapturedMouse (const DxuiMouseEvent & ev)
 bool ExplorerTabManager::HandleMouse (const DxuiMouseEvent & ev)
 {
     POINT  point = ev.positionDip;
-    bool   over  = CassoExplorerWindow::Contains (m_tabs->GetBounds(), point);
+    bool   over  = ExplorerLayout::Contains (m_tabs->GetBounds(), point);
 
 
 
@@ -210,7 +210,7 @@ bool ExplorerTabManager::HandleMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
     return true;
 }
 
@@ -276,20 +276,20 @@ void ExplorerTabManager::OpenInNewWindow (const std::wstring & path)
 
 
 
-    if (path.empty() || m_window.m_context.host == nullptr)
+    if (path.empty() || m_context.app.host == nullptr)
     {
         return;
     }
 
     request.openPath  = path;
-    request.placement = m_window.GetPlacement();
+    request.placement = m_context.window.GetPlacement();
     request.cascade   = true;
 
-    opened = m_window.m_context.host->OpenWindow (std::move (request));
+    opened = m_context.app.host->OpenWindow (std::move (request));
 
     if (opened == nullptr)
     {
-        m_window.ShowMessage (L"A new window could not be opened.", MB_ICONERROR);
+        m_context.window.ShowMessage (L"A new window could not be opened.", MB_ICONERROR);
     }
 }
 
@@ -315,16 +315,16 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
     //  shows it if there is one.
     if (_wcsicmp (path.c_str(), TreeModel::GetRootLabel (Location::kRecycleBinId).c_str()) == 0 || _wcsicmp (path.c_str(), L"shell:RecycleBinFolder") == 0)
     {
-        for (size_t tab = 0; tab < m_window.m_browser.GetBrowserModel().GetTabCount(); tab++)
+        for (size_t tab = 0; tab < m_context.browser.GetBrowserModel().GetTabCount(); tab++)
         {
-            if (m_window.m_browser.GetBrowserModel().GetTab (tab).location.kind == Location::Kind::RecycleBin)
+            if (m_context.browser.GetBrowserModel().GetTab (tab).location.kind == Location::Kind::RecycleBin)
             {
                 SwitchToTab (tab);
                 return;
             }
         }
 
-        m_window.m_browser.OpenInNewTab (Location::MakeRecycleBin());
+        m_context.browser.OpenInNewTab (Location::MakeRecycleBin());
         return;
     }
 
@@ -332,10 +332,10 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
     if (Location::IsShellName (path))
     {
         Location  shellFolder = Location::MakeShellFolder (path, std::wstring());
-        HRESULT   hr          = m_window.m_shellVerbs.GetShellItemName (path, shellFolder.label);
+        HRESULT   hr          = m_context.shellVerbs.GetShellItemName (path, shellFolder.label);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
-        m_window.m_browser.OpenInNewTab (shellFolder);
+        m_context.browser.OpenInNewTab (shellFolder);
         return;
     }
 
@@ -366,19 +366,19 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
 
     if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
     {
-        m_window.m_browser.OpenInNewTab (Location::MakeHostFolder (full));
+        m_context.browser.OpenInNewTab (Location::MakeHostFolder (full));
     }
     else if (TreeModel::IsSupportedImage (full))
     {
-        m_window.m_browser.OpenInNewTab (Location::MakeDiskImage (full));
+        m_context.browser.OpenInNewTab (Location::MakeDiskImage (full));
     }
-    else if (m_window.m_browser.GetTreeModel().IsArchive (full))
+    else if (m_context.browser.GetTreeModel().IsArchive (full))
     {
-        m_window.m_browser.OpenInNewTab (Location::MakeShellFolder (full, std::filesystem::path (full).filename().wstring()));
+        m_context.browser.OpenInNewTab (Location::MakeShellFolder (full, std::filesystem::path (full).filename().wstring()));
     }
     else
     {
-        m_window.m_browser.OpenInNewTab (Location::MakeHostFolder (CassoExplorerBrowser::GetParentFolder (full)));
+        m_context.browser.OpenInNewTab (Location::MakeHostFolder (CassoExplorerBrowser::GetParentFolder (full)));
     }
 }
 
@@ -400,40 +400,40 @@ void ExplorerTabManager::ShowTabContextMenu (int x, int y, int index)
 {
     std::vector<DxuiPopupMenuItem>  items;
     size_t                          tab   = (size_t) index;
-    size_t                          count = m_window.m_browser.GetBrowserModel().GetTabCount();
+    size_t                          count = m_context.browser.GetBrowserModel().GetTabCount();
 
 
 
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
-    m_window.m_menus.AddMenuCommand (items, L"&Close tab", [this, tab]() { CloseTabAt (tab); }, L"Ctrl+W");
+    m_context.menus.AddMenuCommand (items, L"&Close tab", [this, tab]() { CloseTabAt (tab); }, L"Ctrl+W");
 
-    m_window.m_menus.AddMenuCommand (items, L"Close &other tabs", [this, tab]()
+    m_context.menus.AddMenuCommand (items, L"Close &other tabs", [this, tab]()
     {
-        if (m_window.m_browser.CloseOtherTabs (tab))
+        if (m_context.browser.CloseOtherTabs (tab))
         {
-            m_window.m_listPane.FillList();
+            m_context.listPane.FillList();
         }
     });
 
-    m_window.m_menus.AddMenuCommand (items, L"Close tabs to the &right", [this, tab]()
+    m_context.menus.AddMenuCommand (items, L"Close tabs to the &right", [this, tab]()
     {
-        if (m_window.m_browser.CloseTabsToRight (tab))
+        if (m_context.browser.CloseTabsToRight (tab))
         {
-            m_window.m_listPane.FillList();
+            m_context.listPane.FillList();
         }
     });
 
-    m_window.m_menus.AddMenuCommand (items, L"&Duplicate tab", [this, tab]()
+    m_context.menus.AddMenuCommand (items, L"&Duplicate tab", [this, tab]()
     {
-        m_window.m_browser.DuplicateTab (tab);
-        m_window.m_listPane.FillList();
+        m_context.browser.DuplicateTab (tab);
+        m_context.listPane.FillList();
     });
 
-    m_window.m_menus.GetMenuCommands()[1]->isEnabled = [count]() { return count > 1; };
-    m_window.m_menus.GetMenuCommands()[2]->isEnabled = [tab, count]() { return tab + 1 < count; };
+    m_context.menus.GetMenuCommands()[1]->isEnabled = [count]() { return count > 1; };
+    m_context.menus.GetMenuCommands()[2]->isEnabled = [tab, count]() { return tab + 1 < count; };
 
-    DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -452,12 +452,12 @@ void ExplorerTabManager::ShowTabContextMenu (int x, int y, int index)
 
 void ExplorerTabManager::FillTabs()
 {
-    const BrowserModel              & model = m_window.m_browser.GetBrowserModel();
+    const BrowserModel              & model = m_context.browser.GetBrowserModel();
     RECT                              strip = m_tabs->GetBounds();
-    int                               width = m_window.m_scaler.ToPx (kTabWidthDip);
+    int                               width = m_context.scaler.ToPx (kTabWidthDip);
     int                               count = (int) model.GetTabCount();
-    int                               lead  = (int) std::lround (m_window.m_scaler.ToPxf (kTabLeadDip));
-    int                               plus  = m_window.m_scaler.ToPx (DxuiTabStrip::kNewTabWidthDip) + (int) std::lround (m_window.m_scaler.ToPxf (CassoExplorerWindow::kNewTabGapDip));
+    int                               lead  = (int) std::lround (m_context.scaler.ToPxf (kTabLeadDip));
+    int                               plus  = m_context.scaler.ToPx (DxuiTabStrip::kNewTabWidthDip) + (int) std::lround (m_context.scaler.ToPxf (CassoExplorerWindow::kNewTabGapDip));
     std::vector<DxuiTabStrip::Tab>    tabs;
     size_t                            index = 0;
 
@@ -465,7 +465,7 @@ void ExplorerTabManager::FillTabs()
 
     if (count > 0)
     {
-        width = std::clamp (((int) (strip.right - strip.left) - lead - plus) / count, m_window.m_scaler.ToPx (kTabMinWidthDip), width);
+        width = std::clamp (((int) (strip.right - strip.left) - lead - plus) / count, m_context.scaler.ToPx (kTabMinWidthDip), width);
     }
 
     for (index = 0; index < model.GetTabCount(); index++)
@@ -475,18 +475,18 @@ void ExplorerTabManager::FillTabs()
 
         //  Tabs start below the strip's top, as Explorer's do, and reach its
         //  bottom, where the selected one joins the row below.
-        tab.label = m_window.m_browser.GetTabLabel (index);
-        tab.rect  = RECT { strip.left + lead + (int) index * width, strip.top + m_window.m_scaler.ToPx (kTabTopDip), strip.left + lead + (int) (index + 1) * width, strip.bottom };
+        tab.label = m_context.browser.GetTabLabel (index);
+        tab.rect  = RECT { strip.left + lead + (int) index * width, strip.top + m_context.scaler.ToPx (kTabTopDip), strip.left + lead + (int) (index + 1) * width, strip.bottom };
 
         switch (location.kind)
         {
-            case Location::Kind::None:          tab.icon = m_window.m_shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
-            case Location::Kind::Root:          tab.icon = m_window.m_shellIcons.GetForKind ((location.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : (location.path == TreeModel::kCassoLinkRootId || location.path.starts_with (TreeModel::kLinkRootTag)) ? IShellIcons::Kind::AppleMachine : IShellIcons::Kind::ThisPc); break;
-            case Location::Kind::RecycleBin:    tab.icon = m_window.m_shellIcons.GetForKind (IShellIcons::Kind::RecycleBin); break;
-            case Location::Kind::DiskDirectory: tab.icon = m_window.m_shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
-            case Location::Kind::DiskImage:     tab.icon = m_window.m_shellIcons.GetForPath (location.path, false);     break;
-            default:                            tab.icon = SearchQuery::IsId (location.path) ? m_window.m_shellIcons.GetForKind (IShellIcons::Kind::Search)
-                                                                                         : m_window.m_shellIcons.GetForPath (location.path, true);
+            case Location::Kind::None:          tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
+            case Location::Kind::Root:          tab.icon = m_context.shellIcons.GetForKind ((location.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : (location.path == TreeModel::kCassoLinkRootId || location.path.starts_with (TreeModel::kLinkRootTag)) ? IShellIcons::Kind::AppleMachine : IShellIcons::Kind::ThisPc); break;
+            case Location::Kind::RecycleBin:    tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::RecycleBin); break;
+            case Location::Kind::DiskDirectory: tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
+            case Location::Kind::DiskImage:     tab.icon = m_context.shellIcons.GetForPath (location.path, false);     break;
+            default:                            tab.icon = SearchQuery::IsId (location.path) ? m_context.shellIcons.GetForKind (IShellIcons::Kind::Search)
+                                                                                         : m_context.shellIcons.GetForPath (location.path, true);
                                                 break;
         }
 
@@ -511,19 +511,19 @@ void ExplorerTabManager::SwitchToTab (size_t index)
 {
     //  An address being typed belongs to the tab it was typed in, so it is
     //  dropped, as in Explorer, and the new tab's address shows.
-    if (m_window.m_addressBar.EndEdit())
+    if (m_context.addressBar.EndEdit())
     {
-        if (m_window.m_focus == ExplorerPane::Address)
+        if (m_context.input.GetFocusPane() == ExplorerPane::Address)
         {
-            m_window.m_input.SetFocusPane (ExplorerPane::List);
+            m_context.input.SetFocusPane (ExplorerPane::List);
         }
     }
 
     //  A tab left on a folder deleted since moves up as it is shown.
-    if (m_window.m_browser.SwitchTab (index))
+    if (m_context.browser.SwitchTab (index))
     {
-        m_window.m_browser.LeaveMissingLocation();
-        m_window.m_listPane.FillList();
+        m_context.browser.LeaveMissingLocation();
+        m_context.listPane.FillList();
     }
 }
 
@@ -544,7 +544,7 @@ void ExplorerTabManager::HandleTabDragMove (int index, POINT client, bool tornOf
 {
     POINT  screen = client;
     POINT  grab   = m_tabs->GetDragGrab();
-    BOOL   mapped = ClientToScreen (m_window.GetHwnd(), &screen);
+    BOOL   mapped = ClientToScreen (m_context.window.GetHwnd(), &screen);
 
 
 
@@ -578,7 +578,7 @@ void ExplorerTabManager::HandleTabDragMove (int index, POINT client, bool tornOf
 void ExplorerTabManager::HandleTabDragEnd (int index, POINT client, bool tornOff)
 {
     POINT                  screen = client;
-    BOOL                   mapped = ClientToScreen (m_window.GetHwnd(), &screen);
+    BOOL                   mapped = ClientToScreen (m_context.window.GetHwnd(), &screen);
     CassoExplorerWindow  * target = nullptr;
 
 
@@ -587,16 +587,16 @@ void ExplorerTabManager::HandleTabDragEnd (int index, POINT client, bool tornOff
 
     m_tabDragVisual.Hide();
 
-    if (tornOff && m_window.m_context.host != nullptr && m_tabDragTarget != nullptr)
+    if (tornOff && m_context.app.host != nullptr && m_tabDragTarget != nullptr)
     {
-        target = m_window.m_context.host->GetWindowFor (m_tabDragTarget);
+        target = m_context.app.host->GetWindowFor (m_tabDragTarget);
     }
 
     m_tabDragTarget = nullptr;
 
     if (target != nullptr)
     {
-        target->m_tabManager.AcceptTab (m_window.m_browser.GetBrowserModel().GetTab ((size_t) index));
+        target->GetTabManager().AcceptTab (m_context.browser.GetBrowserModel().GetTab ((size_t) index));
         CloseTabAt ((size_t) index);
     }
     else if (tornOff)
@@ -604,7 +604,7 @@ void ExplorerTabManager::HandleTabDragEnd (int index, POINT client, bool tornOff
         TearOffTab (index, screen);
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -625,8 +625,8 @@ void ExplorerTabManager::CancelTabDrag()
     m_tabs->CancelDrag();
     m_tabDragVisual.Hide();
     SetTabDragTarget (nullptr, POINT {});
-    m_window.ArmTick();
-    m_window.Invalidate();
+    m_context.window.ArmTick();
+    m_context.window.Invalidate();
 }
 
 
@@ -649,13 +649,13 @@ void ExplorerTabManager::ShowTabDragVisual (int index, POINT screen)
     HRESULT   hr   = S_OK;
     RECT      tab  = m_tabs->GetTabScreenRect (index);
     POINT     grab = m_tabs->GetDragGrab();
-    uint32_t  text = m_window.m_theme->Foreground();
-    uint32_t  wash = m_window.m_theme->navStrip;
-    uint32_t  fill = DxuiColor::Mix (m_window.m_theme->Background() | 0xFF000000u, wash | 0xFF000000u, (float) (wash >> 24) / 255.0f);
+    uint32_t  text = m_context.theme->Foreground();
+    uint32_t  wash = m_context.theme->navStrip;
+    uint32_t  fill = DxuiColor::Mix (m_context.theme->Background() | 0xFF000000u, wash | 0xFF000000u, (float) (wash >> 24) / 255.0f);
 
 
 
-    hr = m_tabDragVisual.Show (*m_window.GetPopupHost(),
+    hr = m_tabDragVisual.Show (*m_context.window.GetPopupHost(),
                                SIZE { tab.right - tab.left, tab.bottom - tab.top },
                                POINT { screen.x - grab.x, screen.y - grab.y },
                                fill,
@@ -696,12 +696,12 @@ CassoExplorerWindow * ExplorerTabManager::FindTabStripAt (POINT screen) const
         root = FindWindowBelow (card, screen);
     }
 
-    if (root != nullptr && root != m_window.GetHwnd() && m_window.m_context.host != nullptr)
+    if (root != nullptr && root != m_context.window.GetHwnd() && m_context.app.host != nullptr)
     {
-        window = m_window.m_context.host->GetWindowFor (root);
+        window = m_context.app.host->GetWindowFor (root);
     }
 
-    return (window != nullptr && window->m_tabManager.IsOverTabStrip (screen)) ? window : nullptr;
+    return (window != nullptr && window->GetTabManager().IsOverTabStrip (screen)) ? window : nullptr;
 }
 
 
@@ -766,21 +766,21 @@ void ExplorerTabManager::SetTabDragTarget (CassoExplorerWindow * target, POINT s
 
 
 
-    if (m_tabDragTarget != nullptr && m_tabDragTarget != hwnd && m_window.m_context.host != nullptr)
+    if (m_tabDragTarget != nullptr && m_tabDragTarget != hwnd && m_context.app.host != nullptr)
     {
-        previous = m_window.m_context.host->GetWindowFor (m_tabDragTarget);
+        previous = m_context.app.host->GetWindowFor (m_tabDragTarget);
     }
 
     if (previous != nullptr)
     {
-        previous->m_tabManager.HandleTabHover (false, screen);
+        previous->GetTabManager().HandleTabHover (false, screen);
     }
 
     m_tabDragTarget = hwnd;
 
     if (target != nullptr)
     {
-        target->m_tabManager.HandleTabHover (true, screen);
+        target->GetTabManager().HandleTabHover (true, screen);
     }
 }
 
@@ -812,7 +812,7 @@ RECT ExplorerTabManager::GetTearOffRect (POINT screen) const
 
 
 
-    if (!GetWindowRect (m_window.GetHwnd(), &window) || !ClientToScreen (m_window.GetHwnd(), &client))
+    if (!GetWindowRect (m_context.window.GetHwnd(), &window) || !ClientToScreen (m_context.window.GetHwnd(), &client))
     {
         return RECT {};
     }
@@ -821,14 +821,14 @@ RECT ExplorerTabManager::GetTearOffRect (POINT screen) const
     height = window.bottom - window.top;
 
     //  A maximized window's new one takes the size it would restore to.
-    if (GetWindowPlacement (m_window.GetHwnd(), &place) && IsZoomed (m_window.GetHwnd()))
+    if (GetWindowPlacement (m_context.window.GetHwnd(), &place) && IsZoomed (m_context.window.GetHwnd()))
     {
         width  = place.rcNormalPosition.right  - place.rcNormalPosition.left;
         height = place.rcNormalPosition.bottom - place.rcNormalPosition.top;
     }
 
-    left = screen.x - grab.x - (strip.left + (int) std::lround (m_window.m_scaler.ToPxf (kTabLeadDip))) - (client.x - window.left);
-    top  = screen.y - grab.y - (strip.top  + m_window.m_scaler.ToPx (kTabTopDip))                       - (client.y - window.top);
+    left = screen.x - grab.x - (strip.left + (int) std::lround (m_context.scaler.ToPxf (kTabLeadDip))) - (client.x - window.left);
+    top  = screen.y - grab.y - (strip.top  + m_context.scaler.ToPx (kTabTopDip))                       - (client.y - window.top);
 
     return RECT { left, top, left + width, top + height };
 }
@@ -855,39 +855,39 @@ void ExplorerTabManager::TearOffTab (int index, POINT screen)
 
 
 
-    if (rect.right <= rect.left || index < 0 || index >= (int) m_window.m_browser.GetBrowserModel().GetTabCount())
+    if (rect.right <= rect.left || index < 0 || index >= (int) m_context.browser.GetBrowserModel().GetTabCount())
     {
         return;
     }
 
-    if (m_window.m_browser.GetBrowserModel().GetTabCount() == 1)
+    if (m_context.browser.GetBrowserModel().GetTabCount() == 1)
     {
-        if (IsZoomed (m_window.GetHwnd()))
+        if (IsZoomed (m_context.window.GetHwnd()))
         {
-            moved = ShowWindow (m_window.GetHwnd(), SW_RESTORE);
+            moved = ShowWindow (m_context.window.GetHwnd(), SW_RESTORE);
             IGNORE_RETURN_VALUE (moved, TRUE);
         }
 
-        moved = SetWindowPos (m_window.GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
+        moved = SetWindowPos (m_context.window.GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
         IGNORE_RETURN_VALUE (moved, TRUE);
-        m_window.SaveSession();
+        m_context.window.SaveSession();
         return;
     }
 
-    if (m_window.m_context.host == nullptr)
+    if (m_context.app.host == nullptr)
     {
         return;
     }
 
-    request.tabs.push_back (m_window.m_browser.GetBrowserModel().GetTab ((size_t) index));
+    request.tabs.push_back (m_context.browser.GetBrowserModel().GetTab ((size_t) index));
     request.screenRect    = rect;
     request.hasScreenRect = true;
 
-    opened = m_window.m_context.host->OpenWindow (std::move (request));
+    opened = m_context.app.host->OpenWindow (std::move (request));
 
     if (opened == nullptr)
     {
-        m_window.ShowMessage (L"A new window could not be opened.", MB_ICONERROR);
+        m_context.window.ShowMessage (L"A new window could not be opened.", MB_ICONERROR);
         return;
     }
 
@@ -909,16 +909,16 @@ void ExplorerTabManager::TearOffTab (int index, POINT screen)
 
 void ExplorerTabManager::CloseTabAt (size_t index)
 {
-    if (m_window.m_browser.GetBrowserModel().GetTabCount() <= 1)
+    if (m_context.browser.GetBrowserModel().GetTabCount() <= 1)
     {
-        PostMessageW (m_window.GetHwnd(), WM_CLOSE, 0, 0);
+        PostMessageW (m_context.window.GetHwnd(), WM_CLOSE, 0, 0);
         return;
     }
 
-    if (m_window.m_browser.CloseTab (index))
+    if (m_context.browser.CloseTab (index))
     {
-        m_window.m_listPane.FillList();
-        m_window.SaveSession();
+        m_context.listPane.FillList();
+        m_context.window.SaveSession();
     }
 }
 
@@ -939,7 +939,7 @@ bool ExplorerTabManager::IsOverTabStrip (POINT screen) const
 
 
 
-    if (m_window.GetHwnd() == nullptr || IsIconic (m_window.GetHwnd()) || !ClientToScreen (m_window.GetHwnd(), &origin))
+    if (m_context.window.GetHwnd() == nullptr || IsIconic (m_context.window.GetHwnd()) || !ClientToScreen (m_context.window.GetHwnd(), &origin))
     {
         return false;
     }
@@ -965,7 +965,7 @@ bool ExplorerTabManager::IsOverTabStrip (POINT screen) const
 void ExplorerTabManager::HandleTabHover (bool over, POINT screen)
 {
     POINT  point  = screen;
-    int    width  = m_window.m_scaler.ToPx (kTabWidthDip);
+    int    width  = m_context.scaler.ToPx (kTabWidthDip);
     BOOL   mapped = FALSE;
 
 
@@ -979,7 +979,7 @@ void ExplorerTabManager::HandleTabHover (bool over, POINT screen)
 
     if (over)
     {
-        mapped = ScreenToClient (m_window.GetHwnd(), &point);
+        mapped = ScreenToClient (m_context.window.GetHwnd(), &point);
         IGNORE_RETURN_VALUE (mapped, TRUE);
 
         m_tabs->SetIncomingDrag (point.x, width);
@@ -989,8 +989,8 @@ void ExplorerTabManager::HandleTabHover (bool over, POINT screen)
         m_tabs->ClearIncomingDrag();
     }
 
-    m_window.ArmTick();
-    m_window.Invalidate();
+    m_context.window.ArmTick();
+    m_context.window.Invalidate();
 }
 
 
@@ -1016,12 +1016,12 @@ void ExplorerTabManager::AcceptTab (BrowserModel::Tab tab)
 
     if (index < 0)
     {
-        index = (int) m_window.m_browser.GetBrowserModel().GetTabCount();
+        index = (int) m_context.browser.GetBrowserModel().GetTabCount();
     }
 
-    m_window.m_browser.InsertTab ((size_t) index, std::move (tab));
-    m_window.m_browser.LeaveMissingLocation();
-    m_window.m_listPane.FillList();
-    CassoExplorerShell::FrontWindow (m_window.GetHwnd());
-    m_window.SaveSession();
+    m_context.browser.InsertTab ((size_t) index, std::move (tab));
+    m_context.browser.LeaveMissingLocation();
+    m_context.listPane.FillList();
+    CassoExplorerShell::FrontWindow (m_context.window.GetHwnd());
+    m_context.window.SaveSession();
 }

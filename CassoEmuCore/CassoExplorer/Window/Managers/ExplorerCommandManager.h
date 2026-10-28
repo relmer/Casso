@@ -5,7 +5,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -24,7 +24,7 @@ class CassoExplorerWindow;
 class ExplorerCommandManager
 {
 public:
-    explicit ExplorerCommandManager (CassoExplorerWindow & window);
+    explicit ExplorerCommandManager (ExplorerContext & context);
 
     static constexpr uint64_t  kDos33ImageBytes = 35 * 16 * 256;
 
@@ -59,7 +59,6 @@ public:
     void  ExtractImageFiles   (const std::wstring & imagePath);
 
 private:
-    friend class CassoExplorerWindow;
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 };

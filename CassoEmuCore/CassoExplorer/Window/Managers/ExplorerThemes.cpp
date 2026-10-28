@@ -26,8 +26,8 @@ static constexpr const char *  s_kpszThemeRows[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerThemes::ExplorerThemes (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerThemes::ExplorerThemes (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -47,7 +47,7 @@ void ExplorerThemes::ChooseInitial()
 {
     AdoptSystemColors();
 
-    m_window.m_theme = &CassoExplorerShell::ChooseTheme (m_window.m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
+    m_context.theme = &CassoExplorerShell::ChooseTheme (m_context.prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
 }
 
 
@@ -74,7 +74,7 @@ void ExplorerThemes::HandleSystemThemeChanged()
 
     DxuiWindowsThemeColors::Instance().Refresh();
     Apply();
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 
     m_applying = false;
 }
@@ -126,40 +126,40 @@ void ExplorerThemes::Apply()
 {
     AdoptSystemColors();
 
-    m_window.m_theme = &CassoExplorerShell::ChooseTheme (m_window.m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
+    m_context.theme = &CassoExplorerShell::ChooseTheme (m_context.prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
 
     //  Casso's own themes lend their chrome colors; the skeuomorphic one has
     //  no scene to draw here, so it is colors only.
-    if (IsCassoThemeName (m_window.m_prefs.theme))
+    if (IsCassoThemeName (m_context.prefs.theme))
     {
-        m_cassoTheme = CassoTheme::MakeByName (m_window.m_prefs.theme);
-        m_window.m_theme      = &m_cassoTheme;
+        m_cassoTheme = CassoTheme::MakeByName (m_context.prefs.theme);
+        m_context.theme      = &m_cassoTheme;
     }
 
     //  The menus' icons come in a set per theme.
-    m_window.m_menus.ApplyMenuSvgs();
+    m_context.menus.ApplyMenuSvgs();
 
-    m_window.SetTheme (m_window.m_theme);
+    m_context.window.SetTheme (m_context.theme);
 
-    m_window.m_toolbars.ApplyTheme (*m_window.m_theme);
+    m_context.toolbars.ApplyTheme (*m_context.theme);
 
-    if (m_window.m_toolbars.IsCreated())
+    if (m_context.toolbars.IsCreated())
     {
-        m_window.m_tips.ApplyTheme (*m_window.m_theme);
-        m_window.m_addressBar.ApplyTheme (m_window.m_theme);
+        m_context.tips.ApplyTheme (*m_context.theme);
+        m_context.addressBar.ApplyTheme (m_context.theme);
     }
 
-    m_window.m_tabManager.ApplyTheme (*m_window.m_theme);
+    m_context.tabManager.ApplyTheme (*m_context.theme);
 
-    if (m_window.GetHwnd() != nullptr)
+    if (m_context.window.GetHwnd() != nullptr)
     {
-        uint32_t  background = m_window.m_theme->Background();
+        uint32_t  background = m_context.theme->Background();
         int       luminance  = (int) (((background >> 16) & 0xFF) * 299 + ((background >> 8) & 0xFF) * 587 + (background & 0xFF) * 114) / 1000;
 
-        DxuiDwm::ApplyImmersiveDarkMode (m_window.GetHwnd(), luminance < 128);
+        DxuiDwm::ApplyImmersiveDarkMode (m_context.window.GetHwnd(), luminance < 128);
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -177,7 +177,7 @@ void ExplorerThemes::Apply()
 
 void ExplorerThemes::Preview (int index)
 {
-    if (index < 0 || index >= (int) std::size (s_kpszThemeRows) || m_window.m_prefs.theme == s_kpszThemeRows[index])
+    if (index < 0 || index >= (int) std::size (s_kpszThemeRows) || m_context.prefs.theme == s_kpszThemeRows[index])
     {
         return;
     }
@@ -197,11 +197,11 @@ void ExplorerThemes::Preview (int index)
 
 void ExplorerThemes::Select (const char * name)
 {
-    m_window.m_prefs.theme = name;
+    m_context.prefs.theme = name;
     Apply();
 
     //  A Casso theme brings its own CRT effects to a picture preview.
-    m_window.m_previewPane.UpdateCrtPicture (true);
+    m_context.preview.UpdateCrtPicture (true);
 }
 
 

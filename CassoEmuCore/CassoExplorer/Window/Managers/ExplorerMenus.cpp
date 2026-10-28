@@ -16,8 +16,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerMenus::ExplorerMenus (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerMenus::ExplorerMenus (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -42,17 +42,17 @@ bool ExplorerMenus::ShowScrollbarMenu (const DxuiMouseEvent & ev)
 
 
 
-    if (CassoExplorerWindow::Contains (m_window.m_treePane.GetBounds(), point))
+    if (ExplorerLayout::Contains (m_context.treePane.GetBounds(), point))
     {
-        items = m_window.m_treePane.GetScrollbarMenu (point);
+        items = m_context.treePane.GetScrollbarMenu (point);
     }
-    else if (CassoExplorerWindow::Contains (m_window.m_listPane.GetBounds(), point))
+    else if (ExplorerLayout::Contains (m_context.listPane.GetBounds(), point))
     {
-        items = m_window.m_listPane.GetScrollbarMenu (ev);
+        items = m_context.listPane.GetScrollbarMenu (ev);
     }
     else
     {
-        items = m_window.m_previewPane.GetScrollbarMenu (ev);
+        items = m_context.preview.GetScrollbarMenu (ev);
     }
 
     if (items.empty())
@@ -60,7 +60,7 @@ bool ExplorerMenus::ShowScrollbarMenu (const DxuiMouseEvent & ev)
         return false;
     }
 
-    DxuiContextMenu::Show (*m_window.GetPopupHost(), point.x, point.y, std::move (items), [this] (bool) { m_window.Invalidate(); });
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), point.x, point.y, std::move (items), [this] (bool) { m_context.window.Invalidate(); });
 
     return true;
 }
@@ -170,12 +170,12 @@ void ExplorerMenus::ApplyMenuSvgs()
 
     for (const auto & [view, name] : kViews)
     {
-        m_window.m_commands.SetMenuSvg (CassoExplorerCommands::kViewFirst + (int) view, GetMenuSvg (name));
+        m_context.commands.SetMenuSvg (CassoExplorerCommands::kViewFirst + (int) view, GetMenuSvg (name));
     }
 
-    m_window.m_commands.SetMenuSvg (CassoExplorerCommands::kTogglePreview, GetMenuSvg (L"windows.previewpane"));
-    m_window.m_commands.SetMenuSvg (CassoExplorerCommands::kNewFolder,     GetMenuSvg (L"newfolder"));
-    m_window.m_commands.SetMenuSvg (CassoExplorerCommands::kNewDisk,       GetMenuSvg (L"casso.floppy525"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kTogglePreview, GetMenuSvg (L"windows.previewpane"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewFolder,     GetMenuSvg (L"newfolder"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewDisk,       GetMenuSvg (L"casso.floppy525"));
 }
 
 
@@ -230,7 +230,7 @@ const wchar_t * ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb ve
 
 std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetOpenMenuImage (bool browsable, const std::wstring & path)
 {
-    int                                   sizePx  = m_window.m_scaler.ToPx (kMenuIconDip);
+    int                                   sizePx  = m_context.scaler.ToPx (kMenuIconDip);
     std::wstring                          program;
     std::wstring                          key;
     HICON                                 icon    = nullptr;
@@ -340,7 +340,7 @@ std::wstring ExplorerMenus::GetIconButtonTip (const DxuiCommand & command)
 
 const std::string * ExplorerMenus::GetMenuSvg (const wchar_t * name)
 {
-    bool          dark  = DxuiColor::ComputeRelativeLuminance (m_window.m_theme->Background()) < 0.5f;
+    bool          dark  = DxuiColor::ComputeRelativeLuminance (m_context.theme->Background()) < 0.5f;
     std::wstring  key   = std::wstring (dark ? L"dark:" : L"light:") + ((name != nullptr) ? name : L"");
     auto          found = m_menuSvgs.find (key);
     std::string   svg;
@@ -459,17 +459,17 @@ int ExplorerMenus::GetIconOrder (CassoExplorerActions::Verb verb)
 
 void ExplorerMenus::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder)
 {
-    bool  pinned = m_window.m_browser.IsPinnedToQuickAccess (folder);
+    bool  pinned = m_context.browser.IsPinnedToQuickAccess (folder);
 
 
 
     AddMenuCommand (items, pinned ? L"Unpin from &Quick access" : L"Pin to &Quick access", [this, folder, pinned]()
     {
-        HRESULT  hr = m_window.m_shellVerbs.SetPinnedToQuickAccess (m_window.GetHwnd(), folder, !pinned);
+        HRESULT  hr = m_context.shellVerbs.SetPinnedToQuickAccess (m_context.window.GetHwnd(), folder, !pinned);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
-        m_window.m_browser.RefreshShellRoots();
-        m_window.m_treePane.RefreshTree();
+        m_context.browser.RefreshShellRoots();
+        m_context.treePane.RefreshTree();
     });
     m_menuCommands.back()->menuSvg = GetMenuSvg (pinned ? L"windows.unpinfromhome" : L"windows.pintohome");
 }
@@ -497,22 +497,22 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
     //  A folder's row opens it here, first on its menu, as in File Explorer.
     if (withOpen && location.kind == Location::Kind::HostFolder)
     {
-        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::Open), [this, location]() { m_window.m_addressBar.GoToLocation (location); }, L"Enter");
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::Open), [this, location]() { m_context.addressBar.GoToLocation (location); }, L"Enter");
         m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenFile;
         m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.openfolder");
     }
 
     AddMenuCommand (items, L"Open in new &tab", [this, location]()
     {
-        m_window.m_browser.OpenInNewTab (location);
-        m_window.m_listPane.FillList();
+        m_context.browser.OpenInNewTab (location);
+        m_context.listPane.FillList();
     });
     m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
     m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.opennewtab");
 
     if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage)
     {
-        AddMenuCommand (items, L"Open in new &window", [this, path = location.path]() { m_window.m_tabManager.OpenInNewWindow (path); });
+        AddMenuCommand (items, L"Open in new &window", [this, path = location.path]() { m_context.tabManager.OpenInNewWindow (path); });
         m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.opennewwindow");
     }
 
@@ -585,7 +585,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         }
 
         AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
-        m_menuCommands.back()->menuImage = m_window.m_shellIcons.GetForExtension (choice.verb);
+        m_menuCommands.back()->menuImage = m_context.shellIcons.GetForExtension (choice.verb);
     }
 }
 
@@ -610,24 +610,24 @@ void ExplorerMenus::RunNewChoice (const Location & target, const std::wstring & 
 
 
 
-    m_window.m_addressBar.GoToLocation (target);
+    m_context.addressBar.GoToLocation (target);
 
-    hr = m_packagedCommands.CreateNew (m_window.GetHwnd(), target.path, verb, created);
+    hr = m_packagedCommands.CreateNew (m_context.window.GetHwnd(), target.path, verb, created);
 
     if (FAILED (hr))
     {
-        m_window.ShowMessage (L"The new item could not be created.", MB_ICONERROR);
+        m_context.window.ShowMessage (L"The new item could not be created.", MB_ICONERROR);
         return;
     }
 
-    m_window.m_folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshAfterHostChange();
 
     if (!created.empty() && named)
     {
-        m_window.m_fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostNewItem, Location(), { created } });
-        if (m_window.m_listPane.SelectRowNamed (std::filesystem::path (created).filename().wstring()))
+        m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostNewItem, Location(), { created } });
+        if (m_context.listPane.SelectRowNamed (std::filesystem::path (created).filename().wstring()))
         {
-            m_window.m_fileOps.BeginRename();
+            m_context.fileOps.BeginRename();
         }
     }
 }
@@ -735,12 +735,12 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
 
 
 
-    for (int row : m_window.m_browser.GetSelectedRows())
+    for (int row : m_context.browser.GetSelectedRows())
     {
-        folders += m_window.m_browser.GetRows()[(size_t) row].isDirectory ? 1 : 0;
+        folders += m_context.browser.GetRows()[(size_t) row].isDirectory ? 1 : 0;
     }
 
-    m_window.m_browser.GetSelectedHostPaths (outPaths);
+    m_context.browser.GetSelectedHostPaths (outPaths);
     outKind = (folders != 0) ? Win32PackagedCommands::ItemKind::Folder : Win32PackagedCommands::ItemKind::File;
 
     return !outPaths.empty() && (folders == 0 || folders == outPaths.size());
@@ -799,7 +799,7 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
     //  theme has one; the rest use the icon from the app's command.
     command->label     = entry.title;
     command->menuSvg   = entry.explorerIcon.empty() ? nullptr : GetMenuSvg (entry.explorerIcon.c_str());
-    command->menuImage = (command->menuSvg == nullptr) ? m_window.m_shellIcons.GetForIconResource (entry.icon) : nullptr;
+    command->menuImage = (command->menuSvg == nullptr) ? m_context.shellIcons.GetForIconResource (entry.icon) : nullptr;
     command->isEnabled = [enabled]() { return enabled; };
 
     if (!entry.children.empty())
@@ -817,8 +817,8 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
     //  A static verb runs through the shell's own menu for the items, by name.
     command->dispatch = [this, entry, paths]()
     {
-        HRESULT  hr = entry.command ? m_packagedCommands.Invoke (m_window.GetHwnd(), entry, paths)
-                                    : m_window.m_shellVerbs.RunItemVerb (m_window.GetHwnd(), paths, entry.verb.c_str());
+        HRESULT  hr = entry.command ? m_packagedCommands.Invoke (m_context.window.GetHwnd(), entry, paths)
+                                    : m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), paths, entry.verb.c_str());
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     };

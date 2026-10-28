@@ -5,7 +5,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "Seams/Win32ProcessLauncher.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -24,7 +24,7 @@ class CassoExplorerWindow;
 class ExplorerFileOps
 {
 public:
-    explicit ExplorerFileOps (CassoExplorerWindow & window);
+    explicit ExplorerFileOps (ExplorerContext & context);
 
     //  The rename box, as a child of the window, and the pointer and keys while
     //  a rename is open.
@@ -98,10 +98,11 @@ public:
     void  AskCassoToDescribe  ();
     std::wstring  GetSelectedImagePath() const;
 
-private:
-    friend class CassoExplorerWindow;
+    bool  CountDownRestore () { return --m_restoreTicks <= 0; }
 
-    CassoExplorerWindow  & m_window;
+private:
+
+    ExplorerContext  & m_context;
 
     Win32ProcessLauncher  m_launcher;
     int                   m_defaultDriveCount = -1;   // the default machine's, once read

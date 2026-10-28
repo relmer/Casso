@@ -6,7 +6,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Seams/Win32PackagedCommands.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -25,7 +25,7 @@ class CassoExplorerWindow;
 class ExplorerMenus
 {
 public:
-    explicit ExplorerMenus (CassoExplorerWindow & window);
+    explicit ExplorerMenus (ExplorerContext & context);
 
     //  The commands of the menu open now, alive for as long as it is open.
     std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () { return m_menuCommands; }
@@ -104,9 +104,8 @@ public:
     std::shared_ptr<const DxuiIconImage>  GetOpenMenuImage (bool browsable, const std::wstring & path);
 
 private:
-    friend class CassoExplorerWindow;
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     std::vector<std::shared_ptr<DxuiCommand>>  m_menuCommands;
     Win32PackagedCommands                      m_packagedCommands;

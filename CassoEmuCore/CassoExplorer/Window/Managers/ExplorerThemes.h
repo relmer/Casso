@@ -4,7 +4,7 @@
 
 #include "Ui/Chrome/CassoTheme.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -24,7 +24,7 @@ class CassoExplorerWindow;
 class ExplorerThemes
 {
 public:
-    explicit ExplorerThemes (CassoExplorerWindow & window);
+    explicit ExplorerThemes (ExplorerContext & context);
 
     void  ChooseInitial        ();
     void  Apply                ();
@@ -39,7 +39,7 @@ public:
     static bool  IsCassoThemeName (const std::string & name);
 
 private:
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiLightTheme         m_lightTheme;
     DxuiDarkTheme          m_darkTheme;

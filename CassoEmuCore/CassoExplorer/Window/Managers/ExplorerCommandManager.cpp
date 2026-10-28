@@ -22,8 +22,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerCommandManager::ExplorerCommandManager (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerCommandManager::ExplorerCommandManager (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -52,15 +52,15 @@ void ExplorerCommandManager::ExtractImageFiles (const std::wstring & imagePath)
         return;
     }
 
-    outcome = m_window.m_actions.ExtractImage (imagePath, GetNamingStyle(), folder);
+    outcome = m_context.actions.ExtractImage (imagePath, GetNamingStyle(), folder);
 
     ReportOutcome (outcome, L"Extract all files");
-    m_window.m_folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshAfterHostChange();
 
-    if (!folder.empty() && m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder
-        && std::filesystem::path (m_window.m_browser.GetLocation().path) == std::filesystem::path (folder).parent_path())
+    if (!folder.empty() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder
+        && std::filesystem::path (m_context.browser.GetLocation().path) == std::filesystem::path (folder).parent_path())
     {
-        m_window.m_listPane.SelectRowNamed (std::filesystem::path (folder).filename().wstring());
+        m_context.listPane.SelectRowNamed (std::filesystem::path (folder).filename().wstring());
     }
 }
 
@@ -80,13 +80,13 @@ void ExplorerCommandManager::ExtractImageFiles (const std::wstring & imagePath)
 void ExplorerCommandManager::ExtractAll()
 {
     HRESULT       hr     = S_OK;
-    std::wstring  target = m_window.m_browser.GetExtractTarget();
+    std::wstring  target = m_context.browser.GetExtractTarget();
 
 
 
     BAIL_OUT_IF (target.empty(), S_OK);
 
-    hr = m_window.m_shellVerbs.RunItemVerb (m_window.GetHwnd(), { target }, "extract");
+    hr = m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), { target }, "extract");
     CHR (hr);
 
 Error:
@@ -107,11 +107,11 @@ Error:
 
 bool ExplorerCommandManager::IsToolbarEntryAvailable (int index) const
 {
-    int  id = m_window.m_toolbars.GetNavToolbar().GetEntryCommandId (index);
+    int  id = m_context.toolbars.GetNavToolbar().GetEntryCommandId (index);
 
 
 
-    if (!m_window.m_toolbars.GetNavToolbar().IsEntryShown (index))
+    if (!m_context.toolbars.GetNavToolbar().IsEntryShown (index))
     {
         return false;
     }
@@ -131,11 +131,11 @@ bool ExplorerCommandManager::IsToolbarEntryAvailable (int index) const
 
 bool ExplorerCommandManager::IsCommandBarEntryAvailable (int index) const
 {
-    int  id = m_window.m_toolbars.GetCommandBar().GetEntryCommandId (index);
+    int  id = m_context.toolbars.GetCommandBar().GetEntryCommandId (index);
 
 
 
-    if (!m_window.m_toolbars.GetCommandBar().IsEntryShown (index))
+    if (!m_context.toolbars.GetCommandBar().IsEntryShown (index))
     {
         return false;
     }
@@ -155,7 +155,7 @@ bool ExplorerCommandManager::IsCommandBarEntryAvailable (int index) const
 
 bool ExplorerCommandManager::IsEnabled (int id) const
 {
-    const BrowserModel &  model    = m_window.m_browser.GetBrowserModel();
+    const BrowserModel &  model    = m_context.browser.GetBrowserModel();
     DxuiStandardCommand   standard = CassoExplorerCommands::GetStandardCommand (id);
     bool                  enabled  = false;
     Location              drive;
@@ -166,19 +166,19 @@ bool ExplorerCommandManager::IsEnabled (int id) const
     //  available, and grayed when no control handles it.
     if (standard != DxuiStandardCommand::None)
     {
-        return DxuiCommandRouter::Query (m_window.m_input.GetFocusedControl(), standard, enabled) && enabled;
+        return DxuiCommandRouter::Query (m_context.input.GetFocusedControl(), standard, enabled) && enabled;
     }
 
     switch (id)
     {
         case CassoExplorerCommands::kBack:              return model.HasTabs() && model.CanGoBack();
         case CassoExplorerCommands::kForward:           return model.HasTabs() && model.CanGoForward();
-        case CassoExplorerCommands::kUp:                return m_window.m_browser.CanGoUp();
-        case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && m_window.m_browser.GetPreview().kind == PreviewContent::Kind::Hex && m_window.m_browser.GetPreview().hostPath.empty();
-        case CassoExplorerCommands::kLineAddresses:     return m_window.m_previewPane.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
+        case CassoExplorerCommands::kUp:                return m_context.browser.CanGoUp();
+        case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && m_context.browser.GetPreview().kind == PreviewContent::Kind::Hex && m_context.browser.GetPreview().hostPath.empty();
+        case CassoExplorerCommands::kLineAddresses:     return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
-        case CassoExplorerCommands::kPictureColor:      return m_window.m_browser.CanTogglePictureColor();
-        case CassoExplorerCommands::kFindNext:          return m_window.m_previewPane.CanFindNext();
+        case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
+        case CassoExplorerCommands::kFindNext:          return m_context.preview.CanFindNext();
         case CassoExplorerCommands::kFind:
         case CassoExplorerCommands::kNoData:
         case CassoExplorerCommands::kFormatHex:
@@ -195,28 +195,28 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kGroup1:
         case CassoExplorerCommands::kGroup2:
         case CassoExplorerCommands::kGroup4:
-        case CassoExplorerCommands::kGroup8:            return m_window.m_previewPane.IsHexPreviewShowing();
+        case CassoExplorerCommands::kGroup8:            return m_context.preview.IsHexPreviewShowing();
         case CassoExplorerCommands::kNextTab:
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
-        case CassoExplorerCommands::kUndo:              return m_window.m_fileOps.CanUndo();
-        case CassoExplorerCommands::kCutItems:          return m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Cut);
-        case CassoExplorerCommands::kCopyItems:         return m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_window.m_browser.AreSelectedRowsSearchMatches();
-        case CassoExplorerCommands::kPasteItems:        return (m_window.m_browser.IsVolumeLocation() || m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder)
-                                                         && m_window.m_shellVerbs.ClipboardHasFiles();
-        case CassoExplorerCommands::kRenameItem:        return m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
-        case CassoExplorerCommands::kShareItems:        return m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
-        case CassoExplorerCommands::kExtractAll:        return !m_window.m_browser.GetExtractTarget().empty();
+        case CassoExplorerCommands::kUndo:              return m_context.fileOps.CanUndo();
+        case CassoExplorerCommands::kCutItems:          return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Cut);
+        case CassoExplorerCommands::kCopyItems:         return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_context.browser.AreSelectedRowsSearchMatches();
+        case CassoExplorerCommands::kPasteItems:        return (m_context.browser.IsVolumeLocation() || m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+                                                         && m_context.shellVerbs.ClipboardHasFiles();
+        case CassoExplorerCommands::kRenameItem:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Rename);
+        case CassoExplorerCommands::kShareItems:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
+        case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetExtractTarget().empty();
         case CassoExplorerCommands::kReadDiskToImage:
-        case CassoExplorerCommands::kWriteImageToDisk:  return m_window.m_browser.IsAppleDriveOpen() || m_window.m_cassoLinkManager.TryGetSelectedLinkDrive (drive);
-        case CassoExplorerCommands::kCancelLinkOperation: return (m_window.m_browser.IsAppleDriveOpen() || m_window.m_cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_window.m_context.links != nullptr && !m_window.m_context.links->GetPendingJobs().empty();
-        case CassoExplorerCommands::kDeleteItems:       return m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
+        case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
+        case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
+        case CassoExplorerCommands::kDeleteItems:       return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kEmptyRecycleBin:
-        case CassoExplorerCommands::kRestoreItems:      return m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin && !m_window.m_browser.GetRows().empty();
-        case CassoExplorerCommands::kNew:               return !m_window.m_browser.IsVolumeLocation() ? m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder
-                                                                                      : (m_window.m_browser.GetVolumeKind() == VolumeKind::ProDos && !m_window.m_browser.IsWriteProtected());
-        case CassoExplorerCommands::kNewFolder:         return !m_window.m_browser.IsVolumeLocation() ? true
-                                                                                      : (m_window.m_browser.GetVolumeKind() == VolumeKind::ProDos && !m_window.m_browser.IsWriteProtected());
-        case CassoExplorerCommands::kNewDisk:           return !m_window.m_browser.IsImageLocation() && m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder;
+        case CassoExplorerCommands::kRestoreItems:      return m_context.browser.GetLocation().kind == Location::Kind::RecycleBin && !m_context.browser.GetRows().empty();
+        case CassoExplorerCommands::kNew:               return !m_context.browser.IsVolumeLocation() ? m_context.browser.GetLocation().kind == Location::Kind::HostFolder
+                                                                                      : (m_context.browser.GetVolumeKind() == VolumeKind::ProDos && !m_context.browser.IsWriteProtected());
+        case CassoExplorerCommands::kNewFolder:         return !m_context.browser.IsVolumeLocation() ? true
+                                                                                      : (m_context.browser.GetVolumeKind() == VolumeKind::ProDos && !m_context.browser.IsWriteProtected());
+        case CassoExplorerCommands::kNewDisk:           return !m_context.browser.IsImageLocation() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder;
         default:                                  return true;
     }
 }
@@ -233,7 +233,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
 
 bool ExplorerCommandManager::IsChecked (int id) const
 {
-    const BrowserModel &  model = m_window.m_browser.GetBrowserModel();
+    const BrowserModel &  model = m_context.browser.GetBrowserModel();
 
 
 
@@ -249,41 +249,41 @@ bool ExplorerCommandManager::IsChecked (int id) const
 
     if (id >= CassoExplorerCommands::kViewFirst && id < CassoExplorerCommands::kViewFirst + CassoExplorerPrefs::kViewCount)
     {
-        return (int) m_window.m_listPane.GetColumns().GetView() == id - CassoExplorerCommands::kViewFirst;
+        return (int) m_context.listPane.GetColumns().GetView() == id - CassoExplorerCommands::kViewFirst;
     }
 
     switch (id)
     {
-        case CassoExplorerCommands::kTogglePreview:     return m_window.m_prefs.previewVisible;
+        case CassoExplorerCommands::kTogglePreview:     return m_context.prefs.previewVisible;
         case CassoExplorerCommands::kSortAscending:     return model.HasTabs() && !model.GetActiveTab().sortDescending;
         case CassoExplorerCommands::kSortDescending:    return model.HasTabs() && model.GetActiveTab().sortDescending;
         case CassoExplorerCommands::kGroupAscending:    return model.HasTabs() && !model.GetActiveTab().groupDescending;
         case CassoExplorerCommands::kGroupDescending:   return model.HasTabs() && model.GetActiveTab().groupDescending;
-        case CassoExplorerCommands::kLineAddresses:     return m_window.m_prefs.lineAddresses;
+        case CassoExplorerCommands::kLineAddresses:     return m_context.prefs.lineAddresses;
         case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && model.GetActiveTab().disassemble;
-        case CassoExplorerCommands::kThemeLight:        return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeLight;
-        case CassoExplorerCommands::kThemeDark:         return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeDark;
-        case CassoExplorerCommands::kThemeSystem:       return m_window.m_prefs.theme != CassoExplorerPrefs::kThemeLight && m_window.m_prefs.theme != CassoExplorerPrefs::kThemeDark
-                                                             && !ExplorerThemes::IsCassoThemeName (m_window.m_prefs.theme);
-        case CassoExplorerCommands::kThemeSkeuomorphic: return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeSkeuomorphic;
-        case CassoExplorerCommands::kThemeDarkModern:   return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
-        case CassoExplorerCommands::kThemeRetroTerminal: return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
-        case CassoExplorerCommands::kPictureMonochrome: return m_window.m_browser.CanTogglePictureColor() && m_window.m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
-        case CassoExplorerCommands::kPictureColor:      return m_window.m_browser.CanTogglePictureColor() && m_window.m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
-        case CassoExplorerCommands::kNoData:            return !m_window.m_previewPane.IsShowingValues();
-        case CassoExplorerCommands::kGroup1:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 1;
-        case CassoExplorerCommands::kGroup2:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 2;
-        case CassoExplorerCommands::kGroup4:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 4;
-        case CassoExplorerCommands::kGroup8:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 8;
-        case CassoExplorerCommands::kFormatHex:         return m_window.m_prefs.hexFormat == CassoExplorerPrefs::kHexFormatHex;
-        case CassoExplorerCommands::kFormatSigned:      return m_window.m_prefs.hexFormat == CassoExplorerPrefs::kHexFormatSigned;
-        case CassoExplorerCommands::kFormatUnsigned:    return m_window.m_prefs.hexFormat == CassoExplorerPrefs::kHexFormatUnsigned;
-        case CassoExplorerCommands::kColumnsAuto:       return m_window.m_prefs.hexColumns == 0;
-        case CassoExplorerCommands::kColumns1:          return m_window.m_prefs.hexColumns == 1;
-        case CassoExplorerCommands::kColumns2:          return m_window.m_prefs.hexColumns == 2;
-        case CassoExplorerCommands::kColumns4:          return m_window.m_prefs.hexColumns == 4;
-        case CassoExplorerCommands::kColumns8:          return m_window.m_prefs.hexColumns == 8;
-        case CassoExplorerCommands::kColumns16:         return m_window.m_prefs.hexColumns == 16;
+        case CassoExplorerCommands::kThemeLight:        return m_context.prefs.theme == CassoExplorerPrefs::kThemeLight;
+        case CassoExplorerCommands::kThemeDark:         return m_context.prefs.theme == CassoExplorerPrefs::kThemeDark;
+        case CassoExplorerCommands::kThemeSystem:       return m_context.prefs.theme != CassoExplorerPrefs::kThemeLight && m_context.prefs.theme != CassoExplorerPrefs::kThemeDark
+                                                             && !ExplorerThemes::IsCassoThemeName (m_context.prefs.theme);
+        case CassoExplorerCommands::kThemeSkeuomorphic: return m_context.prefs.theme == CassoExplorerPrefs::kThemeSkeuomorphic;
+        case CassoExplorerCommands::kThemeDarkModern:   return m_context.prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
+        case CassoExplorerCommands::kThemeRetroTerminal: return m_context.prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
+        case CassoExplorerCommands::kPictureMonochrome: return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
+        case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor() && m_context.browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
+        case CassoExplorerCommands::kNoData:            return !m_context.preview.IsShowingValues();
+        case CassoExplorerCommands::kGroup1:            return m_context.preview.IsShowingValues() && m_context.prefs.hexGrouping == 1;
+        case CassoExplorerCommands::kGroup2:            return m_context.preview.IsShowingValues() && m_context.prefs.hexGrouping == 2;
+        case CassoExplorerCommands::kGroup4:            return m_context.preview.IsShowingValues() && m_context.prefs.hexGrouping == 4;
+        case CassoExplorerCommands::kGroup8:            return m_context.preview.IsShowingValues() && m_context.prefs.hexGrouping == 8;
+        case CassoExplorerCommands::kFormatHex:         return m_context.prefs.hexFormat == CassoExplorerPrefs::kHexFormatHex;
+        case CassoExplorerCommands::kFormatSigned:      return m_context.prefs.hexFormat == CassoExplorerPrefs::kHexFormatSigned;
+        case CassoExplorerCommands::kFormatUnsigned:    return m_context.prefs.hexFormat == CassoExplorerPrefs::kHexFormatUnsigned;
+        case CassoExplorerCommands::kColumnsAuto:       return m_context.prefs.hexColumns == 0;
+        case CassoExplorerCommands::kColumns1:          return m_context.prefs.hexColumns == 1;
+        case CassoExplorerCommands::kColumns2:          return m_context.prefs.hexColumns == 2;
+        case CassoExplorerCommands::kColumns4:          return m_context.prefs.hexColumns == 4;
+        case CassoExplorerCommands::kColumns8:          return m_context.prefs.hexColumns == 8;
+        case CassoExplorerCommands::kColumns16:         return m_context.prefs.hexColumns == 16;
         default:                                  return false;
     }
 }
@@ -302,7 +302,7 @@ void ExplorerCommandManager::Dispatch (int id)
 {
     HRESULT  hr     = S_OK;
     bool     refill = false;
-    bool     routed = DxuiCommandRouter::Invoke (m_window.m_input.GetFocusedControl(),
+    bool     routed = DxuiCommandRouter::Invoke (m_context.input.GetFocusedControl(),
                                                   CassoExplorerCommands::GetStandardCommand (id));
 
 
@@ -312,17 +312,17 @@ void ExplorerCommandManager::Dispatch (int id)
     if (CassoExplorerCommands::GetStandardCommand (id) != DxuiStandardCommand::None)
     {
         IGNORE_RETURN_VALUE (routed, true);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return;
     }
 
     if (id >= CassoExplorerCommands::kViewFirst && id < CassoExplorerCommands::kViewFirst + CassoExplorerPrefs::kViewCount)
     {
-        m_window.m_listPane.GetColumns().SetView ((DxuiListView::View) (id - CassoExplorerCommands::kViewFirst));
-        m_window.m_toolbars.ShowViewOnButton();
-        m_window.m_listPane.SizeListIcons();
-        m_window.m_listPane.FillList();
-        m_window.Invalidate();
+        m_context.listPane.GetColumns().SetView ((DxuiListView::View) (id - CassoExplorerCommands::kViewFirst));
+        m_context.toolbars.ShowViewOnButton();
+        m_context.listPane.SizeListIcons();
+        m_context.listPane.FillList();
+        m_context.window.Invalidate();
         return;
     }
 
@@ -334,9 +334,9 @@ void ExplorerCommandManager::Dispatch (int id)
 
         if (!IsChecked (id))
         {
-            m_window.m_browser.SetGroupBy (field, field == RowGrouping::Field::DateModified);
-            m_window.m_listPane.GetColumns().RememberFolderSort();
-            m_window.m_listPane.FillList();
+            m_context.browser.SetGroupBy (field, field == RowGrouping::Field::DateModified);
+            m_context.listPane.GetColumns().RememberFolderSort();
+            m_context.listPane.FillList();
         }
 
         return;
@@ -348,15 +348,15 @@ void ExplorerCommandManager::Dispatch (int id)
         //  direction.
         if (!IsChecked (id))
         {
-            m_window.m_browser.SortByColumn (id - CassoExplorerCommands::kSortByColumn);
+            m_context.browser.SortByColumn (id - CassoExplorerCommands::kSortByColumn);
 
-            if (m_window.m_browser.GetBrowserModel().GetActiveTab().sortDescending)
+            if (m_context.browser.GetBrowserModel().GetActiveTab().sortDescending)
             {
-                m_window.m_browser.SortByColumn (id - CassoExplorerCommands::kSortByColumn);
+                m_context.browser.SortByColumn (id - CassoExplorerCommands::kSortByColumn);
             }
 
-            m_window.m_listPane.GetColumns().RememberFolderSort();
-            m_window.m_listPane.FillList();
+            m_context.listPane.GetColumns().RememberFolderSort();
+            m_context.listPane.FillList();
         }
 
         return;
@@ -366,39 +366,39 @@ void ExplorerCommandManager::Dispatch (int id)
     {
         //  Exit closes every window and writes them all for the next launch.
         case CassoExplorerCommands::kExit:
-            if (m_window.m_context.host != nullptr)
+            if (m_context.app.host != nullptr)
             {
-                m_window.m_context.host->ExitAll();
+                m_context.app.host->ExitAll();
             }
             else
             {
-                m_window.OnWindowClose();
+                m_context.window.CloseWindow();
             }
 
             break;
 
-        case CassoExplorerCommands::kUndo:         m_window.m_fileOps.UndoLast();                                   break;
+        case CassoExplorerCommands::kUndo:         m_context.fileOps.UndoLast();                                   break;
         case CassoExplorerCommands::kCutItems:     RunVerb (CassoExplorerActions::Verb::Cut);    break;
         //  Ctrl+V and the command bar paste into the folder shown, whatever is
         //  selected, as Explorer's do; a folder's own menu pastes into it.
         case CassoExplorerCommands::kPasteItems:
         {
-            if (m_window.m_browser.IsVolumeLocation())
+            if (m_context.browser.IsVolumeLocation())
             {
-                m_window.m_fileOps.PasteIntoVolume();
+                m_context.fileOps.PasteIntoVolume();
                 break;
             }
 
-            m_window.m_fileOps.PasteHere (m_window.m_browser.GetLocation().path);
+            m_context.fileOps.PasteHere (m_context.browser.GetLocation().path);
             break;
         }
 
         case CassoExplorerCommands::kRenameItem:   RunVerb (CassoExplorerActions::Verb::Rename); break;
         case CassoExplorerCommands::kShareItems:   RunVerb (CassoExplorerActions::Verb::Share);  break;
         case CassoExplorerCommands::kExtractAll:   ExtractAll();                                  break;
-        case CassoExplorerCommands::kReadDiskToImage:     m_window.m_cassoLinkManager.ReadDiskToImage();                   break;
-        case CassoExplorerCommands::kWriteImageToDisk:    m_window.m_cassoLinkManager.WriteImageToDisk();                  break;
-        case CassoExplorerCommands::kCancelLinkOperation: m_window.m_actions.CancelLinkOperation();     break;
+        case CassoExplorerCommands::kReadDiskToImage:     m_context.cassoLinkManager.ReadDiskToImage();                   break;
+        case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
+        case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kEmptyRecycleBin: RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
         case CassoExplorerCommands::kRestoreItems:    RunRecycleBinVerb (CassoExplorerActions::Verb::Restore); break;
@@ -409,9 +409,9 @@ void ExplorerCommandManager::Dispatch (int id)
         //  the shell, an entry in an image as the file a paste would write,
         //  in the style the Options dialog sets.
         case CassoExplorerCommands::kCopyItems:
-            if (m_window.m_browser.IsVolumeLocation() || m_window.m_browser.AreSelectedRowsSearchMatches())
+            if (m_context.browser.IsVolumeLocation() || m_context.browser.AreSelectedRowsSearchMatches())
             {
-                m_window.m_fileOps.CopyEntriesToClipboard (GetNamingStyle());
+                m_context.fileOps.CopyEntriesToClipboard (GetNamingStyle());
             }
             else
             {
@@ -422,146 +422,146 @@ void ExplorerCommandManager::Dispatch (int id)
 
         case CassoExplorerCommands::kSortAscending:
         case CassoExplorerCommands::kSortDescending:
-            if (!IsChecked (id) && m_window.m_browser.GetBrowserModel().HasTabs())
+            if (!IsChecked (id) && m_context.browser.GetBrowserModel().HasTabs())
             {
-                m_window.m_browser.SortByColumn ((int) m_window.m_browser.GetBrowserModel().GetActiveTab().sortColumn);
-                m_window.m_listPane.GetColumns().RememberFolderSort();
-                m_window.m_listPane.FillList();
+                m_context.browser.SortByColumn ((int) m_context.browser.GetBrowserModel().GetActiveTab().sortColumn);
+                m_context.listPane.GetColumns().RememberFolderSort();
+                m_context.listPane.FillList();
             }
 
             break;
 
         case CassoExplorerCommands::kGroupAscending:
         case CassoExplorerCommands::kGroupDescending:
-            if (!IsChecked (id) && m_window.m_browser.GetBrowserModel().HasTabs())
+            if (!IsChecked (id) && m_context.browser.GetBrowserModel().HasTabs())
             {
-                m_window.m_browser.SetGroupBy (m_window.m_browser.GetBrowserModel().GetActiveTab().groupBy, id == CassoExplorerCommands::kGroupDescending);
-                m_window.m_listPane.GetColumns().RememberFolderSort();
-                m_window.m_listPane.FillList();
+                m_context.browser.SetGroupBy (m_context.browser.GetBrowserModel().GetActiveTab().groupBy, id == CassoExplorerCommands::kGroupDescending);
+                m_context.listPane.GetColumns().RememberFolderSort();
+                m_context.listPane.FillList();
             }
 
             break;
 
 
         case CassoExplorerCommands::kRefresh:
-            m_window.m_listPane.GetColumns().ReadFolderOptions();
-            m_window.m_folderSync.ReloadKnownFolders();
-            m_window.m_browser.GetBrowserModel().InvalidateAllCatalogs();
-            m_window.m_browser.ForgetLinkVisit();
-            hr = m_window.m_browser.Refresh();
+            m_context.listPane.GetColumns().ReadFolderOptions();
+            m_context.folderSync.ReloadKnownFolders();
+            m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
+            m_context.browser.ForgetLinkVisit();
+            hr = m_context.browser.Refresh();
 
             //  The list's rows are hidden for a moment and then refilled, as
             //  File Explorer's are, so the refresh can be seen. Its scroll
             //  position does not change.
-            m_window.m_listPane.SetContentHidden (true);
-            SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRefresh, kRefreshBlankMs, nullptr);
+            m_context.listPane.SetContentHidden (true);
+            SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRefresh, kRefreshBlankMs, nullptr);
             break;
 
         case CassoExplorerCommands::kTogglePreview:
-            m_window.m_prefs.previewVisible = !m_window.m_prefs.previewVisible;
-            m_window.m_previewPane.FillPreview();
-            m_window.m_layout.RecomputeLayout();
+            m_context.prefs.previewVisible = !m_context.prefs.previewVisible;
+            m_context.preview.FillPreview();
+            m_context.layout.RecomputeLayout();
             break;
 
         case CassoExplorerCommands::kToggleDisassembly:
-            if (m_window.m_browser.GetBrowserModel().HasTabs())
+            if (m_context.browser.GetBrowserModel().HasTabs())
             {
-                m_window.m_browser.SetDisassemble (!m_window.m_browser.GetBrowserModel().GetActiveTab().disassemble);
-                m_window.m_previewPane.FillPreview();
+                m_context.browser.SetDisassemble (!m_context.browser.GetBrowserModel().GetActiveTab().disassemble);
+                m_context.preview.FillPreview();
             }
 
             break;
 
-        case CassoExplorerCommands::kThemeLight:         m_window.m_themes.Select (CassoExplorerPrefs::kThemeLight);         break;
-        case CassoExplorerCommands::kThemeDark:          m_window.m_themes.Select (CassoExplorerPrefs::kThemeDark);          break;
-        case CassoExplorerCommands::kThemeSystem:        m_window.m_themes.Select (CassoExplorerPrefs::kThemeFollowSystem);  break;
-        case CassoExplorerCommands::kThemeSkeuomorphic:  m_window.m_themes.Select (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
-        case CassoExplorerCommands::kThemeDarkModern:    m_window.m_themes.Select (CassoExplorerPrefs::kThemeDarkModern);    break;
-        case CassoExplorerCommands::kThemeRetroTerminal: m_window.m_themes.Select (CassoExplorerPrefs::kThemeRetroTerminal); break;
-        case CassoExplorerCommands::kPictureMonochrome:  m_window.m_previewPane.ShowPictureForm (false);                               break;
-        case CassoExplorerCommands::kPictureColor:       m_window.m_previewPane.ShowPictureForm (true);                                break;
+        case CassoExplorerCommands::kThemeLight:         m_context.themes.Select (CassoExplorerPrefs::kThemeLight);         break;
+        case CassoExplorerCommands::kThemeDark:          m_context.themes.Select (CassoExplorerPrefs::kThemeDark);          break;
+        case CassoExplorerCommands::kThemeSystem:        m_context.themes.Select (CassoExplorerPrefs::kThemeFollowSystem);  break;
+        case CassoExplorerCommands::kThemeSkeuomorphic:  m_context.themes.Select (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
+        case CassoExplorerCommands::kThemeDarkModern:    m_context.themes.Select (CassoExplorerPrefs::kThemeDarkModern);    break;
+        case CassoExplorerCommands::kThemeRetroTerminal: m_context.themes.Select (CassoExplorerPrefs::kThemeRetroTerminal); break;
+        case CassoExplorerCommands::kPictureMonochrome:  m_context.preview.ShowPictureForm (false);                               break;
+        case CassoExplorerCommands::kPictureColor:       m_context.preview.ShowPictureForm (true);                                break;
 
         case CassoExplorerCommands::kGoToOffset:
-            m_window.m_previewPane.FocusGoTo();
+            m_context.preview.FocusGoTo();
             break;
 
         case CassoExplorerCommands::kLineAddresses:
-            m_window.m_previewPane.ToggleLineAddresses();
+            m_context.preview.ToggleLineAddresses();
             break;
 
         //  Find searches the hex preview while it has focus; elsewhere it goes
         //  to the search box, as Explorer's Ctrl+E and Ctrl+F do.
         case CassoExplorerCommands::kFind:
-            if (!m_window.m_previewPane.FocusFind())
+            if (!m_context.preview.FocusFind())
             {
-                m_window.m_input.SetFocusPane (ExplorerPane::LocationSearch);
+                m_context.input.SetFocusPane (ExplorerPane::LocationSearch);
             }
 
             break;
 
-        case CassoExplorerCommands::kZoomIn:         m_window.m_previewPane.SetPreviewZoom (m_window.m_prefs.previewZoom + kPreviewZoomStep); break;
-        case CassoExplorerCommands::kZoomOut:        m_window.m_previewPane.SetPreviewZoom (m_window.m_prefs.previewZoom - kPreviewZoomStep); break;
-        case CassoExplorerCommands::kZoomReset:      m_window.m_previewPane.SetPreviewZoom (CassoExplorerPrefs::kDefaultPreviewZoom);      break;
-        case CassoExplorerCommands::kFindNext:       m_window.m_previewPane.FindNext();                                      break;
-        case CassoExplorerCommands::kNoData:         m_window.m_previewPane.SetHexShowValues (!m_window.m_previewPane.IsShowingValues()); break;
-        case CassoExplorerCommands::kFormatHex:      m_window.m_previewPane.SetHexFormat (CassoExplorerPrefs::kHexFormatHex);      break;
-        case CassoExplorerCommands::kFormatSigned:   m_window.m_previewPane.SetHexFormat (CassoExplorerPrefs::kHexFormatSigned);   break;
-        case CassoExplorerCommands::kFormatUnsigned: m_window.m_previewPane.SetHexFormat (CassoExplorerPrefs::kHexFormatUnsigned); break;
+        case CassoExplorerCommands::kZoomIn:         m_context.preview.SetPreviewZoom (m_context.prefs.previewZoom + kPreviewZoomStep); break;
+        case CassoExplorerCommands::kZoomOut:        m_context.preview.SetPreviewZoom (m_context.prefs.previewZoom - kPreviewZoomStep); break;
+        case CassoExplorerCommands::kZoomReset:      m_context.preview.SetPreviewZoom (CassoExplorerPrefs::kDefaultPreviewZoom);      break;
+        case CassoExplorerCommands::kFindNext:       m_context.preview.FindNext();                                      break;
+        case CassoExplorerCommands::kNoData:         m_context.preview.SetHexShowValues (!m_context.preview.IsShowingValues()); break;
+        case CassoExplorerCommands::kFormatHex:      m_context.preview.SetHexFormat (CassoExplorerPrefs::kHexFormatHex);      break;
+        case CassoExplorerCommands::kFormatSigned:   m_context.preview.SetHexFormat (CassoExplorerPrefs::kHexFormatSigned);   break;
+        case CassoExplorerCommands::kFormatUnsigned: m_context.preview.SetHexFormat (CassoExplorerPrefs::kHexFormatUnsigned); break;
         case CassoExplorerCommands::kColumns:                                                         break;
-        case CassoExplorerCommands::kColumnsAuto:    m_window.m_previewPane.SetHexColumns (0);                               break;
-        case CassoExplorerCommands::kColumns1:       m_window.m_previewPane.SetHexColumns (1);                               break;
-        case CassoExplorerCommands::kColumns2:       m_window.m_previewPane.SetHexColumns (2);                               break;
-        case CassoExplorerCommands::kColumns4:       m_window.m_previewPane.SetHexColumns (4);                               break;
-        case CassoExplorerCommands::kColumns8:       m_window.m_previewPane.SetHexColumns (8);                               break;
-        case CassoExplorerCommands::kColumns16:      m_window.m_previewPane.SetHexColumns (16);                              break;
+        case CassoExplorerCommands::kColumnsAuto:    m_context.preview.SetHexColumns (0);                               break;
+        case CassoExplorerCommands::kColumns1:       m_context.preview.SetHexColumns (1);                               break;
+        case CassoExplorerCommands::kColumns2:       m_context.preview.SetHexColumns (2);                               break;
+        case CassoExplorerCommands::kColumns4:       m_context.preview.SetHexColumns (4);                               break;
+        case CassoExplorerCommands::kColumns8:       m_context.preview.SetHexColumns (8);                               break;
+        case CassoExplorerCommands::kColumns16:      m_context.preview.SetHexColumns (16);                              break;
 
-        case CassoExplorerCommands::kGroup1: m_window.m_previewPane.SetHexGrouping (1); break;
-        case CassoExplorerCommands::kGroup2: m_window.m_previewPane.SetHexGrouping (2); break;
-        case CassoExplorerCommands::kGroup4: m_window.m_previewPane.SetHexGrouping (4); break;
-        case CassoExplorerCommands::kGroup8: m_window.m_previewPane.SetHexGrouping (8); break;
+        case CassoExplorerCommands::kGroup1: m_context.preview.SetHexGrouping (1); break;
+        case CassoExplorerCommands::kGroup2: m_context.preview.SetHexGrouping (2); break;
+        case CassoExplorerCommands::kGroup4: m_context.preview.SetHexGrouping (4); break;
+        case CassoExplorerCommands::kGroup8: m_context.preview.SetHexGrouping (8); break;
 
         case CassoExplorerCommands::kOptions:           ShowOptions(); break;
 
-        case CassoExplorerCommands::kBack:    refill = m_window.m_browser.GoBack();    break;
-        case CassoExplorerCommands::kForward: refill = m_window.m_browser.GoForward(); break;
-        case CassoExplorerCommands::kUp:      refill = m_window.m_browser.GoUp();      break;
+        case CassoExplorerCommands::kBack:    refill = m_context.browser.GoBack();    break;
+        case CassoExplorerCommands::kForward: refill = m_context.browser.GoForward(); break;
+        case CassoExplorerCommands::kUp:      refill = m_context.browser.GoUp();      break;
 
         case CassoExplorerCommands::kEditAddress:
-            m_window.m_input.SetFocusPane (ExplorerPane::Address);
-            m_window.m_addressBar.BeginEdit();
+            m_context.input.SetFocusPane (ExplorerPane::Address);
+            m_context.addressBar.BeginEdit();
             break;
 
         case CassoExplorerCommands::kAddressHistory:
-            m_window.m_input.SetFocusPane (ExplorerPane::Address);
-            m_window.m_addressBar.BeginEdit();
-            m_window.m_addressBar.ShowHistoryDropDown();
+            m_context.input.SetFocusPane (ExplorerPane::Address);
+            m_context.addressBar.BeginEdit();
+            m_context.addressBar.ShowHistoryDropDown();
             break;
 
         case CassoExplorerCommands::kAbout:
-            m_window.ShowAbout();
+            m_context.window.ShowAbout();
             break;
 
         case CassoExplorerCommands::kAddLink:
-            m_window.m_cassoLinkManager.EditConnection (std::string());
+            m_context.cassoLinkManager.EditConnection (std::string());
             break;
 
         case CassoExplorerCommands::kNewTab:
-            m_window.m_browser.NewTab();
+            m_context.browser.NewTab();
             refill = true;
             break;
 
         case CassoExplorerCommands::kCloseTab:
-            m_window.m_tabManager.CloseTabAt (m_window.m_browser.GetBrowserModel().GetActiveIndex());
+            m_context.tabManager.CloseTabAt (m_context.browser.GetBrowserModel().GetActiveIndex());
             break;
 
         case CassoExplorerCommands::kNextTab:
         case CassoExplorerCommands::kPreviousTab:
-            if (m_window.m_browser.GetBrowserModel().GetTabCount() > 1)
+            if (m_context.browser.GetBrowserModel().GetTabCount() > 1)
             {
-                size_t  count = m_window.m_browser.GetBrowserModel().GetTabCount();
-                size_t  next  = (m_window.m_browser.GetBrowserModel().GetActiveIndex() + (id == CassoExplorerCommands::kNextTab ? 1 : count - 1)) % count;
+                size_t  count = m_context.browser.GetBrowserModel().GetTabCount();
+                size_t  next  = (m_context.browser.GetBrowserModel().GetActiveIndex() + (id == CassoExplorerCommands::kNextTab ? 1 : count - 1)) % count;
 
-                m_window.m_tabManager.SwitchToTab (next);
+                m_context.tabManager.SwitchToTab (next);
             }
 
             break;
@@ -574,10 +574,10 @@ void ExplorerCommandManager::Dispatch (int id)
 
     if (refill)
     {
-        m_window.m_listPane.FillList();
+        m_context.listPane.FillList();
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -595,13 +595,13 @@ void ExplorerCommandManager::Dispatch (int id)
 
 void ExplorerCommandManager::CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk)
 {
-    CassoExplorerActions::Outcome  outcome = m_window.m_actions.CreateImage (m_window.m_browser.GetLocation().path, newDisk.fileName, newDisk.request);
+    CassoExplorerActions::Outcome  outcome = m_context.actions.CreateImage (m_context.browser.GetLocation().path, newDisk.fileName, newDisk.request);
 
 
 
     ReportOutcome (outcome, L"New disk");
-    m_window.m_folderSync.RefreshAfterHostChange();
-    m_window.m_listPane.SelectRowNamed (newDisk.fileName);
+    m_context.folderSync.RefreshAfterHostChange();
+    m_context.listPane.SelectRowNamed (newDisk.fileName);
 }
 
 
@@ -635,30 +635,30 @@ void ExplorerCommandManager::ShowOptions()
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
 
-    choices.monitor      = (int) m_window.m_previewPane.GetPreviewMonitor();
-    choices.customArgb   = m_window.m_prefs.previewCustomArgb;
-    choices.crtOverrides = m_window.m_prefs.crtOverrides;
+    choices.monitor      = (int) m_context.preview.GetPreviewMonitor();
+    choices.customArgb   = m_context.prefs.previewCustomArgb;
+    choices.crtOverrides = m_context.prefs.crtOverrides;
 
     //  The Display page's changes are drawn in the preview as they are made,
     //  and Cancel draws the preview as it was.
-    display.themeDefaults = m_window.m_previewPane.GetPreviewCrtDefaults();
+    display.themeDefaults = m_context.preview.GetPreviewCrtDefaults();
     display.preview       = [this] (const CassoExplorerOptionsDialog::Choices & shown)
     {
-        m_window.m_prefs.crtOverrides      = shown.crtOverrides;
-        m_window.m_prefs.previewCustomArgb = shown.customArgb;
-        std::erase_if (m_window.m_prefs.crtOverrides, [] (const auto & entry) { return entry.second.IsEmpty(); });
-        m_window.m_previewPane.SelectMonitor ((PicturePreview::Monitor) shown.monitor);
-        m_window.m_previewPane.UpdateCrtPicture (true);
+        m_context.prefs.crtOverrides      = shown.crtOverrides;
+        m_context.prefs.previewCustomArgb = shown.customArgb;
+        std::erase_if (m_context.prefs.crtOverrides, [] (const auto & entry) { return entry.second.IsEmpty(); });
+        m_context.preview.SelectMonitor ((PicturePreview::Monitor) shown.monitor);
+        m_context.preview.UpdateCrtPicture (true);
     };
 
-    if (!CassoExplorerOptionsDialog::Ask (m_window.GetHwnd(), m_window.m_theme, display, choices))
+    if (!CassoExplorerOptionsDialog::Ask (m_context.window.GetHwnd(), m_context.theme, display, choices))
     {
         return;
     }
 
     if (choices.hostNaming >= 0 && choices.hostNaming < (int) std::size (kNamings))
     {
-        m_window.m_prefs.hostNaming = kNamings[choices.hostNaming];
+        m_context.prefs.hostNaming = kNamings[choices.hostNaming];
     }
 
 
@@ -681,7 +681,7 @@ void ExplorerCommandManager::ShowOptions()
 
         if (FAILED (hr))
         {
-            m_window.ShowMessage (L"Windows did not take the change to the disk image types.", MB_ICONERROR);
+            m_context.window.ShowMessage (L"Windows did not take the change to the disk image types.", MB_ICONERROR);
         }
     }
 }
@@ -701,12 +701,12 @@ void ExplorerCommandManager::ShowOptions()
 
 HostFileNaming::Style ExplorerCommandManager::GetNamingStyle() const
 {
-    if (m_window.m_prefs.hostNaming == CassoExplorerPrefs::kNamingCiderPress)
+    if (m_context.prefs.hostNaming == CassoExplorerPrefs::kNamingCiderPress)
     {
         return HostFileNaming::Style::CiderPress;
     }
 
-    if (m_window.m_prefs.hostNaming == CassoExplorerPrefs::kNamingAppleSingle)
+    if (m_context.prefs.hostNaming == CassoExplorerPrefs::kNamingAppleSingle)
     {
         return HostFileNaming::Style::AppleSingle;
     }
@@ -736,13 +736,13 @@ bool ExplorerCommandManager::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
 
 
 
-    m_window.m_browser.GetSelectedRecycledIds (ids);
+    m_context.browser.GetSelectedRecycledIds (ids);
 
     switch (verb)
     {
         case Verb::Open:
             BAIL_OUT_IF (ids.empty(), S_OK);
-            hr = m_window.m_shellVerbs.RunRecycledVerb (m_window.GetHwnd(), ids, IShellItemVerbs::RecycledVerb::Properties);
+            hr = m_context.shellVerbs.RunRecycledVerb (m_context.window.GetHwnd(), ids, IShellItemVerbs::RecycledVerb::Properties);
             break;
 
         case Verb::Restore:
@@ -751,18 +751,18 @@ bool ExplorerCommandManager::RunRecycleBinVerb (CassoExplorerActions::Verb verb)
             //  command bar's Restore all items does.
             if (ids.empty() && verb == Verb::Restore)
             {
-                m_window.m_browser.GetAllRecycledIds (ids);
+                m_context.browser.GetAllRecycledIds (ids);
             }
 
             BAIL_OUT_IF (ids.empty(), S_OK);
-            hr = m_window.m_shellVerbs.RunRecycledVerb (m_window.GetHwnd(), ids, (verb == Verb::Restore) ? IShellItemVerbs::RecycledVerb::Restore
+            hr = m_context.shellVerbs.RunRecycledVerb (m_context.window.GetHwnd(), ids, (verb == Verb::Restore) ? IShellItemVerbs::RecycledVerb::Restore
                                                                                        : IShellItemVerbs::RecycledVerb::Delete);
-            m_window.m_folderSync.RefreshAfterHostChange();
+            m_context.folderSync.RefreshAfterHostChange();
             break;
 
         case Verb::EmptyRecycleBin:
-            hr = m_window.m_shellVerbs.EmptyRecycleBin (m_window.GetHwnd());
-            m_window.m_folderSync.RefreshAfterHostChange();
+            hr = m_context.shellVerbs.EmptyRecycleBin (m_context.window.GetHwnd());
+            m_context.folderSync.RefreshAfterHostChange();
             break;
 
         default:
@@ -794,20 +794,20 @@ std::wstring ExplorerCommandManager::GetCommandLabel (int id) const
 
 
 
-    if (id == CassoExplorerCommands::kRestoreItems && !m_window.m_browser.GetSelectedRows().empty())
+    if (id == CassoExplorerCommands::kRestoreItems && !m_context.browser.GetSelectedRows().empty())
     {
         return L"Restore the selected items";
     }
 
     //  A linked Apple's drive by its slot, drive and volume: the open drive, or
     //  the drive selected on its machine.
-    if (m_window.m_browser.IsAppleDriveOpen())
+    if (m_context.browser.IsAppleDriveOpen())
     {
-        title = m_window.m_actions.DescribeAppleDrive();
+        title = m_context.actions.DescribeAppleDrive();
     }
-    else if (m_window.m_cassoLinkManager.TryGetSelectedLinkDrive (drive))
+    else if (m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive))
     {
-        title = m_window.m_browser.GetTreeModel().GetLinkDriveTitle (drive.path);
+        title = m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path);
     }
 
     if (id == CassoExplorerCommands::kReadDiskToImage && !title.empty())
@@ -851,7 +851,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
     //  The Recycle Bin's items are the shell's to restore, delete and
     //  describe; opening one shows its properties, as Explorer's does.
-    if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin && RunRecycleBinVerb (verb))
+    if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin && RunRecycleBinVerb (verb))
     {
         return;
     }
@@ -859,79 +859,79 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
     switch (verb)
     {
         case CassoExplorerActions::Verb::Open:
-            if (m_window.m_browser.IsImageLocation() && !(m_window.m_browser.GetSelectedRows().size() == 1 && m_window.m_browser.OpenRow (m_window.m_browser.GetSelectedRows()[0])))
+            if (m_context.browser.IsImageLocation() && !(m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.OpenRow (m_context.browser.GetSelectedRows()[0])))
             {
-                m_window.m_fileOps.OpenSelectedEntries();
+                m_context.fileOps.OpenSelectedEntries();
             }
-            else if (m_window.m_browser.IsImageLocation())
+            else if (m_context.browser.IsImageLocation())
             {
-                m_window.m_listPane.FillList();
+                m_context.listPane.FillList();
             }
-            else if (m_window.m_browser.GetSelectedRows().size() > 1)
+            else if (m_context.browser.GetSelectedRows().size() > 1)
             {
-                m_window.m_fileOps.OpenEachSelected();
+                m_context.fileOps.OpenEachSelected();
             }
-            else if (!m_window.m_browser.GetSelectedRows().empty() && m_window.m_browser.OpenRow (m_window.m_browser.GetSelectedRows()[0]))
+            else if (!m_context.browser.GetSelectedRows().empty() && m_context.browser.OpenRow (m_context.browser.GetSelectedRows()[0]))
             {
-                m_window.m_listPane.FillList();
+                m_context.listPane.FillList();
             }
-            else if (!m_window.m_fileOps.GetSelectedImagePath().empty())
+            else if (!m_context.fileOps.GetSelectedImagePath().empty())
             {
                 //  Not something to browse: a real file, in its own program.
-                hr = m_window.m_shellVerbs.Open (m_window.GetHwnd(), m_window.m_fileOps.GetSelectedImagePath());
+                hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), m_context.fileOps.GetSelectedImagePath());
             }
 
             break;
 
         case CassoExplorerActions::Verb::Get:
-            hr = m_window.m_dialogs.PickFolder (m_window.GetHwnd(), picked, chosen);
+            hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), picked, chosen);
 
             if (SUCCEEDED (hr) && chosen)
             {
-                ReportOutcome (m_window.m_actions.GetSelected (picked.wstring(), style, m_window.m_fileOps.MakeCollisionPrompt()), L"Copy");
+                ReportOutcome (m_context.actions.GetSelected (picked.wstring(), style, m_context.fileOps.MakeCollisionPrompt()), L"Copy");
             }
 
             break;
 
         case CassoExplorerActions::Verb::Put:
-            hr = m_window.m_dialogs.PickFileToOpen (m_window.GetHwnd(), spec, picked, chosen);
+            hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
 
             if (SUCCEEDED (hr) && chosen)
             {
-                outcome = m_window.m_actions.PutFiles ({ picked.wstring() }, m_window.m_fileOps.MakeAddressPrompt());
+                outcome = m_context.actions.PutFiles ({ picked.wstring() }, m_context.fileOps.MakeAddressPrompt());
 
                 //  An Apple drive's writes finish later, over the link, with no undo.
-                if (!m_window.m_browser.IsAppleDriveLocation())
+                if (!m_context.browser.IsAppleDriveLocation())
                 {
-                    m_window.m_fileOps.PushPutUndo (outcome, m_window.m_browser.GetLocation().path, m_window.m_browser.GetLocation().innerPath);
+                    m_context.fileOps.PushPutUndo (outcome, m_context.browser.GetLocation().path, m_context.browser.GetLocation().innerPath);
                 }
 
                 ReportOutcome (outcome, L"Put");
-                m_window.m_listPane.FillList();
+                m_context.listPane.FillList();
             }
 
             break;
 
         case CassoExplorerActions::Verb::Cut:
         case CassoExplorerActions::Verb::Copy:
-            if (m_window.m_browser.IsVolumeLocation())
+            if (m_context.browser.IsVolumeLocation())
             {
-                m_window.m_fileOps.CopyEntriesToClipboard (GetNamingStyle());
+                m_context.fileOps.CopyEntriesToClipboard (GetNamingStyle());
                 break;
             }
 
-            if (m_window.m_fileOps.TryGetSelectedShellIds (hostPaths))
+            if (m_context.fileOps.TryGetSelectedShellIds (hostPaths))
             {
-                hr = m_window.m_shellVerbs.PlaceOnClipboard (m_window.GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
+                hr = m_context.shellVerbs.PlaceOnClipboard (m_context.window.GetHwnd(), hostPaths, verb == CassoExplorerActions::Verb::Cut);
             }
 
-            m_window.m_listPane.SetCutPaths ((SUCCEEDED (hr) && verb == CassoExplorerActions::Verb::Cut) ? hostPaths : std::vector<std::wstring>());
-            m_window.m_listPane.FillList();
+            m_context.listPane.SetCutPaths ((SUCCEEDED (hr) && verb == CassoExplorerActions::Verb::Cut) ? hostPaths : std::vector<std::wstring>());
+            m_context.listPane.FillList();
             break;
 
         case CassoExplorerActions::Verb::Share:
-            m_window.m_browser.GetSelectedHostPaths (hostPaths);
-            hr = m_window.m_shellVerbs.Share (m_window.GetHwnd(), hostPaths);
+            m_context.browser.GetSelectedHostPaths (hostPaths);
+            hr = m_context.shellVerbs.Share (m_context.window.GetHwnd(), hostPaths);
             break;
 
         case CassoExplorerActions::Verb::ExtractAll:
@@ -939,65 +939,65 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::ExtractFiles:
-            ExtractImageFiles (m_window.m_fileOps.GetSelectedImagePath());
+            ExtractImageFiles (m_context.fileOps.GetSelectedImagePath());
             break;
 
         case CassoExplorerActions::Verb::Paste:
-            if (m_window.m_browser.IsVolumeLocation())
+            if (m_context.browser.IsVolumeLocation())
             {
-                m_window.m_fileOps.PasteIntoVolume();
+                m_context.fileOps.PasteIntoVolume();
                 break;
             }
 
-            m_window.m_fileOps.PasteHere (m_window.m_fileOps.GetPasteFolder());
+            m_context.fileOps.PasteHere (m_context.fileOps.GetPasteFolder());
             break;
 
         case CassoExplorerActions::Verb::Delete:
-            if (!m_window.m_browser.IsVolumeLocation())
+            if (!m_context.browser.IsVolumeLocation())
             {
                 //  Windows asks, and the Recycle Bin keeps it. A file inside a
                 //  zip has no file of its own to recycle, so it is deleted for
                 //  good after Windows' confirmation, as in File Explorer.
-                if (m_window.m_previewPane.IsArchiveLocation())
+                if (m_context.preview.IsArchiveLocation())
                 {
-                    m_window.m_fileOps.DeleteSelectionPermanently();
+                    m_context.fileOps.DeleteSelectionPermanently();
                     break;
                 }
 
                 //  An item a shell folder such as Home lists may be a recent or
                 //  a cloud file with no path of its own; its own Delete
                 //  command removes it, as File Explorer's does.
-                if (m_window.m_fileOps.TryGetSelectedShellIds (hostPaths))
+                if (m_context.fileOps.TryGetSelectedShellIds (hostPaths))
                 {
-                    hr = (m_window.m_browser.GetLocation().kind == Location::Kind::ShellFolder)
-                       ? m_window.m_shellVerbs.RunItemVerb (m_window.GetHwnd(), hostPaths, "delete")
-                       : m_window.m_shellVerbs.Recycle (m_window.GetHwnd(), hostPaths);
+                    hr = (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
+                       ? m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), hostPaths, "delete")
+                       : m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
                 }
 
                 if (FAILED (hr) && hr != HRESULT_FROM_WIN32 (ERROR_CANCELLED))
                 {
-                    m_window.ShowMessage (L"The selected items could not be deleted.", MB_ICONWARNING);
+                    m_context.window.ShowMessage (L"The selected items could not be deleted.", MB_ICONWARNING);
                 }
 
-                if (SUCCEEDED (hr) && !hostPaths.empty() && m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder)
+                if (SUCCEEDED (hr) && !hostPaths.empty() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
                 {
-                    m_window.m_fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::Recycle, Location(), hostPaths });
+                    m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::Recycle, Location(), hostPaths });
                 }
 
-                m_window.m_folderSync.RefreshAfterHostChange();
+                m_context.folderSync.RefreshAfterHostChange();
                 break;
             }
 
         {
-            std::vector<std::wstring>  plan  = m_window.m_actions.DescribeDeletePlan();
-            size_t                     count = m_window.m_browser.GetSelectedRows().size();
+            std::vector<std::wstring>  plan  = m_context.actions.DescribeDeletePlan();
+            size_t                     count = m_context.browser.GetSelectedRows().size();
             std::wstring               link;
             int                        slot  = 0;
             int                        drive = 0;
-            std::wstring               where = TreeModel::TryParseLinkId (m_window.m_browser.GetLocation().path, link, slot, drive)
+            std::wstring               where = TreeModel::TryParseLinkId (m_context.browser.GetLocation().path, link, slot, drive)
                                                 ? std::format (L"the disk in drive {}", drive)
-                                                : std::filesystem::path (m_window.m_browser.GetLocation().path).filename().wstring();
-            std::wstring               what     = (count == 1) ? m_window.m_browser.GetRows()[(size_t) m_window.m_browser.GetSelectedRows()[0]].name
+                                                : std::filesystem::path (m_context.browser.GetLocation().path).filename().wstring();
+            std::wstring               what     = (count == 1) ? m_context.browser.GetRows()[(size_t) m_context.browser.GetSelectedRows()[0]].name
                                                                : std::format (L"these {} items", count);
             std::wstring               message  = std::format (L"Delete {} from {}?", what, where);
 
@@ -1010,19 +1010,19 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
             //  The buttons are labeled with their actions, as File Explorer's Delete File
             //  dialog's are.
-            answer = DxuiMessageBox (m_window.GetHwnd(), m_window.m_theme, message.c_str(), L"Delete", MB_OKCANCEL | MB_ICONWARNING, { L"Delete", L"Cancel" });
+            answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Delete", MB_OKCANCEL | MB_ICONWARNING, { L"Delete", L"Cancel" });
 
             if (answer == IDOK)
             {
-                ExplorerFileOps::UndoStep  step { ExplorerFileOps::UndoStep::Kind::ImageDelete, m_window.m_browser.GetLocation() };
+                ExplorerFileOps::UndoStep  step { ExplorerFileOps::UndoStep::Kind::ImageDelete, m_context.browser.GetLocation() };
                 wchar_t   temp[MAX_PATH] = {};
 
                 //  An AppleSingle copy keeps each file's bytes, type and
                 //  address, so a put brings it back as it was. The copy holds
                 //  files only, so a deletion that takes a folder is not kept.
-                m_window.m_browser.GetSelectedEntries (entries);
+                m_context.browser.GetSelectedEntries (entries);
 
-                if (!m_window.m_browser.IsAppleDriveLocation() &&
+                if (!m_context.browser.IsAppleDriveLocation() &&
                     std::none_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return entry.isDirectory; }) &&
                     GetTempPathW (MAX_PATH, temp) != 0)
                 {
@@ -1032,47 +1032,47 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                     std::filesystem::create_directories (step.savedDir, ignore);
                 }
 
-                if (!step.savedDir.empty() && !m_window.m_actions.GetSelected (step.savedDir, HostFileNaming::Style::AppleSingle).Succeeded())
+                if (!step.savedDir.empty() && !m_context.actions.GetSelected (step.savedDir, HostFileNaming::Style::AppleSingle).Succeeded())
                 {
                     step.savedDir.clear();
                 }
 
-                outcome = m_window.m_actions.DeleteSelected();
+                outcome = m_context.actions.DeleteSelected();
 
                 if (outcome.Succeeded() && !step.savedDir.empty())
                 {
-                    m_window.m_fileOps.PushUndo (std::move (step));
+                    m_context.fileOps.PushUndo (std::move (step));
                 }
 
                 ReportOutcome (outcome, L"Delete");
-                m_window.m_listPane.FillList();
+                m_context.listPane.FillList();
             }
 
             break;
         }
 
         case CassoExplorerActions::Verb::Boot:
-            ReportOutcome (m_window.m_actions.BootSelected(), L"Set startup program");
-            m_window.m_listPane.FillList();
+            ReportOutcome (m_context.actions.BootSelected(), L"Set startup program");
+            m_context.listPane.FillList();
             break;
 
         case CassoExplorerActions::Verb::Rename:
-            m_window.m_fileOps.BeginRename();
+            m_context.fileOps.BeginRename();
             break;
 
         case CassoExplorerActions::Verb::InsertDrive1:
         case CassoExplorerActions::Verb::InsertDrive2:
-            m_window.m_fileOps.InsertIntoDrive (m_window.m_fileOps.GetSelectedImagePath(), verb == CassoExplorerActions::Verb::InsertDrive1 ? 1 : 2);
+            m_context.fileOps.InsertIntoDrive (m_context.fileOps.GetSelectedImagePath(), verb == CassoExplorerActions::Verb::InsertDrive1 ? 1 : 2);
             break;
 
         case CassoExplorerActions::Verb::OpenInNewCasso:
-            m_window.m_fileOps.OpenInNewCasso (m_window.m_fileOps.GetSelectedImagePath());
+            m_context.fileOps.OpenInNewCasso (m_context.fileOps.GetSelectedImagePath());
             break;
 
         case CassoExplorerActions::Verb::NewDisk:
-            newDisk = CassoExplorerNewDiskDialog::Ask (m_window.GetHwnd(), m_window.m_theme, false, [this] (const std::wstring & fileName)
+            newDisk = CassoExplorerNewDiskDialog::Ask (m_context.window.GetHwnd(), m_context.theme, false, [this] (const std::wstring & fileName)
             {
-                return m_window.m_actions.IsNameTaken (m_window.m_browser.GetLocation().path, fileName);
+                return m_context.actions.IsNameTaken (m_context.browser.GetLocation().path, fileName);
             });
 
             if (newDisk.confirmed)
@@ -1084,54 +1084,54 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::NewFolder:
             //  An unused default name, open for renaming at once.
-            newName = m_window.m_actions.GetNewFolderName();
+            newName = m_context.actions.GetNewFolderName();
 
-            if (!m_window.m_browser.IsVolumeLocation())
+            if (!m_context.browser.IsVolumeLocation())
             {
-                hr = m_window.m_shellVerbs.CreateFolder (m_window.GetHwnd(), m_window.m_browser.GetLocation().path, newName);
+                hr = m_context.shellVerbs.CreateFolder (m_context.window.GetHwnd(), m_context.browser.GetLocation().path, newName);
 
                 if (SUCCEEDED (hr))
                 {
-                    m_window.m_fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostNewFolder, Location(), { (std::filesystem::path (m_window.m_browser.GetLocation().path) / newName).wstring() } });
+                    m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::HostNewFolder, Location(), { (std::filesystem::path (m_context.browser.GetLocation().path) / newName).wstring() } });
                 }
 
-                m_window.m_folderSync.RefreshAfterHostChange();
+                m_context.folderSync.RefreshAfterHostChange();
             }
             else
             {
-                outcome = m_window.m_actions.CreateFolder (newName);
+                outcome = m_context.actions.CreateFolder (newName);
 
-                if (outcome.Succeeded() && !m_window.m_browser.IsAppleDriveLocation())
+                if (outcome.Succeeded() && !m_context.browser.IsAppleDriveLocation())
                 {
-                    m_window.m_fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::ImageNewFolder, m_window.m_browser.GetLocation(), {}, std::wstring(), newName });
+                    m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::ImageNewFolder, m_context.browser.GetLocation(), {}, std::wstring(), newName });
                 }
 
                 ReportOutcome (outcome, L"New folder");
-                m_window.m_listPane.FillList();
+                m_context.listPane.FillList();
             }
 
-            if (m_window.m_listPane.SelectRowNamed (newName))
+            if (m_context.listPane.SelectRowNamed (newName))
             {
-                m_window.m_fileOps.BeginRename();
+                m_context.fileOps.BeginRename();
             }
 
             break;
 
         case CassoExplorerActions::Verb::Format:
-            newDisk = CassoExplorerNewDiskDialog::Ask (m_window.GetHwnd(), m_window.m_theme, true, {}, ChooseFormatDefault (m_window.m_actions.GetFormatTarget()),
-                                                       std::filesystem::path (m_window.m_actions.GetFormatTarget()).filename().wstring());
+            newDisk = CassoExplorerNewDiskDialog::Ask (m_context.window.GetHwnd(), m_context.theme, true, {}, ChooseFormatDefault (m_context.actions.GetFormatTarget()),
+                                                       std::filesystem::path (m_context.actions.GetFormatTarget()).filename().wstring());
 
             if (newDisk.confirmed)
             {
-                answer = DxuiMessageBox (m_window.GetHwnd(), m_window.m_theme,
-                                         (L"Format " + CassoExplorerActions::GetLeafName (m_window.m_actions.GetFormatTarget())
+                answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
+                                         (L"Format " + CassoExplorerActions::GetLeafName (m_context.actions.GetFormatTarget())
                                           + L"? Everything on it will be erased.").c_str(),
                                          L"Format", MB_OKCANCEL | MB_ICONWARNING, { L"Format", L"Cancel" });
 
                 if (answer == IDOK)
                 {
-                    ReportOutcome (m_window.m_actions.FormatImage (newDisk.request), L"Format");
-                    m_window.m_listPane.FillList();
+                    ReportOutcome (m_context.actions.FormatImage (newDisk.request), L"Format");
+                    m_context.listPane.FillList();
                 }
             }
 
@@ -1146,7 +1146,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1166,18 +1166,18 @@ void ExplorerCommandManager::ReportOutcome (const CassoExplorerActions::Outcome 
 {
     if (outcome.Succeeded())
     {
-        m_window.m_statusBar.SetDetail (std::format (L"{}: {} file(s)", verbName, outcome.written));
+        m_context.statusBar.SetDetail (std::format (L"{}: {} file(s)", verbName, outcome.written));
 
         //  For a copy salvaged from a damaged disk, what could not be read is shown.
         if (!outcome.warning.empty())
         {
-            m_window.ShowMessage (outcome.warning, MB_ICONWARNING);
+            m_context.window.ShowMessage (outcome.warning, MB_ICONWARNING);
         }
 
         return;
     }
 
-    m_window.ShowMessage (outcome.message.empty() ? std::wstring (verbName) + L" did not complete." : outcome.message, MB_ICONERROR);
+    m_context.window.ShowMessage (outcome.message.empty() ? std::wstring (verbName) + L" did not complete." : outcome.message, MB_ICONERROR);
 }
 
 
@@ -1205,7 +1205,7 @@ int ExplorerCommandManager::ChooseFormatDefault (const std::wstring & image)
 
 
 
-    if (m_window.m_browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded())
+    if (m_context.browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded())
     {
         if (kind == VolumeKind::ProDos)
         {
@@ -1293,7 +1293,7 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
     int                              answer   = 0;
     CassoExplorerActions::Outcome    outcome;
     CassoExplorerRawDialog::Outcome  where;
-    std::wstring                     target   = m_window.m_actions.GetFormatTarget();
+    std::wstring                     target   = m_context.actions.GetFormatTarget();
 
 
 
@@ -1311,7 +1311,7 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
     if (!reading)
     {
         spec.title = title;
-        hr         = m_window.m_dialogs.PickFileToOpen (m_window.GetHwnd(), spec, picked, chosen);
+        hr         = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
 
         if (FAILED (hr) || !chosen)
         {
@@ -1319,7 +1319,7 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
         }
     }
 
-    where = CassoExplorerRawDialog::Ask (m_window.GetHwnd(), m_window.m_theme, title, sectors, reading);
+    where = CassoExplorerRawDialog::Ask (m_context.window.GetHwnd(), m_context.theme, title, sectors, reading);
 
     if (!where.confirmed)
     {
@@ -1337,7 +1337,7 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
         //  theme, and No goes back to the picker.
         do
         {
-            hr = m_window.m_dialogs.PickFileToSave (m_window.GetHwnd(), spec, picked, chosen);
+            hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, picked, chosen);
 
             if (FAILED (hr) || !chosen)
             {
@@ -1348,7 +1348,7 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
             spec.defaultFileName = picked.filename().wstring();
         }
         while (GetFileAttributesW (picked.c_str()) != INVALID_FILE_ATTRIBUTES &&
-               DxuiMessageBox (m_window.GetHwnd(), m_window.m_theme,
+               DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
                                (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
                                L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK);
 
@@ -1357,14 +1357,14 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
             return;
         }
 
-        outcome = sectors ? m_window.m_actions.ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering)
-                          : m_window.m_actions.ReadBlocks  (where.start, where.count, picked.wstring());
+        outcome = sectors ? m_context.actions.ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering)
+                          : m_context.actions.ReadBlocks  (where.start, where.count, picked.wstring());
 
         ReportOutcome (outcome, reading ? L"Read" : L"Write");
         return;
     }
 
-    answer = DxuiMessageBox (m_window.GetHwnd(), m_window.m_theme,
+    answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
                              (L"The file's bytes will be written straight onto " + CassoExplorerActions::GetLeafName (target) + L", over what is there now.").c_str(),
                              title.c_str(),
                              MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" });
@@ -1374,11 +1374,11 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
         return;
     }
 
-    outcome = sectors ? m_window.m_actions.WriteSectors (where.start, where.sector, picked.wstring(), where.numbering)
-                      : m_window.m_actions.WriteBlocks  (where.start, picked.wstring());
+    outcome = sectors ? m_context.actions.WriteSectors (where.start, where.sector, picked.wstring(), where.numbering)
+                      : m_context.actions.WriteBlocks  (where.start, picked.wstring());
 
     ReportOutcome (outcome, L"Write");
-    m_window.m_listPane.FillList();
+    m_context.listPane.FillList();
 }
 
 
@@ -1396,11 +1396,11 @@ void ExplorerCommandManager::RunRawVerb (CassoExplorerActions::Verb verb)
 
 bool ExplorerCommandManager::IsRawTargetCurrent (const std::wstring & target)
 {
-    if (m_window.m_actions.GetFormatTarget() == target)
+    if (m_context.actions.GetFormatTarget() == target)
     {
         return true;
     }
 
-    m_window.ShowMessage (CassoExplorerActions::GetLeafName (target) + L" is no longer selected, so nothing was read or written.", MB_ICONWARNING);
+    m_context.window.ShowMessage (CassoExplorerActions::GetLeafName (target) + L" is no longer selected, so nothing was read or written.", MB_ICONWARNING);
     return false;
 }

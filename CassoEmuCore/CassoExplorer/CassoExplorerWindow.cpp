@@ -57,12 +57,12 @@ CassoExplorerWindow::~CassoExplorerWindow()
     //  The link that was this window's location can now be stopped once no other window has it as theirs.
     if (m_context.links != nullptr)
     {
-        m_context.links->SetViewing (this, std::string());
+        m_context.links->SetViewing (&m_explorer, std::string());
     }
 
 
     m_shellVerbs.UnwatchRecycleBin();
-    m_dragDrop.m_dropTarget.Shutdown();
+    m_dragDrop.GetDropTarget().Shutdown();
     m_treePane.HideLabelTip();
     DestroyBackend();
 }
@@ -96,11 +96,8 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     //  Before the first layout, which the window's creation can bring on. The
     //  tabs run across the top, above the bars each tab's location drives, as
     //  a browser's do.
-    m_dock.SetDock (m_tabBand,     DxuiDock::Top);
-    m_dock.SetDock (m_menuBand,    DxuiDock::Top);
-    m_dock.SetDock (m_toolbarBand, DxuiDock::Top);
-    m_dock.SetDock (m_statusBand,  DxuiDock::Bottom);
-    m_dock.SetDock (m_bodyBand,    DxuiDock::Fill);
+    m_layout.DockBands();
+
 
     params.title                    = title;
     params.hInstance                = instance;
@@ -153,10 +150,10 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     //  go in with their types. A failure to register leaves the window
     //  without drops, not without a window.
     {
-        HRESULT  hrDrop = m_dragDrop.m_dropTarget.Initialize (GetHwnd(), &m_layout.m_dropHits,
+        HRESULT  hrDrop = m_dragDrop.GetDropTarget().Initialize (GetHwnd(), &m_layout.GetDropHits(),
                                                               [this] (int, const std::wstring & path) { m_dragDrop.HandleDropFile (path); });
 
-        m_dragDrop.m_dropTarget.SetDataHandlers ([this] (IDataObject * data, int tag, POINT screen) { return m_dragDrop.GetDropEffect (data, tag, screen); },
+        m_dragDrop.GetDropTarget().SetDataHandlers ([this] (IDataObject * data, int tag, POINT screen) { return m_dragDrop.GetDropEffect (data, tag, screen); },
                                                  [this] (IDataObject * data, int tag, POINT screen) { m_dragDrop.HandleDrop (data, tag, screen); },
                                   [this]                                          { m_dragDrop.ClearDropTarget(); });
 
@@ -338,8 +335,7 @@ void CassoExplorerWindow::OnCreate()
     treeSplitter->SetAccessibleName    (L"Folder pane width");
     previewSplitter->SetAccessibleName (L"Preview pane width");
 
-    m_treeSplitter    = treeSplitter;
-    m_previewSplitter = previewSplitter;
+    m_layout.SetSplitters (treeSplitter, previewSplitter);
     m_statusBar.Create();
     m_tabManager.Create();
     m_toolbars.CreateNavBar();
@@ -400,7 +396,7 @@ void CassoExplorerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 {
     SetBounds (boundsDip);
 
-    m_client = boundsDip;
+    m_layout.SetClient (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 
     m_layout.RecomputeLayout();
@@ -419,7 +415,7 @@ void CassoExplorerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     RECT  bounds = GetBounds();
-    LONG  top    = (std::max) (bounds.top, (std::max) (m_tabBand.GetBounds().bottom, m_toolbarBand.GetBounds().bottom));
+    LONG  top    = (std::max) (bounds.top, (std::max) (m_layout.GetTabBand().GetBounds().bottom, m_layout.GetToolbarBand().GetBounds().bottom));
 
 
 
@@ -447,45 +443,6 @@ void CassoExplorerWindow::OnThemeChanged()
 {
     DxuiWindow::OnThemeChanged();
     m_themes.HandleSystemThemeChanged();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::Contains
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoExplorerWindow::Contains (const RECT & rect, POINT point)
-{
-    return point.x >= rect.left && point.x < rect.right && point.y >= rect.top && point.y < rect.bottom;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::ToLocal
-//
-//  List views take their events relative to their own origin.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMouseEvent CassoExplorerWindow::ToLocal (const DxuiMouseEvent & ev, const RECT & bounds)
-{
-    DxuiMouseEvent  local = ev;
-
-
-
-    local.positionDip.x -= bounds.left;
-    local.positionDip.y -= bounds.top;
-
-    return local;
 }
 
 
@@ -1082,7 +1039,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  each second for a while after an undo.
     if (timerId == (UINT_PTR) AppTimerId::ExplorerRestore)
     {
-        if (--m_fileOps.m_restoreTicks <= 0)
+        if (m_fileOps.CountDownRestore())
         {
             KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore);
         }
@@ -1112,7 +1069,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         //  An announcement since the last look is listed, on the same poll
         //  as a drive.
         if (m_context.announced != nullptr && m_context.running != nullptr && m_context.links != nullptr
-            && m_context.announced->GetChangeCount() != m_cassoLinkManager.m_announcedChanges)
+            && m_context.announced->GetChangeCount() != m_cassoLinkManager.GetAnnouncedChanges())
         {
             m_cassoLinkManager.HandleRunningChanged();
         }
@@ -1176,9 +1133,10 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     //  The search box's caret blinks on the frames this asks for: one each
     //  time it turns on or off, not one every tick.
-    if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch)
+    if (m_input.HasCaretFocus())
     {
-        bool  caretOn = (m_focus == ExplorerPane::LocationSearch) ? m_addressBar.IsCaretOn() : m_previewPane.IsCaretOn (m_focus);
+        ExplorerPane  focus   = m_input.GetFocusPane();
+        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_addressBar.IsCaretOn() : m_previewPane.IsCaretOn (focus);
 
         if (caretOn != m_caretOn)
         {
@@ -1237,5 +1195,5 @@ bool CassoExplorerWindow::IsTickWanted() const
         || m_toolbars.IsMenuOpen() || m_previewPane.GetToolbar().IsMenuOpen()
         || m_toolbars.WantsTick() || m_previewPane.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch;
+        || m_input.HasCaretFocus();
 }

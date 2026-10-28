@@ -11,7 +11,7 @@
 #include "Seams/Win32ShellPreview.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -33,7 +33,7 @@ class CassoExplorerWindow;
 class ExplorerPreview
 {
 public:
-    explicit ExplorerPreview (CassoExplorerWindow & window);
+    explicit ExplorerPreview (ExplorerContext & context);
 
     static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
     static constexpr float            kPromptFontDip   = 12.0f;   // Explorer's, 9 points
@@ -107,6 +107,9 @@ public:
 
     //  The hex view's settings, and find and go to.
     bool  IsShowingValues      () const { return m_hexView->IsShowingValues(); }
+
+    DxuiListView  * GetPreviewList () const { return m_previewList; }
+    DxuiHexView   * GetHexView     () const { return m_hexView; }
     bool  CanFindNext          () const { return m_find.CanFindNext(); }
     bool  FocusGoTo            () { return m_find.FocusGoTo(); }
     bool  FocusFind            () { return m_find.FocusFind(); }
@@ -153,12 +156,10 @@ private:
     void  ShowTextContextMenu    (int x, int y);
     void  ShowPictureContextMenu (int x, int y);
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
-    friend class ExplorerPreviewArchive;
-    friend class ExplorerPreviewFind;
-    ExplorerPreviewArchive  m_archive { *this, m_window };
-    ExplorerPreviewFind     m_find    { *this, m_window };
+    ExplorerPreviewArchive  m_archive { *this, m_context };
+    ExplorerPreviewFind     m_find    { *this, m_context };
 
     DxuiListView         * m_previewList    = nullptr;
     DxuiTextView         * m_textView       = nullptr;

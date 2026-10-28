@@ -17,8 +17,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerFolderSync::ExplorerFolderSync (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerFolderSync::ExplorerFolderSync (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -37,12 +37,12 @@ ExplorerFolderSync::ExplorerFolderSync (CassoExplorerWindow & window)
 
 void ExplorerFolderSync::RefreshAfterHostChange()
 {
-    HRESULT  hr = m_window.m_browser.Reload (true);
+    HRESULT  hr = m_context.browser.Reload (true);
 
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
-    m_window.m_listPane.FillList();
+    m_context.listPane.FillList();
 }
 
 
@@ -64,18 +64,18 @@ void ExplorerFolderSync::ChangeKnownFolder (const std::wstring & folder, bool ad
 
 
 
-    if (m_window.m_context.fs == nullptr)
+    if (m_context.app.fs == nullptr)
     {
         return;
     }
 
-    KnownFolderStore  store (*m_window.m_context.fs, m_window.m_context.baseDir);
+    KnownFolderStore  store (*m_context.app.fs, m_context.app.baseDir);
 
     hr = add ? store.Append (folder, (int64_t) _time64 (nullptr)) : store.Remove (folder);
 
     if (FAILED (hr))
     {
-        m_window.ShowMessage (L"Casso's folder list could not be changed.", MB_ICONERROR);
+        m_context.window.ShowMessage (L"Casso's folder list could not be changed.", MB_ICONERROR);
         return;
     }
 
@@ -104,12 +104,12 @@ void ExplorerFolderSync::ReloadKnownFolders()
 
 
 
-    if (m_window.m_context.fs == nullptr)
+    if (m_context.app.fs == nullptr)
     {
         return;
     }
 
-    KnownFolderStore  store (*m_window.m_context.fs, m_window.m_context.baseDir);
+    KnownFolderStore  store (*m_context.app.fs, m_context.app.baseDir);
 
     hr = store.RemoveMissing (removed);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -117,15 +117,15 @@ void ExplorerFolderSync::ReloadKnownFolders()
     hr = store.Load (entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    folders = KnownFolderStore::ListRootFolders (*m_window.m_context.fs, m_window.m_context.baseDir, entries);
+    folders = KnownFolderStore::ListRootFolders (*m_context.app.fs, m_context.app.baseDir, entries);
 
-    m_window.m_browser.GetTreeModel().SetKnownFolders (folders);
-    m_window.m_browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
-    m_window.m_treePane.ReloadChildren (TreeModel::kCassoRootId);
+    m_context.browser.GetTreeModel().SetKnownFolders (folders);
+    m_context.browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
+    m_context.treePane.ReloadChildren (TreeModel::kCassoRootId);
     UpdateWatchedFolders();
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 
-    hr = m_window.m_context.fs->ReadAllText (KnownFolderStore::GetFilePath (m_window.m_context.baseDir), m_knownFoldersText);
+    hr = m_context.app.fs->ReadAllText (KnownFolderStore::GetFilePath (m_context.app.baseDir), m_knownFoldersText);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -150,12 +150,12 @@ void ExplorerFolderSync::ReloadKnownFoldersIfChanged()
 
 
 
-    if (m_window.m_context.fs == nullptr)
+    if (m_context.app.fs == nullptr)
     {
         return;
     }
 
-    hr = m_window.m_context.fs->ReadAllText (KnownFolderStore::GetFilePath (m_window.m_context.baseDir), text);
+    hr = m_context.app.fs->ReadAllText (KnownFolderStore::GetFilePath (m_context.app.baseDir), text);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (text != m_knownFoldersText)
@@ -193,8 +193,8 @@ void ExplorerFolderSync::RefreshQuickAccessIfChanged()
     if (stamp != m_quickAccessStamp)
     {
         m_quickAccessStamp = stamp;
-        m_window.m_browser.RefreshShellRoots();
-        m_window.m_treePane.RefreshTree();
+        m_context.browser.RefreshShellRoots();
+        m_context.treePane.RefreshTree();
     }
 }
 
@@ -256,28 +256,28 @@ void ExplorerFolderSync::CheckDrives()
 
     m_driveMask = mask;
 
-    m_window.m_browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
-    m_window.m_browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
-    m_window.m_treePane.ReloadChildren (TreeModel::kThisPcRootId);
+    m_context.browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
+    m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
+    m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
     ReloadKnownFolders();
 
-    if (!m_window.m_browser.GetBrowserModel().HasTabs())
+    if (!m_context.browser.GetBrowserModel().HasTabs())
     {
         return;
     }
 
-    showing = m_window.m_browser.GetLocation();
+    showing = m_context.browser.GetLocation();
 
     if (showing.kind == Location::Kind::Root && showing.path == TreeModel::kThisPcRootId)
     {
-        m_window.m_browser.GetBrowserModel().InvalidateAllCatalogs();
-        hr = m_window.m_browser.Refresh();
+        m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
+        hr = m_context.browser.Refresh();
         IGNORE_RETURN_VALUE (hr, S_OK);
-        m_window.m_listPane.FillList();
+        m_context.listPane.FillList();
     }
-    else if (m_window.m_browser.LeaveMissingLocation())
+    else if (m_context.browser.LeaveMissingLocation())
     {
-        m_window.m_listPane.FillList();
+        m_context.listPane.FillList();
     }
 }
 
@@ -298,7 +298,7 @@ void ExplorerFolderSync::CheckDrives()
 void ExplorerFolderSync::UpdateWatchedFolders()
 {
     std::vector<std::wstring>  folders;
-    Location                   showing = m_window.m_browser.GetLocation();
+    Location                   showing = m_context.browser.GetLocation();
     int                        row     = 0;
 
 
@@ -323,13 +323,13 @@ void ExplorerFolderSync::UpdateWatchedFolders()
         folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
     }
 
-    for (row = 0; row < m_window.m_treePane.GetVisibleCount(); row++)
+    for (row = 0; row < m_context.treePane.GetVisibleCount(); row++)
     {
-        const DxuiTreeNode *  node = m_window.m_treePane.GetNodeAt (row);
+        const DxuiTreeNode *  node = m_context.treePane.GetNodeAt (row);
         Location              at;
 
         if (node != nullptr && node->expanded
-            && m_window.m_browser.TryGetNodeLocation (node->id, at)
+            && m_context.browser.TryGetNodeLocation (node->id, at)
             && at.kind == Location::Kind::HostFolder && !at.path.empty())
         {
             folders.push_back (at.path);
@@ -338,9 +338,9 @@ void ExplorerFolderSync::UpdateWatchedFolders()
 
     //  Casso's known folders file, which Casso writes while this window is open,
     //  and File Explorer's Quick access, which a pin made there changes.
-    if (!m_window.m_context.baseDir.empty())
+    if (!m_context.app.baseDir.empty())
     {
-        folders.push_back (m_window.m_context.baseDir);
+        folders.push_back (m_context.app.baseDir);
     }
 
     if (!m_quickAccessDir.empty())
@@ -381,7 +381,7 @@ bool ExplorerFolderSync::IsSameFolder (const std::wstring & a, const std::wstrin
 
 bool ExplorerFolderSync::IsShownFolderIn (const std::vector<std::wstring> & folders) const
 {
-    Location      showing = m_window.m_browser.GetLocation();
+    Location      showing = m_context.browser.GetLocation();
     std::wstring  shown;
 
 
@@ -417,15 +417,15 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
 
 
 
-    for (row = 0; row < m_window.m_treePane.GetVisibleCount(); row++)
+    for (row = 0; row < m_context.treePane.GetVisibleCount(); row++)
     {
-        const DxuiTreeNode *  node = m_window.m_treePane.GetNodeAt (row);
+        const DxuiTreeNode *  node = m_context.treePane.GetNodeAt (row);
         Location              at;
 
         //  A closed folder is read again too, so its first subfolder gives it
         //  a chevron.
         if (node != nullptr
-            && m_window.m_browser.TryGetNodeLocation (node->id, at) && !at.path.empty()
+            && m_context.browser.TryGetNodeLocation (node->id, at) && !at.path.empty()
             && (node->expanded || at.kind == Location::Kind::HostFolder))
         {
             std::wstring  holder = (at.kind == Location::Kind::HostFolder) ? at.path : CassoExplorerBrowser::GetParentFolder (at.path);
@@ -441,10 +441,10 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
     //  away has no row by the time its turn comes, and is passed over.
     for (const std::wstring & id : stale)
     {
-        if (m_window.m_treePane.HasNode (id))
+        if (m_context.treePane.HasNode (id))
         {
-            m_window.m_browser.GetTreeModel().Invalidate (id);
-            m_window.m_treePane.ReloadChildren (id);
+            m_context.browser.GetTreeModel().Invalidate (id);
+            m_context.treePane.ReloadChildren (id);
         }
     }
 
@@ -483,9 +483,9 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  Not while a rename is open or a button is down: the rows under either
     //  would change. The changes wait, and the timer tries again.
-    if (m_window.m_fileOps.IsRenaming() || m_window.m_listPane.IsBusy() || m_window.m_treePane.IsInteracting())
+    if (m_context.fileOps.IsRenaming() || m_context.listPane.IsBusy() || m_context.treePane.IsInteracting())
     {
-        SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
+        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
         return;
     }
 
@@ -506,37 +506,37 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The folder shown was deleted: the change is its parent's, so the list
     //  moves up, as Explorer's does, rather than staying on what is gone.
-    if (m_window.m_browser.GetBrowserModel().HasTabs() && m_window.m_browser.LeaveMissingLocation())
+    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.LeaveMissingLocation())
     {
-        m_window.m_listPane.FillList();
+        m_context.listPane.FillList();
         return;
     }
 
-    if (!m_window.m_browser.GetBrowserModel().HasTabs() || !IsShownFolderIn (changed))
+    if (!m_context.browser.GetBrowserModel().HasTabs() || !IsShownFolderIn (changed))
     {
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return;
     }
 
     //  The view as it stands, in keys, before the rows under it change.
-    m_window.m_browser.GetRowKeys (before.keys);
-    m_window.m_listPane.CaptureView (before);
+    m_context.browser.GetRowKeys (before.keys);
+    m_context.listPane.CaptureView (before);
 
     //  Re-read without the browser's own restore: the anchor decides both the
     //  selection and where the view lands.
-    hr = m_window.m_browser.Reload (false);
+    hr = m_context.browser.Reload (false);
     IGNORE_RETURN_VALUE (hr, S_OK);
-    m_window.m_listPane.FillList();
+    m_context.listPane.FillList();
 
-    m_window.m_browser.GetRowKeys (keys);
+    m_context.browser.GetRowKeys (keys);
     after = RefreshAnchor::Compute (before, keys);
 
-    m_window.m_browser.SetSelectedRows (after.selected);
-    m_window.m_listPane.RestoreView (after);
+    m_context.browser.SetSelectedRows (after.selected);
+    m_context.listPane.RestoreView (after);
 
-    m_window.m_previewPane.FillPreview();
-    m_window.m_statusBar.Fill();
-    m_window.Invalidate();
+    m_context.preview.FillPreview();
+    m_context.statusBar.Fill();
+    m_context.window.Invalidate();
 }
 
 
@@ -554,16 +554,16 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
 void ExplorerFolderSync::StartWatch()
 {
-    if (m_window.m_context.watcher == nullptr)
+    if (m_context.app.watcher == nullptr)
     {
         return;
     }
 
-    m_folderWatch = std::make_unique<FolderWatch> (*m_window.m_context.watcher);
+    m_folderWatch = std::make_unique<FolderWatch> (*m_context.app.watcher);
 
     m_folderWatch->SetOnChanged ([this] ()
     {
-        PostMessageW (m_window.GetHwnd(), (UINT) ExplorerMessage::FolderChanged, 0, 0);
+        PostMessageW (m_context.window.GetHwnd(), (UINT) ExplorerMessage::FolderChanged, 0, 0);
     });
 }
 
@@ -588,7 +588,7 @@ void ExplorerFolderSync::StartPolling()
 
 
     m_driveMask = GetLogicalDrives();
-    SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
 
     hr = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
 
@@ -627,7 +627,7 @@ void ExplorerFolderSync::HandleFolderChanged()
 
     if (now - m_firstChangeMs < CassoExplorerWindow::kFolderMaxSettleMs)
     {
-        SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
+        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
     }
 }
 
@@ -643,7 +643,7 @@ void ExplorerFolderSync::HandleFolderChanged()
 
 void ExplorerFolderSync::HandleSettleTimer()
 {
-    KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder);
+    KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder);
     m_firstChangeMs = 0;
     RefreshChangedFolders();
 }

@@ -13,8 +13,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerTips::ExplorerTips (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerTips::ExplorerTips (ExplorerContext & context)
+    : m_context (context)
 {
 }
 

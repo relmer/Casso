@@ -5,7 +5,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -26,7 +26,7 @@ class CassoExplorerWindow;
 class ExplorerTreePane
 {
 public:
-    explicit ExplorerTreePane (CassoExplorerWindow & window);
+    explicit ExplorerTreePane (ExplorerContext & context);
 
     //  How far each level sits in from its parent: File Explorer's, measured
     //  at 125% as 10 pixels.
@@ -115,7 +115,7 @@ private:
     void  ShowTreeEmptyMenu   (int x, int y);
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiTreeView         * m_tree          = nullptr;
     DxuiInPlaceTip         m_labelTip;               // a name the splitter cuts off, shown whole over its row

@@ -5,7 +5,7 @@
 #include "CassoExplorer/Model/FolderWatch.h"
 
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -24,7 +24,7 @@ class CassoExplorerWindow;
 class ExplorerFolderSync
 {
 public:
-    explicit ExplorerFolderSync (CassoExplorerWindow & window);
+    explicit ExplorerFolderSync (ExplorerContext & context);
 
     //  How often the drives are polled for one attached or removed.
     static constexpr UINT  kDrivePollMs = 2000;
@@ -61,9 +61,8 @@ public:
     void  ChangeKnownFolder   (const std::wstring & folder, bool add);
 
 private:
-    friend class CassoExplorerWindow;
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     std::unique_ptr<FolderWatch>  m_folderWatch;
     ULONGLONG                     m_firstChangeMs    = 0;   // 0: no change waiting

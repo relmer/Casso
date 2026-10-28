@@ -772,6 +772,8 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerFolderSync.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerInput.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerLayout.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerContext.h" />
+    <ClInclude Include="CassoExplorer\Window\IExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListPane.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListColumns.h" />

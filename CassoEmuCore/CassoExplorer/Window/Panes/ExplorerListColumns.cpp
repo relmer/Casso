@@ -16,9 +16,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerListColumns::ExplorerListColumns (ExplorerListPane & pane, CassoExplorerWindow & window)
+ExplorerListColumns::ExplorerListColumns (ExplorerListPane & pane, ExplorerContext & context)
     : m_pane   (pane),
-      m_window (window)
+      m_context (context)
 {
 }
 
@@ -34,13 +34,13 @@ ExplorerListColumns::ExplorerListColumns (ExplorerListPane & pane, CassoExplorer
 
 void ExplorerListColumns::ShowChosenColumns()
 {
-    const Location &  location = m_window.m_browser.GetLocation();
+    const Location &  location = m_context.browser.GetLocation();
 
 
 
     for (size_t c = 0; c < m_chosen.size(); c++)
     {
-        m_pane.m_list->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path)));
+        m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path)));
     }
 }
 
@@ -81,8 +81,8 @@ void ExplorerListColumns::SetView (DxuiListView::View view)
     m_view    = view;
     m_viewKey = GetFolderViewKey (nullptr);
 
-    m_window.m_prefs.folderViews.Remember (m_viewKey, m_view);
-    m_pane.m_list->SetView (m_view);
+    m_context.prefs.folderViews.Remember (m_viewKey, m_view);
+    m_pane.GetListView()->SetView (m_view);
 }
 
 
@@ -145,7 +145,7 @@ void ExplorerListColumns::ApplyColumnOrder()
 
 
 
-    if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+    if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
     {
         for (Column column : { Column::Name, Column::OriginalLocation, Column::DateDeleted, Column::Size, Column::Type, Column::Modified, Column::Address, Column::Locked, Column::Folder })
         {
@@ -171,7 +171,7 @@ void ExplorerListColumns::ApplyColumnOrder()
         }
     }
 
-    m_pane.m_list->SetColumnOrder (order);
+    m_pane.GetListView()->SetColumnOrder (order);
 }
 
 
@@ -189,7 +189,7 @@ void ExplorerListColumns::ApplyColumnOrder()
 
 std::wstring ExplorerListColumns::GetFolderViewKey (FolderViews::FolderType * outType) const
 {
-    Location                 location = m_window.m_browser.GetLocation();
+    Location                 location = m_context.browser.GetLocation();
     FolderViews::FolderType  type     = FolderViews::FolderType::Generic;
 
 
@@ -262,14 +262,14 @@ void ExplorerListColumns::ApplyFolderView()
     GetFolderViewKey (&type);
 
     m_viewKey = key;
-    m_view    = m_window.m_prefs.folderViews.GetView (key, type);
-    m_pane.m_list->SetView (m_view);
-    m_window.m_toolbars.ShowViewOnButton();
+    m_view    = m_context.prefs.folderViews.GetView (key, type);
+    m_pane.GetListView()->SetView (m_view);
+    m_context.toolbars.ShowViewOnButton();
     m_pane.SizeListIcons();
 
     //  Each folder keeps its own sort and grouping, as Explorer's do; one
     //  never given either opens by name and ungrouped.
-    entry = m_window.m_prefs.folderViews.GetEntry (key, type);
+    entry = m_context.prefs.folderViews.GetEntry (key, type);
 
     if (entry.sortColumn > (int) CatalogModel::Column::DateDeleted)
     {
@@ -281,16 +281,16 @@ void ExplorerListColumns::ApplyFolderView()
         entry.groupBy = 0;
     }
 
-    m_window.m_browser.SetSortAndGroup ((CatalogModel::Column) entry.sortColumn, entry.sortDescending,
+    m_context.browser.SetSortAndGroup ((CatalogModel::Column) entry.sortColumn, entry.sortDescending,
                                         (RowGrouping::Field) entry.groupBy, entry.groupDescending);
 
-    ApplyColumnWidths (entry.columnWidthsDip.empty() ? m_window.m_prefs.columnWidthsDip : entry.columnWidthsDip);
+    ApplyColumnWidths (entry.columnWidthsDip.empty() ? m_context.prefs.columnWidthsDip : entry.columnWidthsDip);
 
     //  Its own column order and choice of columns, or the latest ones.
-    m_folderOrder = entry.columnOrder.empty() ? m_window.m_prefs.columnOrder : entry.columnOrder;
+    m_folderOrder = entry.columnOrder.empty() ? m_context.prefs.columnOrder : entry.columnOrder;
     m_chosen.assign (BrowserCells::GetColumns().size(), true);
 
-    for (int hidden : (entry.columnsChosen ? entry.hiddenColumns : m_window.m_prefs.hiddenColumns))
+    for (int hidden : (entry.columnsChosen ? entry.hiddenColumns : m_context.prefs.hiddenColumns))
     {
         if (hidden > (int) CatalogModel::Column::Name && (size_t) hidden < m_chosen.size())
         {
@@ -318,21 +318,21 @@ void ExplorerListColumns::RememberFolderSort()
 
 
 
-    if (m_viewKey.empty() || !m_window.m_browser.GetBrowserModel().HasTabs())
+    if (m_viewKey.empty() || !m_context.browser.GetBrowserModel().HasTabs())
     {
         return;
     }
 
-    const BrowserModel::Tab &  tab = m_window.m_browser.GetBrowserModel().GetActiveTab();
+    const BrowserModel::Tab &  tab = m_context.browser.GetBrowserModel().GetActiveTab();
 
-    entry                 = m_window.m_prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
+    entry                 = m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
     entry.view            = m_view;
     entry.sortColumn      = (int) tab.sortColumn;
     entry.sortDescending  = tab.sortDescending;
     entry.groupBy         = (int) tab.groupBy;
     entry.groupDescending = tab.groupDescending;
 
-    m_window.m_prefs.folderViews.Remember (entry);
+    m_context.prefs.folderViews.Remember (entry);
 }
 
 
@@ -355,17 +355,17 @@ bool ExplorerListColumns::ReadFolderOptions()
 
 
 
-    if (options == m_window.m_explorerOptions)
+    if (options == m_context.explorerOptions)
     {
         return false;
     }
 
     //  The pane's options Casso Explorer still follows change with them.
-    m_window.m_explorerOptions = options;
-    m_window.m_browser.SetFolderOptions (options);
-    m_window.m_treePane.ApplyNavPaneOptions();
-    m_window.m_browser.GetTreeModel().InvalidateAll();
-    m_window.m_treePane.RefreshTree();
+    m_context.explorerOptions = options;
+    m_context.browser.SetFolderOptions (options);
+    m_context.treePane.ApplyNavPaneOptions();
+    m_context.browser.GetTreeModel().InvalidateAll();
+    m_context.treePane.RefreshTree();
 
     return true;
 }
@@ -385,7 +385,7 @@ bool ExplorerListColumns::ReadFolderOptions()
 
 void ExplorerListColumns::ApplyStoredColumnWidths()
 {
-    ApplyColumnWidths (m_window.m_prefs.columnWidthsDip);
+    ApplyColumnWidths (m_context.prefs.columnWidthsDip);
 }
 
 
@@ -407,13 +407,13 @@ void ExplorerListColumns::ApplyColumnWidths (const std::vector<int> & widthsDip)
 
 
 
-    for (c = 0; c < m_pane.m_list->GetColumnCount(); c++)
+    for (c = 0; c < m_pane.GetListView()->GetColumnCount(); c++)
     {
         int  dip = (c < widthsDip.size()) ? widthsDip[c] : 0;
 
         //  At the DPI the list holds now, which it rescales from when its
         //  DPI changes; the window's may not have caught up yet.
-        m_pane.m_list->SetColumnOverrideWidthPx (c, (dip > 0) ? MulDiv (dip, (int) m_pane.m_list->GetDpi(), (int) DxuiDpiScaler::kBaseDpi) : -1);
+        m_pane.GetListView()->SetColumnOverrideWidthPx (c, (dip > 0) ? MulDiv (dip, (int) m_pane.GetListView()->GetDpi(), (int) DxuiDpiScaler::kBaseDpi) : -1);
     }
 }
 
@@ -440,7 +440,7 @@ void ExplorerListColumns::RememberFolderColumns()
         return;
     }
 
-    entry               = m_window.m_prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
+    entry               = m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
     entry.view          = m_view;
     entry.columnOrder   = m_folderOrder;
     entry.columnsChosen = true;
@@ -454,7 +454,7 @@ void ExplorerListColumns::RememberFolderColumns()
         }
     }
 
-    m_window.m_prefs.folderViews.Remember (entry);
+    m_context.prefs.folderViews.Remember (entry);
 }
 
 
@@ -481,12 +481,12 @@ void ExplorerListColumns::RememberFolderColumnWidths (int column, int widthDip)
         return;
     }
 
-    entry      = m_window.m_prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
+    entry      = m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic);
     entry.view = m_view;
 
     if (entry.columnWidthsDip.empty())
     {
-        entry.columnWidthsDip = m_window.m_prefs.columnWidthsDip;
+        entry.columnWidthsDip = m_context.prefs.columnWidthsDip;
     }
 
     if ((size_t) column >= entry.columnWidthsDip.size())
@@ -496,5 +496,5 @@ void ExplorerListColumns::RememberFolderColumnWidths (int column, int widthDip)
 
     entry.columnWidthsDip[(size_t) column] = widthDip;
 
-    m_window.m_prefs.folderViews.Remember (entry);
+    m_context.prefs.folderViews.Remember (entry);
 }

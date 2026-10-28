@@ -15,8 +15,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerInput::ExplorerInput (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerInput::ExplorerInput (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -32,24 +32,24 @@ ExplorerInput::ExplorerInput (CassoExplorerWindow & window)
 
 void ExplorerInput::SetFocusPane (ExplorerPane pane)
 {
-    if ((pane == ExplorerPane::Preview && !m_window.m_prefs.previewVisible)
-        || (pane == ExplorerPane::PreviewToolbar && !m_window.m_previewPane.GetToolbar().IsVisible())
-        || ((pane == ExplorerPane::Search || pane == ExplorerPane::GoTo) && m_window.m_previewPane.GetBarMode() != CassoExplorerCommands::kPreviewBarHex))
+    if ((pane == ExplorerPane::Preview && !m_context.prefs.previewVisible)
+        || (pane == ExplorerPane::PreviewToolbar && !m_context.preview.GetToolbar().IsVisible())
+        || ((pane == ExplorerPane::Search || pane == ExplorerPane::GoTo) && m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarHex))
     {
         pane = ExplorerPane::Tree;
     }
 
-    m_window.m_focus = pane;
+    m_focus = pane;
 
-    m_window.m_treePane.HandleFocusChanged     (pane == ExplorerPane::Tree);
-    m_window.m_listPane.HandleFocusChanged     (pane == ExplorerPane::List);
-    m_window.m_tabManager.HandleFocusChanged     (pane == ExplorerPane::Tabs);
-    m_window.m_addressBar.HandleFocusChanged   (pane);
-    m_window.m_toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
-    m_window.m_toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
-    m_window.m_previewPane.HandleFocusChanged  (pane);
+    m_context.treePane.HandleFocusChanged     (pane == ExplorerPane::Tree);
+    m_context.listPane.HandleFocusChanged     (pane == ExplorerPane::List);
+    m_context.tabManager.HandleFocusChanged     (pane == ExplorerPane::Tabs);
+    m_context.addressBar.HandleFocusChanged   (pane);
+    m_context.toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
+    m_context.toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
+    m_context.preview.HandleFocusChanged  (pane);
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -64,13 +64,13 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
 
 FocusStop ExplorerInput::GetFocusStop() const
 {
-    switch (m_window.m_focus)
+    switch (m_focus)
     {
         case ExplorerPane::Toolbar: return FocusStop { FocusStop::Kind::ToolbarEntry, m_toolbarFocus };
         case ExplorerPane::CommandBar: return FocusStop { FocusStop::Kind::CommandBarEntry, m_commandBarFocus };
-        case ExplorerPane::PreviewToolbar: return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_window.m_previewPane.GetBarFocus() };
-        case ExplorerPane::Search:         return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_window.m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kFind) };
-        case ExplorerPane::GoTo:           return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_window.m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kGoToOffset) };
+        case ExplorerPane::PreviewToolbar: return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_context.preview.GetBarFocus() };
+        case ExplorerPane::Search:         return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_context.preview.GetPreviewStopIndex (CassoExplorerCommands::kFind) };
+        case ExplorerPane::GoTo:           return FocusStop { FocusStop::Kind::PreviewToolbarEntry, m_context.preview.GetPreviewStopIndex (CassoExplorerCommands::kGoToOffset) };
         case ExplorerPane::Address: return FocusStop { FocusStop::Kind::Address };
         case ExplorerPane::Tabs:    return FocusStop { FocusStop::Kind::Tabs };
         case ExplorerPane::List:    return FocusStop { FocusStop::Kind::List };
@@ -104,13 +104,13 @@ void ExplorerInput::SetFocusStop (const FocusStop & stop)
             break;
 
         case FocusStop::Kind::PreviewToolbarEntry:
-            m_window.m_previewPane.SetBarFocus (stop.entry);
-            SetFocusPane ((stop.entry == m_window.m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kFind))       ? ExplorerPane::Search
-                        : (stop.entry == m_window.m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kGoToOffset)) ? ExplorerPane::GoTo
+            m_context.preview.SetBarFocus (stop.entry);
+            SetFocusPane ((stop.entry == m_context.preview.GetPreviewStopIndex (CassoExplorerCommands::kFind))       ? ExplorerPane::Search
+                        : (stop.entry == m_context.preview.GetPreviewStopIndex (CassoExplorerCommands::kGoToOffset)) ? ExplorerPane::GoTo
                                                                                              : ExplorerPane::PreviewToolbar);
             break;
 
-        case FocusStop::Kind::Address: m_window.m_addressBar.ShowFocusCue(); SetFocusPane (ExplorerPane::Address); break;
+        case FocusStop::Kind::Address: m_context.addressBar.ShowFocusCue(); SetFocusPane (ExplorerPane::Address); break;
         case FocusStop::Kind::Tabs:    SetFocusPane (ExplorerPane::Tabs);    break;
         case FocusStop::Kind::List:    SetFocusPane (ExplorerPane::List);    break;
         case FocusStop::Kind::Preview: SetFocusPane (ExplorerPane::Preview); break;
@@ -134,16 +134,16 @@ void ExplorerInput::SetFocusStop (const FocusStop & stop)
 
 bool ExplorerInput::RouteCommandBarKey (const DxuiKeyEvent & ev)
 {
-    int  count = m_window.m_toolbars.GetCommandBar().GetEntryCount();
+    int  count = m_context.toolbars.GetCommandBar().GetEntryCount();
     int  step  = (ev.vk == VK_RIGHT) ? 1 : -1;
     int  at    = m_commandBarFocus;
     int  tries = 0;
 
 
 
-    if (m_window.m_toolbars.GetCommandBar().OwnsKeyboard())
+    if (m_context.toolbars.GetCommandBar().OwnsKeyboard())
     {
-        return m_window.m_toolbars.GetCommandBar().HandleKey (ev.vk);
+        return m_context.toolbars.GetCommandBar().HandleKey (ev.vk);
     }
 
     switch (ev.vk)
@@ -151,7 +151,7 @@ bool ExplorerInput::RouteCommandBarKey (const DxuiKeyEvent & ev)
         case VK_RETURN:
         case VK_SPACE:
         case VK_DOWN:
-            m_window.m_toolbars.GetCommandBar().ActivateFocused();
+            m_context.toolbars.GetCommandBar().ActivateFocused();
             return true;
 
         case VK_LEFT:
@@ -160,7 +160,7 @@ bool ExplorerInput::RouteCommandBarKey (const DxuiKeyEvent & ev)
             {
                 at = (at + step + count) % count;
 
-                if (m_window.m_commandManager.IsCommandBarEntryAvailable (at))
+                if (m_context.commandManager.IsCommandBarEntryAvailable (at))
                 {
                     SetFocusStop (FocusStop { FocusStop::Kind::CommandBarEntry, at });
                     break;
@@ -195,22 +195,22 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
 
 
 
-    for (int i = 0; i < m_window.m_toolbars.GetNavToolbar().GetEntryCount(); i++)
+    for (int i = 0; i < m_context.toolbars.GetNavToolbar().GetEntryCount(); i++)
     {
-        enabled.push_back (m_window.m_commandManager.IsToolbarEntryAvailable (i));
+        enabled.push_back (m_context.commandManager.IsToolbarEntryAvailable (i));
     }
 
-    for (int id : (m_window.m_previewPane.GetBarMode() != CassoExplorerCommands::kPreviewBarNone) ? CassoExplorerCommands::GetPreviewToolbarCommandIds (m_window.m_previewPane.GetBarMode()) : std::vector<int>())
+    for (int id : (m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarNone) ? CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode()) : std::vector<int>())
     {
-        previewEnabled.push_back (m_window.m_commandManager.IsEnabled (id));
+        previewEnabled.push_back (m_context.commandManager.IsEnabled (id));
     }
 
-    for (int i = 0; i < m_window.m_toolbars.GetCommandBar().GetEntryCount(); i++)
+    for (int i = 0; i < m_context.toolbars.GetCommandBar().GetEntryCount(); i++)
     {
-        commandEnabled.push_back (m_window.m_commandManager.IsCommandBarEntryAvailable (i));
+        commandEnabled.push_back (m_context.commandManager.IsCommandBarEntryAvailable (i));
     }
 
-    return FocusRing::BuildStops (enabled, m_window.m_prefs.previewVisible, previewEnabled, commandEnabled);
+    return FocusRing::BuildStops (enabled, m_context.prefs.previewVisible, previewEnabled, commandEnabled);
 }
 
 
@@ -229,7 +229,7 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
 
 bool ExplorerInput::RouteToolbarKey (bool preview, const DxuiKeyEvent & ev)
 {
-    DxuiToolbar &  toolbar = preview ? m_window.m_previewPane.GetToolbar() : m_window.m_toolbars.GetNavToolbar();
+    DxuiToolbar &  toolbar = preview ? m_context.preview.GetToolbar() : m_context.toolbars.GetNavToolbar();
 
 
 
@@ -270,25 +270,25 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
 {
     std::vector<int>  ids;
     int               step = forward ? 1 : -1;
-    int               at   = (preview ? m_window.m_previewPane.GetBarFocus() : m_toolbarFocus) + step;
+    int               at   = (preview ? m_context.preview.GetBarFocus() : m_toolbarFocus) + step;
 
 
 
     if (preview)
     {
-        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_window.m_previewPane.GetBarMode());
+        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode());
     }
     else
     {
-        for (int i = 0; i < m_window.m_toolbars.GetNavToolbar().GetEntryCount(); i++)
+        for (int i = 0; i < m_context.toolbars.GetNavToolbar().GetEntryCount(); i++)
         {
-            ids.push_back (m_window.m_toolbars.GetNavToolbar().GetEntryCommandId (i));
+            ids.push_back (m_context.toolbars.GetNavToolbar().GetEntryCommandId (i));
         }
     }
 
     while (at >= 0 && at < (int) ids.size())
     {
-        if (preview ? m_window.m_commandManager.IsEnabled (ids[(size_t) at]) : m_window.m_commandManager.IsToolbarEntryAvailable (at))
+        if (preview ? m_context.commandManager.IsEnabled (ids[(size_t) at]) : m_context.commandManager.IsToolbarEntryAvailable (at))
         {
             SetFocusStop (FocusStop { preview ? FocusStop::Kind::PreviewToolbarEntry : FocusStop::Kind::ToolbarEntry, at });
             return;
@@ -319,24 +319,24 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
 
 
-    m_window.ArmTick();
+    m_context.window.ArmTick();
 
-    m_window.m_treePane.UpdateLabelTip (ev);
-    m_window.m_tabManager.ClearHoverOnLeave (ev);
-    m_window.m_addressBar.CloseSuggestionsOnPress (ev);
+    m_context.treePane.UpdateLabelTip (ev);
+    m_context.tabManager.ClearHoverOnLeave (ev);
+    m_context.addressBar.CloseSuggestionsOnPress (ev);
 
-    if (m_window.m_previewPane.HandleMessageMouse (ev))
+    if (m_context.preview.HandleMessageMouse (ev))
     {
         return true;
     }
 
-    m_window.m_toolbars.CloseMenusOutside (ev);
+    m_context.toolbars.CloseMenusOutside (ev);
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
     if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2))
     {
-        m_window.m_commandManager.Dispatch (ev.button == DxuiMouseButton::X1 ? CassoExplorerCommands::kBack : CassoExplorerCommands::kForward);
+        m_context.commandManager.Dispatch (ev.button == DxuiMouseButton::X1 ? CassoExplorerCommands::kBack : CassoExplorerCommands::kForward);
         return true;
     }
 
@@ -345,116 +345,116 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
     {
         POINT  at      = (ev.kind == DxuiMouseEventKind::Leave) ? POINT { -1, -1 } : point;
-        int    changed = (int) m_window.m_previewPane.UpdateScrollbarHover (at)
-                       | (int) m_window.m_listPane.UpdateScrollbarHover (at)
-                       | (int) m_window.m_treePane.UpdateScrollbarHover (at);
+        int    changed = (int) m_context.preview.UpdateScrollbarHover (at)
+                       | (int) m_context.listPane.UpdateScrollbarHover (at)
+                       | (int) m_context.treePane.UpdateScrollbarHover (at);
 
         if (changed != 0)
         {
-            m_window.Invalidate();
+            m_context.window.Invalidate();
         }
     }
 
-    if (m_window.m_fileOps.HandleRenameMouse (ev))
+    if (m_context.fileOps.HandleRenameMouse (ev))
     {
         return true;
     }
 
-    if (m_window.m_statusBar.HandleZoomClick (ev))
+    if (m_context.statusBar.HandleZoomClick (ev))
     {
         return true;
     }
 
     //  Ctrl with the wheel over the preview zooms it, as in a browser.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
-        && m_window.m_previewPane.IsOverPane (point))
+        && m_context.preview.IsOverPane (point))
     {
-        m_window.m_commandManager.Dispatch ((ev.wheelDelta > 0.0f) ? CassoExplorerCommands::kZoomIn : CassoExplorerCommands::kZoomOut);
+        m_context.commandManager.Dispatch ((ev.wheelDelta > 0.0f) ? CassoExplorerCommands::kZoomIn : CassoExplorerCommands::kZoomOut);
         return true;
     }
 
-    if (m_window.m_toolbars.HandleMenuBarMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_window.m_addressBar.HandleMouse (ev))
+    if (m_context.toolbars.HandleMenuBarMouse (ev))
     {
         return true;
     }
 
-    if (m_window.m_previewPane.GetToolbar().IsVisible()
-        && (CassoExplorerWindow::Contains (m_window.m_previewPane.GetToolbar().GetBounds(), point) || ev.kind == DxuiMouseEventKind::Up)
-        && m_window.m_toolbars.RouteToolbarMouse (m_window.m_previewPane.GetToolbar(), ev))
-    {
-        m_window.Invalidate();
-        return true;
-    }
-
-    if (m_window.m_toolbars.HandleMouse (ev))
+    if (m_context.addressBar.HandleMouse (ev))
     {
         return true;
     }
 
-    if (m_window.m_treeSplitter->OnMouse (ev) || (m_window.m_previewSplitter->IsVisible() && m_window.m_previewSplitter->OnMouse (ev)))
+    if (m_context.preview.GetToolbar().IsVisible()
+        && (ExplorerLayout::Contains (m_context.preview.GetToolbar().GetBounds(), point) || ev.kind == DxuiMouseEventKind::Up)
+        && m_context.toolbars.RouteToolbarMouse (m_context.preview.GetToolbar(), ev))
     {
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
-    if (m_window.m_tabManager.HandleCapturedMouse (ev))
+    if (m_context.toolbars.HandleMouse (ev))
+    {
+        return true;
+    }
+
+    if (m_context.layout.GetTreeSplitter()->OnMouse (ev) || (m_context.layout.GetPreviewSplitter()->IsVisible() && m_context.layout.GetPreviewSplitter()->OnMouse (ev)))
+    {
+        m_context.window.Invalidate();
+        return true;
+    }
+
+    if (m_context.tabManager.HandleCapturedMouse (ev))
     {
         return true;
     }
 
     //  A right-click on a scrollbar opens the bar's own menu, as Windows'
     //  bars do.
-    if (press && ev.button == DxuiMouseButton::Right && m_window.m_menus.ShowScrollbarMenu (ev))
+    if (press && ev.button == DxuiMouseButton::Right && m_context.menus.ShowScrollbarMenu (ev))
     {
         return true;
     }
 
-    if (m_window.m_tabManager.HandleMouse (ev))
+    if (m_context.tabManager.HandleMouse (ev))
     {
         return true;
     }
 
-    if (m_window.m_listPane.HandleCapturedMouse (ev))
+    if (m_context.listPane.HandleCapturedMouse (ev))
     {
         return true;
     }
 
-    if (m_window.m_treePane.HandleCapturedMouse (ev))
+    if (m_context.treePane.HandleCapturedMouse (ev))
     {
         return true;
     }
 
-    m_window.m_treePane.UpdateTip   (ev, point);
-    m_window.m_statusBar.UpdateTip  (ev, point);
-    m_window.m_listPane.UpdateTip   (ev, point);
+    m_context.treePane.UpdateTip   (ev, point);
+    m_context.statusBar.UpdateTip  (ev, point);
+    m_context.listPane.UpdateTip   (ev, point);
 
-    if (m_window.m_statusBar.HandleActivityClick (ev))
+    if (m_context.statusBar.HandleActivityClick (ev))
     {
         return true;
     }
 
-    if (m_window.m_treePane.HandleMouse (ev))
+    if (m_context.treePane.HandleMouse (ev))
     {
         return true;
     }
 
     //  The buttons under the list's message.
-    if (m_window.m_cassoLinkManager.HandleListActionMouse (ev))
+    if (m_context.cassoLinkManager.HandleListActionMouse (ev))
     {
         return true;
     }
 
-    if (m_window.m_listPane.HandleMouse (ev))
+    if (m_context.listPane.HandleMouse (ev))
     {
         return true;
     }
 
-    return m_window.m_previewPane.HandleMouse (ev);
+    return m_context.preview.HandleMouse (ev);
 }
 
 
@@ -469,33 +469,33 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
 LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
 {
-    LPCWSTR  cursor = m_window.m_treeSplitter->GetCursorForPoint (clientPx);
+    LPCWSTR  cursor = m_context.layout.GetTreeSplitter()->GetCursorForPoint (clientPx);
 
 
 
     if (cursor == nullptr)
     {
-        cursor = m_window.m_previewPane.GetCursorForPoint (clientPx);
+        cursor = m_context.preview.GetCursorForPoint (clientPx);
     }
 
     if (cursor == nullptr)
     {
-        cursor = m_window.m_addressBar.GetCursorForPoint (clientPx);
+        cursor = m_context.addressBar.GetCursorForPoint (clientPx);
     }
 
-    if (cursor == nullptr && m_window.m_previewSplitter->IsVisible())
+    if (cursor == nullptr && m_context.layout.GetPreviewSplitter()->IsVisible())
     {
-        cursor = m_window.m_previewSplitter->GetCursorForPoint (clientPx);
-    }
-
-    if (cursor == nullptr)
-    {
-        cursor = m_window.m_previewPane.GetPictureCursor (clientPx);
+        cursor = m_context.layout.GetPreviewSplitter()->GetCursorForPoint (clientPx);
     }
 
     if (cursor == nullptr)
     {
-        cursor = m_window.m_listPane.GetCursorForPoint (clientPx);
+        cursor = m_context.preview.GetPictureCursor (clientPx);
+    }
+
+    if (cursor == nullptr)
+    {
+        cursor = m_context.listPane.GetCursorForPoint (clientPx);
     }
 
     return cursor;
@@ -521,40 +521,40 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
 
 
-    m_window.ArmTick();
+    m_context.window.ArmTick();
 
-    if (m_window.m_tabManager.HandleEscapeKey (ev))
+    if (m_context.tabManager.HandleEscapeKey (ev))
     {
         return true;
     }
 
     //  A rename in place has every key.
-    if (m_window.m_fileOps.IsRenaming())
+    if (m_context.fileOps.IsRenaming())
     {
-        m_window.m_fileOps.HandleRenameKey (ev);
+        m_context.fileOps.HandleRenameKey (ev);
         return true;
     }
 
     //  The search box takes keys and characters first while it has focus;
     //  Tab and the keys it has no use for continue as usual.
-    if (m_window.m_focus == ExplorerPane::LocationSearch)
+    if (m_focus == ExplorerPane::LocationSearch)
     {
-        handled = m_window.m_addressBar.HandleFindBoxKey (ev);
+        handled = m_context.addressBar.HandleFindBoxKey (ev);
 
         if (handled || ev.kind != DxuiKeyEventKind::Down)
         {
-            m_window.Invalidate();
+            m_context.window.Invalidate();
             return handled;
         }
     }
 
-    if (m_window.m_focus == ExplorerPane::Search || m_window.m_focus == ExplorerPane::GoTo)
+    if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo)
     {
-        handled = m_window.m_previewPane.HandleBoxKey (m_window.m_focus, ev);
+        handled = m_context.preview.HandleBoxKey (m_focus, ev);
 
         if (handled || ev.kind != DxuiKeyEventKind::Down)
         {
-            m_window.Invalidate();
+            m_context.window.Invalidate();
             return handled;
         }
     }
@@ -562,28 +562,28 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     //  While the address bar is being edited, keys and characters go to its
     //  text field first; the keys it leaves, Tab and Ctrl+T among them, carry
     //  on as usual.
-    if (m_window.m_focus == ExplorerPane::Address && m_window.m_addressBar.IsEditing())
+    if (m_focus == ExplorerPane::Address && m_context.addressBar.IsEditing())
     {
-        handled = m_window.m_addressBar.HandleKey (ev);
+        handled = m_context.addressBar.HandleKey (ev);
 
         if (handled || ev.kind != DxuiKeyEventKind::Down)
         {
-            m_window.Invalidate();
+            m_context.window.Invalidate();
             return handled;
         }
     }
 
     //  The preview's shortcuts, for an archive's files and a message.
-    if (m_window.m_focus == ExplorerPane::Preview && m_window.m_previewPane.HandleShortcutKey (ev))
+    if (m_focus == ExplorerPane::Preview && m_context.preview.HandleShortcutKey (ev))
     {
         return true;
     }
 
     //  A character typed at the file list jumps to a row. It has to reach the
     //  list before characters are turned away below.
-    if (ev.kind == DxuiKeyEventKind::Char && m_window.m_focus == ExplorerPane::List)
+    if (ev.kind == DxuiKeyEventKind::Char && m_focus == ExplorerPane::List)
     {
-        return m_window.m_listPane.HandleCharKey (ev);
+        return m_context.listPane.HandleCharKey (ev);
     }
 
     if (ev.kind != DxuiKeyEventKind::Down)
@@ -593,9 +593,9 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z on the files undoes the last file operation; in a text box it is
     //  the box's own, which has the keys before this.
-    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_window.m_focus == ExplorerPane::List || m_window.m_focus == ExplorerPane::Tree) && !m_window.m_fileOps.IsRenaming())
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.fileOps.IsRenaming())
     {
-        m_window.m_fileOps.UndoLast();
+        m_context.fileOps.UndoLast();
         return true;
     }
 
@@ -603,30 +603,30 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     if (command != 0)
     {
-        m_window.m_commandManager.Dispatch (command);
+        m_context.commandManager.Dispatch (command);
         return true;
     }
 
-    if (m_window.m_toolbars.TryMenuBarKey (ev, handled))
+    if (m_context.toolbars.TryMenuBarKey (ev, handled))
     {
         return handled;
     }
 
-    if (m_window.m_focus == ExplorerPane::List && m_window.m_listPane.HandleShortcutKey (ev))
+    if (m_focus == ExplorerPane::List && m_context.listPane.HandleShortcutKey (ev))
     {
         return true;
     }
 
     //  The same keys on the tree act on its selected node.
-    if (m_window.m_focus == ExplorerPane::Tree && m_window.m_treePane.TryShortcutKey (ev, handled))
+    if (m_focus == ExplorerPane::Tree && m_context.treePane.TryShortcutKey (ev, handled))
     {
         return handled;
     }
 
     //  The preview's stops inside it come before the walk moves on.
-    if (ev.vk == VK_TAB && !ev.ctrl && m_window.m_focus == ExplorerPane::Preview && m_window.m_previewPane.HandleTabKey (ev))
+    if (ev.vk == VK_TAB && !ev.ctrl && m_focus == ExplorerPane::Preview && m_context.preview.HandleTabKey (ev))
     {
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -643,34 +643,34 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         //  calls for.
         if (next.kind == FocusStop::Kind::Preview)
         {
-            m_window.m_previewPane.HandleFocusEntered (!ev.shift);
+            m_context.preview.HandleFocusEntered (!ev.shift);
         }
 
         return true;
     }
 
-    switch (m_window.m_focus)
+    switch (m_focus)
     {
         case ExplorerPane::Toolbar: handled = RouteToolbarKey (false, ev); break;
         case ExplorerPane::CommandBar: handled = RouteCommandBarKey (ev);  break;
         case ExplorerPane::PreviewToolbar: handled = RouteToolbarKey (true, ev); break;
         case ExplorerPane::Search:                                               break;
         case ExplorerPane::GoTo:                                                 break;
-        case ExplorerPane::Address: handled = m_window.m_addressBar.HandleKey (ev); break;
-        case ExplorerPane::LocationSearch: handled = m_window.m_addressBar.HandleFindBoxKey (ev);  break;
-        case ExplorerPane::Tabs:    handled = m_window.m_tabManager.HandleKey (ev); break;
-        case ExplorerPane::Tree:    handled = m_window.m_treePane.HandleKey (ev); break;
-        case ExplorerPane::List:    handled = m_window.m_listPane.HandleKey (ev); break;
-        case ExplorerPane::Preview: handled = m_window.m_previewPane.HandleKey (ev); break;
+        case ExplorerPane::Address: handled = m_context.addressBar.HandleKey (ev); break;
+        case ExplorerPane::LocationSearch: handled = m_context.addressBar.HandleFindBoxKey (ev);  break;
+        case ExplorerPane::Tabs:    handled = m_context.tabManager.HandleKey (ev); break;
+        case ExplorerPane::Tree:    handled = m_context.treePane.HandleKey (ev); break;
+        case ExplorerPane::List:    handled = m_context.listPane.HandleKey (ev); break;
+        case ExplorerPane::Preview: handled = m_context.preview.HandleKey (ev); break;
     }
 
     if (ev.vk == VK_BACK && !handled)
     {
-        m_window.m_commandManager.Dispatch (CassoExplorerCommands::kUp);
+        m_context.commandManager.Dispatch (CassoExplorerCommands::kUp);
         handled = true;
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 
     return handled;
 }
@@ -687,12 +687,12 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
 IDxuiControl * ExplorerInput::GetFocusedControl() const
 {
-    switch (m_window.m_focus)
+    switch (m_focus)
     {
-        case ExplorerPane::Tabs:    return m_window.m_tabManager.GetControl();
-        case ExplorerPane::Tree:    return m_window.m_treePane.GetControl();
-        case ExplorerPane::List:    return m_window.m_listPane.GetControl();
-        case ExplorerPane::Preview: return m_window.m_previewPane.GetFocusedControl();
+        case ExplorerPane::Tabs:    return m_context.tabManager.GetControl();
+        case ExplorerPane::Tree:    return m_context.treePane.GetControl();
+        case ExplorerPane::List:    return m_context.listPane.GetControl();
+        case ExplorerPane::Preview: return m_context.preview.GetFocusedControl();
         default:            return nullptr;
     }
 }

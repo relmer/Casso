@@ -13,9 +13,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerPreviewArchive::ExplorerPreviewArchive (ExplorerPreview & preview, CassoExplorerWindow & window)
+ExplorerPreviewArchive::ExplorerPreviewArchive (ExplorerPreview & preview, ExplorerContext & context)
     : m_preview (preview),
-      m_window  (window)
+      m_context (context)
 {
 }
 
@@ -31,12 +31,12 @@ ExplorerPreviewArchive::ExplorerPreviewArchive (ExplorerPreview & preview, Casso
 
 std::vector<std::wstring> ExplorerPreviewArchive::GetSelectedIds() const
 {
-    const std::vector<CatalogRow> &  rows = m_window.m_browser.GetPreview().rows;
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetPreview().rows;
     std::vector<std::wstring>        ids;
 
 
 
-    for (int row : m_preview.m_previewList->GetSelectedRows())
+    for (int row : m_preview.GetPreviewList()->GetSelectedRows())
     {
         if (row >= 0 && (size_t) row < rows.size() && !rows[(size_t) row].shellId.empty())
         {
@@ -64,8 +64,8 @@ std::vector<std::wstring> ExplorerPreviewArchive::GetSelectedIds() const
 
 bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point)
 {
-    RECT                       bounds = m_preview.m_previewList->GetBounds();
-    DxuiMouseEvent             local  = CassoExplorerWindow::ToLocal (ev, bounds);
+    RECT                       bounds = m_preview.GetPreviewList()->GetBounds();
+    DxuiMouseEvent             local  = ExplorerLayout::ToLocal (ev, bounds);
     int                        row    = -1;
     HRESULT                    hr     = S_OK;
     POINT                      screen = point;
@@ -73,17 +73,17 @@ bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Down && CassoExplorerWindow::Contains (bounds, point))
+    if (ev.kind == DxuiMouseEventKind::Down && ExplorerLayout::Contains (bounds, point))
     {
-        row = m_preview.m_previewList->HitTestRow (local.positionDip.x, local.positionDip.y);
-        m_window.m_input.SetFocusPane (ExplorerPane::Preview);
+        row = m_preview.GetPreviewList()->HitTestRow (local.positionDip.x, local.positionDip.y);
+        m_context.input.SetFocusPane (ExplorerPane::Preview);
 
         if (row >= 0 && ev.button == DxuiMouseButton::Right)
         {
             //  A right press on a row outside the selection selects it alone.
-            if (!m_preview.m_previewList->IsRowSelected (row))
+            if (!m_preview.GetPreviewList()->IsRowSelected (row))
             {
-                m_preview.m_previewList->ClickRow (row, false, false);
+                m_preview.GetPreviewList()->ClickRow (row, false, false);
             }
 
             m_menuArmed = true;
@@ -104,7 +104,7 @@ bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point
         m_menuArmed = false;
         ids         = GetSelectedIds();
 
-        ClientToScreen (m_window.GetHwnd(), &screen);
+        ClientToScreen (m_context.window.GetHwnd(), &screen);
 
         if (!ids.empty())
         {
@@ -133,11 +133,11 @@ bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point
         //  the selection once the drag is over.
         release.kind   = DxuiMouseEventKind::Up;
         release.button = DxuiMouseButton::Left;
-        m_preview.m_previewList->OnMouse (release);
+        m_preview.GetPreviewList()->OnMouse (release);
 
         if (!ids.empty())
         {
-            hr = m_window.m_shellVerbs.DragItems (ids, DROPEFFECT_COPY);
+            hr = m_context.shellVerbs.DragItems (ids, DROPEFFECT_COPY);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
@@ -172,7 +172,7 @@ void ExplorerPreviewArchive::CopySelection (bool cut)
         return;
     }
 
-    hr = m_window.m_shellVerbs.PlaceOnClipboard (m_window.GetHwnd(), ids, cut);
+    hr = m_context.shellVerbs.PlaceOnClipboard (m_context.window.GetHwnd(), ids, cut);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -202,10 +202,10 @@ void ExplorerPreviewArchive::DeleteSelection()
         return;
     }
 
-    hr = m_window.m_shellVerbs.DeletePermanently (m_window.GetHwnd(), ids);
+    hr = m_context.shellVerbs.DeletePermanently (m_context.window.GetHwnd(), ids);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    m_window.m_folderSync.RefreshAfterHostChange();
+    m_context.folderSync.RefreshAfterHostChange();
 }
 
 
@@ -236,8 +236,8 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
 
 
 
-    m_window.m_menus.GetMenuCommands().clear();
-    ClientToScreen (m_window.GetHwnd(), &screen);
+    m_context.menus.GetMenuCommands().clear();
+    ClientToScreen (m_context.window.GetHwnd(), &screen);
 
     for (CassoExplorerActions::Verb verb : iconVerbs)
     {
@@ -246,7 +246,7 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
         command->id       = (int) verb;
         command->label    = ExplorerMenus::GetVerbLabel (verb);
         command->glyph    = ExplorerMenus::GetVerbGlyph (verb);
-        command->menuSvg  = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
+        command->menuSvg  = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (verb));
         command->dispatch = [this, verb]()
         {
             if (verb == CassoExplorerActions::Verb::Delete)
@@ -259,31 +259,31 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
             }
         };
         iconCommands.push_back (command);
-        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
+        m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
     items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Open), [this]()
+    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Open), [this]()
     {
-        if (!m_preview.m_previewList->GetSelectedRows().empty())
+        if (!m_preview.GetPreviewList()->GetSelectedRows().empty())
         {
-            OpenRow (m_preview.m_previewList->GetSelectedRows()[0]);
+            OpenRow (m_preview.GetPreviewList()->GetSelectedRows()[0]);
         }
     });
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
-    m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, screen]()
+    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, screen]()
     {
-        HRESULT  hr = m_window.m_shellVerbs.ShowShellMenu (m_window.GetHwnd(), GetSelectedIds(), screen, {});
+        HRESULT  hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), GetSelectedIds(), screen, {});
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
-    m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-    m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+    m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+    m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
 
-    DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -301,7 +301,7 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
 
 void ExplorerPreviewArchive::OpenRow (int row)
 {
-    const std::vector<CatalogRow> &  rows = m_window.m_browser.GetPreview().rows;
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetPreview().rows;
     HRESULT                          hr   = S_OK;
 
 
@@ -313,11 +313,11 @@ void ExplorerPreviewArchive::OpenRow (int row)
 
     if (rows[(size_t) row].isDirectory)
     {
-        m_window.m_browser.NavigateToLocation (Location::MakeShellFolder (rows[(size_t) row].shellId, rows[(size_t) row].name));
-        m_window.m_listPane.FillList();
+        m_context.browser.NavigateToLocation (Location::MakeShellFolder (rows[(size_t) row].shellId, rows[(size_t) row].name));
+        m_context.listPane.FillList();
         return;
     }
 
-    hr = m_window.m_shellVerbs.OpenShellItem (m_window.GetHwnd(), rows[(size_t) row].shellId);
+    hr = m_context.shellVerbs.OpenShellItem (m_context.window.GetHwnd(), rows[(size_t) row].shellId);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

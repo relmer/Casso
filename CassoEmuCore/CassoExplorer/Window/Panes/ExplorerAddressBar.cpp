@@ -14,8 +14,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerAddressBar::ExplorerAddressBar (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerAddressBar::ExplorerAddressBar (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -31,10 +31,10 @@ ExplorerAddressBar::ExplorerAddressBar (CassoExplorerWindow & window)
 
 void ExplorerAddressBar::Create()
 {
-    m_address = m_window.CreateChild<DxuiAddressBar>();
-    m_findBox = m_window.CreateChild<DxuiTextInput>();
+    m_address = m_context.window.CreateChild<DxuiAddressBar>();
+    m_findBox = m_context.window.CreateChild<DxuiTextInput>();
 
-    m_address->SetTextRenderer (m_window.GetTextRenderer());
+    m_address->SetTextRenderer (m_context.window.GetTextRenderer());
     m_address->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                                 ? DxuiToolbar::kFluentIconFace
                                 : DxuiToolbar::kMdl2IconFace);
@@ -61,15 +61,15 @@ void ExplorerAddressBar::Configure()
     //  A local folder only: a network path is never asked about on this thread.
     m_addressRoot.isHostFolder = [this] (const std::wstring & path)
     {
-        return m_window.m_context.fs != nullptr && path.size() > 1 && path[1] == L':' && m_window.m_context.fs->DirectoryExists (path);
+        return m_context.app.fs != nullptr && path.size() > 1 && path[1] == L':' && m_context.app.fs->DirectoryExists (path);
     };
 
     m_address->SetOnSegment ([this] (int index)
     {
         if (index >= 0 && index < (int) m_addressSegments.size())
         {
-            m_window.m_browser.NavigateToLocation (m_addressSegments[(size_t) index].location);
-            m_window.m_listPane.FillList();
+            m_context.browser.NavigateToLocation (m_addressSegments[(size_t) index].location);
+            m_context.listPane.FillList();
         }
     });
     m_address->SetOnSubmit    ([this] (const std::wstring & text) { SubmitAddress (text); });
@@ -77,8 +77,8 @@ void ExplorerAddressBar::Configure()
     m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
     m_address->SetOnRoots     ([this] (const RECT & anchor) { ShowAddressRootsMenu (anchor); });
 
-    m_findBox->SetTextRenderer   (m_window.GetTextRenderer());
-    m_findBox->SetHwnd           (m_window.GetHwnd());
+    m_findBox->SetTextRenderer   (m_context.window.GetTextRenderer());
+    m_findBox->SetHwnd           (m_context.window.GetHwnd());
     m_findBox->SetFont           (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
     m_findBox->SetExplorerChrome (true);
     m_findBox->SetTrailingGlyph  (s_kpszMdl2Search, DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace);
@@ -99,7 +99,7 @@ void ExplorerAddressBar::Configure()
 
     //  Explorer drops its history as the address opens for editing, and
     //  turns it into completions as a path is typed.
-    m_suggest.SetPopupHost (m_window.GetPopupHost());
+    m_suggest.SetPopupHost (m_context.window.GetPopupHost());
     m_suggest.SetOnPick    ([this] (const std::wstring & text) { SubmitAddress (text); });
 
     m_address->SetOnEditState ([this] (bool editing)
@@ -140,7 +140,7 @@ void ExplorerAddressBar::Configure()
 
 void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int rightOfTreePx)
 {
-    const DxuiDpiScaler  & scaler      = m_window.m_scaler;
+    const DxuiDpiScaler  & scaler      = m_context.scaler;
     RECT                   addressRect = GetAddressRect (free, strip, scaler);
     RECT                   findRect    = {};
     int                    findWidth   = 0;
@@ -209,7 +209,7 @@ void ExplorerAddressBar::HandleLocationChanged (const Location & location)
 
 
 
-    m_address->SetLeadIcon  (BrowserCells::GetLocationIcon (lead, m_window.m_shellIcons));
+    m_address->SetLeadIcon  (BrowserCells::GetLocationIcon (lead, m_context.shellIcons));
     m_address->SetLeadGlyph ((lead.kind == Location::Kind::Root && lead.path == TreeModel::kThisPcRootId) ? s_kpszMdl2ThisPc : nullptr);
 
     if (!SearchQuery::IsId (location.path))
@@ -223,7 +223,7 @@ void ExplorerAddressBar::HandleLocationChanged (const Location & location)
 
     SearchQuery::TryParseId (location.path, scope, query);
     m_findBox->SetText        (query);
-    m_findBox->SetPlaceholder (L"Search " + (m_window.m_browser.TryGetUpTarget (up) ? GetNavLabel (up) : std::wstring()));
+    m_findBox->SetPlaceholder (L"Search " + (m_context.browser.TryGetUpTarget (up) ? GetNavLabel (up) : std::wstring()));
 }
 
 
@@ -242,7 +242,7 @@ void ExplorerAddressBar::HandleLocationChanged (const Location & location)
 
 void ExplorerAddressBar::CloseSuggestionsOnPress (const DxuiMouseEvent & ev)
 {
-    if (ev.kind == DxuiMouseEventKind::Down && m_suggest.IsOpen() && !CassoExplorerWindow::Contains (m_address->GetBounds(), ev.positionDip))
+    if (ev.kind == DxuiMouseEventKind::Down && m_suggest.IsOpen() && !ExplorerLayout::Contains (m_address->GetBounds(), ev.positionDip))
     {
         m_suggest.Close();
     }
@@ -271,7 +271,7 @@ bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
 
 
 
-    if (press && ev.button == DxuiMouseButton::Right && !m_address->IsEditing() && CassoExplorerWindow::Contains (m_address->GetBounds(), point))
+    if (press && ev.button == DxuiMouseButton::Right && !m_address->IsEditing() && ExplorerLayout::Contains (m_address->GetBounds(), point))
     {
         ShowAddressContextMenu (point.x, point.y);
         return true;
@@ -279,7 +279,7 @@ bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting() && m_address->OnMouse (ev))
     {
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     }
 
     if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting())
@@ -290,7 +290,7 @@ bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
 
         if (m_findBox->IsClearHovered() != wasLit)
         {
-            m_window.Invalidate();
+            m_context.window.Invalidate();
         }
     }
 
@@ -299,26 +299,26 @@ bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    if (CassoExplorerWindow::Contains (m_findBox->GetBounds(), point))
+    if (ExplorerLayout::Contains (m_findBox->GetBounds(), point))
     {
         if (press)
         {
-            m_window.m_input.SetFocusPane (ExplorerPane::LocationSearch);
+            m_context.input.SetFocusPane (ExplorerPane::LocationSearch);
         }
 
         m_findBox->OnMouse (ev);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
-    if (!m_address->IsInteracting() && !CassoExplorerWindow::Contains (m_address->GetBounds(), point))
+    if (!m_address->IsInteracting() && !ExplorerLayout::Contains (m_address->GetBounds(), point))
     {
         return false;
     }
 
     if (press)
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::Address);
+        m_context.input.SetFocusPane (ExplorerPane::Address);
         m_address->SetFocusCue (false);
     }
 
@@ -327,7 +327,7 @@ bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
     return true;
 }
 
@@ -431,10 +431,10 @@ bool ExplorerAddressBar::EndEdit()
 
 void ExplorerAddressBar::GoToLocation (const Location & location)
 {
-    if (m_window.m_browser.GetLocation() != location)
+    if (m_context.browser.GetLocation() != location)
     {
-        m_window.m_browser.NavigateToLocation (location);
-        m_window.m_listPane.FillList();
+        m_context.browser.NavigateToLocation (location);
+        m_context.listPane.FillList();
     }
 }
 
@@ -468,7 +468,7 @@ std::vector<BrowserModel::AddressSegment> ExplorerAddressBar::GetAddressSegments
 
     if (onDrive)
     {
-        if (m_window.m_shellIcons.GetDriveInfo (segments.front().location.path, drive) && !drive.name.empty())
+        if (m_context.shellIcons.GetDriveInfo (segments.front().location.path, drive) && !drive.name.empty())
         {
             segments.front().label = drive.name;
         }
@@ -520,7 +520,7 @@ std::wstring ExplorerAddressBar::GetNavLabel (const Location & location)
 
 void ExplorerAddressBar::FillNavTips()
 {
-    const BrowserModel &  model = m_window.m_browser.GetBrowserModel();
+    const BrowserModel &  model = m_context.browser.GetBrowserModel();
     Location              up;
     std::wstring          back    = L"Back";
     std::wstring          forward = L"Forward";
@@ -538,15 +538,15 @@ void ExplorerAddressBar::FillNavTips()
         forward = L"Forward to " + GetNavLabel (model.GetActiveTab().forward.back());
     }
 
-    if (m_window.m_browser.TryGetUpTarget (up))
+    if (m_context.browser.TryGetUpTarget (up))
     {
         upTip = L"Up to \"" + GetNavLabel (up) + L"\" (Alt + Up Arrow)";
     }
 
-    m_window.m_commands.SetTip (CassoExplorerCommands::kBack,    back);
-    m_window.m_commands.SetTip (CassoExplorerCommands::kForward, forward);
-    m_window.m_commands.SetTip (CassoExplorerCommands::kUp,      upTip);
-    m_window.m_commands.SetTip (CassoExplorerCommands::kRefresh, L"Refresh \"" + GetNavLabel (m_window.m_browser.GetLocation()) + L"\" (F5)");
+    m_context.commands.SetTip (CassoExplorerCommands::kBack,    back);
+    m_context.commands.SetTip (CassoExplorerCommands::kForward, forward);
+    m_context.commands.SetTip (CassoExplorerCommands::kUp,      upTip);
+    m_context.commands.SetTip (CassoExplorerCommands::kRefresh, L"Refresh \"" + GetNavLabel (m_context.browser.GetLocation()) + L"\" (F5)");
 }
 
 
@@ -563,7 +563,7 @@ void ExplorerAddressBar::FillNavTips()
 
 void ExplorerAddressBar::FillAddress()
 {
-    Location                   location = m_window.m_browser.GetLocation();
+    Location                   location = m_context.browser.GetLocation();
     std::vector<std::wstring>  labels;
 
 
@@ -593,25 +593,25 @@ void ExplorerAddressBar::FillAddress()
 
 void ExplorerAddressBar::SubmitAddress (const std::wstring & text)
 {
-    if (m_window.m_browser.NavigateToAddress (text))
+    if (m_context.browser.NavigateToAddress (text))
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::List);
-        m_window.m_listPane.FillList();
+        m_context.input.SetFocusPane (ExplorerPane::List);
+        m_context.listPane.FillList();
 
         //  The typed path joins the history now, not only at a clean exit, and
         //  a folder joins Explorer's list too. A path into a disk image stays
         //  in Casso Explorer's own: Explorer would open the image file.
         AddTypedPath (CassoExplorerBrowser::RootOnSystemDrive (text));
-        m_window.SaveSession();
+        m_context.window.SaveSession();
 
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder)
+        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
         {
             WriteExplorerTypedPath (CassoExplorerBrowser::RootOnSystemDrive (text));
         }
     }
     else
     {
-        m_window.ShowMessage (L"Casso Explorer can't find \"" + text + L"\". Check the path and try again.", MB_ICONWARNING);
+        m_context.window.ShowMessage (L"Casso Explorer can't find \"" + text + L"\". Check the path and try again.", MB_ICONWARNING);
     }
 }
 
@@ -634,9 +634,9 @@ void ExplorerAddressBar::AddTypedPath (const std::wstring & text)
 
 
 
-    shared.Reset (m_window.m_prefs.typedPaths);
+    shared.Reset (m_context.prefs.typedPaths);
     shared.Add (text);
-    m_window.m_prefs.typedPaths = shared.GetEntries();
+    m_context.prefs.typedPaths = shared.GetEntries();
 }
 
 
@@ -664,8 +664,8 @@ void ExplorerAddressBar::ShowAddressMenu (int index, const RECT & anchor)
         return;
     }
 
-    m_window.m_browser.GetFolderChildren (m_addressSegments[(size_t) index].location, children);
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.browser.GetFolderChildren (m_addressSegments[(size_t) index].location, children);
+    m_context.menus.GetMenuCommands().clear();
 
     for (const BrowserModel::AddressSegment & child : children)
     {
@@ -676,21 +676,21 @@ void ExplorerAddressBar::ShowAddressMenu (int index, const RECT & anchor)
 
         command->dispatch = [this, target]()
         {
-            m_window.m_browser.NavigateToLocation (target);
-            m_window.m_listPane.FillList();
+            m_context.browser.NavigateToLocation (target);
+            m_context.listPane.FillList();
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
+        m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())
     {
         m_address->SetOpenSeparator (index);
-        DxuiContextMenu::ShowUnder (*m_window.GetPopupHost(), anchor, std::move (items), [this] (bool)
+        DxuiContextMenu::ShowUnder (*m_context.window.GetPopupHost(), anchor, std::move (items), [this] (bool)
         {
             m_address->SetOpenSeparator (-1);
-            m_window.Invalidate();
+            m_context.window.Invalidate();
         });
     }
 }
@@ -771,7 +771,7 @@ bool ExplorerAddressBar::HandleAddressKey (WPARAM vk)
     {
         shown = m_suggest.MoveHighlight ((vk == VK_DOWN) ? 1 : -1);
         m_address->SetEditText (shown.empty() ? m_addressTyped : shown);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -796,7 +796,7 @@ bool ExplorerAddressBar::HandleAddressKey (WPARAM vk)
 
 std::vector<std::wstring> ExplorerAddressBar::GetAddressHistory() const
 {
-    return TypedPathHistory::Merge (ReadExplorerTypedPaths(), m_window.m_prefs.typedPaths);
+    return TypedPathHistory::Merge (ReadExplorerTypedPaths(), m_context.prefs.typedPaths);
 }
 
 
@@ -882,31 +882,31 @@ std::vector<std::wstring> ExplorerAddressBar::GetCompletions (const std::wstring
 void ExplorerAddressBar::ShowAddressContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>  items;
-    Location                        location = m_window.m_browser.GetLocation();
+    Location                        location = m_context.browser.GetLocation();
     std::wstring                    address  = BrowserModel::FormatAddress (location);
 
 
 
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
     //  Explorer's two both put the path on as text; neither puts the folder.
-    m_window.m_menus.AddMenuCommand (items, L"&Copy address", [this, address]() { DxuiClipboard::SetText (m_window.GetHwnd(), address); });
+    m_context.menus.AddMenuCommand (items, L"&Copy address", [this, address]() { DxuiClipboard::SetText (m_context.window.GetHwnd(), address); });
 
-    m_window.m_menus.AddMenuCommand (items, L"Copy address as &text", [this, address]() { DxuiClipboard::SetText (m_window.GetHwnd(), address); });
+    m_context.menus.AddMenuCommand (items, L"Copy address as &text", [this, address]() { DxuiClipboard::SetText (m_context.window.GetHwnd(), address); });
 
-    m_window.m_menus.AddMenuCommand (items, L"&Edit address", [this]()
+    m_context.menus.AddMenuCommand (items, L"&Edit address", [this]()
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::Address);
+        m_context.input.SetFocusPane (ExplorerPane::Address);
         m_address->BeginEdit();
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     });
 
-    m_window.m_menus.AddMenuCommand (items, L"&Delete history", [this]()
+    m_context.menus.AddMenuCommand (items, L"&Delete history", [this]()
     {
         HKEY  key = nullptr;
 
-        m_window.m_browser.GetTypedPaths().Clear();
-        m_window.m_prefs.typedPaths.clear();
+        m_context.browser.GetTypedPaths().Clear();
+        m_context.prefs.typedPaths.clear();
 
         if (RegOpenKeyExW (HKEY_CURRENT_USER, kExplorerTypedPathsKey, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
         {
@@ -915,7 +915,7 @@ void ExplorerAddressBar::ShowAddressContextMenu (int x, int y)
         }
     });
 
-    DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
 
 
@@ -1032,7 +1032,7 @@ void ExplorerAddressBar::ShowAddressOverflowMenu (const RECT & anchor)
 
 
 
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
     for (i = (std::min) (m_address->GetFirstShown(), (int) m_addressSegments.size()) - 1; i >= 0; i--)
     {
@@ -1042,17 +1042,17 @@ void ExplorerAddressBar::ShowAddressOverflowMenu (const RECT & anchor)
         command->label    = EscapeMnemonics (m_addressSegments[(size_t) i].label);
         command->dispatch = [this, target]()
         {
-            m_window.m_browser.NavigateToLocation (target);
-            m_window.m_listPane.FillList();
+            m_context.browser.NavigateToLocation (target);
+            m_context.listPane.FillList();
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
+        m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())
     {
-        DxuiContextMenu::ShowUnder (*m_window.GetPopupHost(), anchor, std::move (items));
+        DxuiContextMenu::ShowUnder (*m_context.window.GetPopupHost(), anchor, std::move (items));
     }
 }
 
@@ -1076,17 +1076,17 @@ void ExplorerAddressBar::LeaveSearch()
 
 
 
-    if (!SearchQuery::IsId (m_window.m_browser.GetLocation().path))
+    if (!SearchQuery::IsId (m_context.browser.GetLocation().path))
     {
         return;
     }
 
-    if (!m_window.m_browser.GoBack() && m_window.m_browser.TryGetUpTarget (searched))
+    if (!m_context.browser.GoBack() && m_context.browser.TryGetUpTarget (searched))
     {
-        m_window.m_browser.NavigateToLocation (searched);
+        m_context.browser.NavigateToLocation (searched);
     }
 
-    m_window.m_listPane.FillList();
+    m_context.listPane.FillList();
 }
 
 
@@ -1119,7 +1119,7 @@ bool ExplorerAddressBar::HandleFindBoxKey (const DxuiKeyEvent & ev)
         m_findBox->SetText (L"");
         LeaveSearch();
 
-        m_window.m_input.SetFocusPane (ExplorerPane::List);
+        m_context.input.SetFocusPane (ExplorerPane::List);
         return true;
     }
 
@@ -1142,7 +1142,7 @@ std::wstring ExplorerAddressBar::GetCassoSearchScope()
 {
     std::vector<TreeNode>      nodes;
     std::vector<std::wstring>  folders;
-    HRESULT                    hr = m_window.m_browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
+    HRESULT                    hr = m_context.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes);
 
 
 
@@ -1174,7 +1174,7 @@ std::wstring ExplorerAddressBar::GetCassoSearchScope()
 
 void ExplorerAddressBar::SearchLocation (const std::wstring & query)
 {
-    Location      at    = m_window.m_browser.GetLocation();
+    Location      at    = m_context.browser.GetLocation();
     std::wstring  scope;
     std::wstring  previous;
 
@@ -1183,7 +1183,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
     //  Enter in an empty box goes back to the list, as File Explorer's does.
     if (query.empty())
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::List);
+        m_context.input.SetFocusPane (ExplorerPane::List);
         return;
     }
 
@@ -1206,13 +1206,13 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
 
     if (scope.empty())
     {
-        m_window.ShowMessage (L"Search covers folders on a disk; this location has none.", MB_ICONINFORMATION);
+        m_context.window.ShowMessage (L"Search covers folders on a disk; this location has none.", MB_ICONINFORMATION);
         return;
     }
 
-    m_window.m_browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query), SearchQuery::GetLabel (scope)));
-    m_window.m_listPane.FillList();
-    m_window.m_input.SetFocusPane (ExplorerPane::List);
+    m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query), SearchQuery::GetLabel (scope)));
+    m_context.listPane.FillList();
+    m_context.input.SetFocusPane (ExplorerPane::List);
 }
 
 
@@ -1232,12 +1232,12 @@ void ExplorerAddressBar::ShowAddressRootsMenu (const RECT & anchor)
 {
     std::vector<DxuiPopupMenuItem>                 items;
     std::vector<IShellItemVerbs::ShellFolderItem>  folders;
-    HRESULT                                        hr = m_window.m_shellVerbs.ListDesktopFolders (folders);
+    HRESULT                                        hr = m_context.shellVerbs.ListDesktopFolders (folders);
 
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
     for (const IShellItemVerbs::ShellFolderItem & folder : folders)
     {
@@ -1251,28 +1251,28 @@ void ExplorerAddressBar::ShowAddressRootsMenu (const RECT & anchor)
                                             : Location();
 
         command->label     = EscapeMnemonics (folder.name);
-        command->menuImage = m_window.m_shellIcons.GetForPath (target, true);
+        command->menuImage = m_context.shellIcons.GetForPath (target, true);
         command->dispatch  = [this, target, own]()
         {
             if (own.kind != Location::Kind::None)
             {
-                m_window.m_browser.NavigateToLocation (own);
+                m_context.browser.NavigateToLocation (own);
             }
             else
             {
-                m_window.m_browser.NavigateToAddress (target);
+                m_context.browser.NavigateToAddress (target);
             }
 
-            m_window.m_listPane.FillList();
+            m_context.listPane.FillList();
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
+        m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())
     {
-        DxuiContextMenu::ShowUnder (*m_window.GetPopupHost(), anchor, std::move (items));
+        DxuiContextMenu::ShowUnder (*m_context.window.GetPopupHost(), anchor, std::move (items));
     }
 }
 
@@ -1297,15 +1297,15 @@ void ExplorerAddressBar::ShowHistoryMenu (bool forward, const RECT & anchor)
 
 
 
-    if (!m_window.m_browser.GetBrowserModel().HasTabs())
+    if (!m_context.browser.GetBrowserModel().HasTabs())
     {
         return;
     }
 
-    stack = forward ? m_window.m_browser.GetBrowserModel().GetActiveTab().forward
-                    : m_window.m_browser.GetBrowserModel().GetActiveTab().back;
+    stack = forward ? m_context.browser.GetBrowserModel().GetActiveTab().forward
+                    : m_context.browser.GetBrowserModel().GetActiveTab().back;
 
-    m_window.m_menus.GetMenuCommands().clear();
+    m_context.menus.GetMenuCommands().clear();
 
     for (i = 0; i < stack.size(); i++)
     {
@@ -1315,19 +1315,19 @@ void ExplorerAddressBar::ShowHistoryMenu (bool forward, const RECT & anchor)
         command->label    = EscapeMnemonics (BrowserCells::GetLocationLabel (stack[stack.size() - 1 - i]));
         command->dispatch = [this, forward, steps]()
         {
-            if (forward ? m_window.m_browser.GoForwardBy (steps) : m_window.m_browser.GoBackBy (steps))
+            if (forward ? m_context.browser.GoForwardBy (steps) : m_context.browser.GoBackBy (steps))
             {
-                m_window.m_listPane.FillList();
+                m_context.listPane.FillList();
             }
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
+        m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())
     {
-        DxuiContextMenu::ShowUnder (*m_window.GetPopupHost(), anchor, std::move (items));
+        DxuiContextMenu::ShowUnder (*m_context.window.GetPopupHost(), anchor, std::move (items));
     }
 }
 

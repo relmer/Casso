@@ -4,7 +4,7 @@
 
 class FirewallMonitor;
 class ILinkAnnouncements;
-class CassoExplorerWindow;
+struct ExplorerContext;
 struct LinkTreeEntry;
 struct Location;
 
@@ -26,7 +26,7 @@ struct Location;
 class CassoLinkManager
 {
 public:
-    explicit CassoLinkManager (CassoExplorerWindow & window);
+    explicit CassoLinkManager (ExplorerContext & context);
     ~CassoLinkManager();
 
     //  A CassoLink operation finished or a link changed state: the tree, the
@@ -114,10 +114,11 @@ public:
     void         FixFirewall          (bool markPrivate);
     bool         TryGetConnectionEntry      (const std::wstring & name, LinkTreeEntry & outEntry) const;
 
-private:
-    friend class CassoExplorerWindow;
+    uint32_t  GetAnnouncedChanges () const { return m_announcedChanges; }
 
-    CassoExplorerWindow  & m_window;
+private:
+
+    ExplorerContext  & m_context;
 
     uint32_t     m_announcedChanges   = 0;   // ILinkAnnouncements::GetChangeCount at the last look
     uint32_t     m_firewallVersion    = 0;   // FirewallMonitor::GetVersion the views were drawn from

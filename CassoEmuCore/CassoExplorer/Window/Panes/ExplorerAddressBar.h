@@ -4,7 +4,7 @@
 
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -24,7 +24,7 @@ class CassoExplorerWindow;
 class ExplorerAddressBar
 {
 public:
-    explicit ExplorerAddressBar (CassoExplorerWindow & window);
+    explicit ExplorerAddressBar (ExplorerContext & context);
 
     static constexpr const wchar_t *  kExplorerTypedPathsKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths";
     static constexpr size_t           kMaxCompletions        = 200;
@@ -105,9 +105,8 @@ public:
     static BrowserModel::AddressRoot  GetProfileRoot();
 
 private:
-    friend class CassoExplorerWindow;
 
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiAddressBar                             * m_address = nullptr;
 

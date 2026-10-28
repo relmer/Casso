@@ -1302,12 +1302,16 @@ waits for this phase, so it is tested once.
   Done: every component's `OnXxx` became `HandleXxx`. Panes has the address
   bar, list pane and columns, preview and its parts, status bar, toolbars,
   tree pane and `ExplorerPane`; Managers has the rest.
-- [ ] T284 Replace the components' friendship with the window by
+- [X] T284 Replace the components' friendship with the window by
   `ExplorerContext`: the shared services, the components' public
   interfaces, and the window's own operations through an interface the
   window implements. The window's focus, splitters and layout bands move
   to the components that use them, and the window has no friend
   declarations.
+  Done: `IExplorerWindow` and `ExplorerContext` are in
+  `CassoEmuCore/CassoExplorer/Window/`, and the app's settings for a window
+  are `CassoExplorerWindowContext`. The list pane's and the preview's parts
+  use accessors in place of friendship too.
 - [ ] T285 Make the preview a manager that creates and runs one class per
   kind of preview (listing, text, hex, picture, archive, shell), with the
   toolbar and find bar shared.

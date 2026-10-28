@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 
 
 
@@ -21,7 +21,7 @@ class CassoExplorerWindow;
 class ExplorerStatusBar
 {
 public:
-    explicit ExplorerStatusBar (CassoExplorerWindow & window);
+    explicit ExplorerStatusBar (ExplorerContext & context);
 
     //  The fields, left to right: Explorer's item count and selection,
     //  flowing from the left; the space between; then free space, the
@@ -60,7 +60,7 @@ public:
     void  UpdateTip       (const DxuiMouseEvent & ev, POINT point);
 
 private:
-    CassoExplorerWindow  & m_window;
+    ExplorerContext  & m_context;
 
     DxuiStatusBar        * m_status = nullptr;
 

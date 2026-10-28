@@ -14,8 +14,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerToolbars::ExplorerToolbars (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerToolbars::ExplorerToolbars (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -34,7 +34,7 @@ ExplorerToolbars::ExplorerToolbars (CassoExplorerWindow & window)
 
 void ExplorerToolbars::CreateNavBar()
 {
-    m_toolbar = m_window.CreateChild<DxuiToolbar>();
+    m_toolbar = m_context.window.CreateChild<DxuiToolbar>();
 }
 
 
@@ -49,7 +49,7 @@ void ExplorerToolbars::CreateNavBar()
 
 void ExplorerToolbars::CreateMenuBar()
 {
-    m_menuBar = m_window.CreateChild<DxuiMenuBar>();
+    m_menuBar = m_context.window.CreateChild<DxuiMenuBar>();
 }
 
 
@@ -64,7 +64,7 @@ void ExplorerToolbars::CreateMenuBar()
 
 void ExplorerToolbars::CreateCommandBar()
 {
-    m_commandBar = m_window.CreateChild<DxuiToolbar>();
+    m_commandBar = m_context.window.CreateChild<DxuiToolbar>();
 }
 
 
@@ -87,19 +87,19 @@ void ExplorerToolbars::Create()
 
 
 
-    m_toolbar->SetTextRenderer (m_window.GetTextRenderer());
-    m_toolbar->SetPopupHost    (m_window.GetPopupHost());
-    m_toolbar->SetEntries      (m_window.m_commands.BuildToolbarEntries());
+    m_toolbar->SetTextRenderer (m_context.window.GetTextRenderer());
+    m_toolbar->SetPopupHost    (m_context.window.GetPopupHost());
+    m_toolbar->SetEntries      (m_context.commands.BuildToolbarEntries());
 
-    m_commandBar->SetTextRenderer (m_window.GetTextRenderer());
-    m_commandBar->SetPopupHost    (m_window.GetPopupHost());
+    m_commandBar->SetTextRenderer (m_context.window.GetTextRenderer());
+    m_commandBar->SetPopupHost    (m_context.window.GetPopupHost());
 
     //  Explorer's flat buttons, on this bar and the others.
     m_toolbar->SetFlatStyle    (true);
     m_commandBar->SetFlatStyle (true);
 
     m_commandBar->EnableSeeMore      (s_kpszMdl2More, L"See more", &CassoExplorerIcons::s_kMore);
-    m_commandBar->SetEntries         (m_window.m_commands.BuildCommandBarEntries());
+    m_commandBar->SetEntries         (m_context.commands.BuildCommandBarEntries());
     m_commandBar->SetIconFace        (iconFace);
     m_commandBar->SetIconDip         (kCommandBarIconDip);
     m_commandBar->SetChevronOnIcons  (true);
@@ -119,8 +119,8 @@ void ExplorerToolbars::Create()
     m_toolbar->SetBarPadDp      (kNavBarPadDp);
     m_toolbar->SetGroupGapDp    (kNavAddressGapDp);
 
-    m_menuBar->SetPopupHost              (m_window.GetPopupHost());
-    m_menuBar->SetTextRendererForMeasure (m_window.GetTextRenderer());
+    m_menuBar->SetPopupHost              (m_context.window.GetPopupHost());
+    m_menuBar->SetTextRendererForMeasure (m_context.window.GetTextRenderer());
 }
 
 
@@ -187,8 +187,8 @@ void ExplorerToolbars::ApplyTheme (const DxuiTheme & theme)
 
 void ExplorerToolbars::PlanForWidth (int widthPx)
 {
-    m_toolbar->PlanForWidth    (widthPx, m_window.m_scaler);
-    m_commandBar->PlanForWidth (widthPx, m_window.m_scaler);
+    m_toolbar->PlanForWidth    (widthPx, m_context.scaler);
+    m_commandBar->PlanForWidth (widthPx, m_context.scaler);
 }
 
 
@@ -203,11 +203,11 @@ void ExplorerToolbars::PlanForWidth (int widthPx)
 
 void ExplorerToolbars::Layout (const RECT & commandBand, const RECT & navBand)
 {
-    m_commandBar->SetHostClientRect (m_window.m_client);
-    m_commandBar->Layout (commandBand, m_window.m_scaler);
+    m_commandBar->SetHostClientRect (m_context.layout.GetClient());
+    m_commandBar->Layout (commandBand, m_context.scaler);
 
-    m_toolbar->SetHostClientRect (m_window.m_client);
-    m_toolbar->Layout (navBand, m_window.m_scaler);
+    m_toolbar->SetHostClientRect (m_context.layout.GetClient());
+    m_toolbar->Layout (navBand, m_context.scaler);
 }
 
 
@@ -230,12 +230,12 @@ void ExplorerToolbars::CloseMenusOutside (const DxuiMouseEvent & ev)
         return;
     }
 
-    for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_window.m_previewPane.GetToolbar() })
+    for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_context.preview.GetToolbar() })
     {
-        if (bar->IsMenuOpen() && !CassoExplorerWindow::Contains (bar->GetBounds(), ev.positionDip))
+        if (bar->IsMenuOpen() && !ExplorerLayout::Contains (bar->GetBounds(), ev.positionDip))
         {
             bar->CloseMenu();
-            m_window.Invalidate();
+            m_context.window.Invalidate();
         }
     }
 }
@@ -252,7 +252,7 @@ void ExplorerToolbars::CloseMenusOutside (const DxuiMouseEvent & ev)
 
 void ExplorerToolbars::CloseMenus()
 {
-    for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_window.m_previewPane.GetToolbar() })
+    for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_context.preview.GetToolbar() })
     {
         bar->CloseMenu();
     }
@@ -274,7 +274,7 @@ void ExplorerToolbars::CloseMenus()
 
 bool ExplorerToolbars::HandleMouse (const DxuiMouseEvent & ev)
 {
-    DxuiToolbar &  under = GetToolbarUnder (m_window.m_menuBand.GetBounds(), ev.positionDip, *m_toolbar, *m_commandBar);
+    DxuiToolbar &  under = GetToolbarUnder (m_context.layout.GetMenuBand().GetBounds(), ev.positionDip, *m_toolbar, *m_commandBar);
     DxuiToolbar &  other = (&under == m_commandBar) ? *m_toolbar : *m_commandBar;
 
 
@@ -293,7 +293,7 @@ bool ExplorerToolbars::HandleMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
     return true;
 }
 
@@ -390,7 +390,7 @@ void ExplorerToolbars::TickMenus (int64_t nowMs)
 
 DxuiToolbar & ExplorerToolbars::GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar)
 {
-    return CassoExplorerWindow::Contains (commandBarBand, point) ? commandBar : navToolbar;
+    return ExplorerLayout::Contains (commandBarBand, point) ? commandBar : navToolbar;
 }
 
 
@@ -427,7 +427,7 @@ bool ExplorerToolbars::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouse
             //  A button clicked stays quiet until the pointer has left it, as
             //  Explorer's command bar does, rather than tipping again over the
             //  menu it opened.
-            if (m_tipMuted && CassoExplorerWindow::Contains (m_tipMuteRect, ev.positionDip))
+            if (m_tipMuted && ExplorerLayout::Contains (m_tipMuteRect, ev.positionDip))
             {
                 tip = nullptr;
             }
@@ -438,11 +438,11 @@ bool ExplorerToolbars::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouse
 
             if (tip != nullptr && *tip != L'\0')
             {
-                m_window.m_tips.ShowHoverTip (ExplorerTips::TipOwner::Toolbar, anchor, tip);
+                m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Toolbar, anchor, tip);
             }
             else
             {
-                m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::Toolbar);
+                m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Toolbar);
             }
 
             break;
@@ -452,20 +452,20 @@ bool ExplorerToolbars::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouse
 
             //  A right-click on Back or Forward lists where each would go, as
             //  Explorer's does.
-            if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassoExplorerCommands::kBack, anchor) && CassoExplorerWindow::Contains (anchor, ev.positionDip))
+            if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassoExplorerCommands::kBack, anchor) && ExplorerLayout::Contains (anchor, ev.positionDip))
             {
-                m_window.m_addressBar.ShowHistoryMenu (false, anchor);
+                m_context.addressBar.ShowHistoryMenu (false, anchor);
                 took = true;
             }
-            else if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassoExplorerCommands::kForward, anchor) && CassoExplorerWindow::Contains (anchor, ev.positionDip))
+            else if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassoExplorerCommands::kForward, anchor) && ExplorerLayout::Contains (anchor, ev.positionDip))
             {
-                m_window.m_addressBar.ShowHistoryMenu (true, anchor);
+                m_context.addressBar.ShowHistoryMenu (true, anchor);
                 took = true;
             }
 
             if (took)
             {
-                m_window.m_tips.HideImmediate();
+                m_context.tips.HideImmediate();
                 m_tipMuted = toolbar.GetTooltipAt (x, y, m_tipMuteRect) != nullptr;
             }
 
@@ -477,7 +477,7 @@ bool ExplorerToolbars::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouse
 
         case DxuiMouseEventKind::Leave:
             toolbar.OnToolbarMouseLeave();
-            m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::Toolbar);
+            m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Toolbar);
             break;
 
         default:
@@ -508,15 +508,15 @@ void ExplorerToolbars::UpdateCommandBar()
 
 
 
-    if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+    if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
     {
         extra = Extra::RecycleBin;
     }
-    else if (m_window.m_browser.IsAppleDriveLocation() || m_window.m_cassoLinkManager.IsOnLinkedMachine())
+    else if (m_context.browser.IsAppleDriveLocation() || m_context.cassoLinkManager.IsOnLinkedMachine())
     {
         extra = Extra::AppleDrive;
     }
-    else if (!m_window.m_browser.GetExtractTarget().empty())
+    else if (!m_context.browser.GetExtractTarget().empty())
     {
         extra = Extra::Archive;
     }
@@ -529,12 +529,12 @@ void ExplorerToolbars::UpdateCommandBar()
     m_commandBarExtra = extra;
 
     //  Explorer's own icons for the buttons, in the theme's set.
-    m_window.m_commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, m_window.m_menus.GetMenuSvg (L"windows.recyclebin.empty"));
-    m_window.m_commands.SetSvg (CassoExplorerCommands::kRestoreItems,    m_window.m_menus.GetMenuSvg (L"windows.recyclebin.restoreall"));
-    m_window.m_commands.SetSvg (CassoExplorerCommands::kExtractAll,      m_window.m_menus.GetMenuSvg (L"windows.compressedfile.extract"));
-    m_commandBar->SetEntries (m_window.m_commands.BuildCommandBarEntries (extra));
-    m_commandBar->Layout     (m_window.m_menuBand.GetBounds(), m_window.m_scaler);
-    m_window.Invalidate();
+    m_context.commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, m_context.menus.GetMenuSvg (L"windows.recyclebin.empty"));
+    m_context.commands.SetSvg (CassoExplorerCommands::kRestoreItems,    m_context.menus.GetMenuSvg (L"windows.recyclebin.restoreall"));
+    m_context.commands.SetSvg (CassoExplorerCommands::kExtractAll,      m_context.menus.GetMenuSvg (L"windows.compressedfile.extract"));
+    m_commandBar->SetEntries (m_context.commands.BuildCommandBarEntries (extra));
+    m_commandBar->Layout     (m_context.layout.GetMenuBand().GetBounds(), m_context.scaler);
+    m_context.window.Invalidate();
 }
 
 
@@ -553,26 +553,26 @@ void ExplorerToolbars::UpdateCommandBar()
 void ExplorerToolbars::SetCommandBarDropDowns()
 {
     std::vector<DxuiPopupMenuItem>  newItems;
-    std::vector<DxuiPopupMenuItem>  sortItems = m_window.m_listPane.GetMenus().GetSortChoices();
-    std::vector<DxuiPopupMenuItem>  viewItems = m_window.m_listPane.GetMenus().GetViewChoices();
+    std::vector<DxuiPopupMenuItem>  sortItems = m_context.listPane.GetMenus().GetSortChoices();
+    std::vector<DxuiPopupMenuItem>  viewItems = m_context.listPane.GetMenus().GetViewChoices();
     std::vector<DxuiPopupMenuItem>  themeItems;
 
 
 
-    m_window.m_menus.AddNewChoices (newItems, m_window.m_browser.GetLocation(), m_window.m_commands.Find (CassoExplorerCommands::kNewFolder),
-                   m_window.m_commands.Find (CassoExplorerCommands::kNewDisk));
+    m_context.menus.AddNewChoices (newItems, m_context.browser.GetLocation(), m_context.commands.Find (CassoExplorerCommands::kNewFolder),
+                   m_context.commands.Find (CassoExplorerCommands::kNewDisk));
 
     //  Group by is at the foot of Explorer's Sort menu.
     sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_window.m_commands.Find (CassoExplorerCommands::kGroupBy), m_window.m_listPane.GetMenus().GetGroupChoices()));
+    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_context.commands.Find (CassoExplorerCommands::kGroupBy), m_context.listPane.GetMenus().GetGroupChoices()));
 
     viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_window.m_commands.Find (CassoExplorerCommands::kOptions)));
+    viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kOptions)));
 
     for (int id : { (int) CassoExplorerCommands::kThemeSkeuomorphic, (int) CassoExplorerCommands::kThemeRetroTerminal, (int) CassoExplorerCommands::kThemeDarkModern,
                     (int) CassoExplorerCommands::kThemeDark, (int) CassoExplorerCommands::kThemeLight, (int) CassoExplorerCommands::kThemeSystem })
     {
-        themeItems.push_back (DxuiPopupMenuItem::ForCommand (m_window.m_commands.Find (id)));
+        themeItems.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (id)));
     }
 
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kNew,   std::move (newItems));
@@ -582,7 +582,7 @@ void ExplorerToolbars::SetCommandBarDropDowns()
 
     //  Each theme is shown as the pointer passes over its row; leaving the
     //  menu without a choice puts back the one it opened on.
-    m_commandBar->SetDropDownSinks (CassoExplorerCommands::kTheme, [this] (int index) { m_window.m_themes.Preview (index); }, nullptr);
+    m_commandBar->SetDropDownSinks (CassoExplorerCommands::kTheme, [this] (int index) { m_context.themes.Preview (index); }, nullptr);
 }
 
 
@@ -601,6 +601,6 @@ void ExplorerToolbars::ShowViewOnButton()
 {
     if (m_commandBar != nullptr)
     {
-        m_commandBar->SetEntryVectorIcon (CassoExplorerCommands::kView, CassoExplorerCommands::GetViewButtonIcon (m_window.m_listPane.GetColumns().GetView()));
+        m_commandBar->SetEntryVectorIcon (CassoExplorerCommands::kView, CassoExplorerCommands::GetViewButtonIcon (m_context.listPane.GetColumns().GetView()));
     }
 }

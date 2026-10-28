@@ -4,7 +4,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 class ExplorerListPane;
 
 
@@ -24,7 +24,7 @@ class ExplorerListPane;
 class ExplorerListMenus
 {
 public:
-    ExplorerListMenus (ExplorerListPane & pane, CassoExplorerWindow & window);
+    ExplorerListMenus (ExplorerListPane & pane, ExplorerContext & context);
 
     void  ShowListHeaderMenu  (int x, int y, int column);
     void  ShowListContextMenu (int x, int y, int group = -1);
@@ -44,6 +44,6 @@ private:
     void  AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items);
     void  AddCopyAsMenu   (std::vector<DxuiPopupMenuItem> & items);
 
-    ExplorerListPane     & m_pane;
-    CassoExplorerWindow  & m_window;
+    ExplorerListPane  & m_pane;
+    ExplorerContext   & m_context;
 };

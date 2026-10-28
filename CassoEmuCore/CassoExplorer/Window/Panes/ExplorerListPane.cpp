@@ -18,8 +18,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerListPane::ExplorerListPane (CassoExplorerWindow & window)
-    : m_window (window)
+ExplorerListPane::ExplorerListPane (ExplorerContext & context)
+    : m_context (context)
 {
 }
 
@@ -37,14 +37,14 @@ ExplorerListPane::ExplorerListPane (CassoExplorerWindow & window)
 
 void ExplorerListPane::Create()
 {
-    CassoExplorerNamedControl<DxuiListView>  * list = m_window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
+    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
 
 
 
     list->SetAccessibleName (L"Files");
 
     m_list        = list;
-    m_listMessage = m_window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_listMessage = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 }
 
 
@@ -73,23 +73,23 @@ void ExplorerListPane::Configure()
     m_list->SetOnColumnsReordered ([this] (const std::vector<size_t> & order)
     {
         //  The Recycle Bin's order is its own, as Explorer's is.
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
-            m_window.Invalidate();
+            m_context.window.Invalidate();
             return;
         }
 
-        m_window.m_prefs.columnOrder.clear();
+        m_context.prefs.columnOrder.clear();
 
         for (size_t column : order)
         {
-            m_window.m_prefs.columnOrder.push_back ((int) column);
+            m_context.prefs.columnOrder.push_back ((int) column);
         }
 
         //  The folder keeps its own, and the latest is what others follow.
-        m_columns.SetFolderOrder (m_window.m_prefs.columnOrder);
+        m_columns.SetFolderOrder (m_context.prefs.columnOrder);
         m_columns.RememberFolderColumns();
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     });
     m_list->SetPreciseAutoFit (true);
 
@@ -110,18 +110,18 @@ void ExplorerListPane::Configure()
 
     m_list->SetOnSelectionChanged ([this] (int)
     {
-        m_window.m_browser.SetSelectedRows (m_list->GetSelectedRows());
-        m_window.m_previewPane.FillPreview();
-        m_window.m_statusBar.Fill();
-        m_window.m_toolbars.UpdateCommandBar();
+        m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
+        m_context.preview.FillPreview();
+        m_context.statusBar.Fill();
+        m_context.toolbars.UpdateCommandBar();
     });
 
     m_list->SetView (m_columns.GetView());
-    m_window.m_toolbars.ShowViewOnButton();
+    m_context.toolbars.ShowViewOnButton();
 
     m_list->SetOnSortColumn ([this] (int column)
     {
-        m_window.m_browser.SortByColumn (column);
+        m_context.browser.SortByColumn (column);
         m_columns.RememberFolderSort();
         FillList();
     });
@@ -135,50 +135,50 @@ void ExplorerListPane::Configure()
             return;
         }
 
-        if ((size_t) column >= m_window.m_prefs.columnWidthsDip.size())
+        if ((size_t) column >= m_context.prefs.columnWidthsDip.size())
         {
-            m_window.m_prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
+            m_context.prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
         }
 
         //  Rounded up, so the width read back is never narrower than the one
         //  the text was fitted to. The latest is the default for folders with
         //  none of their own, and this folder keeps its own, as Explorer's do.
-        m_window.m_prefs.columnWidthsDip[(size_t) column] = (widthPx * (int) DxuiDpiScaler::kBaseDpi + (int) m_list->GetDpi() - 1) / (int) m_list->GetDpi();
-        m_columns.RememberFolderColumnWidths (column, m_window.m_prefs.columnWidthsDip[(size_t) column]);
+        m_context.prefs.columnWidthsDip[(size_t) column] = (widthPx * (int) DxuiDpiScaler::kBaseDpi + (int) m_list->GetDpi() - 1) / (int) m_list->GetDpi();
+        m_columns.RememberFolderColumnWidths (column, m_context.prefs.columnWidthsDip[(size_t) column]);
     });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
         //  A deleted item opens its properties, as Explorer's does.
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
-            m_window.m_commandManager.RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
+            m_context.commandManager.RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
         }
-        else if (row >= 0 && (size_t) row < m_window.m_browser.GetRows().size() && m_window.m_browser.GetRows()[(size_t) row].cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
+        else if (row >= 0 && (size_t) row < m_context.browser.GetRows().size() && m_context.browser.GetRows()[(size_t) row].cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
         {
-            m_window.m_cassoLinkManager.EditConnection (std::string());
+            m_context.cassoLinkManager.EditConnection (std::string());
         }
-        else if (m_window.m_browser.GetSelectedRows().size() > 1)
+        else if (m_context.browser.GetSelectedRows().size() > 1)
         {
             //  Enter on several opens each, as Explorer's does.
-            m_window.m_fileOps.OpenEachSelected();
+            m_context.fileOps.OpenEachSelected();
         }
-        else if (m_window.m_browser.OpenRow (row))
+        else if (m_context.browser.OpenRow (row))
         {
             FillList();
         }
-        else if (m_window.m_browser.IsImageLocation())
+        else if (m_context.browser.IsImageLocation())
         {
             //  A file in an image opens in its own program, from a copy.
-            m_window.m_fileOps.OpenSelectedEntries();
+            m_context.fileOps.OpenSelectedEntries();
         }
-        else if (m_window.m_browser.GetLocation().kind == Location::Kind::ShellFolder && row >= 0 && (size_t) row < m_window.m_browser.GetRows().size())
+        else if (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && row >= 0 && (size_t) row < m_context.browser.GetRows().size())
         {
             //  Anything else a shell folder holds does what Explorer's
             //  double-click does with it.
-            const CatalogRow &  item = m_window.m_browser.GetRows()[(size_t) row];
-            HRESULT             hr   = item.hostPath.empty() ? m_window.m_shellVerbs.OpenShellItem (m_window.GetHwnd(), item.shellId)
-                                                             : m_window.m_shellVerbs.Open (m_window.GetHwnd(), item.hostPath);
+            const CatalogRow &  item = m_context.browser.GetRows()[(size_t) row];
+            HRESULT             hr   = item.hostPath.empty() ? m_context.shellVerbs.OpenShellItem (m_context.window.GetHwnd(), item.shellId)
+                                                             : m_context.shellVerbs.Open (m_context.window.GetHwnd(), item.hostPath);
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
@@ -189,9 +189,9 @@ void ExplorerListPane::Configure()
             std::wstring  path;
             HRESULT       hr = S_OK;
 
-            if (m_window.m_browser.PrepareCassoLinkItems() && m_window.m_browser.TryGetRowPath (row, path))
+            if (m_context.browser.PrepareCassoLinkItems() && m_context.browser.TryGetRowPath (row, path))
             {
-                hr = m_window.m_shellVerbs.Open (m_window.GetHwnd(), path);
+                hr = m_context.shellVerbs.Open (m_context.window.GetHwnd(), path);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }
         }
@@ -210,8 +210,8 @@ void ExplorerListPane::Configure()
 
 void ExplorerListPane::Layout (const RECT & rect)
 {
-    m_list->Layout        (rect, m_window.m_scaler);
-    m_listMessage->Layout (GetListMessageRect(), m_window.m_scaler);
+    m_list->Layout        (rect, m_context.scaler);
+    m_listMessage->Layout (GetListMessageRect(), m_context.scaler);
 }
 
 
@@ -231,7 +231,7 @@ void ExplorerListPane::Layout (const RECT & rect)
 void ExplorerListPane::AlignMessage (bool aboveActions)
 {
     m_listMessage->SetTextAlign (DxuiTextHAlign::Center, aboveActions ? DxuiTextVAlign::Bottom : m_listMessageTop ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
-    m_listMessage->Layout       (GetListMessageRect(), m_window.m_scaler);
+    m_listMessage->Layout       (GetListMessageRect(), m_context.scaler);
 }
 
 
@@ -271,8 +271,8 @@ bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
              || abs (point.y - m_rightPress.start.y) > GetSystemMetrics (SM_CYDRAG)))
         {
             m_rightPress.active = false;
-            m_window.m_dragDrop.BeginDragOut();
-            m_window.Invalidate();
+            m_context.dragDrop.BeginDragOut();
+            m_context.window.Invalidate();
             return true;
         }
     }
@@ -293,8 +293,8 @@ bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
         {
             m_dragArmed = false;
             m_list->EndDragSelect();
-            m_window.m_dragDrop.BeginDragOut();
-            m_window.Invalidate();
+            m_context.dragDrop.BeginDragOut();
+            m_context.window.Invalidate();
             return true;
         }
     }
@@ -304,8 +304,8 @@ bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
     //  pane transfers the drag to the pane under the pointer.
     if (m_list->IsInteracting())
     {
-        m_list->OnMouse (CassoExplorerWindow::ToLocal (ev, m_list->GetBounds()));
-        m_window.Invalidate();
+        m_list->OnMouse (ExplorerLayout::ToLocal (ev, m_list->GetBounds()));
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -332,24 +332,24 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
     //  An empty image or folder shows a message in the list's place; a right-
     //  click there still opens the menu the list's empty space has.
     if (!m_list->IsVisible() && m_listMessage->IsVisible() && press && ev.button == DxuiMouseButton::Right &&
-        CassoExplorerWindow::Contains (m_list->GetBounds(), point))
+        ExplorerLayout::Contains (m_list->GetBounds(), point))
     {
-        m_window.m_input.SetFocusPane (ExplorerPane::List);
+        m_context.input.SetFocusPane (ExplorerPane::List);
         m_list->ClearSelection();
         m_menus.ShowListContextMenu (point.x, point.y);
         return true;
     }
 
-    if (m_list->IsVisible() && CassoExplorerWindow::Contains (m_list->GetBounds(), point))
+    if (m_list->IsVisible() && ExplorerLayout::Contains (m_list->GetBounds(), point))
     {
-        DxuiMouseEvent  local = CassoExplorerWindow::ToLocal (ev, m_list->GetBounds());
+        DxuiMouseEvent  local = ExplorerLayout::ToLocal (ev, m_list->GetBounds());
 
         //  A click gives the list focus without the row a Tab in would pick:
         //  on empty space it selects nothing, and on a row the press picks.
         if (press)
         {
             m_list->SetSeedRowOnFocus (false);
-            m_window.m_input.SetFocusPane (ExplorerPane::List);
+            m_context.input.SetFocusPane (ExplorerPane::List);
             m_list->SetSeedRowOnFocus (true);
         }
 
@@ -391,7 +391,7 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
             //  The menu opens as the button comes up, as Explorer's does; a
             //  press on a row that moves first drags the selection instead.
             m_rightPress = RightPress { true, group < 0 && row >= 0, group, point };
-            m_window.Invalidate();
+            m_context.window.Invalidate();
             return true;
         }
 
@@ -404,7 +404,7 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
         }
 
         m_list->OnMouse (local);
-        m_window.Invalidate();
+        m_context.window.Invalidate();
         return true;
     }
 
@@ -431,7 +431,7 @@ bool ExplorerListPane::HandleCharKey (const DxuiKeyEvent & ev)
 
     if (handled)
     {
-        m_window.Invalidate();
+        m_context.window.Invalidate();
     }
 
     return handled;
@@ -456,25 +456,25 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
 
 
 
-    if ((ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift)) && m_window.m_focus == ExplorerPane::List)
+    if ((ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift)) && m_context.input.GetFocusPane() == ExplorerPane::List)
     {
         RECT  bounds = m_list->GetBounds();
 
-        m_menus.ShowListContextMenu (bounds.left + m_window.m_scaler.ToPx (24), bounds.top + m_window.m_scaler.ToPx (40));
+        m_menus.ShowListContextMenu (bounds.left + m_context.scaler.ToPx (24), bounds.top + m_context.scaler.ToPx (40));
         return true;
     }
 
     //  File Explorer's keys for Copy as path and Properties.
-    if (m_window.m_focus == ExplorerPane::List && ev.kind == DxuiKeyEventKind::Down && !m_window.m_browser.GetSelectedRows().empty()
+    if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.kind == DxuiKeyEventKind::Down && !m_context.browser.GetSelectedRows().empty()
         && ((ev.ctrl && ev.shift && !ev.alt && ev.vk == 'C') || (ev.alt && !ev.ctrl && ev.vk == VK_RETURN)))
     {
         if (ev.vk == 'C')
         {
-            m_window.m_fileOps.CopySelectedPaths();
+            m_context.fileOps.CopySelectedPaths();
         }
         else
         {
-            m_window.m_fileOps.ShowRowProperties (m_window.m_browser.GetSelectedRows()[0]);
+            m_context.fileOps.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
         }
 
         return true;
@@ -482,59 +482,59 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
 
     //  With nothing selected, Alt+Enter opens the current folder's Properties,
     //  as the background menu's Properties row does.
-    if (m_window.m_focus == ExplorerPane::List && ev.kind == DxuiKeyEventKind::Down && ev.alt && !ev.ctrl && ev.vk == VK_RETURN
-        && m_window.m_browser.GetSelectedRows().empty()
-        && (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder || m_window.m_browser.IsImageLocation())
-        && !SearchQuery::IsId (m_window.m_browser.GetLocation().path))
+    if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.kind == DxuiKeyEventKind::Down && ev.alt && !ev.ctrl && ev.vk == VK_RETURN
+        && m_context.browser.GetSelectedRows().empty()
+        && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsImageLocation())
+        && !SearchQuery::IsId (m_context.browser.GetLocation().path))
     {
-        m_window.m_fileOps.ShowLocationProperties (m_window.m_browser.GetLocation());
+        m_context.fileOps.ShowLocationProperties (m_context.browser.GetLocation());
         return true;
     }
 
     //  Copy in an image writes the files a paste would, as the context menu's
     //  Copy row does; cut and paste are the host's alone.
-    if (m_window.m_focus == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
-        && m_window.m_browser.IsVolumeLocation() && !m_window.m_browser.GetSelectedRows().empty())
+    if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
+        && m_context.browser.IsVolumeLocation() && !m_context.browser.GetSelectedRows().empty())
     {
-        m_window.m_fileOps.CopyEntriesToClipboard (m_window.m_commandManager.GetNamingStyle());
+        m_context.fileOps.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle());
         return true;
     }
 
-    if (m_window.m_focus == ExplorerPane::List && ev.ctrl && !ev.alt && !m_window.m_browser.IsImageLocation()
-        && m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder
+    if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.ctrl && !ev.alt && !m_context.browser.IsImageLocation()
+        && m_context.browser.GetLocation().kind == Location::Kind::HostFolder
         && (ev.vk == 'X' || ev.vk == 'C' || ev.vk == 'V'))
     {
         if (ev.vk == 'V')
         {
-            m_window.m_commandManager.RunVerb (CassoExplorerActions::Verb::Paste);
+            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Paste);
         }
-        else if (!m_window.m_browser.GetSelectedRows().empty())
+        else if (!m_context.browser.GetSelectedRows().empty())
         {
-            m_window.m_commandManager.RunVerb (ev.vk == 'X' ? CassoExplorerActions::Verb::Cut : CassoExplorerActions::Verb::Copy);
+            m_context.commandManager.RunVerb (ev.vk == 'X' ? CassoExplorerActions::Verb::Cut : CassoExplorerActions::Verb::Copy);
         }
 
         return true;
     }
 
-    if (ev.vk == VK_F2 && m_window.m_focus == ExplorerPane::List && m_menus.IsListVerbOffered (CassoExplorerActions::Verb::Rename))
+    if (ev.vk == VK_F2 && m_context.input.GetFocusPane() == ExplorerPane::List && m_menus.IsListVerbOffered (CassoExplorerActions::Verb::Rename))
     {
-        m_window.m_commandManager.RunVerb (CassoExplorerActions::Verb::Rename);
+        m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Rename);
         return true;
     }
 
-    if (ev.vk == VK_DELETE && m_window.m_focus == ExplorerPane::List && !m_window.m_browser.GetSelectedRows().empty())
+    if (ev.vk == VK_DELETE && m_context.input.GetFocusPane() == ExplorerPane::List && !m_context.browser.GetSelectedRows().empty())
     {
         //  Shift+Delete deletes host files for good, as in File Explorer;
         //  inside a disk image or an Apple's drive every deletion is for good
         //  and confirmed first, and CassoLink's items are temp copies.
-        if (ev.shift && (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder || m_window.m_browser.GetLocation().kind == Location::Kind::ShellFolder)
-            && !m_window.m_browser.TryGetSelectedCassoLinkPaths (linkPaths))
+        if (ev.shift && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
+            && !m_context.browser.TryGetSelectedCassoLinkPaths (linkPaths))
         {
-            m_window.m_fileOps.DeleteSelectionPermanently();
+            m_context.fileOps.DeleteSelectionPermanently();
         }
         else
         {
-            m_window.m_commandManager.RunVerb (CassoExplorerActions::Verb::Delete);
+            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Delete);
         }
 
         return true;
@@ -555,12 +555,12 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
 
 std::vector<DxuiPopupMenuItem> ExplorerListPane::GetScrollbarMenu (const DxuiMouseEvent & ev) const
 {
-    if (!m_list->IsVisible() || !CassoExplorerWindow::Contains (m_list->GetBounds(), ev.positionDip))
+    if (!m_list->IsVisible() || !ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip))
     {
         return {};
     }
 
-    return m_list->GetScrollbarMenu (CassoExplorerWindow::ToLocal (ev, m_list->GetBounds()).positionDip);
+    return m_list->GetScrollbarMenu (ExplorerLayout::ToLocal (ev, m_list->GetBounds()).positionDip);
 }
 
 
@@ -615,12 +615,12 @@ void ExplorerListPane::RefreshTip()
 
 
     //  None while a menu is open over the list: the pointer is on the menu.
-    if (m_listTipActive && m_list->IsVisible() && CassoExplorerWindow::Contains (list, point) && !m_window.GetPopupHost()->GetContextMenu().IsVisible())
+    if (m_listTipActive && m_list->IsVisible() && ExplorerLayout::Contains (list, point) && !m_context.window.GetPopupHost()->GetContextMenu().IsVisible())
     {
         row = m_list->HitTestRow (point.x - list.left, point.y - list.top);
     }
 
-    if (row >= 0 && row < (int) m_window.m_browser.GetRows().size() && m_list->GetCellTextRectPx (row, 0, text))
+    if (row >= 0 && row < (int) m_context.browser.GetRows().size() && m_list->GetCellTextRectPx (row, 0, text))
     {
         OffsetRect (&text, list.left, list.top);
 
@@ -630,28 +630,28 @@ void ExplorerListPane::RefreshTip()
 
     if (!overItem)
     {
-        m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::List);
+        m_context.tips.HideHoverTip (ExplorerTips::TipOwner::List);
         return;
     }
 
     {
-        const CatalogRow &  row0 = m_window.m_browser.GetRows()[(size_t) row];
+        const CatalogRow &  row0 = m_context.browser.GetRows()[(size_t) row];
 
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder && (size_t) row < m_rowProblems.size() && !m_rowProblems[(size_t) row].empty())
+        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && (size_t) row < m_rowProblems.size() && !m_rowProblems[(size_t) row].empty())
         {
             //  A broken image's tip says why it is broken.
             details = m_rowProblems[(size_t) row];
         }
-        else if (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder && m_window.m_browser.TryGetRowPath (row, path))
+        else if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
         {
             //  Not yet read: the tip comes when it is, by a posted message.
-            if (!m_window.m_infoTips.TryGet (path, details) && !m_list->IsItemNameCut (row))
+            if (!m_context.infoTips.TryGet (path, details) && !m_list->IsItemNameCut (row))
             {
-                m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::List);
+                m_context.tips.HideHoverTip (ExplorerTips::TipOwner::List);
                 return;
             }
         }
-        else if (!row0.isDirectory || m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
+        else if (!row0.isDirectory || m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
             details = L"Type: " + row0.typeText;
 
@@ -672,7 +672,7 @@ void ExplorerListPane::RefreshTip()
 
     if (tip.empty())
     {
-        m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::List);
+        m_context.tips.HideHoverTip (ExplorerTips::TipOwner::List);
         return;
     }
 
@@ -685,7 +685,7 @@ void ExplorerListPane::RefreshTip()
         anchor.right = list.right;
     }
 
-    m_window.m_tips.ShowHoverTip (ExplorerTips::TipOwner::List, anchor, tip);
+    m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::List, anchor, tip);
 }
 
 
@@ -700,29 +700,29 @@ void ExplorerListPane::RefreshTip()
 
 void ExplorerListPane::FillList()
 {
-    const BrowserModel                            & model   = m_window.m_browser.GetBrowserModel();
-    std::wstring                                    message = m_window.m_browser.GetListError();
-    size_t                                          count   = m_window.m_browser.GetRows().size();
+    const BrowserModel                            & model   = m_context.browser.GetBrowserModel();
+    std::wstring                                    message = m_context.browser.GetListError();
+    size_t                                          count   = m_context.browser.GetRows().size();
     bool                                            changed = false;
 
 
 
-    m_window.m_cassoLinkManager.ReleaseIdleConnections();
+    m_context.cassoLinkManager.ReleaseIdleConnections();
 
     //  The rows are about to change under it.
-    if (m_window.m_fileOps.GetRenameRow() >= 0)
+    if (m_context.fileOps.GetRenameRow() >= 0)
     {
-        m_window.m_fileOps.EndRename (false);
+        m_context.fileOps.EndRename (false);
     }
 
     //  Before the cells are built, since their icons are fetched at the
     //  view's size.
     m_columns.ApplyFolderView();
 
-    m_window.m_toolbars.UpdateCommandBar();
+    m_context.toolbars.UpdateCommandBar();
 
     //  A file's size or date may have changed with the listing.
-    m_window.m_infoTips.Clear();
+    m_context.infoTips.Clear();
     m_contentDetails.Clear();
 
     //  The rows' cells are built as the list first asks for each, so a folder
@@ -730,8 +730,8 @@ void ExplorerListPane::FillList()
     m_rowCells.assign    (count, {});
     m_rowBuilt.assign    (count, false);
     m_rowProblems.assign (count, std::wstring());
-    m_rowLocation = m_window.m_browser.GetLocation();
-    m_rowDark     = DxuiColor::ComputeRelativeLuminance (m_window.m_theme->Background()) < 0.5f;
+    m_rowLocation = m_context.browser.GetLocation();
+    m_rowDark     = DxuiColor::ComputeRelativeLuminance (m_context.theme->Background()) < 0.5f;
 
     m_list->SetRowSource ((int) count, [this] (int row) -> const std::vector<DxuiListView::Cell> & { return GetListRowCells (row); });
 
@@ -739,30 +739,30 @@ void ExplorerListPane::FillList()
     //  building the rows' cells.
     m_list->SetRowNameSource ([this] (int row)
     {
-        return (row >= 0 && (size_t) row < m_window.m_browser.GetRows().size()) ? m_window.m_browser.GetRows()[(size_t) row].name : std::wstring();
+        return (row >= 0 && (size_t) row < m_context.browser.GetRows().size()) ? m_context.browser.GetRows()[(size_t) row].name : std::wstring();
     });
-    m_list->SetGroups    (m_window.m_browser.GetListGroups());
+    m_list->SetGroups    (m_context.browser.GetListGroups());
 
     //  A new location opens at its top-left corner, as Explorer's does, rather
     //  than wherever the list was scrolled for the last one. THE COLUMNS STAY AS
     //  THEY ARE: their widths belong to the view rather than to the folder, so
     //  they neither twitch from one folder to the next nor pay to re-measure
     //  every cell of every row on each navigation.
-    if (m_window.m_browser.GetLocation() != m_listLocation)
+    if (m_context.browser.GetLocation() != m_listLocation)
     {
-        m_listLocation = m_window.m_browser.GetLocation();
-        m_window.m_addressBar.HandleLocationChanged (m_listLocation);
-        m_window.m_toolbars.SetCommandBarDropDowns();
+        m_listLocation = m_context.browser.GetLocation();
+        m_context.addressBar.HandleLocationChanged (m_listLocation);
+        m_context.toolbars.SetCommandBarDropDowns();
 
         m_list->SetTopRow (0);
         m_list->SetLeftPx (0);
 
-        if (m_window.m_treePane.IsNavOptionOn (&CassoExplorerPrefs::navExpandToCurrent))
+        if (m_context.treePane.IsNavOptionOn (&CassoExplorerPrefs::navExpandToCurrent))
         {
-            m_window.m_treePane.RevealLocationInTree();
+            m_context.treePane.RevealLocationInTree();
         }
 
-        m_window.m_folderSync.UpdateWatchedFolders();
+        m_context.folderSync.UpdateWatchedFolders();
         changed = true;
     }
 
@@ -771,7 +771,7 @@ void ExplorerListPane::FillList()
     if (changed || model.GetTabCount() != m_listTabCount)
     {
         m_listTabCount = model.GetTabCount();
-        m_window.SaveSession();
+        m_context.window.SaveSession();
     }
 
     //  Address and Locked are a disk catalog's; a host folder has neither, so
@@ -780,13 +780,13 @@ void ExplorerListPane::FillList()
     m_columns.ApplyColumnOrder();
 
     //  Explorer's Recycle Bin titles the type column Item type.
-    m_list->SetColumnTitle ((size_t) CatalogModel::Column::Type, (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin) ? L"Item type" : L"Type");
+    m_list->SetColumnTitle ((size_t) CatalogModel::Column::Type, (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin) ? L"Item type" : L"Type");
 
     m_columns.ShowChosenColumns();
 
     m_list->UpdateAutoFitFromRows();
 
-    m_list->SetSelectedRows (m_window.m_browser.GetSelectedRows(), m_window.m_browser.GetSelectedRows().empty() ? -1 : m_window.m_browser.GetSelectedRows()[0]);
+    m_list->SetSelectedRows (m_context.browser.GetSelectedRows(), m_context.browser.GetSelectedRows().empty() ? -1 : m_context.browser.GetSelectedRows()[0]);
 
 
     if (model.HasTabs())
@@ -798,27 +798,27 @@ void ExplorerListPane::FillList()
     //  any other empty location's is centered in the pane.
     m_listMessageTop = false;
 
-    if (message.empty() && m_window.m_browser.GetRows().empty() && m_window.m_browser.GetLocation().kind != Location::Kind::None)
+    if (message.empty() && m_context.browser.GetRows().empty() && m_context.browser.GetLocation().kind != Location::Kind::None)
     {
-        m_listMessageTop = SearchQuery::IsId (m_window.m_browser.GetLocation().path);
-        message                   = m_listMessageTop ? std::wstring (kNoSearchMatches) : GetEmptyLocationMessage (m_window.m_browser.GetLocation().kind);
+        m_listMessageTop = SearchQuery::IsId (m_context.browser.GetLocation().path);
+        message                   = m_listMessageTop ? std::wstring (kNoSearchMatches) : GetEmptyLocationMessage (m_context.browser.GetLocation().kind);
     }
 
     m_listMessage->SetTextAlign (DxuiTextHAlign::Center, m_listMessageTop ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
-    m_listMessage->Layout       (GetListMessageRect(), m_window.m_scaler);
+    m_listMessage->Layout       (GetListMessageRect(), m_context.scaler);
 
     m_listMessage->SetText (message);
     m_listMessage->SetVisible (!message.empty());
     m_list->SetVisible (message.empty());
 
-    m_window.m_cassoLinkManager.FillListAction (!message.empty());
+    m_context.cassoLinkManager.FillListAction (!message.empty());
 
-    m_window.m_tabManager.FillTabs();
-    m_window.m_addressBar.FillAddress();
-    m_window.m_addressBar.FillNavTips();
-    m_window.m_previewPane.FillPreview();
-    m_window.m_statusBar.Fill();
-    m_window.Invalidate();
+    m_context.tabManager.FillTabs();
+    m_context.addressBar.FillAddress();
+    m_context.addressBar.FillNavTips();
+    m_context.preview.FillPreview();
+    m_context.statusBar.Fill();
+    m_context.window.Invalidate();
 }
 
 
@@ -836,7 +836,7 @@ void ExplorerListPane::FillList()
 const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int row)
 {
     static const std::vector<DxuiListView::Cell>  s_kNone;
-    const std::vector<CatalogRow>               & rows = m_window.m_browser.GetRows();
+    const std::vector<CatalogRow>               & rows = m_context.browser.GetRows();
     std::wstring                                  path;
 
 
@@ -851,19 +851,19 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         std::vector<DxuiListView::Cell> & cells = m_rowCells[(size_t) row];
 
         cells         = BrowserCells::ToCells (rows[(size_t) row], m_rowLocation, &m_listIcons);
-        cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_window.m_browser.GetFolderOptions(), m_rowDark);
+        cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_context.browser.GetFolderOptions(), m_rowDark);
 
         //  Cut and not yet pasted, it draws dimmed, as Explorer's does.
-        if (!m_cutPaths.empty() && m_window.m_browser.TryGetRowPath (row, path) &&
+        if (!m_cutPaths.empty() && m_context.browser.TryGetRowPath (row, path) &&
             std::any_of (m_cutPaths.begin(), m_cutPaths.end(), [&] (const std::wstring & cut) { return ExplorerFolderSync::IsSameFolder (cut, path); }))
         {
             cells[0].iconGhosted = true;
         }
 
         //  A disk image that is not one says so on its icon.
-        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && m_window.m_browser.TryGetRowPath (row, path))
+        if (rows[(size_t) row].isDiskImage && m_rowLocation.kind == Location::Kind::HostFolder && m_context.browser.TryGetRowPath (row, path))
         {
-            m_rowProblems[(size_t) row] = m_window.m_browser.GetImageProblem (path);
+            m_rowProblems[(size_t) row] = m_context.browser.GetImageProblem (path);
             cells[0].iconBroken                  = !m_rowProblems[(size_t) row].empty();
         }
 
@@ -893,7 +893,7 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
 
 bool ExplorerListPane::TryApplyContentDetails (int row, DxuiListView::Cell & name)
 {
-    const std::vector<CatalogRow> &  rows = m_window.m_browser.GetRows();
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
     Win32ContentDetails::Slots       slots;
     std::wstring                     path;
     bool                             host = false;
@@ -908,7 +908,7 @@ bool ExplorerListPane::TryApplyContentDetails (int row, DxuiListView::Cell & nam
     host = rows[(size_t) row].folderPath.empty() && !rows[(size_t) row].isDrive
         && (m_rowLocation.kind == Location::Kind::HostFolder || !rows[(size_t) row].hostPath.empty());
 
-    if (!host || !m_window.m_browser.TryGetRowPath (row, path) || !m_contentDetails.TryGet (path, slots))
+    if (!host || !m_context.browser.TryGetRowPath (row, path) || !m_contentDetails.TryGet (path, slots))
     {
         return false;
     }
@@ -944,7 +944,7 @@ void ExplorerListPane::RefreshContentDetails()
         }
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -962,7 +962,7 @@ void ExplorerListPane::RefreshContentDetails()
 
 void ExplorerListPane::RefreshListIcons()
 {
-    const std::vector<CatalogRow> & rows = m_window.m_browser.GetRows();
+    const std::vector<CatalogRow> & rows = m_context.browser.GetRows();
 
 
 
@@ -974,7 +974,7 @@ void ExplorerListPane::RefreshListIcons()
         }
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -992,18 +992,18 @@ void ExplorerListPane::RefreshListIcons()
 
 RECT ExplorerListPane::GetListMessageRect() const
 {
-    RECT  rect = m_window.m_layout.GetMessageRect (m_list->GetBounds());
+    RECT  rect = m_context.layout.GetMessageRect (m_list->GetBounds());
 
 
 
     if (m_listMessageTop)
     {
-        rect.top += m_window.m_scaler.ToPx (kSearchMessageTopDip);
+        rect.top += m_context.scaler.ToPx (kSearchMessageTopDip);
     }
 
     //  The firewall's message runs to several lines, so it ends at the
     //  pane's middle, with the actions below it.
-    if (m_window.m_cassoLinkManager.IsFirewallMessage())
+    if (m_context.cassoLinkManager.IsFirewallMessage())
     {
         rect.bottom = (rect.top + rect.bottom) / 2;
     }
@@ -1027,7 +1027,7 @@ RECT ExplorerListPane::GetListMessageRect() const
 
 void ExplorerListPane::SizeListIcons()
 {
-    UINT  dpi = GetDpiForWindow (m_window.GetHwnd());
+    UINT  dpi = GetDpiForWindow (m_context.window.GetHwnd());
 
 
 
@@ -1035,7 +1035,7 @@ void ExplorerListPane::SizeListIcons()
     m_listIcons.SetSizePx ((m_columns.GetView() == DxuiListView::View::Details) ? MulDiv (DxuiTreeView::s_kIconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi)
                                                                         : DxuiListItemLayout::GetItemIconPx (m_columns.GetView(), dpi));
 
-    m_window.m_dragDrop.SetIconDpi (dpi);
+    m_context.dragDrop.SetIconDpi (dpi);
 }
 
 
@@ -1052,7 +1052,7 @@ void ExplorerListPane::SizeListIcons()
 
 bool ExplorerListPane::SelectRowNamed (const std::wstring & name)
 {
-    const std::vector<CatalogRow> &  rows = m_window.m_browser.GetRows();
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
 
 
 
@@ -1060,15 +1060,15 @@ bool ExplorerListPane::SelectRowNamed (const std::wstring & name)
     {
         if (_wcsicmp (rows[i].name.c_str(), name.c_str()) == 0)
         {
-            m_window.m_browser.SetSelectedRows ({ (int) i });
+            m_context.browser.SetSelectedRows ({ (int) i });
             m_list->SetSelectedRows ({ (int) i }, (int) i);
             m_list->EnsureVisible ((int) i);
 
             //  As a click on the row would: the preview, the status bar's
             //  count and the command bar follow the new selection.
-            m_window.m_previewPane.FillPreview();
-            m_window.m_statusBar.Fill();
-            m_window.m_toolbars.UpdateCommandBar();
+            m_context.preview.FillPreview();
+            m_context.statusBar.Fill();
+            m_context.toolbars.UpdateCommandBar();
             return true;
         }
     }
@@ -1104,18 +1104,18 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
         {
             nodeId = TreeModel::MakeFolderId (underCasso, key.substr (hostTree.size()));
 
-            if (m_window.m_treePane.HasNode (nodeId))
+            if (m_context.treePane.HasNode (nodeId))
             {
-                m_window.m_browser.GetTreeModel().Invalidate (nodeId);
-                m_window.m_treePane.ReloadChildren (nodeId);
+                m_context.browser.GetTreeModel().Invalidate (nodeId);
+                m_context.treePane.ReloadChildren (nodeId);
             }
         }
     }
     else if (key.starts_with (hostKey))
     {
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder && m_window.m_browser.GetLocation().path == key.substr (hostKey.size()))
+        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.GetLocation().path == key.substr (hostKey.size()))
         {
-            hr = m_window.m_browser.Refresh();
+            hr = m_context.browser.Refresh();
             IGNORE_RETURN_VALUE (hr, S_OK);
             FillList();
         }
@@ -1124,19 +1124,19 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
     {
         //  An archive's contents, read on a network, for the preview of the
         //  archive selected, if it is the selection.
-        m_window.m_browser.GetSelectedHostPaths (paths);
+        m_context.browser.GetSelectedHostPaths (paths);
 
         if (paths.size() == 1 && paths[0] == key.substr (wcslen (CassoExplorerBrowser::s_kPreviewKey)))
         {
-            m_window.m_browser.RefreshPreview();
-            m_window.m_previewPane.FillPreview();
+            m_context.browser.RefreshPreview();
+            m_context.preview.FillPreview();
         }
     }
     else if (key.starts_with (listKey))
     {
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::ShellFolder && m_window.m_browser.GetLocation().path == key.substr (listKey.size()))
+        if (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && m_context.browser.GetLocation().path == key.substr (listKey.size()))
         {
-            hr = m_window.m_browser.Refresh();
+            hr = m_context.browser.Refresh();
             IGNORE_RETURN_VALUE (hr, S_OK);
             FillList();
         }
@@ -1145,14 +1145,14 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
     {
         nodeId = std::wstring (TreeModel::kShellRootTag) + key.substr (treeKey.size());
 
-        if (m_window.m_treePane.HasNode (nodeId))
+        if (m_context.treePane.HasNode (nodeId))
         {
-            m_window.m_browser.GetTreeModel().Invalidate (nodeId);
-            m_window.m_treePane.ReloadChildren (nodeId);
+            m_context.browser.GetTreeModel().Invalidate (nodeId);
+            m_context.treePane.ReloadChildren (nodeId);
         }
     }
 
-    m_window.Invalidate();
+    m_context.window.Invalidate();
 }
 
 
@@ -1200,7 +1200,7 @@ LPCWSTR ExplorerListPane::GetCursorForPoint (POINT clientPx) const
 
 
 
-    if (!m_list->IsVisible() || !CassoExplorerWindow::Contains (bounds, clientPx))
+    if (!m_list->IsVisible() || !ExplorerLayout::Contains (bounds, clientPx))
     {
         return nullptr;
     }
@@ -1309,7 +1309,7 @@ bool ExplorerListPane::TryGetRenameRect (int row, RECT & outRect)
 
     if (m_columns.GetView() == DxuiListView::View::Details)
     {
-        InflateRect (&outRect, 0, -m_window.m_scaler.ToPx (DxuiListView::s_kRowBoxInsetYDip));
+        InflateRect (&outRect, 0, -m_context.scaler.ToPx (DxuiListView::s_kRowBoxInsetYDip));
     }
 
     return true;
@@ -1368,8 +1368,8 @@ void ExplorerListPane::RestoreView (const RefreshAnchor::After & after)
 
 void ExplorerListPane::StartLoaders()
 {
-    m_listIcons.LoadInBackground (m_window.GetHwnd(), (UINT) ExplorerMessage::IconsLoaded);
-    m_contentDetails.Start (m_window.GetHwnd(), (UINT) ExplorerMessage::ContentDetails);
+    m_listIcons.LoadInBackground (m_context.window.GetHwnd(), (UINT) ExplorerMessage::IconsLoaded);
+    m_contentDetails.Start (m_context.window.GetHwnd(), (UINT) ExplorerMessage::ContentDetails);
 }
 
 

@@ -5,7 +5,7 @@
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
 
-class CassoExplorerWindow;
+struct ExplorerContext;
 class ExplorerListPane;
 
 
@@ -26,7 +26,7 @@ class ExplorerListPane;
 class ExplorerListColumns
 {
 public:
-    ExplorerListColumns (ExplorerListPane & pane, CassoExplorerWindow & window);
+    ExplorerListColumns (ExplorerListPane & pane, ExplorerContext & context);
 
     //  Whether a list column is visible: the user's choice from the header's
     //  menu, and the catalog's two columns only inside a disk image.
@@ -59,16 +59,16 @@ public:
     void                ApplyFolderView    ();
     void                RememberFolderSort ();
     DxuiListView::View  GetView            () const { return m_view; }
+    std::vector<bool> & GetChosen          ()       { return m_chosen; }
 
     //  A view chosen for the folder on display, and written to the preferences
     //  for it.
     void                SetView            (DxuiListView::View view);
 
 private:
-    friend class ExplorerListMenus;
 
-    ExplorerListPane     & m_pane;
-    CassoExplorerWindow  & m_window;
+    ExplorerListPane  & m_pane;
+    ExplorerContext   & m_context;
 
     std::vector<bool>      m_chosen;        // the columns the user has chosen to show
     std::vector<int>       m_folderOrder;   // the column order the folder on display uses
