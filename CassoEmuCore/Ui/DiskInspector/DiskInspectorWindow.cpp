@@ -31,6 +31,7 @@
 #include "Ui/DiskInspector/Components/InspectorToolbar.h"
 #include "Ui/DiskInspector/Components/PlatterCorners.h"
 #include "Ui/DiskInspector/Components/StatusBand.h"
+#include "Ui/DiskInspector/Components/TrackColumn.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
@@ -64,12 +65,10 @@ static constexpr LPCWSTR  s_kpszAnalyzing   = L"Analyzing";
 
 static constexpr int      s_kToolbarDip     = 40;
 static constexpr int      s_kRowDip         = 28;
-static constexpr int      s_kTabsDip        = 30;
 static constexpr int      s_kStripDip       = 64;
 static constexpr int      s_kHintRowDip     = 20;
 static constexpr int      s_kWholeTrackDip  = 104;
 static constexpr int      s_kReadoutDip     = 220;
-static constexpr int      s_kSectorRowDip   = 32;
 static constexpr int      s_kMarginDip      = 8;
 static constexpr int      s_kSplitterDip    = 6;
 static constexpr int      s_kButtonDip      = 32;
@@ -85,21 +84,6 @@ static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr int      s_kStatusDip      = 28;
 static constexpr int      s_kMinPlatterColumnDip = 420;
-static constexpr int      s_kTabLabelPadDip = 24;
-
-//  The tab strip's tips, in its order: the track tabs, then the disk tabs.
-static constexpr LPCWSTR  s_kpszTabTips[] =
-{
-    L"The selected sector's 256 bytes, under the details of its address and data fields",
-    L"Every nibble on the track, as the disk controller reads them",
-    L"Every address field and data field on the track: its marks, sector and volume numbers, and checksum results",
-    L"How fast or slow each cell runs, on a track recorded as flux",
-    L"Every quarter track: what is recorded there and how well it reads",
-    L"Anything unusual or damaged on the disk",
-    L"Which file owns each sector of the disk's volume",
-    L"What the image file itself contains",
-    L"Everything that differs between disk A and disk B",
-};
 static constexpr double   s_kCharWidthDip   = 6.6;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
@@ -478,7 +462,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     //  The picker's width matches its label, measured as it is drawn, and the
     //  sector row's height its row count for the track selected.
-    m_session.isLayoutStale = m_session.isLayoutStale || m_sectorRow->GetRowCount (m_sectorRow->GetBounds().right - m_sectorRow->GetBounds().left, m_session.scaler) != m_sectorRows;
+    m_session.isLayoutStale = m_session.isLayoutStale || m_trackColumn->IsLayoutStale();
 
     if (m_session.isLayoutStale)
     {
@@ -533,7 +517,10 @@ void DiskInspectorWindow::OnCreate()
     m_toolbar     = std::make_unique<InspectorToolbar> (m_session, GetHost(), m_commands);
     m_toolbar->Create();
     m_platterView = CreateChild<PlatterView> (m_session.context);
-    m_headerView  = CreateChild<TrackHeaderView> (m_session.context);
+    m_trackColumn = std::make_unique<TrackColumn> (m_session, GetHost());
+    m_trackColumn->Create();
+    m_headerView  = &m_trackColumn->GetHeader();
+    m_sectorRow   = &m_trackColumn->GetSectorRow();
     m_stripView   = CreateChild<TrackStripView>  (m_session.context);
     m_stripB      = CreateChild<TrackStripView>  (m_session.contextB);
     m_stripOut    = CreateChild<DxuiButton> (s_kpszMinus);
@@ -541,8 +528,6 @@ void DiskInspectorWindow::OnCreate()
     m_stripWhole  = CreateChild<DxuiButton> (L"Whole track");
     m_stripReadout = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_stripHint   = CreateChild<DxuiLabel> (s_kpszStripHint, DxuiTextRole::Muted, DxuiTextHAlign::Right);
-    m_sectorRow   = CreateChild<SectorRowView>   (m_session.context);
-    m_tabs        = CreateChild<DxuiTabStrip>();
     m_byteView    = CreateChild<SectorByteView>  (m_session.context);
     m_nibblesTab  = CreateChild<NibblesTab>      (m_session.context);
     m_fieldsTab   = CreateChild<InspectorTableView> (m_session.context);
@@ -562,7 +547,6 @@ void DiskInspectorWindow::OnCreate()
     m_editing     = std::make_unique<EditingPart> (m_session, GetHost(), *m_byteView);
     m_editing->Create();
 
-    m_tabs->SetOnChange      ([this] (int index) { if (index < kTrackTabCount) { ShowTrackTab (index); } else { ShowDiskTab (GetShownDiskTabs()[static_cast<size_t> (index - kTrackTabCount)]); } });
     m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
     m_imageTab->SetColumns   (InspectorTables::GetImageColumns());
@@ -583,7 +567,7 @@ void DiskInspectorWindow::OnCreate()
     m_menus       = std::make_unique<InspectorMenus> (m_session, GetHost(), m_commands);
     m_menus->Create();
 
-    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
+    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -735,17 +719,19 @@ void DiskInspectorWindow::BuildCommands()
     overlay (L"Track &alignment", PlatterOverlay::Alignment, hasDisk);
     overlay (L"Diff&erences", PlatterOverlay::Differences, [this] () { return m_session.context.hasDisk && m_session.comparison.IsComparing(); });
 
-    for (const auto & [label, tab, isDisk] : { std::tuple { L"Sector data", static_cast<int> (kTabSectorData), false }, std::tuple { L"Nibbles", static_cast<int> (kTabNibbles), false },
-                                               std::tuple { L"Fields", static_cast<int> (kTabFields), false }, std::tuple { L"Flux timing", static_cast<int> (kTabFluxTiming), false },
-                                               std::tuple { L"Tracks", static_cast<int> (kTabTracks), true }, std::tuple { L"Findings", static_cast<int> (kTabFindings), true },
-                                               std::tuple { L"File map", static_cast<int> (kTabFileMap), true }, std::tuple { L"Image", static_cast<int> (kTabImage), true } })
+    //  Each view, available while the view selector offers it (FR-160).
+    for (const TrackColumn::View & view : TrackColumn::GetAllViews())
     {
-        int   view   = tab;
-        bool  isDisc = isDisk;
+        auto  isShown = [this, view] ()
+        {
+            vector<TrackColumn::View>  shown = m_trackColumn->GetShownViews();
 
-        c.views.push_back (make (label, L"", [this, view, isDisc] () { if (isDisc) { ShowDiskTab (view); } else { ShowTrackTab (view); } }));
-        c.views.back()->isEnabled = hasDisk;
-        c.views.back()->isChecked = [this, view, isDisc] () { return m_session.isDiskGroup == isDisc && (isDisc ? m_session.diskTab : m_session.trackTab) == view; };
+            return m_session.context.hasDisk && std::any_of (shown.begin(), shown.end(), [&view] (const TrackColumn::View & s) { return s.isDisk == view.isDisk && s.tab == view.tab; });
+        };
+
+        c.views.push_back (make (view.label, L"", [this, view] () { if (view.isDisk) { ShowDiskTab (view.tab); } else { ShowTrackTab (view.tab); } }));
+        c.views.back()->isEnabled = isShown;
+        c.views.back()->isChecked = [this, view] () { return m_session.isDiskGroup == view.isDisk && (view.isDisk ? m_session.diskTab : m_session.trackTab) == view.tab; };
     }
 
     //  Go
@@ -1088,8 +1074,8 @@ bool DiskInspectorWindow::IsZoomKey (WPARAM vk)
 //
 //  The toolbar row across the top. Under it the platter column, the platter
 //  as large as the column allows with its controls in the corners; past
-//  the splitter the track column: header, sector row, one tab strip with the
-//  track tabs then the disk tabs, and the chosen tab's content. Along the
+//  the splitter the track column: header, sector row, the view selector,
+//  and the chosen view's content. Along the
 //  bottom, across both columns, the strip with its controls and hint.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1113,8 +1099,6 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     int                        areaH     = std::max (0, bandTop - top - 2 * margin);
     int                        side      = std::max (0, std::min (column, areaH));
     int                        y         = 0;
-    int                        header    = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
-    int                        rowsH     = 0;
     int                        minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), m_corners->GetMinWidthPx (scaler));
     RECT                       right     = {};
     RECT                       platter   = {};
@@ -1162,17 +1146,8 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_corners->Layout ({ boundsDip.left + margin, top + margin, splitX - margin, top + margin + areaH }, scaler);
 
     //  The track column.
-    y = right.top;
-    m_headerView->Layout ({ right.left, y, right.right, y + header }, scaler);
-    y += header;
-    //  Rows of sector buttons past the first push the tabs down.
-    m_sectorRows = m_sectorRow->GetRowCount (right.right - right.left, scaler);
-    rowsH        = scaler.ToPx (s_kSectorRowDip) + (m_sectorRows - 1) * scaler.ToPx (SectorRowView::kRowDip + SectorRowView::kGapDip);
-    m_sectorRow->Layout ({ right.left, y, right.right, y + rowsH }, scaler);
-    y += rowsH;
-    m_trackAreaPx = { m_splitterPx.right, top, boundsDip.right, y };
-
-    y = LayoutTabs ({ right.left, y, right.right, right.bottom }, scaler);
+    y             = m_trackColumn->Layout (right, scaler);
+    m_trackAreaPx = { m_splitterPx.right, top, boundsDip.right, m_trackColumn->GetBoundsPx().bottom };
 
     m_diskContentPx = { right.left, y, right.right, right.bottom };
 
@@ -1214,99 +1189,6 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::LayoutTabs
-//
-//  The one tab strip: the track tabs, a gap, then the disk tabs, each as
-//  wide as its label; the disk tabs take a row of their own when the column
-//  is too narrow for both groups. Returns where the tabs' content starts.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & scaler)
-{
-    static constexpr LPCWSTR  kpszTrackTabs[] = { L"Sector data", L"Nibbles", L"Fields", L"Flux timing" };
-    static constexpr LPCWSTR  kpszDiskTabs[]  = { L"Tracks", L"Findings", L"File map", L"Image", L"Differences", L"Find results" };
-
-
-
-    int                        tabsH  = scaler.ToPx (s_kTabsDip);
-    int                        margin = scaler.ToPx (s_kMarginDip);
-    vector<int>                shown  = GetShownDiskTabs();
-    int                        trackW = 0;
-    int                        diskW  = 0;
-    int                        x      = area.left;
-    int                        y      = area.top;
-    bool                       isOne  = false;
-    vector<DxuiTabStrip::Tab>  tabs;
-
-
-
-    for (LPCWSTR label : kpszTrackTabs)
-    {
-        trackW += GetLabelWidthPx (label, s_kTabLabelPadDip, scaler);
-    }
-
-    for (int i : shown)
-    {
-        diskW += GetLabelWidthPx (kpszDiskTabs[i], s_kTabLabelPadDip, scaler);
-    }
-
-    isOne = trackW + 2 * margin + diskW <= area.right - area.left;
-
-    for (LPCWSTR label : kpszTrackTabs)
-    {
-        int  w = GetLabelWidthPx (label, s_kTabLabelPadDip, scaler);
-
-        tabs.push_back ({ { x, y, x + w, y + tabsH }, label });
-        x += w;
-    }
-
-    //  A divider between the track tabs and the disk tabs when they share a
-    //  row.
-    m_tabGapPx = isOne ? RECT { x + margin, y + tabsH / 4, x + margin + scaler.ToPx (1), y + tabsH * 3 / 4 } : RECT {};
-
-    x  = isOne ? x + 2 * margin : area.left;
-    y += isOne ? 0 : tabsH;
-
-    for (int i : shown)
-    {
-        int  w = GetLabelWidthPx (kpszDiskTabs[i], s_kTabLabelPadDip, scaler);
-
-        tabs.push_back ({ { x, y, x + w, y + tabsH }, kpszDiskTabs[i] });
-        x += w;
-    }
-
-    m_tabs->SetTabs     (std::move (tabs));
-    m_tabs->SetSelected (GetTabIndex());
-    m_tabs->Layout      ({ area.left, area.top, area.right, y + tabsH }, scaler);
-
-    return y + tabsH + margin / 2;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetLabelWidthPx
-//
-//  A control's width for its label at the window's text size, estimated
-//  from the label's length, plus the room the control needs around it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DiskInspectorWindow::GetLabelWidthPx (LPCWSTR label, int padDip, const DxuiDpiScaler & scaler)
-{
-    return scaler.ToPx (static_cast<int> (std::ceil (wcslen (label) * s_kCharWidthDip)) + padDip);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1336,9 +1218,6 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     {
         component->PaintOver (painter, text, theme);
     }
-
-    painter.FillRect (static_cast<float> (m_tabGapPx.left), static_cast<float> (m_tabGapPx.top), static_cast<float> (m_tabGapPx.right - m_tabGapPx.left),
-                      static_cast<float> (m_tabGapPx.bottom - m_tabGapPx.top), theme.Divider());
 
     if (m_session.is35)
     {
@@ -2010,7 +1889,6 @@ void DiskInspectorWindow::ShowTabContent()
     m_diffsTab->SetVisible    (!isTrack && m_session.diskTab == kTabDifferences);
     m_findResults->SetVisible (!isTrack && m_session.diskTab == kTabFindResults);
     m_files->Show (!isTrack && m_session.diskTab == kTabFileMap);
-    m_tabs->SetSelected (GetTabIndex());
 }
 
 
@@ -2290,60 +2168,6 @@ bool DiskInspectorWindow::Confirm (const std::wstring & title, const vector<std:
 
 Error:
     return result == kYes;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetShownDiskTabs
-//
-//  The disk tabs in the strip, in order: Differences only while comparing,
-//  and Find results only with hits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-vector<int> DiskInspectorWindow::GetShownDiskTabs() const
-{
-    vector<int>  shown = { kTabTracks, kTabFindings, kTabFileMap, kTabImage };
-
-
-
-    if (m_session.comparison.IsComparing())
-    {
-        shown.push_back (kTabDifferences);
-    }
-
-    if (!m_session.find.IsEmpty())
-    {
-        shown.push_back (kTabFindResults);
-    }
-
-    return shown;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetTabIndex
-//
-//  The chosen tab's place in the strip.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DiskInspectorWindow::GetTabIndex() const
-{
-    vector<int>  shown = GetShownDiskTabs();
-    auto         at    = std::find (shown.begin(), shown.end(), m_session.diskTab);
-
-
-
-    return !m_session.isDiskGroup ? m_session.trackTab : kTrackTabCount + static_cast<int> ((at != shown.end()) ? at - shown.begin() : 0);
 }
 
 
@@ -2814,18 +2638,6 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         }
     }
 
-    //  Each tab says what its content is (FR-059).
-    if (tip.empty() && m_tabs->IsVisible() && IsInside (m_tabs->GetBounds(), pointPx))
-    {
-        int  index = m_tabs->HitTest (pointPx.x, pointPx.y);
-
-        if (index >= 0 && index < static_cast<int> (std::size (s_kpszTabTips)))
-        {
-            tip         = s_kpszTabTips[index];
-            outAnchorPx = m_tabs->GetTabs()[index].rect;
-        }
-    }
-
     return tip;
 }
 
@@ -3219,7 +3031,6 @@ RECT DiskInspectorWindow::GetWalkthroughArea (WalkthroughArea area) const
     RECT  rect   = {};
     RECT  header = m_headerView->GetBounds();
     RECT  row    = m_sectorRow->GetBounds();
-    RECT  tabs   = m_tabs->GetBounds();
 
 
 
@@ -3228,7 +3039,7 @@ RECT DiskInspectorWindow::GetWalkthroughArea (WalkthroughArea area) const
         case WalkthroughArea::Platter: rect = m_platterAreaPx;                                       break;
         case WalkthroughArea::Toolbar: rect = m_toolbarPx;                                           break;
         case WalkthroughArea::Track:   UnionRect (&rect, &header, &row);                             break;
-        case WalkthroughArea::Tabs:    rect = { m_trackAreaPx.left, tabs.top, m_trackAreaPx.right, m_trackAreaPx.bottom }; break;
+        case WalkthroughArea::Tabs:    rect = { m_trackAreaPx.left, m_trackAreaPx.bottom, m_trackAreaPx.right, m_diskContentPx.bottom }; break;
         case WalkthroughArea::Strip:   rect = m_stripAreaPx;                                         break;
         case WalkthroughArea::None:                                                                  break;
     }

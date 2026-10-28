@@ -38,6 +38,7 @@ class InspectorMenus;
 class InspectorToolbar;
 class PlatterCorners;
 class StatusBand;
+class TrackColumn;
 class FilesView;
 class DifferencesTab;
 class FindBar;
@@ -138,16 +139,12 @@ private:
     void  ShowTrackTab     (int tab) override;
     void  ShowTabContent   ();
     bool  IsImageShown     () const;
-    int   LayoutTabs      (const RECT & area, const DxuiDpiScaler & scaler);
-    static int  GetLabelWidthPx (LPCWSTR label, int padDip, const DxuiDpiScaler & scaler);
     static bool  IsStripKey (WPARAM vk);
     KeyTarget    GetKeyTarget (POINT pointPx) const;
     void  SelectAll       ();
     void  ExtendSelection (WPARAM vk);
     void  Copy            ();
     void  CopySector      ();
-    vector<int>  GetShownDiskTabs () const;
-    int          GetTabIndex      () const;
     void  OpenExport ();
     void  PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     bool  IsCovered  (POINT pointPx) const;
@@ -181,6 +178,7 @@ private:
     std::unique_ptr<InspectorToolbar>  m_toolbar;
     std::unique_ptr<StatusBand>        m_statusBand;
     std::unique_ptr<PlatterCorners>    m_corners;
+    std::unique_ptr<TrackColumn>       m_trackColumn;
     vector<IInspectorComponent *>      m_components;
     InspectorCommands                  m_commands;
     std::wstring                       m_title;
@@ -192,7 +190,6 @@ private:
     RECT                               m_splitterPx       = {};
     std::wstring                       m_tooltipText;
 
-    DxuiTabStrip          * m_tabs              = nullptr;
     RECT                    m_stripAreaPx       = {};
     DxuiButton            * m_copySector        = nullptr;
     int                     m_flownQuarterTrack = -1;
@@ -221,9 +218,7 @@ private:
     FindingsTab                           * m_findingsTab   = nullptr;
     InspectorTableView                    * m_fieldsTab     = nullptr;
     InspectorTableView                    * m_imageTab      = nullptr;
-    int                                     m_sectorRows    = 1;
     double                                  m_zoom          = 1.0;
-    RECT                                    m_tabGapPx      = {};
     RECT                                    m_platterAreaPx = {};
     RECT                                    m_trackAreaPx   = {};
     RECT                                    m_diskContentPx = {};
