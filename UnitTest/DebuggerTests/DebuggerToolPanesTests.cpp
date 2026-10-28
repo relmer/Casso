@@ -614,6 +614,44 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  The timeline spans a range of cycles: by default the frames', the
+        //  newest at the right, at least RoutineProfile::kFrameCount frames
+        //  wide; zoomed into a range, each frame in it is wider.
+        TEST_METHOD (TheTimelineSpansARangeOfCycles)
+        {
+            constexpr int64_t     kFrame   = (int64_t) RoutineProfile::kCyclesPerFrame;
+            ProfileTimeline       timeline;
+            ProfileData           profile;
+            ProfileFrameEntry     frame;
+            DxuiDpiScaler         scaler;
+
+
+
+            frame.shares = { { 0, 1000 } };
+            frame.index  = 1000;
+            profile.frames.push_back (frame);
+            frame.index  = 1001;
+            profile.frames.push_back (frame);
+
+            scaler.SetDpi (96);
+            timeline.SetData (profile);
+            timeline.Layout  (RECT { 0, 0, 600, 40 }, scaler);
+
+            Assert::AreEqual (1002 * kFrame,                                         timeline.GetView().second, L"the newest frame's end at the right");
+            Assert::AreEqual ((1002 - (int64_t) RoutineProfile::kFrameCount) * kFrame, timeline.GetView().first,  L"a frame's slot wide each");
+            Assert::AreEqual ((size_t) 1, timeline.FindFrameAt (POINT { 599, 20 }).value_or (99), L"the newest at the right edge");
+            Assert::IsFalse  (timeline.FindFrameAt (POINT { 10, 20 }).has_value(), L"nothing before the first frame");
+
+            timeline.SetView (1001 * kFrame, 1002 * kFrame);
+            Assert::AreEqual ((size_t) 1, timeline.FindFrameAt (POINT { 10,  20 }).value_or (99), L"zoomed in, the second frame fills the timeline");
+            Assert::AreEqual ((size_t) 1, timeline.FindFrameAt (POINT { 590, 20 }).value_or (99));
+            Assert::AreEqual (1001 * kFrame + kFrame / 2, timeline.GetCycleAt (300), L"the middle is the middle of the frame");
+
+            timeline.ResetView();
+            Assert::AreEqual (1002 * kFrame, timeline.GetView().second);
+        }
+
+
         //  With the pointer over the timeline, a line is drawn down it at the
         //  pointer, as the history timeline draws one; with the pointer
         //  gone, none is.
