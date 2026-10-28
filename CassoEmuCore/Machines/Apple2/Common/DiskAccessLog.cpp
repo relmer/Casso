@@ -36,7 +36,7 @@ void DiskAccessLog::Clear()
 
     m_readTrack    = -1;
     m_isInData     = false;
-    m_pendingTrack = -1;
+    m_isClosed     = false;
     m_writeTrack   = -1;
     m_generation++;
 }
@@ -51,38 +51,38 @@ void DiskAccessLog::Clear()
 //
 //  One nibble the guest took from the latch, at the cell it started at, on
 //  a quarter track of the given length in cells. A D5 AA AD opens a data
-//  field at the D5's cell; DE AA after enough nibbles closes it. The closed
-//  field counts as read once the guest skips more than kPauseCells cells
-//  before its next nibble; a next nibble close behind drops it. Anything else, or a move to another
-//  quarter track, drops a field in progress.
+//  field at the D5's cell, and DE AA after enough nibbles closes it. A gap
+//  of more than kPauseCells cells before the next nibble, or a move to
+//  another quarter track, ends the field: it counts as read when it is
+//  closed, or when it is open with its body taken and the gap comes before
+//  kMaxOpenNibbles. A next nibble close behind a closed field drops it, as
+//  does a field that runs past kMaxDataNibbles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell, uint32_t trackCells)
 {
     bool      isValid = quarterTrack >= 0 && quarterTrack < DiskImage::kQuarterTrackCount;
-    uint32_t  gap     = 0;
+    bool      isSame  = quarterTrack == m_readTrack;
+    uint32_t  gap     = (isSame && trackCells > 0) ? (cell + trackCells - m_prevCell[1] % trackCells) % trackCells : UINT32_MAX;
 
 
 
     EndWrite();
 
-    if (m_pendingTrack >= 0)
+    if (gap > kPauseCells)
     {
-        gap = (quarterTrack == m_pendingTrack && trackCells > 0) ? (cell + trackCells - m_pendingEnd % trackCells) % trackCells : UINT32_MAX;
-
-        if (gap > kPauseCells)
-        {
-            EndRead();
-        }
-
-        m_pendingTrack = -1;
+        EndRead();
+    }
+    else if (m_isClosed)
+    {
+        m_isInData = false;
+        m_isClosed = false;
     }
 
-    if (quarterTrack != m_readTrack)
+    if (!isSame)
     {
         m_readTrack = quarterTrack;
-        m_isInData  = false;
         m_prev[0]   = 0;
         m_prev[1]   = 0;
     }
@@ -93,10 +93,7 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
 
         if (m_prev[1] == s_kEpilogue0 && nibble == s_kEpilogue1 && m_dataCount >= kMinDataNibbles)
         {
-            m_pendingTrack = quarterTrack;
-            m_pendingStart = m_dataStart;
-            m_pendingEnd   = cell;
-            m_isInData     = false;
+            m_isClosed = true;
         }
         else if (m_dataCount > kMaxDataNibbles)
         {
@@ -106,6 +103,7 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
     else if (isValid && m_prev[0] == s_kPrologue0 && m_prev[1] == s_kPrologue1 && nibble == s_kDataMark)
     {
         m_isInData  = true;
+        m_isClosed  = false;
         m_dataStart = m_prevCell[0];
         m_dataCount = 0;
     }
@@ -124,20 +122,26 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
 //
 //  DiskAccessLog::EndRead
 //
-//  The closed data field counts as read: the guest skipped cells after it
-//  or moved to another quarter track, or the motor stopped.
+//  Ends the data field in progress, counting it as read when it is closed
+//  or has its body taken: the guest skipped cells after it or moved to
+//  another quarter track, or the motor stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskAccessLog::EndRead()
 {
-    if (m_pendingTrack >= 0 && m_pendingTrack < DiskImage::kQuarterTrackCount)
+    bool  isRead = m_isClosed || (m_dataCount >= kMinDataNibbles && m_dataCount <= kMaxOpenNibbles);
+
+
+
+    if (m_isInData && isRead && m_readTrack >= 0 && m_readTrack < DiskImage::kQuarterTrackCount)
     {
-        Add (m_reads[static_cast<size_t> (m_pendingTrack)], m_pendingStart, m_pendingEnd);
+        Add (m_reads[static_cast<size_t> (m_readTrack)], m_dataStart, m_prevCell[1]);
         m_generation++;
     }
 
-    m_pendingTrack = -1;
+    m_isInData = false;
+    m_isClosed = false;
 }
 
 

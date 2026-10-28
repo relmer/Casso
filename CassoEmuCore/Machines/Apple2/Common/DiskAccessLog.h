@@ -30,9 +30,10 @@ struct CellSpan
 //
 //  Where on each quarter track of one drive the guest read a data field and
 //  where it wrote, as cell positions (FR-161). A read is a data field the
-//  guest took from the latch, from its D5 AA AD prologue through the DE AA
-//  of its epilogue, after which the guest skips cells before its next
-//  nibble, as RWTS does while it decodes the field. A guest searching for
+//  guest took from the latch, from its D5 AA AD prologue through its body
+//  and the DE AA of its epilogue when the guest checks it, after which the
+//  guest skips cells before its next nibble, as RWTS and the boot PROM do
+//  while they decode the field. A guest searching for
 //  an address field takes every nibble that passes, data fields included,
 //  with no gap. A write is a run of nibbles the guest loaded into the
 //  latch while writing, each close after the one before. The same stretch
@@ -50,6 +51,11 @@ public:
     //  for a padded field.
     static constexpr uint32_t  kMinDataNibbles = 340;
     static constexpr uint32_t  kMaxDataNibbles = 420;
+
+    //  A field read with no check of its epilogue, as the boot PROM reads,
+    //  counts when the gap comes within this many nibbles of its prologue:
+    //  the body, its checksum and a few nibbles more.
+    static constexpr uint32_t  kMaxOpenNibbles = 348;
 
     //  After a field's epilogue, a gap of more cells than this before the
     //  guest's next nibble marks the field as read.
@@ -84,9 +90,7 @@ private:
     bool      m_isInData     = false;
     uint32_t  m_dataStart    = 0;
     uint32_t  m_dataCount    = 0;
-    int       m_pendingTrack = -1;
-    uint32_t  m_pendingStart = 0;
-    uint32_t  m_pendingEnd   = 0;
+    bool      m_isClosed     = false;
     int       m_writeTrack   = -1;
     uint32_t  m_writeStart   = 0;
     uint32_t  m_writeLast    = 0;

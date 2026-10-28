@@ -141,6 +141,19 @@ public:
         ReadDataField (log, 12, kTrackCells - 349 * 8 - 4);
         log.ObserveRead (12, 0xFF, 4, kTrackCells);
         Assert::IsTrue (log.GetReads()[12].empty(), L"the next nibble across the index is close behind");
+
+        //  The boot PROM takes the body and checksum, not the epilogue.
+        log.ObserveRead (16, 0xD5, 100, kTrackCells);
+        log.ObserveRead (16, 0xAA, 108, kTrackCells);
+        log.ObserveRead (16, 0xAD, 116, kTrackCells);
+
+        for (uint32_t n = 0; n < 343; n++)
+        {
+            log.ObserveRead (16, 0x96, 124 + n * 8, kTrackCells);
+        }
+
+        log.ObserveRead (16, 0xFF, 20'000, kTrackCells);
+        Assert::AreEqual (static_cast<size_t> (1), log.GetReads()[16].size(), L"a field read without its epilogue");
     }
 
 
