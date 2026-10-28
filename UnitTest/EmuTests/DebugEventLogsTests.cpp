@@ -221,7 +221,7 @@ namespace DebugEventLogsTests
                 0x4C, 0x0C, 0x08,       // JMP loop
             };
 
-            TestMachine        machine    ("Apple2c");
+            TestMachine        machine    ("Apple2c", TestMachine::Slots::AsShipped, [] (MachineConfig & config, MachineBuildServices &) { TestMachine::PlugInSerialLoopbacks (config); });
             ReverseController  controller (machine);
             InlineWorkQueue    queue;
             DebugEventLogs     logs       (machine);

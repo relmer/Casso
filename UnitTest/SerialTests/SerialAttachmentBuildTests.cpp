@@ -56,7 +56,8 @@ namespace SerialAttachmentBuildTestNs
         }
 
 
-        TEST_METHOD (TheApple2cPortsDefaultToTheLoopbackPlug)
+        //  As a //c ships, nothing is plugged into either port.
+        TEST_METHOD (TheApple2cPortsDefaultToNothing)
         {
             TestMachine  machine ("Apple2c");
 
@@ -66,7 +67,7 @@ namespace SerialAttachmentBuildTestNs
 
             for (Acia6551 * acia : machine.GetRefs().serialChips)
             {
-                Assert::IsNotNull (dynamic_cast<AciaLoopbackEndpoint *> (acia->GetEndpoint()), L"an empty device is the loopback plug");
+                Assert::IsNull (acia->GetEndpoint(), L"an empty device is nothing");
             }
         }
 
@@ -80,7 +81,7 @@ namespace SerialAttachmentBuildTestNs
 
 
 
-            Assert::IsNotNull (dynamic_cast<AciaLoopbackEndpoint *> (machine.GetRefs().serialChips[0]->GetEndpoint()), L"port 1 as shipped");
+            Assert::IsNull    (machine.GetRefs().serialChips[0]->GetEndpoint(), L"port 1 as shipped");
             Assert::IsNull    (machine.GetRefs().serialChips[1]->GetEndpoint(), L"port 2 has the attachment it was given");
             Assert::AreEqual<size_t> (1, machine.GetSerialLinkReports().GetReports().size(), L"an unknown attachment is reported");
             Assert::AreEqual (std::string ("Serial port 2"), machine.GetSerialLinkReports().GetReports()[0].portTitle);

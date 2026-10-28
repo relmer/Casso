@@ -157,12 +157,13 @@ character-at-a-time. With every other option declined, the remote stays in plain
 
 ## R9. The //c ports' default
 
-**Decision**: An empty `device` on a //c serial port continues to mean the
-loopback plug, which every //c has had since 016, and the //c list does not
-include "Nothing". A port with an explicit device uses it.
+**Decision** (owner, 2026-10-28): An empty `device` on a //c serial port is
+nothing, as a //c ships, and the //c list starts with None and the loopback plug, as
+the card's does. The loopback plug from 016 on is `serial-loopback`.
 
-**Rationale**: changing what an existing configuration does is outside 047.
-This is listed as a question for the owner.
+**Rationale**: a port with no cable is a real state, and a program's handling
+of a missing printer or modem can be checked with it. A loopback plug is a test
+device that no //c ships with.
 
 ## R10. Settings
 

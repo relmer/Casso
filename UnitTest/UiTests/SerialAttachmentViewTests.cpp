@@ -107,18 +107,23 @@ namespace SerialAttachmentViewTestNs
         }
 
 
-        TEST_METHOD (ABuiltInPortListsTheLoopbackPlugFirst)
+        //  A //c port's list starts with None, then the loopback plug, as a card's does.
+        TEST_METHOD (ABuiltInPortListsNoneThenTheLoopbackPlug)
         {
             ViewRig  rig (SerialAttachmentView::Kind::BuiltInPort);
 
 
 
-            Assert::AreEqual (std::string(), rig.view.GetDevices().front(), L"an empty device is the plug there");
-            Assert::IsTrue (std::find (rig.view.GetDevices().begin(), rig.view.GetDevices().end(), std::string (kpszSerialLoopback)) == rig.view.GetDevices().end());
+            Assert::IsTrue (std::vector<std::string> { "", kpszSerialLoopback, kpszSerialFileOut, kpszSerialFileIn, kpszSerialComPort, kpszSerialTcp, kpszSerialModem }
+                            == rig.view.GetDevices(), L"the card's list");
+
+            rig.view.SetChoice ({ "", "", {} });
+            Assert::AreEqual (0, rig.view.GetAttachDropdown().GetSelectedIndex(), L"an empty device is None");
 
             rig.view.SetChoice ({ kpszSerialLoopback, "", {} });
-            Assert::AreEqual (0, rig.view.GetAttachDropdown().GetSelectedIndex(), L"the plug staged by its device string is listed as the plug");
-            Assert::IsFalse (rig.view.GetNoteText().empty());
+            rig.Lay();
+            Assert::AreEqual (1, rig.view.GetAttachDropdown().GetSelectedIndex(), L"the loopback plug");
+            Assert::IsFalse (rig.view.GetNoteText().empty(), L"with its note");
         }
 
 

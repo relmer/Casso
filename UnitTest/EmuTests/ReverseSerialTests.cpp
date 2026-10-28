@@ -105,7 +105,7 @@ public:
     //  back to it. A replay sends it again, so the journal has none.
     TEST_METHOD (ALoopedBackByteIsNotJournaled)
     {
-        TestMachine          machine    ("Apple2c");
+        TestMachine          machine    ("Apple2c", TestMachine::PlugInSerialLoopbacks);
         ReverseController    controller (machine);
         std::vector<Sample>  samples;
         ReverseResult        result;

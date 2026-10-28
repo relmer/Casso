@@ -19,8 +19,7 @@ static constexpr int    s_kPortWidthDp = 90;
 //
 //  SerialAttachmentView::SerialAttachmentView
 //
-//  None is first in a card's list; the loopback plug is first in a //c
-//  port's, as an empty device.
+//  None, an empty device, is first in the list, then the loopback plug.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,25 +29,9 @@ SerialAttachmentView::SerialAttachmentView (
     : m_kind  (kind),
       m_label (std::move (label))
 {
-    std::vector<std::wstring>  labels;
+    m_devices = { "", kpszSerialLoopback, kpszSerialFileOut, kpszSerialFileIn, kpszSerialComPort, kpszSerialTcp, kpszSerialModem };
 
-
-
-    if (m_kind == Kind::Card)
-    {
-        m_devices = { "", kpszSerialLoopback };
-        labels    = { L"None", L"Loopback plug" };
-    }
-    else
-    {
-        m_devices = { "" };
-        labels    = { L"Loopback plug" };
-    }
-
-    m_devices.insert (m_devices.end(), { kpszSerialFileOut, kpszSerialFileIn, kpszSerialComPort, kpszSerialTcp, kpszSerialModem });
-    labels.insert    (labels.end(),    { L"Write output to file", L"Read input from file", L"COM port", L"TCP connection", L"Modem" });
-
-    m_attach.SetItems    (labels);
+    m_attach.SetItems    ({ L"None", L"Loopback plug", L"Write output to file", L"Read input from file", L"COM port", L"TCP connection", L"Modem" });
     m_attach.SetSelected (0);
     m_connect.SetItems   ({ L"Connect to a host", L"Listen for a connection" });
 
@@ -147,8 +130,7 @@ void SerialAttachmentView::SetChoice (const SerialAttachmentChoice & choice)
 //
 //  SerialAttachmentView::SyncControls
 //
-//  Every control to the choice. A //c port's loopback plug may be staged as
-//  either an empty device or serial-loopback.
+//  Every control to the choice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,7 +143,7 @@ void SerialAttachmentView::SyncControls()
 
     for (i = 0; i < (int) m_devices.size(); i++)
     {
-        if (m_choice.device == m_devices[(size_t) i] || (i == 0 && IsLoopback()))
+        if (m_choice.device == m_devices[(size_t) i])
         {
             selected = i;
             break;
@@ -177,21 +159,6 @@ void SerialAttachmentView::SyncControls()
     m_pathValue.SetText   (m_choice.path.empty() ? std::wstring (L"(none chosen)") : TextEncoding::NarrowToWide (m_choice.path));
 
     RefreshComPorts();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SerialAttachmentView::IsLoopback
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SerialAttachmentView::IsLoopback() const
-{
-    return m_kind == Kind::BuiltInPort && (m_choice.device.empty() || m_choice.device == kpszSerialLoopback);
 }
 
 
@@ -378,7 +345,7 @@ std::wstring SerialAttachmentView::GetNote (const std::string & device) const
 
 
 
-    if (device == kpszSerialLoopback || (m_kind == Kind::BuiltInPort && device.empty()))
+    if (device == kpszSerialLoopback)
     {
         note = std::format (L"TX is wired back to RX, RTS to CTS, and DTR to DSR and DCD, so what the {} sends comes back into it.", owner);
     }

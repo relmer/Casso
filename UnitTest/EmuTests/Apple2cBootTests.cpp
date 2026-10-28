@@ -350,7 +350,7 @@ public:
         constexpr Byte  kCmdPolled  = 0x0B;      // DTR, receiver IRQ off, RTS on
         constexpr Byte  kCtrl19200  = 0x1F;      // 19,200 baud, 8N1
         constexpr int   kCharTimes  = 3;         // out, back in, and margin
-        TestMachine     machine ("Apple2c");
+        TestMachine     machine ("Apple2c", TestMachine::PlugInSerialLoopbacks);
         const Word      dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
 
 

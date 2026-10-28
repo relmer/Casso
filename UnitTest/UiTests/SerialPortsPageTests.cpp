@@ -67,7 +67,7 @@ namespace SerialPortsPageTestNs
             Load (state);
             page.SetState (&state);
 
-            Assert::AreEqual (0, page.GetPort (SerialPortId::Port1).GetAttachDropdown().GetSelectedIndex(), L"port 1 has the loopback plug");
+            Assert::AreEqual (0, page.GetPort (SerialPortId::Port1).GetAttachDropdown().GetSelectedIndex(), L"port 1 has nothing on it");
             Assert::AreEqual (std::string (kpszSerialTcp), page.GetPort (SerialPortId::Port2).GetChoice().device);
             Assert::AreEqual (std::string ("peer.example.org"), page.GetPort (SerialPortId::Port2).GetChoice().options.host);
         }
@@ -75,7 +75,7 @@ namespace SerialPortsPageTestNs
 
         TEST_METHOD (APickIsStagedForItsPort)
         {
-            constexpr int        kModemChoice = 5;     // on a port: Loopback, Output file, Input file, COM port, TCP, Modem
+            constexpr int        kModemChoice = 6;     // None, Loopback, Output file, Input file, COM port, TCP, Modem
             SettingsPanelState   state;
             SerialPortsPage      page;
             DxuiComboBox       * combo        = nullptr;
@@ -168,7 +168,7 @@ namespace SerialPortsPageTestNs
 
         TEST_METHOD (TheComPortListComesFromThePc)
         {
-            constexpr int         kComPortChoice = 3;
+            constexpr int         kComPortChoice = 4;
             SettingsPanelState    state;
             SerialPortsPage       page;
             FakeHostSerialPorts   ports;

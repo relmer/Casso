@@ -153,7 +153,6 @@ private:
     void     AttachSerialPort     (const PortConfig   & port,
                                    Acia6551           & acia,
                                    const std::string  & portTitle,
-                                   bool                 isBuiltIn,
                                    std::string        & outProblem);
 
     std::unique_ptr<IAciaEndpoint>  CreateSerialAttachment (const PortConfig   & port,

@@ -100,6 +100,10 @@ public:
     //  another host, such as a shell's machine, from it.
     static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
 
+    //  A configure step that plugs a loopback plug into each of the //c's
+    //  serial ports, which ship with nothing on them.
+    static void  PlugInSerialLoopbacks (MachineConfig & config);
+
 private:
 
     static std::string  GetShippedId (const std::string & machineId);

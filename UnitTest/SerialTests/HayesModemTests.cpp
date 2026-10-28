@@ -804,8 +804,8 @@ namespace HayesModemTestNs
         }
 
 
-        //  The factory settings are X4, so CONNECT has the rate; X0 leaves it
-        //  off.
+        //  The factory settings are X4, so CONNECT has the rate; with X0 it is
+        //  left off.
         TEST_METHOD (TheFactorySettingsReportTheBaudRateAndX0DoesNot)
         {
             ModemDriver  driver;

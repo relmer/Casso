@@ -27,8 +27,8 @@ class IHostSerialPorts;
 //  lays out again. A port that does not parse is not reported, and an error
 //  under the controls states the rule.
 //
-//  A Super Serial Card's connector can have nothing on it; a //c port lists
-//  the loopback plug first, which an empty device means there.
+//  The list is the same for a Super Serial Card and a //c port; the kind
+//  selects the wording of the notes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +94,6 @@ private:
     static constexpr int  kListenChoice  = 1;
 
     bool  IsDevice        (const char * device) const { return m_choice.device == device; }
-    bool  IsLoopback      () const;
     void  SyncControls    ();
     void  RefreshComPorts ();
     void  Report          ();

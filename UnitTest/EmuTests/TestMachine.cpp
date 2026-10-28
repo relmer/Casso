@@ -286,6 +286,27 @@ void TestMachine::LoadConfig (const std::string & machineId, MachineConfig & out
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TestMachine::PlugInSerialLoopbacks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TestMachine::PlugInSerialLoopbacks (MachineConfig & config)
+{
+    for (PortConfig & port : config.ports)
+    {
+        if (port.name == kpszSerialPort1Name || port.name == kpszSerialPort2Name)
+        {
+            port.device = kpszSerialLoopback;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TestMachine::GetShippedId
 //
 //  The shipped id a name matches when case is ignored, or the name unchanged,

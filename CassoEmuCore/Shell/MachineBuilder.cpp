@@ -617,7 +617,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // (the //c has no config slots) -- the serial firmware is part of the
         // internal //c ROM. Each raises IRQs through the shared interrupt
         // controller, and has the attachment its named entry in the machine's
-        // ports list specifies, the loopback plug when it specifies none. Both
+        // ports list specifies, or nothing when it specifies none. Both
         // are ticked with the CPU so their character timing follows its clock.
         for (int slot = 1; slot <= 2; ++slot)
         {
@@ -648,7 +648,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
                 }
             }
 
-            AttachSerialPort (port, *acia, title, true, problem);
+            AttachSerialPort (port, *acia, title, problem);
 
             if (!problem.empty())
             {
@@ -2118,7 +2118,7 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
 
 
 
-    AttachSerialPort (slot.ports.empty() ? empty : slot.ports.front(), card.GetAcia(), title, false, problem);
+    AttachSerialPort (slot.ports.empty() ? empty : slot.ports.front(), card.GetAcia(), title, problem);
 
     if (!problem.empty())
     {
@@ -2136,9 +2136,9 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
 //
 //  Plugs the attachment a port specifies into a 6551: nothing, a loopback
 //  plug, a file that receives what the chip sends, a file whose bytes are
-//  sent into the chip, a COM port, TCP or a modem. A built-in port with no
-//  device has the loopback plug, as every //c has had. An attachment that
-//  cannot be made leaves the connector empty and its problem in outProblem.
+//  sent into the chip, a COM port, TCP or a modem. An empty device is
+//  nothing, as a //c ships. An attachment that cannot be made leaves the
+//  connector empty and its problem in outProblem.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2146,7 +2146,6 @@ void MachineBuilder::AttachSerialPort (
     const PortConfig  & port,
     Acia6551          & acia,
     const string      & portTitle,
-    bool                isBuiltIn,
     string            & outProblem)
 {
     HRESULT                          hr       = S_OK;
@@ -2155,11 +2154,7 @@ void MachineBuilder::AttachSerialPort (
 
 
 
-    if (port.device.empty() && isBuiltIn)
-    {
-        endpoint = std::make_unique<AciaLoopbackEndpoint> (&acia);
-    }
-    else if (!port.device.empty())
+    if (!port.device.empty())
     {
         endpoint = CreateSerialAttachment (port, acia, portTitle, outProblem);
     }

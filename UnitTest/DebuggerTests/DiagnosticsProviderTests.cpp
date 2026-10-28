@@ -573,7 +573,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("$0B"), FindRow (Snapshot (*port1), "Command").value, L"port 1 is $C098");
             Assert::AreEqual (std::string ("$00"), FindRow (Snapshot (*port2), "Command").value, L"port 2 is not");
-            Assert::AreEqual (std::string ("loopback plug"), FindRow (Snapshot (*port1), "Attachment").value);
+            Assert::AreEqual (std::string ("none"), FindRow (Snapshot (*port1), "Attachment").value, L"nothing on a //c port as shipped");
         }
 
 
