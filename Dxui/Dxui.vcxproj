@@ -169,6 +169,9 @@
     <ClCompile Include="Render\DxuiPainter.cpp" />
     <ClCompile Include="Render\DxuiShadow.cpp" />
     <ClCompile Include="Render\DxuiSvgPath.cpp" />
+    <ClCompile Include="Render\DxuiGdiText.cpp" />
+    <ClCompile Include="Render\DxuiRenderIcons.cpp" />
+    <ClCompile Include="Render\DxuiRenderTargets.cpp" />
     <ClCompile Include="Render\DxuiTextRenderer.cpp" />
     <ClCompile Include="Theme\DxuiDwm.cpp" />
     <ClCompile Include="Theme\DxuiMenuMetrics.cpp" />
@@ -285,6 +288,9 @@
     <ClInclude Include="Render\DxuiPainter.h" />
     <ClInclude Include="Render\DxuiShadow.h" />
     <ClInclude Include="Render\DxuiSvgPath.h" />
+    <ClInclude Include="Render\DxuiGdiText.h" />
+    <ClInclude Include="Render\DxuiRenderIcons.h" />
+    <ClInclude Include="Render\DxuiRenderTargets.h" />
     <ClInclude Include="Render\DxuiTextRenderer.h" />
     <ClInclude Include="Render\DxuiVectorIcon.h" />
     <ClInclude Include="Render\IDxuiPainter.h" />
