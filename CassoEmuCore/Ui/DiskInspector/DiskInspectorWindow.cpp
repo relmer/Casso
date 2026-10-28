@@ -800,6 +800,15 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
 
 
+    //  Wherever the splitter is, the platter column is at least as wide as
+    //  its control row, up to the splitter's largest share of the window.
+    if (column < minColumn)
+    {
+        column = std::max (0, std::min (minColumn, static_cast<int> (width * s_kMaxSplit) - 2 * margin));
+        splitX = boundsDip.left + 2 * margin + column;
+        side   = std::max (0, std::min (column, areaH));
+    }
+
     //  A platter its height limits leaves its column no wider than it and its
     //  control row need, and the track column gains the rest.
     if (column > std::max (areaH, minColumn))
