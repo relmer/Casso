@@ -719,3 +719,58 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
 
     return layout;
 }
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetCommandBarDock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarDock DebuggerLayout::GetCommandBarDock (const std::wstring & saved)
+{
+    DxuiToolbarDock  dock;
+
+
+
+    if (!saved.empty())
+    {
+        return DxuiToolbarDock::FromText (saved);
+    }
+
+    dock.band = 0;
+    return dock;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetTimelineDock
+//
+//  The band lays its bars out by their offsets, each pushed past the one
+//  before it, so any offset past the bar's puts the timeline after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarDock DebuggerLayout::GetTimelineDock (const std::wstring & saved)
+{
+    DxuiToolbarDock  dock;
+
+
+
+    if (!saved.empty())
+    {
+        return DxuiToolbarDock::FromText (saved);
+    }
+
+    dock.band      = 0;
+    dock.offsetDip = 1;
+    return dock;
+}

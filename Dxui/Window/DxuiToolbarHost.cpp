@@ -111,9 +111,9 @@ void DxuiToolbarHost::JoinGroup (DxuiToolbarDockGroup & group)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToolbarHost::ResetDock()
+void DxuiToolbarHost::ResetDock (const DxuiToolbarDock & dock)
 {
-    m_dock = DxuiToolbarDock {};
+    m_dock = dock;
     Save();
 }
 

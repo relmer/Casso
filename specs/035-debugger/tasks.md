@@ -1994,7 +1994,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 
 ## Phase 51: Owner review of the profiler build, 2026-10-28 (T895)
 
-- [ ] T1172 Put the history timeline beside the run toolbar, on the same row, in the default layout (`DebuggerLayoutDefaults` or wherever the default dock places the command bar and timeline), with a test of the default layout
+- [X] T1172 Put the history timeline beside the run toolbar, on the same row, in the default layout (`DebuggerLayoutDefaults` or wherever the default dock places the command bar and timeline), with a test of the default layout **Done:** DebuggerLayout::GetCommandBarDock and GetTimelineDock return the place saved, or the top edge's band 0, the timeline after the bar; the window reads both through them, and Reset window layout puts both bars back there (DxuiToolbarHost::ResetDock takes the default place). Tests: DebuggerDefaultLayoutTests::TheTimelineSharesTheCommandBarsRow and ASavedBarPlaceWins, DebuggerResetBarTests. A saved place takes precedence, so the owner's debugger has the two rows until Reset window layout.
 - [ ] T1173 Draw a swatch of each routine's color before its line in the profile timeline's tip (ProfileTimeline), as the bar draws it
 - [ ] T1174 Draw a vertical line at the pointer over the profile timeline, as the history timeline does
 - [ ] T1175 Let a drag across the profile timeline select a range of frames, as Chrome's Performance tab does, and limit the Profiler pane's list and flame graph to that range; a click clears it

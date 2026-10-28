@@ -111,6 +111,11 @@ public:
 
     static std::vector<std::wstring>  GetPaneIds ();
 
+    //  Where the command bar and the history timeline dock: the place saved,
+    //  or by default the top edge's first band, the timeline after the bar.
+    static DxuiToolbarDock  GetCommandBarDock (const std::wstring & saved);
+    static DxuiToolbarDock  GetTimelineDock   (const std::wstring & saved);
+
 private:
     static constexpr const wchar_t * kClosedPrefix = L"closed";
 

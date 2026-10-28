@@ -513,8 +513,8 @@ std::wstring DebuggerWindow::ReadSavedLayout()
     }
 
 
-    m_barHost.SetDock      (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
-    m_timelineHost.SetDock (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerTimelineDock())));
+    m_barHost.SetDock      (DebuggerLayout::GetCommandBarDock (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
+    m_timelineHost.SetDock (DebuggerLayout::GetTimelineDock   (SourcePathList::Utf8ToWide (m_host->GetDebuggerTimelineDock())));
 
     if (layoutText != savedText)
     {
