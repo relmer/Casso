@@ -10,6 +10,7 @@
 #include "Seams/Win32UserClasses.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -453,7 +454,7 @@ void ExplorerDispatch::Dispatch (int id)
             //  File Explorer's are, so the refresh can be seen. Its scroll
             //  position does not change.
             m_window.m_listPane.SetContentHidden (true);
-            SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kRefreshTimerId, kRefreshBlankMs, nullptr);
+            SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRefresh, kRefreshBlankMs, nullptr);
             break;
 
         case CassoExplorerCommands::kTogglePreview:

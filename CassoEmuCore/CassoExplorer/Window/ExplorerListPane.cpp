@@ -1368,8 +1368,8 @@ void ExplorerListPane::RestoreView (const RefreshAnchor::After & after)
 
 void ExplorerListPane::StartLoaders()
 {
-    m_listIcons.LoadInBackground (m_window.GetHwnd(), CassoExplorerWindow::kIconsLoadedMessage);
-    m_contentDetails.Start (m_window.GetHwnd(), CassoExplorerWindow::kContentDetailsMessage);
+    m_listIcons.LoadInBackground (m_window.GetHwnd(), (UINT) ExplorerMessage::IconsLoaded);
+    m_contentDetails.Start (m_window.GetHwnd(), (UINT) ExplorerMessage::ContentDetails);
 }
 
 

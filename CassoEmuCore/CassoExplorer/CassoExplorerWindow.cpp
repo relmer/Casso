@@ -10,6 +10,7 @@
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
 #include "CassoExplorer/Model/FolderWatch.h"
+#include "Core/AppTimerIds.h"
 
 #pragma comment(lib, "winmm.lib")
 
@@ -380,7 +381,7 @@ void CassoExplorerWindow::OnCreate()
     m_treePane.ApplyNavPaneOptions();
     m_listPane.SizeListIcons();
     m_listPane.StartLoaders();
-    m_infoTips.Start (GetHwnd(), kInfoTipMessage);
+    m_infoTips.Start (GetHwnd(), (UINT) ExplorerMessage::InfoTip);
 
     m_layout.ConfigureWidgets();
 }
@@ -753,7 +754,7 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
     if (copy != nullptr && copy->dwData == kLaunchCopyId && copy->lpData != nullptr && m_context.host != nullptr)
     {
         m_pendingLaunches.emplace_back ((const wchar_t *) copy->lpData, copy->cbData / sizeof (wchar_t));
-        PostMessageW (GetHwnd(), kLaunchMessage, 0, 0);
+        PostMessageW (GetHwnd(), (UINT) ExplorerMessage::Launch, 0, 0);
 
         return DxuiMessageResult::Handled;
     }
@@ -764,7 +765,7 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
     }
 
     m_pendingReplies.push_back (reply);
-    PostMessageW (GetHwnd(), kReplyMessage, 0, 0);
+    PostMessageW (GetHwnd(), (UINT) ExplorerMessage::Reply, 0, 0);
 
     return DxuiMessageResult::Handled;
 }
@@ -790,7 +791,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kLaunchMessage)
+    if (msg == (UINT) ExplorerMessage::Launch)
     {
         std::vector<std::wstring>  launches = std::move (m_pendingLaunches);
 
@@ -808,13 +809,13 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     //  what collapses a burst: a copy of a hundred files re-reads once, when
     //  the copying stops. Only for so long, though: a folder that never stops
     //  changing (a log being written, say) would hold off every re-read.
-    if (msg == kShellPreviewMessage)
+    if (msg == (UINT) ExplorerMessage::ShellPreview)
     {
         m_previewPane.OnShellPreviewResult();
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kFolderChangedMessage)
+    if (msg == (UINT) ExplorerMessage::FolderChanged)
     {
         m_folderSync.OnFolderChanged();
         return DxuiMessageResult::Handled;
@@ -822,11 +823,11 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
     //  The bin's changes come in bursts, as a folder's do, and matter only
     //  while it is shown.
-    if (msg == kRecycleBinMessage)
+    if (msg == (UINT) ExplorerMessage::RecycleBin)
     {
         if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
-            SetTimer (GetHwnd(), kRecycleBinTimerId, kFolderSettleMs, nullptr);
+            SetTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRecycleBin, kFolderSettleMs, nullptr);
         }
 
         return DxuiMessageResult::Handled;
@@ -834,7 +835,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
     //  A shell folder's listing is in: the list shows it if it is still the
     //  folder shown, and the tree fills the node that asked for it.
-    if (msg == kShellListedMessage)
+    if (msg == (UINT) ExplorerMessage::ShellListed)
     {
         for (const std::wstring & key : m_browser.GetShellListings().TakeArrivedKeys())
         {
@@ -849,42 +850,42 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kLinkMessage)
+    if (msg == (UINT) ExplorerMessage::CassoLink)
     {
         m_links.OnLinkChanged();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kRunningMessage)
+    if (msg == (UINT) ExplorerMessage::RunningCasso)
     {
         m_links.OnRunningChanged();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kDropMenuMessage)
+    if (msg == (UINT) ExplorerMessage::DropMenu)
     {
         m_dragDrop.ShowDropMenu();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kInfoTipMessage)
+    if (msg == (UINT) ExplorerMessage::InfoTip)
     {
         m_listPane.RefreshTip();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kContentDetailsMessage)
+    if (msg == (UINT) ExplorerMessage::ContentDetails)
     {
         m_listPane.OnContentDetailsArrived();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kIconsLoadedMessage)
+    if (msg == (UINT) ExplorerMessage::IconsLoaded)
     {
         m_listPane.OnIconsLoaded();
 
@@ -892,14 +893,14 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     }
 
     //  New's file types join the command bar's New once the shell lists them.
-    if (msg == kNewChoicesMessage)
+    if (msg == (UINT) ExplorerMessage::NewChoices)
     {
         m_toolbars.SetCommandBarDropDowns();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == kRunCommandMessage)
+    if (msg == (UINT) ExplorerMessage::RunCommand)
     {
         if (m_dispatch.IsEnabled ((int) wParam))
         {
@@ -909,7 +910,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::Handled;
     }
 
-    if (msg != kReplyMessage)
+    if (msg != (UINT) ExplorerMessage::Reply)
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -963,7 +964,7 @@ void CassoExplorerWindow::TakeLinkNotifications()
 {
     if (m_context.links != nullptr)
     {
-        m_context.links->SetTarget (GetHwnd(), kLinkMessage);
+        m_context.links->SetTarget (GetHwnd(), (UINT) ExplorerMessage::CassoLink);
     }
 }
 
@@ -1071,7 +1072,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == kShellPreviewTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerShellPreview)
     {
         m_previewPane.ShowShellPreviewBytes();
         return DxuiMessageResult::Handled;
@@ -1079,11 +1080,11 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     //  The Recycle Bin restores on its own time, so the folder is read again
     //  each second for a while after an undo.
-    if (timerId == kRestoreTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerRestore)
     {
         if (--m_fileOps.m_restoreTicks <= 0)
         {
-            KillTimer (GetHwnd(), kRestoreTimerId);
+            KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore);
         }
 
         m_folderSync.RefreshAfterHostChange();
@@ -1091,9 +1092,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId == kRecycleBinTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerRecycleBin)
     {
-        KillTimer (GetHwnd(), kRecycleBinTimerId);
+        KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRecycleBin);
 
         if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
@@ -1103,7 +1104,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId == kDriveTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
     {
         m_folderSync.CheckDrives();
         m_links.PollFirewall();
@@ -1119,9 +1120,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId == kRefreshTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerRefresh)
     {
-        KillTimer (GetHwnd(), kRefreshTimerId);
+        KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRefresh);
         m_listPane.SetContentHidden (false);
         m_listPane.FillList();
         Invalidate();
@@ -1129,14 +1130,14 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId == kFolderTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerFolder)
     {
         m_folderSync.OnSettleTimer();
 
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId != kTooltipTimerId)
+    if (timerId != (UINT_PTR) AppTimerId::ExplorerTooltip)
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -1189,7 +1190,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  Nothing left to animate: the tick stops until the next input.
     if (!barsMoved && !IsTickWanted())
     {
-        KillTimer (GetHwnd(), kTooltipTimerId);
+        KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip);
         m_tickArmed = false;
     }
 
@@ -1216,7 +1217,7 @@ void CassoExplorerWindow::ArmTick()
 {
     if (!m_tickArmed && GetHwnd() != nullptr)
     {
-        m_tickArmed = SetTimer (GetHwnd(), kTooltipTimerId, kTooltipTickMs, nullptr) != 0;
+        m_tickArmed = SetTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerTooltip, kTooltipTickMs, nullptr) != 0;
     }
 }
 

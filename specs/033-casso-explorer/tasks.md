@@ -1280,6 +1280,48 @@ share project and filter files; T279 after T269 and T278; T280 after all
 of them; T281 last. The laptop session stays off every file in scope
 until T281.
 
+## Phase 27: The window's second pass (SC-037)
+
+**Purpose**: the owner's review of the window's split, 2026-10-28. The
+components accessed the window's internals as friends, one preview class
+covered every kind of preview, IDs and text settings were scattered, and
+the headers were neither ordered nor aligned. The //c walkthrough (T214)
+waits for this phase, so it is tested once.
+
+- [ ] T282 Put every CassoEmuCore timer id in one `enum class` in
+  `CassoEmuCore/Core/AppTimerIds.h`, so no two can collide, and the
+  window's private messages in an `enum class` in
+  `CassoEmuCore/CassoExplorer/CassoExplorerWindow.h`.
+- [ ] T283 Rename `ExplorerLinks` to `CassoLinkManager`, with Connection
+  for a configured endpoint (`EditConnection`, `RemoveConnection`),
+  `ExplorerDispatch` to `ExplorerCommandManager` and `ExplorerTabStrip` to
+  `ExplorerTabManager`. Put the UI elements in
+  `CassoEmuCore/CassoExplorer/Window/Panes/` and the helpers in
+  `CassoEmuCore/CassoExplorer/Window/Managers/`. A class that is not a
+  Dxui control takes routed events as `HandleMouse` and `HandleKey`.
+- [ ] T284 Replace the components' friendship with the window by
+  `ExplorerContext`: the shared services, the components' public
+  interfaces, and the window's own operations through an interface the
+  window implements. The window's focus, splitters and layout bands move
+  to the components that use them, and the window has no friend
+  declarations.
+- [ ] T285 Make the preview a manager that creates and runs one class per
+  kind of preview (listing, text, hex, picture, archive, shell), with the
+  toolbar and find bar shared.
+- [ ] T286 Add text styles per use and a metrics class for padding and
+  alignment to Casso Explorer's classes, in place of the font sizes, strengths
+  and inset constants spread through them. The same for all of Dxui is a
+  separate issue.
+- [ ] T287 Extend `scripts/CheckStyle.ps1` and `scripts/FixDeclAlign.ps1`
+  to align function declarations' `(` columns, the `*` and `&` column,
+  and brace initializers, and sweep the backlog it finds.
+- [ ] T288 Order every header in the window and its components: friends,
+  constructor and destructor, public, protected, private, with the `OnXxx`
+  handlers together; move the declarations' comments to the
+  implementations; align every block.
+- [ ] T289 The gate of T280, and one review agent, as T281.
+
+**Dependencies**: in order. T214 follows T289.
 ## Section H dependencies
 
 - **Phase 16 first.** T181 before T182 to T186.

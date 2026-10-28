@@ -48,7 +48,7 @@ void ExplorerLayout::ConfigureWidgets()
 
     //  The commands installed apps add to Explorer's menus, and New's
     //  choices, read once.
-    m_window.m_menus.StartPackagedCommands (m_window.GetHwnd(), CassoExplorerWindow::kNewChoicesMessage);
+    m_window.m_menus.StartPackagedCommands (m_window.GetHwnd(), (UINT) ExplorerMessage::NewChoices);
 
     m_window.m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
     m_window.m_treeSplitter->SetOnMoved ([this] (int dip)

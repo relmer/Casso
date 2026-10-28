@@ -10,6 +10,7 @@
 #include "Core/TextEncoding.h"
 #include "Config/CrtResolver.h"
 #include "Config/CrtPresets.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -154,7 +155,7 @@ void ExplorerPreview::Configure()
     m_previewMessage->SetOwnerWindow  (m_window.GetHwnd());
 
     //  Windows' own previews of host files, hosted over the pane.
-    hr = m_shellPreview.Start (m_window.GetHwnd(), CassoExplorerWindow::kShellPreviewMessage);
+    hr = m_shellPreview.Start (m_window.GetHwnd(), (UINT) ExplorerMessage::ShellPreview);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     grouped = m_hexView->SetGrouping (prefs.hexGrouping);
@@ -1201,7 +1202,7 @@ void ExplorerPreview::UpdateShellPreview (const PreviewContent & preview)
     {
         if (!m_shellPreviewPath.empty())
         {
-            KillTimer (m_window.GetHwnd(), CassoExplorerWindow::kShellPreviewTimerId);
+            KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
             m_shellPreview.Unload();
             m_shellPreviewPath.clear();
             m_shellPicture = false;
@@ -1223,7 +1224,7 @@ void ExplorerPreview::UpdateShellPreview (const PreviewContent & preview)
                                   RGB ((background >> 16) & 0xFF, (background >> 8) & 0xFF, background & 0xFF),
                                   RGB ((text >> 16) & 0xFF, (text >> 8) & 0xFF, text & 0xFF));
 
-    SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kShellPreviewTimerId, kShellPreviewTimeoutMs, nullptr);
+    SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview, kShellPreviewTimeoutMs, nullptr);
 }
 
 
@@ -1250,7 +1251,7 @@ void ExplorerPreview::OnShellPreviewResult()
         return;
     }
 
-    KillTimer (m_window.GetHwnd(), CassoExplorerWindow::kShellPreviewTimerId);
+    KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
 
     switch (result.outcome)
     {
@@ -1285,7 +1286,7 @@ void ExplorerPreview::OnShellPreviewResult()
 
 void ExplorerPreview::ShowShellPreviewBytes()
 {
-    KillTimer (m_window.GetHwnd(), CassoExplorerWindow::kShellPreviewTimerId);
+    KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerShellPreview);
     m_shellPreview.Unload();
     m_shellPreviewPath.clear();
     m_shellPicture = false;

@@ -71,6 +71,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -1704,20 +1705,20 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == ShellUpdater::kSharedCheckTimerId)
+    if (timerId == (UINT_PTR) AppTimerId::ShellSharedCheck)
     {
         m_updater->PollSharedCheckRecord();
         return DxuiMessageResult::Handled;
     }
 
-    if (timerId != ShellSettings::kPrefsSaveTimerId)
+    if (timerId != (UINT_PTR) AppTimerId::ShellPrefsSave)
     {
         return DxuiMessageResult::NotHandled;
     }
 
     if (m_hwnd != nullptr && m_host != nullptr)
     {
-        hr = m_host->KillTimer (ShellSettings::kPrefsSaveTimerId);
+        hr = m_host->KillTimer ((UINT_PTR) AppTimerId::ShellPrefsSave);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 

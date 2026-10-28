@@ -23,6 +23,7 @@
 #include "Ui/Settings/SettingsSheet.h"
 #include "CommandLineParser.h"
 #include "Version.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -531,7 +532,7 @@ void ShellUpdater::StartSharedCheckWait()
 
     BAIL_OUT_IF (m_shell.m_host == nullptr, S_OK);
 
-    hr = m_shell.m_host->SetTimer (kSharedCheckTimerId, UpdateSchedule::kSharedCheckPollMs);
+    hr = m_shell.m_host->SetTimer ((UINT_PTR) AppTimerId::ShellSharedCheck, UpdateSchedule::kSharedCheckPollMs);
     CHRA (hr);
 
     m_isSharedCheckWaiting = true;
@@ -621,7 +622,7 @@ void ShellUpdater::StopSharedCheckWait()
 
     if (m_isSharedCheckWaiting && m_shell.m_host != nullptr)
     {
-        hr = m_shell.m_host->KillTimer (kSharedCheckTimerId);
+        hr = m_shell.m_host->KillTimer ((UINT_PTR) AppTimerId::ShellSharedCheck);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Seams/Win32PreviewHelper.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -226,7 +227,7 @@ int Win32PreviewHelper::Run (HWND owner, int slot)
                                     0, 0, 0, 0, nullptr, nullptr, module, &state);
     CWR (state.window != nullptr);
 
-    SetTimer (state.window, s_kOwnerTimerId, s_kOwnerCheckMs, nullptr);
+    SetTimer (state.window, (UINT_PTR) AppTimerId::PreviewHelperOwner, s_kOwnerCheckMs, nullptr);
 
     posted = PostMessageW (owner, kReadyMessage, (WPARAM) slot, (LPARAM) state.window);
     CWR (posted);
@@ -323,7 +324,7 @@ LRESULT CALLBACK Win32PreviewHelper::WindowProc (HWND hwnd, UINT msg, WPARAM wPa
             return 1;
 
         case WM_TIMER:
-            if (wParam == s_kOwnerTimerId && !IsWindow (state->owner))
+            if (wParam == (UINT_PTR) AppTimerId::PreviewHelperOwner && !IsWindow (state->owner))
             {
                 DestroyWindow (hwnd);
             }

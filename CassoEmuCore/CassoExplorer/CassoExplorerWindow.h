@@ -38,6 +38,37 @@ class IFolderWatcher;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerMessage
+//
+//  The Casso Explorer window's private messages. WM_APP + 0x3B and 0x3C are
+//  Win32PreviewHelper's, which it posts to the same window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ExplorerMessage : UINT
+{
+    Reply          = WM_APP + 0x31,
+    FolderChanged  = WM_APP + 0x32,
+    RunCommand     = WM_APP + 0x33,
+    DropMenu       = WM_APP + 0x34,
+    IconsLoaded    = WM_APP + 0x35,
+    InfoTip        = WM_APP + 0x36,
+    RecycleBin     = WM_APP + 0x37,
+    ShellListed    = WM_APP + 0x38,
+    ContentDetails = WM_APP + 0x39,
+    ShellPreview   = WM_APP + 0x3A,
+    NewChoices     = WM_APP + 0x3D,
+    CassoLink      = WM_APP + 0x3E,
+    RunningCasso   = WM_APP + 0x3F,
+    Launch         = WM_APP + 0x41,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow
 //
 //  The browser's top-level window: menu bar, tree, splitter, file list,
@@ -135,7 +166,6 @@ public:
     //  Windows changed its light or dark setting or its accent: Follow
     //  system takes the new one at once, and every theme takes the accent.
     void    OnThemeChanged    () override;
-    static constexpr UINT_PTR  kTooltipTimerId = 0x5153;
     static constexpr UINT      kTooltipTickMs  = 16;   // the menus' reveal runs on it too, so display rate
     static constexpr float     kNewTabGapDip   = 6.67f;   // the last tab to the + button
 
@@ -148,61 +178,9 @@ public:
     static constexpr int    kMinWindowWidthDip   = 200;
     static constexpr int    kCascadeStepDip      = 32;   // a second window's offset from the saved placement
 
-    //  The private message that holds a deferred Casso reply to the UI.
-    static constexpr UINT  kReplyMessage = WM_APP + 0x31;
-
-    //  A watched folder changed. Posted from the watcher's thread, which does
-    //  nothing else.
-    static constexpr UINT      kFolderChangedMessage = WM_APP + 0x32;
-
-    //  Runs the command whose id is in wParam, as its button or menu row
-    //  would, when it is enabled. A posted message reaches every command
-    //  without the pointer or a menu, which is how a walkthrough is driven
-    //  from outside the process; a popup menu does not take posted clicks.
-    static constexpr UINT      kRunCommandMessage    = WM_APP + 0x33;
-
 private:
-    //  A right-drag's menu, opened after the drop returns. Holding the drop
-    //  open while a menu is up would hold the dragging program's own loop
-    //  open with it.
-    static constexpr UINT      kDropMenuMessage      = WM_APP + 0x34;
-
-    //  Posted by the list's icon loader when icons it was asked for are ready.
-    static constexpr UINT      kIconsLoadedMessage   = WM_APP + 0x35;
-
-    //  Posted by the tip reader when an item's shell tip is ready.
-    static constexpr UINT      kInfoTipMessage       = WM_APP + 0x36;
-
-    //  Posted by the shell when the Recycle Bin's contents may have changed.
-    static constexpr UINT      kRecycleBinMessage    = WM_APP + 0x37;
-
-    //  Posted by a shell folder's reader when its listing is in.
-    static constexpr UINT      kShellListedMessage   = WM_APP + 0x38;
-
-    //  Posted by the Content view's reader when items' details are in.
-    static constexpr UINT      kContentDetailsMessage = WM_APP + 0x39;
-
-    //  Posted by the shell preview's thread when a load is done.
-    static constexpr UINT      kShellPreviewMessage  = WM_APP + 0x3A;
-
-    //  Posted once the shell's New menu choices are read.
-    static constexpr UINT      kNewChoicesMessage    = WM_APP + 0x3D;
-
-    //  Posted by an CassoLink when an operation is done or its state changes.
-    static constexpr UINT      kLinkMessage          = WM_APP + 0x3E;
-    static constexpr UINT      kRunningMessage       = WM_APP + 0x3F;
-
-    //  Posted to itself once another launch has forwarded its arguments, so
-    //  the launch's send returns before a window opens.
-    static constexpr UINT      kLaunchMessage        = WM_APP + 0x41;
 
 public:
-    static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
-    static constexpr UINT_PTR  kRestoreTimerId       = 0x5155;   // re-reads while the Recycle Bin restores
-    static constexpr UINT_PTR  kRecycleBinTimerId    = 0x5156;   // settles the bin's changes before a re-read
-    static constexpr UINT_PTR  kDriveTimerId         = 0x5157;   // polls for drives attached or removed
-    static constexpr UINT_PTR  kShellPreviewTimerId  = 0x5158;   // gives up on a shell preview that has not arrived
-    static constexpr UINT_PTR  kRefreshTimerId       = 0x5159;   // refills the list after a refresh's blank
 
     //  How long to let a burst settle before re-reading. Copying a hundred
     //  files reports a hundred changes; re-reading once at the end is both

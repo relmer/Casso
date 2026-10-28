@@ -91,7 +91,6 @@ private:
     static constexpr ULONG_PTR  s_kUnloadCopyId    = 0x43455032;
     static constexpr UINT       s_kRunLoadMessage  = WM_APP + 1;
     static constexpr UINT       s_kUnloadMessage   = WM_APP + 2;
-    static constexpr UINT_PTR   s_kOwnerTimerId    = 1;
     static constexpr UINT       s_kOwnerCheckMs    = 2000;
     static constexpr UINT       s_kSendTimeoutMs   = 2000;
 

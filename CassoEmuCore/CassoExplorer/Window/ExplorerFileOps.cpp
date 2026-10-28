@@ -14,6 +14,7 @@
 #include "Core/JsonWriter.h"
 #include "Core/MachineScanner.h"
 #include "Core/TextEncoding.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -988,7 +989,7 @@ void ExplorerFileOps::UndoLast()
         case UndoStep::Kind::Recycle:
             hr = m_window.m_shellVerbs.RestoreRecycled (m_window.GetHwnd(), step.paths);
             m_restoreTicks = kRestoreRetries;
-            SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kRestoreTimerId, 1000, nullptr);
+            SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore, 1000, nullptr);
             break;
 
         case UndoStep::Kind::HostRename:

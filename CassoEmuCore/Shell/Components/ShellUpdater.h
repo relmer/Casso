@@ -62,7 +62,6 @@ public:
 
     // An instance whose startup check was skipped for the check lock polls
     // the prefs file for the record the lock holder writes.
-    static constexpr UINT_PTR  kSharedCheckTimerId = 0xCA56;
 
 private:
     UpdateService *        GetUpdateService            ();

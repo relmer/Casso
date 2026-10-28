@@ -80,8 +80,6 @@ private:
 
     static constexpr int    kXInputSlotCount     = 4;
     static constexpr int    kCapabilitiesOrdinal = 108;
-    static constexpr UINT   kRescanSoonTimerId   = 1;
-    static constexpr UINT   kRescanLateTimerId   = 2;
     static constexpr UINT   kRescanSoonMs        = 300;
     static constexpr UINT   kRescanLateMs        = 2000;
 

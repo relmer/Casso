@@ -1082,7 +1082,7 @@ void ExplorerDragDrop::OnDrop (IDataObject * data, int tag, POINT screen)
         m_pendingDrop.sourceKind   = source.kind;
         m_pendingDrop.catalogPaths = source.catalogPaths;
 
-        posted = PostMessageW (m_window.GetHwnd(), CassoExplorerWindow::kDropMenuMessage, 0, 0);
+        posted = PostMessageW (m_window.GetHwnd(), (UINT) ExplorerMessage::DropMenu, 0, 0);
         IGNORE_RETURN_VALUE (posted, TRUE);
         return;
     }

@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/RefreshAnchor.h"
 #include "CassoExplorer/Model/FolderWatch.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -484,7 +485,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
     //  would change. The changes wait, and the timer tries again.
     if (m_window.m_fileOps.IsRenaming() || m_window.m_listPane.IsBusy() || m_window.m_treePane.IsInteracting())
     {
-        SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId, CassoExplorerWindow::kFolderSettleMs, nullptr);
+        SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
         return;
     }
 
@@ -562,7 +563,7 @@ void ExplorerFolderSync::StartWatch()
 
     m_folderWatch->SetOnChanged ([this] ()
     {
-        PostMessageW (m_window.GetHwnd(), CassoExplorerWindow::kFolderChangedMessage, 0, 0);
+        PostMessageW (m_window.GetHwnd(), (UINT) ExplorerMessage::FolderChanged, 0, 0);
     });
 }
 
@@ -587,7 +588,7 @@ void ExplorerFolderSync::StartPolling()
 
 
     m_driveMask = GetLogicalDrives();
-    SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kDriveTimerId, kDrivePollMs, nullptr);
+    SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
 
     hr = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
 
@@ -626,7 +627,7 @@ void ExplorerFolderSync::OnFolderChanged()
 
     if (now - m_firstChangeMs < CassoExplorerWindow::kFolderMaxSettleMs)
     {
-        SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId, CassoExplorerWindow::kFolderSettleMs, nullptr);
+        SetTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder, CassoExplorerWindow::kFolderSettleMs, nullptr);
     }
 }
 
@@ -642,7 +643,7 @@ void ExplorerFolderSync::OnFolderChanged()
 
 void ExplorerFolderSync::OnSettleTimer()
 {
-    KillTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId);
+    KillTimer (m_window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerFolder);
     m_firstChangeMs = 0;
     RefreshChangedFolders();
 }

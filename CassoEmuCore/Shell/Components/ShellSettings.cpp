@@ -11,6 +11,7 @@
 #include "Ui/Settings/SettingsJson.h"
 #include "Ui/Settings/SettingsSheet.h"
 #include "Ui/ThemeManager.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -420,7 +421,7 @@ void ShellSettings::SaveGlobalPrefsDeferred()
         return;
     }
 
-    hr = m_shell.m_host->SetTimer (kPrefsSaveTimerId, kPrefsSaveDelayMs);
+    hr = m_shell.m_host->SetTimer ((UINT_PTR) AppTimerId::ShellPrefsSave, kPrefsSaveDelayMs);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
