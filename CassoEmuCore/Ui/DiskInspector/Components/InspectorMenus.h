@@ -36,6 +36,8 @@ public:
     void  Rebuild     ();
     bool  IsActive    () const;
 
+    const DxuiMenuBar &  GetMenuBar () const { return *m_menuBar; }
+
 private:
     InspectorSession           & m_session;
     IInspectorComponentHost    & m_host;

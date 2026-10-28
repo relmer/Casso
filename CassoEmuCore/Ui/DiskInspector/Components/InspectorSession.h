@@ -55,11 +55,12 @@ struct InspectorViews
 //  Where the window laid out its areas, in pixels.
 struct InspectorLayout
 {
-    RECT  toolbar     = {};
-    RECT  platterArea = {};
-    RECT  trackArea   = {};
-    RECT  diskContent = {};
-    RECT  stripArea   = {};
+    RECT  toolbar       = {};
+    RECT  platterArea   = {};
+    RECT  platterColumn = {};
+    RECT  trackArea     = {};
+    RECT  diskContent   = {};
+    RECT  stripArea     = {};
 };
 
 

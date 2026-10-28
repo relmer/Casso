@@ -509,6 +509,47 @@ double PlatterGeometry::GetScaleAt (const PlatterPlacement & view, double dy)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterGeometry::GetLocalScale
+//
+//  How much larger than flat a pixel of the disk at a turn and radius is
+//  drawn, the less of the scale along the ring and across it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double PlatterGeometry::GetLocalScale (const PlatterPlacement & view, double turn, double radiusPx)
+{
+    static constexpr double  kTwoPi = 6.283185307179586;
+
+
+
+    float   x0    = 0.0f;
+    float   y0    = 0.0f;
+    float   x1    = 0.0f;
+    float   y1    = 0.0f;
+    float   x2    = 0.0f;
+    float   y2    = 0.0f;
+    double  scale = 1.0;
+
+
+
+    if (view.tilt != 0.0f && radiusPx > 0.0)
+    {
+        ProjectAt (view, turn,                                     radiusPx,       x0, y0);
+        ProjectAt (view, turn + 1.0 / (kTwoPi * radiusPx),         radiusPx,       x1, y1);
+        ProjectAt (view, turn,                                     radiusPx + 1.0, x2, y2);
+
+        scale = std::min (std::hypot (x1 - x0, y1 - y0), std::hypot (x2 - x0, y2 - y0));
+    }
+
+    return scale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterGeometry::GetPlaneCorners
 //
 //  The rectangle's corners on the disk's plane; false when one is beyond

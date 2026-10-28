@@ -56,6 +56,7 @@ public:
     //  How much larger than flat the disk is drawn at a point, along the
     //  ring and across it; 1 in the flat view.
     static double      GetScaleAt        (const PlatterPlacement & view, double dy);
+    static double      GetLocalScale     (const PlatterPlacement & view, double turn, double radiusPx);
 
     //  The rings and the stretch of the turn a view shows: every ring the
     //  rectangle reaches, and when it does not contain the center, the turns

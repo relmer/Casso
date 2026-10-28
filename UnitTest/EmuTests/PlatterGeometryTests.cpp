@@ -272,4 +272,24 @@ public:
         Assert::IsTrue (PlatterGeometry::GetScaleAt (view, 400.0) > 1.0);
         Assert::IsTrue (PlatterGeometry::GetScaleAt (view, -400.0) < 1.0);
     }
+
+
+
+    TEST_METHOD (APixelOfTheDiskIsDrawnSmallerOnTheFarSideWhenTilted)
+    {
+        PlatterPlacement  view;
+
+
+
+        view.centerXPx     = 500.0f;
+        view.centerYPx     = 500.0f;
+        view.outerRadiusPx = 400.0f;
+
+        Assert::AreEqual (1.0, PlatterGeometry::GetLocalScale (view, 0.0, 300.0), 1e-9, L"flat");
+
+        view.tilt = 0.5f;
+
+        Assert::IsTrue (PlatterGeometry::GetLocalScale (view, 0.0, 300.0) < PlatterGeometry::GetLocalScale (view, 0.5, 300.0),
+                        L"the top of the disk is its far side");
+    }
 };

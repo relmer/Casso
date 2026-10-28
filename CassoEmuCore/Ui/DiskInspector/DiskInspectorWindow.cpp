@@ -1167,7 +1167,8 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_session.views.platter->Layout (platter, scaler);
 
     m_session.layout.platterArea = { boundsDip.left, top, splitX, bandTop };
-    m_corners->Layout ({ boundsDip.left + margin, top + margin, splitX - margin, top + margin + areaH }, scaler);
+    m_session.layout.platterColumn = { boundsDip.left + margin, top + margin, splitX - margin, top + margin + areaH };
+    m_corners->Layout (m_session.layout.platterColumn, scaler);
 
     //  The track column.
     y             = m_trackColumn->Layout (right, scaler);

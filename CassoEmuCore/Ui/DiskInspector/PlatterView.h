@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Pch.h"
 
@@ -87,7 +87,6 @@ private:
 
     //  How many pixels one pixel of the flat disk at a point is drawn as,
     //  the smaller of along the ring and across it; 1 in the flat view.
-    static double  GetLocalScale    (const PlatterPlacement & view, double turn, double radiusPx);
     PlatterPlacement  MakeView       () const;
     InspectorViewModel::Point  ToViewPoint (POINT pointPx) const;
 

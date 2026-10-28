@@ -316,7 +316,7 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
             //  Tilted, a value is left out where the ring is drawn too thin for
             //  it (FR-151).
-            local = GetLocalScale (view, (a + b) / 2, rMid);
+            local = PlatterGeometry::GetLocalScale (view, (a + b) / 2, rMid);
 
             if (showValues && arc * local >= m_scaler.ToPxf (s_kValueMinDip) && ringW * local >= m_scaler.ToPxf (kSmallDip))
             {
@@ -1148,40 +1148,6 @@ void PlatterView::FillDiskCircle (IDxuiPainter & painter, const PlatterPlacement
             y0 = y1;
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlatterView::GetLocalScale
-//
-////////////////////////////////////////////////////////////////////////////////
-
-double PlatterView::GetLocalScale (const PlatterPlacement & view, double turn, double radiusPx)
-{
-    float   x0    = 0.0f;
-    float   y0    = 0.0f;
-    float   x1    = 0.0f;
-    float   y1    = 0.0f;
-    float   x2    = 0.0f;
-    float   y2    = 0.0f;
-    double  scale = 1.0;
-
-
-
-    if (view.tilt != 0.0f && radiusPx > 0.0)
-    {
-        PlatterGeometry::ProjectAt (view, turn,                                     radiusPx,       x0, y0);
-        PlatterGeometry::ProjectAt (view, turn + 1.0 / (s_kTwoPi * radiusPx),       radiusPx,       x1, y1);
-        PlatterGeometry::ProjectAt (view, turn,                                     radiusPx + 1.0, x2, y2);
-
-        scale = std::min (std::hypot (x1 - x0, y1 - y0), std::hypot (x2 - x0, y2 - y0));
-    }
-
-    return scale;
 }
 
 

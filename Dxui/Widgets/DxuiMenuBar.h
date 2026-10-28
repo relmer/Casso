@@ -108,6 +108,7 @@ public:
     int   GetHighlightIndex () const;
     int   GetHoverIndex     () const { return m_hoverIndex;                         }
     int   GetMenuCount      () const { return (int) m_items.size();                 }
+    const std::vector<DxuiMenuBarItem> &  GetItems () const { return m_items; }
     void  SetFocusedMenu    (int menuIndex);
     void  ClearFocus        ();
     bool  HasFocus          () const { return m_hasFocus;                           }

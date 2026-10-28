@@ -1,6 +1,6 @@
 # 040 Disk Inspector: Handoff
 
-State as of 2026-10-26. The `040-disk-inspector` branch is pushed; see
+State as of 2026-10-28. The `040-disk-inspector` branch is pushed; see
 `git log` for the last commit.
 
 ## Setting up on another machine
@@ -13,54 +13,48 @@ State as of 2026-10-26. The `040-disk-inspector` branch is pushed; see
    $env:SPECIFY_FEATURE_DIRECTORY = 'specs/040-disk-inspector'
    ```
 
-## Try-it build
-
-A Debug build is running minimized, titled `040-disk-inspector`, with the
-DOS 3.3 master in drive 1. Close it whenever you like.
-
 ## Built since the last handoff
 
 Each item is a separate commit on the branch.
 
-- Sector editing end to end: the edit bar, apply at a safe point on the
-  emulation thread, undo and redo of an applied edit, Save edited copy, Use
-  B's bytes, and confirmations before an insert, an eject, a drive switch,
-  closing the window or quitting discards pending edits.
-- Pending edits survive Reset, Power Cycle and a machine change, since each
-  of them remounts the same file. An eject discards them, with a note in the
-  edit bar and the status band.
-- Casso confirms before a switch to a machine without slot 6's drives
-  discards pending edits. Every shipped machine has slot 6's drives, so this
-  appears only when slot 6's Disk II is turned off in Settings.
-- An eject now empties the inspector. Before this, an emptied drive's media
-  id matched the window's initial request id, so the old disk stayed on screen.
-- A detached drive 2 reads "Drive 2 is not attached". With a second Disk II
-  in slot 5, the drive tabs' tooltip reads "Slot 6 drives only", and Casso
-  now uses slot 6's card for its drives; before this it took whichever card
-  was built first, which was slot 5's.
-- The tilted view: drag the knob beside the platter, or drag with the right
-  button anywhere on it, up to 60 degrees. "Top down" or a double-click on
-  the knob returns it flat. The tilt is saved with the window. In the tilted
-  view the head is a carriage on its rail with a shadow.
-- The head marker over a turning platter, and the head line, fading trail and
-  drive state on the strip.
-- Written and read marks with visit counts in the Tracks tab, the Reads
-  overlay, and a lock before a write-protected disk's name, with the causes in
-  its tooltip.
-- The Image tab marks values changed since the file was read, tracks the
-  guest added, and a save.
-- The window's state is saved, and the window reopens at launch on its last
-  drive when it was open at exit.
-- An empty drive is drawn as a dashed disk with the reason.
-- Near-black panels behind the sector bytes and the Nibbles tab.
-- The strip's timing line is a shaded waveform in Timing mode.
-- The walkthrough, opened the first time the inspector opens and from the "?"
-  button in the status band.
-- Fixed: in Timing mode the platter column was narrower than its control row,
-  and Legend covered Reads.
-- Guest scenario tests for SC-018 (all four cases) and SC-022, and Release
-  timing tests in `InspectorPerformanceTests`.
+- The window is split into component classes under `Components/` and
+  `Views/` (FR-162), with a CheckStyle rule that fails a `.cpp` over 2,000
+  lines. A menu bar replaces the second toolbar row (FR-158); the platter's
+  controls float in its corners (FR-163); one segmented control picks the
+  view (FR-160); Fields merged into Nibbles.
+- For each quarter track, the drive's access log lists where the guest read
+  a data field, wrote, and scanned an address field (FR-161). "Reads",
+  "Writes" and "Scans" shade each sector by count on a log scale, and the
+  sector buttons and the Sectors header include "Read N times", "Written N times" and "Scanned N
+  times". A scenario test checks that CATALOG, SAVE and RUN mark exactly the
+  sectors DOS's RWTS calls name.
+- The strip brackets each sector from its address prologue to its data
+  epilogue with "✓ Sector $0"; its stretches read "Address" and "Data", and
+  its label reads "Track 17.25". A click on a bracket selects the sector and
+  flies the platter to it; a range dragged out on the strip is flown to the
+  same way (FR-165).
+- Back and Forward step through the user's selections: Alt+Left and
+  Alt+Right, the mouse's back and forward buttons, and the Go menu (FR-164).
+  Dxui now routes `WM_XBUTTONUP` as a Back or Forward mouse button.
+- The window opens on Sectors every time; the selected view is no longer
+  saved (FR-080, FR-160).
+- Component tests host `TrackColumn`, `PlatterCorners` and `InspectorMenus`
+  on `FakeInspectorHost` (T184).
 
+## Checked 2026-10-28 on RELMER-DESKTOP
+
+Debug x64, by `PrintWindow` captures with posted input; nothing took the
+foreground.
+
+- **SC-034.** At 2400×1600 pixels at 150%, a 1600×1067 DIP window, the menu
+  bar, the toolbar, the view selector and the 16 sector buttons each take one
+  row, and all 16 rows of a sector's bytes are visible. Every menu opens and
+  walks by keyboard from F10.
+- The bracket click, Back and Forward, the Scans header line and the heat
+  map, on the DOS 3.3 master after boot.
+- **Fixed while checking:** the outline for the platter's keys followed the
+  square platter, so at this size it ran through the overlay chips and the
+  zoom group. It now follows the platter's column.
 ## Measured on RELMER-DESKTOP
 
 Release, pinned to one core of the cache CCD where it matters:
@@ -145,11 +139,12 @@ the owner.
   Adding an opt-in speed log is your call.
 - **The Print Shop's findings.** Accept them as they are, or group "marked used but no
   file uses it" into one finding per track or per run of tracks.
-- **Menu bar: yes or no.** The mock-ups are in `mockups/`: the window with
-  View open, and every menu's contents. Delete `mockups/` once the menu bar is
-  decided.
+- **The wording of the new strip, menu and overlay text,** listed in the
+  2026-10-28 commit messages.
+- **A state restore as a reload (T094, T114).** See Open work.
 - **The walkthrough's text.** Plain wording for someone new to disk internals
   is a judgment call; it is in `CEC/Ui/DiskInspector/InspectorWalkthrough.cpp`.
+
 ## Open work
 
 - T143, T145: the Explorer halves wait for 033. Casso's theme captures
@@ -157,7 +152,14 @@ the owner.
 - T147: all gates passed 2026-10-26 (Debug 7003, Release 7001, scenarios 55,
   ARM64 Release, analysis clean); run again before the merge.
 - Blocked until 033 merges to master: T129 to T141 and T161.
-- Blocked on 035's machine state: the state-restore parts of T094 and T114.
+- The state-restore parts of T094 and T114. Merging 035 into 040 would tie
+  040's merge to 035's, 1,792 commits ahead of master. Instead 040 can take a
+  call, `DiskImageStore::NoteStateRestored`, that runs the reload path:
+  counts and marks start at zero, the media id changes so the inspector
+  analyzes the whole disk, and the applied-edit history clears. 035's
+  `MachineHost::LoadState` then makes that one call after the merge. Open
+  question: whether "As inserted" after a restore is the restored disk, as
+  after a reload, or the disk as first inserted.
 
 ## Known gaps
 

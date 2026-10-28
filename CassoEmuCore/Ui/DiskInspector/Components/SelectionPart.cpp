@@ -509,7 +509,7 @@ void SelectionPart::StepKeyTarget (int step)
 
 RECT SelectionPart::GetKeyTargetBounds() const
 {
-    RECT  bounds = m_session.views.platter->GetBounds();
+    RECT  bounds = m_session.layout.platterColumn;
 
 
 
