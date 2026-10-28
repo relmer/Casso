@@ -1,7 +1,12 @@
 #include "Pch.h"
 
 #include "Devices/Network/W5100Registers.h"
+#include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/Panes/CommGraph.h"
+#include "Ui/Debugger/Panes/CommSignalGraph.h"
+#include "Ui/Debugger/Panes/FlameGraphView.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -125,6 +130,46 @@ namespace DebuggerTests
             CommGraph::BuildSerial ({ row }, 0, kStart, kEnd, lanes);
 
             Assert::IsTrue (lanes[CommGraph::kTxd].segments.empty());
+        }
+
+
+        //  Drawn at 96 DPI across 1,000 pixels of plot: $55 sent over the
+        //  span's ten bit times has an edge at each bit that changes the
+        //  level, and the tip halfway across the start bit lists it.
+        TEST_METHOD (TheGraphDrawsEachEdgeAndTipsTheBitUnderThePointer)
+        {
+            constexpr float        kPlot   = 1000.0f;
+            CassoTheme             theme   = CassoTheme::MakeSkeuomorphic();
+            CommSignalGraph        graph;
+            MockDxuiPainter        painter;
+            MockDxuiTextRenderer   text;
+            DxuiDpiScaler          scaler;
+            std::vector<CommLane>  lanes;
+            std::wstring           tip;
+            uint64_t               start   = 20'000;
+            uint64_t               end     = start + (uint64_t) std::llround (10.0 * PerBit());
+            uint32_t               txd     = FlameGraphView::GetRoutineColor (CommGraph::kTxd);
+            size_t                 edges   = 0;
+
+
+
+            scaler.SetDpi (96);
+            CommGraph::BuildSerial ({ MakeSerial (IoEventKind::SerialSent, start, 0x55, 0) }, 0, start, end, lanes);
+
+            graph.SetLanes (lanes, std::vector<bool> (CommGraph::kSerialLaneCount, true), start, end, false);
+            graph.Layout (RECT { 0, 0, CommSignalGraph::kLabelDip + (LONG) kPlot, graph.GetHeightDip() }, scaler);
+            graph.Paint (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                edges += (call.kind == RecordedPaintKind::DrawLine && call.argb == txd && call.width < 0.5f && call.height > 0.0f) ? 1 : 0;
+            }
+
+            Assert::AreEqual ((size_t) 10, edges, L"start, the eight alternating data bits, and back to mark for the stop bit");
+
+            Assert::IsTrue (graph.TryGetTipAt (POINT { CommSignalGraph::kLabelDip + (LONG) (kPlot / 20.0f), 2 }, tip));
+            Assert::IsTrue (tip.find (L"TxD: space, start bit of $55") != std::wstring::npos, tip.c_str());
+            Assert::IsFalse (graph.TryGetTipAt (POINT { 2, 2 }, tip), L"none over the lane names");
         }
 
 
