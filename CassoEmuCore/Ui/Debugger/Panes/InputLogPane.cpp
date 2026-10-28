@@ -2,6 +2,8 @@
 
 #include "Debugger/Reverse/InputJournal.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
+#include "Debugger/IoEventLog.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -393,7 +395,19 @@ void InputLogPane::FormatEvent (
         case InputEventType::HostSerialByte:
             outAddress = std::format (L"Serial {}", address + 1);
             outValue   = EventLogText::FormatByteChar (value);
-            outMeaning = L"HOST serial byte " + outValue;
+            outMeaning = L"HOST serial byte " + outValue + TextEncoding::NarrowToWide (IoEventLog::FormatReceiveErrors (flags));
+            break;
+
+        case InputEventType::HostSerialLines:
+            outAddress = std::format (L"Serial {}", address + 1);
+            outValue   = TextEncoding::NarrowToWide (IoEventLog::FormatSerialLines (value));
+            outMeaning = L"HOST serial lines " + outValue;
+            break;
+
+        case InputEventType::HostSerialLink:
+            outAddress = std::format (L"Serial {}", address + 1);
+            outValue   = (value != 0) ? L"OPENED" : L"CLOSED";
+            outMeaning = (value != 0) ? L"HOST serial connection opened" : L"HOST serial connection closed";
             break;
 
         case InputEventType::KbdDataRead:

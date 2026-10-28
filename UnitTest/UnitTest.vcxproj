@@ -151,6 +151,8 @@
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="SerialTests\SerialLinkReportsTests.cpp" />
+    <ClCompile Include="EmuTests\AciaHostLinkTests.cpp" />
     <ClCompile Include="SerialTests\SerialLineFormatTests.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

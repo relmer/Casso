@@ -4,6 +4,8 @@
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/IoEventLog.h"
+#include "Devices/Acia6551.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -695,6 +697,64 @@ namespace EventLogPaneTests
 
             Assert::AreEqual (std::wstring (L"Serial 2"), address);
             Assert::AreEqual (L"HOST serial byte " + value, meaning);
+        }
+
+
+        TEST_METHOD (ASerialByteWithErrorsListsThem)
+        {
+            DxuiListView   list;
+            InputLogPane   pane (&list, [] (const std::string &) {});
+            std::wstring   address;
+            std::wstring   value;
+            std::wstring   meaning;
+            InputEvent     event = MakeInputRow (10, InputEventType::HostSerialByte, 0, 0).event;
+
+
+
+            event.payload.io.flags = Acia6551::kRxErrorFraming | Acia6551::kRxErrorParity;
+
+            pane.FormatEvent (event, address, value, meaning);
+
+            Assert::AreEqual (L"HOST serial byte " + value + L", parity and framing errors", meaning);
+        }
+
+
+        TEST_METHOD (SerialLinesListTheLinesOn)
+        {
+            DxuiListView   list;
+            InputLogPane   pane (&list, [] (const std::string &) {});
+            std::wstring   address;
+            std::wstring   value;
+            std::wstring   meaning;
+            InputEvent     event = MakeInputRow (10, InputEventType::HostSerialLines, 0, IoEventLog::kLineCts | IoEventLog::kLineDcd).event;
+
+
+
+            pane.FormatEvent (event, address, value, meaning);
+
+            Assert::AreEqual (std::wstring (L"Serial 1"), address);
+            Assert::AreEqual (std::wstring (L"CTS DCD"), value);
+            Assert::AreEqual (std::wstring (L"HOST serial lines CTS DCD"), meaning);
+        }
+
+
+        TEST_METHOD (ASerialConnectionListsOpenedOrClosed)
+        {
+            DxuiListView   list;
+            InputLogPane   pane (&list, [] (const std::string &) {});
+            std::wstring   address;
+            std::wstring   value;
+            std::wstring   meaning;
+            InputEvent     opened = MakeInputRow (10, InputEventType::HostSerialLink, 1, 1).event;
+            InputEvent     closed = MakeInputRow (11, InputEventType::HostSerialLink, 1, 0).event;
+
+
+
+            pane.FormatEvent (opened, address, value, meaning);
+            Assert::AreEqual (std::wstring (L"HOST serial connection opened"), meaning);
+
+            pane.FormatEvent (closed, address, value, meaning);
+            Assert::AreEqual (std::wstring (L"HOST serial connection closed"), meaning);
         }
 
 

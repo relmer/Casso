@@ -1312,6 +1312,19 @@ bool DebugEventLogs::TryMakeRow (
             event.type               = InputEventType::HostSerialByte;
             event.payload.io.address = record.detail;
             event.payload.io.value   = record.value;
+            event.payload.io.flags   = static_cast<uint8_t> (record.data);
+            break;
+
+        case InputKind::AciaLines:
+            event.type               = InputEventType::HostSerialLines;
+            event.payload.io.address = record.detail;
+            event.payload.io.value   = record.value;
+            break;
+
+        case InputKind::AciaConnection:
+            event.type               = InputEventType::HostSerialLink;
+            event.payload.io.address = record.detail;
+            event.payload.io.value   = record.value;
             break;
 
         default:

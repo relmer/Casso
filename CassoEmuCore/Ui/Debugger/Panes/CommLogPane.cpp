@@ -2,6 +2,8 @@
 
 #include "Ui/Debugger/Panes/CommLogPane.h"
 #include "Ui/Debugger/Panes/CommGraph.h"
+#include "Core/TextEncoding.h"
+#include "Debugger/IoEventLog.h"
 
 
 
@@ -132,6 +134,7 @@ bool CommLogPane::IsDataRow (const IoEvent & event)
     {
     case IoEventKind::SerialSent:
     case IoEventKind::SerialReceived:
+    case IoEventKind::SerialConnection:
     case IoEventKind::SocketSent:
     case IoEventKind::SocketReceived:
         return true;
@@ -248,33 +251,49 @@ bool CommLogPane::Matches (
 //
 //  CommLogPane::MakeCells
 //
+//  A serial connection's row has the far end's address as its text and no
+//  hex; a received byte's direction lists its receive errors.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommLogPane::MakeCells (
     const Row  & row,
     Cells      & out) const
 {
-    const IoEvent          & event      = row.event;
-    bool                     isReceived = event.kind == IoEventKind::SerialReceived || event.kind == IoEventKind::SocketReceived;
+    const IoEvent          & event        = row.event;
+    bool                     isReceived   = event.kind == IoEventKind::SerialReceived || event.kind == IoEventKind::SocketReceived;
+    bool                     isConnection = event.kind == IoEventKind::SerialConnection;
     std::span<const Byte>    bytes;
 
 
 
-    if (m_isNetwork)
+    if (m_isNetwork || isConnection)
     {
         bytes = (row.data != nullptr) ? std::span<const Byte> (*row.data) : std::span<const Byte>();
+    }
+    else
+    {
+        bytes = std::span<const Byte> (&event.value, 1);
+    }
 
+    if (m_isNetwork)
+    {
         out[kPort].text   = std::format (L"Socket {}", event.chip);
         out[kLength].text = std::format (L"{}", event.length);
     }
     else
     {
-        bytes = std::span<const Byte> (&event.value, 1);
-
         out[kPort].text = std::format (L"Port {}", event.chip + 1);
     }
 
-    out[kDirection].text = isReceived ? L"Received" : L"Sent";
+    if (isConnection)
+    {
+        out[kDirection].text = (event.value != 0) ? L"Connected" : L"Disconnected";
+        out[kText].text      = TextEncoding::NarrowToWide (std::string (bytes.begin(), bytes.end()));
+        return;
+    }
+
+    out[kDirection].text = isReceived ? L"Received" + TextEncoding::NarrowToWide (IoEventLog::FormatReceiveErrors (event.reg)) : L"Sent";
     out[kText].text      = FormatText (bytes);
     out[kHex].text       = FormatHex (bytes);
 }

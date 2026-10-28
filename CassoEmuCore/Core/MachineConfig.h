@@ -165,11 +165,35 @@ struct DeviceConfig
 //  not interchangeable. A card's connectors are numbered rather than named, so
 //  they leave it empty and are read positionally.
 //
+//
+//  The options of a serial connector's COM port, TCP and modem attachments.
+//  Ports are kept as read so the build can report one out of range. Telnet
+//  is unset when the entry has no `telnet` key; the TCP attachment then
+//  passes bytes as they are and the modem uses Telnet.
+//
+struct SerialAttachmentOptions
+{
+    static constexpr int  kDefaultTcpPort = 1977;
+
+    string          comPort;
+    string          host;
+    int             tcpPort         = kDefaultTcpPort;
+    bool            listen          = false;
+    optional<bool>  telnet;
+    int             modemListenPort = 0;
+
+    bool IsTelnetOn (bool isModem) const { return telnet.value_or (isModem); }
+
+    bool operator== (const SerialAttachmentOptions & other) const = default;
+};
+
+
 struct PortConfig
 {
-    string  name;      // "disk", "serial1", "joystick"; empty for numbered ports
-    string  device;    // what is attached; empty for an unoccupied port
-    string  path;      // a host file, for the serial file attachments
+    string                   name;      // "disk", "serial1", "joystick"; empty for numbered ports
+    string                   device;    // what is attached; empty for an unoccupied port
+    string                   path;      // a host file, for the serial file attachments
+    SerialAttachmentOptions  serial;    // the COM port, TCP and modem attachments' options
 };
 
 
@@ -198,6 +222,13 @@ static constexpr const char *  kpszSerialCardFirmware      = "SSC.rom";
 static constexpr const char *  kpszSerialLoopback = "serial-loopback";
 static constexpr const char *  kpszSerialFileOut  = "serial-file-out";
 static constexpr const char *  kpszSerialFileIn   = "serial-file-in";
+static constexpr const char *  kpszSerialComPort  = "serial-com-port";
+static constexpr const char *  kpszSerialTcp      = "serial-tcp";
+static constexpr const char *  kpszSerialModem    = "serial-modem";
+
+// The //c's serial connectors, by their names in the machine's ports list.
+static constexpr const char *  kpszSerialPort1Name = "serial1";
+static constexpr const char *  kpszSerialPort2Name = "serial2";
 
 
 //
@@ -598,6 +629,8 @@ private:
     // before the key existed depends on that reading.
     static void    ParsePorts         (const JsonValue    & owner,
                                        vector<PortConfig> & outPorts);
+    static void    ParseSerialOptions (const JsonValue          & entry,
+                                       SerialAttachmentOptions  & outOptions);
 
     static HRESULT LoadTiming         (const JsonValue & timing,
                                        MachineConfig   & outConfig,

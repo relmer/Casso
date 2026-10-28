@@ -118,6 +118,11 @@ public:
     static constexpr uint32_t  kCrystalHz         = 1843200;
     static constexpr uint32_t  kDefaultCpuClockHz = 1022727;
 
+    // How often a host link is polled: after a poll that moved something,
+    // and after one that did not.
+    static constexpr uint32_t  kActivePollCycles  = 1024;
+    static constexpr uint32_t  kIdlePollCycles    = 8192;
+
     explicit                 Acia6551 (Word baseAddress);
 
     // MemoryDevice
@@ -160,10 +165,24 @@ public:
     // chip itself sent.
     void    EnqueueLoopedBackByte (Byte value);
 
-    // A byte with its receive errors put straight into the receive queue,
-    // without journaling: for an attachment's state at build time and when
-    // the machine drops its connections. Emulation thread.
+    // Called by a host link from its poll, on the emulation thread: a byte
+    // with its receive errors, the levels of CTS, DSR and DCD, and a
+    // connection opening or closing, with the far end's address. Each is
+    // journaled, while the journal is attached, as made during the
+    // instruction just run; the lines only when they differ from the chip's.
+    void    ReceiveFromHost       (Byte value, Byte errors);
+    void    SetHostLines          (bool cts, bool dsr, bool dcd);
+    void    NoteHostConnection    (bool isOpen, std::string_view peer);
+
+    // The same, put straight into the chip without journaling: for an
+    // attachment's state at build time and when the machine drops its
+    // connections. Emulation thread.
     void    ReceiveFromHostNow    (Byte value, Byte errors);
+    void    ApplyHostLinesNow     (bool cts, bool dsr, bool dcd);
+
+    // Emulated cycles ticked since the chip was built, never rewound: a host
+    // link's clock.
+    uint64_t  GetElapsedCycles () const { return m_elapsedCycles; }
 
     // Reverse execution: the journal for the bytes taken from an attachment,
     // or null, with this chip's index among the machine's serial chips; the
@@ -252,7 +271,9 @@ private:
     double  GetReceiveBaud         () const;
     Byte    GetLineBits            () const;
     void    NoteLines              ();
-    void    EmitComm               (IoEventKind kind, Byte value, Byte errors = 0);
+    void    NoteFormat             ();
+    void    PollHostLink           (uint32_t cycles);
+    void    EmitComm               (IoEventKind kind, Byte value, Byte errors = 0, std::span<const Byte> bytes = {});
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;
@@ -296,6 +317,13 @@ private:
 
     IAciaEndpoint *           m_endpoint      = nullptr;
     bool                      m_isOutputMuted = false;
+    bool                      m_isHostLink    = false;
+    int64_t                   m_pollRemaining = 0;          // cycles to the host link's next poll
+    uint64_t                  m_elapsedCycles = 0;
+    uint32_t                  m_tickCycles    = 0;          // the cycles of the tick being run, for journal stamps
+    Byte                      m_notedControl  = 0;          // the format last passed to the endpoint
+    Byte                      m_notedCommand  = 0;
+    bool                      m_isFormatSent  = false;
 
     InputJournal         *    m_inputJournal = nullptr;
     uint16_t                  m_chipIndex    = 0;

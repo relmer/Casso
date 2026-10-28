@@ -2,6 +2,7 @@
 
 #include "Debugger/IoEventLog.h"
 #include "Debugger/Reply.h"
+#include "Devices/Acia6551.h"
 
 
 
@@ -241,11 +242,15 @@ std::string IoEventLog::FormatEvent (const IoEvent & entry)
         break;
 
     case IoEventKind::SerialReceived:
-        text = std::format ("port {} received ${:02X}", entry.chip + 1, entry.value);
+        text = std::format ("port {} received ${:02X}{}", entry.chip + 1, entry.value, FormatReceiveErrors (entry.reg));
         break;
 
     case IoEventKind::SerialOverrun:
         text = std::format ("port {} overrun", entry.chip + 1);
+        break;
+
+    case IoEventKind::SerialConnection:
+        text = std::format ("port {} connection {}", entry.chip + 1, (entry.value != 0) ? "opened" : "closed");
         break;
 
     case IoEventKind::SocketState:
@@ -259,6 +264,87 @@ std::string IoEventLog::FormatEvent (const IoEvent & entry)
     case IoEventKind::SocketReceived:
         text = std::format ("socket {} received {} bytes", entry.chip, entry.length);
         break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventLog::FormatSerialLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string IoEventLog::FormatSerialLines (Byte lines)
+{
+    static constexpr std::pair<Byte, const char *>  kNames[] =
+    {
+        { kLineDtr, "DTR" }, { kLineRts, "RTS" }, { kLineCts, "CTS" }, { kLineDsr, "DSR" }, { kLineDcd, "DCD" }, { kLineIrq, "IRQ" },
+    };
+    std::string  text;
+
+
+
+    for (const auto & [bit, name] : kNames)
+    {
+        if ((lines & bit) != 0)
+        {
+            text += text.empty() ? name : std::string (" ") + name;
+        }
+    }
+
+    return text.empty() ? std::string ("none") : text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventLog::FormatReceiveErrors
+//
+//  Joined as English lists: "parity and framing errors", "parity, framing
+//  and overrun errors".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string IoEventLog::FormatReceiveErrors (Byte errors)
+{
+    std::vector<const char *>  names;
+    std::string                text;
+    size_t                     i     = 0;
+
+
+
+    if (errors & Acia6551::kRxErrorParity)
+    {
+        names.push_back ("parity");
+    }
+
+    if (errors & Acia6551::kRxErrorFraming)
+    {
+        names.push_back ("framing");
+    }
+
+    if (errors & Acia6551::kRxErrorOverrun)
+    {
+        names.push_back ("overrun");
+    }
+
+    for (i = 0; i < names.size(); i++)
+    {
+        text += (i == 0) ? ", " : (i + 1 == names.size()) ? " and " : ", ";
+        text += names[i];
+    }
+
+    if (!names.empty())
+    {
+        text += (names.size() == 1) ? " error" : " errors";
     }
 
     return text;

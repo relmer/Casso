@@ -632,7 +632,7 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
         isApplied = m_joyport->ApplyInput (record);
     }
 
-    if (!isApplied && record.kind == InputKind::AciaByte && record.detail < m_refs.serialChips.size())
+    if (!isApplied && IsSerialInput (record.kind) && record.detail < m_refs.serialChips.size())
     {
         isApplied = m_refs.serialChips[record.detail]->ApplyInput (record);
     }
@@ -643,6 +643,21 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
     }
 
     return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::IsSerialInput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineHost::IsSerialInput (InputKind kind)
+{
+    return kind == InputKind::AciaByte || kind == InputKind::AciaLines || kind == InputKind::AciaConnection;
 }
 
 

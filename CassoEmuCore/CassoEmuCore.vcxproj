@@ -127,6 +127,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Devices\Serial\SerialLinkReports.cpp" />
     <ClCompile Include="Devices\Serial\SerialLineFormat.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -792,6 +793,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Devices\Serial\SerialLinkReports.h" />
     <ClInclude Include="Devices\Serial\SerialLineFormat.h" />
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Shell\BackgroundWorkQueue.h" />

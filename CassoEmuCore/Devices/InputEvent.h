@@ -91,7 +91,9 @@ enum class InputEventType : uint8_t
     HostPaste       = 11,   // a pasted character
     HostMouseMove   = 12,   // payload.motion
     HostMouseButton = 13,   // payload.io.value: 1 down, 0 up
-    HostSerialByte  = 14,   // payload.io.address: the serial chip's index, payload.io.value: the byte
+    HostSerialByte  = 14,   // payload.io.address: the serial chip's index, payload.io.value: the byte, payload.io.flags: its receive errors
+    HostSerialLines = 15,   // payload.io.address: the chip's index, payload.io.value: IoEventLog's kLine bits for CTS, DSR and DCD
+    HostSerialLink  = 16,   // payload.io.address: the chip's index, payload.io.value: 1 a connection opened, 0 it closed
 };
 
 

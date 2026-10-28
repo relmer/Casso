@@ -455,6 +455,10 @@ private:
     static uint64_t  HashBytes (uint64_t hash, const Byte * data, size_t size);
     static uint64_t  HashBytes (uint64_t hash, const std::vector<Byte> & bytes);
 
+    //  A journal record a serial chip applies: a byte, line levels or a
+    //  connection.
+    static bool  IsSerialInput (InputKind kind);
+
     //  Power-on bytes the fill must not decide: the power-up byte and the
     //  monitor's random seed.
     void  ApplyPowerOnOverrides();

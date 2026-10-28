@@ -1012,6 +1012,66 @@ public:
         Assert::IsFalse (config.slots[0].enabled);
     }
 
+    static HRESULT LoadSerialOptions (MachineConfig & config)
+    {
+        std::string  error;
+        std::string  json = R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "slots": [
+                { "slot": 2, "device": "super-serial-card",
+                  "ports": [ { "device": "serial-modem", "telnet": false, "listenPort": 6400 } ] }
+            ],
+            "ports": [
+                { "name": "serial1", "device": "serial-com-port", "comPort": "COM3" },
+                { "name": "serial2", "device": "serial-tcp", "host": "localhost", "port": 2323, "listen": true, "telnet": true },
+                { "name": "joystick", "device": "" }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        return MachineConfigLoader::Load (json, "TestMachine", { "/mock" }, MockResolveAll, config, error);
+    }
+
+    TEST_METHOD (Load_SerialAttachmentOptionsParsed)
+    {
+        MachineConfig  config;
+        HRESULT        hr = LoadSerialOptions (config);
+
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string (kpszSerialModem), config.slots[0].ports[0].device);
+        Assert::IsTrue   (config.slots[0].ports[0].serial.telnet.has_value());
+        Assert::IsFalse  (config.slots[0].ports[0].serial.IsTelnetOn (true), L"an explicit false turns the modem's Telnet off");
+        Assert::AreEqual (6400, config.slots[0].ports[0].serial.modemListenPort);
+
+        Assert::AreEqual (std::string (kpszSerialComPort), config.ports[0].device);
+        Assert::AreEqual (std::string ("COM3"),            config.ports[0].serial.comPort);
+
+        Assert::AreEqual (std::string (kpszSerialTcp), config.ports[1].device);
+        Assert::AreEqual (std::string ("localhost"),   config.ports[1].serial.host);
+        Assert::AreEqual (2323,                        config.ports[1].serial.tcpPort);
+        Assert::IsTrue   (config.ports[1].serial.listen);
+        Assert::IsTrue   (config.ports[1].serial.IsTelnetOn (false));
+    }
+
+    TEST_METHOD (Load_SerialAttachmentOptionsDefaultWhenAbsent)
+    {
+        MachineConfig  config;
+        HRESULT        hr = LoadSerialOptions (config);
+
+        AssertSucceeded (hr);
+        Assert::AreEqual (SerialAttachmentOptions::kDefaultTcpPort, config.ports[2].serial.tcpPort);
+        Assert::IsFalse  (config.ports[2].serial.listen);
+        Assert::AreEqual (0, config.ports[2].serial.modemListenPort);
+        Assert::IsFalse  (config.ports[2].serial.IsTelnetOn (false), L"TCP defaults to plain bytes");
+        Assert::IsTrue   (config.ports[2].serial.IsTelnetOn (true),  L"the modem defaults to Telnet");
+    }
+
     TEST_METHOD (CollectRomFiles_DoesNotListSlotFirmware)
     {
         std::vector<std::string>  files;

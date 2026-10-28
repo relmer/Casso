@@ -678,6 +678,49 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  A connection opening or closing is a row, with the far end's
+        //  address as its text, and a byte received with errors lists them.
+        TEST_METHOD (TheSerialLogListsConnectionsAndReceiveErrors)
+        {
+            CassoTheme                                theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                         host;
+            ToolWindow                                window   (theme, host);
+            CommLogController                         serial   (window.GetPaneHostForTest(), DebugLogKind::Serial);
+            DebugLogDeltas                            deltas;
+            IoLogDelta                                delta;
+            IoLogRow                                  opened;
+            IoLogRow                                  received;
+            std::string                               peer     = "bbs.example.org:23";
+            std::wstring                              text;
+
+
+
+            opened.cycle        = 100;
+            opened.event.kind   = IoEventKind::SerialConnection;
+            opened.event.value  = 1;
+            opened.data         = std::make_shared<const std::vector<Byte>> (peer.begin(), peer.end());
+
+            received.cycle       = 200;
+            received.event.kind  = IoEventKind::SerialReceived;
+            received.event.value = 'C';
+            received.event.reg   = 0x02;
+
+            window.OnCreate();
+            serial.CreateControls();
+            serial.Configure();
+
+            delta.newer = { opened, received };
+            deltas.serial.push_back (delta);
+            serial.ApplyLogDeltas (deltas, false);
+
+            text = serial.GetModel().GetText (false);
+            Assert::AreEqual ((ptrdiff_t) 2, std::ranges::count_if (serial.GetModel().GetView(), [] (int index) { return index >= 0; }));
+            Assert::IsTrue   (text.find (L"Connected") != std::wstring::npos);
+            Assert::IsTrue   (text.find (L"bbs.example.org:23") != std::wstring::npos, L"the far end's address");
+            Assert::IsTrue   (text.find (L"Received, framing error") != std::wstring::npos);
+        }
+
+
         //  The serial ports' and the Uthernet II's panels open their logs.
         TEST_METHOD (TheSerialAndNetworkPanelsOpenTheirLogs)
         {

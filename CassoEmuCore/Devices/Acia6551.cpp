@@ -138,11 +138,13 @@ void Acia6551::Write (Word address, Byte value)
 
     case kRegCommand:
         WriteCommand (value);
+        NoteFormat();
         EmitComm (IoEventKind::SerialSettings, 0);
         break;
 
     case kRegControl:
         m_control = value;
+        NoteFormat();
         EmitComm (IoEventKind::SerialSettings, 0);
         break;
 
@@ -288,8 +290,9 @@ void Acia6551::SetCpuClockHz (uint32_t hz)
 //  Tick
 //
 //  Advances the shift register and the receive delivery by `cycles` CPU
-//  cycles. An idle chip, with nothing shifting, nothing waiting to shift,
-//  nothing queued and no modem input change, returns after the first test.
+//  cycles, after polling a host link whose interval has run out. An idle
+//  chip, with nothing shifting, nothing waiting to shift, nothing queued and
+//  no modem input change, returns after the first test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -297,12 +300,29 @@ void Acia6551::Tick (uint32_t cycles)
 {
     HRESULT  hr          = S_OK;
     int64_t  fixedCycles = static_cast<int64_t> (cycles) << kFixedShift;
-    bool     modemDirty  = m_modemInputDirty.load (memory_order_relaxed);
-    size_t   queued      = m_rxQueue.GetCount();
-    size_t   arrived     = m_rxInbox.GetCount();
-    bool     idle        = !m_tsrBusy && !m_tdrFull && queued == 0 && arrived == 0 && !m_rxActive && !modemDirty;
+    bool     modemDirty  = false;
+    size_t   queued      = 0;
+    size_t   arrived     = 0;
+    bool     idle        = false;
 
 
+
+    m_elapsedCycles += cycles;
+
+    if (m_isHostLink)
+    {
+        m_pollRemaining -= cycles;
+
+        if (m_pollRemaining <= 0)
+        {
+            PollHostLink (cycles);
+        }
+    }
+
+    modemDirty = m_modemInputDirty.load (memory_order_relaxed);
+    queued     = m_rxQueue.GetCount();
+    arrived    = m_rxInbox.GetCount();
+    idle       = !m_tsrBusy && !m_tdrFull && queued == 0 && arrived == 0 && !m_rxActive && !modemDirty;
 
     BAIL_OUT_IF (idle, S_OK);
 
@@ -335,7 +355,8 @@ Error:
 //
 //  Any change of attachment empties the receive queue and restores the modem
 //  inputs to true, which is what a disconnected 6551 reads. The current DTR
-//  and RTS states are then passed to the new attachment.
+//  and RTS states and the format are then passed to the new attachment, and
+//  a host link is polled at the next tick.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -354,7 +375,10 @@ void Acia6551::SetEndpoint (IAciaEndpoint * endpoint)
     m_dsr = true;
     m_dcd = true;
 
-    m_endpoint = endpoint;
+    m_endpoint      = endpoint;
+    m_isHostLink    = (endpoint != nullptr) && endpoint->IsHostLink();
+    m_pollRemaining = 0;
+    m_isFormatSent  = false;
 
     if (m_endpoint != nullptr)
     {
@@ -362,9 +386,75 @@ void Acia6551::SetEndpoint (IAciaEndpoint * endpoint)
         m_notifiedRts   = IsRtsOn();
         m_notifiedBreak = false;
         m_endpoint->OnModemControlChanged (m_notifiedDtr, m_notifiedRts);
+        NoteFormat();
     }
 
     TryLoadTransmitter();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollHostLink
+//
+//  Behind live the journal supplies what a host link would bring in, so the
+//  link is not polled; the gate is tested again an active interval later.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::PollHostLink (uint32_t cycles)
+{
+    bool  isHeld = m_inputGate != nullptr && m_inputGate->IsHeld();
+    bool  isBusy = false;
+
+
+
+    if (!isHeld)
+    {
+        m_tickCycles = cycles;
+        isBusy       = m_endpoint->Poll (m_elapsedCycles);
+        m_tickCycles = 0;
+    }
+
+    m_pollRemaining = (isBusy || isHeld) ? kActivePollCycles : kIdlePollCycles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteFormat
+//
+//  Passes the format to the attachment when it differs from the one last
+//  passed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::NoteFormat()
+{
+    HRESULT           hr       = S_OK;
+    SerialLineFormat  current  = GetLineFormat();
+    SerialLineFormat  previous = SerialLineFormat::FromRegisters (m_notedControl, m_notedCommand);
+    bool              isSame   = m_isFormatSent && previous == current;
+
+
+
+    BAIL_OUT_IF (m_endpoint == nullptr, S_OK);
+    BAIL_OUT_IF (isSame,                S_OK);
+
+    m_notedControl = m_control;
+    m_notedCommand = m_command;
+    m_isFormatSent = true;
+
+    m_endpoint->OnFormatChanged (current);
+
+Error:
+    return;
 }
 
 
@@ -418,6 +508,117 @@ void Acia6551::ReceiveFromHostNow (Byte value, Byte errors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplyHostLinesNow
+//
+//  The lines change at once, raising the line-change interrupt as a change
+//  from a poll does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::ApplyHostLinesNow (bool cts, bool dsr, bool dcd)
+{
+    m_pendingCts.store (cts);
+    m_pendingDsr.store (dsr);
+    m_pendingDcd.store (dcd);
+
+    ApplyPendingModemInputs();
+    NoteLines();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReceiveFromHost
+//
+//  Stamped with the cycle the instruction just run began at, as a byte
+//  taken by TakeHostBytes is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::ReceiveFromHost (Byte value, Byte errors)
+{
+    m_rxQueue.PushEntry (value, errors);
+
+    if (m_inputJournal != nullptr)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - m_tickCycles, InputKind::AciaByte, value, m_chipIndex, errors);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHostLines
+//
+//  Stored as the pending modem inputs, which Tick applies after the poll. A
+//  replay stores the journaled levels the same way, so they reach the status
+//  register at the same tick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetHostLines (bool cts, bool dsr, bool dcd)
+{
+    HRESULT  hr       = S_OK;
+    bool     isDirty  = m_modemInputDirty.load();
+    bool     isSame   = isDirty ? (cts == m_pendingCts.load() && dsr == m_pendingDsr.load() && dcd == m_pendingDcd.load())
+                                : (cts == m_cts && dsr == m_dsr && dcd == m_dcd);
+    Byte     bits     = 0;
+
+
+
+    BAIL_OUT_IF (isSame, S_OK);
+
+    bits |= cts ? IoEventLog::kLineCts : 0;
+    bits |= dsr ? IoEventLog::kLineDsr : 0;
+    bits |= dcd ? IoEventLog::kLineDcd : 0;
+
+    SetModemInputs (cts, dsr, dcd);
+
+    if (m_inputJournal != nullptr)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - m_tickCycles, InputKind::AciaLines, bits, m_chipIndex, 0);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteHostConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::NoteHostConnection (bool isOpen, std::string_view peer)
+{
+    std::span<const Byte>  bytes ((const Byte *) peer.data(), peer.size());
+
+
+
+    if (m_inputJournal != nullptr)
+    {
+        m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - m_tickCycles, InputKind::AciaConnection, isOpen ? 1 : 0, m_chipIndex, 0, peer);
+    }
+
+    EmitComm (IoEventKind::SerialConnection, isOpen ? 1 : 0, 0, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetInputJournal
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -438,19 +639,46 @@ void Acia6551::SetInputJournal (InputJournal * journal, uint16_t chipIndex)
 //
 //  A journaled byte goes back into the receive queue where the emulation
 //  thread took it live, ahead of the receiver's tick, with the receive
-//  errors in the record's data.
+//  errors in the record's data. Journaled line levels become the pending
+//  modem inputs, which the instruction's tick applies, as live. A
+//  connection is logged again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Acia6551::ApplyInput (const InputRecord & record)
 {
-    bool  isApplied = record.kind == InputKind::AciaByte && record.detail == m_chipIndex;
+    bool                   isMine    = record.detail == m_chipIndex;
+    bool                   isApplied = false;
+    std::span<const Byte>  peer ((const Byte *) record.payload.data(), record.payload.size());
 
 
 
-    if (isApplied)
+    if (!isMine)
     {
+        return false;
+    }
+
+    switch (record.kind)
+    {
+    case InputKind::AciaByte:
         m_rxQueue.PushEntry (record.value, (Byte) record.data);
+        isApplied = true;
+        break;
+
+    case InputKind::AciaLines:
+        SetModemInputs ((record.value & IoEventLog::kLineCts) != 0,
+                        (record.value & IoEventLog::kLineDsr) != 0,
+                        (record.value & IoEventLog::kLineDcd) != 0);
+        isApplied = true;
+        break;
+
+    case InputKind::AciaConnection:
+        EmitComm (IoEventKind::SerialConnection, record.value, 0, peer);
+        isApplied = true;
+        break;
+
+    default:
+        break;
     }
 
     return isApplied;
@@ -548,9 +776,10 @@ void Acia6551::NoteLines()
 ////////////////////////////////////////////////////////////////////////////////
 
 void Acia6551::EmitComm (
-    IoEventKind  kind,
-    Byte         value,
-    Byte         errors)
+    IoEventKind              kind,
+    Byte                     value,
+    Byte                     errors,
+    std::span<const Byte>    bytes)
 {
     IoEvent  event = IoEvent();
 
@@ -570,7 +799,7 @@ void Acia6551::EmitComm (
     event.command = m_command;
     event.lines   = GetLineBits();
 
-    m_commSink->OnCommEvent (event, {});
+    m_commSink->OnCommEvent (event, bytes);
 }
 
 
@@ -772,6 +1001,7 @@ void Acia6551::ResetState (bool hardware)
 
     LowerIrq();
     NotifyModemControl();
+    NoteFormat();
 }
 
 

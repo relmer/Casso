@@ -666,11 +666,49 @@ void MachineConfigLoader::ParsePorts (
             IGNORE_RETURN_VALUE (hrName, S_OK);
             IGNORE_RETURN_VALUE (hrDev,  S_OK);
             IGNORE_RETURN_VALUE (hrPath, S_OK);
+
+            ParseSerialOptions (entry, port.serial);
         }
 
         // Anything else (null, a number, a nested array) leaves both fields
         // empty and lands here as an unoccupied connector, on purpose.
         outPorts.push_back (port);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseSerialOptions
+//
+//  A serial port entry's attachment options. A key that is absent or of the
+//  wrong type keeps its default, as a malformed port entry does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ParseSerialOptions (
+    const JsonValue          & entry,
+    SerialAttachmentOptions  & outOptions)
+{
+    bool  telnet    = false;
+    bool  hasTelnet = false;
+
+
+
+    (void) entry.HasString ("comPort",    outOptions.comPort);
+    (void) entry.HasString ("host",       outOptions.host);
+    (void) entry.HasInt    ("port",       outOptions.tcpPort);
+    (void) entry.HasBool   ("listen",     outOptions.listen);
+    (void) entry.HasInt    ("listenPort", outOptions.modemListenPort);
+
+    hasTelnet = entry.HasBool ("telnet", telnet);
+
+    if (hasTelnet)
+    {
+        outOptions.telnet = telnet;
     }
 }
 

@@ -112,13 +112,15 @@ double SerialWaveform::GetStopBits (
     Byte  command)
 {
     constexpr int  kMinWordBits = 5;
+    int            wordBits     = GetWordBits (control);
+    bool           isParityOn   = IsParityOn (command);
 
 
 
-    if ((control & kControlStopBits) == 0)
+    if ((control & kControlStopBits) == 0 || (wordBits == kMaxWordBits && isParityOn))
     {
         return 1.0;
     }
 
-    return (GetWordBits (control) == kMinWordBits && !IsParityOn (command)) ? 1.5 : 2.0;
+    return (wordBits == kMinWordBits && !isParityOn) ? 1.5 : 2.0;
 }

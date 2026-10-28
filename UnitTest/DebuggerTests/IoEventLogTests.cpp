@@ -140,5 +140,47 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("History recording paused here."),                                    lines[4]);
             Assert::AreEqual (std::string ("cycle          200            $C030  speaker"),                       lines[5], L"the gap starts the count again");
         }
+
+
+        TEST_METHOD (FormatSerialLines_ListsTheLinesOnInOrder)
+        {
+            Assert::AreEqual (std::string ("CTS DSR DCD"), IoEventLog::FormatSerialLines (IoEventLog::kLineDcd | IoEventLog::kLineCts | IoEventLog::kLineDsr));
+            Assert::AreEqual (std::string ("DTR RTS"),     IoEventLog::FormatSerialLines (IoEventLog::kLineDtr | IoEventLog::kLineRts));
+            Assert::AreEqual (std::string ("none"),        IoEventLog::FormatSerialLines (0));
+        }
+
+
+        TEST_METHOD (FormatReceiveErrors_ListsEachError)
+        {
+            Assert::AreEqual (std::string (""),                             IoEventLog::FormatReceiveErrors (0));
+            Assert::AreEqual (std::string (", framing error"),              IoEventLog::FormatReceiveErrors (0x02));
+            Assert::AreEqual (std::string (", parity and framing errors"),  IoEventLog::FormatReceiveErrors (0x03));
+            Assert::AreEqual (std::string (", parity, framing and overrun errors"), IoEventLog::FormatReceiveErrors (0x07));
+        }
+
+
+        TEST_METHOD (FormatEvent_ListsReceiveErrorsAndConnections)
+        {
+            IoEvent  received;
+            IoEvent  opened;
+            IoEvent  closed;
+
+
+
+            received.kind  = IoEventKind::SerialReceived;
+            received.value = 0x41;
+            received.reg   = 0x02;
+
+            opened.kind  = IoEventKind::SerialConnection;
+            opened.chip  = 1;
+            opened.value = 1;
+
+            closed.kind  = IoEventKind::SerialConnection;
+            closed.chip  = 1;
+
+            Assert::AreEqual (std::string ("port 1 received $41, framing error"), IoEventLog::FormatEvent (received));
+            Assert::AreEqual (std::string ("port 2 connection opened"),           IoEventLog::FormatEvent (opened));
+            Assert::AreEqual (std::string ("port 2 connection closed"),           IoEventLog::FormatEvent (closed));
+        }
     };
 }

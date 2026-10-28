@@ -76,7 +76,9 @@ namespace DebuggerTests
         }
 
 
-        TEST_METHOD (EightOddTwoHasParityAndTwoStopBits)
+        //  The datasheet's table: SBN set with an 8-bit word and parity is
+        //  one stop bit, not two.
+        TEST_METHOD (EightOddWithSbnSetHasOneStopBit)
         {
             std::vector<SerialBit>  bits;
 
@@ -85,8 +87,14 @@ namespace DebuggerTests
             SerialWaveform::LayOut (0x03, kControl8N1 | kTwoStop, kOdd, bits);
 
             Assert::AreEqual (std::string ("01100000011"), Levels (bits), L"$03 has two ones, so odd parity is 1");
-            Assert::AreEqual (2.0, bits.back().length, L"one stop entry two bits long");
-            Assert::AreEqual (12.0, SerialWaveform::GetCharacterBits (kControl8N1 | kTwoStop, kOdd));
+            Assert::AreEqual (1.0, bits.back().length, L"one stop entry one bit long");
+            Assert::AreEqual (11.0, SerialWaveform::GetCharacterBits (kControl8N1 | kTwoStop, kOdd));
+        }
+
+
+        TEST_METHOD (SevenOddTwoHasParityAndTwoStopBits)
+        {
+            Assert::AreEqual (11.0, SerialWaveform::GetCharacterBits (kControl8N1 | kTwoStop | 0x20, kOdd), L"1 + 7 + 1 + 2");
         }
 
 

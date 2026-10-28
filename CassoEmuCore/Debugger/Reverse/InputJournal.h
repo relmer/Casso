@@ -40,6 +40,8 @@ enum class InputKind : uint8_t
     JoyportJack,
     HostState,
     NetworkCall,
+    AciaLines,
+    AciaConnection,
 };
 
 

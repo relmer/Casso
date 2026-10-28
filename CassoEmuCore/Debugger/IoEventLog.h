@@ -22,7 +22,10 @@ struct SoftSwitch;
 //  A serial entry has the port in `chip`, its 6551's base in `address`, the
 //  byte in `value`, and the control and command registers and the line
 //  levels (the kLine bits) as they were. A byte sent is stamped where its
-//  start bit begins, and a byte received where its stop bit ends. A network
+//  start bit begins, and a byte received where its stop bit ends, with its
+//  receive errors in `reg`. A connection entry has 1 in `value` when an
+//  attachment's connection opened and 0 when it closed, and the far end's
+//  address as text in the cache entry's bytes. A network
 //  entry has the socket in `chip`; a state change the new status in `value`
 //  and the old in `reg`, and data sent or received its length in `length`,
 //  the bytes in the cache entry. Fixed in size, so an event cache stores
@@ -41,6 +44,7 @@ enum class IoEventKind : uint8_t
     SerialSent,
     SerialReceived,
     SerialOverrun,
+    SerialConnection,
     SocketState,
     SocketSent,
     SocketReceived,
@@ -139,6 +143,12 @@ public:
     //  What one entry did, as its line in a listing ends: the modes a video
     //  switch turned on and off, "speaker", or a Mockingboard register write.
     static std::string  FormatEvent   (const IoEvent & entry);
+
+    //  "CTS DSR DCD" for the kLine bits set, or "none"; and ", framing
+    //  error" or ", parity and framing errors" for a received byte's
+    //  receive errors, empty for none.
+    static std::string  FormatSerialLines   (Byte lines);
+    static std::string  FormatReceiveErrors (Byte errors);
 
 private:
     static constexpr Byte  kRegisterMask = 0x0F;
