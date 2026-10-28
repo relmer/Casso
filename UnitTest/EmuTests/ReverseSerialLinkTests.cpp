@@ -6,6 +6,7 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Devices/Acia6551.h"
 #include "HResultAssert.h"
+#include "Shell/MachineStateFile.h"
 #include "../NetworkTests/FakeHostNetwork.h"
 #include "../SerialTests/FakeHostSerialPorts.h"
 
@@ -592,6 +593,53 @@ namespace ReverseSerialLinkTestNs
             Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD off for the guest");
             Assert::AreEqual (waiting + std::string ("\r\nNO CARRIER\r\n").size(), machine.GetRefs().serialChips[0]->GetQueuedReceiveCount(),
                               L"NO CARRIER waits for the guest");
+        }
+
+
+        //  A state file saved with the line up has no connection behind it once
+        //  loaded, so DCD is off, and the connection open before the load is
+        //  closed.
+        TEST_METHOD (ALoadedStateFileClosesTheTcpConnection)
+        {
+            FakeHostNetwork                   network;
+            TestMachine                       machine    ("Apple2c", TestMachine::Slots::AsShipped, [&network] (MachineConfig & config, MachineBuildServices & services)
+            {
+                AttachPort1 (config, MakeAttachment (kpszSerialTcp));
+                services.hostNetwork = &network;
+            });
+            std::shared_ptr<FakeSocketState>  client;
+            std::function<void (size_t)>      feed       = MakeTcpClient (network, client, kSlices + 1);
+            std::vector<Byte>                 bytes;
+            MachineStateContents              contents;
+            MachineStateError                 error;
+            size_t                            slice      = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            PrepareEcho (machine);
+
+            for (slice = 0; slice < kSlices / 2; slice++)
+            {
+                feed (slice);
+                machine.RunCycles (kSliceCycles);
+            }
+
+            Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"connected when the state is saved");
+
+            hr = MachineStateFile::Build (machine, bytes, error);
+            AssertSucceeded (hr, L"Build");
+
+            machine.RunCycles (4 * kSliceCycles);
+
+            hr = MachineStateFile::Parse (bytes, contents, error);
+            AssertSucceeded (hr, L"Parse");
+
+            hr = MachineStateFile::Apply (machine, contents, error);
+            AssertSucceeded (hr, L"Apply");
+
+            Assert::IsTrue  (client->destroyed, L"the real connection is closed");
+            Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD off for the guest");
         }
 
 
