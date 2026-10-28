@@ -5,6 +5,9 @@
 #include "Devices/Network/IW5100Backend.h"
 #include "Devices/Network/W5100Registers.h"
 
+class StateReader;
+class StateWriter;
+
 
 
 
@@ -38,6 +41,11 @@ public:
 
     // Power-on: every register to its reset value and the pointer to 0.
     void  HardwareReset      ();
+
+    // The chip's memory, its buffer layout and the address pointer. The
+    // backend's host sockets are not part of it.
+    void     SaveState       (StateWriter & writer) const;
+    HRESULT  LoadState       (StateReader & reader);
 
     bool  IsInterruptPending () const;
     Word  GetAddressPointer  () const { return m_pointer; }

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Core/IInterruptController.h"
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Network/VirtualNetwork.h"
@@ -37,7 +38,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class UthernetCard : public MemoryDevice, public IDiagnosticsProvider
+class UthernetCard : public MemoryDevice, public IMachineState, public IDiagnosticsProvider
 {
 public:
 
@@ -47,6 +48,8 @@ public:
     static constexpr Word      kRegisterCount  = 4;
     static constexpr uint32_t  kPumpCycles     = 1023;
     static constexpr int       kDefaultSlot    = 3;
+    static constexpr uint32_t  kStateTag       = IMachineState::MakeTag ('U', 'T', 'H', '2');
+    static constexpr uint16_t  kStateVersion   = 1;
 
     explicit UthernetCard (int slot);
     ~UthernetCard () override;
@@ -93,6 +96,10 @@ public:
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
     void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
     uint64_t             GetCycles () const { return m_cycles; }
+
+    // IMachineState: the W5100's section, then the pump's count.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
 
 private:
     std::string  FormatIp     (Word address) const;

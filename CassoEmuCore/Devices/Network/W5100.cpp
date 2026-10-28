@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Devices/Network/W5100.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 using R = W5100Registers;
 
@@ -178,6 +180,74 @@ void W5100::HardwareReset()
     ResetRegisters();
     m_pointer = 0;
     m_backend->OnReset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100::SaveState (StateWriter & writer) const
+{
+    writer.WriteBytes (m_mem.data(), m_mem.size());
+
+    for (const SocketState & socket : m_sockets)
+    {
+        writer.WriteWord   (socket.txBase);
+        writer.WriteUInt32 ((uint32_t) socket.txSize);
+        writer.WriteWord   (socket.rxBase);
+        writer.WriteUInt32 ((uint32_t) socket.rxSize);
+        writer.WriteWord   (socket.rxWrite);
+        writer.WriteWord   (socket.latch);
+    }
+
+    writer.WriteWord (m_pointer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT W5100::LoadState (StateReader & reader)
+{
+    HRESULT   hr     = S_OK;
+    uint32_t  txSize = 0;
+    uint32_t  rxSize = 0;
+
+
+
+    reader.ReadBytes (m_mem.data(), m_mem.size());
+
+    for (SocketState & socket : m_sockets)
+    {
+        reader.ReadWord   (socket.txBase);
+        reader.ReadUInt32 (txSize);
+        reader.ReadWord   (socket.rxBase);
+        reader.ReadUInt32 (rxSize);
+        reader.ReadWord   (socket.rxWrite);
+        reader.ReadWord   (socket.latch);
+
+        socket.txSize = txSize;
+        socket.rxSize = rxSize;
+    }
+
+    reader.ReadWord (m_pointer);
+
+    CBREx (m_pointer < kMemorySize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
 }
 
 

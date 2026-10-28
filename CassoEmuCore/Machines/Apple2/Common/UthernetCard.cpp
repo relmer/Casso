@@ -4,6 +4,8 @@
 #include "Debugger/DiagnosticsSnapshot.h"
 #include "Config/NetworkCardSettings.h"
 #include "Core/MachineConfig.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -153,6 +155,72 @@ void UthernetCard::PowerCycle (Prng & prng)
 
     Reset();
     m_irqAsserted = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UthernetCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    m_chip.SaveState (writer);
+    writer.WriteUInt32 (m_cyclesSincePump);
+    writer.WriteUInt64 (m_cycles);
+
+    hr = writer.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::LoadState
+//
+//  The interrupt line follows the loaded chip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UthernetCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    hr = m_chip.LoadState (reader);
+    CHR (hr);
+
+    reader.ReadUInt32 (m_cyclesSincePump);
+    reader.ReadUInt64 (m_cycles);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+    UpdateIrq();
+
+Error:
+    return hr;
 }
 
 
