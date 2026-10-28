@@ -17,6 +17,52 @@
 
 
 
+class DifferencesView;
+class FilesView;
+class FluxView;
+class InspectorTableView;
+class IssuesView;
+class NibblesView;
+class PlatterView;
+class SectorRowView;
+class SectorsView;
+class TrackHeaderView;
+class TrackStripView;
+
+
+
+
+
+//  The views the window creates, for the components that act on them.
+struct InspectorViews
+{
+    PlatterView         * platter     = nullptr;
+    TrackHeaderView     * header      = nullptr;
+    SectorRowView       * sectorRow   = nullptr;
+    TrackStripView      * strip       = nullptr;
+    TrackStripView      * stripB      = nullptr;
+    SectorsView         * sectors     = nullptr;
+    NibblesView         * nibbles     = nullptr;
+    FluxView            * flux        = nullptr;
+    InspectorTableView  * tracks      = nullptr;
+    IssuesView          * issues      = nullptr;
+    InspectorTableView  * image       = nullptr;
+    DifferencesView     * diffs       = nullptr;
+    InspectorTableView  * findResults = nullptr;
+    FilesView           * files       = nullptr;
+};
+
+//  Where the window laid out its areas, in pixels.
+struct InspectorLayout
+{
+    RECT  toolbar     = {};
+    RECT  platterArea = {};
+    RECT  trackArea   = {};
+    RECT  diskContent = {};
+    RECT  stripArea   = {};
+};
+
+
 //  Which view the keys act on: the one pressed last (FR-029, FR-034, FR-043).
 enum class KeyTarget
 {
@@ -25,7 +71,6 @@ enum class KeyTarget
     SectorRow,
     SectorData,
     Nibbles,
-    Fields,
     FluxTiming,
     Tracks,
     Findings,
@@ -130,4 +175,6 @@ public:
     int                                   mapFile          = -1;
     bool                                  is35             = false;
     std::wstring                          openError;
+    InspectorViews                        views;
+    InspectorLayout                       layout;
 };

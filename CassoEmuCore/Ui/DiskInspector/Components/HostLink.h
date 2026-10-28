@@ -39,6 +39,7 @@ public:
     void  StartDisk         (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason);
     void  TakeResults       ();
     void  TickHead          ();
+    void  UpdateRings       ();
     void  TakeWrittenTracks (const InspectorReply & reply);
     void  SetFollowHead     (bool isOn);
     void  GoToHead          ();

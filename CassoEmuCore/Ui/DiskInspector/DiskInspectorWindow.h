@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Pch.h"
 
@@ -39,6 +39,11 @@ class InspectorToolbar;
 class PlatterCorners;
 class StatusBand;
 class StripControls;
+class InspectorDialogs;
+class SelectionPart;
+class ScreenNotes;
+class WalkthroughPart;
+class ViewTables;
 class TrackColumn;
 class FilesView;
 class DifferencesView;
@@ -91,7 +96,7 @@ public:
     void     ApplyPrefs  (const DiskInspectorPrefs & prefs);
 
     //  The walkthrough from its first step (FR-153).
-    void     OpenWalkthrough () override { m_walkthrough.Open(); }
+    void     OpenWalkthrough () override;
 
     void     Layout      (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -130,43 +135,19 @@ private:
 
 
 
-    void  PaintNoDisk      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    bool  OnWalkthroughMouse (const DxuiMouseEvent & ev);
-    bool  OnWalkthroughKey   (const DxuiKeyEvent & ev);
     RECT  GetWalkthroughArea (WalkthroughArea area) const;
-    void  UpdateRings      ();
     void  UpdateControls   ();
     void  OnSelection      () override;
     void  ShowTrackTab     (int tab) override;
     void  ShowTabContent   ();
-    bool  IsImageShown     () const;
-    static bool  IsStripKey (WPARAM vk);
-    KeyTarget    GetKeyTarget (POINT pointPx) const;
-    void  SelectAll       ();
-    void  ExtendSelection (WPARAM vk);
-    void  Copy            ();
-    void  CopySector      ();
-    void  OpenExport ();
-    void  PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    bool  IsCovered  (POINT pointPx) const;
     void  SetZoom              (double zoom);
     void  LayoutContent        (const RECT & boundsPx, const DxuiDpiScaler & scaler);
     static bool  IsZoomKey     (WPARAM vk);
     double   GetMostZoom       () const;
     HRESULT  GrowToMinSize     ();
-    void  ShowContextMenu (POINT pointPx);
     std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;
-    void          StepKeyTarget      (int step);
-    RECT          GetKeyTargetBounds () const;
-    void  OpenGoTo  ();
     void  ShowDiskTab      (int tab) override;
-    void  RefreshTables    ();
-    void  SyncTables       ();
-    void  SelectFromRow    (const TableRow & row);
-    void  OpenDecodeSettings ();
-    void  ApplySettings    (const DecodeSettings & settings);
     void  UpdateTooltip    (POINT pointPx);
-    void  StepSector       (int delta, bool isToEnd);
     static bool   IsInside    (const RECT & rect, POINT pointPx);
 
     InspectorSession                   m_session;
@@ -181,43 +162,25 @@ private:
     std::unique_ptr<PlatterCorners>    m_corners;
     std::unique_ptr<TrackColumn>       m_trackColumn;
     std::unique_ptr<StripControls>     m_stripControls;
+    std::unique_ptr<InspectorDialogs>  m_dialogs;
+    std::unique_ptr<ViewTables>        m_tables;
+    std::unique_ptr<SelectionPart>     m_selection;
+    std::unique_ptr<ScreenNotes>       m_notes;
+    std::unique_ptr<WalkthroughPart>   m_walkthrough;
     vector<IInspectorComponent *>      m_components;
     InspectorCommands                  m_commands;
     std::wstring                       m_title;
-    bool                               m_isTracksCompared = false;
     DxuiTooltip                        m_tooltip;
     bool                               m_isSplitting      = false;
     double                             m_splitFraction    = 0.5;
-    RECT                               m_toolbarPx        = {};
     RECT                               m_splitterPx       = {};
     std::wstring                       m_tooltipText;
 
-    RECT                    m_stripAreaPx       = {};
     DxuiIconButton        * m_copySector        = nullptr;
     int                     m_flownQuarterTrack = -1;
     int                     m_flownSector       = -1;
-    InspectorWalkthrough    m_walkthrough;
-    DifferencesView       * m_diffsView         = nullptr;
     bool                    m_isFocusShown      = false;
-    InspectorTableView    * m_findResults       = nullptr;
 
 
-    GoToKind                                m_goToKind           = GoToKind::Track;
-    vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
-    PlatterView                           * m_platterView        = nullptr;
-    TrackHeaderView                       * m_headerView         = nullptr;
-    TrackStripView                        * m_stripView          = nullptr;
-    TrackStripView                        * m_stripB             = nullptr;
-    SectorRowView                         * m_sectorRow          = nullptr;
-    SectorsView                           * m_sectorsView        = nullptr;
-    NibblesView                           * m_nibblesView        = nullptr;
-    InspectorTableView                    * m_tracksView         = nullptr;
-    IssuesView                            * m_issuesView         = nullptr;
-    InspectorTableView                    * m_imageView          = nullptr;
     double                                  m_zoom               = 1.0;
-    RECT                                    m_platterAreaPx      = {};
-    RECT                                    m_trackAreaPx        = {};
-    RECT                                    m_diskContentPx      = {};
-    FluxView                              * m_fluxView           = nullptr;
-    int                                     m_syncedQuarterTrack = -1;
 };

@@ -5,6 +5,9 @@
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
+#include "Ui/DiskInspector/FluxTiming.h"
+#include "Ui/DiskInspector/PlatterCells.h"
+#include "Ui/DiskInspector/PlatterView.h"
 
 
 
@@ -525,4 +528,69 @@ void HostLink::TakeWrittenTracks (const InspectorReply & reply)
 bool HostLink::IsHeadShown() const
 {
     return m_session.context.hasDisk && m_session.headState != nullptr && m_session.IsWindowDiskA();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostLink::UpdateRings
+//
+//  The platter's rings for every record whose analysis or state changed. A
+//  record's cells are built once and shared by the quarter tracks that play
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HostLink::UpdateRings()
+{
+    const DiskCopy *   copy     = m_session.analysis.copy.get();
+    PlatterRenderer &  renderer = m_session.views.platter->GetRenderer();
+    int                qt       = 0;
+    int                slot     = 0;
+    bool               damaged  = false;
+    vector<Byte>       cells;
+
+
+
+    for (qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+    {
+        slot    = (copy != nullptr) ? copy->playedSlot[qt] : -1;
+        damaged = copy != nullptr && slot < 0 && copy->mappedSlot[qt] >= 0 && copy->IsSlotDamaged (copy->mappedSlot[qt]);
+
+        if (slot < 0)
+        {
+            renderer.SetRing (qt, damaged ? PlatterRingState::Damaged : PlatterRingState::Nothing, nullptr);
+        }
+        else if (m_session.scheduler->IsPending (slot) || slot >= static_cast<int> (m_session.analysis.tracks.size()) || m_session.analysis.tracks[slot] == nullptr)
+        {
+            renderer.SetRing (qt, PlatterRingState::Pending, nullptr);
+        }
+        else if (m_session.changedSlots.contains (slot) || m_session.levels[slot] == nullptr)
+        {
+            if (m_session.levels[slot] == nullptr)
+            {
+                auto  levels = std::make_shared<PlatterRenderer::Levels>();
+
+                PlatterCells::BuildCells  (*m_session.analysis.tracks[slot], cells);
+                PlatterCells::BuildLevels (cells, *levels);
+                m_session.levels[slot] = levels;
+
+                if (m_session.analysis.tracks[slot]->framed.isFlux)
+                {
+                    auto  timing = std::make_shared<PlatterRenderer::Levels>();
+
+                    FluxTiming::BuildDeviations (*m_session.analysis.tracks[slot], cells);
+                    FluxTiming::BuildLevels     (cells, *timing);
+                    m_session.timingLevels[slot] = timing;
+                }
+            }
+
+            renderer.SetRing (qt, PlatterRingState::Data, m_session.levels[slot], m_session.timingLevels[slot]);
+        }
+    }
+
+    m_session.changedSlots.clear();
 }

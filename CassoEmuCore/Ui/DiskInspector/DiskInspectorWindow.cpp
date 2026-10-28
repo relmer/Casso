@@ -27,6 +27,11 @@
 #include "Ui/DiskInspector/Components/EditingPart.h"
 #include "Ui/DiskInspector/Components/FindPart.h"
 #include "Ui/DiskInspector/Components/HostLink.h"
+#include "Ui/DiskInspector/Components/ScreenNotes.h"
+#include "Ui/DiskInspector/Components/WalkthroughPart.h"
+#include "Ui/DiskInspector/Components/InspectorDialogs.h"
+#include "Ui/DiskInspector/Components/SelectionPart.h"
+#include "Ui/DiskInspector/Components/ViewTables.h"
 #include "Ui/DiskInspector/Components/InspectorMenus.h"
 #include "Ui/DiskInspector/Components/InspectorToolbar.h"
 #include "Ui/DiskInspector/Components/PlatterCorners.h"
@@ -264,6 +269,23 @@ void DiskInspectorWindow::Relayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskInspectorWindow::OpenWalkthrough
+//
+//  The walkthrough from its first step (FR-153).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenWalkthrough()
+{
+    m_walkthrough->Open();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskInspectorWindow::SetStatusNote
 //
 //  A note in the status band, replaced by a view's hint when the pointer moves
@@ -450,9 +472,9 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_comparisonPart->TakeComparison();
     m_comparisonPart->SyncSideB();
     m_hostLink->TickHead();
-    UpdateRings();
+    m_hostLink->UpdateRings();
     UpdateControls();
-    RefreshTables();
+    m_tables->RefreshTables();
 
     //  While the File map tab is up, the selected file's sectors are marked
     //  in the platter and the strip as in the grid (FR-090).
@@ -482,8 +504,8 @@ HRESULT DiskInspectorWindow::RenderFrame()
         GetPopupHost()->GetContextMenu().Tick (static_cast<int64_t> (GetTickCount64()));
     }
 
-    m_tracksView->Tick   (static_cast<int64_t> (GetTickCount64()));
-    m_issuesView->Tick (static_cast<int64_t> (GetTickCount64()));
+    m_session.views.tracks->Tick   (static_cast<int64_t> (GetTickCount64()));
+    m_session.views.issues->Tick (static_cast<int64_t> (GetTickCount64()));
 
     for (IInspectorComponent * component : m_components)
     {
@@ -513,44 +535,50 @@ void DiskInspectorWindow::OnCreate()
     m_hostLink    = std::make_unique<HostLink> (m_session, GetHost());
     m_toolbar     = std::make_unique<InspectorToolbar> (m_session, GetHost(), m_commands);
     m_toolbar->Create();
-    m_platterView = CreateChild<PlatterView> (m_session.context);
+    m_session.views.platter = CreateChild<PlatterView> (m_session.context);
     m_trackColumn = std::make_unique<TrackColumn> (m_session, GetHost());
     m_trackColumn->Create();
-    m_headerView  = &m_trackColumn->GetHeader();
-    m_sectorRow   = &m_trackColumn->GetSectorRow();
-    m_stripView   = CreateChild<TrackStripView>  (m_session.context);
-    m_stripB      = CreateChild<TrackStripView>  (m_session.contextB);
-    m_stripControls = std::make_unique<StripControls> (m_session, GetHost(), *m_stripView);
+    m_session.views.header  = &m_trackColumn->GetHeader();
+    m_session.views.sectorRow   = &m_trackColumn->GetSectorRow();
+    m_session.views.strip   = CreateChild<TrackStripView>  (m_session.context);
+    m_session.views.stripB      = CreateChild<TrackStripView>  (m_session.contextB);
+    m_stripControls = std::make_unique<StripControls> (m_session, GetHost(), *m_session.views.strip);
     m_stripControls->Create();
-    m_sectorsView    = CreateChild<SectorsView>  (m_session.context);
-    m_nibblesView  = CreateChild<NibblesView>      (m_session.context);
-    m_fluxView     = CreateChild<FluxView>   (m_session.context);
+    m_session.views.sectors    = CreateChild<SectorsView>  (m_session.context);
+    m_session.views.nibbles  = CreateChild<NibblesView>      (m_session.context);
+    m_session.views.flux     = CreateChild<FluxView>   (m_session.context);
     m_copySector   = CreateChild<DxuiIconButton>();
-    m_tracksView   = CreateChild<InspectorTableView> (m_session.context);
-    m_issuesView = CreateChild<IssuesView>     (m_session.context);
-    m_imageView    = CreateChild<InspectorTableView> (m_session.context);
+    m_session.views.tracks   = CreateChild<InspectorTableView> (m_session.context);
+    m_session.views.issues = CreateChild<IssuesView>     (m_session.context);
+    m_session.views.image    = CreateChild<InspectorTableView> (m_session.context);
     m_files       = std::make_unique<FilesView> (m_session, GetHost());
     m_files->Create();
-    m_diffsView    = CreateChild<DifferencesView> (m_session.context, m_session.comparison);
-    m_comparisonPart = std::make_unique<ComparisonPart> (m_session, GetHost(), *m_diffsView, *m_stripB, *m_files);
+    m_session.views.files = m_files.get();
+    m_session.views.diffs    = CreateChild<DifferencesView> (m_session.context, m_session.comparison);
+    m_comparisonPart = std::make_unique<ComparisonPart> (m_session, GetHost(), *m_session.views.diffs, *m_session.views.stripB, *m_files);
     m_comparisonPart->Create();
     m_findPart    = std::make_unique<FindPart> (m_session, GetHost());
     m_findPart->Create();
-    m_findResults = &m_findPart->GetResults();
-    m_editing     = std::make_unique<EditingPart> (m_session, GetHost(), *m_sectorsView);
+    m_session.views.findResults = &m_findPart->GetResults();
+    m_editing     = std::make_unique<EditingPart> (m_session, GetHost(), *m_session.views.sectors);
     m_editing->Create();
+    m_notes       = std::make_unique<ScreenNotes> (m_session);
+    m_walkthrough = std::make_unique<WalkthroughPart> (m_session);
+    m_dialogs     = std::make_unique<InspectorDialogs> (m_session, GetHost());
+    m_tables      = std::make_unique<ViewTables> (m_session, GetHost());
+    m_selection   = std::make_unique<SelectionPart> (m_session, GetHost(), *m_dialogs, *m_findPart, *m_stripControls);
 
-    m_tracksView->SetColumns  (InspectorTables::GetTrackColumns());
-    m_imageView->SetColumns   (InspectorTables::GetImageColumns());
-    m_tracksView->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
-    m_issuesView->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
+    m_session.views.tracks->SetColumns  (InspectorTables::GetTrackColumns());
+    m_session.views.image->SetColumns   (InspectorTables::GetImageColumns());
+    m_session.views.tracks->SetOnSelect   ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
+    m_session.views.issues->SetOnSelect ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.context.edits = &m_session.edits;
     m_copySector->SetGlyph          (L"\xE8C8");
     m_copySector->SetAccessibleName (L"Copy sector");
-    m_copySector->SetOnClick        ([this] () { CopySector(); });
-    m_stripB->SetSide (ComparisonSession::kSideB);
+    m_copySector->SetOnClick        ([this] () { m_selection->CopySector(); });
+    m_session.views.stripB->SetSide (ComparisonSession::kSideB);
 
-    m_corners     = std::make_unique<PlatterCorners> (m_session, GetHost(), *m_platterView);
+    m_corners     = std::make_unique<PlatterCorners> (m_session, GetHost(), *m_session.views.platter);
     m_corners->Create();
     m_statusBand  = std::make_unique<StatusBand> (m_session, GetHost());
     m_statusBand->Create();
@@ -627,7 +655,7 @@ void DiskInspectorWindow::BuildCommands()
     auto  selectTrack = [this] (int quarterTrack) { m_session.model.SelectQuarterTrack (quarterTrack); OnSelection(); };
 
     //  File
-    c.exportFile                = make (L"&Export...", L"", [this] () { OpenExport(); });
+    c.exportFile                = make (L"&Export...", L"", [this] () { m_dialogs->OpenExport(); });
     c.exportFile->isEnabled     = hasDisk;
     c.exportFile->glyph         = kpszGlyphExport;
     c.saveEditedCopy            = make (L"Save edited &copy...", L"", [this] () { m_editing->SaveEditedCopy(); });
@@ -639,16 +667,16 @@ void DiskInspectorWindow::BuildCommands()
     c.undoApplied->isEnabled    = [this] () { return m_editing->GetState().canUndoApplied; };
     c.redoApplied               = make (L"&Redo applied edit", L"Ctrl+Y", [this] () { m_editing->RedoApplied(); });
     c.redoApplied->isEnabled    = [this] () { return m_editing->GetState().canRedoApplied; };
-    c.copy                      = make (L"&Copy", L"Ctrl+C", [this] () { Copy(); });
+    c.copy                      = make (L"&Copy", L"Ctrl+C", [this] () { m_selection->Copy(); });
     c.copy->isEnabled           = hasDisk;
-    c.copySector                = make (L"Copy &sector", L"Ctrl+Shift+C", [this] () { CopySector(); });
+    c.copySector                = make (L"Copy &sector", L"Ctrl+Shift+C", [this] () { m_selection->CopySector(); });
     c.copySector->isEnabled     = [this] () { return m_session.model.GetSector() != nullptr && m_session.model.GetSector()->dataField >= 0; };
     c.copySector->glyph         = kpszGlyphCopy;
     c.copySector->tip           = L"Copy the whole sector as a hex dump (Ctrl+Shift+C)";
     c.copySector->isGlyphInMenus = true;
     c.copyMap                   = make (L"Copy &map", L"", [this] () { m_files->CopyFileMap(); });
     c.copyMap->isEnabled        = [this] () { return m_files->HasMap(); };
-    c.selectAll                 = make (L"Select &all", L"Ctrl+A", [this] () { SelectAll(); });
+    c.selectAll                 = make (L"Select &all", L"Ctrl+A", [this] () { m_selection->SelectAll(); });
     c.selectAll->isEnabled      = hasDisk;
     c.editSector                = make (L"&Edit sector", L"F2", [this] () { m_editing->ToggleEditing(); });
     c.editSector->isEnabled     = [this] () { return m_editing->GetState().canEdit; };
@@ -677,9 +705,9 @@ void DiskInspectorWindow::BuildCommands()
     c.widerRange->isEnabled     = [this] () { return m_session.context.isTimingMode && m_toolbar->CanStepRange (1); };
     c.narrowerRange             = make (L"&Narrower timing range", L"", [this] () { m_toolbar->StepRange (-1); });
     c.narrowerRange->isEnabled  = [this] () { return m_session.context.isTimingMode && m_toolbar->CanStepRange (-1); };
-    c.zoomIn                    = make (L"Zoom &in", L"+", [this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
+    c.zoomIn                    = make (L"Zoom &in", L"+", [this] () { m_session.views.platter->ZoomAboutCenter (kZoomStep); });
     c.zoomIn->isEnabled         = hasDisk;
-    c.zoomOut                   = make (L"Zoom &out", L"-", [this] () { m_platterView->ZoomAboutCenter (1.0 / kZoomStep); });
+    c.zoomOut                   = make (L"Zoom &out", L"-", [this] () { m_session.views.platter->ZoomAboutCenter (1.0 / kZoomStep); });
     c.zoomOut->isEnabled        = [this] () { return m_session.context.hasDisk && !m_session.model.IsAtFit(); };
     c.fit                       = make (L"&Fit", L"0", [this] () { m_session.model.Fit(); });
     c.fit->isEnabled            = [this] () { return m_session.context.hasDisk && !m_session.model.IsAtFit(); };
@@ -725,11 +753,11 @@ void DiskInspectorWindow::BuildCommands()
     }
 
     //  Go
-    c.goTo                          = make (L"&Go to...", L"Ctrl+G", [this] () { OpenGoTo(); });
+    c.goTo                          = make (L"&Go to...", L"Ctrl+G", [this] () { m_dialogs->OpenGoTo(); });
     c.goTo->isEnabled               = hasDisk;
-    c.previousSector                = make (L"Previous &sector", L"Left", [this] () { StepSector (-1, false); });
+    c.previousSector                = make (L"Previous &sector", L"Left", [this] () { m_selection->StepSector (-1, false); });
     c.previousSector->isEnabled     = hasDisk;
-    c.nextSector                    = make (L"&Next sector", L"Right", [this] () { StepSector (1, false); });
+    c.nextSector                    = make (L"&Next sector", L"Right", [this] () { m_selection->StepSector (1, false); });
     c.nextSector->isEnabled         = hasDisk;
     c.previousQuarterTrack          = make (L"Previous &quarter track", L"Up", [selectTrack, this] () { selectTrack (m_session.model.GetQuarterTrack() - 1); });
     c.previousQuarterTrack->isEnabled = hasDisk;
@@ -743,7 +771,7 @@ void DiskInspectorWindow::BuildCommands()
     c.previousDifference->isEnabled = [this] () { return m_session.comparison.IsComparing() && !m_session.comparison.GetListed().empty(); };
     c.nextDifference                = make (L"Next diff&erence", L"", [this] () { m_comparisonPart->StepDifference (1); });
     c.nextDifference->isEnabled     = [this] () { return m_session.comparison.IsComparing() && !m_session.comparison.GetListed().empty(); };
-    c.nextPane                      = make (L"Next &pane", L"F6", [this] () { StepKeyTarget (1); });
+    c.nextPane                      = make (L"Next &pane", L"F6", [this] () { m_selection->StepKeyTarget (1); });
     c.nextPane->isEnabled           = hasDisk;
     toolbarCommand (c.goTo, L"Go to", kpszGlyphGoTo, L"Go to a track, sector, block, nibble or cell (Ctrl+G)");
 
@@ -773,7 +801,7 @@ void DiskInspectorWindow::BuildCommands()
     c.bSettings->isEnabled      = [this] () { return m_session.comparison.IsComparing() && m_session.comparison.GetB().copy != nullptr; };
     c.endComparison             = make (L"&End comparison", L"", [this] () { m_comparisonPart->StopComparing(); });
     c.endComparison->isEnabled  = isComparing;
-    c.decodeSettings            = make (L"&Decode settings...", L"", [this] () { OpenDecodeSettings(); });
+    c.decodeSettings            = make (L"&Decode settings...", L"", [this] () { m_dialogs->OpenDecodeSettings(); });
     c.decodeSettings->isEnabled = hasDisk;
     c.decodeSettings->glyph     = kpszGlyphSettings;
 
@@ -784,7 +812,7 @@ void DiskInspectorWindow::BuildCommands()
     c.defaultSize            = make (L"&Default size", L"", [this] () { if (GetPopupHost() != nullptr) { (void) GetPopupHost()->RestoreInitialPlacement(); } });
 
     //  Help
-    c.walkthrough = make (L"&Walkthrough", L"", [this] () { m_tooltip.HideImmediate(); m_walkthrough.Open(); });
+    c.walkthrough = make (L"&Walkthrough", L"", [this] () { m_tooltip.HideImmediate(); m_walkthrough->Open(); });
 }
 
 
@@ -1119,7 +1147,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_session.context.scenePx = boundsDip;
 
     //  The walkthrough's toolbar step covers the menu bar too.
-    m_toolbarPx  = { boundsDip.left, boundsDip.top - m_menus->GetHeightPx (m_session.hostScaler), boundsDip.right, boundsDip.top + toolbar };
+    m_session.layout.toolbar  = { boundsDip.left, boundsDip.top - m_menus->GetHeightPx (m_session.hostScaler), boundsDip.right, boundsDip.top + toolbar };
     m_toolbar->Layout  ({ boundsDip.left, boundsDip.top, boundsDip.right, boundsDip.top + toolbar }, scaler);
     m_findPart->Layout ({ boundsDip.left, top - find, boundsDip.right, top }, scaler);
     m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
@@ -1130,43 +1158,43 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     //  The platter as large as its column allows, with its controls floating
     //  in the column's corners.
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
-    m_platterView->Layout (platter, scaler);
+    m_session.views.platter->Layout (platter, scaler);
 
-    m_platterAreaPx = { boundsDip.left, top, splitX, bandTop };
+    m_session.layout.platterArea = { boundsDip.left, top, splitX, bandTop };
     m_corners->Layout ({ boundsDip.left + margin, top + margin, splitX - margin, top + margin + areaH }, scaler);
 
     //  The track column.
     y             = m_trackColumn->Layout (right, scaler);
-    m_trackAreaPx = { m_splitterPx.right, top, boundsDip.right, m_trackColumn->GetBoundsPx().bottom };
+    m_session.layout.trackArea = { m_splitterPx.right, top, boundsDip.right, m_trackColumn->GetBoundsPx().bottom };
 
-    m_diskContentPx = { right.left, y, right.right, right.bottom };
+    m_session.layout.diskContent = { right.left, y, right.right, right.bottom };
 
-    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_nibblesView, m_fluxView, m_tracksView, m_issuesView, m_imageView, m_diffsView, m_findResults })
+    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_session.views.nibbles, m_session.views.flux, m_session.views.tracks, m_session.views.issues, m_session.views.image, m_session.views.diffs, m_session.views.findResults })
     {
-        content->Layout (m_diskContentPx, scaler);
+        content->Layout (m_session.layout.diskContent, scaler);
     }
 
     //  The edit bar above the Sector data tab's header and bytes.
     m_editing->Layout ({ right.left, y, right.right, y + m_editing->GetHeightPx (right.right - right.left, scaler) }, scaler);
     y += m_editing->GetHeightPx (right.right - right.left, scaler);
-    m_sectorsView->Layout ({ right.left, y, right.right, right.bottom }, scaler);
+    m_session.views.sectors->Layout ({ right.left, y, right.right, right.bottom }, scaler);
 
-    m_files->Layout (m_diskContentPx, scaler);
+    m_files->Layout (m_session.layout.diskContent, scaler);
 
     //  The "Copy sector" icon at the end of the Sectors header's first line, with
     //  room reserved for it there.
     m_copySector->Layout       ({ right.right - scaler.ToPx (SectorsView::kHeaderDip), y, right.right, y + scaler.ToPx (SectorsView::kHeaderDip) }, scaler);
-    m_sectorsView->SetHeaderReserve (scaler.ToPx (SectorsView::kHeaderDip) + margin);
+    m_session.views.sectors->SetHeaderReserve (scaler.ToPx (SectorsView::kHeaderDip) + margin);
 
     //  The strip across the bottom, B's under it while comparing (FR-121).
     y = bandTop + margin;
-    m_stripView->Layout ({ x, y, boundsDip.right - margin, y + strip }, scaler);
+    m_session.views.strip->Layout ({ x, y, boundsDip.right - margin, y + strip }, scaler);
     y += strip + margin / 2;
-    m_stripB->Layout ({ x, y, boundsDip.right - margin, y + (m_session.comparison.IsComparing() ? strip : 0) }, scaler);
+    m_session.views.stripB->Layout ({ x, y, boundsDip.right - margin, y + (m_session.comparison.IsComparing() ? strip : 0) }, scaler);
     y += m_session.comparison.IsComparing() ? strip + margin / 2 : 0;
     m_stripControls->Layout ({ x, y, boundsDip.right - margin, y + row }, scaler);
 
-    m_stripAreaPx = { boundsDip.left, bandTop, boundsDip.right, boundsDip.bottom };
+    m_session.layout.stripArea = { boundsDip.left, bandTop, boundsDip.right, boundsDip.bottom };
 }
 
 
@@ -1207,37 +1235,34 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     if (m_session.is35)
     {
-        PaintNot35 (painter, text, theme);
+        m_notes->PaintNot35 (painter, text, theme);
     }
 
     //  A file that could not be opened says why where the platter would be.
     if (!m_session.context.hasDisk && !m_session.openError.empty())
     {
-        text.DrawString (m_session.openError.c_str(), static_cast<float> (m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.top),
-                         static_cast<float> (m_platterAreaPx.right - m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.bottom - m_platterAreaPx.top),
+        text.DrawString (m_session.openError.c_str(), static_cast<float> (m_session.layout.platterArea.left), static_cast<float> (m_session.layout.platterArea.top),
+                         static_cast<float> (m_session.layout.platterArea.right - m_session.layout.platterArea.left), static_cast<float> (m_session.layout.platterArea.bottom - m_session.layout.platterArea.top),
                          theme.ErrorForeground(), m_session.scaler.ToPxf (InspectorView::kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
     }
 
     if (!m_session.context.hasDisk && m_session.openError.empty() && m_session.pendingRequest == 0)
     {
-        PaintNoDisk (painter, text, theme);
+        m_notes->PaintNoDisk (painter, text, theme);
     }
 
     //  The view the keys act on, outlined once a key has been used, unless a
     //  control has the focus (FR-059).
     if (m_isFocusShown && m_session.context.hasDisk && !m_session.is35 && GetFocusManager().GetFocusedControl() == nullptr)
     {
-        focus = GetKeyTargetBounds();
+        focus = m_selection->GetKeyTargetBounds();
         InflateRect (&focus, m_session.scaler.ToPx (s_kFocusGapDip), m_session.scaler.ToPx (s_kFocusGapDip));
         painter.OutlineRect (static_cast<float> (focus.left), static_cast<float> (focus.top), static_cast<float> (focus.right - focus.left),
                              static_cast<float> (focus.bottom - focus.top), m_session.scaler.ToPxf (2.0f), theme.FocusRing());
     }
 
-    if (m_walkthrough.IsOpen())
-    {
-        m_walkthrough.Paint (text, theme, m_session.scaler, m_boundsDip, GetWalkthroughArea (m_walkthrough.GetArea()));
-    }
+    m_walkthrough->Paint (text, theme, m_boundsDip);
 }
 
 
@@ -1256,14 +1281,14 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 {
     //  While the walkthrough is open it takes all input (FR-153).
-    if (OnWalkthroughMouse (ev))
+    if (m_walkthrough->OnWalkthroughMouse (ev))
     {
         return true;
     }
 
     POINT  p           = ev.positionDip;
     int    width       = m_boundsDip.right - m_boundsDip.left;
-    bool   isCovered   = IsCovered (p) && ev.kind != DxuiMouseEventKind::Leave;
+    bool   isCovered   = m_notes->IsCovered (p) && ev.kind != DxuiMouseEventKind::Leave;
     bool   isHandled   = isCovered;
     bool   isComponent = false;
 
@@ -1285,7 +1310,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     //  Over a 3.5" disk's notes, the views under them take nothing.
     if (!isCovered && ev.kind == DxuiMouseEventKind::Down)
     {
-        m_session.keyTarget = GetKeyTarget (p);
+        m_session.keyTarget = m_selection->GetKeyTarget (p);
         m_isFocusShown      = false;
         GetFocusManager().SetFocused (nullptr);
         m_findPart->OnPress();
@@ -1294,7 +1319,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (!isCovered && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && m_session.context.hasDisk &&
         (m_session.keyTarget == KeyTarget::SectorData || m_session.keyTarget == KeyTarget::Nibbles || m_session.keyTarget == KeyTarget::Tracks))
     {
-        ShowContextMenu (p);
+        m_selection->ShowContextMenu (p);
         isHandled = true;
     }
 
@@ -1338,8 +1363,8 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move)
     {
         UpdateTooltip (p);
-        m_statusBand->SetHint (!m_session.context.hasDisk ? m_session.statusNote : (IsInside (m_platterAreaPx, p) && !m_corners->Contains (p)) ? s_kpszHint
-                               : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : m_session.statusNote);
+        m_statusBand->SetHint (!m_session.context.hasDisk ? m_session.statusNote : (IsInside (m_session.layout.platterArea, p) && !m_corners->Contains (p)) ? s_kpszHint
+                               : IsInside (m_session.layout.stripArea, p) ? s_kpszStripHint : m_session.statusNote);
     }
     else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
     {
@@ -1380,7 +1405,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 
 
 
-    if (OnWalkthroughKey (ev))
+    if (m_walkthrough->OnWalkthroughKey (ev))
     {
         return true;
     }
@@ -1449,10 +1474,10 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_RIGHT: m_session.model.PanBy ({ -s_kPanStep, 0.0 }); break;
                 case VK_UP:    m_session.model.PanBy ({ 0.0,  s_kPanStep }); break;
                 case VK_DOWN:  m_session.model.PanBy ({ 0.0, -s_kPanStep }); break;
-                case 'A':      SelectAll();                          break;
-                case 'C':      if (ev.shift) { CopySector(); } else { Copy(); } break;
+                case 'A':      m_selection->SelectAll();                          break;
+                case 'C':      if (ev.shift) { m_selection->CopySector(); } else { m_selection->Copy(); } break;
                 case 'F':      m_findPart->OpenFindBar();            break;
-                case 'G':      OpenGoTo();                           break;
+                case 'G':      m_dialogs->OpenGoTo();                           break;
                 default:       isHandled = false;                    break;
             }
         }
@@ -1464,36 +1489,36 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         else if (ev.shift && (m_session.keyTarget == KeyTarget::Nibbles || m_session.keyTarget == KeyTarget::SectorData) &&
                  (ev.vk == VK_LEFT || ev.vk == VK_RIGHT || ev.vk == VK_UP || ev.vk == VK_DOWN))
         {
-            ExtendSelection (ev.vk);
+            m_selection->ExtendSelection (ev.vk);
         }
-        else if (m_session.keyTarget == KeyTarget::Strip && IsStripKey (ev.vk))
+        else if (m_session.keyTarget == KeyTarget::Strip && SelectionPart::IsStripKey (ev.vk))
         {
             switch (ev.vk)
             {
-                case VK_OEM_PLUS:  case VK_ADD:      m_stripView->ZoomAboutCenter (kZoomStep);       break;
-                case VK_OEM_MINUS: case VK_SUBTRACT: m_stripView->ZoomAboutCenter (1.0 / kZoomStep); break;
-                case VK_LEFT:                        m_stripView->PanBy (-s_kPanStep);               break;
-                case VK_RIGHT:                       m_stripView->PanBy (s_kPanStep);                break;
-                default:                             m_stripView->ShowWholeTrack();                  break;
+                case VK_OEM_PLUS:  case VK_ADD:      m_session.views.strip->ZoomAboutCenter (kZoomStep);       break;
+                case VK_OEM_MINUS: case VK_SUBTRACT: m_session.views.strip->ZoomAboutCenter (1.0 / kZoomStep); break;
+                case VK_LEFT:                        m_session.views.strip->PanBy (-s_kPanStep);               break;
+                case VK_RIGHT:                       m_session.views.strip->PanBy (s_kPanStep);                break;
+                default:                             m_session.views.strip->ShowWholeTrack();                  break;
             }
         }
         else
         {
             switch (ev.vk)
             {
-                case VK_OEM_PLUS:  case VK_ADD:      m_platterView->ZoomAboutCenter (kZoomStep);       break;
-                case VK_OEM_MINUS: case VK_SUBTRACT: m_platterView->ZoomAboutCenter (1.0 / kZoomStep); break;
+                case VK_OEM_PLUS:  case VK_ADD:      m_session.views.platter->ZoomAboutCenter (kZoomStep);       break;
+                case VK_OEM_MINUS: case VK_SUBTRACT: m_session.views.platter->ZoomAboutCenter (1.0 / kZoomStep); break;
                 case '0':          case VK_NUMPAD0:  m_session.model.Fit();                                    break;
                 case VK_UP:    m_session.model.SelectQuarterTrack (qt - 1);                           OnSelection(); break;
                 case VK_DOWN:  m_session.model.SelectQuarterTrack (qt + 1);                           OnSelection(); break;
                 case VK_PRIOR: m_session.model.SelectQuarterTrack ((qt - 1) / kPerTrack * kPerTrack); OnSelection(); break;
                 case VK_NEXT:  m_session.model.SelectQuarterTrack ((qt / kPerTrack + 1) * kPerTrack); OnSelection(); break;
-                case VK_LEFT:  StepSector (-1, false); break;
-                case VK_RIGHT: StepSector ( 1, false); break;
-                case VK_HOME:  StepSector (-1, true);  break;
+                case VK_LEFT:  m_selection->StepSector (-1, false); break;
+                case VK_RIGHT: m_selection->StepSector ( 1, false); break;
+                case VK_HOME:  m_selection->StepSector (-1, true);  break;
                 case VK_F3:    m_findPart->StepFind (ev.shift ? -1 : 1); break;
-                case VK_F6:    StepKeyTarget (ev.shift ? -1 : 1); break;
-                case VK_END:   StepSector ( 1, true);  break;
+                case VK_F6:    m_selection->StepKeyTarget (ev.shift ? -1 : 1); break;
+                case VK_END:   m_selection->StepSector ( 1, true);  break;
                 default:       isHandled = false;      break;
             }
         }
@@ -1529,77 +1554,12 @@ LPCWSTR DiskInspectorWindow::GetCursorForPoint (POINT clientPx) const
     {
         cursor = IDC_SIZEWE;
     }
-    else if (m_platterView != nullptr && (m_platterView->IsDragging() || (IsInside (m_platterView->GetBounds(), clientPx) && !m_corners->Contains (clientPx) && !m_session.model.IsAtFit())))
+    else if (m_session.views.platter != nullptr && (m_session.views.platter->IsDragging() || (IsInside (m_session.views.platter->GetBounds(), clientPx) && !m_corners->Contains (clientPx) && !m_session.model.IsAtFit())))
     {
         cursor = IDC_SIZEALL;
     }
 
     return cursor;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::UpdateRings
-//
-//  The platter's rings for every record whose analysis or state changed. A
-//  record's cells are built once and shared by the quarter tracks that play
-//  it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::UpdateRings()
-{
-    const DiskCopy *   copy     = m_session.analysis.copy.get();
-    PlatterRenderer &  renderer = m_platterView->GetRenderer();
-    int                qt       = 0;
-    int                slot     = 0;
-    bool               damaged  = false;
-    vector<Byte>       cells;
-
-
-
-    for (qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
-    {
-        slot    = (copy != nullptr) ? copy->playedSlot[qt] : -1;
-        damaged = copy != nullptr && slot < 0 && copy->mappedSlot[qt] >= 0 && copy->IsSlotDamaged (copy->mappedSlot[qt]);
-
-        if (slot < 0)
-        {
-            renderer.SetRing (qt, damaged ? PlatterRingState::Damaged : PlatterRingState::Nothing, nullptr);
-        }
-        else if (m_session.scheduler->IsPending (slot) || slot >= static_cast<int> (m_session.analysis.tracks.size()) || m_session.analysis.tracks[slot] == nullptr)
-        {
-            renderer.SetRing (qt, PlatterRingState::Pending, nullptr);
-        }
-        else if (m_session.changedSlots.contains (slot) || m_session.levels[slot] == nullptr)
-        {
-            if (m_session.levels[slot] == nullptr)
-            {
-                auto  levels = std::make_shared<PlatterRenderer::Levels>();
-
-                PlatterCells::BuildCells  (*m_session.analysis.tracks[slot], cells);
-                PlatterCells::BuildLevels (cells, *levels);
-                m_session.levels[slot] = levels;
-
-                if (m_session.analysis.tracks[slot]->framed.isFlux)
-                {
-                    auto  timing = std::make_shared<PlatterRenderer::Levels>();
-
-                    FluxTiming::BuildDeviations (*m_session.analysis.tracks[slot], cells);
-                    FluxTiming::BuildLevels     (cells, *timing);
-                    m_session.timingLevels[slot] = timing;
-                }
-            }
-
-            renderer.SetRing (qt, PlatterRingState::Data, m_session.levels[slot], m_session.timingLevels[slot]);
-        }
-    }
-
-    m_session.changedSlots.clear();
 }
 
 
@@ -1654,13 +1614,13 @@ void DiskInspectorWindow::OnSelection()
         nibble = track->fields[sector->addressField].firstNibble;
     }
 
-    m_nibblesView->ScrollTo (nibble);
-    SyncTables();
+    m_session.views.nibbles->ScrollTo (nibble);
+    m_tables->SyncTables();
 
     //  A new sector the user chooses anywhere but on the platter starts a
     //  flight to it. One chosen on the platter is in view there, and one
     //  chosen by Follow head starts none.
-    if (m_session.context.selectionSource == m_platterView)
+    if (m_session.context.selectionSource == m_session.views.platter)
     {
         m_session.model.StopFlight();
     }
@@ -1717,17 +1677,17 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     int64_t                               now       = static_cast<int64_t> (GetTickCount64());
     vector<DxuiTooltipSwatch>             swatches;
     bool                                  isInstant = false;
-    const std::array<InspectorView *, 8>  views     = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_sectorsView, m_nibblesView, m_fluxView, m_headerView };
+    const std::array<InspectorView *, 8>  views     = { m_session.views.platter, m_session.views.strip, m_session.views.stripB, m_session.views.sectorRow, m_session.views.sectors, m_session.views.nibbles, m_session.views.flux, m_session.views.header };
 
 
 
     for (InspectorView * view : views)
     {
-        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && !(view == m_platterView && m_corners->Contains (pointPx)) &&
+        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && !(view == m_session.views.platter && m_corners->Contains (pointPx)) &&
             view->GetTooltip (pointPx, tip, anchor))
         {
             view->GetTooltipSwatches (pointPx, swatches);
-            isInstant = view == m_platterView || view == m_stripView || view == m_stripB;
+            isInstant = view == m_session.views.platter || view == m_session.views.strip || view == m_session.views.stripB;
         }
     }
 
@@ -1766,38 +1726,6 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     }
 
     m_tooltipText = tip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::StepSector
-//
-//  The previous or next sector in passing order, wrapping at the index, or
-//  the first or last.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::StepSector (int delta, bool isToEnd)
-{
-    const TrackAnalysis *  track = m_session.model.GetTrack();
-    vector<int>            order = (track != nullptr) ? SectorRowView::GetPassingOrder (*track) : vector<int>();
-    int                    count = static_cast<int> (order.size());
-    int                    at    = 0;
-
-
-
-    if (count > 0)
-    {
-        at = static_cast<int> (std::find (order.begin(), order.end(), m_session.model.GetSectorIndex()) - order.begin());
-        at = isToEnd ? (delta < 0 ? 0 : count - 1) : (at + delta + count) % count;
-
-        m_session.model.SelectSector (m_session.model.GetQuarterTrack(), order[at]);
-        OnSelection();
-    }
 }
 
 
@@ -1856,245 +1784,15 @@ void DiskInspectorWindow::ShowTabContent()
 
 
 
-    m_sectorsView->SetVisible    (isTrack && m_session.trackTab == kTabSectorData);
-    m_nibblesView->SetVisible  (isTrack && m_session.trackTab == kTabNibbles);
-    m_fluxView->SetVisible     (isTrack && m_session.trackTab == kTabFluxTiming);
-    m_tracksView->SetVisible   (!isTrack && m_session.diskTab == kTabTracks);
-    m_issuesView->SetVisible (!isTrack && m_session.diskTab == kTabFindings);
-    m_imageView->SetVisible    (!isTrack && m_session.diskTab == kTabImage);
-    m_diffsView->SetVisible    (!isTrack && m_session.diskTab == kTabDifferences);
-    m_findResults->SetVisible (!isTrack && m_session.diskTab == kTabFindResults);
+    m_session.views.sectors->SetVisible    (isTrack && m_session.trackTab == kTabSectorData);
+    m_session.views.nibbles->SetVisible  (isTrack && m_session.trackTab == kTabNibbles);
+    m_session.views.flux->SetVisible     (isTrack && m_session.trackTab == kTabFluxTiming);
+    m_session.views.tracks->SetVisible   (!isTrack && m_session.diskTab == kTabTracks);
+    m_session.views.issues->SetVisible (!isTrack && m_session.diskTab == kTabFindings);
+    m_session.views.image->SetVisible    (!isTrack && m_session.diskTab == kTabImage);
+    m_session.views.diffs->SetVisible    (!isTrack && m_session.diskTab == kTabDifferences);
+    m_session.views.findResults->SetVisible (!isTrack && m_session.diskTab == kTabFindResults);
     m_files->Show (!isTrack && m_session.diskTab == kTabFileMap);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::RefreshTables
-//
-//  The Tracks and Findings tabs after the analysis changes, and the Fields
-//  selection when the quarter track changes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::RefreshTables()
-{
-    const TrackAnalysis *  track = m_session.model.GetTrack();
-    int                    qt    = m_session.model.GetQuarterTrack();
-
-
-
-    if (m_session.isTablesDirty)
-    {
-        vector<std::wstring>  columns = InspectorTables::GetTrackColumns();
-        vector<TableRow>      rows    = m_session.context.hasDisk ? InspectorTables::BuildTracks (m_session.analysis, m_session.context.findMarks, &m_session.edits, &m_session.appliedSlots, m_session.context.drive) : vector<TableRow>();
-
-        //  While comparing, each quarter track's verdict (FR-121).
-        if (m_session.comparison.IsComparing())
-        {
-            ComparisonText::AddVerdictColumn (columns, rows, m_session.comparison.GetResult(), m_session.comparison.IsWhollyBusy() || !m_session.comparison.HasResult(), m_session.comparison.GetComparing());
-        }
-
-        if (m_session.comparison.IsComparing() != m_isTracksCompared)
-        {
-            m_tracksView->SetColumns (columns);
-            m_isTracksCompared = m_session.comparison.IsComparing();
-        }
-
-        m_tracksView->SetRows    (std::move (rows));
-        m_diffsView->Refresh();
-        m_tracksView->SetCaption (m_session.context.hasDisk && InspectorTables::IsAlignmentNoteShown (m_session.analysis)
-                                     ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
-                                     : L"");
-        m_issuesView->Refresh();
-
-        vector<TableRow>  imageRows = m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr,
-                                                                                               m_session.context.drive)
-                                                                : vector<TableRow>();
-
-        //  With no Flux view on a disk without flux tracks, the Image view has
-        //  the note on why the disk has no timing (FR-003).
-        if (m_session.context.hasDisk && m_session.analysis.copy != nullptr && m_session.analysis.summary.fluxTracks == 0)
-        {
-            TableRow  timing;
-
-            timing.cells = { L"Timing", FluxView::FormatNoTiming (m_session.analysis.copy->format, m_session.analysis.copy->woz.info.version) };
-            imageRows.push_back (timing);
-        }
-
-        m_imageView->SetRows (std::move (imageRows));
-        m_files->RefreshFileList();
-
-        //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image
-        //  tab, and every other view is covered by a note (FR-054).
-        m_session.is35 = m_session.context.hasDisk && m_session.analysis.image.isWoz && m_session.analysis.image.info.diskType == WozLoader::kDiskType35;
-
-        if (m_session.is35)
-        {
-            ShowDiskTab (kTabImage);
-        }
-
-        Layout (m_boundsDip, m_session.hostScaler);
-    }
-
-    if (m_session.isTablesDirty || qt != m_syncedQuarterTrack)
-    {
-        m_syncedQuarterTrack = qt;
-        SyncTables();
-    }
-
-    m_session.isTablesDirty = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SyncTables
-//
-//  Each table selects the row for the window's selection.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SyncTables()
-{
-    int  qt = m_session.model.GetQuarterTrack();
-
-
-
-    m_tracksView->SelectRowWhere ([qt] (const TableRow & row) { return row.quarterTrack == qt; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SelectFromRow
-//
-//  A row goes to what it refers to: a field's nibbles, a sector, or a
-//  quarter track.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SelectFromRow (const TableRow & row)
-{
-    const TrackAnalysis *  track = nullptr;
-
-
-
-    if (row.quarterTrack >= 0)
-    {
-        m_session.model.SelectQuarterTrack (row.quarterTrack);
-        track = m_session.model.GetTrack();
-
-        if (row.sectorIndex >= 0)
-        {
-            m_session.model.SelectSector (row.quarterTrack, row.sectorIndex);
-        }
-        else if (track != nullptr && row.field >= 0 && row.field < static_cast<int> (track->fields.size()))
-        {
-            m_session.model.SelectNibbles (row.quarterTrack, track->fields[row.field].firstNibble, track->fields[row.field].nibbleCount);
-        }
-
-        OnSelection();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::OpenDecodeSettings
-//
-//  The dialog opens on the settings in force for the selected track.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::OpenDecodeSettings()
-{
-    HRESULT                   hr     = S_OK;
-    DecodeSettingsDialog      dialog;
-    DxuiWindow::CreateParams  params;
-
-
-
-    dialog.Configure (m_session.theme, m_session.analysis.settings, m_session.model.GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack);
-
-    params.title                    = L"Decode settings";
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = GetHwnd();
-    params.initialSizeDip           = DecodeSettingsDialog::kSizeDip;
-    params.minSizeDip               = DecodeSettingsDialog::kSizeDip;
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    dialog.SetTheme (m_session.theme);
-    dialog.ShowModalDialog (IDOK);
-
-    if (dialog.GetOutcome() != DecodeSettingsDialog::Outcome::Cancelled)
-    {
-        ApplySettings (dialog.GetSettings());
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::ApplySettings
-//
-//  Every record is analyzed again under the new settings; each record's old
-//  result shows until its new one arrives.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::ApplySettings (const DecodeSettings & settings)
-{
-    //  Edits on sectors that no longer decode under the new settings are
-    //  discarded after the analysis (FR-108).
-    if (m_session.context.hasDisk && m_session.analysis.copy != nullptr && (m_session.edits.IsEmpty() ||
-        Confirm (L"Decode settings", { L"Pending edits on sectors that no longer decode as editable under the new settings are discarded." }, L"Change settings")))
-    {
-        m_session.analysis.settings = settings;
-        m_session.scheduler->Restart (m_session.analysis.copy, settings);
-        m_session.comparison.ApplySettings (settings);
-        m_session.comparison.MarkAChanged();
-        m_session.isTablesDirty = true;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::IsStripKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskInspectorWindow::IsStripKey (WPARAM vk)
-{
-    return vk == VK_OEM_PLUS || vk == VK_ADD || vk == VK_OEM_MINUS || vk == VK_SUBTRACT || vk == VK_LEFT || vk == VK_RIGHT || vk == '0' || vk == VK_NUMPAD0;
 }
 
 
@@ -2162,425 +1860,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::OpenGoTo
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::OpenGoTo()
-{
-    HRESULT                   hr     = S_OK;
-    GoToDialog                dialog;
-    DxuiWindow::CreateParams  params;
-    GoToTarget                target;
-
-
-
-    dialog.Configure (m_session.theme, m_session.analysis, m_session.model.GetQuarterTrack(), m_goToKind);
-
-    params.title                    = L"Go to";
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = GetHwnd();
-    params.initialSizeDip           = GoToDialog::kSizeDip;
-    params.minSizeDip               = GoToDialog::kSizeDip;
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    dialog.SetTheme (m_session.theme);
-    dialog.ShowModalDialog (IDOK);
-
-    m_goToKind = dialog.GetKind();
-    target     = dialog.GetTarget();
-
-    if (dialog.IsChosen() && target.firstNibble >= 0)
-    {
-        m_session.model.SelectNibbles (target.quarterTrack, target.firstNibble, 1);
-        OnSelection();
-    }
-    else if (dialog.IsChosen() && target.sectorIndex >= 0)
-    {
-        m_session.model.SelectSector (target.quarterTrack, target.sectorIndex);
-        OnSelection();
-    }
-    else if (dialog.IsChosen())
-    {
-        m_session.model.SelectQuarterTrack (target.quarterTrack);
-        OnSelection();
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetKeyTarget
-//
-//  The view under a press, for the keys that act on the view pressed last.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
-{
-    KeyTarget  target = KeyTarget::Platter;
-
-
-
-    if (m_findPart->IsBarAt (pointPx))
-    {
-        target = KeyTarget::FindBar;
-    }
-    else if (IsInside (m_stripView->GetBounds(), pointPx) || (m_stripB->IsVisible() && IsInside (m_stripB->GetBounds(), pointPx)) || m_stripControls->Contains (pointPx))
-    {
-        target = KeyTarget::Strip;
-    }
-    else if (IsInside (m_sectorRow->GetBounds(), pointPx))
-    {
-        target = KeyTarget::SectorRow;
-    }
-    else if (m_sectorsView->IsVisible() && IsInside (m_sectorsView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::SectorData;
-    }
-    else if (m_nibblesView->IsVisible() && IsInside (m_nibblesView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::Nibbles;
-    }
-    else if (m_fluxView->IsVisible() && IsInside (m_fluxView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::FluxTiming;
-    }
-    else if (m_tracksView->IsVisible() && IsInside (m_tracksView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::Tracks;
-    }
-    else if (m_issuesView->IsVisible() && IsInside (m_issuesView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::Findings;
-    }
-    else if (m_imageView->IsVisible() && IsInside (m_imageView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::Image;
-    }
-    else if (m_files->IsListAt (pointPx))
-    {
-        target = KeyTarget::FileList;
-    }
-    else if (m_diffsView->IsVisible() && IsInside (m_diffsView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::Differences;
-    }
-    else if (m_findResults->IsVisible() && IsInside (m_findResults->GetBounds(), pointPx))
-    {
-        target = KeyTarget::FindResults;
-    }
-
-    return target;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SelectAll
-//
-//  The sector's bytes in the Sector data tab, the track's nibbles in the
-//  Nibbles tab and the strip (FR-043).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SelectAll()
-{
-    if (m_session.keyTarget == KeyTarget::SectorData)
-    {
-        m_session.model.SelectAllBytes();
-    }
-    else if (m_session.keyTarget == KeyTarget::Nibbles || m_session.keyTarget == KeyTarget::Strip)
-    {
-        m_session.model.SelectAllNibbles();
-        OnSelection();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::ExtendSelection
-//
-//  Shift with an arrow moves the end of the selection away from where it
-//  started: a byte or a nibble across, a row up or down.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::ExtendSelection (WPARAM vk)
-{
-    const TrackAnalysis *  track  = m_session.model.GetTrack();
-    bool                   isByte = m_session.keyTarget == KeyTarget::SectorData;
-    int                    row    = isByte ? SectorsView::kBytesPerRow : std::max (m_nibblesView->GetPerRow(), 1);
-    int                    first  = isByte ? m_session.model.GetFirstByte()  : m_session.model.GetFirstNibble();
-    int                    count  = isByte ? m_session.model.GetByteCount()  : m_session.model.GetNibbleCount();
-    int                    anchor = isByte ? m_session.model.GetByteAnchor() : m_session.model.GetNibbleAnchor();
-    int                    last   = isByte ? DiskFieldFormat::kSectorBytes - 1 : (track != nullptr ? static_cast<int> (track->framed.nibbles.size()) - 1 : -1);
-    int                    end    = (first == anchor) ? first + count - 1 : first;
-    int                    step   = (vk == VK_LEFT) ? -1 : (vk == VK_RIGHT) ? 1 : (vk == VK_UP) ? -row : row;
-
-
-
-    if (first >= 0 && count > 0 && last >= 0)
-    {
-        if (isByte)
-        {
-            m_session.model.ExtendBytes (std::clamp (end + step, 0, last));
-        }
-        else
-        {
-            m_session.model.ExtendNibbles (std::clamp (end + step, 0, last));
-            OnSelection();
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::Copy
-//
-//  Whatever the view pressed last has selected, as the window contract
-//  gives it (FR-057): bytes as hex or text, nibbles as hex, a table's row,
-//  the histogram; the sector as a hex dump when nothing smaller is chosen.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::Copy()
-{
-    const TrackAnalysis *   track  = m_session.model.GetTrack();
-    const AnalyzedSector *  sector = m_session.model.GetSector();
-    std::wstring            text;
-
-
-
-    switch (m_session.keyTarget)
-    {
-        case KeyTarget::Tracks:     text = m_tracksView->GetSelectedText();   break;
-        case KeyTarget::Findings:   text = m_issuesView->GetSelectedText(); break;
-        case KeyTarget::Image:      text = m_imageView->GetSelectedText();    break;
-        case KeyTarget::FileList:   text = m_files->GetFileList().GetSelectedText(); break;
-        case KeyTarget::Differences: text = m_diffsView->GetSelectedText();   break;
-        case KeyTarget::FindResults: text = m_findResults->GetSelectedText(); break;
-        case KeyTarget::FluxTiming: text = m_fluxView->GetHistogramText();    break;
-
-        case KeyTarget::Strip:
-        case KeyTarget::Nibbles:
-            //  A section header last clicked copies as its line (FR-057).
-            text = (m_session.keyTarget == KeyTarget::Nibbles) ? m_nibblesView->GetSelectedHeaderText() : std::wstring();
-            text = !text.empty() ? text : (track != nullptr && m_session.model.GetNibbleCount() > 0) ? InspectorClipboard::FormatNibbles (*track, m_session.model.GetFirstNibble(), m_session.model.GetNibbleCount())
-                                                                      : std::wstring();
-            break;
-
-        case KeyTarget::SectorData:
-            if (track != nullptr && sector != nullptr && sector->dataField >= 0 && m_session.model.GetByteCount() > 0)
-            {
-                std::span<const Byte>  bytes = std::span<const Byte> (track->fields[sector->dataField].data.bytes).subspan (m_session.model.GetFirstByte(), m_session.model.GetByteCount());
-
-                text = m_session.model.IsTextColumn() ? InspectorClipboard::FormatText (bytes) : InspectorClipboard::FormatHex (bytes);
-            }
-
-            break;
-
-        default:
-            break;
-    }
-
-    if (text.empty())
-    {
-        CopySector();
-    }
-    else
-    {
-        (void) m_session.clipboard.SetText (GetHwnd(), text);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::CopySector
-//
-//  "Copy sector": the whole sector as a hex dump (FR-057).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::CopySector()
-{
-    const TrackAnalysis *   track  = m_session.model.GetTrack();
-    const AnalyzedSector *  sector = m_session.model.GetSector();
-
-
-
-    if (track != nullptr && sector != nullptr && sector->dataField >= 0)
-    {
-        (void) m_session.clipboard.SetText (GetHwnd(), InspectorClipboard::FormatHexDump (track->fields[sector->dataField].data.bytes));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::OpenExport
-//
-//  "Export..." (FR-058): the dialog builds the bytes; a list of what was
-//  written as decoded or as zeros is shown first and can stop it; the save
-//  dialog picks the file, its own prompt confirming a replace; and the
-//  bytes go through DurableCommit. The image is never touched.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::OpenExport()
-{
-    HRESULT                   hr        = S_OK;
-    ExportDialog              dialog;
-    DxuiWindow::CreateParams  params;
-    Win32HostDialogs          dialogs;
-    Win32DiskFileIo           fileIo;
-    FileDialogSpec            spec;
-    CommitPlan::Progress      progress;
-    std::filesystem::path     image;
-    std::filesystem::path     target;
-    std::wstring              list;
-    bool                      isPicked  = false;
-    bool                      isGoingOn = false;
-
-
-
-    image = (m_session.analysis.copy != nullptr) ? std::filesystem::path (TextEncoding::Utf8ToWide (m_session.analysis.copy->fileName)) : std::filesystem::path (L"Disk");
-    dialog.Configure (m_session.theme, m_session.analysis, m_session.model.GetQuarterTrack(), m_session.model.GetSectorIndex(), image.stem().wstring());
-
-    params.title                    = L"Export";
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = GetHwnd();
-    params.initialSizeDip           = ExportDialog::kSizeDip;
-    params.minSizeDip               = ExportDialog::kSizeDip;
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    dialog.SetTheme (m_session.theme);
-    dialog.ShowModalDialog (IDOK);
-    BAIL_OUT_IF (!dialog.IsChosen(), S_OK);
-
-    for (const std::wstring & note : dialog.GetRequest().notes)
-    {
-        list += note + L"\n";
-    }
-
-    isGoingOn = list.empty() || DxuiMessageBox (GetHwnd(), m_session.theme, (L"The export will include these as noted:\n\n" + list + L"\nExport anyway?").c_str(),
-                                                L"Export", MB_OKCANCEL | MB_ICONWARNING) == IDOK;
-    BAIL_OUT_IF (!isGoingOn, S_OK);
-
-    spec.filters          = { { dialog.GetRequest().extension == L"woz" ? L"WOZ images" : L"Binary files", L"*." + dialog.GetRequest().extension } };
-    spec.defaultExtension = dialog.GetRequest().extension;
-    spec.defaultFileName  = dialog.GetRequest().fileName;
-    spec.initialFolder    = image.parent_path();
-
-    hr = dialogs.PickFileToSave (GetHwnd(), spec, target, isPicked);
-    CHR (hr);
-    BAIL_OUT_IF (!isPicked, S_OK);
-
-    hr = DurableCommit::Commit (fileIo, TextEncoding::WideToUtf8 (target.wstring()), dialog.GetRequest().bytes, GetTickCount64(),
-                                std::filesystem::exists (target) ? CommitMode::Replace : CommitMode::CreateNew, progress);
-
-    if (FAILED (hr))
-    {
-        (void) DxuiMessageBox (GetHwnd(), m_session.theme, (L"The export could not be written to " + target.wstring() + L".").c_str(), L"Export", MB_OK | MB_ICONWARNING);
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::ShowContextMenu
-//
-//  The Sector data, Nibbles and Tracks tabs' right-click menu: Copy, "Copy
-//  sector" in the Sector data tab, and "Export..." (FR-057, FR-058).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::ShowContextMenu (POINT pointPx)
-{
-    DxuiHwndSource                  * host   = GetPopupHost();
-    std::vector<DxuiPopupMenuItem>    items;
-    std::shared_ptr<DxuiCommand>      copy   = std::make_shared<DxuiCommand>();
-    std::shared_ptr<DxuiCommand>      sector = std::make_shared<DxuiCommand>();
-    std::shared_ptr<DxuiCommand>      save   = std::make_shared<DxuiCommand>();
-
-
-
-    copy->label          = L"Copy";
-    copy->accelerator    = L"Ctrl+C";
-    copy->dispatch       = [this] () { Copy(); };
-    sector->label        = L"Copy sector";
-    sector->accelerator  = L"Ctrl+Shift+C";
-    sector->dispatch     = [this] () { CopySector(); };
-    sector->isEnabled    = [this] () { return m_session.model.GetSector() != nullptr && m_session.model.GetSector()->dataField >= 0; };
-    save->label          = L"Export...";
-    save->dispatch       = [this] () { OpenExport(); };
-
-    items.push_back (DxuiPopupMenuItem::ForCommand (copy));
-
-    if (m_session.keyTarget == KeyTarget::SectorData)
-    {
-        items.push_back (DxuiPopupMenuItem::ForCommand (sector));
-    }
-
-    items.push_back (DxuiPopupMenuItem::ForSeparator());
-    items.push_back (DxuiPopupMenuItem::ForCommand (save));
-
-    m_menuCommands = { copy, sector, save };
-
-    if (host != nullptr)
-    {
-        DxuiContextMenu::Show (*host, pointPx.x, pointPx.y, std::move (items));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::GetButtonTip
 //
 //  Every button's tooltip (FR-059), with the key that does the same, or
@@ -2618,159 +1897,6 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
     }
 
     return tip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::StepKeyTarget
-//
-//  F6 and Shift+F6: the keys move to the next or previous view shown.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::StepKeyTarget (int step)
-{
-    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 10>  order =
-    {{
-        { KeyTarget::Platter,    m_platterView },
-        { KeyTarget::Strip,      m_stripView },
-        { KeyTarget::SectorRow,  m_sectorRow },
-        { KeyTarget::SectorData, m_sectorsView },
-        { KeyTarget::Nibbles,    m_nibblesView },
-        { KeyTarget::FluxTiming, m_fluxView },
-        { KeyTarget::Tracks,     m_tracksView },
-        { KeyTarget::Findings,   m_issuesView },
-        { KeyTarget::Differences, m_diffsView },
-        { KeyTarget::FindResults, m_findResults },
-    }};
-
-
-
-    int  count = static_cast<int> (order.size());
-    int  at    = 0;
-    int  k     = 0;
-
-
-
-    for (k = 0; k < count; k++)
-    {
-        at = (order[k].first == m_session.keyTarget) ? k : at;
-    }
-
-    for (k = 1; k < count; k++)
-    {
-        size_t        index = static_cast<size_t> (at + step * k + count * k) % order.size();
-        const auto &  next  = (index < order.size()) ? order[index] : order[0];
-
-        if (next.second != nullptr && next.second->IsVisible())
-        {
-            m_session.keyTarget = next.first;
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetKeyTargetBounds
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DiskInspectorWindow::GetKeyTargetBounds() const
-{
-    RECT  bounds = m_platterView->GetBounds();
-
-
-
-    switch (m_session.keyTarget)
-    {
-        case KeyTarget::Strip:      bounds = m_stripView->GetBounds();   break;
-        case KeyTarget::SectorRow:  bounds = m_sectorRow->GetBounds();   break;
-        case KeyTarget::SectorData: bounds = m_sectorsView->GetBounds();    break;
-        case KeyTarget::Nibbles:    bounds = m_nibblesView->GetBounds();  break;
-        case KeyTarget::FluxTiming: bounds = m_fluxView->GetBounds();     break;
-        case KeyTarget::Tracks:     bounds = m_tracksView->GetBounds();   break;
-        case KeyTarget::Findings:   bounds = m_issuesView->GetBounds(); break;
-        case KeyTarget::Differences: bounds = m_diffsView->GetBounds();   break;
-        case KeyTarget::FindResults: bounds = m_findResults->GetBounds(); break;
-        default:                                                         break;
-    }
-
-    return bounds;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::PaintNot35
-//
-//  On a 3.5" disk, a note over every view but the Image tab (FR-054).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    static constexpr LPCWSTR  kpszNote = L"Casso does not analyze 3.5\" disks. The Image tab lists what the file contains.";
-
-
-
-    RECT  empty = {};
-
-
-
-    for (const RECT & area : { m_platterAreaPx, m_trackAreaPx, m_stripAreaPx, IsImageShown() ? empty : m_diskContentPx })
-    {
-        if (!IsRectEmpty (&area))
-        {
-            painter.FillRect (static_cast<float> (area.left), static_cast<float> (area.top), static_cast<float> (area.right - area.left),
-                              static_cast<float> (area.bottom - area.top), theme.Background());
-            text.DrawString (kpszNote, static_cast<float> (area.left), static_cast<float> (area.top), static_cast<float> (area.right - area.left),
-                             static_cast<float> (area.bottom - area.top), theme.ForegroundMuted(), m_session.scaler.ToPxf (InspectorView::kTextDip),
-                             DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::IsCovered
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskInspectorWindow::IsCovered (POINT pointPx) const
-{
-    return m_session.is35 && (IsInside (m_platterAreaPx, pointPx) || IsInside (m_trackAreaPx, pointPx) || IsInside (m_stripAreaPx, pointPx) ||
-                      (!IsImageShown() && IsInside (m_diskContentPx, pointPx)));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::IsImageShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskInspectorWindow::IsImageShown() const
-{
-    return m_session.isDiskGroup && m_session.diskTab == kTabImage;
 }
 
 
@@ -2870,156 +1996,3 @@ void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
 
 
 
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::PaintNoDisk
-//
-//  An empty drive: a dashed outline of the disk and its hub where the
-//  platter would be, and over it the reason no disk is drawn (FR-061,
-//  FR-070).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::PaintNoDisk (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
-{
-    static constexpr double  kTwoPi    = 6.283185307179586;
-    static constexpr float   kInsetDip = 16.0f;
-    static constexpr float   kDashDip  = 12.0f;
-
-
-
-    float          cx      = (m_platterAreaPx.left + m_platterAreaPx.right) / 2.0f;
-    float          cy      = (m_platterAreaPx.top + m_platterAreaPx.bottom) / 2.0f;
-    float          rim     = std::min (m_platterAreaPx.right - m_platterAreaPx.left, m_platterAreaPx.bottom - m_platterAreaPx.top) / 2.0f - m_session.scaler.ToPxf (kInsetDip);
-    float          line    = m_session.scaler.ToPxf (1.5f);
-    bool           isNoCtl = m_session.headState != nullptr && !m_session.headState->hasController;
-    bool           isOff   = m_session.host != nullptr && !m_session.host->IsDriveAttached (m_session.drive);
-    std::wstring   why     = isNoCtl ? std::wstring (L"This machine has no Disk II controller in slot 6") :
-                             isOff   ? std::format (L"Drive {} is not attached", m_session.drive + 1) : std::format (L"No disk in drive {}", m_session.drive + 1);
-    double         a       = 0.0;
-    double         b       = 0.0;
-    int            k       = 0;
-    int            dashes  = 0;
-
-
-
-    //  The same dash length on both circles.
-    for (float radius : { rim, rim * PlatterRenderer::kInnerFraction })
-    {
-        dashes = std::max (8, static_cast<int> (kTwoPi * radius / (2.0f * m_session.scaler.ToPxf (kDashDip))));
-
-        for (k = 0; radius > 0.0f && k < dashes; k++)
-        {
-            a = kTwoPi * k / dashes;
-            b = kTwoPi * (k + 0.5) / dashes;
-
-            painter.DrawLine (cx + radius * static_cast<float> (std::sin (a)), cy - radius * static_cast<float> (std::cos (a)),
-                              cx + radius * static_cast<float> (std::sin (b)), cy - radius * static_cast<float> (std::cos (b)), line, theme.ForegroundMuted());
-        }
-    }
-
-    text.DrawString (why.c_str(), static_cast<float> (m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.top),
-                     static_cast<float> (m_platterAreaPx.right - m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.bottom - m_platterAreaPx.top),
-                     theme.ForegroundMuted(), m_session.scaler.ToPxf (InspectorView::kTextDip + 1.0f), DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
-                     DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::OnWalkthroughMouse
-//
-//  While the walkthrough is open, a press on its buttons steps or closes it,
-//  and every other event goes nowhere.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskInspectorWindow::OnWalkthroughMouse (const DxuiMouseEvent & ev)
-{
-    bool  isPress   = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
-    bool  isHandled = m_walkthrough.IsOpen();
-
-
-
-    if (isHandled && isPress)
-    {
-        switch (m_walkthrough.HitTest (ev.positionDip))
-        {
-            case WalkthroughButton::Back:  m_walkthrough.Back();  break;
-            case WalkthroughButton::Next:  m_walkthrough.Next();  break;
-            case WalkthroughButton::Close: m_walkthrough.Close(); break;
-            case WalkthroughButton::None:                         break;
-        }
-    }
-
-    return isHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::OnWalkthroughKey
-//
-//  While the walkthrough is open: Escape closes it, Left steps back, and
-//  Right or Enter steps on. It takes every key.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskInspectorWindow::OnWalkthroughKey (const DxuiKeyEvent & ev)
-{
-    bool  isHandled = m_walkthrough.IsOpen();
-
-
-
-    if (isHandled && ev.kind == DxuiKeyEventKind::Down)
-    {
-        switch (ev.vk)
-        {
-            case VK_ESCAPE: m_walkthrough.Close(); break;
-            case VK_LEFT:   m_walkthrough.Back();  break;
-            case VK_RIGHT:
-            case VK_RETURN: m_walkthrough.Next();  break;
-            default:                               break;
-        }
-    }
-
-    return isHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetWalkthroughArea
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DiskInspectorWindow::GetWalkthroughArea (WalkthroughArea area) const
-{
-    RECT  rect   = {};
-    RECT  header = m_headerView->GetBounds();
-    RECT  row    = m_sectorRow->GetBounds();
-
-
-
-    switch (area)
-    {
-        case WalkthroughArea::Platter: rect = m_platterAreaPx;                                       break;
-        case WalkthroughArea::Toolbar: rect = m_toolbarPx;                                           break;
-        case WalkthroughArea::Track:   UnionRect (&rect, &header, &row);                             break;
-        case WalkthroughArea::Tabs:    rect = { m_trackAreaPx.left, m_trackAreaPx.bottom, m_trackAreaPx.right, m_diskContentPx.bottom }; break;
-        case WalkthroughArea::Strip:   rect = m_stripAreaPx;                                         break;
-        case WalkthroughArea::None:                                                                  break;
-    }
-
-    return rect;
-}

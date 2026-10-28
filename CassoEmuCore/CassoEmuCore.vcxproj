@@ -518,6 +518,11 @@
     <ClCompile Include="Ui\DiskInspector\Components\InspectorSession.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorToolbar.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\PlatterCorners.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorDialogs.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\SelectionPart.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\ViewTables.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\ScreenNotes.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\WalkthroughPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\StatusBand.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\StripControls.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\TrackColumn.cpp" />
@@ -1040,6 +1045,11 @@
     <ClInclude Include="Ui\DiskInspector\Components\InspectorSession.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorToolbar.h" />
     <ClInclude Include="Ui\DiskInspector\Components\PlatterCorners.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorDialogs.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\SelectionPart.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\ViewTables.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\ScreenNotes.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\WalkthroughPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\StatusBand.h" />
     <ClInclude Include="Ui\DiskInspector\Components\StripControls.h" />
     <ClInclude Include="Ui\DiskInspector\Components\TrackColumn.h" />

@@ -878,7 +878,6 @@ $script:LongCppAllowed = @(
     'CassoEmuCore/Shell/Window/EmulatorWindow.cpp',
     'CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp',
     'CassoEmuCore/Shell/WindowCommandManager.cpp',
-    'CassoEmuCore/Ui/DiskInspector/DiskInspectorWindow.cpp',
     'CassoEmuCore/Ui/Printer3DScene.cpp',
     'CassoEmuCore/Ui/Scene/DeskScene.cpp',
     'CassoEmuCore/Ui/Scene/DeskSceneModel.cpp',
