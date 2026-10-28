@@ -94,13 +94,13 @@ public:
     }
 
 
-    TEST_METHOD (TheStripReadoutGivesTheZoomAndTheCellsInView)
+    TEST_METHOD (TheStripReadoutIsTheCellsInView)
     {
-        std::wstring  readout = InspectorText::FormatStripReadout (1.0 / 83.0, 12400, 13016);
+        std::wstring  readout = InspectorText::FormatStripReadout (12400, 13016);
 
 
 
-        Assert::AreEqual (std::wstring (s_kpszMultiplyX) + L"83" + L" " + s_kpszMiddleDot + L" cells 12,400-13,016", readout);
+        Assert::AreEqual (std::wstring (L"Cells 12,400-13,016"), readout);
     }
 
 

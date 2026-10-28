@@ -84,6 +84,6 @@ public:
     static std::wstring         FormatNoSectorData  (const QuarterTrackEntry & entry, const TrackAnalysis * track);
 
     static std::wstring         FormatNibbleKind    (NibbleKind kind, bool isFailedChecksum);
-    static std::wstring         FormatStripReadout   (double span, uint32_t firstCell, uint32_t lastCell, const std::wstring & driveState = std::wstring());
+    static std::wstring         FormatStripReadout   (uint32_t firstCell, uint32_t lastCell, const std::wstring & driveState = std::wstring());
     static std::wstring         FormatSelection      (const TrackAnalysis & track, int firstNibble, int nibbleCount);
 };

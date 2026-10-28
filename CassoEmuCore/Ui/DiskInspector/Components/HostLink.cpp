@@ -343,7 +343,7 @@ void HostLink::TickHead()
     //  While the drive turns, the platter turns under the head at 12
     //  o'clock, or at the near edge when tilted (FR-152). Zoomed in, the
     //  platter does not turn and the head moves around it (FR-064).
-    if (isOnDisk && m_session.headState->isTurning && m_session.model.IsAtFit())
+    if (isOnDisk && m_session.headState->isTurning && m_session.model.IsAtFit() && !m_session.model.IsFlying())
     {
         m_session.model.SetRotation ((m_session.model.IsTilted() ? 0.5 : 0.0) - m_session.headState->angle);
     }

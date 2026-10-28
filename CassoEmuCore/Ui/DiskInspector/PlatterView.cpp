@@ -155,6 +155,12 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
                        m_scaler.ToPxf (s_kHoverOutlineDip), theme.ForegroundMuted());
     }
 
+    if (m_context.isFilesOverlay && m_context.fileMap != nullptr && m_context.fileMap->notMapped == NotMappedReason::None)
+    {
+        m_overlays->PaintFiles (painter, theme, view);
+    }
+
+    //  Over the Files overlay, which colors the data fields the reads mark.
     if ((m_context.isReadsOverlay || m_context.isWritesOverlay || m_context.isScansOverlay) && m_context.drive != nullptr)
     {
         m_overlays->DimForAccess (painter, view);
@@ -187,11 +193,6 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     if (m_isAlignmentShown)
     {
         m_overlays->PaintAlignment (painter, theme, view);
-    }
-
-    if (m_context.isFilesOverlay && m_context.fileMap != nullptr && m_context.fileMap->notMapped == NotMappedReason::None)
-    {
-        m_overlays->PaintFiles (painter, theme, view);
     }
 
     if (m_context.isDiffsOverlay && m_context.comparison != nullptr)

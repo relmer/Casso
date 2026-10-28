@@ -1279,7 +1279,7 @@ std::wstring TrackStripView::GetReadout() const
     }
 
     return (track != nullptr && track->framed.cellCount > 0)
-         ? InspectorText::FormatStripReadout (span, first, last, IsHeadOnTrack() ? GetHeadLabel (m_context.head.activity) : L"")
+         ? InspectorText::FormatStripReadout (first, last, IsHeadOnTrack() ? GetHeadLabel (m_context.head.activity) : L"")
          : std::wstring();
 }
 

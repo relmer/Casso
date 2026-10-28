@@ -159,6 +159,8 @@ comparing two quarter tracks of one disk.
 - Q: Turning on Reads, Writes or Scans changes nothing visible. How are
   they made plain? → A: The tracks are dimmed while one is on, every ring of
   a track's band is shaded, and the shading is near opaque (FR-161).
+- Q: Is the strip's zoom factor, as "×8", useful? → A: No; its readout
+  is the cells in view alone (FR-034).
 - Q: Can a selection be returned to? → A: Back and Forward step through the
   user's selections, with Alt+Left and Alt+Right, the mouse's back and
   forward buttons, and the Go menu (FR-164).
@@ -1948,8 +1950,7 @@ legend, and tilt the platter and back.
   "Whole track" buttons and the keyboard, and MUST pan with Shift and a drag,
   with Shift and the wheel, and with Left and Right. A drag MUST select a
   range (FR-043). Double-click MUST return to the whole track. A readout MUST
-  display the zoom and the cells in view (for example "×83 · cells
-  12,400-13,016"), a hint MUST read "Scroll to zoom, drag to select,
+  display the cells in view (for example "Cells 12,400-13,016"), a hint MUST read "Scroll to zoom, drag to select,
   Shift+drag to pan, double-click for the whole track", and the zoom MUST stay the same
   when another track is selected or the same track is analyzed again.
 - **FR-035**: At every zoom, each stretch of one kind in view that is wide

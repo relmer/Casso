@@ -491,16 +491,14 @@ std::wstring InspectorText::FormatNibbleKind (NibbleKind kind, bool isFailedChec
 //
 //  InspectorText::FormatStripReadout
 //
-//  The strip's zoom and the cells in view, as "×83 · cells 12,400-13,016"
-//  (FR-034), then the drive's state when the head is on the selected
+//  The cells in the strip's view, as "Cells 12,400-13,016" (FR-034), then the drive's state when the head is on the selected
 //  track (FR-066).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring InspectorText::FormatStripReadout (double span, uint32_t firstCell, uint32_t lastCell, const std::wstring & driveState)
+std::wstring InspectorText::FormatStripReadout (uint32_t firstCell, uint32_t lastCell, const std::wstring & driveState)
 {
-    return std::format (L"{}{:.0f}", s_kpszMultiplyX, 1.0 / std::max (span, 1e-9)) + s_kSeparator
-         + L"cells " + InspectorFormat::FormatCount (firstCell) + L"-" + InspectorFormat::FormatCount (lastCell)
+    return L"Cells " + InspectorFormat::FormatCount (firstCell) + L"-" + InspectorFormat::FormatCount (lastCell)
          + (driveState.empty() ? std::wstring() : s_kSeparator + driveState);
 }
 

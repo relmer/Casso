@@ -1341,19 +1341,29 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
 //  PlatterOverlays::DimForAccess
 //
 //  While "Reads", "Writes" or "Scans" is on, the tracks are dimmed so the
-//  shaded sectors are plain against them.
+//  shaded sectors are plain against them. Each whole track's band in view is
+//  shaded separately, as the file highlight dims its bands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterOverlays::DimForAccess (IDxuiPainter & painter, const PlatterPlacement & view) const
 {
-    double  outer = PlatterGeometry::GetRingOuter (0) * view.outerRadiusPx;
-    double  inner = PlatterGeometry::GetRingOuter (PlatterRenderer::kRingCount) * view.outerRadiusPx;
+    uint32_t  dim   = (m_view.m_context.palette.background & 0x00FFFFFFu) | s_kAccessDimAlpha;
+    double    outer = 0;
+    double    inner = 0;
 
 
 
-    m_view.StrokeDiskCircle (painter, view, static_cast<float> ((outer + inner) / 2), static_cast<float> (outer - inner),
-                             (m_view.m_context.palette.background & 0x00FFFFFFu) | s_kAccessDimAlpha);
+    for (int t = 0; t * DiskImage::kQuarterTracksPerWholeTrack < PlatterRenderer::kRingCount; t++)
+    {
+        outer = PlatterGeometry::GetRingOuter (t * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter (std::min ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx;
+
+        if (IsBandVisible (view, inner, outer))
+        {
+            ShadeRingArc (painter, view, 0.0, 1.0, inner, outer, dim);
+        }
+    }
 }
 
 
