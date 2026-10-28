@@ -193,6 +193,8 @@
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\EmbeddedMachineJson.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureRomSource.cpp" />
