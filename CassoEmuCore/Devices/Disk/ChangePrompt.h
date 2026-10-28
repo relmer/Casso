@@ -259,7 +259,9 @@ struct ChangePrompt
     //  gone, what the emulator holds may be the only copy of that disk either
     //  way.
     static ChangePrompt  ComposeLostFile (const std::string & imagePath, int drive,
-                                          ChangeAction action);
+                                          ChangeAction action,
+                                          const std::string & copyPath   = std::string(),
+                                          bool copyAlreadyWritten        = false);
 
     //  "work.dsk". The file alone, not the path: a message about a disk in a
     //  drive is about the disk, and a folder in the middle of a sentence buries

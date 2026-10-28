@@ -222,7 +222,7 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
 
     case ChangeAction::Unusable:
     case ChangeAction::Deleted:
-        prompt = ComposeLostFile (imagePath, drive, action);
+        prompt = ComposeLostFile (imagePath, drive, action, copyPath, copyAlreadyWritten);
         break;
 
     default:
@@ -574,7 +574,9 @@ ChangePrompt ChangePrompt::ComposeEjectSaveFailure (const std::string & imagePat
 ////////////////////////////////////////////////////////////////////////////////
 
 ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int drive,
-                                            ChangeAction action)
+                                            ChangeAction action,
+                                            const std::string & copyPath,
+                                            bool copyAlreadyWritten)
 {
     ChangePrompt  prompt;
     std::wstring  full  = fs::path (imagePath).wstring();
@@ -585,9 +587,23 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
     prompt.title = (action == ChangeAction::Deleted) ? L"Mounted disk has been removed"
                                                      : L"Mounted disk can't be read";
 
-    prompt.message = full + L"\n\n" + where
-                   + L" still has the disk's contents in memory. "
-                     L"You can save it to a new file or discard it.";
+    //  A COPY ALREADY WRITTEN IS STATED. A save that found the file gone
+    //  wrote the guest's version beside it, under the name a question
+    //  reserved, and without this sentence the question read as though the
+    //  disk existed only in memory.
+    if (copyAlreadyWritten && !copyPath.empty())
+    {
+        prompt.message = full + L"\n\n" + where
+                       + L" has the disk's contents in memory, and they are also saved in "
+                       + GetFileName (copyPath) + L" in the same folder. "
+                         L"You can save them to another file or discard them.";
+    }
+    else
+    {
+        prompt.message = full + L"\n\n" + where
+                       + L" still has the disk's contents in memory. "
+                         L"You can save it to a new file or discard it.";
+    }
 
     //  THIS ONE IS DELIBERATELY STICKY, and it is the only prompt that is.
     //  The disk in the drive exists in memory and nowhere else, so there is no

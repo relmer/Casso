@@ -1022,4 +1022,20 @@ public:
         AssertEjectAnswers (prompt);
     }
 
+
+    //  The question about a lost file includes the copy a save already wrote
+    //  beside it, and does not include one when none was written.
+    TEST_METHOD (ALostFileQuestionGivesTheCopyAlreadyWritten)
+    {
+        ChangePrompt  written = ChangePrompt::Compose ("C:\\disks\\Work.dsk", 0, ChangeAction::Deleted,
+                                                       "C:\\disks\\Work.preserved.dsk", true);
+        ChangePrompt  pending = ChangePrompt::Compose ("C:\\disks\\Work.dsk", 0, ChangeAction::Deleted,
+                                                       "C:\\disks\\Work.preserved.dsk", false);
+
+
+
+        Assert::IsTrue  (written.message.find (L"Work.preserved.dsk") != std::wstring::npos, written.message.c_str());
+        Assert::IsFalse (pending.message.find (L"Work.preserved.dsk") != std::wstring::npos, pending.message.c_str());
+        Assert::IsTrue  (written.answers[written.safeAnswer].action == ChangeAction::PreserveCopy, L"and Save as is the safe answer either way");
+    }
 };
