@@ -3,10 +3,12 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/SscSwitches.h"
+#include "Ui/Settings/SerialAttachmentView.h"
 #include "Ui/Settings/SscSettingsModel.h"
 #include "Ui/Settings/SscSwitchesView.h"
 
 class DxuiHwndSource;
+class IHostSerialPorts;
 class SettingsPanelState;
 
 
@@ -37,14 +39,8 @@ class SerialCardPage : public DxuiPropertyPage
 public:
     static constexpr int  kMaxRows = 8;
 
-    // What a connector attachment choice is, in drop-down order.
-    static constexpr const char *  kAttachmentDevices[] = { "", "serial-loopback", "serial-file-out", "serial-file-in" };
-    static constexpr int           kLoopbackChoice      = 1;
-    static constexpr int           kFileOutChoice       = 2;
-    static constexpr int           kFileInChoice        = 3;
-
     // `forOutput` is true for the file the card sends into, false for the file sent into the card.
-    using BrowseFn = std::function<bool (bool forOutput, std::string & inOutPath)>;
+    using BrowseFn = SerialAttachmentView::BrowseFn;
 
     explicit SerialCardPage (std::wstring title = L"Serial card");
 
@@ -52,7 +48,8 @@ public:
     void  SetPopupHost      (DxuiHwndSource * host);
     void  SetFirmwareStatus (const std::wstring & text, bool offerDownload);
     void  SetOnDownload     (std::function<void()> fn) { m_onDownload = std::move (fn); }
-    void  SetOnBrowse       (BrowseFn fn)              { m_onBrowse   = std::move (fn); }
+    void  SetOnBrowse       (BrowseFn fn)              { m_attachment.SetOnBrowse (std::move (fn)); }
+    void  SetSerialPorts    (IHostSerialPorts * ports) { m_attachment.SetSerialPorts (ports); }
 
     void  Layout   (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild  ();
@@ -61,16 +58,16 @@ public:
     int                   GetRowCount       () const { return static_cast<int> (m_rowSettings.size()); }
     SscSetting            GetRowSetting     (int row) const { return m_rowSettings[static_cast<size_t> (row)]; }
     DxuiComboBox        & GetRowDropdown    (int row) { return m_rowCombos[row]; }
-    DxuiComboBox        & GetAttachDropdown ()        { return m_attach; }
+    DxuiComboBox        & GetAttachDropdown ()        { return m_attachment.GetAttachDropdown(); }
+    SerialAttachmentView & GetAttachment    ()        { return m_attachment; }
     SscSwitchesView     & GetSwitchesView   ()        { return m_switchesView; }
     const std::wstring  & GetRowNote        (int row) const { return m_rowNoteText[row]; }
-    const std::wstring  & GetAttachNote     () const  { return m_attachNoteText; }
+    const std::wstring  & GetAttachNote     () const  { return m_attachment.GetNoteText(); }
     DxuiInfoTip         & GetRowInfoTip     (int row) { return m_rowTips[row]; }
     DxuiButton          & GetRestoreButton  ()        { return m_restore; }
 
 private:
     static RECT          MakeRect          (int l, int t, int w, int h);
-    static std::wstring  GetAttachmentNote (int choice);
 
     IDxuiTextRenderer  * GetMeasuringRenderer () const;
     int                  GetLabelColumnPx     (const DxuiDpiScaler & scaler) const;
@@ -78,19 +75,16 @@ private:
 
     SscSwitches  ReadStagedSwitches () const;
     void         StageSwitches      (const SscSwitches & switches);
-    void         StageAttachment    (int choice, const std::string & path);
     void         SyncSwitches       (const SscSwitches & switches);
     void         Relayout           ();
     void         OnRowPicked        (int row, int choice);
-    void         OnAttachPicked     (int choice);
-    void         OnBrowse           ();
+    void         OnAttachmentChanged (const SerialAttachmentChoice & choice);
     void         OnSwitchToggled    (SscBank bank, int number);
     void         OnRestoreDefaults  ();
 
     SettingsPanelState *     m_state     = nullptr;
     DxuiHwndSource *         m_popupHost = nullptr;
     std::function<void()>    m_onDownload;
-    BrowseFn                 m_onBrowse;
 
     DxuiInfoBanner           m_firmwareBanner;
     DxuiButton               m_download;
@@ -105,14 +99,7 @@ private:
     std::wstring             m_rowNoteText[kMaxRows];
     SscSwitchesView          m_switchesView;
 
-    DxuiLabel                m_attachLabel;
-    DxuiComboBox             m_attach;
-    DxuiLabel                m_attachNote;
-    std::wstring             m_attachNoteText;
-    DxuiLabel                m_pathLabel;
-    DxuiLabel                m_pathValue;
-    DxuiButton               m_browse;
-    std::string              m_path;
+    SerialAttachmentView     m_attachment { SerialAttachmentView::Kind::Card, L"Serial connector:" };
 
     DxuiButton               m_restore;
 

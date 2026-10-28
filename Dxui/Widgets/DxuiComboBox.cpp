@@ -178,6 +178,11 @@ void DxuiComboBox::Open()
 
 
 
+    if (m_onOpen)
+    {
+        m_onOpen();
+    }
+
     m_open      = true;
     m_highlight = (m_selected >= 0) ? m_selected : (m_items.empty() ? -1 : 0);
     m_scrollTop = 0;

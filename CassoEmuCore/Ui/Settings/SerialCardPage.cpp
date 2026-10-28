@@ -20,14 +20,6 @@ static constexpr int    s_kNoteHeightDp    = 36;     // two lines of note text
 static constexpr float  s_kNoteFontDp      = 12.0f;
 static constexpr int    s_kRestoreWidthDp  = 130;    // as the Storage page's Restore defaults
 
-static constexpr const wchar_t *  s_kAttachmentLabels[] =
-{
-    L"None",
-    L"Loopback plug",
-    L"Write output to file",
-    L"Read input from file",
-};
-
 
 
 
@@ -86,22 +78,12 @@ SerialCardPage::SerialCardPage (std::wstring title)
     }
 
     Adopt (m_switchesView);
-    Adopt (m_attachLabel);
-    Adopt (m_attach);
-    Adopt (m_attachNote);
-
-    m_attachNote.SetTextRole    (DxuiTextRole::Muted);
-    m_attachNote.SetFontSizeDip (s_kNoteFontDp);
-    m_switchesView.SetOnToggle  ([this] (SscBank bank, int number) { OnSwitchToggled (bank, number); });
-    Adopt (m_pathLabel);
-    Adopt (m_pathValue);
-    Adopt (m_browse);
+    m_attachment.AdoptInto (*this);
     Adopt (m_restore);
 
-    m_attach.SetItems   ({ std::begin (s_kAttachmentLabels), std::end (s_kAttachmentLabels) });
-    m_attach.SetSelect  ([this] (int picked) { OnAttachPicked (picked); });
-    m_browse.SetOnClick  ([this] () { OnBrowse(); });
-    m_restore.SetOnClick ([this] () { OnRestoreDefaults(); });
+    m_switchesView.SetOnToggle ([this] (SscBank bank, int number) { OnSwitchToggled (bank, number); });
+    m_attachment.SetOnChange   ([this] (const SerialAttachmentChoice & choice) { OnAttachmentChanged (choice); });
+    m_restore.SetOnClick       ([this] () { OnRestoreDefaults(); });
     m_download.SetOnClick ([this] ()
     {
         if (m_onDownload)
@@ -149,7 +131,7 @@ void SerialCardPage::SetPopupHost (DxuiHwndSource * host)
         m_rowTips[i].SetPopupHost   (host);
     }
 
-    m_attach.SetPopupHost (host);
+    m_attachment.SetPopupHost (host);
 }
 
 
@@ -203,8 +185,6 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   noteWidth    = std::max (dropWidth, scaler.ToPx (s_kDropdownWidthDp) + rowGap + buttonWidth);
     int   bannerWidth  = (rect.right - rect.left) - pad * 2;
     int   bannerHeight = static_cast<int> (std::ceil (m_firmwareBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
-    int   fileChoice   = m_attach.GetSelectedIndex();
-    bool  showPath     = fileChoice == kFileOutChoice || fileChoice == kFileInChoice;
 
 
 
@@ -270,48 +250,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_switchesView.Layout (MakeRect (controlsX, y, scaler.ToPx (SscSwitchesView::kWidthDip), scaler.ToPx (SscSwitchesView::kHeightDip)), scaler);
     y += scaler.ToPx (SscSwitchesView::kHeightDip) + sectionGap;
 
-    m_attachLabel.SetText (L"Serial connector:");
-    m_attachLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_attachLabel.SetDpi  (dpi);
-    m_attach.SetRect      (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_attach.SetDpi       (dpi);
-    y += rowHeight + rowGap;
-
-    m_attachNoteText = GetAttachmentNote (fileChoice);
-    m_attachNote.SetVisible (!m_attachNoteText.empty());
-    m_attachNote.SetText    (m_attachNoteText);
-    m_attachNote.SetRect    (MakeRect (controlsX, y, noteWidth, noteHeight));
-    m_attachNote.SetDpi     (dpi);
-
-    if (!m_attachNoteText.empty())
-    {
-        y += noteHeight + sectionGap;
-    }
-
-    m_pathLabel.SetVisible (showPath);
-    m_pathValue.SetVisible (showPath);
-    m_browse.SetVisible    (showPath);
-    m_pathLabel.SetText    (L"File:");
-    m_pathLabel.SetRect    (MakeRect (x, y, labelWidth, rowHeight));
-    m_pathLabel.SetDpi     (dpi);
-    m_pathValue.SetText    (m_path.empty() ? std::wstring (L"(none chosen)") : TextEncoding::NarrowToWide (m_path));
-    m_pathValue.SetRect    (MakeRect (controlsX, y, noteWidth, rowHeight));
-    m_pathValue.SetDpi     (dpi);
-
-    // Below the path, at the width of the sheet's OK and Cancel.
-    if (showPath)
-    {
-        y += rowHeight + rowGap;
-    }
-
-    m_browse.SetLabel      (L"Browse...");
-    m_browse.Layout        (MakeRect (controlsX, y, scaler.ToPx (DxuiButtonRow::GetWidthForLabel (L"Browse...")), rowHeight));
-    m_browse.SetDpi        (dpi);
-
-    if (showPath)
-    {
-        y += rowHeight;
-    }
+    y = m_attachment.Layout (x, y, labelWidth, noteWidth, { rowHeight, rowGap, sectionGap, noteHeight }, scaler);
 
     y += sectionGap;
 
@@ -322,42 +261,6 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     DxuiPanel::SetBounds (rect);
     SetContentHeightPx (GetLowestChildBottomPx() + pad - rect.top);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SerialCardPage::GetAttachmentNote
-//
-//  What each attachment does with the card's serial lines.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring SerialCardPage::GetAttachmentNote (int choice)
-{
-    std::wstring  note;
-
-
-
-    if (choice == kLoopbackChoice)
-    {
-        note = L"TX is wired back to RX, RTS to CTS, and DTR to DSR and DCD, so what the "
-               L"card sends comes back into it.";
-    }
-    else if (choice == kFileOutChoice)
-    {
-        note = L"All data the card sends is appended to the file below.";
-    }
-    else if (choice == kFileInChoice)
-    {
-        note = L"The file below is sent to the card at its baud rate, once a program turns "
-               L"the card's receiver on.";
-    }
-
-    return note;
 }
 
 
@@ -450,7 +353,7 @@ int SerialCardPage::GetDropdownWidthPx (const DxuiDpiScaler & scaler, int maxPx)
 
     if (text != nullptr)
     {
-        width = std::max (width, (int) std::ceil (m_attach.GetFitWidthPx (*text)));
+        width = std::max (width, (int) std::ceil (m_attachment.GetAttachFitWidthPx (*text)));
     }
 
     return std::min (width, std::max (maxPx, scaler.ToPx (s_kDropdownWidthDp)));
@@ -472,8 +375,6 @@ int SerialCardPage::GetDropdownWidthPx (const DxuiDpiScaler & scaler, int maxPx)
 void SerialCardPage::Rebuild()
 {
     SscSwitches  switches = ReadStagedSwitches();
-    int          index    = (m_state != nullptr) ? m_state->FindSerialCard() : -1;
-    int          attach   = 0;
 
 
 
@@ -503,23 +404,7 @@ void SerialCardPage::Rebuild()
 
     SyncSwitches (switches);
 
-    if (index >= 0)
-    {
-        const HardwareEntry &  entry  = m_state->GetHardware()[static_cast<size_t> (index)];
-        std::string            device = entry.ports.empty() ? std::string() : entry.ports.front();
-
-        for (int i = 0; i < static_cast<int> (std::size (kAttachmentDevices)); ++i)
-        {
-            if (device == kAttachmentDevices[i])
-            {
-                attach = i;
-            }
-        }
-
-        m_path = entry.portPath;
-    }
-
-    m_attach.SetSelected (attach);
+    m_attachment.SetChoice ((m_state != nullptr) ? m_state->GetSerialAttachment (SerialPortId::Card) : SerialAttachmentChoice {});
 }
 
 
@@ -566,48 +451,6 @@ void SerialCardPage::OnRowPicked (int row, int choice)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SerialCardPage::OnAttachPicked
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SerialCardPage::OnAttachPicked (int choice)
-{
-    StageAttachment (choice, m_path);
-    Relayout();
-    MarkDirty();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SerialCardPage::OnBrowse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SerialCardPage::OnBrowse()
-{
-    int          choice = m_attach.GetSelectedIndex();
-    std::string  path   = m_path;
-
-
-
-    if (m_onBrowse && m_onBrowse (choice == kFileOutChoice, path))
-    {
-        StageAttachment (choice, path);
-        Relayout();
-        MarkDirty();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SerialCardPage::OnSwitchToggled
 //
 //  A switch flipped on the drawing is staged like a choice, and the settings
@@ -643,8 +486,18 @@ void SerialCardPage::OnSwitchToggled (SscBank bank, int number)
 
 void SerialCardPage::OnRestoreDefaults()
 {
-    StageSwitches   (SscSwitches::MakeDefault());
-    StageAttachment (0, std::string());
+    HRESULT  hr = S_OK;
+
+
+
+    StageSwitches (SscSwitches::MakeDefault());
+
+    if (m_state != nullptr)
+    {
+        hr = m_state->SetSerialAttachment (SerialPortId::Card, {});
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     Rebuild();
     Relayout();
     MarkDirty();
@@ -716,29 +569,25 @@ void SerialCardPage::StageSwitches (const SscSwitches & switches)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SerialCardPage::StageAttachment
-//
-//  Only the file attachments have a path; the others stage it empty.
+//  SerialCardPage::OnAttachmentChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SerialCardPage::StageAttachment (int choice, const std::string & path)
+void SerialCardPage::OnAttachmentChanged (const SerialAttachmentChoice & choice)
 {
-    HRESULT  hr     = S_OK;
-    bool     isFile = choice == kFileOutChoice || choice == kFileInChoice;
-    bool     valid  = choice >= 0 && choice < static_cast<int> (std::size (kAttachmentDevices));
+    HRESULT  hr = S_OK;
 
 
 
-    m_path = isFile ? path : std::string();
-
-    if (m_state != nullptr && valid)
+    if (m_state != nullptr)
     {
-        hr = m_state->SetSerialCardAttachment (kAttachmentDevices[choice], m_path);
+        hr = m_state->SetSerialAttachment (SerialPortId::Card, choice);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
-}
 
+    Relayout();
+    MarkDirty();
+}
 
 
 

@@ -53,6 +53,10 @@ public:
     bool  IsFocused   () const { return m_focused; }
     void  SetSelect   (SelectFn select) { m_select = std::move (select); }
     void  SetOnHighlightChange (SelectFn fn) { m_highlightChange = std::move (fn); }
+
+    // Called as the list opens, before it is drawn, so a list of things that
+    // come and go, as the PC's COM ports do, can be read again.
+    void  SetOnOpen   (std::function<void()> fn) { m_onOpen = std::move (fn); }
     void  Open           ();
     void  Close          ();
     bool  IsOpen()       const { return m_open; }
@@ -175,6 +179,7 @@ private:
     DxuiElide                    m_elide           = DxuiElide::None;
     SelectFn                     m_select;
     SelectFn                     m_highlightChange;
+    std::function<void()>        m_onOpen;
     bool                         m_open            = false;
     bool                         m_armed           = false;
     bool                         m_hover           = false;
