@@ -516,13 +516,16 @@ namespace HayesModemTestNs
 
 
             driver.Connect();
-            driver.modem.DropCarrier();
+            driver.modem.DropCarrier (true);
 
             Assert::AreEqual (std::string ("\r\nNO CARRIER\r\n"), driver.Output());
             Assert::IsTrue (driver.modem.TakeLinkRequests()[0].kind == HayesModem::LinkRequestKind::HangUp);
 
-            driver.modem.DropCarrier();
-            Assert::AreEqual (std::string(), driver.Output(), L"no call: nothing to drop");
+            driver.modem.DropCarrier (false);
+            Assert::AreEqual (std::string(), driver.Output(), L"no call and no carrier for the guest: nothing to drop");
+
+            driver.modem.DropCarrier (true);
+            Assert::AreEqual (std::string ("\r\nNO CARRIER\r\n"), driver.Output(), L"the guest had carrier at that point, though the call ended since");
         }
 
 

@@ -127,6 +127,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Devices\Serial\AciaModemEndpoint.cpp" />
     <ClCompile Include="Devices\Serial\HayesModem.cpp" />
     <ClCompile Include="Devices\Serial\AciaTcpEndpoint.cpp" />
     <ClCompile Include="Devices\Serial\TcpSerialLink.cpp" />
@@ -798,6 +799,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Devices\Serial\AciaModemEndpoint.h" />
     <ClInclude Include="Devices\Serial\HayesModem.h" />
     <ClInclude Include="Devices\Serial\AciaTcpEndpoint.h" />
     <ClInclude Include="Devices\Serial\TcpSerialLink.h" />

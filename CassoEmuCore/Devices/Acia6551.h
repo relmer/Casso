@@ -209,6 +209,7 @@ public:
     Byte    GetControl () const { return m_control; }
     int     GetWordLengthBits () const;
     bool    IsCtsTrue  () const { return m_cts; }
+    bool    IsDcdTrue  () const { return m_dcd; }
     bool    IsDtrOn    () const { return (m_command & kCommandDtr) != 0; }
     bool    IsRtsOn    () const;
 

@@ -811,7 +811,7 @@ void HayesModem::OnIncomingGone()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HayesModem::DropCarrier()
+void HayesModem::DropCarrier (bool hadCarrier)
 {
     bool  wasOnline = IsOnline();
 
@@ -819,7 +819,7 @@ void HayesModem::DropCarrier()
 
     HangUp();
 
-    if (wasOnline)
+    if (wasOnline || hadCarrier)
     {
         SendResult (Result::NoCarrier);
     }

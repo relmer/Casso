@@ -93,19 +93,21 @@ public:
     void  OnIncomingGone   ();
 
     // The line was dropped from outside the modem: the machine resumed from
-    // a point in the past. Hangs up with NO CARRIER when a call was up.
-    void  DropCarrier      ();
+    // a point in the past. Hangs up, with NO CARRIER when a call is up or
+    // the guest had carrier at that point.
+    void  DropCarrier      (bool hadCarrier);
 
     std::vector<Byte>         TakeToGuest      ();
     std::vector<Byte>         TakeToRemote     ();
     std::vector<LinkRequest>  TakeLinkRequests ();
 
-    Mode  GetMode       () const { return m_mode; }
-    bool  IsOnline      () const { return m_mode == Mode::Data || m_mode == Mode::OnlineCommand; }
-    bool  IsRinging     () const { return m_isRinging; }
-    bool  IsDataMode    () const { return m_mode == Mode::Data; }
-    bool  GetDcd        () const { return !m_followsCarrier || IsOnline(); }
-    Byte  GetRegister   (size_t index) const { return m_registers[index]; }
+    Mode  GetMode              () const { return m_mode; }
+    bool  IsOnline             () const { return m_mode == Mode::Data || m_mode == Mode::OnlineCommand; }
+    bool  IsRinging            () const { return m_isRinging; }
+    bool  IsDataMode           () const { return m_mode == Mode::Data; }
+    bool  GetDcd               () const { return !m_followsCarrier || IsOnline(); }
+    bool  DoesDcdFollowCarrier () const { return m_followsCarrier; }
+    Byte  GetRegister          (size_t index) const { return m_registers[index]; }
 
 private:
     enum class Prefix
