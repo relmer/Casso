@@ -44,7 +44,7 @@ A filtered run is not the suite; the gate before the master merge is the full De
 
 1. Continue from Story 1 with a program that reads the keyboard: `10 GET A$ : PRINT A$; : GOTO 10`, `RUN`, and type `AAAA`.
 2. Rewind to before the first A, then type `BBBB`. History forks at the first read of B with no prompt; a fork mark appears on the bar where it split.
-3. Rest the pointer on the fork mark: the flyout lists one branch, with its last frame (`AAAA`), how long it ran past the fork, and when it was left. Rest on the row: the main screen previews `AAAA`.
+3. Rest the pointer on the fork mark: the flyout lists the active branch, then the branch left, with its last frame (`AAAA`), how long it ran past the fork, and when it was left. Rest on that row: `AAAA` is previewed beside the flyout, above the bar.
 4. Click the row: the machine is paused at the end of the `AAAA` branch, the bar is redrawn as that branch's path, and the `BBBB` branch is a fork mark at the same point.
 5. Fork from the `AAAA` branch and switch back to `BBBB`: forks within a branch are drawn only while it is active (FR-014).
 

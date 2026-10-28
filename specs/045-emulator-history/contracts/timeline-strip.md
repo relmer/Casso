@@ -52,7 +52,7 @@ All on the UI thread, as the existing members are. A source with no marks uses t
 |---|---|
 | Paint | Each mark's glyph is drawn at its offset across the pictures (`HistoryThumbnails` sets the glyphs from `CassoEmuCore/Core/UnicodeSymbols.h`); a fork mark is a horizontal branch drawn by `DxuiBranchArt`, and with a count above 1 has the count beside it |
 | Pointer over a mark | The mark's tip; a fork mark opens the flyout instead, after the tooltip delay |
-| Pointer over a flyout row | `OnForkRowHovered`; the host draws that picture over the viewport |
+| Pointer over a flyout row | `OnForkRowHovered`; the host draws that picture beside the flyout, above the bar (`BranchPreview::FitBeside`) |
 | Click on a flyout row | `OnForkRowClicked`; the flyout closes |
 | Pointer moves off the flyout and the mark | The flyout closes; `OnForkRowHovered (0)` |
 | Marks closer than their glyph width | Drawn as one, its tip listing each |

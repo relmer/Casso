@@ -49,11 +49,11 @@ Behind live, the screen is drawn with each disk as it was at that moment.
 
 A fork is a mark on the timeline, a line with a branch rising from it, and a
 count when more than one branch forks there. Rest the pointer on the mark to
-list the branches: each row has the branch's last frame, how long it ran past
-the fork, and when you left it.
-Rest on a row to see that frame over the screen; click it to switch to that
-branch, which pauses the machine at the branch's live end, exactly as it was
-there. The path you left becomes a branch in turn.
+list the branches: the one you are on first, then the others, the most recently
+left first. Each row has the branch's last frame, how long it ran past the fork,
+and when you left it. Rest on a row to see that frame beside the list, above
+the bar; click it to switch to that branch, which pauses the machine at the
+branch's live end, exactly as it was there. The path you left becomes a branch in turn.
 
 Rewinding, stepping and the timeline follow the active branch only. All
 branches share the history budget: when it is full, the oldest parts of the
