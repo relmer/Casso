@@ -117,8 +117,8 @@ public:
     }
 
 private:
-    int                  PickAtScreen           (POINTL pt) const;
-    void                 RevokeAllRegistrations();
+    int   PickAtScreen           (POINTL pt) const;
+    void  RevokeAllRegistrations ();
 
     std::atomic<ULONG>   m_refCount              { 1 };
     HWND                 m_hwnd                  = nullptr;

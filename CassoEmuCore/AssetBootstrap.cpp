@@ -3805,12 +3805,12 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
                 for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
                 {
-                    fs::path       mechDir  = devicesDir / string (spec.mechanism);
-                    fs::path       wavPath  = mechDir / string (spec.wavBasename);
-                    vector<float>  pcm;
-                    wstring        urlPath;
-                    bool           fAborted = false;
-                    std::atomic<std::uint64_t>   perFileBytes{0};
+                    fs::path                    mechDir      = devicesDir / string (spec.mechanism);
+                    fs::path                    wavPath      = mechDir / string (spec.wavBasename);
+                    vector<float>               pcm;
+                    wstring                     urlPath;
+                    bool                        fAborted     = false;
+                    std::atomic<std::uint64_t>  perFileBytes {0};
 
                     if (spec.mechanism != mechStr)
                     {

@@ -76,15 +76,15 @@ public:
     void  Sync         ();
 
     // Accessors for tests and wiring.
-    DxuiTextInput  & GetMacInput     () { return m_mac;     }
-    DxuiCheckbox   & GetLanCheckbox  () { return m_lan;     }
-    DxuiListView   & GetForwardList  () { return m_forwards; }
-    DxuiButton     & GetAddButton    () { return m_add;     }
-    DxuiButton     & GetRemoveButton () { return m_remove;  }
-    DxuiTextInput  & GetHostPortInput  () { return m_hostPort;  }
-    DxuiTextInput  & GetGuestPortInput () { return m_guestPort; }
-    DxuiComboBox   & GetProtocolCombo  () { return m_protocol;  }
-    const std::wstring & GetErrorText () const { return m_error.GetText(); }
+    DxuiTextInput       & GetMacInput       () { return m_mac;     }
+    DxuiCheckbox        & GetLanCheckbox    () { return m_lan;     }
+    DxuiListView        & GetForwardList    () { return m_forwards; }
+    DxuiButton          & GetAddButton      () { return m_add;     }
+    DxuiButton          & GetRemoveButton   () { return m_remove;  }
+    DxuiTextInput       & GetHostPortInput  () { return m_hostPort;  }
+    DxuiTextInput       & GetGuestPortInput () { return m_guestPort; }
+    DxuiComboBox        & GetProtocolCombo  () { return m_protocol;  }
+    const std::wstring  & GetErrorText      () const { return m_error.GetText(); }
 
 private:
 
@@ -96,8 +96,8 @@ private:
         bool operator== (const CardView & other) const = default;
     };
 
-    static RECT          MakeRect   (int l, int t, int w, int h);
-    static bool          TryParsePort (const std::wstring & text, uint16_t & outPort);
+    static RECT  MakeRect     (int l, int t, int w, int h);
+    static bool  TryParsePort (const std::wstring & text, uint16_t & outPort);
 
     int       LayoutCardRows      (int x, int y, int width, const DxuiDpiScaler & scaler);
     int       LayoutForwardRows   (int controlsX, int y, const DxuiDpiScaler & scaler);

@@ -47,7 +47,7 @@ public:
     // `reportInInfobar`, progress and the result appear in the infobar;
     // Settings passes false and reports the result itself.
     void  StartFirmwareDownload (bool reportInInfobar = true);
-    bool  IsDownloading () const { return m_isDownloading; }
+    bool  IsDownloading         () const { return m_isDownloading; }
 
     // Downloads finished so far, and the last one's outcome, for a caller
     // that started one and waits for the count to move.

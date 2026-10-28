@@ -55,8 +55,8 @@ public:
 
     void  SetSeverity (Severity severity) { m_severity = severity; }
 
-    Severity  GetSeverity () const { return m_severity; }
-    const std::wstring & GetText () const { return m_text; }
+    Severity              GetSeverity () const { return m_severity; }
+    const std::wstring  & GetText     () const { return m_text; }
 
     //  Width at the trailing edge the text must not run into, in PIXELS of
     //  the caller's layout space.

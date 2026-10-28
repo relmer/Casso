@@ -376,7 +376,7 @@ public:
 
     // Offset added to every position drawn after it, in pixels (matches
     // IDxuiPainter::SetOrigin). Defaulted to a no-op.
-    virtual void   SetOrigin (float xPx, float yPx)                           { (void) xPx; (void) yPx; }
+    virtual void   SetOrigin      (float xPx, float yPx)                           { (void) xPx; (void) yPx; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 };
 

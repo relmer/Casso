@@ -83,27 +83,27 @@ private:
     static constexpr UINT   kRescanSoonMs        = 300;
     static constexpr UINT   kRescanLateMs        = 2000;
 
-    static LRESULT CALLBACK NotifyWindowProc (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
-    static BOOL    CALLBACK EnumDeviceCallback (const DIDEVICEINSTANCEW * pInstance, void * pContext);
-    static ControllerFormFactor  GetFormFactor (const DIDEVICEINSTANCEW & instance);
-    static BOOL    CALLBACK EnumObjectCallback (const DIDEVICEOBJECTINSTANCEW * pObject, void * pContext);
+    static LRESULT CALLBACK      NotifyWindowProc   (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
+    static BOOL CALLBACK         EnumDeviceCallback (const DIDEVICEINSTANCEW * pInstance, void * pContext);
+    static ControllerFormFactor  GetFormFactor      (const DIDEVICEINSTANCEW & instance);
+    static BOOL CALLBACK         EnumObjectCallback (const DIDEVICEOBJECTINSTANCEW * pObject, void * pContext);
 
-    HRESULT  CreateNotifyWindow  ();
-    HRESULT  OpenDirectInput     ();
-    void     CloseDevices        ();
-    HRESULT  AddDirectInputDevice (const DIDEVICEINSTANCEW & instance);
-    HRESULT  ReadDirectInput     (DirectInputDevice & device, ControllerSample & outSample);
-    HRESULT  ReadXInput          (const ControllerUnitKey & unit, ControllerSample & outSample);
-    bool     IsXInputPath        (const std::wstring & path) const;
-    std::wstring  GetDevicePath  (IDirectInputDevice8W & device) const;
-    std::string   GetSerialNumber (const std::wstring & path) const;
-    static std::string  ToNarrow (const std::wstring & wide);
-    ControllerUnitKey  MakeUnitKey (IDirectInputDevice8W & device, const DIDEVICEINSTANCEW & instance) const;
-    std::wstring       GetXInputDescription (DWORD slot) const;
-    bool               TryGetXInputIds      (DWORD slot, WORD & outVendorId, WORD & outProductId) const;
-    std::wstring       GetHidProductName    (WORD vendorId, WORD productId) const;
-    std::wstring       GetRawInputPath      (HANDLE device) const;
-    std::wstring       GetHidProductString  (const std::wstring & path) const;
+    HRESULT             CreateNotifyWindow   ();
+    HRESULT             OpenDirectInput      ();
+    void                CloseDevices         ();
+    HRESULT             AddDirectInputDevice (const DIDEVICEINSTANCEW & instance);
+    HRESULT             ReadDirectInput      (DirectInputDevice & device, ControllerSample & outSample);
+    HRESULT             ReadXInput           (const ControllerUnitKey & unit, ControllerSample & outSample);
+    bool                IsXInputPath         (const std::wstring & path) const;
+    std::wstring        GetDevicePath        (IDirectInputDevice8W & device) const;
+    std::string         GetSerialNumber      (const std::wstring & path) const;
+    static std::string  ToNarrow             (const std::wstring & wide);
+    ControllerUnitKey   MakeUnitKey          (IDirectInputDevice8W & device, const DIDEVICEINSTANCEW & instance) const;
+    std::wstring        GetXInputDescription (DWORD slot) const;
+    bool                TryGetXInputIds      (DWORD slot, WORD & outVendorId, WORD & outProductId) const;
+    std::wstring        GetHidProductName    (WORD vendorId, WORD productId) const;
+    std::wstring        GetRawInputPath      (HANDLE device) const;
+    std::wstring        GetHidProductString  (const std::wstring & path) const;
 
     DirectInputDevice *  FindDirectInputDevice (const ControllerUnitKey & unit);
 

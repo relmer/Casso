@@ -298,9 +298,9 @@ private:
                                       const std::string & key,
                                       const std::string & fallback);
 
-    static JsonValue    PlacementsToJson  (const std::map<std::string, WindowBounds> & placements);
-    static JsonValue    RecentDisksToJson (const std::vector<std::string> & recentDisks);
-    static JsonValue    RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
+    static JsonValue  PlacementsToJson      (const std::map<std::string, WindowBounds> & placements);
+    static JsonValue  RecentDisksToJson     (const std::vector<std::string> & recentDisks);
+    static JsonValue  RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
 
     static const char *           ColorTextModeToString   (ColorMonitorTextMode mode);
     static ColorMonitorTextMode   ColorTextModeFromString (const std::string & s, ColorMonitorTextMode fallback);

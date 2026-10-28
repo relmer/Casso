@@ -48,11 +48,11 @@ public:
     // A port forward's bound socket, whose datagrams go to `guestPort`.
     void  AddForward      (uint16_t guestPort, std::unique_ptr<IHostSocket> socket);
 
-    void  Pump            (uint64_t now);
-    void  CloseFlows      ();    // all but the port forwards
-    void  CloseAll        ();
-    bool  IsActive        () const { return !m_flows.empty(); }
-    size_t  GetFlowCount  () const { return m_flows.size(); }
+    void    Pump         (uint64_t now);
+    void    CloseFlows   ();    // all but the port forwards
+    void    CloseAll     ();
+    bool    IsActive     () const { return !m_flows.empty(); }
+    size_t  GetFlowCount () const { return m_flows.size(); }
 
     //  Each flow's PC port when it has the guest's port number, which other
     //  computers send to while LAN access is on. A port forward's is the
@@ -72,7 +72,7 @@ private:
 
     static uint64_t  PackEndpoint (const HostEndpoint & endpoint);
 
-    Flow *  FindOrCreateFlow (uint16_t guestPort, uint64_t now);
+    Flow  * FindOrCreateFlow  (uint16_t guestPort, uint64_t now);
     bool    TryMapDestination (uint32_t destinationIp, uint16_t destinationPort, HostEndpoint & outHost);
     bool    IsAllowed         (const Flow & flow, const HostEndpoint & from) const;
     void    DrainFlow         (uint16_t guestPort, Flow & flow, uint64_t now);

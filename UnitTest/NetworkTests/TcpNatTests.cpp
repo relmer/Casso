@@ -88,7 +88,7 @@ namespace TcpNatTests
     {
         RecordingPacketSink               sink;
         FakeHostNetwork                   host;
-        TcpNat                            nat { sink };
+        TcpNat                            nat     { sink };
         std::shared_ptr<FakeSocketState>  peer;
         uint32_t                          ourNext = 0;
         uint64_t                          now     = 0;

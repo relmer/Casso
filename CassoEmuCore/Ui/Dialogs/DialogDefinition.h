@@ -125,14 +125,14 @@ struct DialogPaintContext
 
 struct DialogInputEvent
 {
-    enum class Kind { MouseMove, LeftButtonDown, LeftButtonUp, KeyDown, Char, Wheel };
-    Kind     kind       = Kind::MouseMove;
-    int      xPx        = 0;
-    int      yPx        = 0;
-    int      vkCode     = 0;     // valid for KeyDown
-    wchar_t  ch         = 0;     // valid for Char
-    int      wheelDelta = 0;     // valid for Wheel (WHEEL_DELTA multiples, +up / -down)
-    bool     wheelHorz  = false; // Wheel: true = horizontal (WM_MOUSEHWHEEL), false = vertical
+    enum class  Kind       { MouseMove, LeftButtonDown, LeftButtonUp, KeyDown, Char, Wheel };
+    Kind        kind       = Kind::MouseMove;
+    int         xPx        = 0;
+    int         yPx        = 0;
+    int         vkCode     = 0;   // valid for KeyDown
+    wchar_t     ch         = 0;   // valid for Char
+    int         wheelDelta = 0;   // valid for Wheel (WHEEL_DELTA multiples, +up / -down)
+    bool        wheelHorz  = false;   // Wheel: true = horizontal (WM_MOUSEHWHEEL), false = vertical
 };
 
 

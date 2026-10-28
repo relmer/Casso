@@ -49,8 +49,8 @@ public:
     void  SetDnsServer    (uint32_t ipv4)                     { m_dnsServer = ipv4; }
     void  FailCreate      (bool fail)                         { m_failCreate = fail; }
 
-    bool  IsPortInUse     (HostSocketKind kind, uint16_t port) const;
-    uint16_t  AllocateEphemeralPort();
+    bool      IsPortInUse           (HostSocketKind kind, uint16_t port) const;
+    uint16_t  AllocateEphemeralPort ();
 
 private:
 

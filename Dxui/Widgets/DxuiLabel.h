@@ -69,10 +69,10 @@ public:
     //
     void  SetColor       (DxuiArgb color) { m_argb = color; m_useThemeRole = false; }
 
-    const RECT         & GetRect () const { return m_boundsDip; }
-    const std::wstring & GetText () const { return m_text; }
-    float                GetFontSizeDip () const { return m_fontDip; }
-    DxuiTextHAlign       GetHAlign      () const { return m_hAlign; }
+    const RECT          & GetRect        () const { return m_boundsDip; }
+    const std::wstring  & GetText        () const { return m_text; }
+    float                 GetFontSizeDip () const { return m_fontDip; }
+    DxuiTextHAlign        GetHAlign      () const { return m_hAlign; }
 
     // Legacy theme-less paint; draws with the color pinned by SetColor.
     void  Paint (IDxuiTextRenderer & text) const;

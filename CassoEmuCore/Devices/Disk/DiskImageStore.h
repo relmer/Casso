@@ -338,8 +338,8 @@ public:
     //  the watch wiring, the banner, the prompt -- asks these questions of a
     //  bay, and a dozen forwarding accessors would put one piece of state
     //  behind two names.
-    MountedImageState *        GetSharedState (int slot, int drive);
-    const MountedImageState *  GetSharedState (int slot, int drive) const;
+    MountedImageState        * GetSharedState (int slot, int drive);
+    const MountedImageState  * GetSharedState (int slot, int drive) const;
 
     static HRESULT  GetSourceFormatByExtension (const string & path, DiskFormat & outFmt);
 
@@ -470,10 +470,10 @@ private:
         ShuttingDown,
     };
 
-    Entry &       GetEntry          (int slot, int drive);
-    const Entry & GetEntry          (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
-    HRESULT       FlushEveryBay     (FlushMoment moment);
+    Entry        & GetEntry      (int slot, int drive);
+    const Entry  & GetEntry      (int slot, int drive) const;
+    HRESULT        FlushEntry    (Entry & entry, FlushMoment moment);
+    HRESULT        FlushEveryBay (FlushMoment moment);
 
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be

@@ -118,8 +118,8 @@ public:
     // A container nested in another reads the clip in force with GetClipRect
     // first, clips to the overlap, and sets the one it found again after;
     // GetClipRect returns false while nothing clips.
-    virtual void   SetClipRect (const RECT * clipPx)                          { (void) clipPx; }
-    virtual bool   GetClipRect (RECT & clipPx) const                          { (void) clipPx; return false; }
+    virtual void   SetClipRect    (const RECT * clipPx)                          { (void) clipPx; }
+    virtual bool   GetClipRect    (RECT & clipPx) const                          { (void) clipPx; return false; }
     virtual float  GetGlobalAlpha () const                                    { return 1.0f; }
 
     // Clips everything drawn until the matching pop to a rect, in the same

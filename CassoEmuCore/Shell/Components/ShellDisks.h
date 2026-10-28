@@ -64,7 +64,7 @@ public:
     void  InstallChangeReporting ();
 
     // Null before Initialize.
-    DiskManager *                      GetManager          () const { return m_diskManager.get(); }
+    DiskManager                      * GetManager          () const { return m_diskManager.get(); }
     std::array<DriveWidget, 2>       & GetDriveChrome      ()       { return m_driveChrome; }
     std::array<DriveWidgetState, 2>  & GetDriveWidgetState ()       { return m_driveWidgetState; }
     DriveWidgetController            & GetDriveWidgets     ()       { return m_driveWidgets; }
@@ -134,9 +134,9 @@ public:
     // to plug one. The //c's external drive is an optional add-on, shown only
     // while connected; everywhere else the second drive is whatever is on the
     // Disk ][ card's second connector.
-    bool  ShouldShowExternalDrive  () const;
-    bool  IsSecondDriveOffered     () const;
-    bool  IsExternalDriveConnected () const         { return m_externalDriveConnected; }
+    bool  ShouldShowExternalDrive   () const;
+    bool  IsSecondDriveOffered      () const;
+    bool  IsExternalDriveConnected  () const         { return m_externalDriveConnected; }
     void  SetExternalDriveConnected (bool connected) { m_externalDriveConnected = connected; }
 
     // Whether the machine's drive is soldered in rather than plugged into a

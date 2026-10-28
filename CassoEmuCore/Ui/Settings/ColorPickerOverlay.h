@@ -28,18 +28,18 @@ public:
 
     // The hex field measures glyphs through this to place the caret under a
     // click and to extend a drag selection.
-    void      SetTextRenderer   (IDxuiTextRenderer * renderer) { m_hex.SetTextRenderer (renderer); }
-    LPCWSTR   GetCursorForPoint (POINT clientPx) const         { return m_open ? m_hex.GetCursorForPoint (clientPx) : nullptr; }
-    void      SetOnChange (ChangeFn fn)     { m_onChange = std::move (fn); }
-    void      SetOnClose  (CloseFn fn)      { m_onClose  = std::move (fn); }
+    void     SetTextRenderer   (IDxuiTextRenderer * renderer) { m_hex.SetTextRenderer (renderer); }
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const         { return m_open ? m_hex.GetCursorForPoint (clientPx) : nullptr; }
+    void     SetOnChange       (ChangeFn fn)     { m_onChange = std::move (fn); }
+    void     SetOnClose        (CloseFn fn)      { m_onClose  = std::move (fn); }
 
     // The dialog's heading, Casso's text color's unless a host sets another.
     void      SetTitle    (std::wstring title) { m_titleText = std::move (title); }
 
-    void      Open        (uint32_t initialArgb);
-    void      Close()                 { m_open = false; }
-    bool      IsOpen() const          { return m_open; }
-    uint32_t  GetArgb() const            { return m_argb; }
+    void      Open    (uint32_t initialArgb);
+    void      Close   ()                 { m_open = false; }
+    bool      IsOpen  () const          { return m_open; }
+    uint32_t  GetArgb () const            { return m_argb; }
 
     void      Layout        (const RECT & panelRect, const DxuiDpiScaler & scaler);
     void      OnLButtonDown (int x, int y);
@@ -53,15 +53,15 @@ public:
     const RECT & GetDialogRect() const { return m_dialogRect; }
 
 private:
-    void  SyncFromHsv();
-    void  SyncFromHex();
-    void  Accept();
-    void  Cancel();
-    void  MoveFocus          (int delta);
-    void  ApplyFocus();
+    void  SyncFromHsv         ();
+    void  SyncFromHex         ();
+    void  Accept              ();
+    void  Cancel              ();
+    void  MoveFocus           (int delta);
+    void  ApplyFocus          ();
     void  CopyTextToClipboard (const std::wstring & text);
-    void  PaintCopyIcon      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    bool  CopyHit            (int x, int y) const;
+    void  PaintCopyIcon       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    bool  CopyHit             (int x, int y) const;
 
     static RECT MakeRect     (int l, int t, int w, int h);
 

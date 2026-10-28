@@ -64,27 +64,27 @@ public:
     // the prefs file for the record the lock holder writes.
 
 private:
-    UpdateService *        GetUpdateService            ();
-    void                   HandleUpdateCheckResult     (UpdateResult & result);
-    void                   StartSharedCheckWait        ();
-    void                   StopSharedCheckWait         ();
-    void                   HandleUpdateApplyResult     (UpdateResult & result);
-    void                   ShowUpdateIndicator         (bool isShown);
-    void                   RefitUpdateIndicator        (bool force);
-    void                   OpenUpdateDialog            ();
-    void                   ReportUpdateCheckFailure    (UpdateFailure failure);
-    void                   ReportUpToDate              ();
-    void                   SkipOfferedRelease          ();
-    void                   RefreshSettingsUpdateStatus ();
-    static ReleaseVersion  GetRunningVersion           ();
-    static size_t          GetRandomIndex              (size_t count);
-    std::wstring           MakeUpdateHeader            (const std::string & runningReleaseDate);
-    void                   HandlePendingUpdateAtLaunch ();
-    void                   SetUpdatePending            (const UpdateResult & result);
-    void                   ClearPendingUpdatePrefs     ();
-    void                   ApplyPendingUpdateNow       ();
-    static std::vector<std::wstring>  GetRelaunchArguments ();
-    static std::wstring    GetInstallDirectory         ();
+    UpdateService                     * GetUpdateService            ();
+    void                                HandleUpdateCheckResult     (UpdateResult & result);
+    void                                StartSharedCheckWait        ();
+    void                                StopSharedCheckWait         ();
+    void                                HandleUpdateApplyResult     (UpdateResult & result);
+    void                                ShowUpdateIndicator         (bool isShown);
+    void                                RefitUpdateIndicator        (bool force);
+    void                                OpenUpdateDialog            ();
+    void                                ReportUpdateCheckFailure    (UpdateFailure failure);
+    void                                ReportUpToDate              ();
+    void                                SkipOfferedRelease          ();
+    void                                RefreshSettingsUpdateStatus ();
+    static ReleaseVersion               GetRunningVersion           ();
+    static size_t                       GetRandomIndex              (size_t count);
+    std::wstring                        MakeUpdateHeader            (const std::string & runningReleaseDate);
+    void                                HandlePendingUpdateAtLaunch ();
+    void                                SetUpdatePending            (const UpdateResult & result);
+    void                                ClearPendingUpdatePrefs     ();
+    void                                ApplyPendingUpdateNow       ();
+    static std::vector<std::wstring>    GetRelaunchArguments        ();
+    static std::wstring                 GetInstallDirectory         ();
 
     EmulatorShell                 & m_shell;
 

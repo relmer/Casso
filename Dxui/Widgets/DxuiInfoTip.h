@@ -46,11 +46,11 @@ public:
     void  SetDpi       (UINT dpi)                  { m_scaler.SetDpi (dpi); m_tooltip.SetDpi (dpi); }
     void  SetPopupHost (DxuiHwndSource * host)     { m_tooltip.SetPopupHost (host); }
 
-    const std::wstring & GetText () const { return m_text; }
-    const DxuiTooltip  & GetTooltip () const { return m_tooltip; }
+    const std::wstring  & GetText    () const { return m_text; }
+    const DxuiTooltip   & GetTooltip () const { return m_tooltip; }
 
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse        (const DxuiMouseEvent & ev) override;
     bool  OnKey          (const DxuiKeyEvent & ev) override;
     void  OnFocusChanged (bool focused) override;

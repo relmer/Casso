@@ -59,8 +59,8 @@ public:
     MockDxuiTextRenderer  () = default;
     ~MockDxuiTextRenderer() override = default;
 
-    const std::vector<RecordedTextCall> &  Calls() const { return m_calls; }
-    void  Reset() { m_calls.clear(); }
+    const std::vector<RecordedTextCall>  & Calls () const { return m_calls; }
+    void                                   Reset () { m_calls.clear(); }
 
     void  SetCannedMetrics  (const std::wstring & text, SIZE sizeDip);
 

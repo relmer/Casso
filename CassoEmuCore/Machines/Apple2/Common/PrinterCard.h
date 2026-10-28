@@ -64,11 +64,11 @@ public:
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
-    Byte Read (Word address) override;
-    void Write (Word address, Byte value) override;
-    Word GetStart() const override { return m_ioStart; }
-    Word GetEnd() const override { return m_ioEnd; }
-    void Reset() override;
+    Byte  Read     (Word address) override;
+    void  Write    (Word address, Byte value) override;
+    Word  GetStart () const override { return m_ioStart; }
+    Word  GetEnd   () const override { return m_ioEnd; }
+    void  Reset    () override;
 
     // The ring the printer drains, or null for an empty connector. Caller
     // owned; it outlives the card.
