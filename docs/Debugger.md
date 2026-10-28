@@ -1066,7 +1066,10 @@ session goes on without connecting again. A connection the other end has
 closed since reads as closed by it, and a socket whose connection is gone
 reads as closed by the remote end. A connection the program has no socket
 for at that point is closed. What the network sent between that point and
-where the machine had run to isn't delivered again. Loading a state file
+where the machine had run to is delivered again, ahead of anything new, and
+the same goes for a serial port. This includes a program that runs a TCP/IP
+stack on socket 0 in MACRAW mode. What the program sent in that time was
+delivered to the other end, so it can get it twice. Loading a state file
 closes every connection.
 
 ### The status bar

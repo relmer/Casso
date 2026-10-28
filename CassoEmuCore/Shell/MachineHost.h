@@ -283,9 +283,11 @@ public:
     //  on the host are from the state replaced, so each is closed.
     void  DropHostConnections ();
 
-    //  The machine is live again at a point in the past: each device brings
-    //  its connections on the host back in step with its restored state.
-    void  ResyncHostConnections ();
+    //  The machine is live again at a point in the past, the journal's entry
+    //  `cursor` the first after it: each device brings its connections on
+    //  the host back in step with its restored state, and what the host sent
+    //  it after the point goes to the guest again.
+    void  ResyncHostConnections (size_t cursor);
 
     //  CPU thread, at the start of an execution slice: with the journal on,
     //  journals each host-written input that changed since it was last seen,

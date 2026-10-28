@@ -157,6 +157,121 @@ void TcpNat::CloseAll()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TcpNat::NoteRewindSegment
+//
+//  A guest SYN after the point opens a new connection unless it repeats the
+//  SYN from before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TcpNat::NoteRewindSegment (
+    const TcpSegment  & segment,
+    bool                isToGuest,
+    bool                isAfter)
+{
+    TcpNatConnection::Key            key    = isToGuest ? TcpNatConnection::Key { segment.destinationPort, segment.sourceIp, segment.sourcePort }
+                                                        : TcpNatConnection::Key { segment.sourcePort, segment.destinationIp, segment.destinationPort };
+    TcpNatConnection::RewindPoint  & point  = m_rewind[key];
+    bool                             isSyn  = (segment.flags & P::kTcpSyn) != 0;
+    bool                             isAck  = (segment.flags & P::kTcpAck) != 0;
+    bool                             isFin  = (segment.flags & P::kTcpFin) != 0;
+    uint32_t                         end    = segment.sequence + (uint32_t) segment.payload.size() + (isSyn ? 1 : 0) + (isFin ? 1 : 0);
+
+
+
+    if (!isToGuest)
+    {
+        if (isSyn && !isAck && !isAfter)
+        {
+            point.hasGuestSyn     = true;
+            point.guestSyn        = segment.sequence;
+            point.isGuestSynAfter = false;
+        }
+        else if (isSyn && !isAck)
+        {
+            point.isGuestSynAfter = point.isGuestSynAfter || !point.hasGuestSyn || segment.sequence != point.guestSyn;
+        }
+        else if (isSyn && isAfter)
+        {
+            point.isSynAckAfter = true;
+        }
+
+        return;
+    }
+
+    if ((segment.flags & P::kTcpRst) != 0)
+    {
+        return;
+    }
+
+    if (isAfter)
+    {
+        point.hasSentAfter = true;
+
+        if (!segment.payload.empty())
+        {
+            point.dataAfter.push_back ({ segment.sequence, segment.payload });
+        }
+
+        return;
+    }
+
+    if (!point.hasSentBefore || TcpNatConnection::IsAfter (end, point.sentEnd))
+    {
+        point.sentEnd = end;
+    }
+
+    point.hasSentBefore   = true;
+    point.isFinSentBefore = point.isFinSentBefore || isFin;
+
+    if (isAck)
+    {
+        point.hasAckBefore = true;
+        point.ackBefore    = segment.acknowledgment;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TcpNat::Rewind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TcpNat::Rewind (uint64_t now)
+{
+    static const TcpNatConnection::RewindPoint  s_kNone;
+
+    auto  it = m_connections.begin();
+
+
+
+    while (it != m_connections.end())
+    {
+        auto  found = m_rewind.find (it->first);
+
+        if (it->second->Rewind ((found != m_rewind.end()) ? found->second : s_kNone, now))
+        {
+            ++it;
+        }
+        else
+        {
+            it = m_connections.erase (it);
+        }
+    }
+
+    m_rewind.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TcpNat::SendReset
 //
 //  RFC 793's reset for a segment with no connection: for a segment with the

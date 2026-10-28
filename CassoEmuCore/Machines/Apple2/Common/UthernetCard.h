@@ -118,10 +118,12 @@ public:
     // reads as closed by the remote end.
     void  DropHostConnections ();
 
-    // The machine is live again at a point in the past. Each host connection
-    // that matches a restored socket stays open, and the rest are brought
-    // back in step (see W5100SocketBridge::Resync).
-    void  ResyncHostConnections ();
+    // The machine is live again at a point in the past, the journal's entry
+    // `cursor` the first after it. Each host connection that matches a
+    // restored socket stays open, and the rest are brought back in step
+    // (see W5100SocketBridge::Resync). With no journal, nothing received
+    // after the point goes back to the guest.
+    void  ResyncHostConnections (const InputJournal * journal = nullptr, size_t cursor = 0);
 
     // The debugger's network log: each socket's state changes and the data
     // each sends and receives go to `sink`, or nowhere when it is null.
@@ -155,6 +157,8 @@ private:
     void  NoteStates     ();
     void  OnPumpInterval (uint32_t cycles);
     void  UpdateIrq      ();
+
+    static void  ReadResumeTraffic (const InputJournal & journal, size_t cursor, W5100SocketBridge::ResumeTraffic & outTraffic);
 
     int                                      m_slot            = 0;
     Word                                     m_ioStart         = 0;
