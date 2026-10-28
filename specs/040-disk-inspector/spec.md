@@ -2302,9 +2302,10 @@ legend, and tilt the platter and back.
   MUST point at the head's quarter track and show idle, reading, writing and
   write blocked differently. While the platter is zoomed in it MUST stay
   still and the head marker MUST move around it instead. The head marker MUST
-  be drawn as a hard drive's head arm: an arm widening from the head out
-  past the rim, rounded at its tip by a ring with a clear window over the
-  rings under the head, with a crosshair in the window whose center is
+  be drawn as a hard drive's head arm: a solid arm with a rounded tip
+  centered on the head, its sides tangent to the tip and widening out past
+  the rim, and in the tip, with a margin of arm around it, a ring with a
+  clear window over the rings under the head, with a crosshair in the window whose center is
   exactly over the head's quarter track and angle. Hovering, clicking and
   dragging over the marker MUST act on the platter under it.
 - **FR-065**: The window MUST show whether the disk in the drive is

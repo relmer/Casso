@@ -28,8 +28,8 @@ static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr float    s_kHeadReachDip    = 14.0f;
 static constexpr float    s_kHeadEyeDip      = 14.0f;
-static constexpr float    s_kHeadFarShare    = 1.8f;
-static constexpr uint32_t s_kHeadBodyAlpha   = 0xD8000000u;
+static constexpr float    s_kHeadFarShare    = 1.5f;
+static constexpr float    s_kHeadMarginDip   = 9.0f;
 static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
 static constexpr float    s_kHeadShadowDip   = 6.0f;
 static constexpr uint32_t s_kHeadShadowArgb  = 0x40000000u;
@@ -981,13 +981,14 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintHead
 //
-//  The head marker, drawn as a hard drive's head arm (FR-064, FR-152): an
-//  arm that widens from the head out past the rim, rounded at its tip by a
-//  ring with a clear window over the platter under the head, and a
-//  crosshair through the window whose center is exactly on the head's
-//  quarter track and angle. The crosshair's lines run along the radius and
-//  across it. Tilted, the arm has a soft shadow under it. The ring and the
-//  arm's edge indicate idle, reading or writing by color, and a blocked
+//  The head marker, drawn as a hard drive's head arm (FR-064, FR-152): a
+//  solid arm with a rounded tip centered on the head, its sides tangent to
+//  the tip and widening out past the rim. In the tip, a ring with a margin
+//  of arm around it has a clear window over the platter under the head, and
+//  a crosshair in the window has its center exactly on the head's quarter
+//  track and angle, its lines along the radius and across it. Tilted, the
+//  arm has a soft shadow under it. The arm's edge, the ring and the
+//  crosshair indicate idle, reading or writing by color, and a blocked
 //  write adds a cross. The marker is drawn over everything and is not
 //  hit-tested, so the pointer acts on the platter under it.
 //
@@ -1001,8 +1002,10 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     float                        ring   = m_scaler.ToPxf (s_kHeadEyeDip);
     float                        line   = m_scaler.ToPxf (s_kSelectOutlineDip);
     float                        rimW   = line * 2.0f;
-    float                        hole   = ring - rimW / 2.0f;
-    float                        farW   = ring * s_kHeadFarShare;
+    float                        hole   = ring - rimW;
+    float                        tip    = ring + m_scaler.ToPxf (s_kHeadMarginDip);
+    float                        back   = (ring + tip) / 2.0f;
+    float                        farW   = tip * s_kHeadFarShare;
     float                        drop   = m_scaler.ToPxf (s_kHeadShadowDip);
     float                        cross  = hole * 0.7f;
     float                        gap    = std::max (hole * 0.18f, line);
@@ -1014,9 +1017,10 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     float                        uy     = 0.0f;
     float                        len    = 0.0f;
     uint32_t                     argb   = colors.headIdle;
-    uint32_t                     body   = (theme.BackgroundElevated() & 0x00FFFFFFu) | s_kHeadBodyAlpha;
+    uint32_t                     body   = theme.BackgroundElevated() | 0xFF000000u;
     uint32_t                     halo   = (theme.Background() & 0x00FFFFFFu) | s_kHeadHaloAlpha;
-    std::array<float, 8>         arm    = {};
+    std::array<HeadSide, 2>      sides  = {};
+    std::array<HeadSide, 2>      inner  = {};
 
 
 
@@ -1032,34 +1036,47 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
          : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
                                                               : colors.headWriting;
 
-    //  Outward along the radius on screen, and across it.
+    //  Outward along the radius on screen; the arm ends past the rim and
+    //  is always long enough to taper.
     PlatterGeometry::ProjectAt (view, m_context.head.turn, outer, ox, oy);
-    len = std::max (std::hypot (ox - ex, oy - ey), ring * 2.0f);
-    ux  = (ox - ex) / len;
-    uy  = (oy - ey) / len;
+    len = std::max (std::hypot (ox - ex, oy - ey), tip * 3.0f);
+    ux  = (ox - ex) / std::max (std::hypot (ox - ex, oy - ey), 1.0f);
+    uy  = (oy - ey) / std::max (std::hypot (ox - ex, oy - ey), 1.0f);
     ox  = ex + ux * len;
     oy  = ey + uy * len;
 
-    //  The arm runs from the ring's outer edge, as wide as the ring, out to
-    //  the far end, wider. Its near edge is outside the window, so the
-    //  window stays clear.
-    arm = { ex + ux * ring - uy * ring, ey + uy * ring + ux * ring,
-            ox - uy * farW,             oy + ux * farW,
-            ox + uy * farW,             oy - ux * farW,
-            ex + ux * ring + uy * ring, ey + uy * ring - ux * ring };
+    sides[0] = GetHeadSide (ex, ey, ux, uy,  1.0f, tip, back, ox, oy, farW);
+    sides[1] = GetHeadSide (ex, ey, ux, uy, -1.0f, tip, back, ox, oy, farW);
+
+    //  The body starts a little short of the fillets so the two overlap,
+    //  with no seam between them.
+    inner[0] = GetHeadSide (ex, ey, ux, uy,  1.0f, tip, back - line, ox, oy, farW);
+    inner[1] = GetHeadSide (ex, ey, ux, uy, -1.0f, tip, back - line, ox, oy, farW);
 
     if (view.tilt != 0.0f)
     {
-        painter.FillConvexQuad (arm[0], arm[1] + drop, arm[2], arm[3] + drop, arm[4], arm[5] + drop, arm[6], arm[7] + drop, s_kHeadShadowArgb);
-        OutlineCircle (painter, ex, ey + drop, ring, rimW, s_kHeadShadowArgb);
+        painter.FillCircle     (ex, ey + drop, tip, s_kHeadShadowArgb);
+        painter.FillConvexQuad (sides[0].nearX, sides[0].nearY + drop, sides[0].farX, sides[0].farY + drop,
+                                sides[1].farX,  sides[1].farY + drop,  sides[1].nearX, sides[1].nearY + drop, s_kHeadShadowArgb);
     }
 
-    painter.FillConvexQuad (arm[0], arm[1], arm[2], arm[3], arm[4], arm[5], arm[6], arm[7], body);
-    painter.DrawLine (arm[0], arm[1], arm[2], arm[3], line / 2.0f, argb);
-    painter.DrawLine (arm[4], arm[5], arm[6], arm[7], line / 2.0f, argb);
-    painter.DrawLine (arm[2], arm[3], arm[4], arm[5], line / 2.0f, argb);
+    //  The arm: the tip's band around the window and its outline, then the
+    //  body behind the window and the fillets between its sides and the tip,
+    //  all of them outside the window.
+    OutlineCircle (painter, ex, ey, tip, tip - ring, body);
+    OutlineCircle (painter, ex, ey, tip, line / 2.0f, argb);
+    painter.FillConvexQuad (inner[0].nearX, inner[0].nearY, inner[0].farX, inner[0].farY, inner[1].farX, inner[1].farY, inner[1].nearX, inner[1].nearY, body);
 
-    //  The ring: a dark halo so it reads over any ring color, then its rim.
+    for (const HeadSide & side : sides)
+    {
+        painter.FillConvexQuad (side.tangentX, side.tangentY, side.nearX, side.nearY, side.circleX, side.circleY, ex + ux * back, ey + uy * back, body);
+        painter.DrawLine       (side.tangentX, side.tangentY, side.farX, side.farY, line / 2.0f, argb);
+    }
+
+    painter.DrawLine (sides[0].farX, sides[0].farY, sides[1].farX, sides[1].farY, line / 2.0f, argb);
+
+    //  The window's ring: a dark halo so it reads over any ring color, then
+    //  its rim.
     OutlineCircle (painter, ex, ey, ring, rimW + line * 2.0f, halo);
     OutlineCircle (painter, ex, ey, ring, rimW, argb);
 
@@ -1086,6 +1103,64 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
         painter.DrawLine (ex - cross, ey - cross, ex + cross, ey + cross, line, argb);
         painter.DrawLine (ex - cross, ey + cross, ex + cross, ey - cross, line, argb);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetHeadSide
+//
+//  One side of the head arm: the far corner, the point where the side
+//  touches the tip's circle, the point on the side at `back` along the arm,
+//  where the body behind the window starts, and the point on the tip's
+//  circle at `back`. `sign` picks the side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PlatterView::HeadSide PlatterView::GetHeadSide (float ex, float ey, float ux, float uy, float sign, float tip, float back, float ox, float oy, float farW)
+{
+    HeadSide  side;
+    float     px    = -uy * sign;
+    float     py    = ux * sign;
+    float     qx    = 0.0f;
+    float     qy    = 0.0f;
+    float     d     = 0.0f;
+    float     beta  = 0.0f;
+    float     cx    = 0.0f;
+    float     cy    = 0.0f;
+    float     along = 0.0f;
+    float     s     = 0.0f;
+
+
+
+    side.farX = ox + px * farW;
+    side.farY = oy + py * farW;
+
+    //  The tangent from the far corner to the tip's circle, on this side.
+    qx   = side.farX - ex;
+    qy   = side.farY - ey;
+    d    = std::max (std::hypot (qx, qy), tip);
+    beta = std::acos (tip / d) * sign;
+    cx   = qx / d;
+    cy   = qy / d;
+
+    side.tangentX = ex + tip * (cx * std::cos (beta) - cy * std::sin (beta));
+    side.tangentY = ey + tip * (cx * std::sin (beta) + cy * std::cos (beta));
+
+    //  The point on the side at `back` along the arm, or the tangent point when
+    //  it is already past it.
+    along = (side.tangentX - ex) * ux + (side.tangentY - ey) * uy;
+    s     = (along < back) ? (back - along) / std::max ((side.farX - side.tangentX) * ux + (side.farY - side.tangentY) * uy, 1.0f) : 0.0f;
+
+    side.nearX   = side.tangentX + (side.farX - side.tangentX) * s;
+    side.nearY   = side.tangentY + (side.farY - side.tangentY) * s;
+    side.circleX = ex + ux * back + px * std::sqrt (std::max (tip * tip - back * back, 0.0f));
+    side.circleY = ey + uy * back + py * std::sqrt (std::max (tip * tip - back * back, 0.0f));
+
+    return side;
 }
 
 
