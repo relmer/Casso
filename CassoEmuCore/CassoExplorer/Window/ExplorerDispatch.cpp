@@ -263,7 +263,7 @@ bool ExplorerDispatch::IsChecked (int id) const
         case CassoExplorerCommands::kThemeLight:        return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeLight;
         case CassoExplorerCommands::kThemeDark:         return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeDark;
         case CassoExplorerCommands::kThemeSystem:       return m_window.m_prefs.theme != CassoExplorerPrefs::kThemeLight && m_window.m_prefs.theme != CassoExplorerPrefs::kThemeDark
-                                                             && !ExplorerLayout::IsCassoThemeName (m_window.m_prefs.theme);
+                                                             && !ExplorerThemes::IsCassoThemeName (m_window.m_prefs.theme);
         case CassoExplorerCommands::kThemeSkeuomorphic: return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeSkeuomorphic;
         case CassoExplorerCommands::kThemeDarkModern:   return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeDarkModern;
         case CassoExplorerCommands::kThemeRetroTerminal: return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
@@ -471,12 +471,12 @@ void ExplorerDispatch::Dispatch (int id)
 
             break;
 
-        case CassoExplorerCommands::kThemeLight:         m_window.m_layout.SelectTheme (CassoExplorerPrefs::kThemeLight);         break;
-        case CassoExplorerCommands::kThemeDark:          m_window.m_layout.SelectTheme (CassoExplorerPrefs::kThemeDark);          break;
-        case CassoExplorerCommands::kThemeSystem:        m_window.m_layout.SelectTheme (CassoExplorerPrefs::kThemeFollowSystem);  break;
-        case CassoExplorerCommands::kThemeSkeuomorphic:  m_window.m_layout.SelectTheme (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
-        case CassoExplorerCommands::kThemeDarkModern:    m_window.m_layout.SelectTheme (CassoExplorerPrefs::kThemeDarkModern);    break;
-        case CassoExplorerCommands::kThemeRetroTerminal: m_window.m_layout.SelectTheme (CassoExplorerPrefs::kThemeRetroTerminal); break;
+        case CassoExplorerCommands::kThemeLight:         m_window.m_themes.Select (CassoExplorerPrefs::kThemeLight);         break;
+        case CassoExplorerCommands::kThemeDark:          m_window.m_themes.Select (CassoExplorerPrefs::kThemeDark);          break;
+        case CassoExplorerCommands::kThemeSystem:        m_window.m_themes.Select (CassoExplorerPrefs::kThemeFollowSystem);  break;
+        case CassoExplorerCommands::kThemeSkeuomorphic:  m_window.m_themes.Select (CassoExplorerPrefs::kThemeSkeuomorphic);  break;
+        case CassoExplorerCommands::kThemeDarkModern:    m_window.m_themes.Select (CassoExplorerPrefs::kThemeDarkModern);    break;
+        case CassoExplorerCommands::kThemeRetroTerminal: m_window.m_themes.Select (CassoExplorerPrefs::kThemeRetroTerminal); break;
         case CassoExplorerCommands::kPictureMonochrome:  m_window.m_previewPane.ShowPictureForm (false);                               break;
         case CassoExplorerCommands::kPictureColor:       m_window.m_previewPane.ShowPictureForm (true);                                break;
 

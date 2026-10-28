@@ -538,7 +538,7 @@ void ExplorerToolbars::SetCommandBarDropDowns()
 
     //  Each theme is shown as the pointer passes over its row; leaving the
     //  menu without a choice puts back the one it opened on.
-    m_commandBar->SetDropDownSinks (CassoExplorerCommands::kTheme, [this] (int index) { m_window.m_layout.PreviewTheme (index); }, nullptr);
+    m_commandBar->SetDropDownSinks (CassoExplorerCommands::kTheme, [this] (int index) { m_window.m_themes.Preview (index); }, nullptr);
 }
 
 

@@ -66,12 +66,6 @@ public:
     static int  GetListRowHeightPx (UINT dpi);
 
     void  ConfigureWidgets();
-    void  ApplyTheme();
-    void  AdoptSystemColors();
-    void  PreviewTheme (int index);
-    void  SelectTheme  (const char * name);
-
-    static bool  IsCassoThemeName (const std::string & name);
     void  RecomputeLayout();
     void  UpdateCommandBar();
 

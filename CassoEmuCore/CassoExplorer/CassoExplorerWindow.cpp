@@ -90,9 +90,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
 
 
 
-    m_layout.AdoptSystemColors();
-
-    m_theme = &CassoExplorerShell::ChooseTheme (m_prefs.theme, DxuiWindowsThemeColors::Instance().IsDarkMode(), m_lightTheme, m_darkTheme);
+    m_themes.ChooseInitial();
 
     //  Before the first layout, which the window's creation can bring on. The
     //  tabs run across the top, above the bars each tab's location drives, as
@@ -145,7 +143,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
         }
     }
 
-    m_layout.ApplyTheme();
+    m_themes.Apply();
 
     //  The animation tick starts with the first input; see ArmTick.
 
@@ -444,21 +442,7 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 void CassoExplorerWindow::OnThemeChanged()
 {
     DxuiWindow::OnThemeChanged();
-
-    //  Applying a theme announces a theme change to the controls, this one
-    //  included, which must not apply it again.
-    if (m_applyingTheme)
-    {
-        return;
-    }
-
-    m_applyingTheme = true;
-
-    DxuiWindowsThemeColors::Instance().Refresh();
-    m_layout.ApplyTheme();
-    Invalidate();
-
-    m_applyingTheme = false;
+    m_themes.OnSystemThemeChanged();
 }
 
 
@@ -1021,7 +1005,7 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
 
         if (colors.IsDarkMode() != wasDark || colors.GetSystemColors() != wasSystem)
         {
-            m_layout.ApplyTheme();
+            m_themes.Apply();
         }
     }
 

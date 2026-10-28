@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/ExplorerFileOps.h"
 #include "CassoExplorer/Window/ExplorerInput.h"
 #include "CassoExplorer/Window/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/ExplorerThemes.h"
 #include "CassoExplorer/Window/ExplorerTips.h"
 #include "CassoExplorer/Window/ExplorerToolbars.h"
 #include "CassoExplorer/Window/ExplorerTreePane.h"
@@ -256,12 +257,8 @@ private:
     Win32ShellItemVerbs                          m_shellVerbs;
 
 
-    bool                                      m_applyingTheme       = false;
     std::vector<Win32IntentChannel::Reply>    m_pendingReplies;
     CassoExplorerCommands                     m_commands;
-    DxuiLightTheme                            m_lightTheme;
-    DxuiDarkTheme                             m_darkTheme;
-    CassoTheme                                m_cassoTheme;
     const DxuiTheme                         * m_theme               = nullptr;
     DxuiDpiScaler                             m_scaler;
     RECT                                      m_client              = {};
@@ -311,6 +308,7 @@ private:
     friend class ExplorerFileOps;
     friend class ExplorerInput;
     friend class ExplorerStatusBar;
+    friend class ExplorerThemes;
     friend class ExplorerTips;
     friend class ExplorerToolbars;
     friend class ExplorerTreePane;
@@ -327,6 +325,7 @@ private:
     ExplorerFileOps  m_fileOps { *this };
     ExplorerInput  m_input { *this };
     ExplorerTips  m_tips { *this };
+    ExplorerThemes  m_themes { *this };
     ExplorerStatusBar  m_statusBar { *this };
     ExplorerToolbars  m_toolbars { *this };
     ExplorerTreePane  m_treePane { *this };

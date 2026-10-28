@@ -911,7 +911,7 @@ PicturePreview::Monitor ExplorerPreview::GetPreviewMonitor() const
 
 const ThemeCrtDefaults * ExplorerPreview::GetPreviewCrtDefaults()
 {
-    bool             casso = ExplorerLayout::IsCassoThemeName (m_window.m_prefs.theme);
+    bool             casso = ExplorerThemes::IsCassoThemeName (m_window.m_prefs.theme);
     std::string      name  = casso ? m_window.m_prefs.theme : std::string (CassoExplorerPrefs::kThemeRetroTerminal);
     Win32FileSystem  fs;
     ThemeLoadError   error;

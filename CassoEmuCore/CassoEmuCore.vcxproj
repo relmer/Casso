@@ -309,6 +309,7 @@
     <ClCompile Include="CassoExplorer\Window\PreviewHexSources.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerTabStrip.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerStatusBar.cpp" />
+    <ClCompile Include="CassoExplorer\Window\ExplorerThemes.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerTips.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerToolbars.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerTreePane.cpp" />
@@ -777,6 +778,7 @@
     <ClInclude Include="CassoExplorer\Window\PreviewHexSources.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerTabStrip.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerStatusBar.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerThemes.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerTips.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerToolbars.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerTreePane.h" />
