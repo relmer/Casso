@@ -20,6 +20,7 @@ static constexpr float  s_kOutlineDip      = 2.0f;
 static constexpr float  s_kDividerMinDip   = 4.0f;
 static constexpr float  s_kValuePadDip     = 3.0f;
 static constexpr float  s_kLabelDip        = 11.0f;
+static constexpr float  s_kCellsPerNibble   = 8.0f;
 static constexpr float  s_kPadDip          = 6.0f;
 static constexpr float  s_kCellDigitDip    = 9.0f;
 static constexpr float  s_kCellTimingDip   = 30.0f;
@@ -198,6 +199,79 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     PaintShimmer   (painter, g);
     PaintSeam      (painter, text, theme, track, g);
     PaintLabels    (painter, text, theme, track, g);
+
+    //  Where each nibble's value is drawn, its kind is drawn beside it.
+    if (GetCellPx (track) * s_kCellsPerNibble < digitsW + m_scaler.ToPxf (s_kValuePadDip))
+    {
+        PaintStretchLabels (text, track, g);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintStretchLabels
+//
+//  Each stretch of one kind in view, labeled inside the visible part of it
+//  where the label fits: "Sync 20", "Address $0", "Data $0" (FR-035).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g)
+{
+    RECT                          bar           = GetBarRect();
+    static constexpr PlatterKind  kKindColors[] = { PlatterKind::Sync, PlatterKind::AddressField, PlatterKind::DataField, PlatterKind::Other };
+
+
+
+    std::array<StripSegment, 2>  parts  = {};
+    float                        textPx = m_scaler.ToPxf (s_kLabelDip);
+    float                        pad    = m_scaler.ToPxf (s_kPadDip);
+    float                        textW  = 0;
+    float                        textH  = 0;
+    std::wstring                 label;
+
+
+
+    if (m_sectionsOf != &track && m_context.analysis != nullptr)
+    {
+        m_sections   = NibbleSections::Build (*m_context.analysis, m_context.model->GetQuarterTrack());
+        m_sectionsOf = &track;
+    }
+
+    for (const NibbleSection & section : m_sections)
+    {
+        int     end   = section.firstNibble + section.count;
+        double  a     = m_turns[static_cast<size_t> (section.firstNibble)];
+        double  b     = (end < static_cast<int> (m_turns.size())) ? m_turns[static_cast<size_t> (end)] : m_turns.back();
+        int     count = g.GetSegments (a, b - a, parts);
+
+        switch (section.kind)
+        {
+            case NibbleSectionKind::Sync:    label = std::format (L"Sync {}", section.count);                                          break;
+            case NibbleSectionKind::Address: label = L"Address " + (section.sector >= 0 ? InspectorFormat::FormatSector (static_cast<Byte> (section.sector)) : std::wstring (L"?")); break;
+            case NibbleSectionKind::Data:    label = L"Data " + (section.sector >= 0 ? InspectorFormat::FormatSector (static_cast<Byte> (section.sector)) : std::wstring (L"?"));    break;
+            default:                         label = std::format (L"Other {}", section.count);                                         break;
+        }
+
+        text.MeasureString (label.c_str(), textPx, DxuiTheme::kBodyFace, textW, textH);
+
+        for (int k = 0; k < count; k++)
+        {
+            float  x0 = std::max (parts[k].x0, static_cast<float> (bar.left));
+            float  x1 = std::min (parts[k].x1, static_cast<float> (bar.right));
+
+            if (x1 - x0 >= textW + 2 * pad)
+            {
+                text.DrawString (label.c_str(), x0, static_cast<float> (bar.top), x1 - x0, static_cast<float> (bar.bottom - bar.top),
+                                 DiskInspectorPalette::GetTextColorOn (m_context.palette.GetKindColor (kKindColors[static_cast<size_t> (section.kind)])), textPx,
+                                 DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+            }
+        }
+    }
 }
 
 

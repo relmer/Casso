@@ -31,6 +31,7 @@
 #include "Ui/DiskInspector/Components/InspectorToolbar.h"
 #include "Ui/DiskInspector/Components/PlatterCorners.h"
 #include "Ui/DiskInspector/Components/StatusBand.h"
+#include "Ui/DiskInspector/Components/StripControls.h"
 #include "Ui/DiskInspector/Components/TrackColumn.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
@@ -67,8 +68,6 @@ static constexpr int      s_kToolbarDip     = 40;
 static constexpr int      s_kRowDip         = 28;
 static constexpr int      s_kStripDip       = 64;
 static constexpr int      s_kHintRowDip     = 20;
-static constexpr int      s_kWholeTrackDip  = 104;
-static constexpr int      s_kReadoutDip     = 220;
 static constexpr int      s_kMarginDip      = 8;
 static constexpr int      s_kSplitterDip    = 6;
 static constexpr int      s_kButtonDip      = 32;
@@ -521,11 +520,8 @@ void DiskInspectorWindow::OnCreate()
     m_sectorRow   = &m_trackColumn->GetSectorRow();
     m_stripView   = CreateChild<TrackStripView>  (m_session.context);
     m_stripB      = CreateChild<TrackStripView>  (m_session.contextB);
-    m_stripOut    = CreateChild<DxuiButton> (s_kpszMinus);
-    m_stripIn     = CreateChild<DxuiButton> (L"+");
-    m_stripWhole  = CreateChild<DxuiButton> (L"Whole track");
-    m_stripReadout = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
-    m_stripHint   = CreateChild<DxuiLabel> (s_kpszStripHint, DxuiTextRole::Muted, DxuiTextHAlign::Right);
+    m_stripControls = std::make_unique<StripControls> (m_session, GetHost(), *m_stripView);
+    m_stripControls->Create();
     m_sectorsView    = CreateChild<SectorsView>  (m_session.context);
     m_nibblesView  = CreateChild<NibblesView>      (m_session.context);
     m_fluxView     = CreateChild<FluxView>   (m_session.context);
@@ -548,9 +544,6 @@ void DiskInspectorWindow::OnCreate()
     m_imageView->SetColumns   (InspectorTables::GetImageColumns());
     m_tracksView->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_issuesView->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
-    m_stripOut->SetOnClick   ([this] () { m_stripView->ZoomAboutCenter (1.0 / kZoomStep); });
-    m_stripIn->SetOnClick    ([this] () { m_stripView->ZoomAboutCenter (kZoomStep); });
-    m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
     m_session.context.edits = &m_session.edits;
     m_copySector->SetGlyph          (L"\xE8C8");
     m_copySector->SetAccessibleName (L"Copy sector");
@@ -564,7 +557,7 @@ void DiskInspectorWindow::OnCreate()
     m_menus       = std::make_unique<InspectorMenus> (m_session, GetHost(), m_commands);
     m_menus->Create();
 
-    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
+    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_stripControls.get(), m_stripControls.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -1171,11 +1164,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     y += strip + margin / 2;
     m_stripB->Layout ({ x, y, boundsDip.right - margin, y + (m_session.comparison.IsComparing() ? strip : 0) }, scaler);
     y += m_session.comparison.IsComparing() ? strip + margin / 2 : 0;
-    m_stripOut->Layout     ({ x,              y, x + button,     y + row }, scaler);
-    m_stripIn->Layout      ({ x + button,     y, x + 2 * button, y + row }, scaler);
-    m_stripWhole->Layout   ({ x + 2 * button, y, x + 2 * button + scaler.ToPx (s_kWholeTrackDip), y + row }, scaler);
-    m_stripReadout->Layout ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip) + margin, y, boundsDip.right - margin, y + row }, scaler);
-    m_stripHint->Layout    ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip + s_kReadoutDip) + margin, y, boundsDip.right - margin, y + row }, scaler);
+    m_stripControls->Layout ({ x, y, boundsDip.right - margin, y + row }, scaler);
 
     m_stripAreaPx = { boundsDip.left, bandTop, boundsDip.right, boundsDip.bottom };
 }
@@ -1632,15 +1621,6 @@ void DiskInspectorWindow::UpdateControls()
         m_editing->SetShown        (m_session.context.hasDisk && !m_session.isDiskGroup && m_session.trackTab == kTabSectorData);
         m_copySector->SetEnabled   (m_session.model.GetSector() != nullptr && m_session.model.GetSector()->dataField >= 0);
         m_files->SyncSelection();
-        m_stripOut->SetVisible     (m_session.context.hasDisk);
-        m_stripIn->SetVisible      (m_session.context.hasDisk);
-        m_stripWhole->SetVisible   (m_session.context.hasDisk);
-        m_stripWhole->SetEnabled   (m_session.model.GetStripSpan() < 1.0);
-        m_stripOut->SetEnabled     (m_session.model.GetStripSpan() < 1.0);
-        m_stripReadout->SetVisible (m_session.context.hasDisk);
-        m_stripReadout->SetText    (m_stripView->GetReadout() + ((m_session.model.GetTrack() != nullptr && m_session.model.GetNibbleCount() > 0)
-                                    ? L"    " + InspectorText::FormatSelection (*m_session.model.GetTrack(), m_session.model.GetFirstNibble(), m_session.model.GetNibbleCount()) : L""));
-        m_stripHint->SetVisible    (false);
 
         for (IInspectorComponent * component : m_components)
         {
@@ -2258,8 +2238,7 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     {
         target = KeyTarget::FindBar;
     }
-    else if (IsInside (m_stripView->GetBounds(), pointPx) || (m_stripB->IsVisible() && IsInside (m_stripB->GetBounds(), pointPx)) || IsInside (m_stripOut->GetBounds(), pointPx) || IsInside (m_stripIn->GetBounds(), pointPx) ||
-        IsInside (m_stripWhole->GetBounds(), pointPx))
+    else if (IsInside (m_stripView->GetBounds(), pointPx) || (m_stripB->IsVisible() && IsInside (m_stripB->GetBounds(), pointPx)) || m_stripControls->Contains (pointPx))
     {
         target = KeyTarget::Strip;
     }
@@ -2621,9 +2600,6 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
     const ButtonTip  tips[] =
     {
-        { m_stripOut,       L"Zoom the strip out",                                              L"The strip already shows the whole track" },
-        { m_stripIn,         L"Zoom the strip in",                                               nullptr },
-        { m_stripWhole,      L"Show the whole track in the strip",                               L"The strip already shows the whole track" },
         { m_copySector,      L"Copy the whole sector as a hex dump (Ctrl+Shift+C)",              L"The selected sector has no data field to copy" },
     };
 

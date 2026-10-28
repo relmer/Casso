@@ -174,6 +174,7 @@ void NibbleSections::AddField (const DiskAnalysis & analysis, int quarterTrack, 
     section.firstNibble = f.firstNibble;
     section.count       = f.nibbleCount;
     section.field       = field;
+    section.sector      = (addr != nullptr) ? addr->sector : -1;
     section.title       = std::format (L"{} field{}{}", isAddr ? L"Address" : L"Data", s_kSeparator,
                                        addr != nullptr ? L"sector " + InspectorFormat::FormatSector (addr->sector) : std::wstring (L"no address field"));
 

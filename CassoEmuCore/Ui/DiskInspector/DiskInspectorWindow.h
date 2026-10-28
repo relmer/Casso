@@ -38,6 +38,7 @@ class InspectorMenus;
 class InspectorToolbar;
 class PlatterCorners;
 class StatusBand;
+class StripControls;
 class TrackColumn;
 class FilesView;
 class DifferencesView;
@@ -179,6 +180,7 @@ private:
     std::unique_ptr<StatusBand>        m_statusBand;
     std::unique_ptr<PlatterCorners>    m_corners;
     std::unique_ptr<TrackColumn>       m_trackColumn;
+    std::unique_ptr<StripControls>     m_stripControls;
     vector<IInspectorComponent *>      m_components;
     InspectorCommands                  m_commands;
     std::wstring                       m_title;
@@ -196,11 +198,6 @@ private:
     int                     m_flownSector       = -1;
     InspectorWalkthrough    m_walkthrough;
     DifferencesView       * m_diffsView         = nullptr;
-    DxuiButton            * m_stripOut          = nullptr;
-    DxuiButton            * m_stripIn           = nullptr;
-    DxuiButton            * m_stripWhole        = nullptr;
-    DxuiLabel             * m_stripReadout      = nullptr;
-    DxuiLabel             * m_stripHint         = nullptr;
     bool                    m_isFocusShown      = false;
     InspectorTableView    * m_findResults       = nullptr;
 

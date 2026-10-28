@@ -28,6 +28,7 @@ struct NibbleSection
     int                count       = 0;
     int                field       = -1;
     int                sectorIndex = -1;
+    int                sector      = -1;
     std::wstring       title;
     std::wstring       facts;
     std::wstring       details;

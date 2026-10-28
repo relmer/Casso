@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorView.h"
+#include "Ui/DiskInspector/NibbleSections.h"
 #include "Ui/DiskInspector/StripGeometry.h"
 
 
@@ -65,6 +66,7 @@ private:
     void           PaintDividers   (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
     void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void           PaintStretchLabels (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g);
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
     bool           IsOverSeam      (const TrackAnalysis & track, float xPx) const;
     bool           BuildTip        (POINT pointPx, InspectorTip & outTip) const;
@@ -78,6 +80,8 @@ private:
 
     mutable const TrackAnalysis  * m_turnsOf      = nullptr;
     mutable vector<double>         m_turns;
+    mutable vector<NibbleSection>  m_sections;
+    mutable const TrackAnalysis  * m_sectionsOf   = nullptr;
     mutable vector<double>         m_cellTurns;
     bool                           m_isPressed    = false;
     bool                           m_isPanning    = false;

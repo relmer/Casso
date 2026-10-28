@@ -431,7 +431,7 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T175 Move the comparison bar, side B and differences into `Components/ComparisonPart.h/.cpp`, per FR-162 (missing)
 - [X] T176 Move the find bar, results and marks into `Components/FindPart.h/.cpp`, per FR-162 (missing)
 - [X] T177 Move the edit bar, apply, undo, redo and save copy into `Components/EditingPart.h/.cpp`, per FR-162 (missing)
-- [ ] T178 Move the strip's controls into `Components/StripControls.h/.cpp`; add the strip label ("Track 17.25 · one turn from the index") and label each stretch wide enough for text with its kind, sector and size at every zoom in `TrackStripView.cpp`, per FR-033, FR-035 (partial)
+- [X] T178 Move the strip's controls into `Components/StripControls.h/.cpp`; add the strip label ("Track 17.25 · one turn from the index") and label each stretch wide enough for text with its kind, sector and size at every zoom in `TrackStripView.cpp`, per FR-033, FR-035 (partial)
 - [ ] T179 Split `PlatterView.cpp` under about 2,000 lines: its pure geometry and mark placement into core classes beside `PlatterGeometry`, its overlays into a painter class, with tests, per FR-162, SC-036 (missing)
 - [ ] T180 Update the walkthrough's steps for the menu bar, toolbar, corner controls and views, and add Help > "Walkthrough", in `InspectorWalkthrough.cpp`, per FR-153 (partial)
 - [ ] T181 Add a rule to `scripts/CheckStyle.ps1` that fails a `.cpp` over about 2,000 lines, with a list of approved exceptions, per plan: Window components, SC-036 (missing)
