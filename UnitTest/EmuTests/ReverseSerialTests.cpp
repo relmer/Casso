@@ -222,6 +222,37 @@ public:
     }
 
 
+    //  A resume from the past drops the host's connections, the serial
+    //  attachments' among them.
+    TEST_METHOD (DroppingHostConnectionsReachesEachSerialAttachment)
+    {
+        class DroppingEndpoint : public IAciaEndpoint
+        {
+        public:
+            void  OnByteTransmitted (Byte value) override { (void) value; }
+            void  DropConnection    () override           { drops++; }
+
+            int  drops = 0;
+        };
+
+        TestMachine       machine ("Apple2c");
+        DroppingEndpoint  port1;
+        DroppingEndpoint  port2;
+
+
+
+        machine.GetRefs().serialChips[0]->SetEndpoint (&port1);
+        machine.GetRefs().serialChips[1]->SetEndpoint (&port2);
+
+        machine.DropHostConnections();
+
+        Assert::AreEqual (1, port1.drops);
+        Assert::AreEqual (1, port2.drops);
+
+        machine.GetRefs().serialChips[0]->SetEndpoint (nullptr);
+        machine.GetRefs().serialChips[1]->SetEndpoint (nullptr);
+    }
+
     //  The heat map's and the call record's replays run on a scratch machine
     //  built from the running machine's config, attachments and all, and
     //  what it sends was sent live.

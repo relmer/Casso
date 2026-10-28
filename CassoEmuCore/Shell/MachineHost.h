@@ -13,6 +13,7 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Serial/SerialLinkReports.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
 #include "Devices/Tape/TapeDeck.h"
 #include "Machines/Apple2/Common/CassetteDiagnostics.h"
@@ -306,6 +307,9 @@ public:
     //  reverse execution has the machine behind live (see HostInputGate).
     HostInputGate  &  GetHostInputGate() noexcept { return m_hostInputGate; }
 
+    //  Problems the serial attachments report, for the infobar.
+    SerialLinkReports  &  GetSerialLinkReports() noexcept { return m_serialLinkReports; }
+
     //  The debugger changed memory, registers or I/O state from outside the
     //  program: reverse execution's recorded future no longer follows, and
     //  the history recorder is told so.
@@ -533,5 +537,6 @@ private:
     InputJournal  m_inputJournal;
 
     HostInputGate     m_hostInputGate;
+    SerialLinkReports m_serialLinkReports;
     ICommEventSink  * m_commSink      = nullptr;   // the debugger's serial and network logs, attached again after a machine switch
 };

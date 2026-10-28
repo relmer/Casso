@@ -679,6 +679,11 @@ void MachineHost::DropHostConnections()
     {
         m_refs.uthernet->DropHostConnections();
     }
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->DropConnection();
+    }
 }
 
 

@@ -1,0 +1,116 @@
+#include "Pch.h"
+
+#include "Core/MachineConfig.h"
+#include "Devices/Acia6551.h"
+#include "Devices/AciaEndpoints.h"
+#include "Devices/IAciaEndpoint.h"
+#include "Devices/Serial/SerialLinkReports.h"
+#include "Machines/Apple2/Common/SuperSerialCard.h"
+#include "../EmuTests/TestMachine.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+namespace SerialAttachmentBuildTestNs
+{
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  SerialAttachmentBuildTests
+    //
+    //  What MachineBuilder plugs into each 6551: the Super Serial Card's
+    //  connector from its slot's first port, and each //c port from the
+    //  machine's ports list by name.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (SerialAttachmentBuildTests)
+    {
+    public:
+        static void SetApple2cPort (MachineConfig & config, const char * name, const char * device)
+        {
+            for (PortConfig & port : config.ports)
+            {
+                if (port.name == name)
+                {
+                    port.device = device;
+                }
+            }
+        }
+
+
+        static void AttachToCard (MachineConfig & config, const char * device)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                if (slot.device == kpszSuperSerialCardDevice)
+                {
+                    slot.enabled = true;
+                    slot.ports   = { PortConfig { std::string(), device } };
+                }
+            }
+        }
+
+
+        TEST_METHOD (TheApple2cPortsDefaultToTheLoopbackPlug)
+        {
+            TestMachine  machine ("Apple2c");
+
+
+
+            Assert::AreEqual<size_t> (2, machine.GetRefs().serialChips.size());
+
+            for (Acia6551 * acia : machine.GetRefs().serialChips)
+            {
+                Assert::IsNotNull (dynamic_cast<AciaLoopbackEndpoint *> (acia->GetEndpoint()), L"an empty device is the loopback plug");
+            }
+        }
+
+
+        TEST_METHOD (AnApple2cPortTakesItsConfiguredAttachment)
+        {
+            TestMachine  machine ("Apple2c", [] (MachineConfig & config)
+            {
+                SetApple2cPort (config, kpszSerialPort2Name, "serial-unknown-device");
+            });
+
+
+
+            Assert::IsNotNull (dynamic_cast<AciaLoopbackEndpoint *> (machine.GetRefs().serialChips[0]->GetEndpoint()), L"port 1 as shipped");
+            Assert::IsNull    (machine.GetRefs().serialChips[1]->GetEndpoint(), L"port 2 takes its own setting");
+            Assert::AreEqual<size_t> (1, machine.GetSerialLinkReports().GetReports().size(), L"an unknown attachment is reported");
+            Assert::AreEqual (std::string ("Serial port 2"), machine.GetSerialLinkReports().GetReports()[0].portTitle);
+        }
+
+
+        TEST_METHOD (TheCardsConnectorTakesTheSlotsFirstPort)
+        {
+            TestMachine  machine ("Apple2e", [] (MachineConfig & config)
+            {
+                AttachToCard (config, kpszSerialLoopback);
+            });
+            SuperSerialCard  * card = machine.GetRefs().superSerialCard;
+
+
+
+            Assert::IsNotNull (card);
+            Assert::IsNotNull (dynamic_cast<AciaLoopbackEndpoint *> (card->GetAcia().GetEndpoint()));
+        }
+
+
+        TEST_METHOD (TheCardsEmptyConnectorHasNothingOnIt)
+        {
+            TestMachine  machine ("Apple2e", [] (MachineConfig & config)
+            {
+                AttachToCard (config, "");
+            });
+
+
+
+            Assert::IsNull (machine.GetRefs().superSerialCard->GetAcia().GetEndpoint());
+            Assert::AreEqual<size_t> (0, machine.GetSerialLinkReports().GetReports().size());
+        }
+    };
+}

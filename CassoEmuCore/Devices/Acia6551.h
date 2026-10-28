@@ -150,7 +150,12 @@ public:
     // Route transmitted bytes. Caller-owned; pass nullptr to detach. Any
     // change empties the receive queue and restores CTS, DSR and DCD to true.
     // Emulation thread only.
-    void    SetEndpoint (IAciaEndpoint * endpoint);
+    void             SetEndpoint (IAciaEndpoint * endpoint);
+    IAciaEndpoint *  GetEndpoint () const { return m_endpoint; }
+
+    // The machine is live again at a point in the past: the attachment
+    // closes its connection. Emulation thread.
+    void    DropConnection ();
 
     // While muted, as in a replay of what was sent live, transmitted bytes
     // go to a loopback plug only. Emulation thread.

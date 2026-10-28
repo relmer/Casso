@@ -151,6 +151,7 @@
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="SerialTests\SerialAttachmentBuildTests.cpp" />
     <ClCompile Include="SerialTests\SerialLinkReportsTests.cpp" />
     <ClCompile Include="EmuTests\AciaHostLinkTests.cpp" />
     <ClCompile Include="SerialTests\SerialLineFormatTests.cpp" />

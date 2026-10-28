@@ -94,6 +94,9 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     //  built, and this is where it is built.
     ComponentRegistry::RegisterBuiltinDevices (m_host.GetRegistry());
 
+    //  The serial attachments report again as they are made.
+    m_host.GetSerialLinkReports().Clear();
+
     hr = CreateMemoryDevices (config);
     CHR (hr);
 
@@ -610,15 +613,17 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
         // (the //c has no config slots) -- the serial firmware is part of the
         // internal //c ROM. Each raises IRQs through the shared interrupt
-        // controller. Each has a loopback plug attached (comms self-test); the
-        // serial printer-endpoint bridge and an endpoint selector for the //c
-        // are downstream work. Both are ticked with the CPU so their character
-        // timing follows its clock.
+        // controller, and has the attachment its named entry in the machine's
+        // ports list specifies, the loopback plug when it specifies none. Both
+        // are ticked with the CPU so their character timing follows its clock.
         for (int slot = 1; slot <= 2; ++slot)
         {
-            HRESULT                                hrIc     = S_OK;
-            std::unique_ptr<Acia6551>              acia;
-            std::unique_ptr<AciaLoopbackEndpoint>  loopback;
+            HRESULT                    hrIc     = S_OK;
+            std::unique_ptr<Acia6551>  acia;
+            PortConfig                 port;
+            std::string                title    = std::format ("Serial port {}", slot);
+            std::string                problem;
+            const char               * name     = (slot == 1) ? kpszSerialPort1Name : kpszSerialPort2Name;
 
             Word  base = static_cast<Word> (Acia6551::kSlotIoBase
                                             + slot * Acia6551::kSlotIoStride
@@ -629,14 +634,25 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
             acia->SetCpuClockHz      (m_host.GetConfig().clockSpeed);
-            acia->SetDiagnosticsName (std::format ("serial-port-{}", slot), std::format ("Serial port {}", slot));
+            acia->SetDiagnosticsName (std::format ("serial-port-{}", slot), title);
 
-            loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
-            acia->SetEndpoint (loopback.get());
+            for (const PortConfig & each : config.ports)
+            {
+                if (each.name == name)
+                {
+                    port = each;
+                }
+            }
+
+            AttachSerialPort (port, *acia, title, true, problem);
+
+            if (!problem.empty())
+            {
+                m_host.GetSerialLinkReports().Post (title, problem);
+            }
 
             m_host.GetRefs().serialChips.push_back (acia.get());
             m_host.GetMemoryBus().AddDevice (acia.get());
-            m_host.GetOwnedAciaEndpoints().push_back (std::move (loopback));
             m_host.GetOwnedDevices().push_back (std::move (acia));
         }
     }
@@ -2084,69 +2100,70 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 //  AttachSerialEndpoint
 //
 //  Plugs the attachment the slot's first port specifies into the card's
-//  serial connector: nothing, a loopback plug, a file that receives what the
-//  card sends, or a file whose bytes are sent into the card. A file that
-//  cannot be opened or read results in an empty connector, and the problem is
-//  stored on the card for the shell to report.
+//  serial connector. A problem is stored on the card for the shell to
+//  report.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card)
 {
-    HRESULT                                   hr       = S_OK;
-    string                                    device;
-    string                                    path;
-    std::unique_ptr<IAciaEndpoint>            endpoint;
-    std::unique_ptr<AciaFileEndpoint>         fileOut;
-    std::unique_ptr<AciaByteSourceEndpoint>   fileIn;
-    vector<Byte>                              bytes;
+    PortConfig  empty;
+    string      problem;
+    string      title   = std::format ("Super Serial Card, slot {}", slot.slot);
 
 
 
-    if (!slot.ports.empty())
+    AttachSerialPort (slot.ports.empty() ? empty : slot.ports.front(), card.GetAcia(), title, false, problem);
+
+    if (!problem.empty())
     {
-        device = slot.ports.front().device;
-        path   = slot.ports.front().path;
+        card.SetAttachmentProblem (problem);
     }
+}
 
-    if (device == kpszSerialLoopback)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachSerialPort
+//
+//  Plugs the attachment a port specifies into a 6551: nothing, a loopback
+//  plug, a file that receives what the chip sends, a file whose bytes are
+//  sent into the chip, a COM port, TCP or a modem. A built-in port with no
+//  device has the loopback plug, as every //c has had. An attachment that
+//  cannot be made leaves the connector empty and its problem in outProblem.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::AttachSerialPort (
+    const PortConfig  & port,
+    Acia6551          & acia,
+    const string      & portTitle,
+    bool                isBuiltIn,
+    string            & outProblem)
+{
+    HRESULT                          hr       = S_OK;
+    std::unique_ptr<IAciaEndpoint>   endpoint;
+    bool                             isFileIn = port.device == kpszSerialFileIn;
+
+
+
+    if (port.device.empty() && isBuiltIn)
     {
-        endpoint = std::make_unique<AciaLoopbackEndpoint> (&card.GetAcia());
+        endpoint = std::make_unique<AciaLoopbackEndpoint> (&acia);
     }
-    else if (device == kpszSerialFileOut)
+    else if (!port.device.empty())
     {
-        fileOut = std::make_unique<AciaFileEndpoint>();
-        hr      = fileOut->Open (path);
-
-        if (SUCCEEDED (hr))
-        {
-            endpoint = std::move (fileOut);
-        }
-        else
-        {
-            card.SetAttachmentProblem ("Cannot open " + path + " for the serial connector.");
-        }
-    }
-    else if (device == kpszSerialFileIn)
-    {
-        hr = ReadRomFileBytes (path, bytes);
-
-        if (SUCCEEDED (hr))
-        {
-            fileIn   = std::make_unique<AciaByteSourceEndpoint> (&card.GetAcia(), move (bytes));
-            endpoint = std::move (fileIn);
-        }
-        else
-        {
-            card.SetAttachmentProblem ("Cannot read " + path + " for the serial connector.");
-        }
+        endpoint = CreateSerialAttachment (port, acia, portTitle, outProblem);
     }
 
     BAIL_OUT_IF (endpoint == nullptr, S_OK);
 
-    card.GetAcia().SetEndpoint (endpoint.get());
+    acia.SetEndpoint (endpoint.get());
 
-    if (device == kpszSerialFileIn)
+    if (isFileIn)
     {
         static_cast<AciaByteSourceEndpoint *> (endpoint.get())->Start();
     }
@@ -2155,4 +2172,71 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateSerialAttachment
+//
+//  The attachment for a port's device, or null with the problem in
+//  outProblem.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IAciaEndpoint> MachineBuilder::CreateSerialAttachment (
+    const PortConfig  & port,
+    Acia6551          & acia,
+    const string      & portTitle,
+    string            & outProblem)
+{
+    HRESULT                                   hr       = S_OK;
+    std::unique_ptr<IAciaEndpoint>            endpoint;
+    std::unique_ptr<AciaFileEndpoint>         fileOut;
+    vector<Byte>                              bytes;
+
+
+
+    (void) portTitle;
+
+    if (port.device == kpszSerialLoopback)
+    {
+        endpoint = std::make_unique<AciaLoopbackEndpoint> (&acia);
+    }
+    else if (port.device == kpszSerialFileOut)
+    {
+        fileOut = std::make_unique<AciaFileEndpoint>();
+        hr      = fileOut->Open (port.path);
+
+        if (SUCCEEDED (hr))
+        {
+            endpoint = std::move (fileOut);
+        }
+        else
+        {
+            outProblem = "Cannot open " + port.path + " for the serial connector.";
+        }
+    }
+    else if (port.device == kpszSerialFileIn)
+    {
+        hr = ReadRomFileBytes (port.path, bytes);
+
+        if (SUCCEEDED (hr))
+        {
+            endpoint = std::make_unique<AciaByteSourceEndpoint> (&acia, move (bytes));
+        }
+        else
+        {
+            outProblem = "Cannot read " + port.path + " for the serial connector.";
+        }
+    }
+    else
+    {
+        outProblem = "Unknown serial attachment \"" + port.device + "\".";
+    }
+
+    return endpoint;
 }

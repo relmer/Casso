@@ -13,8 +13,10 @@ class JsonValue;
 class PrinterAudioSource;
 class PrinterWorker;
 class SuperSerialCard;
+class IAciaEndpoint;
 class WasapiAudio;
 
+struct PortConfig;
 struct SlotConfig;
 
 
@@ -145,6 +147,16 @@ private:
 
     void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
     void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
+    void     AttachSerialPort     (const PortConfig   & port,
+                                   Acia6551           & acia,
+                                   const std::string  & portTitle,
+                                   bool                 isBuiltIn,
+                                   std::string        & outProblem);
+
+    std::unique_ptr<IAciaEndpoint>  CreateSerialAttachment (const PortConfig   & port,
+                                                            Acia6551           & acia,
+                                                            const std::string  & portTitle,
+                                                            std::string        & outProblem);
 
     MachineHost          &  m_host;
     MachineBuildServices    m_services;
