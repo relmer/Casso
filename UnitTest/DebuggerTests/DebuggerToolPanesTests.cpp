@@ -13,6 +13,7 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/Panes/ProfilerPane.h"
 #include "Ui/Debugger/Panes/CommGraph.h"
 #include "Ui/Debugger/Panes/CommLogController.h"
 #include "Ui/Debugger/Panes/CommLogPane.h"
