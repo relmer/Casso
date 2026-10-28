@@ -1152,9 +1152,11 @@ menu also opens these, which stay closed until first opened:
   cycles by routine, the eight hottest in color and the rest in
   gray; resting the pointer on a bar lists its routines. The flame graph
   draws Top level across the top and each routine under its caller, as wide as
-  its total: a click zooms into a routine, a click on Top level or a caller
-  above zooms back out, and a double-click goes to the routine's code. In
-  every view, activating a routine moves the disassembly to it.
+  its total: a click selects a routine, outlining its bar, moves the
+  disassembly to it and selects its row the next time you switch to the
+  routines or the call tree; a double-click zooms into it, and a
+  double-click on Top level or a caller above zooms back out. In every view, activating a routine
+  moves the disassembly to it.
 - **Data ranges**, each range marked as data, with **Go to** and **Delete**.
 
 **Debug > Step filters...** lists the routines a step goes over, each a

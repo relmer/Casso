@@ -148,6 +148,7 @@ private:
     std::array<Sort, kViewCount>                 m_sorts       = { GetDefaultSort (View::Routines), GetDefaultSort (View::Tree), GetDefaultSort (View::Flame),
                                                                    GetDefaultSort (View::Addresses), GetDefaultSort (View::Opcodes) };
     std::vector<size_t>                          m_order;                // the list's rows as indexes in the profile's entries
+    std::optional<size_t>                        m_selectedRoutine;      // the flame graph's selection, an index in the profile's routines
     bool                                         m_isOn        = false;
     std::optional<ProfileData>                   m_byOpcode;
     std::optional<ProfileData>                   m_byAddress;

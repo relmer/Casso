@@ -78,7 +78,8 @@ void ProfilerPane::CreateControls()
     m_totals->SetTextRole  (DxuiTextRole::Muted);
     m_totals->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_flameGraph->SetOnActivate ([this] (Word address) { m_host.GoToCode (address); });
+    m_flameGraph->SetOnActivate ([this] (Word address)    { m_host.GoToCode (address); });
+    m_flameGraph->SetOnSelect   ([this] (size_t routine)  { m_selectedRoutine = routine; });
 }
 
 
@@ -656,6 +657,25 @@ void ProfilerPane::Refresh()
 
     m_list->SetSortIndicator (m_order.empty() ? -1 : sort.column, sort.descending);
     m_list->SetRows          (std::move (cells));
+
+    //  The routine selected in the flame graph is selected once in the
+    //  routines or the call tree, at its first node there, the next time
+    //  the view is one of those; a row chosen in the list after that stays
+    //  chosen.
+    for (size_t row = 0; m_selectedRoutine.has_value() && profile.has_value() && row < m_order.size(); row++)
+    {
+        size_t  entry   = m_order[row];
+        bool    isMatch = (m_view == View::Routines) ? entry == *m_selectedRoutine
+                                                     : m_view == View::Tree && profile->tree[entry].routine == *m_selectedRoutine;
+
+        if (isMatch)
+        {
+            m_list->SetSelectedRow ((int) row);
+            m_selectedRoutine.reset();
+            break;
+        }
+    }
+
     m_totals->SetText (GetTotalsText (m_byOpcode));
 
     if (wasShown != !m_totals->GetText().empty() && m_frame != nullptr)

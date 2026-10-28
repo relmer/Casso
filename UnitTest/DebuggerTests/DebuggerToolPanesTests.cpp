@@ -460,6 +460,51 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  A click on a bar selects its routine and moves the disassembly to
+        //  it; a double-click zooms to it.
+        TEST_METHOD (AClickOnAFlameBarSelectsItsRoutineAndADoubleClickZooms)
+        {
+            FlameGraphView                  flame;
+            DxuiDpiScaler                   scaler;
+            DxuiMouseEvent                  click;
+            std::optional<Word>             activated;
+            std::optional<size_t>           selected;
+            std::optional<size_t>           zoomed;
+            const FlameGraphView::Bar     * plot     = nullptr;
+
+
+
+            scaler.SetDpi (96);
+            flame.SetData       (MakeRoutineProfile());
+            flame.Layout        (RECT { 0, 0, 1000, 200 }, scaler);
+            flame.SetOnActivate ([&] (Word address)    { activated = address; });
+            flame.SetOnSelect   ([&] (size_t routine)  { selected  = routine; });
+            flame.SetOnZoom     ([&] (size_t node)     { zoomed    = node; });
+
+            for (const FlameGraphView::Bar & bar : flame.GetBars())
+            {
+                plot = (bar.node == 2) ? &bar : plot;
+            }
+
+            Assert::IsNotNull (plot, L"PLOT's bar");
+
+            click.kind        = DxuiMouseEventKind::Up;
+            click.button      = DxuiMouseButton::Left;
+            click.positionDip = POINT { (LONG) (plot->x + plot->width / 2.0f), (LONG) (plot->row * FlameGraphView::kRowDip + FlameGraphView::kRowDip / 2) };
+
+            Assert::IsTrue   (flame.OnMouse (click));
+            Assert::AreEqual ((size_t) 2,      flame.GetSelected().value_or (99), L"PLOT's node is selected");
+            Assert::AreEqual ((size_t) 0,      selected.value_or (99),            L"PLOT is routine 0");
+            Assert::AreEqual ((Word) 0x6000,   activated.value_or (0),            L"the disassembly goes to PLOT");
+            Assert::AreEqual ((size_t) 0,      flame.GetZoom(),                   L"a click does not zoom");
+            Assert::IsFalse  (zoomed.has_value());
+
+            Assert::IsTrue   (flame.OnMouse (click), L"the second click of a double-click");
+            Assert::AreEqual ((size_t) 2,      flame.GetZoom(),       L"a double-click zooms to PLOT");
+            Assert::AreEqual ((size_t) 2,      zoomed.value_or (99));
+        }
+
+
         TEST_METHOD (TheFlameGraphLaysOutEachRoutineUnderItsCaller)
         {
             ProfileData                         profile = MakeRoutineProfile();
