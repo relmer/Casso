@@ -1,4 +1,4 @@
-﻿#include "Pch.h"
+#include "Pch.h"
 
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/PlatterOverlays.h"
@@ -157,7 +157,12 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
 
     if (m_context.isReadsOverlay && m_context.drive != nullptr)
     {
-        m_overlays->PaintReads (painter, view);
+        m_overlays->PaintAccess (painter, view, false);
+    }
+
+    if (m_context.isWritesOverlay && m_context.drive != nullptr)
+    {
+        m_overlays->PaintAccess (painter, view, true);
     }
 
     //  The ring under the pointer, unless the pointer is on the selection,

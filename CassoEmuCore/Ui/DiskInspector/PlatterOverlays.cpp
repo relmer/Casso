@@ -1,4 +1,4 @@
-﻿#include "Pch.h"
+#include "Pch.h"
 
 #include "Ui/DiskInspector/PlatterOverlays.h"
 #include "Pch.h"
@@ -8,6 +8,7 @@
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/PlatterCells.h"
+#include "Ui/DiskInspector/SectorAccess.h"
 #include "Ui/DiskInspector/StripGeometry.h"
 
 
@@ -1247,26 +1248,59 @@ void PlatterOverlays::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PlatterOverlays::PaintReads
+//  PlatterOverlays::PaintAccess
 //
-//  The "Reads" overlay: each quarter track the head visited with the motor
-//  on since the disk was inserted, as a band in the reading color over its
-//  ring, at least s_kReadsMinDip wide (FR-031).
+//  The "Reads" or "Writes" overlay (FR-031, FR-161): each sector the guest
+//  read or wrote since the disk was inserted, as an arc over its fields in
+//  the head's reading or writing color. A quarter track with no sectors,
+//  visited or written, gets a band over its whole ring, at least
+//  s_kReadsMinDip wide.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterOverlays::PaintReads (IDxuiPainter & painter, const PlatterPlacement & view) const
+void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacement & view, bool isWrite) const
 {
-    uint32_t  argb  = (m_view.m_context.palette.colors.headReading & 0x00FFFFFFu) | s_kReadsAlpha;
-    float     width = static_cast<float> (PlatterGeometry::GetRingWidth()) * view.outerRadiusPx;
-    float     band  = std::max (width, m_view.m_scaler.ToPxf (s_kReadsMinDip));
-    int       qt    = 0;
+    const DriveHeadState           & drive   = *m_view.m_context.drive;
+    uint32_t                         argb    = ((isWrite ? m_view.m_context.palette.colors.headWriting : m_view.m_context.palette.colors.headReading) & 0x00FFFFFFu) | s_kReadsAlpha;
+    float                            width   = static_cast<float> (PlatterGeometry::GetRingWidth()) * view.outerRadiusPx;
+    float                            band    = std::max (width, m_view.m_scaler.ToPxf (s_kReadsMinDip));
+    static const vector<CellSpan>    s_kNone;
 
 
 
-    for (qt = 0; qt < PlatterRenderer::kRingCount; qt++)
+    for (int qt = 0; qt < PlatterRenderer::kRingCount; qt++)
     {
-        if (m_view.m_context.drive->visitCounts[qt] > 0)
+        const TrackAnalysis *     track   = m_view.GetRingTrack (qt);
+        const vector<CellSpan> &  spans   = (drive.access != nullptr) ? (isWrite ? drive.access->writes : drive.access->reads)[static_cast<size_t> (qt)] : s_kNone;
+        int                       slot    = m_view.m_context.analysis->entries[static_cast<size_t> (qt)].slot;
+        bool                      isWhole = isWrite ? (slot >= 0 && slot < static_cast<int> (drive.recordWriteCounts.size()) && drive.recordWriteCounts[static_cast<size_t> (slot)] > 0)
+                                                    : drive.visitCounts[static_cast<size_t> (qt)] > 0;
+        vector<uint32_t>          counts;
+
+        //  A track with sectors is marked sector by sector; only one without
+        //  them falls back to its whole ring.
+        if (track != nullptr && !track->sectors.empty())
+        {
+            counts  = isWrite ? SectorAccess::CountWrites (*track, spans) : SectorAccess::CountReads (*track, spans);
+            isWhole = false;
+        }
+
+        for (size_t s = 0; s < counts.size(); s++)
+        {
+            const AnalyzedSector &  sector = track->sectors[s];
+            const LocatedField &    first  = track->fields[static_cast<size_t> (isWrite || sector.dataField < 0 ? sector.addressField : sector.dataField)];
+            const LocatedField &    last   = track->fields[static_cast<size_t> (sector.dataField >= 0 ? sector.dataField : sector.addressField)];
+            double                  a      = TrackAnalyzer::GetAngle (*track, first.startCell);
+            double                  b      = TrackAnalyzer::GetAngle (*track, last.endCell);
+
+            if (counts[s] > 0)
+            {
+                ShadeRingArc (painter, view, a, (b >= a) ? b : b + 1.0, PlatterGeometry::GetRingOuter (std::min (qt + 1, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx,
+                              PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx, argb);
+            }
+        }
+
+        if (isWhole)
         {
             m_view.StrokeDiskCircle (painter, view, static_cast<float> (PlatterGeometry::GetRingMiddle (qt)) * view.outerRadiusPx, band, argb);
         }

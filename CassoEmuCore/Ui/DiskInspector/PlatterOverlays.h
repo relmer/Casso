@@ -39,7 +39,7 @@ public:
     void           PaintDiffs       (IDxuiPainter & painter, const PlatterPlacement & view);
     void           PaintHits        (IDxuiPainter & painter, const PlatterPlacement & view);
     void           PaintAlignment   (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
-    void           PaintReads       (IDxuiPainter & painter, const PlatterPlacement & view) const;
+    void           PaintAccess      (IDxuiPainter & painter, const PlatterPlacement & view, bool isWrite) const;
     void           PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     void           GetFileArcs      (vector<FileArc> & outArcs) const;
     void           DimOutsideFile   (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;

@@ -133,10 +133,11 @@ public:
     //  and each quarter track's read visits (FR-047).
     TEST_METHOD (TracksMarkWrittenRecordsAndReadVisits)
     {
-        DiskAnalysis      analysis;
-        DriveHeadState    drive;
-        vector<TableRow>  rows;
-        size_t            columns = InspectorTables::GetTrackColumns().size();
+        DiskAnalysis          analysis;
+        DriveHeadState        drive;
+        vector<TableRow>      rows;
+        vector<std::wstring>  names    = InspectorTables::GetTrackColumns();
+        size_t            columns = static_cast<size_t> (std::find (names.begin(), names.end(), L"Reads") - names.begin()) + 1;
 
 
 
@@ -148,7 +149,7 @@ public:
 
         rows = InspectorTables::BuildTracks (analysis, nullptr, nullptr, nullptr, &drive);
 
-        Assert::AreEqual (columns, rows[0].cells.size(), L"a cell for each column");
+        Assert::AreEqual (names.size(), rows[0].cells.size(), L"a cell for each column");
         Assert::AreEqual (std::wstring (L"Written"), rows[68].cells[columns - 2], L"track 17's record was written");
         Assert::AreEqual (std::wstring (L"Written"), rows[69].cells[columns - 2], L"and so was each quarter track that shares it");
         Assert::AreEqual (std::wstring(),           rows[0].cells[columns - 2]);

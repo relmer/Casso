@@ -732,6 +732,7 @@ void DiskInspectorWindow::BuildCommands()
     if (hasDrives)
     {
         overlay (L"&Reads", PlatterOverlay::Reads, [this] () { return m_session.context.hasDisk && m_session.IsWindowDiskA(); });
+        overlay (L"&Writes", PlatterOverlay::Writes, [this] () { return m_session.context.hasDisk && m_session.IsWindowDiskA(); });
     }
 
     overlay (L"Track &alignment", PlatterOverlay::Alignment, hasDisk);

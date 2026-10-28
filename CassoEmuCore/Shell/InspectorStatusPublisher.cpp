@@ -109,6 +109,22 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
         {
             state.visitCounts[qt] = controller->GetVisitCount (drive, qt);
         }
+
+        //  The spans are copied only when the log has changed.
+        state.accessGeneration = controller->GetAccessLog (drive).GetGeneration();
+
+        if (previous != nullptr && previous->access != nullptr && previous->accessGeneration == state.accessGeneration)
+        {
+            state.access = previous->access;
+        }
+        else
+        {
+            auto  access = std::make_shared<DriveAccess>();
+
+            access->reads  = controller->GetAccessLog (drive).GetReads();
+            access->writes = controller->GetAccessLog (drive).GetWrites();
+            state.access   = access;
+        }
     }
 
     if (image != nullptr)
@@ -139,6 +155,6 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
 bool InspectorStatusPublisher::IsSameCounts (const DriveHeadState & a, const DriveHeadState & b)
 {
-    return a.mediaId == b.mediaId && a.recordWriteCounts == b.recordWriteCounts && a.visitCounts == b.visitCounts &&
+    return a.mediaId == b.mediaId && a.recordWriteCounts == b.recordWriteCounts && a.visitCounts == b.visitCounts && a.accessGeneration == b.accessGeneration &&
            a.saveCount == b.saveCount && a.writeProtect.imageFlag == b.writeProtect.imageFlag;
 }

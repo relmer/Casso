@@ -10,6 +10,7 @@
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Shell/InspectorStatusPublisher.h"
+#include "Ui/DiskInspector/SectorAccess.h"
 
 
 
@@ -56,7 +57,8 @@ vector<std::wstring> InspectorTables::GetFindingColumns()
 vector<std::wstring> InspectorTables::GetTrackColumns()
 {
     return { L"Track", L"Recorded", L"Shared with", L"Class", L"Sectors good", L"Nibbles", L"Length", L"Longest sync",
-             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Edited", L"Reach", L"Written", L"Reads" };
+             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Edited", L"Reach", L"Written", L"Reads",
+             L"Sectors read", L"Sectors written" };
 }
 
 
@@ -286,7 +288,23 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
         bool                       flux  = has && track->framed.isFlux;
         bool                       wrote = drive != nullptr && e.slot >= 0 && e.slot < static_cast<int> (drive->recordWriteCounts.size()) && drive->recordWriteCounts[e.slot] > 0;
         uint32_t                   reads = (drive != nullptr) ? drive->visitCounts[qt] : 0;
+        int                        sRead = 0;
+        int                        sWrit = 0;
         TableRow                   row;
+
+        //  How many of its sectors the guest read and wrote (FR-161).
+        if (has && drive != nullptr && drive->access != nullptr)
+        {
+            for (uint32_t count : SectorAccess::CountReads (*track, drive->access->reads[static_cast<size_t> (qt)]))
+            {
+                sRead += (count > 0) ? 1 : 0;
+            }
+
+            for (uint32_t count : SectorAccess::CountWrites (*track, drive->access->writes[static_cast<size_t> (qt)]))
+            {
+                sWrit += (count > 0) ? 1 : 0;
+            }
+        }
 
         row.quarterTrack = qt;
         row.cells        =
@@ -309,6 +327,8 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
             e.isBeyondHeadReach ? L"Beyond the head's reach" : L"",
             wrote ? L"Written" : L"",
             (reads > 0) ? InspectorFormat::FormatCount (reads) : std::wstring(),
+            (sRead > 0) ? std::to_wstring (sRead) : std::wstring(),
+            (sWrit > 0) ? std::to_wstring (sWrit) : std::wstring(),
         };
 
         rows.push_back (std::move (row));

@@ -271,6 +271,7 @@
     <ClCompile Include="Machines\Apple2\Common\MockingboardAudioSource.cpp" />
     <ClCompile Include="Machines\Apple2\Common\MockingboardCard.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2Controller.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\DiskAccessLog.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2EventRing.cpp" />
     <ClCompile Include="Devices\InputEventRing.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2AddressMarkWatcher.cpp" />
@@ -529,6 +530,7 @@
     <ClCompile Include="Ui\DiskInspector\FloatingGroup.cpp" />
     <ClCompile Include="Ui\DiskInspector\NibbleSections.cpp" />
     <ClCompile Include="Ui\DiskInspector\OverlayChip.cpp" />
+    <ClCompile Include="Ui\DiskInspector\SectorAccess.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterOverlays.cpp" />
     <ClCompile Include="Ui\DiskInspector\TiltButton.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
@@ -874,6 +876,7 @@
     <ClInclude Include="Devices\IAciaEndpoint.h" />
     <ClInclude Include="Devices\SerialByteQueue.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Controller.h" />
+    <ClInclude Include="Machines\Apple2\Common\DiskAccessLog.h" />
     <ClInclude Include="Machines\Apple2\Common\IDisk2EventSink.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Event.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2EventRing.h" />
@@ -1056,6 +1059,7 @@
     <ClInclude Include="Ui\DiskInspector\FloatingGroup.h" />
     <ClInclude Include="Ui\DiskInspector\NibbleSections.h" />
     <ClInclude Include="Ui\DiskInspector\OverlayChip.h" />
+    <ClInclude Include="Ui\DiskInspector\SectorAccess.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterOverlays.h" />
     <ClInclude Include="Ui\DiskInspector\TiltButton.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />

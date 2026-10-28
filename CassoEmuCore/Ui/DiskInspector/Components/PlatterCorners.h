@@ -21,6 +21,7 @@ enum class PlatterOverlay
 {
     Files,
     Reads,
+    Writes,
     Alignment,
     Differences,
 };
@@ -84,6 +85,7 @@ private:
     DxuiSlider               * m_tiltSlider       = nullptr;
     OverlayChip              * m_filesChip        = nullptr;
     OverlayChip              * m_readsChip        = nullptr;
+    OverlayChip              * m_writesChip       = nullptr;
     OverlayChip              * m_alignChip        = nullptr;
     OverlayChip              * m_diffsChip        = nullptr;
     DxuiIconButton           * m_zoomOut          = nullptr;

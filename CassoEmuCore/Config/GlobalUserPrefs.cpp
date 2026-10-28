@@ -1189,6 +1189,7 @@ JsonValue GlobalUserPrefs::ToJson() const
         inspector.emplace_back ("alignment",   JsonValue (diskInspector.isAlignment));
         inspector.emplace_back ("files",       JsonValue (diskInspector.isFiles));
         inspector.emplace_back ("reads",       JsonValue (diskInspector.isReads));
+        inspector.emplace_back ("writes",      JsonValue (diskInspector.isWrites));
         inspector.emplace_back ("showDeleted", JsonValue (diskInspector.isShowDeleted));
         inspector.emplace_back ("followHead",  JsonValue (diskInspector.isFollowHead));
         inspector.emplace_back ("zoom",        JsonValue (diskInspector.zoom));
@@ -1447,6 +1448,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         diskInspector.isAlignment   = TryGetBoolOpt (*inspectorObj, "alignment",   diskInspector.isAlignment);
         diskInspector.isFiles       = TryGetBoolOpt (*inspectorObj, "files",       diskInspector.isFiles);
         diskInspector.isReads       = TryGetBoolOpt (*inspectorObj, "reads",       diskInspector.isReads);
+        diskInspector.isWrites      = TryGetBoolOpt (*inspectorObj, "writes",      diskInspector.isWrites);
         diskInspector.isShowDeleted = TryGetBoolOpt (*inspectorObj, "showDeleted", diskInspector.isShowDeleted);
         diskInspector.isFollowHead  = TryGetBoolOpt (*inspectorObj, "followHead",  diskInspector.isFollowHead);
         diskInspector.zoom          = GetNumberOpt  (*inspectorObj, "zoom",        diskInspector.zoom);

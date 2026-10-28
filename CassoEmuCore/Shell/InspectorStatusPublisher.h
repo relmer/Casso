@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/DiskAccessLog.h"
 #include "Shell/InspectorRequestQueue.h"
 
 class Disk2Controller;
@@ -31,6 +32,14 @@ enum class HeadActivity
 };
 
 
+//  Where the guest read and wrote on each quarter track (FR-161).
+struct DriveAccess
+{
+    DiskAccessLog::Spans  reads;
+    DiskAccessLog::Spans  writes;
+};
+
+
 struct DriveHeadState
 {
     bool                                                 hasController     = false;
@@ -50,6 +59,10 @@ struct DriveHeadState
     uint64_t                                             saveCount         = 0;
     vector<uint64_t>                                     recordWriteCounts;
     std::array<uint32_t, DiskImage::kQuarterTrackCount>  visitCounts       = {};
+
+    //  Shared with the state before while the log has not changed.
+    std::shared_ptr<const DriveAccess>                   access;
+    uint64_t                                             accessGeneration  = 0;
 };
 
 

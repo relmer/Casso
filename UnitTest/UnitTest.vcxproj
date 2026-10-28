@@ -356,6 +356,7 @@
     <ClCompile Include="EmuTests\CrossFormatExtractionTests.cpp" />
     <ClCompile Include="EmuTests\CrossFormatWriteTests.cpp" />
     <ClCompile Include="EmuTests\CommitPlanTests.cpp" />
+    <ClCompile Include="EmuTests\DiskAccessTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
     <ClCompile Include="EmuTests\DiskHelpTextTests.cpp" />
     <ClCompile Include="EmuTests\TextEncodingTests.cpp" />

@@ -328,6 +328,7 @@ Byte Disk2Controller::HandleReadDispatch()
         if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
         {
             m_addrMarkWatcher.ObserveNibble (fresh);
+            m_access[m_activeDrive].ObserveRead (m_quarterTrack[m_activeDrive], fresh, static_cast<uint32_t> (m_engine[m_activeDrive].GetBitPosition()));
         }
 
         // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
@@ -856,6 +857,7 @@ void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
         if (next != m_activeDisk[drive])
         {
             m_visits[drive].fill (0);
+            m_access[drive].Clear();
             m_isWriteBlocked[drive] = false;
         }
 
@@ -893,6 +895,7 @@ void Disk2Controller::OnLatchLoad()
         if (!m_isWriteBlocked[m_activeDrive])
         {
             disk->CountGuestWrite (m_engine[m_activeDrive].GetSlot());
+            m_access[m_activeDrive].ObserveWrite (m_quarterTrack[m_activeDrive], static_cast<uint32_t> (m_engine[m_activeDrive].GetBitPosition()));
         }
     }
 }

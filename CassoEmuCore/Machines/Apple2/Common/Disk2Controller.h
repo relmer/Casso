@@ -8,6 +8,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
+#include "Machines/Apple2/Common/DiskAccessLog.h"
 
 
 class IDriveAudioSink;
@@ -82,6 +83,10 @@ public:
     //  disk inspector: arrivals of the head at each quarter track, and
     //  whether its last write was dropped because the disk cannot be written.
     uint32_t      GetVisitCount   (int drive, int quarterTrack) const;
+
+    //  Where the guest read and wrote on each quarter track of a drive since
+    //  its disk went in (FR-161).
+    const DiskAccessLog &  GetAccessLog (int drive) const { return m_access[std::clamp (drive, 0, kDriveCount - 1)]; }
     bool          IsWriteBlocked  (int drive) const;
 
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
@@ -219,6 +224,7 @@ private:
     uint32_t             m_motorSpindownCycles = 0;
 
     std::array<std::array<uint32_t, kMaxQuarterTrack + 1>, kDriveCount>  m_visits         = {};
+    std::array<DiskAccessLog, kDriveCount>                                m_access;
     std::array<bool, kDriveCount>                                         m_isWriteBlocked = {};
 
     // Issue #67 deliverable 1: motor spin-up window remainder.

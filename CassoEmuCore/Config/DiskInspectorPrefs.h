@@ -33,6 +33,7 @@ struct DiskInspectorPrefs
     bool    isAlignment       = false;
     bool    isFiles           = false;
     bool    isReads           = false;
+    bool    isWrites          = false;
     bool    isShowDeleted     = false;
     bool    isFollowHead      = false;
     double  zoom              = 1.0;
