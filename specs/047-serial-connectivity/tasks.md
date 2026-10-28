@@ -117,9 +117,9 @@ rebuild. **Independent test**: set each attachment, apply, rebuild, read back.
 ## Phase 8: Polish
 
 - [X] T034 [P] Document the attachments, their options, Telnet, the modem command set and the history rules in `docs/` (the serial or Super Serial Card doc, created if none) and the Serial log entries in `docs/Debugger.md`
-- [X] T035 [P] `CHANGELOG.md` and `README.md` entries (feature list, test counts)
-- [ ] T036 Full gates: `scripts/RunTests.ps1 -Build` (Debug), the scenario suite, `scripts/CheckStyle.ps1 -Mode Tree`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`
-- [ ] T037 Build Release for the owner and list the steps for a COM port, a TCP connection and the modem (quickstart.md)
+- [ ] T035 [P] `CHANGELOG.md` and `README.md` entries (feature list, test counts)
+- [X] T036 Full gates: `scripts/RunTests.ps1 -Build` (Debug), the scenario suite, `scripts/CheckStyle.ps1 -Mode Tree`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`. *Done: the Debug suite and the scenario suite pass and the tree sweep is clean. Code analysis reports only C6262 in tests from before 047 that put a TestMachine on the stack.*
+- [X] T037 Build Release for the owner and list the steps for a COM port, a TCP connection and the modem (quickstart.md). *Done: `x64\Release\Casso.exe`.*
 
 ---
 
