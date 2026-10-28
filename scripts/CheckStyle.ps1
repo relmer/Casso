@@ -860,6 +860,51 @@ function ConvertTo-DeclParts
     }
 }
 
+# CS0025: the most lines a .cpp may have, and the files over it when the
+# rule arrived. Split a listed file and take it off the list; never add one.
+$script:MaxCppLines    = 2000
+$script:LongCppAllowed = @(
+    'CassoCore/AssemblySession.cpp',
+    'CassoCore/CommandLineParser.cpp',
+    'CassoEmuCore/AssetBootstrap.cpp',
+    'CassoEmuCore/Config/UserConfigStore.cpp',
+    'CassoEmuCore/Controllers/ControllerInputService.cpp',
+    'CassoEmuCore/Controllers/ControllerProfileStore.cpp',
+    'CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp',
+    'CassoEmuCore/Devices/Disk/DiskImageStore.cpp',
+    'CassoEmuCore/Shell/Components/ShellChrome.cpp',
+    'CassoEmuCore/Shell/Components/ShellDeskScene.cpp',
+    'CassoEmuCore/Shell/MachineBuilder.cpp',
+    'CassoEmuCore/Shell/Window/EmulatorWindow.cpp',
+    'CassoEmuCore/Shell/Window/EmulatorWindowInput.cpp',
+    'CassoEmuCore/Shell/WindowCommandManager.cpp',
+    'CassoEmuCore/Ui/DiskInspector/DiskInspectorWindow.cpp',
+    'CassoEmuCore/Ui/DiskInspector/PlatterView.cpp',
+    'CassoEmuCore/Ui/Printer3DScene.cpp',
+    'CassoEmuCore/Ui/Scene/DeskScene.cpp',
+    'CassoEmuCore/Ui/Scene/DeskSceneModel.cpp',
+    'CassoEmuCore/Ui/Settings/ControllersPage.cpp',
+    'CassoEmuCore/Ui/Settings/ControllersPageState.cpp',
+    'CassoEmuCore/Ui/Settings/SettingsPanelState.cpp',
+    'CassoEmuCore/Ui/Settings/SettingsSheet.cpp',
+    'Dxui/Render/DxuiTextRenderer.cpp',
+    'Dxui/Widgets/DxuiListView.cpp',
+    'Dxui/Widgets/DxuiPopupMenu.cpp',
+    'Dxui/Window/DxuiHwndSource.cpp',
+    'Dxui/Window/DxuiPopupHost.cpp',
+    'UnitTest/AssemblerTests.cpp',
+    'UnitTest/CommandLineTests.cpp',
+    'UnitTest/ControllerTests/ControllerInputServiceTests.cpp',
+    'UnitTest/ControllerTests/ControllersPageStateTests.cpp',
+    'UnitTest/CpuOperationTests.cpp',
+    'UnitTest/EmuTests/DiskCommandRunnerTests.cpp',
+    'UnitTest/EmuTests/ProDosVolumeTests.cpp',
+    'UnitTest/EmuTests/SharedImageTests.cpp',
+    'UnitTest/MerlinCorpusTests.cpp',
+    'UnitTest/MerlinDirectiveTests.cpp',
+    'UnitTest/UiTests/UserConfigStoreTests.cpp'
+)
+
 # Same line classifiers FixDeclAlign.ps1 uses to spot a declaration run.
 $script:DeclRegex = '^\s*(?:const\s+|constexpr\s+|static\s+)*[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+[\*&]?\s*[A-Za-z_]\w*(\s*\[[^\]]*\])?\s*(=[^;]*)?;\s*(//.*)?$'
 $script:DeclExcl  = '\breturn\b|\bdelete\b|\bgoto\b|\bthrow\b|\+\+|--|^\s*(else|do)\b|\boperator\b|^\s*[A-Za-z_]\w*\s*(<<|>>)'
@@ -1170,6 +1215,22 @@ function Test-Structure
             }
 
             $declRun.Clear()
+        }
+
+        # ---- CS0025: a .cpp over the length limit --------------------------
+        # A file past about 2,000 lines is a class doing too much; split it
+        # into components. The range is the lines past the limit, so in Diff
+        # mode a push is stopped only by lines it adds there. Files over the
+        # limit when the rule arrived are listed in $script:LongCppAllowed;
+        # the list only shrinks.
+        if ($rel -like '*.cpp' -and $lines.Length -gt $script:MaxCppLines -and $script:LongCppAllowed -notcontains $rel)
+        {
+            $findings += [pscustomobject]@{
+                Id    = 'CS0025'
+                First = $script:MaxCppLines + 1
+                Last  = $lines.Length
+                Text  = "$($lines.Length) lines -- a .cpp is limited to $($script:MaxCppLines); split the class into components"
+            }
         }
 
         # ---- report, scoped ---------------------------------------------
