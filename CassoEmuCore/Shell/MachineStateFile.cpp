@@ -318,6 +318,10 @@ HRESULT MachineStateFile::Apply (
     hr = machine.LoadStateOverMountedMedia (reader);
     CHRF (hr, outError = MakeError ("state not loaded", "The machine's state could not be read from the file."));
 
+    // The host connections open when the state was saved are gone, and the
+    // ones open now are from the state just replaced, so each is closed.
+    machine.DropHostConnections();
+
 Error:
     if (FAILED (hr) && isStaged)
     {
