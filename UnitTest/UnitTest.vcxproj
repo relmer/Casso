@@ -570,6 +570,7 @@
     <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\DiskIoQueueStoreTests.cpp" />
     <ClCompile Include="EmuTests\DiskIoQueueTests.cpp" />
     <ClCompile Include="EmuTests\DiskStoreMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskStoreSalvageTests.cpp" />

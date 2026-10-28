@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskStoreTypes.h"
+#include "DiskFileOps.h"
 #include "DurableCommit.h"
 #include "PreservedCopy.h"
 
@@ -29,15 +30,24 @@ public:
 
     explicit DiskStoreSave (DiskImageStore & store) : m_store (store) {}
 
+    //  Where a file operation's result goes: its HRESULT and the path written
+    //  to or attempted.
+    using PathDone = std::function<void (HRESULT hr, const string & path)>;
+
+    //  Saves a bay's disk through the store's I/O queue, and calls done on
+    //  the store's thread when the save is over, or at once when there is
+    //  nothing to save. A save requested while one is in flight for the same
+    //  disk starts when that one is over.
+    void          Save              (Entry & entry, FlushMoment moment, SaveDone done);
+
+    //  The same save, for a caller that uses the result before it returns:
+    //  with a queue that runs work on another thread, these wait for the
+    //  save's completion.
     HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
     HRESULT       FlushEntry        (Entry & entry, FlushMoment moment, FlushOutcome & outOutcome);
 
-    //  FlushEntry's steps: moving the guest's version to a separate file when
-    //  another program changed the bay's file, telling the user a save
-    //  failed, and recording the file the save committed.
-    HRESULT       PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved, FlushOutcome & outOutcome);
-    void          ReportSaveFailure       (Entry & entry, FlushMoment moment, const FlushOutcome & outcome);
-    void          RecordCommittedFile     (Entry & entry, const vector<Byte> & savedBytes);
+    //  Reports a failed save to the user.
+    void          ReportSaveFailure (Entry & entry, FlushMoment moment, const FlushOutcome & outcome);
 
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be
@@ -69,7 +79,7 @@ public:
 
     // Preserves an image that could not be serialized to its own format,
     // beside the original and losslessly. Leaves the original untouched.
-    HRESULT        TryWriteRecoveryImage  (Entry & entry, string & outPath);
+    void           TryWriteRecoveryImage  (Entry & entry, PathDone done);
 
     // TryWriteRecoveryImage's steps: whether the copy this mount wrote is as
     // it was written, and a new copy at the first free recovery name.
@@ -82,6 +92,7 @@ public:
     //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
     //  point of preserving it is that the file no longer holds this version.
     HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
+    void           SaveLoadedImage (Entry & entry, const string & path, PathDone done);
 
     //  A preserved-copy path nothing is sitting at yet.
     //
@@ -106,5 +117,101 @@ public:
     bool            IsRecoveryCurrent  (Entry & entry);
 
 private:
-    DiskImageStore &  m_store;
+    //  How long a caller that uses a result waits for it.
+    static constexpr DWORD  s_kSyncIoTimeoutMs = 30000;
+
+    //  A result a waiting caller reads once the completion has run.
+    struct IoWait
+    {
+        HRESULT       hr     = S_OK;
+        FlushOutcome  outcome;
+        string        path;
+        bool          isDone = false;
+    };
+
+    //  One save's state from the post to the completion. The I/O thread
+    //  reads the request half and writes the result half; done is the store
+    //  thread's alone.
+    struct SaveJob
+    {
+        int                slot        = 0;
+        int                drive       = 0;
+        uint64_t           imageId     = 0;
+        FlushMoment        moment      = FlushMoment::Background;
+        SaveDone           done;
+        string             path;
+        ImageIdentity      recorded;
+        bool               hasTarget   = false;
+        HRESULT            hrSerialize = S_OK;
+        vector<Byte>       bytes;
+        vector<uint64_t>   generations;
+
+        bool               isChanged   = false;
+        HRESULT            hrCommit    = S_OK;
+        ImageIdentity      after;
+    };
+
+    //  A recovery copy's state, in the same halves.
+    struct RecoveryJob
+    {
+        int                slot         = 0;
+        int                drive        = 0;
+        uint64_t           imageId      = 0;
+        PathDone           done;
+        string             imagePath;
+        string             copyPath;
+        ImageIdentity      copyIdentity;
+        bool               isElsewhere  = false;
+        bool               isCurrent    = false;
+        bool               isNameFixed  = false;
+        HRESULT            hrWoz        = S_OK;
+        vector<Byte>       wozBytes;
+        vector<uint64_t>   generations;
+
+        HRESULT            hr           = S_OK;
+        bool               isWritten    = false;
+        string             outPath;
+        ImageIdentity      after;
+    };
+
+    //  A save requested while one was in flight for the same disk.
+    struct SaveRequest
+    {
+        FlushMoment  moment = FlushMoment::Background;
+        SaveDone     done;
+    };
+
+    //  Save's steps: whether the bay has anything to save, posting the work,
+    //  the work, and the completion, which goes on to a preserved copy when
+    //  the file had changed, to a recovery copy when the image would not
+    //  serialize, and otherwise applies the save to the bay.
+    bool           IsSaveNeeded        (Entry & entry);
+    void           StartSave           (Entry & entry, FlushMoment moment, SaveDone done);
+    static void    RunSaveWork         (SaveJob & job, const DiskFileOps & ops);
+    void           CompleteSave        (const shared_ptr<SaveJob> & job);
+    void           RecordSave          (Entry & entry, const SaveJob & job);
+    void           PreserveAfterChange (Entry & entry, const shared_ptr<SaveJob> & job);
+    void           FinishPreserve      (const shared_ptr<SaveJob> & job, const string & original, bool isAsked,
+                                        HRESULT hrKeep, const string & triedPath);
+    void           SaveUnserializable  (Entry & entry, const shared_ptr<SaveJob> & job);
+    static void    RunRecoveryWork     (RecoveryJob & job, const DiskFileOps & ops);
+    void           CompleteRecovery    (const shared_ptr<RecoveryJob> & job);
+
+    //  Calls the save's done function, then starts the saves requested meanwhile.
+    void           FinishSave          (uint64_t imageId, HRESULT hr, const FlushOutcome & outcome, SaveDone & done);
+
+    //  The bay with this disk in it, or null when the disk has left it.
+    Entry *        FindBay             (int slot, int drive, uint64_t imageId);
+    Entry *        FindImage           (uint64_t imageId);
+
+    //  Copies the fields a save set into an outcome a caller passes in.
+    static void    MergeOutcome        (const FlushOutcome & from, FlushOutcome & into);
+
+    //  Waits, for a caller that uses the result, until wait is done.
+    HRESULT        WaitForIo           (const IoWait & wait);
+
+    DiskImageStore &                                m_store;
+
+    //  For each disk with a save in flight, the saves requested meanwhile.
+    std::map<uint64_t, std::vector<SaveRequest>>    m_waiting;
 };

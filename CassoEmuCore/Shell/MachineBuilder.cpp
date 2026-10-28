@@ -1730,13 +1730,14 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         // runs, and the flush-error reporter surfaces failures.
         m_host.GetRefs().diskController->SetMotorOffFlushCallback ([this] ()
         {
-            m_host.GetDiskStore().FlushAllUnlessHeld();
+            m_host.GetDiskStore().SaveAllUnlessHeld();
 
             // The disk has just stopped, so this is the quietest moment there
             // is to swap what is under it. One line and no decisions: which
             // bay, whether anything settled and what to do about it are all
             // the store's.
             m_host.GetDiskStore().ApplyPendingReload();
+            m_host.GetDiskStore().DrainIo();
         });
 
         // The spindown hook above is not enough on its own, and the gap is the
@@ -1754,6 +1755,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
             m_host.GetRefs().diskController->SetIdleCallback ([this] ()
             {
                 m_host.GetDiskStore().ApplyPendingReload();
+                m_host.GetDiskStore().DrainIo();
             });
         }
 

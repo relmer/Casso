@@ -101,6 +101,10 @@ struct FlushOutcome
     string   movedTo;
 };
 
+//  Where a save's result goes, on the thread with the store's token: its
+//  HRESULT, and what a failed save produced.
+using SaveDone = std::function<void (HRESULT hr, const FlushOutcome & outcome)>;
+
 
 
 

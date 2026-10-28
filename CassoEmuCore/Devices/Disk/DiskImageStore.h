@@ -136,6 +136,11 @@ public:
     //  save, a mount over a disk) writes, and writes the disk as it is now.
     HRESULT       FlushAllUnlessHeld ();
 
+    //  The motor spinning down: FlushAllUnlessHeld's saves, posted to the I/O
+    //  queue without waiting for them. A failure is reported from its save's
+    //  completion.
+    void          SaveAllUnlessHeld  ();
+
     //  Reverse execution keeps guest writes in memory while it records: the
     //  disk is machine state then, and the file is written only at the moments
     //  above. Commit writes every bay as it stands now; discard reloads every

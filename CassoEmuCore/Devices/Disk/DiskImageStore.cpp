@@ -1235,6 +1235,41 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SaveAllUnlessHeld
+//
+//  The motor spinning down. The same moment and the same rules as
+//  FlushAllUnlessHeld, but the file work is posted and this returns at once,
+//  so the CPU thread does not wait on the disk's file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SaveAllUnlessHeld()
+{
+    int  slot  = 0;
+    int  drive = 0;
+
+
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    if (!m_isFlushHeld && !m_isReplaying)
+    {
+        for (slot = 0; slot < kSlotCount; slot++)
+        {
+            for (drive = 0; drive < kDriveCount; drive++)
+            {
+                m_save.Save (m_entries[slot][drive], FlushMoment::Background, nullptr);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasUnsavedWrites
 //
 //  Whether any mounted disk holds writes its file does not.
