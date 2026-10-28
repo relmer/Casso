@@ -149,10 +149,10 @@ void ShellStandInBar::SyncStandInBanner()
     //  took on the arrow keys. Without the test it grabs the pointer and
     //  clips the cursor to the client in keys mode, where nothing asked for
     //  the mouse at all.
-    if (m_shell.m_input->IsPaddleCaptured() && GetCapture() != m_shell.m_hwnd && GetForegroundWindow() == m_shell.m_hwnd)
+    if (m_shell.m_input->GetMouseInput().IsPaddleCaptured() && GetCapture() != m_shell.m_hwnd && GetForegroundWindow() == m_shell.m_hwnd)
     {
         SetCapture (m_shell.m_hwnd);
-        m_shell.m_input->ClipPaddleCursorToClient();
+        m_shell.m_input->GetMouseInput().ClipPaddleCursorToClient();
     }
 
     //  A BAND THAT HAS NOT BEEN CLAIMED YET, ASKED FOR. The mirror of the

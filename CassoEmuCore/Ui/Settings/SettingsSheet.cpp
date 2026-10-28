@@ -563,7 +563,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->GetInput().PickPlayer (player, entry);
+                m_emuShell->GetInput().GetControllers().PickPlayer (player, entry);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
@@ -575,7 +575,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->GetInput().SetPlayerMode (player, mode);
+                m_emuShell->GetInput().GetControllers().SetPlayerMode (player, mode);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);

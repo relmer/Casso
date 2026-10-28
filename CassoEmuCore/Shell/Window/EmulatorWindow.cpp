@@ -524,24 +524,24 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_chrome->GetMainMenu().GetCommands().SetPlayerPickedFn (
         [this] (size_t player, const PlayerEntry & entry)
         {
-            m_input->PickPlayer (player, entry);
+            m_input->GetControllers().PickPlayer (player, entry);
         });
 
     m_chrome->GetMainMenu().GetCommands().SetPlayerModeFn (
         [this] (size_t player, PlayerMode mode)
         {
-            m_input->SetPlayerMode (player, mode);
+            m_input->GetControllers().SetPlayerMode (player, mode);
         });
 
     m_chrome->GetMainMenu().GetCommands().SetProfilePickedFn (
         [this] (const ControllerUnitKey & unit, const std::string & profileName)
         {
-            m_input->PickControllerProfile (unit, profileName);
+            m_input->GetControllers().PickControllerProfile (unit, profileName);
         });
 
     m_chrome->GetMainMenu().GetCommands().SetNewProfileFn ([this] (const ControllerUnitKey & unit)
     {
-        m_input->StartNewControllerProfile (unit);
+        m_input->GetControllers().StartNewControllerProfile (unit);
     });
 
     m_chrome->GetMainMenu().SetEnableQuery ([this] (WORD commandId) -> bool
@@ -905,7 +905,7 @@ int EmulatorShell::RunMessageLoop()
         {
             // The sheet may have created, renamed or deleted profiles, and
             // the command bar's profile list is built from them.
-            m_input->SyncPaddleSourceList();
+            m_input->GetControllers().SyncPaddleSourceList();
         }
 
         // Process pending messages, bounded by the drain deadline (see banner):
@@ -1213,13 +1213,13 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 {
     if (!active)
     {
-        m_input->StopPaddleCapture();
+        m_input->GetMouseInput().StopPaddleCapture();
     }
 
     // Controller input follows the application, not one window: the Settings
     // sheet is Casso too, and XInput was measured still delivering while
     // another application was in front, so the gate has to be ours.
-    m_input->SetControllersActive (active);
+    m_input->GetControllers().SetControllersActive (active);
 
     return DxuiMessageResult::NotHandled;
 }
@@ -1236,7 +1236,7 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 
 DxuiMessageResult EmulatorShell::OnKillFocus()
 {
-    m_input->StopPaddleCapture();
+    m_input->GetMouseInput().StopPaddleCapture();
 
     // Losing keyboard focus means the matching WM_KEYUPs will never arrive
     // here -- whatever window took focus gets them. Release the guest keyboard
@@ -1270,18 +1270,18 @@ DxuiMessageResult EmulatorShell::OnCancelMode()
     //  other cancel -- a modal, a secure desktop, a real takeover -- releases
     //  the pointer as it always did, which is what keeps a hidden cursor from
     //  being stranded behind someone else's window.
-    if (m_input->IsPaddleCaptured()
+    if (m_input->GetMouseInput().IsPaddleCaptured()
         && GetForegroundWindow() == m_hwnd
         && !m_chrome->IsMenuOpen()
         && m_chrome->GetStandInBar().TakeCaptureReflowEcho (ChangeBannerNowMs()))
     {
         SetCapture (m_hwnd);
-        m_input->ClipPaddleCursorToClient();
+        m_input->GetMouseInput().ClipPaddleCursorToClient();
 
         return DxuiMessageResult::Handled;
     }
 
-    m_input->StopPaddleCapture();
+    m_input->GetMouseInput().StopPaddleCapture();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -1667,7 +1667,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         if (m_debugger->TakeJoyportSyncOwed())
         {
-            m_input->SyncJoyport();
+            m_input->GetControllers().SyncJoyport();
         }
 
         // Input held behind live lands now: told yes at a read, or never
@@ -1729,7 +1729,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // writing it to the prefs both belong here, not on the controller thread.
     if (msg == WM_APP_CONTROLLER_PICK)
     {
-        m_input->ApplyPendingControllerPick();
+        m_input->GetControllers().ApplyPendingControllerPick();
         return DxuiMessageResult::Handled;
     }
 
@@ -1802,7 +1802,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         // default pointer mode, both on the CPU thread, which defers their UI
         // reflection here. Sync the selector state on the UI thread; it is
         // idempotent when nothing changed.
-        m_input->SyncPaddleSourceList();
+        m_input->GetControllers().SyncPaddleSourceList();
 
         return DxuiMessageResult::Handled;
     }

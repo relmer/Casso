@@ -5,14 +5,13 @@
 #include "Controllers/ControllerInputService.h"
 #include "Controllers/GamePortInputMixer.h"
 #include "Controllers/InputModeRules.h"
-#include "Seams/Win32ControllerBackend.h"
-#include "Shell/ControllerInputThread.h"
+#include "Shell/Components/ShellControllers.h"
+#include "Shell/Components/ShellMouseInput.h"
 #include "Shell/HeldHostInputs.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/MachineGamePortSink.h"
 #include "Ui/UiCommandTypes.h"
 
-class IControllerBackend;
 class IInputHost;
 class JsonValue;
 class MachineHost;
@@ -107,67 +106,18 @@ public:
     // whether the bar and its band exist at all.
     std::wstring  GetStandInBannerText () const;
 
-    // The //c mouse. Active while Mouse mode is selected and the machine has
-    // a connected IOU mouse; live once guest software has turned it on, which
-    // the firmware's SETMOUSE does through a hardware sequence garbage RAM
-    // cannot fake, and which gates hiding and capturing the host pointer.
-    // UpdateGuestMouseFromHost maps the host pointer onto the picture and
-    // hands the fraction to the device. Connected mirrors the machine's
-    // mouseConnected preference; disconnected leaves the silicon but feeds it
-    // nothing, as an unplugged DB-9 would.
-    bool  IsGuestMouseActive       () const;
-    bool  IsGuestMouseLive         () const;
-    void  UpdateGuestMouseFromHost (int xPx, int yPx);
-    bool  IsMouseConnected         () const { return m_mouseConnected; }
-    void  SetMouseConnected        (bool connected) { m_mouseConnected = connected; }
+    // The host mouse as the paddles or the //c mouse. Connected mirrors the
+    // machine's mouseConnected preference; disconnected leaves the silicon
+    // but feeds it nothing, as an unplugged DB-9 would.
+    ShellMouseInput  & GetMouseInput     () { return m_mouseInput; }
+    bool               IsMouseConnected  () const { return m_mouseConnected; }
+    void               SetMouseConnected (bool connected) { m_mouseConnected = connected; }
 
-    // Paddle-mode mouse capture. Start hides and confines the cursor and
-    // begins relative tracking (only in Paddle mode with the window focused);
-    // Stop restores the cursor and releases the clip. ClipPaddleCursorToClient
-    // confines the pointer and parks it in the middle, shared by the grab and
-    // the re-take after a cancel the layout caused. UpdatePaddleFromMouse
-    // turns one mouse move into the held paddle axes, and PushPaddleButton
-    // one mouse button into a fire button.
-    void  StartPaddleCapture       ();
-    void  StopPaddleCapture        ();
-    void  ClipPaddleCursorToClient ();
-    void  UpdatePaddleFromMouse    (int xClient, int yClient);
-    void  PushPaddleButton         (int index, bool pressed);
-
-    // A left-button press over the picture, as the //c guest mouse's button,
-    // and any left-button release.
-    void  PressGuestMouseButton    (int x, int y);
-    void  ReleaseGuestMouseButton  ();
-    bool  IsPaddleCaptured         () const { return m_paddleCaptured; }
-
-    // Controllers and players. PickPlayer and PickControllerProfile take
-    // their arguments BY VALUE: they arrive from a picker row's dispatch, and
-    // picking rebuilds the rows. StartNewControllerProfile opens Settings on
-    // the Controllers page with the New Profile dialog up. A mode that cannot
-    // have Player 1's keys and mouse turns them off.
-    void  PickPlayer                (size_t player, PlayerEntry entry);
-    void  SetPlayerMode             (size_t player, PlayerMode mode);
-    void  PickControllerProfile     (ControllerUnitKey unit, std::string profileName);
-    void  StartNewControllerProfile (ControllerUnitKey unit);
-    void  SyncPaddleSourceList      ();
-    void  SetControllersActive      (bool active);
-
-    // The players' slots changed, or a controller came or went, on the
-    // controller thread: the UI thread takes what it recorded, says so, and
-    // rebuilds the picker and the prefs.
-    void  ApplyPendingControllerPick ();
-
-    // Every step between a controller moving and the game port changing,
-    // once a second to the debugger, while CASSO_CONTROLLER_TRACE is set.
-    void  TraceControllerState ();
-
-    // For the Settings sheet's Controllers page. Null before Start and after
+    // The game controllers and the players. The controller service is for
+    // the Settings sheet's Controllers page; null before Start and after
     // Stop.
-    ControllerInputService *  GetControllerService () const { return m_controllerService.get(); }
-
-    // Whether the running machine can take a Joyport, which is what the
-    // picker's row and the Controllers page's switch are offered on.
-    bool  IsJoyportOffered () const;
+    ShellControllers        & GetControllers       () { return m_controllers; }
+    ControllerInputService  * GetControllerService () const { return m_controllers.GetControllerService(); }
 
     // The game port after a machine is built, and the paddles and buttons a
     // submission from another thread left for the UI thread to apply.
@@ -181,20 +131,16 @@ public:
     // both callers sync the chrome on the UI thread afterwards. `machineId`
     // is the machine being entered, which the machine cannot yet answer for.
     // Persist writes the live state back into the current machine's block.
-    void  LoadControllerPrefs        ();
-    void  SaveControllerPrefs        ();
     void  AdoptInputModeForMachine   (const JsonValue * uiPrefs, const std::string & machineId);
     void  PersistInputModeForMachine ();
-    void  MigrateJoyportAtLaunch     (const JsonValue * uiPrefs);
-    void  ApplyJoyportToMachine      ();
-    void  SyncJoyport                ();
 
-    // Reachable by a test: a controller service over a scripted backend, and
-    // Player 1's stand-ins set as saved prefs would have left them.
-    void  InstallControllerService (IControllerBackend & backend);
-    void  SetStandIns              (bool arrowsJoystick, InputMappingMode pointer);
+    // Reachable by a test: Player 1's stand-ins set as saved prefs would
+    // have left them.
+    void  SetStandIns (bool arrowsJoystick, InputMappingMode pointer);
 
 private:
+    friend class ShellControllers;
+    friend class ShellMouseInput;
 
     // The keys' parts: the game-port lines a key event drives, the character
     // a typed key latches, and behind live, the latch a held event leaves.
@@ -223,28 +169,15 @@ private:
     void  DropArrowsJoystick     ();
     void  ReleaseArrowKeySources ();
     void  SyncSelectorState      ();
-    void  PushPaddlePosition     ();
-
-    // The players' slots and profiles, and the Joyport they can stand in.
-    void  ApplyControllerSlotsChange (const std::vector<std::wstring> & notices, bool haveEntriesChanged, bool haveLastHoldersChanged);
-    void  PickPlayerEntry            (size_t player, const PlayerEntry & entry);
-    void  AdoptControllerForMachine  (const JsonValue * uiPrefs, const std::string & machineId);
-    bool  IsJoyportInEffect          () const;
-    bool  IsPlayerOneOnJoyport       () const;
-
-    std::map<std::string, InputModeRules::ProfileChoices>  GetPickerProfileChoices (const ControllerInputService::Snapshot & snapshot) const;
 
     IInputHost     & m_host;
     MachineHost    & m_machine;
     ShellDebugger  & m_debugger;
 
-    // How the host's arrow keys and pointer stand in for the game port, and
-    // whether the players' modes were saved before this launch, which marks
-    // the Joyport setting they replaced as read.
-    InputMappingMode  m_pointerMode         = InputMappingMode::Off;   // Off/Paddle/Mouse
-    bool              m_arrowsJoystick      = false;                    // Keys axis
-    bool              m_hadSavedPlayerModes = false;
-    bool              m_mouseConnected      = true;
+    // How the host's arrow keys and pointer stand in for the game port.
+    InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
+    bool              m_arrowsJoystick = false;                    // Keys axis
+    bool              m_mouseConnected = true;
 
     // Last arrow key pressed for each emulated joystick axis pair (0 if
     // none). Lets opposing directions resolve last-pressed-wins so a
@@ -257,38 +190,15 @@ private:
     GamePortInputMixer                    m_gamePortMixer;
     std::unique_ptr<MachineGamePortSink>  m_gamePortSink;
 
-    // Physical controllers: the devices, the rules that read them, and the
-    // thread they are read on. Declared after the mixer so they are torn down
-    // before it, since the service submits to it.
-    std::unique_ptr<Win32ControllerBackend>  m_controllerBackend;
-    std::unique_ptr<ControllerInputService>  m_controllerService;
-    std::unique_ptr<ControllerInputThread>   m_controllerThread;
+    // Physical controllers and the players. Declared after the mixer so they
+    // are torn down before it, since the controller service submits to it.
+    ShellControllers                      m_controllers { *this };
 
-    // Written by the controller thread when the players' slots change, read
-    // on the UI thread once WM_APP_CONTROLLER_PICK arrives: persisting prefs
-    // and raising a notice are both UI-thread work.
-    std::mutex                               m_controllerPickMutex;
-    std::vector<std::wstring>                m_controllerPickNotices;
-    bool                                     m_controllerPickHasEntries = false;
-    bool                                     m_controllerPickHasHolders = false;
+    // The host mouse as the paddles or the //c mouse.
+    ShellMouseInput                       m_mouseInput { *this };
 
-    // Each controller seen this session, by unit token: how the picker shows
-    // a picked controller after it is unplugged. UI thread only.
-    std::map<std::string, std::wstring>      m_controllerDescriptions;
-    int64_t                                  m_controllerTraceMs = 0;
-
-    // Paddle-mode mouse capture. While captured, the cursor is hidden and
-    // confined, relative motion drives the paddle axes (held, no recenter),
-    // and the mouse buttons drive the fire buttons. m_paddleAxis* are float
-    // accumulators (0..255) so sub-unit motion isn't lost between events.
-    bool              m_paddleCaptured = false;
-    float             m_paddleAxisX    = 127.0f;
-    float             m_paddleAxisY    = 127.0f;
-
-    // What the captured mouse asks of the game port, and what the //e's
-    // modifier keys do: left Alt as Open-Apple (PB0), right Alt as
-    // Solid-Apple (PB1), Shift as PB2.
-    GamePortContribution  m_mousePaddleContribution;
+    // What the //e's modifier keys do: left Alt as Open-Apple (PB0), right
+    // Alt as Solid-Apple (PB1), Shift as PB2.
     GamePortContribution  m_appleModifierContribution;
 
     // The keys and mouse button the machine has down, and those let go of

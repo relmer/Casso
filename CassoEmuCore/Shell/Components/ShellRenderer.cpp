@@ -590,7 +590,7 @@ bool ShellRenderer::TryPresentUiFrame()
     // strip was last frame -- visibly trailing it through the reveal.
     m_shell.m_chrome->TickFullscreenTopChrome();
     m_shell.m_chrome->GetStandInBar().SyncStandInBanner();
-    m_shell.m_input->TraceControllerState();
+    m_shell.m_input->GetControllers().TraceControllerState();
     m_shell.m_chrome->GetNotices().SyncNotice();
     m_shell.m_chrome->GetFrameRateReadout().SyncFrameRateReadout();
     m_shell.m_scene->SyncSceneViewReadout();

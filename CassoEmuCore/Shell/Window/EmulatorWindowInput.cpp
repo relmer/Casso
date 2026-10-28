@@ -313,7 +313,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     // The update indicator sits in the caption, above every band, so a move
     // over it is its own and nothing below sees it.
-    if (!m_input->IsPaddleCaptured() && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
+    if (!m_input->GetMouseInput().IsPaddleCaptured() && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Move, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -322,7 +322,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // capture: no drag can begin there today, since the press handler bails
     // out first, but the failure that change would cause is a game whose
     // paddles stop responding, so the capture is tested here too.
-    if (!m_input->IsPaddleCaptured() && m_scene->OnDragMove (x, y, wParam, nowMs))
+    if (!m_input->GetMouseInput().IsPaddleCaptured() && m_scene->OnDragMove (x, y, wParam, nowMs))
     {
         return DxuiMessageResult::Handled;
     }
@@ -330,21 +330,21 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // Paddle mode owns the pointer while captured: relative motion drives
     // the held paddle axes and the cursor is snapped back to center, so the
     // chrome never sees the move.
-    if (m_input->IsPaddleCaptured())
+    if (m_input->GetMouseInput().IsPaddleCaptured())
     {
-        m_input->UpdatePaddleFromMouse (x, y);
+        m_input->GetMouseInput().UpdatePaddleFromMouse (x, y);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
+    BAIL_OUT_IF (m_input->GetMouseInput().IsPaddleCaptured(), S_OK);
 
     // //c Mouse mode (non-capturing): a move over the emulator viewport
     // drives the guest mouse via absolute mapping. Deliberately falls
     // through to normal routing — the viewport has no chrome, and moves
     // outside it (menu bar, drive band) behave exactly as before.
-    if (m_input->IsGuestMouseActive())
+    if (m_input->GetMouseInput().IsGuestMouseActive())
     {
-        m_input->UpdateGuestMouseFromHost (x, y);
+        m_input->GetMouseInput().UpdateGuestMouseFromHost (x, y);
     }
 
     m_scene->UpdateHover (x, y, nowMs);
@@ -501,7 +501,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     // draws no pointer, so hiding the host cursor would just look broken.
     // Short-circuit order matters: the cursor is only read once that holds.
     overGuest = hitTest == HTCLIENT
-                && m_input->IsGuestMouseLive()
+                && m_input->GetMouseInput().IsGuestMouseLive()
                 && GetCursorPos (&pt)
                 && ScreenToClient (m_hwnd, &pt);
 
@@ -553,7 +553,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 
 DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    if (m_input->IsPaddleCaptured())
+    if (m_input->GetMouseInput().IsPaddleCaptured())
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -576,7 +576,7 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
 
 DxuiMessageResult EmulatorShell::OnGesture (WPARAM wParam, LPARAM lParam)
 {
-    return m_scene->OnGesture (wParam, lParam, m_input->IsGuestMouseLive());
+    return m_scene->OnGesture (wParam, lParam, m_input->GetMouseInput().IsGuestMouseLive());
 }
 
 
@@ -636,13 +636,13 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     // While paddle-captured, the left button is fire button 0 and the
     // pointer is hidden/confined, so nothing else acts on the press.
-    if (m_input->IsPaddleCaptured())
+    if (m_input->GetMouseInput().IsPaddleCaptured())
     {
-        m_input->PushPaddleButton (0, true);
+        m_input->GetMouseInput().PushPaddleButton (0, true);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
+    BAIL_OUT_IF (m_input->GetMouseInput().IsPaddleCaptured(), S_OK);
 
     // The caption's update indicator, ahead of the capture and every band:
     // nothing else lives in the caption strip's client area.
@@ -684,11 +684,11 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     chromeTook = chromeTook || consumed;
 
     // //c Mouse mode: a press over the picture is the guest's mouse button.
-    m_input->PressGuestMouseButton (x, y);
+    m_input->GetMouseInput().PressGuestMouseButton (x, y);
 
     context.isMenuOpen      = m_chrome->IsMenuOpen();
     context.isChromeTaken   = chromeTook;
-    context.isGuestPointing = m_input->IsGuestMouseLive();
+    context.isGuestPointing = m_input->GetMouseInput().IsGuestMouseLive();
 
     result = m_scene->OnLButtonDown (x, y, wParam, context);
 
@@ -774,14 +774,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     //
     //  PADDLE MODE IS THE EXCEPTION and holds the pointer on purpose, so it
     //  keeps it across the click; the button release below is its own.
-    if (!m_input->IsPaddleCaptured())
+    if (!m_input->GetMouseInput().IsPaddleCaptured())
     {
         ReleaseCapture();
     }
 
     //  The update indicator's own press ends here, and its click is this
     //  release landing on it.
-    if (!m_input->IsPaddleCaptured() && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
+    if (!m_input->GetMouseInput().IsPaddleCaptured() && m_updater->OfferMouseToUpdateIndicator (DxuiMouseEventKind::Up, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -802,13 +802,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // While paddle-captured, the left button is fire button 0; release it
     // and keep the capture (the transient click-capture path is bypassed).
-    if (m_input->IsPaddleCaptured())
+    if (m_input->GetMouseInput().IsPaddleCaptured())
     {
-        m_input->PushPaddleButton (0, false);
+        m_input->GetMouseInput().PushPaddleButton (0, false);
         result = DxuiMessageResult::Handled;
     }
 
-    BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
+    BAIL_OUT_IF (m_input->GetMouseInput().IsPaddleCaptured(), S_OK);
 
     // The command toolbar, and the //c switch bar's part under the release.
     toolbarTook = m_chrome->OnLButtonUp (x, y, switchPart);
@@ -901,18 +901,18 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // hit) in Paddle mode re-grabs the pointer after an Esc release. The
     // predicate is captured BEFORE the call, because StartPaddleCapture sets
     // m_input->IsPaddleCaptured() and re-testing it afterwards would read false.
-    canGrabPaddle = m_input->GetPointerMode() == InputMappingMode::Paddle && !m_input->IsPaddleCaptured();
+    canGrabPaddle = m_input->GetPointerMode() == InputMappingMode::Paddle && !m_input->GetMouseInput().IsPaddleCaptured();
 
     if (canGrabPaddle)
     {
-        m_input->StartPaddleCapture();
+        m_input->GetMouseInput().StartPaddleCapture();
         result = DxuiMessageResult::Handled;
     }
 
     BAIL_OUT_IF (canGrabPaddle, S_OK);
 
     // //c Mouse mode: any left release drops the guest mouse button.
-    m_input->ReleaseGuestMouseButton();
+    m_input->GetMouseInput().ReleaseGuestMouseButton();
 
 Error:
     return result;
@@ -941,9 +941,9 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (wParam);
 
-    if (m_input->IsPaddleCaptured())
+    if (m_input->GetMouseInput().IsPaddleCaptured())
     {
-        m_input->PushPaddleButton (1, true);
+        m_input->GetMouseInput().PushPaddleButton (1, true);
         result = DxuiMessageResult::Handled;
     }
     else if (m_scene->OnRButtonDown ((int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam)))
@@ -980,12 +980,12 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    if (m_input->IsPaddleCaptured())
+    if (m_input->GetMouseInput().IsPaddleCaptured())
     {
-        m_input->PushPaddleButton (1, false);
+        m_input->GetMouseInput().PushPaddleButton (1, false);
         result = DxuiMessageResult::Handled;
     }
-    else if (!m_chrome->IsMenuOpen() && !m_input->IsGuestMouseLive())
+    else if (!m_chrome->IsMenuOpen() && !m_input->GetMouseInput().IsGuestMouseLive())
     {
         // The drive band and the fullscreen strip have no orbit to share the
         // button with: a right-click there is the device's menu.

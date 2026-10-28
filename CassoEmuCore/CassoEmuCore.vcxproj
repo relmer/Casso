@@ -738,6 +738,8 @@
     <ClCompile Include="Shell\ShellDebugger.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebuggerHost.cpp" />
     <ClCompile Include="Shell\Components\ShellInput.cpp" />
+    <ClCompile Include="Shell\Components\ShellControllers.cpp" />
+    <ClCompile Include="Shell\Components\ShellMouseInput.cpp" />
     <ClCompile Include="Shell\EmulatorShellInputHost.cpp" />
     <ClCompile Include="Shell\Components\ShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
@@ -1484,6 +1486,8 @@
     <ClInclude Include="Config\DebuggerSettings.h" />
     <ClInclude Include="Shell\DebuggerSliceHooks.h" />
     <ClInclude Include="Shell\Components\ShellInput.h" />
+    <ClInclude Include="Shell\Components\ShellControllers.h" />
+    <ClInclude Include="Shell\Components\ShellMouseInput.h" />
     <ClInclude Include="Shell\IInputHost.h" />
     <ClInclude Include="Shell\EmulatorShellInputHost.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />

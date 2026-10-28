@@ -41,7 +41,7 @@ namespace ControllerTests
         public:
             void  InstallControllerService (IControllerBackend & backend)
             {
-                GetInput().InstallControllerService (backend);
+                GetInput().GetControllers().InstallControllerService (backend);
             }
 
             void  StartOn (PlayerEntryKind kind)
@@ -107,7 +107,7 @@ namespace ControllerTests
             });
 
             picked.kind = to;
-            shell.GetInput().PickPlayer (0, picked);
+            shell.GetInput().GetControllers().PickPlayer (0, picked);
         }
 
 
@@ -170,7 +170,7 @@ namespace ControllerTests
                 recorder.notices.insert (recorder.notices.end(), change.notices.begin(), change.notices.end());
             });
 
-            shell.GetInput().SetPlayerMode (0, mode);
+            shell.GetInput().GetControllers().SetPlayerMode (0, mode);
         }
 
 

@@ -303,7 +303,7 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
             // the Mouse segment reappears / disappears -- SetState flips the
             // availability flag and the toolbar rebuilds the 2<->3 segment
             // geometry + hit map. UI-thread routed (posted WM_COMMAND).
-            m_shell.m_input->SyncPaddleSourceList();
+            m_shell.m_input->GetControllers().SyncPaddleSourceList();
         }
     }
 }

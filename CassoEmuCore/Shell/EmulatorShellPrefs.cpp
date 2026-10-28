@@ -217,7 +217,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
 
     // The players' modes are global and apply to a machine with no block of
     // its own too, so the Joyport is settled above the guard below.
-    m_input->MigrateJoyportAtLaunch (uiPrefs);
+    m_input->GetControllers().MigrateJoyportAtLaunch (uiPrefs);
 
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
