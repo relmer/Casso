@@ -167,6 +167,9 @@ comparing two quarter tracks of one disk.
 - Q: After a state restore, what is "As inserted"? → A: The disk as it was
   first inserted, not the restored disk; the rest of the restore is handled
   as a reload (FR-069, FR-117).
+- Q: How does the head get from the top to the bottom when tilting? → A: The
+  platter turns a half turn over about 300 ms, so the head sweeps around,
+  whether or not the drive is turning (FR-152).
 - Q: Can a selection be returned to? → A: Back and Forward step through the
   user's selections, with Alt+Left and Alt+Right, the mouse's back and
   forward buttons, and the Go menu (FR-164).
@@ -3089,8 +3092,12 @@ legend, and tilt the platter and back.
   where rings are too thin to fit them, and zooming MUST move the view
   toward the point under the pointer.
 - **FR-152**: In Casso, the tilted view MUST draw the head at the near edge
-  as the head arm of FR-064 projected onto the disk, with a soft shadow, and hovering and clicking over it MUST act on
-  the disk, as over the flat view's head marker.
+  as the head arm of FR-064 projected onto the disk, with a soft shadow.
+  When the platter tilts or lies flat at fit, it MUST turn a half turn over
+  about 300 ms, slow at the start and end, so the head sweeps between 12
+  o'clock and the near edge, whether or not the drive is turning.
+  Hovering and clicking over the head MUST act on the disk, as over the
+  flat view's head marker.
 - **FR-153**: The first time someone opens the inspector, a walkthrough MUST
   open over the window with a step for each area: the platter, its colors
   and its corner controls, the menu bar and the toolbar, the track header and

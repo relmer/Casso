@@ -118,6 +118,16 @@ public:
     void    SetTilt         (double tilt) { m_tilt = std::clamp (tilt, 0.0, kMaxTilt); }
     bool    IsTilted        () const { return m_tilt > 0.0; }
 
+    //  Where the head's angle sits, as a fraction of a turn from 12 o'clock:
+    //  0 flat, 0.5 at the near edge tilted (FR-152). When the platter tilts
+    //  or lies flat, StepTiltTurn eases it to the other over kTiltTurnMs and
+    //  turns the platter at fit with it, so the head sweeps from one place to
+    //  the other.
+    static constexpr double  kTiltTurnMs = 300.0;
+
+    double  GetHeadSide     () const { return m_headSide; }
+    void    StepTiltTurn    (double nowMs);
+
     //  A point on a ring at fit, zoom 1 and no pan, as the tilt draws it.
     Point   GetFitPoint     (int quarterTrack, double turn) const;
 
@@ -189,5 +199,9 @@ private:
     bool                  m_isTwoLegs     = false;
     double                m_flightStartMs = 0.0;
     bool                  m_isFlying      = false;
+    double                m_headSide      = 0.0;
+    double                m_headSideFrom  = 0.0;
+    double                m_headSideTo    = 0.0;
+    double                m_tiltTurnMs    = -1.0;
     SelectionHistory      m_history;
 };

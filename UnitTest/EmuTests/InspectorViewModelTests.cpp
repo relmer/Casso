@@ -393,4 +393,28 @@ public:
         Assert::IsTrue  (least > 2.0, L"nowhere near the whole disk");
         Assert::IsFalse (model.IsFlying());
     }
+
+
+    TEST_METHOD (TiltingTurnsThePlatterAHalfTurnSoTheHeadSweepsToTheNearEdge)
+    {
+        InspectorViewModel  model;
+        constexpr double    kTurn = InspectorViewModel::kTiltTurnMs;
+
+
+
+        model.SetTilt (0.5);
+        model.StepTiltTurn (0.0);
+        Assert::AreEqual (0.5, model.GetHeadSide(), 1e-9, L"a window that opens tilted takes its place at once");
+        Assert::AreEqual (0.0, model.GetRotation(), 1e-9);
+
+        model.SetTilt (0.0);
+        model.StepTiltTurn (1000.0);
+        model.StepTiltTurn (1000.0 + kTurn / 2);
+        Assert::AreEqual (0.25, model.GetHeadSide(), 1e-9, L"halfway through the turn");
+        Assert::AreEqual (-0.25, model.GetRotation(), 1e-9, L"and the platter turns with it");
+
+        model.StepTiltTurn (1000.0 + kTurn);
+        Assert::AreEqual (0.0,  model.GetHeadSide(), 1e-9);
+        Assert::AreEqual (-0.5, model.GetRotation(), 1e-9, L"a half turn in all");
+    }
 };
