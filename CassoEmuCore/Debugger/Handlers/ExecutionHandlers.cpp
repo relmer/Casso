@@ -893,8 +893,9 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
 //  ExecutionHandlers::Profile
 //
 //  PROFILE ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY
-//  [seconds|ALL]. A bare PROFILE lists. HISTORY builds the profile of the
-//  last seconds of history, or of all of it, in the background.
+//  [seconds|ALL|CYCLES first last]. A bare PROFILE lists. HISTORY builds the
+//  profile of the last seconds of history, of all of it, or of a range of
+//  cycles, in the background.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -947,9 +948,9 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
         m_profilePending.reset();
         reply.data = MessageData { { "Profile reset." } };
     }
-    else if (verb == "HISTORY" && extra.empty())
+    else if (verb == "HISTORY")
     {
-        BuildProfileFromHistory (session, argument, reply);
+        BuildProfileFromHistory (session, TrimSpaces (rest), reply);
     }
     else if ((verb.empty() || verb == "LIST") && extra.empty() && TryGetProfileList (argument, list))
     {
@@ -958,7 +959,7 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     }
     else
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR|ROUTINES|TREE], SAVE [file] or HISTORY [seconds|ALL].");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR|ROUTINES|TREE], SAVE [file] or HISTORY [seconds|ALL|CYCLES first last].");
     }
 }
 
@@ -971,20 +972,38 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
 //  ExecutionHandlers::BuildProfileFromHistory
 //
 //  The seconds are decimal, counted back from the machine's position at the
-//  machine's own clock; ALL or none is all of history.
+//  machine's clock; ALL or none is all of history. CYCLES takes the
+//  first and the last cycle, decimal, the first before the last.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::BuildProfileFromHistory (DebugSession & session, const std::string & argument, Reply & reply)
+void ExecutionHandlers::BuildProfileFromHistory (DebugSession & session, const std::string & arguments, Reply & reply)
 {
-    uint64_t     now       = session.GetTarget().GetHistoryCycleCount();
-    uint64_t     from      = 0;
-    uint64_t     seconds   = 0;
-    std::string  error;
-    HRESULT      hr        = S_OK;
-    bool         isAll     = argument.empty() || SymbolTable::ToUpper (argument) == "ALL";
+    std::istringstream       stream    (arguments);
+    std::string              argument;
+    std::string              first;
+    std::string              last;
+    std::string              extra;
+    uint64_t                 now       = session.GetTarget().GetHistoryCycleCount();
+    uint64_t                 from      = 0;
+    uint64_t                 seconds   = 0;
+    std::optional<uint64_t>  to;
+    std::string              error;
+    HRESULT                  hr        = S_OK;
+    bool                     isAll     = false;
+    bool                     isRange   = false;
+    auto                     isNumber  = [] (const std::string & text, uint64_t & value)
+    {
+        return !text.empty() && text.find_first_not_of ("0123456789") == std::string::npos &&
+               std::from_chars (text.data(), text.data() + text.size(), value).ec == std::errc();
+    };
 
 
+
+    stream >> argument >> first >> last >> extra;
+
+    isAll   = argument.empty() || SymbolTable::ToUpper (argument) == "ALL";
+    isRange = SymbolTable::ToUpper (argument) == "CYCLES";
 
     if (!m_historyProfiler)
     {
@@ -992,15 +1011,27 @@ void ExecutionHandlers::BuildProfileFromHistory (DebugSession & session, const s
         return;
     }
 
-    if (!isAll && (argument.find_first_not_of ("0123456789") != std::string::npos ||
-                   std::from_chars (argument.data(), argument.data() + argument.size(), seconds).ec != std::errc()))
+    if (isRange)
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} is not a number of seconds.", argument));
+        to = 0;
+
+        if (!isNumber (first, from) || !isNumber (last, *to) || !extra.empty() || *to <= from)
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", "HISTORY CYCLES takes the first cycle and a later last cycle.");
+            return;
+        }
+    }
+    else if (!first.empty() || (!isAll && !isNumber (argument, seconds)))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} is not a number of seconds.", arguments));
         return;
     }
+    else
+    {
+        from = isAll ? 0 : now - std::min (now, (uint64_t) ((double) seconds * HistoryStatus::kCyclesPerSecond));
+    }
 
-    from = isAll ? 0 : now - std::min (now, (uint64_t) ((double) seconds * HistoryStatus::kCyclesPerSecond));
-    hr   = m_historyProfiler (from, error);
+    hr = m_historyProfiler (from, to, error);
 
     if (FAILED (hr))
     {
@@ -1008,7 +1039,9 @@ void ExecutionHandlers::BuildProfileFromHistory (DebugSession & session, const s
         return;
     }
 
-    reply.data = MessageData { { isAll ? std::string ("Profiling all of history.") : std::format ("Profiling the last {} seconds of history.", seconds) } };
+    reply.data = MessageData { { isRange ? std::format ("Profiling cycles {} to {} of history.", from, *to)
+                                 : isAll ? std::string ("Profiling all of history.")
+                                         : std::format ("Profiling the last {} seconds of history.", seconds) } };
 }
 
 

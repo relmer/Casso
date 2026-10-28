@@ -1725,9 +1725,9 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     //  the machine is stopped and in the background while it runs.
     m_eventLogs.GetTraceHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
     m_eventLogs.GetProfileHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
-    m_debugController->GetHandlers().GetExecution().SetHistoryProfiler ([this] (uint64_t fromCycle, std::string & error)
+    m_debugController->GetHandlers().GetExecution().SetHistoryProfiler ([this] (uint64_t fromCycle, std::optional<uint64_t> toCycle, std::string & error)
     {
-        return m_eventLogs.GetProfileHistory().Build (fromCycle, error);
+        return m_eventLogs.GetProfileHistory().Build (fromCycle, error, toCycle);
     });
     m_debugController->GetTarget().GetTrace().SetHistory (&m_eventLogs.GetTraceHistory());
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
