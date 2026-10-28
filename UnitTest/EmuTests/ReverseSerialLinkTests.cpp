@@ -83,7 +83,7 @@ namespace ReverseSerialLinkTestNs
     //  COM port: the far end connects, sends bytes with errors and line
     //  changes, and goes away. After each seek back the machine must match
     //  its live state at that point, no replay may send anything to the PC,
-    //  and a resume from the past must drop the line.
+    //  and a resume from the past must not drop the line.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -506,9 +506,10 @@ namespace ReverseSerialLinkTestNs
         }
 
 
-        //  FR-019: the line is up at a point in the past, and the machine goes
-        //  live again there.
-        TEST_METHOD (AResumeFromThePastClosesTheTcpConnection)
+        //  FR-019: the machine goes live again at a point in the past before
+        //  the client connected. The real connection is open, DCD matches it
+        //  at the next poll, and what the client sends next is echoed.
+        TEST_METHOD (TheTcpConnectionStaysOpenAcrossAResume)
         {
             FakeHostNetwork                   network;
             TestMachine                       machine    ("Apple2c", TestMachine::Slots::AsShipped, [&network] (MachineConfig & config, MachineBuildServices & services)
@@ -520,6 +521,7 @@ namespace ReverseSerialLinkTestNs
             std::shared_ptr<FakeSocketState>  client;
             std::vector<Sample>               samples;
             ReverseResult                     result;
+            size_t                            sent       = 0;
             HRESULT                           hr         = S_OK;
 
 
@@ -531,19 +533,29 @@ namespace ReverseSerialLinkTestNs
 
             samples = Record (machine, MakeTcpClient (network, client, kSlices + 1));
 
-            hr = controller.SeekToCycle (samples[samples.size() / 2].cycle, result);
+            hr = controller.SeekToCycle (samples[0].cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
-            Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"connected at that point");
+            Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"no client at that point");
 
             hr = controller.OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
+            Assert::IsFalse (client->destroyed, L"the real connection is open");
 
-            Assert::IsTrue  (client->destroyed, L"the real connection is closed");
-            Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD off for the guest");
+            machine.RunCycles (kSliceCycles);
+            Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD on at the next poll");
+
+            sent = client->sent.size();
+            client->inbound.insert (client->inbound.end(), { 'H', 'I' });
+            machine.RunCycles (8 * kSliceCycles);
+
+            Assert::IsTrue   (ReadReceived (machine).starts_with ("HI"), L"the client's bytes arrive at the guest");
+            Assert::AreEqual (sent + 2, client->sent.size(), L"and are echoed");
         }
 
 
-        TEST_METHOD (AResumeFromThePastHangsUpTheModem)
+        //  The call is up at a point in the past and live. Resuming there
+        //  doesn't send NO CARRIER, and the BBS's next bytes arrive at the guest.
+        TEST_METHOD (TheModemCallStaysUpAcrossAResume)
         {
             FakeHostNetwork                   network;
             TestMachine                       machine    ("Apple2c", TestMachine::Slots::AsShipped, [&network] (MachineConfig & config, MachineBuildServices & services)
@@ -589,10 +601,63 @@ namespace ReverseSerialLinkTestNs
             hr = controller.OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
-            Assert::IsTrue  (server->destroyed, L"the call is hung up on the PC");
-            Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD off for the guest");
-            Assert::AreEqual (waiting + std::string ("\r\nNO CARRIER\r\n").size(), machine.GetRefs().serialChips[0]->GetQueuedReceiveCount(),
-                              L"NO CARRIER waits for the guest");
+            Assert::IsFalse  (server->destroyed, L"the call is up on the PC");
+            Assert::IsTrue   (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD on for the guest");
+            Assert::AreEqual (waiting, machine.GetRefs().serialChips[0]->GetQueuedReceiveCount(), L"no NO CARRIER");
+
+            server->inbound.insert (server->inbound.end(), { 'H', 'I' });
+            machine.RunCycles (8 * kSliceCycles);
+
+            Assert::IsTrue (ReadReceived (machine).find ("HI") != std::string::npos, L"the BBS's bytes arrive at the guest");
+        }
+
+
+        //  The port is open across a resume, and DCD changed on the PC while
+        //  the machine was behind live is in the 6551 at the next poll.
+        TEST_METHOD (TheComPortStaysOpenAcrossAResume)
+        {
+            FakeHostSerialPorts                   ports;
+            std::shared_ptr<FakeSerialPortState>  com3       = ports.AddPort ("COM3");
+            TestMachine                           machine    ("Apple2c", TestMachine::Slots::AsShipped, [&ports] (MachineConfig & config, MachineBuildServices & services)
+            {
+                AttachPort1 (config, MakeAttachment (kpszSerialComPort));
+                services.hostSerialPorts = &ports;
+            });
+            ReverseController                     controller (machine);
+            std::vector<Sample>                   samples;
+            ReverseResult                         result;
+            int                                   opens      = 0;
+            HRESULT                               hr         = S_OK;
+
+
+
+            PrepareEcho (machine);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            samples = Record (machine, [] (size_t slice) { (void) slice; });
+            opens   = com3->opens;
+
+            hr = controller.SeekToCycle (samples[samples.size() / 2].cycle, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+            Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD on at that point");
+
+            com3->lines.dcd = false;
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            Assert::IsTrue   (com3->isOpen, L"the port is open");
+            Assert::AreEqual (opens, com3->opens, L"and was not opened again");
+
+            machine.RunCycles (kSliceCycles);
+            Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD off at the next poll");
+
+            com3->inbound.insert (com3->inbound.end(), { 'H', 'I' });
+            machine.RunCycles (8 * kSliceCycles);
+
+            Assert::IsTrue (ReadReceived (machine).find ("HI") != std::string::npos, L"the port's bytes arrive at the guest");
         }
 
 

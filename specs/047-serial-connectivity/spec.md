@@ -130,9 +130,9 @@ client, exchange bytes both ways including $FF, and close from each side.
 
 A user debugging a terminal program rewinds through a session with a BBS or a
 device. The replay delivers the same bytes and line changes at the same moments,
-and nothing is sent to the real port or connection. Resuming from a point in
-the past drops the connection, as a real line would after the remote end moved
-on.
+and nothing is sent to the real port or connection. On a resume from a point in
+the past the real connection stays open, so a call to a BBS survives a rewind;
+loading a state file closes it.
 
 **Why this priority**: History and the debugger's serial log are only useful
 for serial work if the traffic replays exactly.
@@ -147,9 +147,12 @@ live run; confirm the server received nothing during the replay.
    **Then** the guest receives every byte, line change and error at the same
    cycle as live.
 2. **Given** a replay, **Then** the real port or connection receives nothing.
-3. **Given** a connection open at a past point, **When** the user resumes from
-   there, **Then** carrier detect turns off in the 6551, the modem returns
-   `NO CARRIER`, and the real connection is closed.
+3. **Given** a connection open live, **When** the user resumes from a point
+   in the past, **Then** the real connection is open, and the 6551's carrier
+   detect matches it at the next poll.
+4. **Given** a connection open, **When** the user loads a state file, **Then**
+   carrier detect turns off in the 6551, the modem returns `NO CARRIER`, and
+   the real connection is closed.
 
 ---
 
@@ -250,9 +253,11 @@ check that the choice and its options are applied after the restart.
   the cycle the machine takes it in.
 - **FR-018**: A replay MUST deliver the stored input at the same cycles and
   MUST send nothing to a COM port or connection.
-- **FR-019**: Resuming from a point in the past with a connection open MUST
-  close the real connection and turn DCD off for the guest; the modem MUST
-  answer `NO CARRIER`.
+- **FR-019**: On a resume from a point in the past the real connection MUST
+  stay open, and the guest's CTS, DSR and DCD MUST match the attachment at the next
+  poll. Loading a state file with a connection open MUST close the real
+  connection and turn DCD off for the guest; the modem MUST answer
+  `NO CARRIER`.
 - **FR-020**: 035's serial log MUST list the traffic of every attachment.
 
 **Settings and failures**

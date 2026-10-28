@@ -12,8 +12,8 @@ Hayes-compatible modem that dials over TCP. Every attachment is polled on the
 emulation thread through `Acia6551::Tick`, as the Uthernet II pumps its
 sockets, and everything it brings in (bytes with their error flags, line
 levels, connections opening and closing) is journaled where the chip takes it.
-Behind live the attachments are not polled and send nothing; a resume from the
-past closes the connection and drops DCD, as `UthernetCard` does. Settings
+Behind live the attachments are not polled and send nothing; on a resume from the
+past the connection stays open, and loading a state file closes it and drops DCD. Settings
 gain the three attachments and their options for the Super Serial Card and a
 new page for the //c's ports. Design decisions are in [research.md](research.md).
 
@@ -134,7 +134,7 @@ the 6551 and the existing endpoints stay where they are.
 3. **Modem (US1)**: `HayesModem`, `AciaModemEndpoint` over `TcpSerialLink`.
 4. **COM port (US2)**: the seam, the fake, `AciaComPortEndpoint`, the Win32
    implementation.
-5. **History (US4)**: drop on resume, replay tests across all three, the
+5. **History (US4)**: drop on a state-file load, replay tests across all three, the
    idle-cost test.
 6. **Settings (US5)**: staging, `SerialAttachmentView`, both pages, the
    infobar.

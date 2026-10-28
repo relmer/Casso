@@ -50,7 +50,7 @@ other.
 **Alternatives**: the modem as machine state, saved in keyframes and replayed
 rather than journaled. Not chosen: a replay would then run the modem's command
 interpreter, and a dial command in a replay has no socket to dial. FR-019 also
-resets the modem's state on a resume from the past.
+resets the modem's state when a state file loads.
 
 ## R3. Replay timing of line changes
 

@@ -68,7 +68,7 @@ Command --ATD--> Dialing --connected--> Data --+++ guard--> OnlineCommand
 Dialing --failed / key / S7--> Command (NO CARRIER)
 Command --incoming--> Ringing --ATA or S0--> Data
 OnlineCommand --ATO--> Data
-Data / OnlineCommand --ATH, ATZ, DTR drop (&D2), remote close, resume--> Command
+Data / OnlineCommand --ATH, ATZ, DTR drop (&D2), remote close, state-file load--> Command
 ```
 
 ## SerialLinkReport

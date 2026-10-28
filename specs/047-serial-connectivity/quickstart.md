@@ -36,5 +36,6 @@ Each run launches `Casso.exe --title 047-serial-connectivity`.
    adapter: an infobar, and DCD off.
 5. **History (SC-005).** During any session above, open the debugger, step
    back and seek forward through the Serial log; the remote end receives
-   nothing. Resume from a point in the past: `NO CARRIER`, and the connection
-   closes on the PC side.
+   nothing. Resume from a point in the past: the connection stays up, and
+   bytes from the remote end arrive again. Load a state file: `NO CARRIER`,
+   and the connection closes on the PC side.

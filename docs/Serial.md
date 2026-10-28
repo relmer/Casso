@@ -98,10 +98,12 @@ errors, each change of CTS, DSR and DCD, and each connection opening and
 closing. Stepping back and seeking through a session replays it exactly, and
 nothing is sent to the COM port or connection while history is behind live.
 
-Resuming from a point in the past closes any real connection, as a line would
-drop once the other end has moved on: DCD turns off and the modem returns
-`NO CARRIER`. A change to an attachment made while behind live is applied once
-the machine is live again.
+On a resume from a point in the past the real connection stays open, so a call
+to a BBS survives a rewind. What the far end sent between that point and where
+the machine had run to isn't delivered again, so redraw the screen if the BBS
+offers a key for it. Loading a state file closes any real connection: DCD turns
+off and the modem returns `NO CARRIER`. A change to an attachment made while
+behind live is applied once the machine is live again.
 
 The debugger's **Serial log** lists the traffic of every attachment; see
 [the debugger](Debugger.md#serial-and-network-logs).
