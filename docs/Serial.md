@@ -1,15 +1,14 @@
 # Serial ports
 
 The Super Serial Card (the ][, ][+, //e and Enhanced //e, in slot 2) and the
-//c's two built-in ports each have a 6551. Whatever is plugged into a port's
-serial connector is chosen in Settings: **Serial card** for the card, and
-**Serial ports** on a //c, where port 1 is the printer port and port 2 the
-modem port. A change takes effect when you press OK, which restarts the machine.
+//c's two built-in ports each have a MOS 6551 ACIA/UART. Configure them in
+Settings' **Serial card** tab for the SSC and **Serial ports** tab for a //c,
+where port 1 is the printer port and port 2 the modem port.
 
 | Attachment | What it does |
 |---|---|
-| None | Nothing on the connector (the card only). |
-| Loopback plug | TX to RX, RTS to CTS, DTR to DSR and DCD. A //c port has this by default. |
+| None | Nothing on the connector. This is the default. |
+| Loopback plug | TX to RX, RTS to CTS, DTR to DSR and DCD. |
 | Write output to file | Everything sent is appended to a file. |
 | Read input from file | A file is sent into the port at its baud rate once a program turns the receiver on. |
 | COM port | A PC serial port, such as a USB serial adapter. |
@@ -21,39 +20,35 @@ answer, appear in the infobar at the top of the emulator window.
 
 ## COM port
 
-The PC's port runs at the baud rate, word length, parity and stop bits the
-program sets in the 6551, and changes when the program changes them. DTR and
-RTS follow the 6551's. CTS, DSR and DCD from the device are passed to the 6551,
-which raises its interrupt as for any change of its input lines. Framing, parity and overrun
-errors and a break arrive in the 6551's status register.
+The PC's COM port uses the baud rate, word length, parity, and stop bits that
+the program running on the Apple sets in the 6551. DTR and RTS follow the
+6551's. CTS, DSR and DCD from the device are passed to the 6551, and a change
+of DSR or DCD raises its interrupt, as on the chip. Framing, parity and overrun
+errors, and a break, are reflected in the 6551's status register.
 
-- The COM port list is read each time it opens, so an adapter plugged in after
-  Settings opened is listed.
-- A PC port has one rate for both directions. When a program sets the 6551's
-  receiver to its external clock, the port runs at the transmit rate.
-- A rate the PC port does not support is replaced by the nearest one it does,
-  and the infobar reports the replacement once per rate.
+- The COM port list is refreshed when it opens, so an adapter plugged in while
+  Settings is already open is listed.
+- A rate the PC port does not support is replaced by the closest one it has.
+  When that rate is more than 2% off, the substitution is reported in an
+  infobar; within 2%, each end of the line has room for the difference. The
+  6551's 110 and 134.5 baud are 109.92 and 134.58, which a PC runs at 110 and
+  135.
 - Windows reports a line error without the byte it came with, so the error is
-  attached to the last byte read at that moment.
-- An adapter unplugged while Casso runs turns DCD off, is reported, and is
-  opened again every two seconds until it is back.
+  attached to the last byte successfully read.
+- An adapter unplugged while Casso is running turns DCD off, is reported via infobar, and is
+  retried every two seconds.
 
 ## TCP connection
 
 Choose **Connect to a host**, with the host and port, or **Listen for a
-connection**, with the port. A listening port takes one connection at a time
-and closes a second at once. DCD and DSR are on while a connection is open.
-After a connection out fails, or the other end closes it, Casso connects again
+connection**, with the port. DCD and DSR are on while a connection is open.
+After an outbound connection fails, or the other end closes it, Casso tries to reconnect
 every five seconds.
 
-Bytes pass both ways as they are. With **Telnet** on, $FF in the data is
-doubled on the wire, a doubled $FF from the wire arrives as one byte, CR is
-sent as CR NUL, and Casso replies to the other end's Telnet negotiation itself,
-without passing it to the program: echo and suppress-go-ahead are agreed to,
-every other option declined.
+With **Telnet** on, Casso manages the Telnet handshake and encodings/decodings ($FF -> $FF $FF; CR -> CR NUL). Echo and suppress-go-ahead are supported,
+other options are not.
 
-The 6551 receives at the baud rate the program set; what it has not yet taken
-waits in the PC's socket buffer.
+The 6551 receives at the baud rate the Apple program set and Casso buffers the receive stream.
 
 ## Modem
 
@@ -74,7 +69,7 @@ after S0 rings.
 | `ATE0`/`ATE1` | Echo off/on |
 | `ATQ0`/`ATQ1` | Results on/off |
 | `ATV0`/`ATV1` | Results as numbers/words |
-| `ATX0` to `ATX4` | `CONNECT` alone, or with the baud rate |
+| `ATX0` to `ATX4` | `CONNECT` alone (X0), or with the baud rate (X1 to X4; X4 is the default) |
 | `AT&C0`/`AT&C1` | DCD always on/follows the call |
 | `AT&D0`/`AT&D2` | Ignore DTR/hang up when DTR drops |
 | `ATS`*n*`=`*v*, `ATS`*n*`?` | Set or read S-register *n* |
@@ -93,17 +88,19 @@ escape off. The modem has no dial or connect tones.
 
 ## History
 
-Everything an attachment brings in is stored in history: each byte with its
-errors, each change of CTS, DSR and DCD, and each connection opening and
-closing. Stepping back and seeking through a session replays it exactly, and
-nothing is sent to the COM port or connection while history is behind live.
+Serial data received is stored in history, including errors, CTS, DSR, and DCD
+changes, and connection open/close events. What the Apple sends is not stored:
+replaying the program sends the same bytes at the same cycles, so the Serial
+log lists them as it did live. Stepping back and seeking through a session
+replays all of it, but nothing is sent to the COM port or connection while
+history is behind live.
 
-On a resume from a point in the past the real connection stays open, so a call
-to a BBS survives a rewind. What the far end sent between that point and where
-the machine had run to isn't delivered again, so redraw the screen if the BBS
-offers a key for it. Loading a state file closes any real connection: DCD turns
-off and the modem returns `NO CARRIER`. A change to an attachment made while
-behind live is applied once the machine is live again.
+On a resume from a point in the past, the real connection stays open, so a call
+to a BBS, for example, survives a rewind. The Apple receives again everything
+the remote end sent after that point, then whatever it sends next. What the
+Apple program sent after that point already went out, so if it sends it again,
+the remote end gets it twice. Loading a machine's saved state closes any real
+connection: DCD turns off and the modem returns `NO CARRIER`.
 
 The debugger's **Serial log** lists the traffic of every attachment; see
 [the debugger](Debugger.md#serial-and-network-logs).
