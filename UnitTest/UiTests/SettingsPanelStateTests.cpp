@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SettingsPanelState.h"
+#include "Ui/Settings/SettingsJson.h"
 #include "Ui/Settings/HardwarePage.h"
 
 #include "Core/JsonParser.h"
@@ -533,7 +534,7 @@ public:
         AssertSucceeded (st.Apply (sink, outJson));
         Assert::IsFalse (sink.lastFastTapeLoading, L"Apply hands the setting to the shell");
 
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsFalse (reloaded.fastTapeLoading, L"and writes it");
         Assert::AreEqual (0.25f, reloaded.tapeVolume);
         Assert::IsFalse  (reloaded.tapeAutoStop);
@@ -561,7 +562,7 @@ public:
         Assert::IsTrue (sink.lastColor == SettingsColorMode::Green,
                         L"OK must not push the picture back to color");
 
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsTrue (reloaded.colorMode == SettingsColorMode::Green,
                         L"and must not write color into the file either");
     }
@@ -788,7 +789,7 @@ public:
 
         // The connected state persists into the emitted $cassoUiPrefs, and
         // re-loading that JSON restores it.
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsTrue (reloaded.externalDriveConnected, L"externalDriveConnected round-trips");
     }
 
@@ -1447,7 +1448,7 @@ public:
         Assert::IsFalse (sink.lastMouseConnected, L"pushed live");
         Assert::AreEqual (0, sink.queuedResetCount);
 
-        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
+        AssertSucceeded (SettingsJson::ExtractUiPrefs (outJson, reloaded));
         Assert::IsFalse (reloaded.mouseConnected, L"mouseConnected round-trips");
     }
 
@@ -1950,12 +1951,12 @@ public:
         for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
         {
             info = {};
-            AssertSucceeded (SettingsPanelState::ExtractMachineInfo (id, v, info));
+            AssertSucceeded (SettingsJson::ExtractMachineInfo (id, v, info));
             Assert::IsTrue (info.supportsGamePortAdapter, std::wstring (id, id + strlen (id)).c_str());
         }
 
         info = {};
-        AssertSucceeded (SettingsPanelState::ExtractMachineInfo ("Apple2c", v, info));
+        AssertSucceeded (SettingsJson::ExtractMachineInfo ("Apple2c", v, info));
         Assert::IsFalse (info.supportsGamePortAdapter, L"the //c has no annunciators");
     }
 };

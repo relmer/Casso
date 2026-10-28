@@ -8,6 +8,7 @@
 #include "Shell/Components/ShellUpdater.h"
 #include "Shell/EmulatorShell.h"
 #include "Ui/Settings/SettingsPanelState.h"
+#include "Ui/Settings/SettingsJson.h"
 #include "Ui/Settings/SettingsSheet.h"
 #include "Ui/ThemeManager.h"
 
@@ -228,7 +229,7 @@ void ShellSettings::PersistColorModeForMachine (int settingsColorModeIndex)
         return;
     }
 
-    text = SettingsPanelState::ColorToString ((SettingsColorMode) settingsColorModeIndex);
+    text = SettingsJson::ColorToString ((SettingsColorMode) settingsColorModeIndex);
     entries.emplace_back ("colorMode", JsonValue (std::string (text)));
 
     hr = DiskSettings::WriteSavedUiPrefs (*m_userConfigStore, m_uiFs,

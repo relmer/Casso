@@ -7,6 +7,7 @@
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 #include "Machines/Apple2/Common/SscSwitches.h"
+#include "Ui/Settings/SettingsConnectors.h"
 
 
 
@@ -305,7 +306,7 @@ public:
     // The machine document as it would be saved now, for a caller that
     // changes a setting without a sheet -- the Storage menu's second drive.
     void       SetTapeRecorderConnected (bool connected) { m_current.prefs.tapeRecorderConnected = connected; }
-    JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
+    JsonValue  BuildCurrentJson () const;
 
     bool IsDirty       () const;
     bool RequiresReset () const;          // a hardware enable or a serial attachment changed
@@ -368,47 +369,29 @@ public:
     void    SetSecondDriveAttached (bool attached);
     void    SetMouseConnected         (bool connected);
 
-    // What a //c serial port, 1 or 2, connects to: its back-panel port's
-    // device (see SerialPortDevice). A change is applied to the running
-    // machine, with no reset.
-    bool         HasSerialPorts      () const;
-    std::string  GetSerialPortDevice (int port) const;
-    void         SetSerialPortDevice (int port, const std::string & device);
-
-    // Where the ImageWriter II is attached: nothing, or one of the staged
-    // machine's connectors that can take it, which are each turned-on
-    // parallel card and Super Serial Card, then a //c's ports 1 and 2. It is
-    // on one connector at a time, so staging it on one, here or as a serial
-    // port's or the card's device, empties the connector that had it. A
-    // change is applied to the running machine, with no reset.
-    //
-    // A Super Serial Card the printer is staged on is set to printer mode,
-    // and its previous mode is saved. When the printer moves off the card,
-    // the saved mode is restored if the card is in printer mode then. A mode
-    // change away from printer mode on a card with the printer disconnects
-    // the printer.
-    std::vector<PrinterConnection>  GetPrinterChoices    () const;
-    PrinterConnection               GetPrinterConnection () const;
-    void                            SetPrinterConnection (const PrinterConnection & connection);
-
-    // The text of the last change staged on one page for a setting on
-    // another, such as the card's mode, for the sheet to report; empty when
-    // there is none. Taking it clears it.
-    std::wstring  TakeNotice ();
+    // What a //c serial port, 1 or 2, connects to, where the ImageWriter II is
+    // attached, the Super Serial Card and the Uthernet II: see
+    // SettingsConnectors.
+    bool                            HasSerialPorts          () const { return m_connectors.HasSerialPorts(); }
+    std::string                     GetSerialPortDevice     (int port) const { return m_connectors.GetSerialPortDevice (port); }
+    void                            SetSerialPortDevice     (int port, const std::string & device) { m_connectors.SetSerialPortDevice (port, device); }
+    std::vector<PrinterConnection>  GetPrinterChoices       () const { return m_connectors.GetPrinterChoices(); }
+    PrinterConnection               GetPrinterConnection    () const { return m_connectors.GetPrinterConnection(); }
+    void                            SetPrinterConnection    (const PrinterConnection & connection) { m_connectors.SetPrinterConnection (connection); }
+    std::wstring                    TakeNotice              () { return m_connectors.TakeNotice(); }
+    int                             FindSerialCard          () const { return m_connectors.FindSerialCard(); }
+    bool                            HasEnabledSerialCard    () const { return m_connectors.HasEnabledSerialCard(); }
+    HRESULT                         SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2) { return m_connectors.SetSerialCardSwitches (sw1, sw2); }
+    HRESULT                         SetSerialCardAttachment (const std::string & device, const std::string & path) { return m_connectors.SetSerialCardAttachment (device, path); }
+    const HardwareEntry *           GetNetworkCard          () const { return m_connectors.GetNetworkCard(); }
+    bool                            HasEnabledNetworkCard   () const { return m_connectors.HasEnabledNetworkCard(); }
+    HRESULT                         SetNetworkCardMac       (const std::string & text, std::string & outError) { return m_connectors.SetNetworkCardMac (text, outError); }
+    void                            SetNetworkLanAccess     (bool lanAccess) { m_connectors.SetNetworkLanAccess (lanAccess); }
+    HRESULT                         AddPortForward          (const PortForward & forward, std::string & outError) { return m_connectors.AddPortForward (forward, outError); }
+    HRESULT                         RemovePortForward       (size_t index) { return m_connectors.RemovePortForward (index); }
+    bool                            AreSerialPortsChanged   () const { return m_connectors.AreSerialPortsChanged(); }
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
-
-    // The staged Super Serial Card: its index in GetHardware(), or -1 when
-    // the machine lists none. HasEnabledSerialCard drives the Serial card
-    // page's presence, as HasDiskIIController drives the Storage page's.
-    int     FindSerialCard        () const;
-    bool    HasEnabledSerialCard  () const;
-
-    // Stage the card's switches, or what is attached to its connector
-    // ("" for nothing, or one of the serial attachment devices) with the
-    // host file the file attachments use.
-    HRESULT SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2);
-    HRESULT SetSerialCardAttachment (const std::string & device, const std::string & path);
 
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally
@@ -416,50 +399,11 @@ public:
     static constexpr const char *  kpszNetworkCardDevice = "uthernet2";
     static constexpr const char *  kpszNetworkCardName   = "Uthernet II (Ethernet)";
 
-    const HardwareEntry *  GetNetworkCard        () const;
-    bool                   HasEnabledNetworkCard () const;
-    HRESULT                SetNetworkCardMac     (const std::string & text, std::string & outError);
-    void                   SetNetworkLanAccess   (bool lanAccess);
-    HRESULT                AddPortForward        (const PortForward & forward, std::string & outError);
-    HRESULT                RemovePortForward     (size_t index);
-
     // Apply
 
     HRESULT Apply (ISettingsApplySink & sink,
                    JsonValue          & outCurrentJson) const;
 
-    // Pure helpers (exposed for tests)
-
-    static HRESULT ExtractHardware    (const JsonValue            & mergedJson,
-                                       std::vector<HardwareEntry> & outEntries);
-    static HRESULT ExtractMachineInfo (const std::string          & machineId,
-                                       const JsonValue            & mergedJson,
-                                       SettingsMachineInfo        & outInfo);
-    static HRESULT ExtractUiPrefs     (const JsonValue            & mergedJson,
-                                       SettingsUiPrefs            & outPrefs);
-
-    // The machine's own connectors, read from the root `ports` array. Absent
-    // leaves the list empty, which BuildJson takes as "this machine never had
-    // a back panel to write back".
-    bool                AreSerialPortsChanged () const;
-    static std::string  GetPortDevice (const std::vector<SettingsMachinePort> & ports, const char * name);
-    static HRESULT ExtractMachinePorts (const JsonValue                       & mergedJson,
-                                        std::vector<SettingsMachinePort>      & outPorts);
-
-    static JsonValue BuildJson        (const JsonValue                        & mergedJson,
-                                       const std::vector<HardwareEntry>       & hw,
-                                       const SettingsUiPrefs                  & prefs,
-                                       const std::vector<SettingsMachinePort> & machinePorts = {});
-
-    // The stored spellings of the enumerated UI prefs. Public because the
-    // panel is not the only writer: the command bar's monitor-color picker
-    // saves the same key, and both have to write the same word for it.
-    static const char *        SpeedToString       (SettingsSpeedMode s);
-    static SettingsSpeedMode   SpeedFromString     (const std::string & s, SettingsSpeedMode fallback);
-    static const char *        ColorToString       (SettingsColorMode c);
-    static SettingsColorMode   ColorFromString     (const std::string & s, SettingsColorMode fallback);
-    static const char *        WriteModeToString   (SettingsWriteMode mode);
-    static SettingsWriteMode   WriteModeFromString (const std::string & s, SettingsWriteMode fallback);
 
 private:
 
@@ -469,35 +413,6 @@ private:
         std::vector<HardwareEntry>        hardware;
         std::vector<SettingsMachinePort>  machinePorts;
     };
-
-    // The rule MachineConfig::FindPrinterConnection applies, to staged state.
-    static PrinterConnection  FindPrinterConnection (const Snapshot & snapshot);
-
-    void  StageSerialPortDevice (int port, const std::string & device);
-    void  ApplyConnectors       (ISettingsApplySink & sink) const;
-
-    // The staged card's switches, or the card's defaults where a bank is
-    // unset or does not parse, and the switches staged back as text.
-    static SscSwitches  ReadSwitches  (const HardwareEntry & entry);
-    static void         WriteSwitches (HardwareEntry & entry, const SscSwitches & switches);
-
-    static const wchar_t *  GetModeName (SscMode mode);
-
-    HardwareEntry *  FindSlotEntry          (int slot, const char * type);
-    void             SetCardPrinterMode     (int slot);
-    void             RestoreCardMode        (int slot);
-    void             StageCardPrinterChange (const PrinterConnection & from, const PrinterConnection & to);
-
-    // Appends every $cassoUiPrefs entry of `mergedJson` that `uiObj` does not
-    // already carry, so a preference this dialog knows nothing about survives
-    // a save.
-    static void CarryUnmanagedUiPrefs (
-        std::vector<std::pair<std::string, JsonValue>> & uiObj,
-        const JsonValue                               & mergedJson);
-
-    static bool ArePrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
-    static bool AreHardwareEqual (const std::vector<HardwareEntry> & a,
-                                  const std::vector<HardwareEntry> & b);
 
     // JSON accessors and enum<->string mapping for the settings document.
     // Every reader is a SettingsPanelState method, so the block belongs to
@@ -523,50 +438,8 @@ private:
     static constexpr size_t        kSecondDrivePortIndex = 1;
     static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
 
-    static int  FindKey (
-        const std::vector<std::pair<std::string, JsonValue>> & entries,
-        const std::string                                    & key);
-
-    static bool  TryGetBoolOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool                fallback);
-
-    static std::string  GetStringOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        const std::string & fallback);
-
-    static int  GetIntOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        int                 fallback);
-
-    static double  GetNumberOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        double              fallback);
-
-    static CapabilityFlag  ParseCapability (
-        const std::string & str,
-        CapabilityFlag      fallback);
-
-    static JsonValue  CloneJson (const JsonValue & v);
-
-    // Puts a shipped machine's internal device list into a working copy of its
-    // document. The document itself no longer carries one: what devices a
-    // machine has is stated in code, so the file describes only what an owner
-    // configures. The hardware tree still has to show them, and this is where
-    // they arrive rather than in each reader.
-    //
-    // A machine with no definition is left untouched -- its document is the
-    // only description of it there is.
-    static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
-
-    int   FindNetworkCard () const;
-
-    static MacAddress  MakeRandomMac ();
-
+    friend class SettingsJson;
+    friend class SettingsConnectors;
 
     std::string          m_machineName;
     SettingsMachineInfo  m_machineInfo;
@@ -575,5 +448,6 @@ private:
 
     Snapshot     m_original;
     Snapshot     m_current;
-    std::wstring m_notice;
+
+    SettingsConnectors  m_connectors { *this };
 };

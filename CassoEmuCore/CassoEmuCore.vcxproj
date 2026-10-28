@@ -517,6 +517,8 @@
     <ClCompile Include="Ui\Settings\SettingsMachineCatalog.cpp" />
     <ClCompile Include="Ui\Settings\SettingsSheet.cpp" />
     <ClCompile Include="Ui\Settings\SettingsSheetSize.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsConnectors.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsJson.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
     <ClCompile Include="Ui\Settings\PrintingPage.cpp" />
@@ -1109,6 +1111,8 @@
     <ClInclude Include="Ui\Settings\SettingsCompositor.h" />
     <ClInclude Include="Ui\Settings\SettingsSheet.h" />
     <ClInclude Include="Ui\Settings\SettingsSheetSize.h" />
+    <ClInclude Include="Ui\Settings\SettingsConnectors.h" />
+    <ClInclude Include="Ui\Settings\SettingsJson.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
     <ClInclude Include="Ui\Settings\PrintingPage.h" />
