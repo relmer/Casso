@@ -127,6 +127,11 @@ public:
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDebuggerWindowHost * host, bool activate);
     void     RenderFrame ();
 
+    //  The caption: the label from `--title`, ahead of Debugger, as on the
+    //  emulator's window.
+    static std::wstring  GetCaption     (const std::wstring & titlePrefix);
+    void                 SetTitlePrefix (const std::wstring & titlePrefix) { SetTitle (GetCaption (titlePrefix)); }
+
     //  Detaches the host, for a shell tearing down before the window.
     void     DetachHost  () { m_host = nullptr; }
 

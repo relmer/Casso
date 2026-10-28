@@ -143,6 +143,7 @@ void ShellDebugger::OpenDebuggerWindow (bool activate)
         CHRF (hr, m_debuggerWindow.reset());
 
         m_host.ApplyAppIcon (m_debuggerWindow->GetHwnd());
+        m_debuggerWindow->SetTitlePrefix (m_host.GetTitlePrefix());
 
         //  While the debugger's title bar is held the OS runs its own move
         //  loop on this thread, so no frame runs for it or for the machine's
