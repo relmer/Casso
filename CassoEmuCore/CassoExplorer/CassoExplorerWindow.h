@@ -284,15 +284,10 @@ private:
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
 
-    //  The list columns the user has chosen to show, from the header's menu.
-    std::vector<bool>                         m_listColumnChosen;
 
-    //  The column order the folder shown uses: its own, or the latest.
-    std::vector<int>                          m_folderColumnOrder;
     std::unique_ptr<FolderWatch>              m_folderWatch;
     bool                                      m_applyingTheme       = false;
     std::vector<Win32IntentChannel::Reply>    m_pendingReplies;
-    bool                                      m_dragArmed           = false;
     ULONGLONG                                 m_folderFirstChangeMs = 0;   // 0: no change waiting
     DWORD                                     m_driveMask           = 0;   // GetLogicalDrives at the last look
     std::wstring                              m_quickAccessDir;            // where File Explorer keeps Quick access
@@ -306,30 +301,17 @@ private:
     DxuiDpiScaler                             m_scaler;
     RECT                                      m_client              = {};
 
-    //  Why each row's image is broken, as its cells are built; empty for the
-    //  rest.
-    std::vector<std::wstring>                 m_rowProblems;
 
     //  Whether the status bar's detail has the CassoLink connections' pending operations.
     bool  m_linkJobsShown = false;
 
-    //  The list's view, and the key of the folder it was chosen for: a new
-    //  folder opens in its own view.
-    DxuiListView::View                         m_listView          = DxuiListView::View::Details;
-    std::wstring                               m_listViewKey;
     ExplorerPane                               m_focus             = ExplorerPane::Tree;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiSplitter         * m_treeSplitter    = nullptr;
-    DxuiListView         * m_list            = nullptr;
 
     //  Rename in place: an edit box laid over the row's name, as Explorer's
     //  F2 opens one. The row being renamed, or -1.
-    DxuiLabel       * m_listMessage        = nullptr;
-    bool              m_listMessageTop     = false;
-    DxuiButton      * m_listAction         = nullptr;
-    DxuiButton      * m_listActionAlt      = nullptr;
-    bool              m_listActionFirewall = false;
     DxuiSplitter    * m_previewSplitter    = nullptr;
     DxuiStatusBar   * m_status             = nullptr;
     DxuiToolbar     * m_toolbar            = nullptr;
@@ -342,7 +324,6 @@ private:
     std::vector<ExplorerFileOps::UndoStep>  m_undo;   // newest last
     bool                                    m_caretOn      = true;   // the search caret as last drawn
     bool                                    m_tickArmed    = false;   // the animation tick is running
-    std::vector<std::wstring>               m_cutPaths;   // cut to the clipboard and not yet pasted, drawn dimmed
 
     //  The window's edges, docked. Each band is stamped with the thickness
     //  its widget needs and comes back with the rect that widget is laid
@@ -358,6 +339,8 @@ private:
     //  The window's parts, each with the state it uses.
     friend class ExplorerLayout;
     friend class ExplorerListPane;
+    friend class ExplorerListColumns;
+    friend class ExplorerListMenus;
     friend class ExplorerFolderSync;
     friend class ExplorerLinks;
     friend class ExplorerDragDrop;

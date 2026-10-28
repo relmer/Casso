@@ -142,7 +142,6 @@ std::shared_ptr<const DxuiIconImage> ExplorerDragDrop::GetRowDragImage()
 bool ExplorerDragDrop::TryGetAppleDropDrive (int tag, POINT screen, Location & outDrive)
 {
     POINT                 client = screen;
-    RECT                  list   = m_window.m_list->GetBounds();
     int                   row    = -1;
     const DxuiTreeNode  * node   = nullptr;
     Location              location;
@@ -170,7 +169,7 @@ bool ExplorerDragDrop::TryGetAppleDropDrive (int tag, POINT screen, Location & o
         return false;
     }
 
-    row = m_window.m_list->IsVisible() ? m_window.m_list->HitTestRow (client.x - list.left, client.y - list.top) : -1;
+    row = m_window.m_listPane.IsVisible() ? m_window.m_listPane.HitTestRow (client) : -1;
 
     if (row >= 0 && m_window.m_browser.TryGetRowLocation (row, location) && location.kind == Location::Kind::AppleDrive)
     {
@@ -205,7 +204,6 @@ bool ExplorerDragDrop::TryGetDropLocation (int tag, POINT screen, Location & out
 {
     POINT                 client = screen;
     int                   row    = -1;
-    RECT                  list   = m_window.m_list->GetBounds();
     const DxuiTreeNode  * node   = nullptr;
 
 
@@ -225,7 +223,7 @@ bool ExplorerDragDrop::TryGetDropLocation (int tag, POINT screen, Location & out
     }
     else
     {
-        row = m_window.m_list->HitTestRow (client.x - list.left, client.y - list.top);
+        row = m_window.m_listPane.HitTestRow (client);
 
         //  A disk image row in a folder, or a directory row in an image, takes
         //  the drop itself; anywhere else in the list, the location shown does.
@@ -256,7 +254,6 @@ bool ExplorerDragDrop::TryGetHostDropFolder (int tag, POINT screen, std::wstring
 {
     POINT                 client = screen;
     int                   row    = -1;
-    RECT                  list   = m_window.m_list->GetBounds();
     const DxuiTreeNode  * node   = nullptr;
     Location              location;
 
@@ -276,7 +273,7 @@ bool ExplorerDragDrop::TryGetHostDropFolder (int tag, POINT screen, std::wstring
     }
     else
     {
-        row = m_window.m_list->IsVisible() ? m_window.m_list->HitTestRow (client.x - list.left, client.y - list.top) : -1;
+        row = m_window.m_listPane.IsVisible() ? m_window.m_listPane.HitTestRow (client) : -1;
 
         //  An archive takes a drop as a folder does, and a program opens with
         //  what is dropped on it, each through the shell's own target.
@@ -855,7 +852,6 @@ void ExplorerDragDrop::HoverDropTab (POINT screen)
 void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 {
     POINT     client   = screen;
-    RECT      list     = m_window.m_list->GetBounds();
     Location  location;
     int       listRow  = -1;
     int       treeRow  = -1;
@@ -871,7 +867,7 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
     }
     else if (accepted && tag == CassoExplorerWindow::kDropTagList)
     {
-        row = m_window.m_list->HitTestRow (client.x - list.left, client.y - list.top);
+        row = m_window.m_listPane.HitTestRow (client);
 
         std::wstring  target;
 
@@ -891,12 +887,12 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
         m_window.m_treePane.ExpandRowForDrop (treeRow);
     }
 
-    if (listRow == m_window.m_list->GetDropRow() && treeRow == m_treeDropRow)
+    if (listRow == m_window.m_listPane.GetDropRow() && treeRow == m_treeDropRow)
     {
         return;
     }
 
-    m_window.m_list->SetDropRow (listRow);
+    m_window.m_listPane.SetDropRow (listRow);
     m_treeDropRow     = treeRow;
     m_treeDropSinceMs = GetTickCount64();
     m_window.m_treePane.SetDropRow (treeRow);
@@ -918,12 +914,12 @@ void ExplorerDragDrop::ClearDropTarget()
 {
     LeaveHostDrop();
 
-    if (m_window.m_list->GetDropRow() < 0 && m_treeDropRow < 0)
+    if (m_window.m_listPane.GetDropRow() < 0 && m_treeDropRow < 0)
     {
         return;
     }
 
-    m_window.m_list->SetDropRow  (-1);
+    m_window.m_listPane.SetDropRow (-1);
     m_window.m_treePane.ClearDropTarget();
     m_treeDropRow = -1;
 
@@ -1151,7 +1147,6 @@ void ExplorerDragDrop::BeginDragOut()
 {
     HRESULT                                  hr       = S_OK;
     DWORD                                    effect   = DROPEFFECT_NONE;
-    DxuiMouseEvent                           release;
     HostFileNaming::Style                    style    = m_window.m_dispatch.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
     std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_window.m_browser, style, log);
@@ -1169,9 +1164,7 @@ void ExplorerDragDrop::BeginDragOut()
 
 
 
-    release.kind   = DxuiMouseEventKind::Up;
-    release.button = DxuiMouseButton::Left;
-    m_window.m_list->OnMouse (release);
+    m_window.m_listPane.ReleasePress();
 
     //  Casso's own icon goes with a drag of disk images and of files with no
     //  file of their own, which the shell has no image for.

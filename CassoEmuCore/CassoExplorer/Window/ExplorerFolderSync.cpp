@@ -482,7 +482,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  Not while a rename is open or a button is down: the rows under either
     //  would change. The changes wait, and the timer tries again.
-    if (m_window.m_fileOps.IsRenaming() || m_window.m_dragArmed || m_window.m_list->IsInteracting() || m_window.m_treePane.IsInteracting())
+    if (m_window.m_fileOps.IsRenaming() || m_window.m_listPane.IsBusy() || m_window.m_treePane.IsInteracting())
     {
         SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId, CassoExplorerWindow::kFolderSettleMs, nullptr);
         return;
@@ -519,12 +519,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  The view as it stands, in keys, before the rows under it change.
     m_window.m_browser.GetRowKeys (before.keys);
-    before.topRow   = m_window.m_list->GetTopRow();
-    before.capacity = m_window.m_list->GetVisibleRowCapacity();
-    before.selected = m_window.m_list->GetSelectedRows();
-
-    //  The focused item counts only as part of the selection it belongs to.
-    before.focused  = m_window.m_list->IsRowSelected (m_window.m_list->GetSelectedRow()) ? m_window.m_list->GetSelectedRow() : -1;
+    m_window.m_listPane.CaptureView (before);
 
     //  Re-read without the browser's own restore: the anchor decides both the
     //  selection and where the view lands.
@@ -536,12 +531,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
     after = RefreshAnchor::Compute (before, keys);
 
     m_window.m_browser.SetSelectedRows (after.selected);
-    m_window.m_list->SetSelectedRows   (after.selected, after.focused);
-
-    //  Last, since restoring the selection scrolls it into view. By whole rows,
-    //  so an unmoved top leaves the view as it was, and rows a page down or
-    //  the list's end lifted stay lifted.
-    m_window.m_list->MoveTopRow (after.topRow);
+    m_window.m_listPane.RestoreView (after);
 
     m_window.m_previewPane.FillPreview();
     m_window.m_layout.FillStatus();

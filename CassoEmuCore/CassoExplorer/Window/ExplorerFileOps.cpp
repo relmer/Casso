@@ -133,7 +133,6 @@ void ExplorerFileOps::OnRenameKey (const DxuiKeyEvent & ev)
 void ExplorerFileOps::BeginRename()
 {
     RECT          cell = {};
-    RECT          list = m_window.m_list->GetBounds();
     int           row  = -1;
     std::wstring  name;
     size_t        dot  = std::wstring::npos;
@@ -143,7 +142,7 @@ void ExplorerFileOps::BeginRename()
 
     //  The focused item, as Explorer renames, even with others selected
     //  around it.
-    row = m_window.m_list->GetSelectedRow();
+    row = m_window.m_listPane.GetFocusedRow();
 
     if (row < 0 || std::find (m_window.m_browser.GetSelectedRows().begin(), m_window.m_browser.GetSelectedRows().end(), row) == m_window.m_browser.GetSelectedRows().end())
     {
@@ -155,22 +154,12 @@ void ExplorerFileOps::BeginRename()
         return;
     }
 
-    m_window.m_list->EnsureVisible (row);
-
-    if (!m_window.m_list->GetCellTextRectPx (row, 0, cell))
+    if (!m_window.m_listPane.TryGetRenameRect (row, cell))
     {
         return;
     }
 
     name = m_window.m_browser.GetRows()[(size_t) row].name;
-
-    OffsetRect (&cell, list.left, list.top);
-
-    //  Inside the row, as the selection box is, not over the whole of it.
-    if (m_window.m_listView == DxuiListView::View::Details)
-    {
-        InflateRect (&cell, 0, -m_window.m_scaler.ToPx (DxuiListView::s_kRowBoxInsetYDip));
-    }
 
     m_renameBox->SetMaxLength (host ? MAX_PATH : kMaxCatalogName);
     m_renameBox->SetText      (name);
@@ -1122,7 +1111,7 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
     //  as in File Explorer. Any error is in the shell's dialog.
     if (SUCCEEDED (hr))
     {
-        m_window.m_cutPaths.clear();
+        m_window.m_listPane.ClearCutPaths();
     }
 
     if (!pasted.created.empty())

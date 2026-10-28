@@ -56,144 +56,7 @@ void ExplorerLayout::ConfigureWidgets()
     m_window.m_menuBar->SetVisible (false);
     m_window.m_treePane.Configure();
 
-    m_window.m_list->SetShowHeader (true);
-    m_window.m_list->SetIconColumn (0);
-    m_window.m_list->SetExplorerDetails (true);
-    m_window.m_list->SetFontDip (CassoExplorerWindow::kProseFontDip);
-    m_window.m_list->SetRowHeightPxFn (&ExplorerLayout::GetListRowHeightPx);
-    m_window.m_list->SetColumns (BrowserCells::GetColumns());
-    m_window.m_listColumnChosen.assign (BrowserCells::GetColumns().size(), true);
-
-    //  A header dragged into a new place stays there for the next run.
-    m_window.m_listPane.ApplyColumnOrder();
-
-    m_window.m_list->SetOnColumnsReordered ([this] (const std::vector<size_t> & order)
-    {
-        //  The Recycle Bin's order is its own, as Explorer's is.
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
-        {
-            m_window.Invalidate();
-            return;
-        }
-
-        m_window.m_prefs.columnOrder.clear();
-
-        for (size_t column : order)
-        {
-            m_window.m_prefs.columnOrder.push_back ((int) column);
-        }
-
-        //  The folder keeps its own, and the latest is what others follow.
-        m_window.m_folderColumnOrder = m_window.m_prefs.columnOrder;
-        m_window.m_listPane.RememberFolderColumns();
-        m_window.Invalidate();
-    });
-    m_window.m_list->SetPreciseAutoFit (true);
-
-    //  Columns keep the widths they are given, and a pane too narrow for them
-    //  scrolls, the way Explorer's details view does, rather than squeezing
-    //  every column to fit.
-    m_window.m_list->SetHorizontalScrollEnabled (true);
-    m_window.m_list->SetMultiSelect (true);
-    m_window.m_list->SetKeyboardColumnNav (true);
-    m_window.m_list->SetActivateOnDoubleClick (true);
-    m_window.m_list->SetAlwaysShowSelection (true);
-
-    //  A page slides into view, as Explorer's does. The system tick count moves
-    //  in 15.6 ms steps, which left the slide standing still on some frames,
-    //  so the list reads the steady clock the window's own ticks read.
-    m_window.m_list->SetPageSlideEnabled (true);
-    m_window.m_list->SetClock (&CassoExplorerWindow::GetNowMs);
-
-    m_window.m_list->SetOnSelectionChanged ([this] (int)
-    {
-        m_window.m_browser.SetSelectedRows (m_window.m_list->GetSelectedRows());
-        m_window.m_previewPane.FillPreview();
-        FillStatus();
-        UpdateCommandBar();
-    });
-
-    m_window.m_list->SetView (m_window.m_listView);
-    m_window.m_menus.ShowViewOnButton();
-
-    m_window.m_list->SetOnSortColumn ([this] (int column)
-    {
-        m_window.m_browser.SortByColumn (column);
-        m_window.m_listPane.RememberFolderSort();
-        m_window.m_listPane.FillList();
-    });
-
-    //  A width the user set, by dragging a divider or by double-clicking one
-    //  to fit it, is kept for the next run.
-    m_window.m_list->SetOnColumnResized ([this] (int column, int widthPx)
-    {
-        if (column < 0)
-        {
-            return;
-        }
-
-        if ((size_t) column >= m_window.m_prefs.columnWidthsDip.size())
-        {
-            m_window.m_prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
-        }
-
-        //  Rounded up, so the width read back is never narrower than the one
-        //  the text was fitted to. The latest is the default for folders with
-        //  none of their own, and this folder keeps its own, as Explorer's do.
-        m_window.m_prefs.columnWidthsDip[(size_t) column] = (widthPx * (int) DxuiDpiScaler::kBaseDpi + (int) m_window.m_list->GetDpi() - 1) / (int) m_window.m_list->GetDpi();
-        m_window.m_listPane.RememberFolderColumnWidths (column, m_window.m_prefs.columnWidthsDip[(size_t) column]);
-    });
-
-    m_window.m_list->SetOnActivateRow ([this] (int row)
-    {
-        //  A deleted item opens its properties, as Explorer's does.
-        if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
-        {
-            m_window.m_dispatch.RunRecycleBinVerb (CassoExplorerActions::Verb::Open);
-        }
-        else if (row >= 0 && (size_t) row < m_window.m_browser.GetRows().size() && m_window.m_browser.GetRows()[(size_t) row].cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine)
-        {
-            m_window.m_links.EditLink (std::string());
-        }
-        else if (m_window.m_browser.GetSelectedRows().size() > 1)
-        {
-            //  Enter on several opens each, as Explorer's does.
-            m_window.m_fileOps.OpenEachSelected();
-        }
-        else if (m_window.m_browser.OpenRow (row))
-        {
-            m_window.m_listPane.FillList();
-        }
-        else if (m_window.m_browser.IsImageLocation())
-        {
-            //  A file in an image opens in its own program, from a copy.
-            m_window.m_fileOps.OpenSelectedEntries();
-        }
-        else if (m_window.m_browser.GetLocation().kind == Location::Kind::ShellFolder && row >= 0 && (size_t) row < m_window.m_browser.GetRows().size())
-        {
-            //  Anything else a shell folder holds does what Explorer's
-            //  double-click does with it.
-            const CatalogRow &  item = m_window.m_browser.GetRows()[(size_t) row];
-            HRESULT             hr   = item.hostPath.empty() ? m_window.m_shellVerbs.OpenShellItem (m_window.GetHwnd(), item.shellId)
-                                                             : m_window.m_shellVerbs.Open (m_window.GetHwnd(), item.hostPath);
-
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-        else
-        {
-            //  Any other file on the disk opens as Explorer opens it, and a
-            //  CassoLink item from the file it is written to.
-            std::wstring  path;
-            HRESULT       hr = S_OK;
-
-            if (m_window.m_browser.PrepareCassoLinkItems() && m_window.m_browser.TryGetRowPath (row, path))
-            {
-                hr = m_window.m_shellVerbs.Open (m_window.GetHwnd(), path);
-                IGNORE_RETURN_VALUE (hr, S_OK);
-            }
-        }
-    });
-
+    m_window.m_listPane.Configure();
     m_window.m_previewPane.Configure();
 
     //  The commands installed apps add to Explorer's menus, and New's
@@ -225,7 +88,7 @@ void ExplorerLayout::ConfigureWidgets()
     m_window.m_addressBar.Configure();
 
     m_window.m_browser.GetTypedPaths().Reset (m_window.m_prefs.typedPaths);
-    m_window.m_listPane.ApplyStoredColumnWidths();
+    m_window.m_listPane.GetColumns().ApplyStoredColumnWidths();
 
     //  Posting is all that happens on the watcher's thread; the settle timer
     //  and the re-read run here.
@@ -518,25 +381,21 @@ void ExplorerLayout::RecomputeLayout()
         RECT  listRect    = { right.left, right.top, sashRect.left, right.bottom };
         RECT  previewRect = { sashRect.right, right.top, right.right, right.bottom };
 
-        m_window.m_list->Layout           (listRect, m_window.m_scaler);
-        m_window.m_listMessage->Layout    (m_window.m_listPane.GetListMessageRect(), m_window.m_scaler);
-        m_window.m_listAction->Layout     (m_window.m_links.GetListActionRect(),     m_window.m_scaler);
-        m_window.m_listActionAlt->Layout  (m_window.m_links.GetListActionAltRect(),  m_window.m_scaler);
+        m_window.m_listPane.Layout        (listRect);
+        m_window.m_links.LayoutListActions();
         m_window.m_previewPane.Layout     (previewRect);
     }
     else
     {
         m_window.m_previewPane.Hide();
-        m_window.m_list->Layout          (right, m_window.m_scaler);
-        m_window.m_listMessage->Layout   (m_window.m_listPane.GetListMessageRect(), m_window.m_scaler);
-        m_window.m_listAction->Layout    (m_window.m_links.GetListActionRect(), m_window.m_scaler);
-        m_window.m_listActionAlt->Layout (m_window.m_links.GetListActionAltRect(), m_window.m_scaler);
+        m_window.m_listPane.Layout       (right);
+        m_window.m_links.LayoutListActions();
     }
 
     LayoutStatusFields();
 
     m_dropHits.Clear();
-    m_dropHits.Register (DxuiHitRect { m_window.m_list->GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
+    m_dropHits.Register (DxuiHitRect { m_window.m_listPane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
     m_dropHits.Register (DxuiHitRect { m_window.m_treePane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTree });
     m_dropHits.Register (DxuiHitRect { m_window.m_tabStrip.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
 

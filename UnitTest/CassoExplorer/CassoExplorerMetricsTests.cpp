@@ -99,7 +99,7 @@ public:
 
     TEST_METHOD (ListColumnShown_NameAlways_CatalogOnlyInsideAnImage)
     {
-        using W = ExplorerListPane;
+        using W = ExplorerListColumns;
         using C = CatalogModel::Column;
         using K = Location::Kind;
 

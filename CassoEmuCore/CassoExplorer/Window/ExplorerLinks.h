@@ -97,6 +97,12 @@ public:
     //  not replying, or Allow in Windows Firewall for a connection the
     //  firewall blocks. On a public network the second button beside it is
     //  Make this network private.
+    //  The buttons under the list's message for a link, and whether the
+    //  message is the firewall's.
+    void         CreateListActions    ();
+    void         LayoutListActions    ();
+    bool         OnListActionMouse    (const DxuiMouseEvent & ev);
+    bool         IsFirewallMessage    () const { return m_listActionFirewall; }
     RECT         GetListActionRect    () const;
     RECT         GetListActionAltRect () const;
     std::string  GetBootstrapLink     () const;
@@ -116,6 +122,9 @@ private:
     uint32_t     m_announcedChanges   = 0;   // ILinkAnnouncements::GetChangeCount at the last look
     uint32_t     m_firewallVersion    = 0;   // FirewallMonitor::GetVersion the views were drawn from
     HANDLE       m_firewallHelper     = nullptr;   // the elevated helper, until it exits
+    DxuiButton * m_listAction         = nullptr;
+    DxuiButton * m_listActionAlt      = nullptr;
+    bool         m_listActionFirewall = false;
     std::string  m_listActionLink;
     bool         m_listActionConnects = false;
 

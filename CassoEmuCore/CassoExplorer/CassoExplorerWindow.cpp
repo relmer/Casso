@@ -324,48 +324,14 @@ CassoExplorerSessionWindow CassoExplorerWindow::GetSessionWindow() const
 
 void CassoExplorerWindow::OnCreate()
 {
-    CassoExplorerNamedControl<DxuiListView>         * list            = nullptr;
-    CassoExplorerNamedControl<DxuiSplitter>         * treeSplitter    = nullptr;
-    CassoExplorerNamedControl<DxuiSplitter>         * previewSplitter = nullptr;
+    CassoExplorerNamedControl<DxuiSplitter>  * treeSplitter    = nullptr;
+    CassoExplorerNamedControl<DxuiSplitter>  * previewSplitter = nullptr;
 
 
 
     m_treePane.Create();
-
-    list = CreateChild<CassoExplorerNamedControl<DxuiListView>>();
-    list->SetAccessibleName (L"Files");
-
-    m_list            = list;
-    m_listMessage     = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-    m_listAction      = CreateChild<DxuiButton> (L"Bootstrap the Apple");
-    m_listAction->SetVisible (false);
-    m_listAction->SetOnClick ([this] ()
-    {
-        std::string  link = m_links.m_listActionLink;
-
-        if (m_listActionFirewall)
-        {
-            m_links.FixFirewall (false);
-            return;
-        }
-
-        if (link.empty())
-        {
-            return;
-        }
-
-        if (m_links.m_listActionConnects)
-        {
-            m_links.ConnectLink (link);
-        }
-        else
-        {
-            m_links.BootstrapLink (link);
-        }
-    });
-    m_listActionAlt   = CreateChild<DxuiButton> (FirewallText::kPrivateAction);
-    m_listActionAlt->SetVisible (false);
-    m_listActionAlt->SetOnClick ([this] () { m_links.FixFirewall (true); });
+    m_listPane.Create();
+    m_links.CreateListActions();
     m_previewPane.Create();
     treeSplitter      = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter   = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
@@ -460,9 +426,8 @@ void CassoExplorerWindow::OnCreate()
     m_browser.SetFolderOptions (m_explorerOptions);
     m_treePane.ApplyNavPaneOptions();
     m_listPane.SizeListIcons();
-    m_listPane.m_listIcons.LoadInBackground (GetHwnd(), kIconsLoadedMessage);
+    m_listPane.StartLoaders();
     m_infoTips.Start (GetHwnd(), kInfoTipMessage);
-    m_listPane.m_contentDetails.Start (GetHwnd(), kContentDetailsMessage);
 
     m_layout.ConfigureWidgets();
 }
@@ -979,27 +944,21 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
     if (msg == kInfoTipMessage)
     {
-        m_tips.RefreshListTip();
+        m_listPane.RefreshTip();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == kContentDetailsMessage)
     {
-        if (m_listPane.m_contentDetails.TakeArrived())
-        {
-            m_listPane.RefreshContentDetails();
-        }
+        m_listPane.OnContentDetailsArrived();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == kIconsLoadedMessage)
     {
-        if (m_listPane.m_listIcons.TakeLoaded())
-        {
-            m_listPane.RefreshListIcons();
-        }
+        m_listPane.OnIconsLoaded();
 
         return DxuiMessageResult::Handled;
     }
@@ -1130,7 +1089,7 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
 
     //  Explorer's folder options send no message either, so they too are read
     //  again, and the folders relisted only when one changed.
-    if (active && m_list != nullptr && m_listPane.ReadFolderOptions())
+    if (active && m_listPane.GetControl() != nullptr && m_listPane.GetColumns().ReadFolderOptions())
     {
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1145,7 +1104,7 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     //  Without a watcher -- an unwatchable share, or a host that supplied
     //  none -- the browser shows what it read when it read it, and the next
     //  navigation picks up the rest.
-    if (active && m_list != nullptr && m_folderWatch == nullptr && m_browser.GetBrowserModel().HasTabs())
+    if (active && m_listPane.GetControl() != nullptr && m_folderWatch == nullptr && m_browser.GetBrowserModel().HasTabs())
     {
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1238,7 +1197,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (timerId == kRefreshTimerId)
     {
         KillTimer (GetHwnd(), kRefreshTimerId);
-        m_list->SetContentHidden (false);
+        m_listPane.SetContentHidden (false);
         m_listPane.FillList();
         Invalidate();
 
@@ -1285,9 +1244,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  Scrollbars widen and narrow over a few frames as the pointer comes and
     //  goes.
     barsMoved = ((int) m_previewPane.TickScrollbars (GetNowMs())
-               | (int) m_list->TickScrollbars (GetNowMs())
-               | (int) m_list->IsHeaderSliding (GetNowMs())
-               | (int) m_list->IsGroupSliding()
+               | (int) m_listPane.Tick (GetNowMs())
                | (int) m_treePane.TickScrollbars (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.

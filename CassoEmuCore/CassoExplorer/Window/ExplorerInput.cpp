@@ -42,7 +42,7 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
     m_window.m_focus = pane;
 
     m_window.m_treePane.OnFocusChanged     (pane == ExplorerPane::Tree);
-    m_window.m_list->OnFocusChanged        (pane == ExplorerPane::List);
+    m_window.m_listPane.OnFocusChanged     (pane == ExplorerPane::List);
     m_window.m_tabStrip.OnFocusChanged     (pane == ExplorerPane::Tabs);
     m_window.m_addressBar.OnFocusChanged   (pane);
     m_window.m_toolbar->SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
@@ -359,7 +359,7 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
     {
         POINT  at      = (ev.kind == DxuiMouseEventKind::Leave) ? POINT { -1, -1 } : point;
         int    changed = (int) m_window.m_previewPane.UpdateScrollbarHover (at)
-                       | (int) m_window.m_list->SetScrollbarHover (at)
+                       | (int) m_window.m_listPane.UpdateScrollbarHover (at)
                        | (int) m_window.m_treePane.UpdateScrollbarHover (at);
 
         if (changed != 0)
@@ -447,57 +447,8 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A right press waits for its release to open the menu, or drags the
-    //  selection when it moves far enough first.
-    if (m_rightPress.active)
+    if (m_window.m_listPane.OnCapturedMouse (ev))
     {
-        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Right)
-        {
-            m_rightPress.active = false;
-            m_window.m_menus.ShowListContextMenu (point.x, point.y, m_rightPress.group);
-            return true;
-        }
-
-        if (ev.kind == DxuiMouseEventKind::Move && m_rightPress.canDrag
-            && (abs (point.x - m_rightPress.start.x) > GetSystemMetrics (SM_CXDRAG)
-             || abs (point.y - m_rightPress.start.y) > GetSystemMetrics (SM_CYDRAG)))
-        {
-            m_rightPress.active = false;
-            m_window.m_dragDrop.BeginDragOut();
-            m_window.Invalidate();
-            return true;
-        }
-    }
-
-    //  A press on a list row that moves past the drag distance drags the
-    //  selection out. This comes ahead of the list's own handling, which would
-    //  otherwise take the move as extending the selection. The list never sees
-    //  the release, which the drag loop takes, so its drag ends here.
-    if (m_window.m_dragArmed)
-    {
-        if (ev.kind == DxuiMouseEventKind::Up || ev.kind == DxuiMouseEventKind::Leave)
-        {
-            m_window.m_dragArmed = false;
-        }
-        else if (ev.kind == DxuiMouseEventKind::Move
-              && (abs (point.x - m_dragStart.x) > GetSystemMetrics (SM_CXDRAG)
-               || abs (point.y - m_dragStart.y) > GetSystemMetrics (SM_CYDRAG)))
-        {
-            m_window.m_dragArmed = false;
-            m_window.m_list->EndDragSelect();
-            m_window.m_dragDrop.BeginDragOut();
-            m_window.Invalidate();
-            return true;
-        }
-    }
-
-    //  Mouse input goes to a widget mid-drag until the button is released,
-    //  wherever the pointer is. Otherwise a scrollbar thumb dragged out of its
-    //  pane transfers the drag to the pane under the pointer.
-    if (m_window.m_list->IsInteracting())
-    {
-        m_window.m_list->OnMouse (CassoExplorerWindow::ToLocal (ev, m_window.m_list->GetBounds()));
-        m_window.Invalidate();
         return true;
     }
 
@@ -508,7 +459,7 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
 
     m_window.m_treePane.UpdateTip   (ev, point);
     m_window.m_tips.UpdateStatusTip (ev, point);
-    m_window.m_tips.UpdateListTip   (ev, point);
+    m_window.m_listPane.UpdateTip   (ev, point);
 
     //  The status bar's CassoLink line opens the whole activity log.
     if (press && ev.button == DxuiMouseButton::Left && CassoExplorerWindow::Contains (m_window.m_status->GetFieldRect (ExplorerLayout::kStatusFill), point) && !m_window.m_links.GetLatestActivity().empty())
@@ -522,100 +473,14 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  The list's buttons under its message. Each is given every move, so its
-    //  hover ends as the pointer leaves it, and the presses inside it.
-    for (DxuiButton * action : { m_window.m_listAction, m_window.m_listActionAlt })
+    //  The buttons under the list's message.
+    if (m_window.m_links.OnListActionMouse (ev))
     {
-        bool  inside = action->IsVisible() && CassoExplorerWindow::Contains (action->GetBounds(), point);
-
-        if (action->IsVisible() && (ev.kind == DxuiMouseEventKind::Move || inside))
-        {
-            action->OnMouse (ev);
-            m_window.Invalidate();
-        }
-
-        if (inside)
-        {
-            return true;
-        }
-    }
-
-    //  An empty image or folder shows a message in the list's place; a right-
-    //  click there still opens the menu the list's empty space has.
-    if (!m_window.m_list->IsVisible() && m_window.m_listMessage->IsVisible() && press && ev.button == DxuiMouseButton::Right &&
-        CassoExplorerWindow::Contains (m_window.m_list->GetBounds(), point))
-    {
-        SetFocusPane (ExplorerPane::List);
-        m_window.m_list->ClearSelection();
-        m_window.m_menus.ShowListContextMenu (point.x, point.y);
         return true;
     }
 
-    if (m_window.m_list->IsVisible() && CassoExplorerWindow::Contains (m_window.m_list->GetBounds(), point))
+    if (m_window.m_listPane.OnMouse (ev))
     {
-        DxuiMouseEvent  local = CassoExplorerWindow::ToLocal (ev, m_window.m_list->GetBounds());
-
-        //  A click gives the list focus without the row a Tab in would pick:
-        //  on empty space it selects nothing, and on a row the press picks.
-        if (press)
-        {
-            m_window.m_list->SetSeedRowOnFocus (false);
-            SetFocusPane (ExplorerPane::List);
-            m_window.m_list->SetSeedRowOnFocus (true);
-        }
-
-        //  The header has a menu of its own, for its columns.
-        if (press && ev.button == DxuiMouseButton::Right && local.positionDip.y < m_window.m_list->GetHeaderHeightPx())
-        {
-            m_window.m_menus.ShowListHeaderMenu (point.x, point.y, m_window.m_list->HitTestHeaderColumn (local.positionDip.x, local.positionDip.y));
-            return true;
-        }
-
-        if (press && ev.button == DxuiMouseButton::Right)
-        {
-            int  row   = m_window.m_list->HitTestRow         (local.positionDip.x, local.positionDip.y);
-            int  group = m_window.m_list->HitTestGroupHeader (local.positionDip.x, local.positionDip.y);
-
-            //  A group's header selects its rows and adds the group's own
-            //  commands to the menu for them, as Explorer's does.
-            if (group >= 0)
-            {
-                m_window.m_list->SelectGroup (group);
-            }
-            else if (row >= 0 && !m_window.m_list->IsRowSelected (row))
-            {
-                m_window.m_list->ClickRow (row, false, false);
-            }
-            else if (row >= 0)
-            {
-                //  A row already selected keeps the selection and takes the
-                //  focus, so Rename acts on it, as Explorer's does.
-                m_window.m_list->SetFocusedRow (row);
-            }
-            else if (row < 0)
-            {
-                //  The empty space's menu is the folder's, so nothing stays
-                //  selected for it to act on.
-                m_window.m_list->ClearSelection();
-            }
-
-            //  The menu opens as the button comes up, as Explorer's does; a
-            //  press on a row that moves first drags the selection instead.
-            m_rightPress = RightPress { true, group < 0 && row >= 0, group, point };
-            m_window.Invalidate();
-            return true;
-        }
-
-        //  A press on a row may start a drag of the selection; one on the
-        //  space between rows starts a rubber band instead, as in Explorer.
-        if (press && ev.button == DxuiMouseButton::Left)
-        {
-            m_window.m_dragArmed = m_window.m_list->HitTestRow (local.positionDip.x, local.positionDip.y) >= 0;
-            m_dragStart          = point;
-        }
-
-        m_window.m_list->OnMouse (local);
-        m_window.Invalidate();
         return true;
     }
 
@@ -635,7 +500,6 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
 LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = m_window.m_treeSplitter->GetCursorForPoint (clientPx);
-    RECT     bounds = m_window.m_list->GetBounds();
 
 
 
@@ -654,10 +518,9 @@ LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
         cursor = m_window.m_previewSplitter->GetCursorForPoint (clientPx);
     }
 
-
-    if (cursor == nullptr && m_window.m_list->IsVisible() && CassoExplorerWindow::Contains (bounds, clientPx))
+    if (cursor == nullptr)
     {
-        cursor = m_window.m_list->GetCursorForPoint (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top });
+        cursor = m_window.m_listPane.GetCursorForPoint (clientPx);
     }
 
     return cursor;
@@ -678,9 +541,8 @@ LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
 
 bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
 {
-    int                        command = 0;
-    bool                       handled = false;
-    std::vector<std::wstring>  linkPaths;
+    int   command = 0;
+    bool  handled = false;
 
 
 
@@ -746,14 +608,7 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
     //  list before characters are turned away below.
     if (ev.kind == DxuiKeyEventKind::Char && m_window.m_focus == ExplorerPane::List)
     {
-        handled = m_window.m_list->OnKey (ev);
-
-        if (handled)
-        {
-            m_window.Invalidate();
-        }
-
-        return handled;
+        return m_window.m_listPane.OnCharKey (ev);
     }
 
     if (ev.kind != DxuiKeyEventKind::Down)
@@ -787,38 +642,8 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    if ((ev.vk == VK_APPS || (ev.vk == VK_F10 && ev.shift)) && m_window.m_focus == ExplorerPane::List)
+    if (m_window.m_focus == ExplorerPane::List && m_window.m_listPane.OnShortcutKey (ev))
     {
-        RECT  bounds = m_window.m_list->GetBounds();
-
-        m_window.m_menus.ShowListContextMenu (bounds.left + m_window.m_scaler.ToPx (24), bounds.top + m_window.m_scaler.ToPx (40));
-        return true;
-    }
-
-    //  File Explorer's keys for Copy as path and Properties.
-    if (m_window.m_focus == ExplorerPane::List && ev.kind == DxuiKeyEventKind::Down && !m_window.m_browser.GetSelectedRows().empty()
-        && ((ev.ctrl && ev.shift && !ev.alt && ev.vk == 'C') || (ev.alt && !ev.ctrl && ev.vk == VK_RETURN)))
-    {
-        if (ev.vk == 'C')
-        {
-            m_window.m_fileOps.CopySelectedPaths();
-        }
-        else
-        {
-            m_window.m_fileOps.ShowRowProperties (m_window.m_browser.GetSelectedRows()[0]);
-        }
-
-        return true;
-    }
-
-    //  With nothing selected, Alt+Enter opens the current folder's Properties,
-    //  as the background menu's Properties row does.
-    if (m_window.m_focus == ExplorerPane::List && ev.kind == DxuiKeyEventKind::Down && ev.alt && !ev.ctrl && ev.vk == VK_RETURN
-        && m_window.m_browser.GetSelectedRows().empty()
-        && (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder || m_window.m_browser.IsImageLocation())
-        && !SearchQuery::IsId (m_window.m_browser.GetLocation().path))
-    {
-        m_window.m_fileOps.ShowLocationProperties (m_window.m_browser.GetLocation());
         return true;
     }
 
@@ -826,55 +651,6 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
     if (m_window.m_focus == ExplorerPane::Tree && m_window.m_treePane.TryShortcutKey (ev, handled))
     {
         return handled;
-    }
-
-    //  Copy in an image writes the files a paste would, as the context menu's
-    //  Copy row does; cut and paste are the host's alone.
-    if (m_window.m_focus == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
-        && m_window.m_browser.IsVolumeLocation() && !m_window.m_browser.GetSelectedRows().empty())
-    {
-        m_window.m_fileOps.CopyEntriesToClipboard (m_window.m_dispatch.GetNamingStyle());
-        return true;
-    }
-
-    if (m_window.m_focus == ExplorerPane::List && ev.ctrl && !ev.alt && !m_window.m_browser.IsImageLocation()
-        && m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder
-        && (ev.vk == 'X' || ev.vk == 'C' || ev.vk == 'V'))
-    {
-        if (ev.vk == 'V')
-        {
-            m_window.m_dispatch.RunVerb (CassoExplorerActions::Verb::Paste);
-        }
-        else if (!m_window.m_browser.GetSelectedRows().empty())
-        {
-            m_window.m_dispatch.RunVerb (ev.vk == 'X' ? CassoExplorerActions::Verb::Cut : CassoExplorerActions::Verb::Copy);
-        }
-
-        return true;
-    }
-
-    if (ev.vk == VK_F2 && m_window.m_focus == ExplorerPane::List && m_window.m_menus.IsListVerbOffered (CassoExplorerActions::Verb::Rename))
-    {
-        m_window.m_dispatch.RunVerb (CassoExplorerActions::Verb::Rename);
-        return true;
-    }
-
-    if (ev.vk == VK_DELETE && m_window.m_focus == ExplorerPane::List && !m_window.m_browser.GetSelectedRows().empty())
-    {
-        //  Shift+Delete deletes host files for good, as in File Explorer;
-        //  inside a disk image or an Apple's drive every deletion is for good
-        //  and confirmed first, and CassoLink's items are temp copies.
-        if (ev.shift && (m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder || m_window.m_browser.GetLocation().kind == Location::Kind::ShellFolder)
-            && !m_window.m_browser.TryGetSelectedCassoLinkPaths (linkPaths))
-        {
-            m_window.m_fileOps.DeleteSelectionPermanently();
-        }
-        else
-        {
-            m_window.m_dispatch.RunVerb (CassoExplorerActions::Verb::Delete);
-        }
-
-        return true;
     }
 
     //  The preview's stops inside it come before the walk moves on.
@@ -914,7 +690,7 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
         case ExplorerPane::LocationSearch: handled = m_window.m_addressBar.OnFindBoxKey (ev);  break;
         case ExplorerPane::Tabs:    handled = m_window.m_tabStrip.OnKey (ev); break;
         case ExplorerPane::Tree:    handled = m_window.m_treePane.OnKey (ev); break;
-        case ExplorerPane::List:    handled = m_window.m_list->OnKey (ev);        break;
+        case ExplorerPane::List:    handled = m_window.m_listPane.OnKey (ev); break;
         case ExplorerPane::Preview: handled = m_window.m_previewPane.OnKey (ev); break;
     }
 
@@ -945,7 +721,7 @@ IDxuiControl * ExplorerInput::GetFocusedControl() const
     {
         case ExplorerPane::Tabs:    return m_window.m_tabStrip.GetControl();
         case ExplorerPane::Tree:    return m_window.m_treePane.GetControl();
-        case ExplorerPane::List:    return m_window.m_list;
+        case ExplorerPane::List:    return m_window.m_listPane.GetControl();
         case ExplorerPane::Preview: return m_window.m_previewPane.GetFocusedControl();
         default:            return nullptr;
     }

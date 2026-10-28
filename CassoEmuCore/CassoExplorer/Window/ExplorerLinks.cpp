@@ -39,6 +39,104 @@ ExplorerLinks::ExplorerLinks (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerLinks::CreateListActions
+//
+//  The buttons under the list's message for a link: bootstrap the Apple or
+//  connect to it, or allow it through Windows Firewall on private or on all
+//  networks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerLinks::CreateListActions()
+{
+    m_listAction = m_window.CreateChild<DxuiButton> (L"Bootstrap the Apple");
+    m_listAction->SetVisible (false);
+    m_listAction->SetOnClick ([this] ()
+    {
+        std::string  link = m_listActionLink;
+
+        if (m_listActionFirewall)
+        {
+            FixFirewall (false);
+            return;
+        }
+
+        if (link.empty())
+        {
+            return;
+        }
+
+        if (m_listActionConnects)
+        {
+            ConnectLink (link);
+        }
+        else
+        {
+            BootstrapLink (link);
+        }
+    });
+
+    m_listActionAlt = m_window.CreateChild<DxuiButton> (FirewallText::kPrivateAction);
+    m_listActionAlt->SetVisible (false);
+    m_listActionAlt->SetOnClick ([this] () { FixFirewall (true); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLinks::LayoutListActions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerLinks::LayoutListActions()
+{
+    m_listAction->Layout    (GetListActionRect(),    m_window.m_scaler);
+    m_listActionAlt->Layout (GetListActionAltRect(), m_window.m_scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLinks::OnListActionMouse
+//
+//  Each button has every move, so its hover ends as the pointer moves off
+//  it, and the presses inside it. Returns whether the event was over one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerLinks::OnListActionMouse (const DxuiMouseEvent & ev)
+{
+    for (DxuiButton * action : { m_listAction, m_listActionAlt })
+    {
+        bool  inside = action->IsVisible() && CassoExplorerWindow::Contains (action->GetBounds(), ev.positionDip);
+
+        if (action->IsVisible() && (ev.kind == DxuiMouseEventKind::Move || inside))
+        {
+            action->OnMouse (ev);
+            m_window.Invalidate();
+        }
+
+        if (inside)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerLinks::~ExplorerLinks
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -514,13 +612,13 @@ Error:
 RECT ExplorerLinks::GetListActionRect() const
 {
     RECT  message = m_window.m_listPane.GetListMessageRect();
-    bool  pair    = m_window.m_listActionAlt->IsVisible();
-    int   width   = m_window.m_scaler.ToPx (m_window.m_listActionFirewall ? kListActionWideDip : kListActionWidthDip);
+    bool  pair    = m_listActionAlt->IsVisible();
+    int   width   = m_window.m_scaler.ToPx (m_listActionFirewall ? kListActionWideDip : kListActionWidthDip);
     int   gap     = m_window.m_scaler.ToPx (kListActionGapDip);
     int   height  = m_window.m_scaler.ToPx (kListActionHeightDip);
     int   span    = pair ? width * 2 + gap : width;
     int   left    = (message.left + message.right - span) / 2;
-    int   top     = m_window.m_listActionFirewall ? message.bottom + gap : (message.top + message.bottom) / 2 + m_window.m_scaler.ToPx (kListActionOffsetDip);
+    int   top     = m_listActionFirewall ? message.bottom + gap : (message.top + message.bottom) / 2 + m_window.m_scaler.ToPx (kListActionOffsetDip);
 
 
 
@@ -578,17 +676,16 @@ void ExplorerLinks::FillListAction (bool hasMessage)
 
     //  The firewall first: until the port is allowed, no connection the other
     //  actions start arrives at this PC.
-    m_window.m_listActionFirewall = onLink && disconnected.empty() && TryGetLinkEntry (name, entry) && !entry.firewall.empty();
-    m_listActionConnects          = !m_window.m_listActionFirewall && !disconnected.empty();
-    m_listActionLink              = m_window.m_listActionFirewall ? std::string() : m_listActionConnects ? disconnected : hasMessage ? GetBootstrapLink() : std::string();
+    m_listActionFirewall = onLink && disconnected.empty() && TryGetLinkEntry (name, entry) && !entry.firewall.empty();
+    m_listActionConnects          = !m_listActionFirewall && !disconnected.empty();
+    m_listActionLink              = m_listActionFirewall ? std::string() : m_listActionConnects ? disconnected : hasMessage ? GetBootstrapLink() : std::string();
 
-    m_window.m_listMessage->SetTextAlign (DxuiTextHAlign::Center, m_window.m_listActionFirewall ? DxuiTextVAlign::Bottom : m_window.m_listMessageTop ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
-    m_window.m_listMessage->Layout       (m_window.m_listPane.GetListMessageRect(), m_window.m_scaler);
-    m_window.m_listAction->SetLabel      (m_window.m_listActionFirewall ? FirewallText::kAllowAction : m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
-    m_window.m_listActionAlt->SetVisible (m_window.m_listActionFirewall && entry.firewallPublic);
-    m_window.m_listAction->Layout        (GetListActionRect(), m_window.m_scaler);
-    m_window.m_listActionAlt->Layout     (GetListActionAltRect(), m_window.m_scaler);
-    m_window.m_listAction->SetVisible    (m_window.m_listActionFirewall || !m_listActionLink.empty());
+    m_window.m_listPane.AlignMessage (m_listActionFirewall);
+    m_listAction->SetLabel      (m_listActionFirewall ? FirewallText::kAllowAction : m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
+    m_listActionAlt->SetVisible (m_listActionFirewall && entry.firewallPublic);
+    m_listAction->Layout        (GetListActionRect(), m_window.m_scaler);
+    m_listActionAlt->Layout     (GetListActionAltRect(), m_window.m_scaler);
+    m_listAction->SetVisible    (m_listActionFirewall || !m_listActionLink.empty());
 }
 
 

@@ -1120,7 +1120,7 @@ void ExplorerPreview::FillPreview()
     }
 
     //  With nothing selected the pane says so, as Explorer's does.
-    blank = m_window.m_list->GetSelectedRows().empty() && !picture && !shell && !error && !hex && !columns && !program;
+    blank = !m_window.m_listPane.HasSelection() && !picture && !shell && !error && !hex && !columns && !program;
 
     m_previewMessage->SetText (blank                   ? std::wstring (kSelectToPreview)
                                         : !error                ? std::wstring()
