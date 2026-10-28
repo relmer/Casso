@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -39,7 +40,7 @@ void ExplorerPreviewManager::Create()
     }
 
     m_message = m_context.window.CreateChild<DxuiSelectableText>();
-    m_message->SetTextRole (DxuiTextRole::Muted);
+    ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
     m_message->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
     m_find.Create();
@@ -233,8 +234,7 @@ void ExplorerPreviewManager::FillPreview()
 
     //  Explorer's prompt is smaller body text; an error is muted. Both are
     //  centered in the pane.
-    m_message->SetTextRole (blank ? DxuiTextRole::Body : DxuiTextRole::Muted);
-    m_message->SetFontDip  (blank ? kPromptFontDip : 0.0f);
+    ExplorerTextStyles::Apply (*m_message, blank ? ExplorerTextStyles::kPanePrompt : ExplorerTextStyles::kPaneMessage);
 
     m_picture.SetVisible (visible && (picture || (shell && m_shell.IsPicture())));
     m_listing.SetVisible (visible && columns);

@@ -39,7 +39,6 @@ public:
     static constexpr int     kStatusFreeDip   = 140;
     static constexpr int     kStatusDetailDip = 280;
     static constexpr int     kStatusZoomDip   = 64;
-    static constexpr float   kStatusLeadDip   = 14.67f;  // the item count, from the band's left edge
 
     //  The CassoLink line's tip: the latest entries of the activity log.
     static constexpr size_t  kActivityTipLines    = 10;

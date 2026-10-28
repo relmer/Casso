@@ -7,6 +7,8 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -62,7 +64,7 @@ void ExplorerListPane::Configure()
     m_list->SetShowHeader (true);
     m_list->SetIconColumn (0);
     m_list->SetExplorerDetails (true);
-    m_list->SetFontDip (CassoExplorerWindow::kProseFontDip);
+    ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kProse);
     m_list->SetRowHeightPxFn (&ExplorerLayout::GetListRowHeightPx);
     m_list->SetColumns (BrowserCells::GetColumns());
     m_columns.ChooseAll (BrowserCells::GetColumns().size());
@@ -998,7 +1000,7 @@ RECT ExplorerListPane::GetListMessageRect() const
 
     if (m_listMessageTop)
     {
-        rect.top += m_context.scaler.ToPx (kSearchMessageTopDip);
+        rect.top += m_context.scaler.ToPx (ExplorerMetrics::kSearchMessageTopDip);
     }
 
     //  The firewall's message runs to several lines, so it ends at the

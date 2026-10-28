@@ -4,6 +4,8 @@
 #include "Config/CrtPresets.h"
 #include "Config/CrtResolver.h"
 #include "Ui/Settings/DisplayPage.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -47,13 +49,13 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiComboBox & nam
 
 void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  labelBottom = boundsDip.top + scaler.ToPx (kLabelHeightDip);
-    int  fieldTop    = labelBottom + scaler.ToPx (kGapDip);
-    int  fieldBottom = fieldTop + scaler.ToPx (kFieldHeightDip);
-    int  noteTop     = fieldBottom + scaler.ToPx (kGapDip);
+    int  labelBottom = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackLabelHeightDip);
+    int  fieldTop    = labelBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  fieldBottom = fieldTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  noteTop     = fieldBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
     int  noteBottom  = noteTop + scaler.ToPx (kNoteHeightDip);
-    int  checkTop    = noteBottom + scaler.ToPx (kGapDip * 3);
-    int  checkBottom = checkTop + scaler.ToPx (kFieldHeightDip);
+    int  checkTop    = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 3);
+    int  checkBottom = checkTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
 
@@ -113,7 +115,7 @@ std::vector<std::wstring> CassoExplorerOptionsDialog::GetNamingLabels()
 void CassoExplorerOptionsDialog::OnBuildPages()
 {
     m_namingLabel.SetText      (L"Host file names");
-    m_namingLabel.SetTextRole  (DxuiTextRole::Body);
+    ExplorerTextStyles::Apply (m_namingLabel, ExplorerTextStyles::kFormLabel);
     m_namingLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_naming.SetPopupHost (GetPopupHost());
@@ -124,7 +126,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
                                L"has neither, so a file copied to this PC has them in one of these forms, and a copy back onto an "
                                L"Apple disk restores them: words in the name, the six hex digits CiderPress uses, or an "
                                L"AppleSingle file around the data. All three are read back, whichever is chosen here.");
-    m_namingNote.SetTextRole  (DxuiTextRole::Muted);
+    ExplorerTextStyles::Apply (m_namingNote, ExplorerTextStyles::kFormNote);
     m_namingNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     //  Writes the user's file types only when OK is pressed with it changed.

@@ -22,10 +22,6 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kLabelHeightDip = 22;
-    static constexpr int  kGapDip         = 6;
-    static constexpr int  kInputHeightDip = 30;
-
 private:
     DxuiLabel      * m_label = nullptr;
     DxuiTextInput  * m_input = nullptr;

@@ -148,11 +148,6 @@ public:
     //  system takes the new one at once, and every theme takes the accent.
     void    OnThemeChanged    () override;
     static constexpr UINT      kTooltipTickMs  = 16;   // the menus' reveal runs on it too, so display rate
-    static constexpr float     kNewTabGapDip   = 6.67f;   // the last tab to the + button
-
-    //  Explorer's tree and list text: 9 points, 12 dip.
-    static constexpr float     kProseFontDip         = 12.0f;
-
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
 

@@ -133,11 +133,7 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kRowHeightDip      = 30;
-    static constexpr int  kRowGapDip         = 8;
     static constexpr int  kLabelWidthDip     = 110;
-    static constexpr int  kFallbackErrorDip  = 20;
-    static constexpr int  kErrorTopDip       = 4;    // between a box and the message under it
 
 private:
     //  Places the rows down from the top of `bounds`, or only measures them,

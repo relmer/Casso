@@ -161,13 +161,9 @@ public:
     void  Relayout () { Layout (GetBounds(), m_scaler); }
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kRowHeightDip     = 30;
-    static constexpr int  kRowGapDip        = 8;
     static constexpr int  kLabelWidthDip    = 150;
     static constexpr int  kFallbackNoteDip  = 40;
     static constexpr int  kBrowseWidthDip   = 90;
-    static constexpr int  kFallbackErrorDip = 20;
-    static constexpr int  kErrorTopDip      = 4;
     static constexpr int  kRowCount         = 8;
 
 private:

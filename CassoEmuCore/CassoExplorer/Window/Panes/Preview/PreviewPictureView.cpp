@@ -8,6 +8,7 @@
 #include "Core/TextEncoding.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/PathResolver.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -75,7 +76,7 @@ void PreviewPictureView::Configure()
 
 void PreviewPictureView::Layout (const RECT & content)
 {
-    int  insetPx = m_context.scaler.ToPx (kPictureInsetDip);
+    int  insetPx = m_context.scaler.ToPx (ExplorerMetrics::kPictureInsetDip);
 
 
 

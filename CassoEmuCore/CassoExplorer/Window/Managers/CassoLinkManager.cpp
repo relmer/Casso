@@ -8,6 +8,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -614,11 +615,11 @@ RECT CassoLinkManager::GetListActionRect() const
     RECT  message = m_context.listPane.GetListMessageRect();
     bool  pair    = m_listActionAlt->IsVisible();
     int   width   = m_context.scaler.ToPx (m_listActionFirewall ? kListActionWideDip : kListActionWidthDip);
-    int   gap     = m_context.scaler.ToPx (kListActionGapDip);
+    int   gap     = m_context.scaler.ToPx (ExplorerMetrics::kListActionGapDip);
     int   height  = m_context.scaler.ToPx (kListActionHeightDip);
     int   span    = pair ? width * 2 + gap : width;
     int   left    = (message.left + message.right - span) / 2;
-    int   top     = m_listActionFirewall ? message.bottom + gap : (message.top + message.bottom) / 2 + m_context.scaler.ToPx (kListActionOffsetDip);
+    int   top     = m_listActionFirewall ? message.bottom + gap : (message.top + message.bottom) / 2 + m_context.scaler.ToPx (ExplorerMetrics::kListActionOffsetDip);
 
 
 
@@ -640,7 +641,7 @@ RECT CassoLinkManager::GetListActionRect() const
 RECT CassoLinkManager::GetListActionAltRect() const
 {
     RECT  first = GetListActionRect();
-    int   gap   = m_context.scaler.ToPx (kListActionGapDip);
+    int   gap   = m_context.scaler.ToPx (ExplorerMetrics::kListActionGapDip);
     int   width = first.right - first.left;
 
 

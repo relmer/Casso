@@ -24,7 +24,6 @@ class PreviewPictureView : public PreviewView
 public:
     PreviewPictureView (ExplorerPreviewManager & manager, ExplorerContext & context);
 
-    static constexpr int  kPictureInsetDip = 16;   // room around the picture for its glow, which spills past its edges
 
     void  Create               () override;
     void  Configure            () override;

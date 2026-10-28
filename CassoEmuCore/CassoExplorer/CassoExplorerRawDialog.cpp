@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerRawDialog.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -230,11 +232,11 @@ void CassoExplorerRawPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
 
 int CassoExplorerRawPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const
 {
-    int  row    = scaler.ToPx (kRowHeightDip);
-    int  gap    = scaler.ToPx (kRowGapDip);
+    int  row    = scaler.ToPx (ExplorerMetrics::kFormRowHeightDip);
+    int  gap    = scaler.ToPx (ExplorerMetrics::kFormRowGapDip);
     int  fieldX = bounds.left + scaler.ToPx (kLabelWidthDip);
     int  fieldW = (std::max) ((int) bounds.right - fieldX, 1);
-    int  errTop = scaler.ToPx (kErrorTopDip);
+    int  errTop = scaler.ToPx (ExplorerMetrics::kFormErrorTopDip);
     int  y      = bounds.top;
 
 
@@ -293,7 +295,7 @@ int CassoExplorerRawPanel::GetErrorHeightPx (const DxuiFieldError & error, int w
 
     if (m_text == nullptr || m_theme == nullptr)
     {
-        return scaler.ToPx (kFallbackErrorDip);
+        return scaler.ToPx (ExplorerMetrics::kFormErrorHeightDip);
     }
 
     return error.GetHeightPx (*m_text, *m_theme, scaler, widthPx);
@@ -366,7 +368,7 @@ CassoExplorerRawDialog::Outcome CassoExplorerRawDialog::Ask (HWND owner, const I
     params.title                    = title;
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 440, 130 + CassoExplorerRawPanel::kNoteHeightDip + rows * (CassoExplorerRawPanel::kRowHeightDip + CassoExplorerRawPanel::kRowGapDip) };
+    params.initialSizeDip           = { 440, 130 + CassoExplorerRawPanel::kNoteHeightDip + rows * (ExplorerMetrics::kFormRowHeightDip + ExplorerMetrics::kFormRowGapDip) };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -403,7 +405,7 @@ void CassoExplorerRawDialog::OnCreate()
 
     for (DxuiLabel * label : { &m_startLabel, &m_sectorLabel, &m_countLabel, &m_numberingLabel })
     {
-        label->SetTextRole  (DxuiTextRole::Body);
+        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
@@ -412,7 +414,7 @@ void CassoExplorerRawDialog::OnCreate()
     m_countLabel.SetText     (m_sectors ? L"Sectors:" : L"Blocks:");
     m_numberingLabel.SetText (L"Numbering:");
 
-    m_note.SetTextRole  (DxuiTextRole::Muted);
+    ExplorerTextStyles::Apply (m_note, ExplorerTextStyles::kFormNote);
     m_note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
     m_note.SetText      (m_sectors ? (m_reading ? L"Starts at track 17, sector 0, where a DOS 3.3 disk's catalog begins."
                                                 : L"Writing past the end of a sector goes on into the next.")

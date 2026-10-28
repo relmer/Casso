@@ -83,12 +83,8 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kRowHeightDip     = 30;
-    static constexpr int  kRowGapDip        = 8;
     static constexpr int  kLabelWidthDip    = 110;
     static constexpr int  kNoteHeightDip    = 40;
-    static constexpr int  kFallbackErrorDip = 20;
-    static constexpr int  kErrorTopDip      = 4;
 
 private:
     int   ArrangeRows      (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const;

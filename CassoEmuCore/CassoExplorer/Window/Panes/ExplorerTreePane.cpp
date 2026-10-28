@@ -3,6 +3,8 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -60,11 +62,11 @@ void ExplorerTreePane::Configure()
     m_context.browser.GetTreeRoots (roots);
 
     m_tree->SetShowCheckboxes (false);
-    m_tree->SetFontDip (CassoExplorerWindow::kProseFontDip);
-    m_tree->SetIndentDip (kTreeIndentDip);
-    m_tree->SetIconLeadDip (kTreeIconLeadDip);
-    m_tree->SetIconGapDip  (kTreeIconGapDip);
-    m_tree->SetLeftPadDip  (kTreeLeftPadDip);
+    ExplorerTextStyles::Apply (*m_tree, ExplorerTextStyles::kProse);
+    m_tree->SetIndentDip (ExplorerMetrics::kTreeIndentDip);
+    m_tree->SetIconLeadDip (ExplorerMetrics::kTreeIconLeadDip);
+    m_tree->SetIconGapDip  (ExplorerMetrics::kTreeIconGapDip);
+    m_tree->SetLeftPadDip  (ExplorerMetrics::kTreeLeftPadDip);
     m_tree->SetHorizontalScrollEnabled (false);
     m_tree->SetNodes (std::move (roots));
     m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_context.browser.GetTreeChildren (id); });

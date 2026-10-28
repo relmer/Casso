@@ -26,10 +26,6 @@ public:
     PreviewView (ExplorerPreviewManager & manager, ExplorerContext & context) : m_manager (manager), m_context (context) {}
     virtual ~PreviewView() = default;
 
-    //  Preview text is drawn this far from the background toward the theme's
-    //  foreground, a gray like a terminal's text rather than full white.
-    static constexpr float  kTextStrength = 0.8f;
-
     virtual void  Create               ()                      = 0;
     virtual void  Configure            ()                      = 0;
     virtual void  Layout               (const RECT & content)  = 0;

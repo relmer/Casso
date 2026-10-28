@@ -1318,10 +1318,12 @@ waits for this phase, so it is tested once.
   Done: `ExplorerPreviewManager` in `Window/Managers/`, and the views in
   `Window/Panes/Preview/`, each a `PreviewView`. An archive's rows are in the
   listing's list, so `PreviewArchiveView` is part of `PreviewListingView`.
-- [ ] T286 Add text styles per use and a metrics class for padding and
+- [X] T286 Add text styles per use and a metrics class for padding and
   alignment to Casso Explorer's classes, in place of the font sizes, strengths
   and inset constants spread through them. The same for all of Dxui is a
   separate issue.
+  Done: `ExplorerTextStyles` and `ExplorerMetrics` in `Window/`; the
+  dialogs' form rows share `ExplorerMetrics`' form metrics.
 - [ ] T287 Extend `scripts/CheckStyle.ps1` and `scripts/FixDeclAlign.ps1`
   to align function declarations' `(` columns, the `*` and `&` column,
   and brace initializers, and sweep the backlog it finds.

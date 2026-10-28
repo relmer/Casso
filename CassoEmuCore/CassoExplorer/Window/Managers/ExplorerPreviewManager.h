@@ -34,7 +34,6 @@ public:
     explicit ExplorerPreviewManager (ExplorerContext & context);
 
     static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
-    static constexpr float            kPromptFontDip   = 12.0f;   // Explorer's, 9 points
     static constexpr uint32_t         kBackgroundLift  = 7;       // the dark pane over the list, per channel
 
     void                            Create                ();

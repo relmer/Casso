@@ -33,13 +33,10 @@ public:
     //  list and the status bar are brought up to date.
     void  RefreshCassoLinkViews();
 
-    //  The list's Bootstrap button: its size, and how far below the middle of
-    //  the list's message it starts, past two lines of text.
+    //  The list's Bootstrap button's size.
     static constexpr int  kListActionWidthDip   = 160;
     static constexpr int  kListActionWideDip    = 200;   // the firewall's actions, whose labels are longer
-    static constexpr int  kListActionGapDip     = 12;   // between the two firewall actions
     static constexpr int  kListActionHeightDip  = 32;
-    static constexpr int  kListActionOffsetDip  = 36;
     static constexpr int  kActivityShownMinutes = 15;
     void  HandleConnectionChanged     ();
 

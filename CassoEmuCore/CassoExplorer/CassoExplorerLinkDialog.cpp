@@ -5,6 +5,8 @@
 #include "Core/TextEncoding.h"
 #include "Seams/Win32NetworkAdapters.h"
 #include "Ui/Settings/SettingsInfoTip.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -582,8 +584,8 @@ int CassoExplorerLinkPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScale
 int CassoExplorerLinkPanel::PlaceRow (const RECT & bounds, int y, DxuiLabel * label, IDxuiControl * field, DxuiFieldError * error,
                                       const DxuiDpiScaler & scaler, bool place, DxuiInfoTip * tip, DxuiButton * trailing) const
 {
-    int  row     = scaler.ToPx (kRowHeightDip);
-    int  gap     = scaler.ToPx (kRowGapDip);
+    int  row     = scaler.ToPx (ExplorerMetrics::kFormRowHeightDip);
+    int  gap     = scaler.ToPx (ExplorerMetrics::kFormRowGapDip);
     int  fieldX  = bounds.left + scaler.ToPx (kLabelWidthDip);
     int  fieldR  = (trailing != nullptr) ? (int) bounds.right - scaler.ToPx (kBrowseWidthDip) - gap : (int) bounds.right;
     int  fieldW  = (std::max) (fieldR - fieldX, 1);
@@ -619,7 +621,7 @@ int CassoExplorerLinkPanel::PlaceRow (const RECT & bounds, int y, DxuiLabel * la
     if (error != nullptr)
     {
         err = GetErrorHeightPx (*error, fieldW, scaler);
-        y  += (err > 0) ? scaler.ToPx (kErrorTopDip) : 0;
+        y  += (err > 0) ? scaler.ToPx (ExplorerMetrics::kFormErrorTopDip) : 0;
 
         if (place)
         {
@@ -647,7 +649,7 @@ int CassoExplorerLinkPanel::PlaceRow (const RECT & bounds, int y, DxuiLabel * la
 
 int CassoExplorerLinkPanel::PlaceNote (const RECT & bounds, int y, DxuiLabel * note, const DxuiDpiScaler & scaler, bool place) const
 {
-    int  gap    = scaler.ToPx (kRowGapDip);
+    int  gap    = scaler.ToPx (ExplorerMetrics::kFormRowGapDip);
     int  fieldX = bounds.left + scaler.ToPx (kLabelWidthDip);
     int  fieldW = (std::max) ((int) bounds.right - fieldX, 1);
     int  height = 0;
@@ -688,7 +690,7 @@ int CassoExplorerLinkPanel::GetErrorHeightPx (const DxuiFieldError & error, int 
 
     if (m_text == nullptr || m_theme == nullptr)
     {
-        return scaler.ToPx (kFallbackErrorDip);
+        return scaler.ToPx (ExplorerMetrics::kFormErrorHeightDip);
     }
 
     return error.GetHeightPx (*m_text, *m_theme, scaler, widthPx);
@@ -803,7 +805,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
     for (DxuiLabel * label : { &m_transportLabel, &m_portLabel, &m_addressLabel, &m_bootstrapLabel, &m_speedLabel, &m_handshakeLabel, &m_folderLabel })
     {
-        label->SetTextRole  (DxuiTextRole::Body);
+        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
@@ -817,7 +819,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
     for (DxuiLabel * note : { &m_note, &m_portNote, &m_bootstrapNote, &m_folderNote })
     {
-        note->SetTextRole  (DxuiTextRole::Muted);
+        ExplorerTextStyles::Apply (*note, ExplorerTextStyles::kFormNote);
         note->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
     }
 
@@ -963,7 +965,7 @@ CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const
     params.title                    = adding ? L"Add a CassoLink connection" : L"Edit the CassoLink connection";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 560, 190 + CassoExplorerLinkPanel::kRowCount * (CassoExplorerLinkPanel::kRowHeightDip + CassoExplorerLinkPanel::kRowGapDip) };
+    params.initialSizeDip           = { 560, 190 + CassoExplorerLinkPanel::kRowCount * (ExplorerMetrics::kFormRowHeightDip + ExplorerMetrics::kFormRowGapDip) };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;

@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Panes/Preview/PreviewTextView.h"
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -51,7 +52,7 @@ void PreviewTextView::Configure()
                               ? DxuiToolbar::kFluentIconFace
                               : DxuiToolbar::kMdl2IconFace);
     m_text->SetOnContextMenu ([this] (POINT at) { ShowContextMenu (at.x, at.y); });
-    m_text->SetTextStrength  (kTextStrength);
+    ExplorerTextStyles::Apply (*m_text, ExplorerTextStyles::kPreviewText);
     m_text->SetZoom          ((float) m_context.prefs.previewZoom / 100.0f);
 }
 

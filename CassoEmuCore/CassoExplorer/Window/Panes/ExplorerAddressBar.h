@@ -35,8 +35,6 @@ public:
     static constexpr int    kFindBoxMinDip        = 100;
     static constexpr int    kFindBoxMaxDip        = 720;
     static constexpr float  kFindBoxShare         = 0.3f;
-    static constexpr float  kFindBoxRightInsetDip = 5.33f;   // past the toolbar's padding
-    static constexpr int    kFindBoxGapDip        = 8;
 
     //  The widgets, as children of the window, and their handlers once the
     //  window has its HWND.

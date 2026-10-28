@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -51,7 +52,7 @@ void ExplorerTabManager::Create()
 void ExplorerTabManager::Configure()
 {
     m_tabs->SetStyle         (DxuiTabStripStyle::Explorer);
-    m_tabs->SetNewTabGapDip  (CassoExplorerWindow::kNewTabGapDip);
+    m_tabs->SetNewTabGapDip  (ExplorerMetrics::kNewTabGapDip);
     m_tabs->SetIconFace      (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
                               ? DxuiToolbar::kFluentIconFace
                               : DxuiToolbar::kMdl2IconFace);
@@ -456,8 +457,8 @@ void ExplorerTabManager::FillTabs()
     RECT                              strip = m_tabs->GetBounds();
     int                               width = m_context.scaler.ToPx (kTabWidthDip);
     int                               count = (int) model.GetTabCount();
-    int                               lead  = (int) std::lround (m_context.scaler.ToPxf (kTabLeadDip));
-    int                               plus  = m_context.scaler.ToPx (DxuiTabStrip::kNewTabWidthDip) + (int) std::lround (m_context.scaler.ToPxf (CassoExplorerWindow::kNewTabGapDip));
+    int                               lead  = (int) std::lround (m_context.scaler.ToPxf (ExplorerMetrics::kTabLeadDip));
+    int                               plus  = m_context.scaler.ToPx (DxuiTabStrip::kNewTabWidthDip) + (int) std::lround (m_context.scaler.ToPxf (ExplorerMetrics::kNewTabGapDip));
     std::vector<DxuiTabStrip::Tab>    tabs;
     size_t                            index = 0;
 
@@ -476,7 +477,7 @@ void ExplorerTabManager::FillTabs()
         //  Tabs start below the strip's top, as Explorer's do, and reach its
         //  bottom, where the selected one joins the row below.
         tab.label = m_context.browser.GetTabLabel (index);
-        tab.rect  = RECT { strip.left + lead + (int) index * width, strip.top + m_context.scaler.ToPx (kTabTopDip), strip.left + lead + (int) (index + 1) * width, strip.bottom };
+        tab.rect  = RECT { strip.left + lead + (int) index * width, strip.top + m_context.scaler.ToPx (ExplorerMetrics::kTabTopDip), strip.left + lead + (int) (index + 1) * width, strip.bottom };
 
         switch (location.kind)
         {
@@ -827,8 +828,8 @@ RECT ExplorerTabManager::GetTearOffRect (POINT screen) const
         height = place.rcNormalPosition.bottom - place.rcNormalPosition.top;
     }
 
-    left = screen.x - grab.x - (strip.left + (int) std::lround (m_context.scaler.ToPxf (kTabLeadDip))) - (client.x - window.left);
-    top  = screen.y - grab.y - (strip.top  + m_context.scaler.ToPx (kTabTopDip))                       - (client.y - window.top);
+    left = screen.x - grab.x - (strip.left + (int) std::lround (m_context.scaler.ToPxf (ExplorerMetrics::kTabLeadDip))) - (client.x - window.left);
+    top  = screen.y - grab.y - (strip.top  + m_context.scaler.ToPx (ExplorerMetrics::kTabTopDip))                       - (client.y - window.top);
 
     return RECT { left, top, left + width, top + height };
 }

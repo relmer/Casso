@@ -4,6 +4,8 @@
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "Devices/Disk/ChangePrompt.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -62,12 +64,12 @@ void PreviewHexView::Configure()
 
     m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
     m_hex->SetOwnerWindow  (m_context.window.GetHwnd());
-    m_hex->SetPaddingDip   (6);
+    m_hex->SetPaddingDip   (ExplorerMetrics::kHexPaddingDip);
     m_hex->SetColumns      (prefs.hexColumns);
     m_hex->SetValueFormat  (ParseHexFormat (prefs.hexFormat));
     m_hex->SetShowValues   (prefs.hexShowValues);
     m_hex->SetBreakLines   (true);
-    m_hex->SetTextStrength (kTextStrength);
+    ExplorerTextStyles::Apply (*m_hex, ExplorerTextStyles::kPreviewText);
     m_hex->SetZoom         ((float) prefs.previewZoom / 100.0f);
 
     grouped = m_hex->SetGrouping (prefs.hexGrouping);

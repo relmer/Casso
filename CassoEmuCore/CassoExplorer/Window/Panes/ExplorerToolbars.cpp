@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -104,20 +105,20 @@ void ExplorerToolbars::Create()
     m_commandBar->SetIconDip         (kCommandBarIconDip);
     m_commandBar->SetChevronOnIcons  (true);
     m_commandBar->SetGroupSeparators (true);
-    m_commandBar->SetButtonPadDip    (kCommandBarPadDip);
+    m_commandBar->SetButtonPadDip    (ExplorerMetrics::kCommandBarPadDip);
     m_commandBar->SetLabeledLeadDip  (kCommandBarLabeledDip);
     m_commandBar->SetContentDropDip  (kCommandBarDropDip);
-    m_commandBar->SetChevronGapDip   (kCommandBarChevronGapDip);
-    m_commandBar->SetIconGapDip      (kCommandBarIconGapDip);
+    m_commandBar->SetChevronGapDip   (ExplorerMetrics::kCommandBarChevronGapDip);
+    m_commandBar->SetIconGapDip      (ExplorerMetrics::kCommandBarIconGapDip);
     m_commandBar->SetLabelFontDip    (kCommandBarLabelDip);
-    m_commandBar->SetGroupGapDp      (kCommandBarGroupGapDp);
-    m_commandBar->SetBarPadDp        (kCommandBarPadXDp);
+    m_commandBar->SetGroupGapDp      (ExplorerMetrics::kCommandBarGroupGapDp);
+    m_commandBar->SetBarPadDp        (ExplorerMetrics::kCommandBarPadXDp);
 
     m_toolbar->SetIconFace      (iconFace);
     m_toolbar->SetIconDip       (kNavIconDip);
-    m_toolbar->SetButtonPadDip  (kNavButtonPadDip);
-    m_toolbar->SetBarPadDp      (kNavBarPadDp);
-    m_toolbar->SetGroupGapDp    (kNavAddressGapDp);
+    m_toolbar->SetButtonPadDip  (ExplorerMetrics::kNavButtonPadDip);
+    m_toolbar->SetBarPadDp      (ExplorerMetrics::kNavBarPadDp);
+    m_toolbar->SetGroupGapDp    (ExplorerMetrics::kNavAddressGapDp);
 
     m_menuBar->SetPopupHost              (m_context.window.GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (m_context.window.GetTextRenderer());

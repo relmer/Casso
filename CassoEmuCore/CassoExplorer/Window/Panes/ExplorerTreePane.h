@@ -28,15 +28,6 @@ class ExplorerTreePane
 public:
     explicit ExplorerTreePane (ExplorerContext & context);
 
-    //  How far each level sits in from its parent: File Explorer's, measured
-    //  at 125% as 10 pixels.
-    static constexpr int     kTreeIndentDip   = 8;
-
-    //  A row's icon starts 18 dip past the middle of its twisty and its label
-    //  3.33 dip past the icon: measured at 150%.
-    static constexpr float   kTreeIconLeadDip = 10.0f;
-    static constexpr float   kTreeIconGapDip  = 3.33f;
-    static constexpr float   kTreeLeftPadDip  = 8.0f;    // the top level from the pane's left edge
 
     //  The tips of Casso's folders node and of a folder on a removable drive
     //  that is not connected.

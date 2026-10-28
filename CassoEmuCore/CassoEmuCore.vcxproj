@@ -778,6 +778,8 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerInput.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerLayout.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerContext.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerMetrics.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerTextStyles.h" />
     <ClInclude Include="CassoExplorer\Window\IExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListPane.h" />

@@ -55,8 +55,6 @@ public:
     bool  IsOverTabStrip (POINT screen) const;
     void  HandleTabHover     (bool over, POINT screen);
     void  AcceptTab      (BrowserModel::Tab tab);
-    static constexpr int    kTabTopDip      = 4;
-    static constexpr float  kTabLeadDip     = 8.67f;   // the first tab from the strip's left edge, measured at 150%
     static constexpr int    kTabWidthDip    = 240;
     static constexpr int    kTabMinWidthDip = 100;
     void  FillTabs();

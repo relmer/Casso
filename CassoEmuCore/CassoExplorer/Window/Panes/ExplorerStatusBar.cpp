@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -35,7 +36,7 @@ void ExplorerStatusBar::Create()
     m_status = m_context.window.CreateChild<DxuiStatusBar>();
 
     m_status->SetDividers (false);
-    m_status->SetLeadDip  (kStatusLeadDip);
+    m_status->SetLeadDip  (ExplorerMetrics::kStatusLeadDip);
 }
 
 

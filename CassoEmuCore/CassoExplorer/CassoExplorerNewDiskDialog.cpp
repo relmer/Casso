@@ -3,6 +3,8 @@
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/TextEncoding.h"
 #include "Ui/FileBrowseModel.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -343,14 +345,14 @@ void CassoExplorerNewDiskPanel::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 int CassoExplorerNewDiskPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const
 {
-    int  row    = scaler.ToPx (kRowHeightDip);
-    int  gap    = scaler.ToPx (kRowGapDip);
+    int  row    = scaler.ToPx (ExplorerMetrics::kFormRowHeightDip);
+    int  gap    = scaler.ToPx (ExplorerMetrics::kFormRowGapDip);
     int  label  = scaler.ToPx (kLabelWidthDip);
     int  y      = bounds.top;
     int  fieldX = bounds.left + label;
     int  fieldW = (std::max) ((int) bounds.right - fieldX, 1);
     int  err    = 0;
-    int  errTop = scaler.ToPx (kErrorTopDip);
+    int  errTop = scaler.ToPx (ExplorerMetrics::kFormErrorTopDip);
 
 
 
@@ -447,7 +449,7 @@ int CassoExplorerNewDiskPanel::GetErrorHeightPx (const DxuiFieldError & error, i
 
     if (m_text == nullptr || m_theme == nullptr)
     {
-        return scaler.ToPx (kFallbackErrorDip);
+        return scaler.ToPx (ExplorerMetrics::kFormErrorHeightDip);
     }
 
     return error.GetHeightPx (*m_text, *m_theme, scaler, widthPx);
@@ -564,7 +566,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
     for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_volumeLabel, &m_fileLabel, &m_fileName })
     {
-        label->SetTextRole  (DxuiTextRole::Body);
+        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
@@ -730,7 +732,7 @@ CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner,
     params.title                    = appleDrive ? L"Format disk" : formatMode ? L"Format disk image" : L"New disk image";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
-    params.initialSizeDip           = { 460, 130 + rows * (CassoExplorerNewDiskPanel::kRowHeightDip + CassoExplorerNewDiskPanel::kRowGapDip) };
+    params.initialSizeDip           = { 460, 130 + rows * (ExplorerMetrics::kFormRowHeightDip + ExplorerMetrics::kFormRowGapDip) };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;

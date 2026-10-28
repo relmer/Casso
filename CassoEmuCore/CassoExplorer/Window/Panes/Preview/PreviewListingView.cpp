@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Panes/Preview/PreviewListingView.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -165,7 +166,7 @@ void PreviewListingView::Fill (const PreviewContent & preview, bool columns)
         //  An archive's rows move and extend by the keys the file list takes.
         m_list->SetKeyboardColumnNav (preview.archive);
         m_list->SetIconColumn      (preview.archive ? 0 : -1);
-        m_list->SetFontDip         (preview.archive ? CassoExplorerWindow::kProseFontDip : 0.0f);
+        ExplorerTextStyles::Apply (*m_list, preview.archive ? ExplorerTextStyles::kProse : ExplorerTextStyles::kListing);
         m_list->SetRowHeightDip    (kRowHeightDip);
         m_list->SetRowHeightPxFn   (preview.archive ? std::function<int (UINT)> (&ExplorerLayout::GetListRowHeightPx) : nullptr);
         m_list->SetColumns         (preview.archive ? BrowserPreviewer::GetArchivePreviewColumns() : BrowserCells::GetCatalogPreviewColumns());

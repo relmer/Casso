@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
 
 
 
@@ -147,11 +148,11 @@ void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int righ
 
 
 
-    addressRect.right -= (int) std::lround (scaler.ToPxf (kFindBoxRightInsetDip));
+    addressRect.right -= (int) std::lround (scaler.ToPxf (ExplorerMetrics::kFindBoxRightInsetDip));
     findWidth          = std::clamp ((int) std::lround (kFindBoxShare * (float) rightOfTreePx), scaler.ToPx (kFindBoxMinDip), scaler.ToPx (kFindBoxMaxDip));
     findRect           = RECT { addressRect.right - findWidth, addressRect.top, addressRect.right, addressRect.bottom };
 
-    addressRect.right = findRect.left - scaler.ToPx (kFindBoxGapDip);
+    addressRect.right = findRect.left - scaler.ToPx (ExplorerMetrics::kFindBoxGapDip);
     m_address->Layout (addressRect, scaler);
     m_findBox->Layout (findRect, scaler);
 }

@@ -31,9 +31,6 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kLabelHeightDip = 22;
-    static constexpr int  kGapDip         = 6;
-    static constexpr int  kFieldHeightDip = 30;
     static constexpr int  kNoteHeightDip  = 80;
 
 private:

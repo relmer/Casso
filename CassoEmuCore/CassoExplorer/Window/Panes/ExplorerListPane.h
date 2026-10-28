@@ -34,10 +34,6 @@ public:
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
-    //  How far below the list's top a search's message is: File Explorer's,
-    //  measured at 150% as 27 pixels.
-    static constexpr int     kSearchMessageTopDip = 18;
-
     //  The list and its message, as children of the window, and their
     //  settings and handlers once the window has its HWND.
     void  Create    ();

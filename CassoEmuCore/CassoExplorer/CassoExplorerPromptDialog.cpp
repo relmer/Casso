@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
+#include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -33,15 +35,15 @@ void CassoExplorerPromptPanel::Init (DxuiLabel & label, DxuiTextInput & input)
 
 void CassoExplorerPromptPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  labelBottom = boundsDip.top + scaler.ToPx (kLabelHeightDip);
-    int  inputTop    = labelBottom + scaler.ToPx (kGapDip);
+    int  labelBottom = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackLabelHeightDip);
+    int  inputTop    = labelBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
 
 
 
     SetBounds (boundsDip);
 
     m_label->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, labelBottom }, scaler);
-    m_input->Layout (RECT { boundsDip.left, inputTop, boundsDip.right, inputTop + scaler.ToPx (kInputHeightDip) }, scaler);
+    m_input->Layout (RECT { boundsDip.left, inputTop, boundsDip.right, inputTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip) }, scaler);
 }
 
 
@@ -96,7 +98,7 @@ void CassoExplorerPromptDialog::OnCreate()
 
 
     m_label.SetText      (m_labelText);
-    m_label.SetTextRole  (DxuiTextRole::Body);
+    ExplorerTextStyles::Apply (m_label, ExplorerTextStyles::kFormLabel);
     m_label.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_input.SetTheme        (m_theme);

@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
 
 
 
@@ -272,9 +273,8 @@ void CassoExplorerPropertiesDialog::OnCreate()
 
 
 
-    m_name.SetTextRole   (DxuiTextRole::Heading);
+    ExplorerTextStyles::Apply (m_name, ExplorerTextStyles::kPropertiesName);
     m_name.SetTextAlign  (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    m_name.SetFontWeight (DxuiFontWeight::SemiBold);
 
     for (const CassoExplorerProperties::Row & row : m_rows)
     {
@@ -286,9 +286,9 @@ void CassoExplorerPropertiesDialog::OnCreate()
         line.value = m_labels.back().get();
 
         line.label->SetText      (row.label);
-        line.label->SetTextRole  (DxuiTextRole::Muted);
+        ExplorerTextStyles::Apply (*line.label, ExplorerTextStyles::kPropertiesLabel);
         line.value->SetText      (row.value);
-        line.value->SetTextRole  (DxuiTextRole::Body);
+        ExplorerTextStyles::Apply (*line.value, ExplorerTextStyles::kPropertiesValue);
         line.groupStart          = row.groupStart;
 
         for (DxuiLabel * label : { line.label, line.value })
