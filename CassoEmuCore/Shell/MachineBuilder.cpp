@@ -638,6 +638,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
             acia->SetCpuClockHz      (m_host.GetConfig().clockSpeed);
             acia->SetDiagnosticsName (std::format ("serial-port-{}", slot), title);
+            acia->SetCommPort        ((Byte) (Acia6551::kCommPortBuiltIn | slot));
 
             for (const PortConfig & each : config.ports)
             {
@@ -2084,6 +2085,7 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     card.GetAcia().SetCpuClockHz (m_host.GetConfig().clockSpeed);
+    card.GetAcia().SetCommPort   ((Byte) slot.slot);
     refs.serialChips.push_back (&card.GetAcia());
 
     if (refs.superSerialCard == nullptr)

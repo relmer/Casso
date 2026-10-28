@@ -356,8 +356,8 @@ namespace AciaHostLinkTestNs
             journal.SetOn (true);
             journal.SetCycleSource (&cycle);
             acia.SetInputJournal (&journal, 0);
-            acia.SetCommEventSink (&recorder, 0);
-            replayed.SetCommEventSink (&replayedRecorder, 0);
+            acia.SetCommEventSink (&recorder);
+            replayed.SetCommEventSink (&replayedRecorder);
             acia.SetEndpoint (&link);
 
             link.hasConnection = true;

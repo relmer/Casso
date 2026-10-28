@@ -2,6 +2,7 @@
 
 #include "Debugger/IoEventLog.h"
 #include "Debugger/Reply.h"
+#include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -169,18 +170,38 @@ namespace DebuggerTests
 
             received.kind  = IoEventKind::SerialReceived;
             received.value = 0x41;
+            received.chip  = Acia6551::kCommPortBuiltIn | 1;
             received.reg   = 0x02;
 
             opened.kind  = IoEventKind::SerialConnection;
-            opened.chip  = 1;
+            opened.chip  = Acia6551::kCommPortBuiltIn | 2;
             opened.value = 1;
 
             closed.kind  = IoEventKind::SerialConnection;
-            closed.chip  = 1;
+            closed.chip  = Acia6551::kCommPortBuiltIn | 2;
 
-            Assert::AreEqual (std::string ("port 1 received $41, framing error"), IoEventLog::FormatEvent (received));
-            Assert::AreEqual (std::string ("port 2 connection opened"),           IoEventLog::FormatEvent (opened));
-            Assert::AreEqual (std::string ("port 2 connection closed"),           IoEventLog::FormatEvent (closed));
+            Assert::AreEqual (std::string ("Port 1 received $41, framing error"), IoEventLog::FormatEvent (received));
+            Assert::AreEqual (std::string ("Port 2 connection opened"),           IoEventLog::FormatEvent (opened));
+            Assert::AreEqual (std::string ("Port 2 connection closed"),           IoEventLog::FormatEvent (closed));
+        }
+
+
+        //  A serial entry's port is a card's slot, or one of the //c's two
+        //  built-in ports.
+        TEST_METHOD (ASerialPortIsACardsSlotOrABuiltInPort)
+        {
+            IoEvent  entry;
+
+
+
+            Assert::AreEqual (std::string ("Slot 2"), IoEventLog::GetSerialPortName (2));
+            Assert::AreEqual (std::string ("Port 1"), IoEventLog::GetSerialPortName (Acia6551::kCommPortBuiltIn | 1));
+            Assert::AreEqual (std::string ("Port 2"), IoEventLog::GetSerialPortName (Acia6551::kCommPortBuiltIn | 2));
+
+            entry.kind  = IoEventKind::SerialSent;
+            entry.chip  = 2;
+            entry.value = 0x41;
+            Assert::AreEqual (std::string ("Slot 2 sent $41"), IoEventLog::FormatEvent (entry));
         }
     };
 }

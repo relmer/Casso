@@ -1,9 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/CommLogPane.h"
-#include "Ui/Debugger/Panes/CommGraph.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/IoEventLog.h"
+#include "Ui/Debugger/Panes/CommGraph.h"
 
 
 
@@ -283,7 +283,7 @@ void CommLogPane::MakeCells (
     }
     else
     {
-        out[kPort].text = std::format (L"Port {}", event.chip + 1);
+        out[kPort].text = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName (event.chip));
     }
 
     if (isConnection)

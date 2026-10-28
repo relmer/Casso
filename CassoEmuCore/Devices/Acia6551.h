@@ -79,6 +79,10 @@ public:
     static constexpr Word  kRegControl    = 3;
     static constexpr Word  kRegisterCount = 4;
 
+    // The serial log's port: a card's slot number, or a built-in port's
+    // number with this bit set.
+    static constexpr Byte  kCommPortBuiltIn = 0x80;
+
     // Status register bits.
     static constexpr Byte    kStatusParityError  = 0x01;
     static constexpr Byte    kStatusFramingError = 0x02;
@@ -200,8 +204,10 @@ public:
 
     // The debugger's serial log: settings, line changes, each byte sent and
     // received and each overrun go to `sink`, or nowhere when it is null,
-    // as this chip's `port`. Emulation thread.
-    void    SetCommEventSink (ICommEventSink * sink, Byte port);
+    // as this chip's port. Emulation thread.
+    void    SetCommEventSink (ICommEventSink * sink);
+    void    SetCommPort      (Byte port) { m_commPort = port; }
+    Byte    GetCommPort      () const    { return m_commPort; }
 
     // Inspectors for tests and board wiring.
     Byte    GetStatus  () const { return m_status; }

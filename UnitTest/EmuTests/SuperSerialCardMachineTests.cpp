@@ -85,6 +85,8 @@ namespace SuperSerialCardMachineTestNs
             }
 
             Assert::AreEqual ((size_t) 2, machine.GetRefs().serialChips.size(), L"the two built-in ports");
+            Assert::AreEqual<Byte> (Acia6551::kCommPortBuiltIn | 1, machine.GetRefs().serialChips[0]->GetCommPort(), L"the serial log's port 1");
+            Assert::AreEqual<Byte> (Acia6551::kCommPortBuiltIn | 2, machine.GetRefs().serialChips[1]->GetCommPort(), L"and port 2");
         }
 
 
@@ -104,6 +106,7 @@ namespace SuperSerialCardMachineTestNs
                                            machine.GetRefs().serialChips.end(),
                                            &card->GetAcia()) != machine.GetRefs().serialChips.end(),
                                 L"the card's 6551 is ticked with the machine");
+                Assert::AreEqual<Byte> (2, card->GetAcia().GetCommPort(), L"the serial log's port is the card's slot");
                 Assert::AreEqual (card->GetSwitches().GetDipSwitch1Byte (0) & 0xF3,
                                   machine.GetMemoryBus().ReadByte (0xC0A1) & 0xF3,
                                   L"DIPSW1 reads through the bus");

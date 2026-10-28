@@ -150,6 +150,10 @@ public:
     static std::string  FormatSerialLines   (Byte lines);
     static std::string  FormatReceiveErrors (Byte errors);
 
+    //  A serial entry's port: "Slot 2" for a card, "Port 1" for one of the
+    //  //c's built-in ports.
+    static std::string  GetSerialPortName   (Byte port);
+
 private:
     static constexpr Byte  kRegisterMask = 0x0F;
 

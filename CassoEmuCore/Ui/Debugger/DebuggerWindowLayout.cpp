@@ -1587,10 +1587,12 @@ void DebuggerWindow::SavePlacementIfMoved()
     //  and move events of its own creation have nothing to compare against.
     //  A minimized window is parked far off the desktop -- x=-32000 -- and
     //  that is not a placement anyone chose. The log caught one being
-    //  written as the arrangement for the whole monitor set.
-    if (!m_placed || m_host == nullptr || !IsCreated() || IsIconic (GetHwnd()))
+    //  written as the arrangement for the whole monitor set. A maximized
+    //  window fills its monitor, and the rect to open at is the one it is
+    //  restored to.
+    if (!m_placed || m_host == nullptr || !IsCreated() || IsIconic (GetHwnd()) || IsZoomed (GetHwnd()))
     {
-        WindowTrace::Log ("save.skipped", "debugger", "not placed yet, or no host");
+        WindowTrace::Log ("save.skipped", "debugger", "not placed yet, no host, or minimized or maximized");
         return;
     }
 

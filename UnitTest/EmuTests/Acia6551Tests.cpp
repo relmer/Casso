@@ -543,7 +543,7 @@ namespace Acia6551TestNs
 
 
 
-            acia.SetCommEventSink (&recorder, 0);
+            acia.SetCommEventSink (&recorder);
             acia.Write (kAddrCtrl, kCtrl9600);
             acia.Write (kAddrCmd,  kCmdPolled);
             charCycles = static_cast<uint32_t> (ceil (acia.GetTransmitCharacterCycles()));

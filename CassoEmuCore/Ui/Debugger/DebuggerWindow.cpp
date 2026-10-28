@@ -153,7 +153,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     params.minSizeDip               = { kMinWidthDip, kMinHeightDip };
     params.resizable                = true;
     params.insetContentBelowCaption = false;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.captionStyle             = DxuiCaptionStyle::Standard;
     params.classNameOverride        = s_kpszClassName;
 
     hr = DxuiWindow::Create (params);
