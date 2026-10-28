@@ -377,7 +377,7 @@ void ShellDisks::OnMountCompleted (int drive, const std::string & path, HRESULT 
 
     if (carried != nullptr)
     {
-        isPosted = (PostMessageW (m_shell.m_hwnd, WM_APP_MOUNT_COMPLETED, 0,
+        isPosted = (PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellMountCompleted, 0,
                                   reinterpret_cast<LPARAM> (carried)) != FALSE);
 
         if (!isPosted)
@@ -497,7 +497,7 @@ void ShellDisks::PostIntentReply (HWND target, const Win32IntentChannel::Reply &
     carried->target = target;
     carried->reply  = reply;
 
-    if (m_shell.m_hwnd == nullptr || !PostMessageW (m_shell.m_hwnd, WM_APP_INTENT_REPLY, 0, (LPARAM) carried))
+    if (m_shell.m_hwnd == nullptr || !PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellIntentReply, 0, (LPARAM) carried))
     {
         delete carried;
     }
@@ -909,7 +909,7 @@ void ShellDisks::ReportDamagedMount (int drive)
 
     if (isOffThread)
     {
-        PostMessageW (m_shell.m_hwnd, WM_APP_REPORT_DAMAGE, (WPARAM) drive, 0);
+        PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellReportDamage, (WPARAM) drive, 0);
         return;
     }
 
@@ -1036,7 +1036,7 @@ void ShellDisks::InstallChangeReporting()
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
         if (m_shell.m_hwnd == nullptr ||
-            !PostMessageW (m_shell.m_hwnd, WM_APP_CHANGE_REPORT, 0, (LPARAM) carried))
+            !PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellChangeReport, 0, (LPARAM) carried))
         {
             delete carried;
         }
@@ -1051,7 +1051,7 @@ void ShellDisks::InstallChangeReporting()
         ChangeNotice *  carried = new ChangeNotice { slot, drive, prompt };
 
         if (m_shell.m_hwnd == nullptr ||
-            !PostMessageW (m_shell.m_hwnd, WM_APP_CHANGE_ASK, 0, (LPARAM) carried))
+            !PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellChangeAsk, 0, (LPARAM) carried))
         {
             delete carried;
 

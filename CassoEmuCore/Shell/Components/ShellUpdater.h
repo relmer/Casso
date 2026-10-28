@@ -24,7 +24,7 @@ struct UpdateResult;
 //  ShellUpdater
 //
 //  Update notification and self-update. The service does the slow work on its
-//  own threads and posts each result back as WM_APP_UPDATE_RESULT; everything
+//  own threads and posts each result back as AppMessage::ShellUpdateResult; everything
 //  here runs on the UI thread.
 //
 ////////////////////////////////////////////////////////////////////////////////

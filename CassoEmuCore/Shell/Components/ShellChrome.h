@@ -84,7 +84,7 @@ public:
     // switch: adding/removing the Disk ][ controller changes the drive band +
     // widgets + hit-test map, but no WM_SIZE fires when the window size itself
     // is unchanged, so OnSize would never re-evaluate it. See the
-    // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
+    // AppMessage::ShellUpdateTitle handler (the switch-completion signal).
     void    ReflowChromeForMachineChange  ();
 
     // How tall the bar is at a given width, for the band that reserves the

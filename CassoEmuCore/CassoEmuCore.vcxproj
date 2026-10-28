@@ -654,6 +654,7 @@
     <ClInclude Include="Devices\Tape\ITapeAudioDecoder.h" />
     <ClInclude Include="Devices\Tape\AiffCodec.h" />
     <ClInclude Include="Pch.h" />
+    <ClInclude Include="Core\AppMessages.h" />
     <ClInclude Include="Core\AppleSingleCodec.h" />
     <ClInclude Include="Core\MemoryDevice.h" />
     <ClInclude Include="Core\UnicodeSymbols.h" />

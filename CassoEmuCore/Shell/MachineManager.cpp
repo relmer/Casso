@@ -410,7 +410,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // ApplyPersistedMachinePrefs) applied to switching.
     //
     // State only -- this runs on the CPU thread, and the selector sync asserts
-    // the UI thread. The post-switch reflow (WM_APP_DXUI_UPDATE_TITLE) puts it
+    // the UI thread. The post-switch reflow (AppMessage::ShellUpdateTitle) puts it
     // on the chrome. The nudge follows the adopt, so the //c mouse default
     // sees the restored mapping rather than being overwritten by it.
     m_shell.AdoptInputModeForMachine (inputUiPrefs, newConfig.machineId);

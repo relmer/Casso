@@ -1924,7 +1924,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 {
     // A disk changed outside Casso. The store decided on the thread that owns
     // disk writes; both of these build UI, so they land here.
-    if (msg == WM_APP_CHANGE_REPORT)
+    if (msg == (UINT) AppMessage::ShellChangeReport)
     {
         ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
@@ -1937,7 +1937,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_CHANGE_ASK)
+    if (msg == (UINT) AppMessage::ShellChangeAsk)
     {
         ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
 
@@ -1950,7 +1950,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_NOTIFY_USER)
+    if (msg == (UINT) AppMessage::ShellNotifyUser)
     {
         wstring *  carried = reinterpret_cast<wstring *> (lParam);
 
@@ -1963,7 +1963,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_SHOW_NOTICE)
+    if (msg == (UINT) AppMessage::ShellShowNotice)
     {
         wstring *  carried = reinterpret_cast<wstring *> (lParam);
 
@@ -1979,7 +1979,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // Game-port input submitted off the UI thread (the controller thread, or a
     // machine rebuild) waits here to be written: the device setters report
     // host input to their input event sink, which is UI-thread only.
-    if (msg == WM_APP_GAMEPORT_FLUSH)
+    if (msg == (UINT) AppMessage::ShellGameportFlush)
     {
         m_gamePortMixer.FlushPending();
 
@@ -1988,7 +1988,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // The players' slots changed, or a controller came or went. Saying so and
     // writing it to the prefs both belong here, not on the controller thread.
-    if (msg == WM_APP_CONTROLLER_PICK)
+    if (msg == (UINT) AppMessage::ShellControllerPick)
     {
         std::vector<std::wstring>  notices;
         bool                       haveEntriesChanged     = false;
@@ -2014,7 +2014,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // A mount that ran on the CPU thread wants its damage report raised here,
     // where a modal can be built.
-    if (msg == WM_APP_REPORT_DAMAGE)
+    if (msg == (UINT) AppMessage::ShellReportDamage)
     {
         m_disks->ReportDamagedMount ((int) wParam);
 
@@ -2024,7 +2024,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // One mount's outcome, from whichever thread ran it. Startup mounts land
     // here too, which is what keeps a bad --disk1 from raising a dialog before
     // there was a pump to run it.
-    if (msg == WM_APP_MOUNT_COMPLETED)
+    if (msg == (UINT) AppMessage::ShellMountCompleted)
     {
         ShellDisks::MountCompletion *  carried = reinterpret_cast<ShellDisks::MountCompletion *> (lParam);
 
@@ -2039,7 +2039,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     // An answer for a tool that asked, known on another thread or inside the
     // tool's own send.
-    if (msg == WM_APP_INTENT_REPLY)
+    if (msg == (UINT) AppMessage::ShellIntentReply)
     {
         ShellDisks::IntentReplyPost *  carried = reinterpret_cast<ShellDisks::IntentReplyPost *> (lParam);
 
@@ -2053,7 +2053,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     }
 
     // A piece of update work finished on the update service's thread.
-    if (msg == WM_APP_UPDATE_RESULT)
+    if (msg == (UINT) AppMessage::ShellUpdateResult)
     {
         UpdateResult *  carried = reinterpret_cast<UpdateResult *> (lParam);
 
@@ -2066,7 +2066,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    if (msg == WM_APP_DXUI_UPDATE_TITLE)
+    if (msg == (UINT) AppMessage::ShellUpdateTitle)
     {
         m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();

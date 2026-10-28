@@ -181,7 +181,7 @@ UpdateService * ShellUpdater::GetUpdateService()
 {
     if (m_updateRuntime == nullptr && m_shell.m_hwnd != nullptr)
     {
-        m_updateRuntime = std::make_unique<UpdateRuntime> (m_shell.m_hwnd, (UINT) WM_APP_UPDATE_RESULT);
+        m_updateRuntime = std::make_unique<UpdateRuntime> (m_shell.m_hwnd, (UINT) AppMessage::ShellUpdateResult);
     }
 
     return (m_updateRuntime != nullptr) ? &m_updateRuntime->GetService() : nullptr;
