@@ -203,6 +203,45 @@ ScenarioTests/
 `CassoExplorer/` (Explorer host); the writer and `DurableCommit` sit beside
 the image code they serve.
 
+### Window components (2026-10-27, FR-162)
+
+`DiskInspectorWindow` had about 170 members, most used by three or more
+areas. It is divided by area, not by kind of code: 033's
+first attempt cut CassoExplorerWindow into Layout, Input and Menus files and
+left nearly every member shared, and the owner rejected it. The model is 035's
+debugger panes (`IDebuggerPane`, `IDebuggerPaneHost`) and 033's redo.
+
+```text
+CassoEmuCore/Ui/DiskInspector/
+├── DiskInspectorWindow.h / .cpp       # the dock: regions, splitter, focus, timers, routing loops
+├── Components/
+│   ├── IInspectorComponent.h          # Create, Layout, Update, Paint, OnMouse, OnKey, GetTip, Tick, prefs
+│   ├── IInspectorComponentHost.h      # the window's services: popups, owner HWND, relayout, status, confirm
+│   ├── InspectorSession.h / .cpp      # shared state: analysis, view model and context, scheduler, drive, comparison, find, edits
+│   ├── InspectorMenus.h / .cpp        # menu bar and every command (FR-158)
+│   ├── InspectorToolbar.h / .cpp      # drive and mode selectors, timing range, Follow head, Go to, Find
+│   ├── PlatterCorners.h / .cpp        # Legend, tilt button and slider, overlay chips, zoom group (FR-163)
+│   ├── TrackColumn.h / .cpp           # track header, sector row, view selector (FR-160)
+│   ├── StripControls.h / .cpp         # strip label, zoom, readout, hint
+│   ├── StatusBand.h / .cpp            # chips, hint, "?", window zoom
+│   ├── HostLink.h / .cpp              # requests and replies, written tracks, head state, Follow head
+│   ├── ComparisonPart.h / .cpp        # comparison bar, side B, differences
+│   ├── FindPart.h / .cpp              # find bar, results, marks
+│   └── EditingPart.h / .cpp           # edit bar, apply, undo, redo, save copy
+└── Views/                             # one class per view of FR-160, moved from the *Tab classes
+```
+
+The window has the regions and calls the components in a fixed order, the
+order its input code used before the division. Each component owns its
+controls and their state; state used by more than one component is in
+`InspectorSession`, which components take by reference. A component accesses
+the window only through `IInspectorComponentHost`, so a test can host one
+with a fake. Components move one per commit, with the build and the test suites green after each.
+`PlatterView` is split the same way: its pure geometry and mark placement into
+core classes beside `PlatterGeometry`, its overlays into a painter class.
+`scripts/CheckStyle.ps1` gains a rule that fails a `.cpp` over about 2,000
+lines, with a list of approved exceptions.
+
 ## Implementation order
 
 Build order only. By the owner's decision of 2026-10-08, the first release
