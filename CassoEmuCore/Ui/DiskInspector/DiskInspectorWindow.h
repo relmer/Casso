@@ -403,7 +403,7 @@ private:
     DxuiCheckbox                          * m_filesCheck         = nullptr;
     DxuiCheckbox                          * m_readsCheck         = nullptr;
     DxuiButton                            * m_topDown            = nullptr;
-    DxuiTabStrip                          * m_modeTabs           = nullptr;
+    DxuiSegmentedControl                  * m_modeTabs           = nullptr;
     DxuiButton                            * m_rangeDown          = nullptr;
     DxuiButton                            * m_rangeUp            = nullptr;
     DxuiLabel                             * m_rangeLabel         = nullptr;

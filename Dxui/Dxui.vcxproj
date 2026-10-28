@@ -200,6 +200,7 @@
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
+    <ClCompile Include="Widgets\DxuiSegmentedControl.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
@@ -289,6 +290,7 @@
     <ClInclude Include="Widgets\DxuiShimmer.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
+    <ClInclude Include="Widgets\DxuiSegmentedControl.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
     <ClInclude Include="Widgets\DxuiTreeView.h" />

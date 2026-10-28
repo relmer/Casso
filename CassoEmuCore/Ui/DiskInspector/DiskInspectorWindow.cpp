@@ -365,6 +365,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_findingsTab->Tick (static_cast<int64_t> (GetTickCount64()));
     m_fieldsTab->Tick   (static_cast<int64_t> (GetTickCount64()));
     m_findBar->Tick     (static_cast<int64_t> (GetTickCount64()));
+    m_modeTabs->Tick    (static_cast<int64_t> (GetTickCount64()));
     Invalidate();
 
 Error:
@@ -423,7 +424,7 @@ void DiskInspectorWindow::OnCreate()
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
     m_filesCheck     = CreateChild<DxuiCheckbox> (L"Files");
     m_readsCheck     = CreateChild<DxuiCheckbox> (L"Reads");
-    m_modeTabs     = CreateChild<DxuiTabStrip>();
+    m_modeTabs     = CreateChild<DxuiSegmentedControl>();
     m_rangeDown    = CreateChild<DxuiButton> (s_kpszMinus);
     m_rangeUp      = CreateChild<DxuiButton> (L"+");
     m_rangeLabel   = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Center);
@@ -517,6 +518,7 @@ void DiskInspectorWindow::OnCreate()
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
     m_filesCheck->SetOnChange     ([this] (bool isChecked) { m_context.isFilesOverlay = isChecked; });
     m_readsCheck->SetOnChange     ([this] (bool isChecked) { m_context.isReadsOverlay = isChecked; });
+    m_modeTabs->SetSegments  ({ L"Structure", L"Timing" });
     m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
     m_rangeDown->SetOnClick  ([this] () { StepRange (-1); });
     m_rangeUp->SetOnClick    ([this] () { StepRange (1); });
@@ -5780,22 +5782,17 @@ int DiskInspectorWindow::FlowToolItems (vector<ToolItem> & inOutItems, int left,
 
 void DiskInspectorWindow::PlaceToolItem (const ToolItem & item, const DxuiDpiScaler & scaler)
 {
-    int                        inset  = scaler.ToPx (s_kMarginDip) / 2;
-    int                        button = scaler.ToPx (s_kButtonDip);
-    RECT                       r      = item.rect;
-    RECT                       inner  = { r.left, r.top + inset, r.right, r.bottom - inset };
-    vector<DxuiTabStrip::Tab>  tabs;
+    int   inset  = scaler.ToPx (s_kMarginDip) / 2;
+    int   button = scaler.ToPx (s_kButtonDip);
+    RECT  r      = item.rect;
+    RECT  inner  = { r.left, r.top + inset, r.right, r.bottom - inset };
 
 
 
     switch (item.id)
     {
         case ToolId::Modes:
-            tabs.push_back ({ { r.left,                               inner.top, r.left + scaler.ToPx (s_kModeTabDip), inner.bottom }, L"Structure" });
-            tabs.push_back ({ { r.left + scaler.ToPx (s_kModeTabDip), inner.top, r.right,                              inner.bottom }, L"Timing" });
-            m_modeTabs->SetTabs     (std::move (tabs));
-            m_modeTabs->SetSelected (m_context.isTimingMode ? 1 : 0);
-            m_modeTabs->Layout      (r, scaler);
+            m_modeTabs->Layout (inner, scaler);
             break;
 
         case ToolId::Range:

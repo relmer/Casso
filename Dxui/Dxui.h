@@ -139,6 +139,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiShimmer.h"
 #include "Widgets/DxuiSlider.h"
 #include "Widgets/DxuiZoomControl.h"
+#include "Widgets/DxuiSegmentedControl.h"
 #include "Widgets/DxuiTabStrip.h"
 #include "Widgets/DxuiTextInput.h"
 #include "Widgets/DxuiToggle.h"
