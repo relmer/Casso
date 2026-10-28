@@ -4,6 +4,9 @@
 #include "Core/DxuiCommand.h"
 #include "Theme/DxuiMenuMetrics.h"
 #include "Core/IDxuiControl.h"
+#include "Widgets/DxuiPopupMenuTypes.h"
+#include "Widgets/DxuiPopupMenuLayout.h"
+#include "Widgets/DxuiPopupMenuPainter.h"
 
 
 class DxuiHwndSource;
@@ -231,11 +234,11 @@ public:
     //  what opened it and the bottom of its monitor, so a long list hangs
     //  under its anchor rather than flipping above it. A test pins it, since
     //  it has no monitor.
-    void  SetMaxHeightPx (int px)               { m_maxHeightPx = (px > 0) ? px : 0; }
+    void  SetMaxHeightPx (int px)               { m_layout.m_maxHeightPx = (px > 0) ? px : 0; }
 
-    int   GetScrollRow   () const               { return m_scrollRow; }
-    bool  IsScrollable   () const               { return m_viewportPx > 0; }
-    void  ScrollByRows   (int rows);
+    int   GetScrollRow   () const               { return m_layout.m_scrollRow; }
+    bool  IsScrollable   () const               { return m_layout.m_viewportPx > 0; }
+    void  ScrollByRows   (int rows) { m_layout.ScrollByRows (rows); }
 
     void              SetPopupHost   (DxuiHwndSource * host) { m_popupHost = host; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
@@ -373,25 +376,8 @@ private:
     static constexpr float     s_kSubmenuChevronStrokeDip = 1.0f;
     static constexpr float     s_kSubmenuChevronInsetDip  = 4.0f;
 
-    struct Palette
-    {
-        uint32_t  bg       = 0;
-        uint32_t  hover    = 0;
-        uint32_t  text     = 0;
-        uint32_t  accel    = 0;
-        uint32_t  border   = 0;
-        uint32_t  divider  = 0;
-        uint32_t  disabled = 0;
-    };
-
-    //  Where a child hangs relative to its parent row, or where a root hangs
-    //  relative to what opened it.
-    enum class Anchoring
-    {
-        Below,
-        AtPoint,
-        Beside,
-    };
+    using Palette   = DxuiPopupMenuPalette;
+    using Anchoring = DxuiPopupMenuAnchoring;
 
     static bool  IsPointInRect (const RECT & rc, int x, int y);
 
@@ -402,25 +388,12 @@ private:
     int   FindFirstSelectable () const;
     bool  IsReopenSuppressed (const RECT & anchor) const;
 
-    int   GetRowHeightPx     (int index) const;
-    int   GetIconButtonPx    () const;
     void  SetIconHover       (int button);
-    int   GetIconDividerPx   () const;
-    int   GetIconRowLeftPx   () const;
     int   GetIconButtonAt    (int index, int localX) const;
     void  CommitIcon         (int index, int button);
     void  PlaceIconRow       (bool atBottom);
     void  DropStraySeparators ();
     bool  OpensUpward        (int originX, int originY, int heightPx, Anchoring anchoring) const;
-    int   GetRowTopPx        (int index) const;
-    int   GetContentHeightPx () const;
-    int   GetScrollPx        () const;
-    int   GetMaxScrollRow    () const;
-    int   GetHeightLimitPx   (const RECT & anchor, Anchoring anchoring) const;
-    void  EnsureRowVisible   (int index);
-    int   MeasureRunPx       (const std::wstring & run, float fontDip, IDxuiTextRenderer & text) const;
-    int   MeasureWidthPx     (IDxuiTextRenderer & text);
-    int   GetRowAtOffset     (int relY) const;
     int   HitTestIndex       (int x, int y) const;
 
     void  ShowCore           (int                              originX,
@@ -439,14 +412,6 @@ private:
     void  Commit             (int index);
     DxuiPopupMenu *  GetRoot ();
 
-    Palette  ResolvePalette  () const;
-    void     PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
-    void     PaintRow        (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
-                              int index, float left, float top, float width, float fontDip) const;
-    void     PaintIconRow    (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal,
-                              int index, float left, float top) const;
-    void     PaintUnderline  (IDxuiPainter & painter, IDxuiTextRenderer & text, const std::wstring & stripped,
-                              int mnIdx, float labelX, float labelY, float fontDip, uint32_t ink) const;
     void     RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void     OnPopupMove     (POINT localPx);
     void     OnPopupClick    (POINT localPx);
@@ -473,11 +438,6 @@ private:
     int                  m_pressed          = -1;
     bool                 m_visible          = false;
     bool                 m_revealSuppressed = false;
-    bool                 m_hasGutter        = false;
-    bool                 m_hasIcons         = false;
-    int                  m_labelLeftPx      = 0;
-    int                  m_accelLeftPx      = 0;
-    int                  m_accelWidthPx     = 0;
     bool                 m_showCues         = false;
     RECT                 m_hostClient       = {};
     RECT                 m_anchor           = {};
@@ -497,11 +457,14 @@ private:
     bool                 m_acrylic          = false;   // shown with a blurred backdrop under a translucent card
     int                  m_cardPadPx        = 0;
     int                  m_minWidthPx       = 0;
-    int                  m_maxHeightPx      = 0;
-    int                  m_viewportPx       = 0;
-    int                  m_scrollRow        = 0;
     bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;
     Palette              m_colors;
+
+    friend class DxuiPopupMenuLayout;
+    friend class DxuiPopupMenuPainter;
+
+    DxuiPopupMenuLayout   m_layout  { *this };
+    DxuiPopupMenuPainter  m_painter { *this };
 };

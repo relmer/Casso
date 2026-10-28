@@ -206,6 +206,8 @@
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
     <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
     <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />
+    <ClCompile Include="Widgets\DxuiPopupMenuLayout.cpp" />
+    <ClCompile Include="Widgets\DxuiPopupMenuPainter.cpp" />
     <ClCompile Include="Widgets\DxuiRadio.cpp" />
     <ClCompile Include="Widgets\DxuiScrollbar.cpp" />
     <ClCompile Include="Widgets\DxuiScrollPanel.cpp" />
@@ -334,6 +336,9 @@
     <ClInclude Include="Widgets\DxuiMenuBar.h" />
     <ClInclude Include="Widgets\DxuiModalScrim.h" />
     <ClInclude Include="Widgets\DxuiPopupMenu.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenuLayout.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenuPainter.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenuTypes.h" />
     <ClInclude Include="Widgets\DxuiRadio.h" />
     <ClInclude Include="Widgets\DxuiScrollbar.h" />
     <ClInclude Include="Widgets\DxuiScrollPanel.h" />
