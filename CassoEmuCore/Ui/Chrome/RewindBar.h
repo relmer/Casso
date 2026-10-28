@@ -80,7 +80,11 @@ public:
 
     bool           IsOpen     () const { return m_isOpen; }
     RECT           GetBounds  () const { return m_bar.GetBounds(); }
+    RECT           GetScreen  () const { return m_screen; }
     DxuiTooltip &  GetTooltip ()       { return m_tooltip; }
+    //  Where the strip's fork flyout is on the screen, in pixels; false while
+    //  it is closed or the bar is.
+    bool           TryGetFlyoutRect (RECT & outScreenPx) const { return m_isOpen && m_strip.GetFlyout().TryGetPlacedRect (outScreenPx); }
     bool           WantsTick  () const { return m_tooltip.WantsTick() || m_strip.GetFlyout().WantsTick(); }
 
 private:

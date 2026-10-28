@@ -197,9 +197,12 @@ bool HistoryThumbnails::HasBranch (uint32_t id) const
 //
 //  HistoryThumbnails::GetForkRows
 //
-//  A row for each branch that forks from the active path at the mark's
-//  position, labeled by the row labeler. A row with no picture yet adds its
-//  branch to the worker's list.
+//  The active branch's row first, then a row for each branch that forks
+//  from the active path at the mark's position, the most recently left
+//  first, as a git branch list puts the current branch first. Each is
+//  labeled by the row labeler; the active branch is labeled as a branch
+//  that runs from the fork to where history ends. A row with no picture yet
+//  adds its branch to the worker's list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +212,7 @@ void HistoryThumbnails::GetForkRows (
 {
     std::vector<KeyframeBranch>  branches;
     DxuiStripForkRow             row;
+    KeyframeBranch               active;
 
 
 
@@ -219,31 +223,68 @@ void HistoryThumbnails::GetForkRows (
 
         for (const KeyframeBranch & branch : m_branches)
         {
-            auto  picture = m_branchPictures.find (branch.id);
-
-
-
-            if (branch.parent != 0 || branch.forkPosition != markId)
+            if (branch.parent == 0 && branch.forkPosition == markId)
             {
-                continue;
+                branches.push_back (branch);
             }
-
-            row.id      = branch.id;
-            row.picture = (picture != m_branchPictures.end()) ? picture->second : nullptr;
-
-            if (row.picture == nullptr)
-            {
-                m_wantedBranches.insert (branch.id);
-            }
-
-            outRows.push_back (row);
-            branches.push_back (branch);
         }
     }
 
-    for (size_t i = 0; i < outRows.size() && m_rowLabeler; i++)
+    if (branches.empty())
     {
-        m_rowLabeler (branches[i], outRows[i].ranFor, outRows[i].leftAt);
+        return;
+    }
+
+    std::stable_sort (branches.begin(), branches.end(), [] (const KeyframeBranch & a, const KeyframeBranch & b)
+    {
+        return a.leftAtWallTime > b.leftAtWallTime;
+    });
+
+    active.id           = kActiveBranchId;
+    active.forkPosition = markId;
+    active.forkCycle    = branches.front().forkCycle;
+    active.liveEndCycle = m_endCycle.load (std::memory_order_acquire);
+
+    branches.insert (branches.begin(), active);
+
+    for (const KeyframeBranch & branch : branches)
+    {
+        row.id      = branch.id;
+        row.picture = GetBranchPicture (branch.id);
+
+        if (row.picture == nullptr && branch.id != kActiveBranchId)
+        {
+            std::lock_guard<std::mutex>  held (m_lock);
+
+            m_wantedBranches.insert (branch.id);
+        }
+
+        if (m_rowLabeler)
+        {
+            m_rowLabeler (branch, row.ranFor, row.leftAt);
+        }
+
+        outRows.push_back (row);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::OnForkRowClicked
+//
+//  A click on the active branch's row doesn't switch branches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::OnForkRowClicked (uint64_t rowId)
+{
+    if (rowId != kActiveBranchId && m_onBranchSwitch)
+    {
+        m_onBranchSwitch (static_cast<uint32_t> (rowId));
     }
 }
 
@@ -255,18 +296,40 @@ void HistoryThumbnails::GetForkRows (
 //
 //  HistoryThumbnails::GetBranchPicture
 //
+//  The active branch's live end is the strip's last cell, at full size once
+//  drawn and at the cell's size until then.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HistoryThumbnails::Image HistoryThumbnails::GetBranchPicture (uint32_t branchId)
 {
-    std::lock_guard<std::mutex>  held (m_lock);
-    auto                         picture = m_branchPictures.find (branchId);
+    Image  picture;
+    int    last    = 0;
 
 
 
-    return (picture != m_branchPictures.end()) ? picture->second : nullptr;
+    if (branchId == kActiveBranchId)
+    {
+        {
+            std::lock_guard<std::mutex>  held (m_lock);
+
+            last = (int) m_cells.size() - 1;
+        }
+
+        picture = GetPreviewImage (last);
+
+        return (picture != nullptr) ? picture : GetCellImage (last);
+    }
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+        auto                         found = m_branchPictures.find (branchId);
+
+        picture = (found != m_branchPictures.end()) ? found->second : nullptr;
+    }
+
+    return picture;
 }
-
 
 
 

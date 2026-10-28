@@ -331,17 +331,44 @@ void ShellChrome::SyncReplayIndicator()
 //  ShellChrome::SyncBranchPreview
 //
 //  Once a frame: the hovered fork row's picture over the screen, drawn
-//  again on request when it changes.
+//  again on request when it or its place changes. Beside the rewind bar's
+//  open flyout, it is placed beside the flyout, above the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellChrome::SyncBranchPreview()
 {
-    BranchPreview::Picture  picture = m_areOverlaysHidden ? nullptr : m_shell.m_history->GetHoveredBranchPicture();
+    BranchPreview::Picture  picture   = m_areOverlaysHidden ? nullptr : m_shell.m_history->GetHoveredBranchPicture();
+    RECT                    bounds    = m_screenRectPx;
+    RECT                    area      = {};
+    RECT                    flyout    = {};
+    POINT                   corner    = {};
+    RECT                    before    = m_branchPreview.GetBounds();
+    bool                    isChanged = false;
 
 
 
-    if (m_branchPreview.SetPicture (std::move (picture)))
+    if (picture != nullptr && picture->height > 0 && m_rewindBar.TryGetFlyoutRect (flyout))
+    {
+        corner = { flyout.left, flyout.top };
+        ScreenToClient (m_shell.m_hwnd, &corner);
+        OffsetRect (&flyout, corner.x - flyout.left, corner.y - flyout.top);
+
+        area        = m_rewindBar.GetScreen();
+        area.bottom = m_rewindBar.GetBounds().top;
+        bounds      = BranchPreview::FitBeside (area, flyout, (float) picture->width / (float) picture->height,
+                                                m_shell.m_scaler.ToPx (BranchPreview::kGapDp));
+    }
+
+    isChanged = m_branchPreview.SetPicture (std::move (picture));
+
+    if (!EqualRect (&before, &bounds))
+    {
+        m_branchPreview.Layout (bounds, m_shell.m_scaler);
+        isChanged = true;
+    }
+
+    if (isChanged)
     {
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }

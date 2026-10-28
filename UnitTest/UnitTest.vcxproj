@@ -989,6 +989,7 @@
     <ClCompile Include="EmuTests\SavedHistoryTests.cpp" />
     <ClCompile Include="EmuTests\StateLoadHistoryTests.cpp" />
     <ClCompile Include="EmuTests\RewindBarBandTests.cpp" />
+    <ClCompile Include="EmuTests\BranchPreviewTests.cpp" />
     <ClCompile Include="EmuTests\ReplayIndicatorTests.cpp" />
     <ClCompile Include="EmuTests\ImageShrinkTests.cpp" />
     <ClCompile Include="EmuTests\AutoStatePolicyTests.cpp" />

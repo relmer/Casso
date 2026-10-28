@@ -340,14 +340,62 @@ public:
 
         thumbnails.GetForkRows (500, rows);
 
-        Assert::AreEqual<size_t>   (1, rows.size(), L"a row for the branch");
-        Assert::AreEqual<uint64_t> (branches[0].id, rows[0].id, L"keyed by the branch");
-        Assert::AreEqual           (std::wstring (L"4000"), rows[0].ranFor, L"labeled by the labeler");
-        Assert::IsNull             (rows[0].picture.get(), L"with no picture until one is drawn");
+        Assert::AreEqual<size_t>   (2, rows.size(), L"the active branch's row and the branch's");
+        Assert::AreEqual<uint64_t> (HistoryThumbnails::kActiveBranchId, rows[0].id, L"the active branch first");
+        Assert::AreEqual<uint64_t> (branches[0].id, rows[1].id, L"keyed by the branch");
+        Assert::AreEqual           (std::wstring (L"4000"), rows[1].ranFor, L"labeled by the labeler");
+        Assert::IsNull             (rows[1].picture.get(), L"with no picture until one is drawn");
 
         thumbnails.GetForkRows (600, rows);
 
         Assert::IsTrue (rows.empty(), L"no rows at a position with no fork");
+    }
+
+
+    TEST_METHOD (AForkMarksBranchesAreListedTheMostRecentlyLeftFirst)
+    {
+        BlankFrameRenderer             renderer;
+        HistoryThumbnails              thumbnails (renderer);
+        std::vector<KeyframeBranch>    branches (3);
+        std::vector<DxuiStripForkRow>  rows;
+        std::vector<uint32_t>          switched;
+
+
+
+        for (size_t i = 0; i < branches.size(); i++)
+        {
+            branches[i].id           = (uint32_t) i + 1;
+            branches[i].forkPosition = 500;
+            branches[i].forkCycle    = 5000;
+        }
+
+        branches[0].leftAtWallTime = 200;
+        branches[1].leftAtWallTime = 300;
+        branches[2].leftAtWallTime = 100;
+
+        thumbnails.SetBranches       (branches);
+        thumbnails.SetPlayheadTime   (9000, 0, 9000);
+        thumbnails.SetOnBranchSwitch ([&] (uint32_t id) { switched.push_back (id); });
+        thumbnails.SetRowLabeler     ([] (const KeyframeBranch & branch, std::wstring & outRanFor, std::wstring & outLeftAt)
+        {
+            outRanFor = std::to_wstring (branch.liveEndCycle - branch.forkCycle);
+            outLeftAt = std::to_wstring (branch.id);
+        });
+
+        thumbnails.GetForkRows (500, rows);
+
+        Assert::AreEqual<size_t>   (4, rows.size(), L"the active branch's row and the three branches'");
+        Assert::AreEqual<uint64_t> (HistoryThumbnails::kActiveBranchId, rows[0].id, L"the active branch first");
+        Assert::AreEqual           (std::wstring (L"4000"), rows[0].ranFor, L"which ran from the fork to where history ends");
+        Assert::AreEqual<uint64_t> (2, rows[1].id, L"then the branch left last");
+        Assert::AreEqual<uint64_t> (1, rows[2].id, L"then the one left before it");
+        Assert::AreEqual<uint64_t> (3, rows[3].id, L"and the one left first");
+
+        thumbnails.OnForkRowClicked (HistoryThumbnails::kActiveBranchId);
+        thumbnails.OnForkRowClicked (2);
+
+        Assert::AreEqual<size_t>   (1, switched.size(), L"a click on the active branch's row switches nothing");
+        Assert::AreEqual<uint32_t> (2, switched[0], L"a click on another row switches to its branch");
     }
 
     TEST_METHOD (TheStripGetsEachMarksGlyphOffsetAndTip)

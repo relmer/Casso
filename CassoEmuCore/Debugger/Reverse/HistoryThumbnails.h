@@ -118,6 +118,10 @@ public:
     static constexpr size_t  kPrefetchReach           = 2;
     static constexpr double  kSeekPatienceMs          = 1000.0;
 
+    //  The fork row of the branch the machine is on, which no branch left
+    //  behind has as its id.
+    static constexpr uint32_t  kActiveBranchId        = UINT32_MAX;
+
                        HistoryThumbnails  (IHistoryFrameRenderer & renderer);
                        ~HistoryThumbnails () override;
 
@@ -166,9 +170,10 @@ public:
     void               GetMarks                 (std::vector<DxuiStripMark> & outMarks) override;
     void               GetForkRows              (uint64_t markId, std::vector<DxuiStripForkRow> & outRows) override;
     void               OnForkRowHovered         (uint64_t rowId) override { if (m_onBranchHover) { m_onBranchHover (static_cast<uint32_t> (rowId)); } }
-    void               OnForkRowClicked         (uint64_t rowId) override { if (m_onBranchSwitch) { m_onBranchSwitch (static_cast<uint32_t> (rowId)); } }
+    void               OnForkRowClicked         (uint64_t rowId) override;
 
-    //  UI thread: the picture of a branch's live end, null until drawn.
+    //  UI thread: the picture of a branch's live end, or of the active path's
+    //  at kActiveBranchId, null until drawn.
     Image              GetBranchPicture         (uint32_t branchId);
     bool               IsBehindLive    () const      { return m_isBehindLive.load (std::memory_order_acquire); }
 

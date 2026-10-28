@@ -721,7 +721,7 @@ HistoryThumbnails::Image ShellHistory::GetHoveredBranchPicture()
 //  LabelBranch
 //
 //  A fork row's lines: how long the branch ran past the fork, and when the
-//  user left it.
+//  user left it, or for the active branch, that the machine is on it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -735,7 +735,9 @@ void ShellHistory::LabelBranch (
 
 
     outRanFor = L"Ran " + DebuggerStatusText::FormatTime (ran) + L" past the fork";
-    outLeftAt = L"Left at " + DebuggerStatusText::FormatWallClock (branch.leftAtWallTime, LOCALE_NAME_USER_DEFAULT);
+    outLeftAt = (branch.id == HistoryThumbnails::kActiveBranchId)
+                    ? std::wstring (L"You are on this branch")
+                    : L"Left at " + DebuggerStatusText::FormatWallClock (branch.leftAtWallTime, LOCALE_NAME_USER_DEFAULT);
 }
 
 
