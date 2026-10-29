@@ -1427,7 +1427,8 @@ The product-wide styles are GitHub issue #179.
   Descriptive or CiderPress or that is AppleSingle. One dialog for all:
   - Apple name, editable. On a disk it renames the entry, checked against that
     file system's rules. For an .as file it rewrites the name in the header,
-    with a checkbox to rename the .as file to match (checked when the PC name
+    with a checkbox, Also rename <current file name>.as, to rename the .as file
+    to match (checked when the PC name
     matches the old Apple name; disabled with a reason when the new name is
     taken). For a Descriptive or CiderPress file it renames the PC
     file.
