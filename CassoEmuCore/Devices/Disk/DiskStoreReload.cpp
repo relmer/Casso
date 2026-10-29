@@ -206,6 +206,7 @@ void DiskStoreReload::ApplyPendingReloadToBay (int slot, int drive)
     job->intent   = intent;
     job->recorded = entry.sharedState.GetIdentity();
     job->fileIo   = m_store.m_fileIo;
+    job->stamp    = PreservedCopy::MakeStamp (m_store.m_timestamp ? m_store.m_timestamp() : time (nullptr));
 
     m_isJobPosted[slot][drive] = true;
 
@@ -243,8 +244,13 @@ void DiskStoreReload::RunReloadWork (ReloadJob & job, const DiskFileOps & ops)
     if (job.isChanged)
     {
         job.hrRead   = ops.Read (job.path, job.bytes);
+        job.current  = ops.ReadIdentity (job.path);
         job.isExists = ops.Exists (job.path);
         DiskFileOps::ProbeWritability (job.path, job.isReadOnly, job.isDenied);
+
+        //  The name a question would reserve for the guest's version, found
+        //  here because finding it probes the folder.
+        (void) ops.FindFreePreservedPath (job.path, job.stamp, job.freeName);
     }
 }
 
@@ -345,7 +351,7 @@ void DiskStoreReload::ApplyChangedFile (ReloadJob & job)
 
     if (ExternalChangePolicy::NeedsAnAnswer (action))
     {
-        AskAboutChange (slot, drive, entry, action);
+        AskAboutChange (slot, drive, entry, action, job.freeName);
         return;
     }
 
@@ -361,7 +367,7 @@ void DiskStoreReload::ApplyChangedFile (ReloadJob & job)
     author = (intent == ExternalChangeIntent::Unstated) ? ChangeAuthor::AnotherProgram
                                                         : ChangeAuthor::CassoCli;
 
-    CarryOutChangeAction (slot, drive, action, bytes, author);
+    CarryOutChangeAction (slot, drive, action, bytes, author, job.current);
 
     //  The file's writability, probed in the job, on the disk the bay has
     //  after the change.
@@ -563,10 +569,9 @@ bool DiskStoreReload::PreserveGuestCopyForConflict (int slot, int drive, Entry &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskStoreReload::AskAboutChange (int slot, int drive, Entry & entry, ChangeAction action)
+void DiskStoreReload::AskAboutChange (int slot, int drive, Entry & entry, ChangeAction action, const string & freeName)
 {
-    HRESULT  hrName = S_OK;
-    string   reserved;
+    string  reserved;
 
 
 
@@ -581,9 +586,7 @@ void DiskStoreReload::AskAboutChange (int slot, int drive, Entry & entry, Change
 
     if (reserved.empty())
     {
-        hrName = m_store.m_save.FindFreePreservedPath (entry.path, reserved);
-        IGNORE_RETURN_VALUE (hrName, S_OK);
-
+        reserved = freeName;
         entry.sharedState.SetPreservedPath (reserved);
     }
 
@@ -688,7 +691,8 @@ void DiskStoreReload::ReadForAnswer (int slot, int drive, Entry & entry, ChangeA
 
     m_store.m_ioQueue->Post ([job, ops]
     {
-        job->hrRead = ops.Read (job->path, job->bytes);
+        job->hrRead  = ops.Read (job->path, job->bytes);
+        job->current = ops.ReadIdentity (job->path);
         DiskFileOps::ProbeWritability (job->path, job->isReadOnly, job->isDenied);
     },
     [this, job, chosen]
@@ -714,7 +718,7 @@ void DiskStoreReload::ReadForAnswer (int slot, int drive, Entry & entry, ChangeA
         //  A question is put only when no intent was stated -- that is what
         //  `Ask` means -- and one that arrives while the question is on
         //  screen does not turn the answer into somebody else's reload.
-        CarryOutChangeAction (job->slot, job->drive, action, job->bytes, ChangeAuthor::AnotherProgram);
+        CarryOutChangeAction (job->slot, job->drive, action, job->bytes, ChangeAuthor::AnotherProgram, job->current);
 
         if (m_store.GetEntry (job->slot, job->drive).mounted)
         {
@@ -1008,7 +1012,8 @@ void DiskStoreReload::SaveLostFileCopy (int slot, int drive, Entry & entry, Chan
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskStoreReload::CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                           const vector<Byte> & bytes, ChangeAuthor author)
+                                           const vector<Byte> & bytes, ChangeAuthor author,
+                                           const ImageIdentity & identity)
 {
     HRESULT  hr           = S_OK;
     Entry &  entry        = m_store.GetEntry (slot, drive);
@@ -1028,7 +1033,7 @@ void DiskStoreReload::CarryOutChangeAction (int slot, int drive, ChangeAction ac
     {
     case ChangeAction::ReloadInPlace:
     case ChangeAction::Restart:
-        hr = MountExternallyModifiedDisk (slot, drive, bytes);
+        hr = MountExternallyModifiedDisk (slot, drive, bytes, identity);
 
         if (SUCCEEDED (hr))
         {
@@ -1231,6 +1236,23 @@ void DiskStoreReload::CarryOutChangeAction (int slot, int drive, ChangeAction ac
 
 HRESULT DiskStoreReload::MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes)
 {
+    return MountExternallyModifiedDisk (slot, drive, bytes, m_store.ReadIdentity (m_store.GetEntry (slot, drive).path));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreReload::MountExternallyModifiedDisk, with the file's identity
+//
+//  For a caller whose job read the file and stat'd it after the read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskStoreReload::MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes, const ImageIdentity & identity)
+{
     HRESULT                  hr         = S_OK;
     Entry                  & entry      = m_store.GetEntry (slot, drive);
     SalvageAssessment        assessment;
@@ -1279,7 +1301,7 @@ HRESULT DiskStoreReload::MountExternallyModifiedDisk (int slot, int drive, const
     //  The identity is refreshed from the file the bytes came from, so the
     //  swap does not immediately look like another external change. The
     //  session a recovery copy was taken from is gone, so its record is too.
-    entry.sharedState.SetIdentity (m_store.ReadIdentity (entry.path));
+    entry.sharedState.SetIdentity (identity);
     entry.sharedState.ClearRecovery();
 
     hrAssess             = m_store.m_salvage.AssessSalvage (slot, drive, assessment);

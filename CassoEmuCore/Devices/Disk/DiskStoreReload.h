@@ -66,7 +66,7 @@ public:
     bool           IsReloadDue                  (Entry & entry, ExternalChangeIntent & outIntent);
     static bool    IsLoadable                   (const string & path, const vector<Byte> & bytes);
     bool           PreserveGuestCopyForConflict (int slot, int drive, Entry & entry, string & outSavePath);
-    void           AskAboutChange               (int slot, int drive, Entry & entry, ChangeAction action);
+    void           AskAboutChange               (int slot, int drive, Entry & entry, ChangeAction action, const string & freeName);
 
     //  Moves the inbox NoteExternalChange fills into the bays, on the owning
     //  thread.
@@ -80,7 +80,8 @@ public:
     //  the time this runs it can describe a write that landed after the one
     //  being acted on. Reading it here named whoever wrote last.
     void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                         const vector<Byte> & bytes, ChangeAuthor author);
+                                         const vector<Byte> & bytes, ChangeAuthor author,
+                                         const ImageIdentity & identity);
 
     //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
     //  ordinary eject flushes first, which here would either fail or write the
@@ -94,6 +95,7 @@ public:
     //  into a fresh image first, so a load that fails leaves the mounted disk
     //  exactly as it was.
     HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes);
+    HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes, const ImageIdentity & identity);
 
     //  Registers and drops the watch on a bay's directory.
     //
@@ -123,6 +125,9 @@ private:
         bool                   isReadOnly      = false;
         bool                   isDenied        = false;
         vector<Byte>           bytes;
+        ImageIdentity          current;
+        string                 stamp;
+        string                 freeName;
     };
 
     //  ApplyPendingReloadToBay's file work and the decision after it.
