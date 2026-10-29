@@ -76,7 +76,7 @@ Release, pinned to one core of the cache CCD where it matters:
   focus on Tab only in dialog mode. The inspector now walks its controls with
   Tab, each with a focus ring, routes Enter, Space and arrows to the focused
   control first, and returns the keys to the views on Escape, F6 or a click.
-- **Bandits (SC-012).** Taken from GH #159's attachment into the scratchpad.
+- **Bandits (SC-012).** A copy is in the scratchpad.
   34 tracks with data, 19 flux. Zoomed in, its flux tracks were noise
   rather than bands until Timing mode averaged each cell over 32 cells.
 - **Machine change confirmation.** Seen on screen after turning off slot 6's

@@ -6,12 +6,9 @@
 
 **Status**: Draft
 
-**Input**: GH #159, "WOZ disk images with type FLUX don't boot or give error"
-(https://github.com/relmer/Casso/issues/159). Spec 038 made flux tracks play
-and shipped in 1.30.0. The owner then commented on the issue "Todo: add this
-awesomeness", with a screenshot of AppleEm's Disk Inspector showing *Bandits*
-in its Timing mode. The owner later added a file and sector map, sector
-editing and comparison to the first release, and preservation stories for a
+**Input**: A disk inspector for Casso, after AppleEm's Disk Inspector, from a
+screenshot of *Bandits* in its Timing mode. The owner later added a file and
+sector map, sector editing and comparison to the first release, and preservation stories for a
 later release of the same feature. The owner then added two items to the first
 release, Apple Pascal and CP/M file maps and the move of Casso's other sector
 writers onto the editor's in-place writer, and two to the later release,
@@ -19,9 +16,6 @@ custom track formats and the comparison of quarter tracks within one disk.
 After trying the window, the owner added to the first release a redesign of
 its look, a tilted 3D view of the platter and a walkthrough for first-time
 users (User Story 17).
-
-**GH ref**: GH #159, used in the CHANGELOG entry and in the commit and merge
-subjects for this feature.
 
 ## Background
 
@@ -515,8 +509,7 @@ selected track, a timing line on the strip and the Flux timing tab show each
 transition at its recorded time, an interval histogram, and the transitions
 behind the selected nibbles.
 
-**Why this priority**: Flux timing is what GH #159 is about, and only flux
-tracks have it. It is built after the structure views it overlays.
+**Why this priority**: Only flux tracks have flux timing. It is built after the structure views it overlays.
 
 **Independent Test**: Open a made-up flux track that mixes 3.7 µs and 4.1 µs
 cells and check the colors, the tooltip values, the interval plot and the

@@ -14,7 +14,7 @@ Casso gets a disk inspector window, opened from Casso on a drive or from Casso
 Explorer on a file, that analyzes every quarter track of a disk image and
 shows it as a platter, a track strip, sector, nibble, field and flux timing
 views, a findings list, the image file's own structure, a file and sector map,
-sector editing, and comparison of two disks (GH #159). The plan:
+sector editing, and comparison of two disks. The plan:
 
 - **Loader**: `WozLoader` keeps what the file has (INFO through one parser,
   the maps as stored, every record's fields, chunks, META) and splits
