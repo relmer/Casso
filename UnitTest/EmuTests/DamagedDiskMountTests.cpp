@@ -332,7 +332,7 @@ public:
         Assert::IsTrue (body.find (L"\x2022 Unable to read track 5.\n") != wstring::npos);
         Assert::IsTrue (body.find (L"Casso found problems in \"damaged.woz\":\n\n") == 0);
         Assert::IsTrue (body.find (L"C:\\disks") == wstring::npos, L"the report gives the file name, not the full path");
-        Assert::IsTrue (body.find (L"Casso has write-protected the disk for this session, because saving it would replace those tracks in the file with blank ones.") != wstring::npos);
+        Assert::IsTrue (body.find (L"Casso has write-protected the disk for this session, because making changes to the disk would replace damaged tracks with blank ones.") != wstring::npos);
         Assert::IsTrue (body.find (L"salvage") == wstring::npos, L"nothing has been salvaged yet");
     }
 
@@ -356,6 +356,6 @@ public:
         Assert::IsTrue (body.find (L"\x2022 Unable to read track 4.\n") != wstring::npos);
         Assert::IsTrue (body.find (L"unreadable tracks read as blank.") != wstring::npos);
         Assert::IsTrue (body.find (L".\n\nCasso has loaded the disk so you can read the undamaged portions") != wstring::npos);
-        Assert::IsTrue (body.find (L"checksum, and") == wstring::npos, L"the lost tracks are the reason given");
+        Assert::IsTrue (body.find (L"new checksum") == wstring::npos, L"the lost tracks are the reason given");
     }
 };

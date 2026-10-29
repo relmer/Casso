@@ -203,14 +203,14 @@ wstring DamagedMountReport::FormatBody (const WriteProtectInfo & wp, const wstri
     {
         text += L"\nCasso has loaded the disk so you can read the undamaged portions; "
                 L"unreadable tracks read as blank. Casso has write-protected the disk for "
-                L"this session, because saving it would replace those tracks in the file "
-                L"with blank ones.";
+                L"this session, because making changes to the disk would replace damaged "
+                L"tracks with blank ones.";
     }
     else
     {
         text += L"\nCasso has loaded the disk so you can read it, and has write-protected it "
-                L"for this session. Saving it would store a new checksum, and the damage "
-                L"could no longer be detected.";
+                L"for this session. Saving it would store a new checksum, preventing the "
+                L"damage from being detected.";
     }
 
     return text;
