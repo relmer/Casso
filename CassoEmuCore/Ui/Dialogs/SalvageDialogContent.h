@@ -72,6 +72,7 @@ private:
 
     static constexpr int  s_kPathLines     = 3;    // a full path routinely wraps
     static constexpr int  s_kProseLines    = 3;
+    static constexpr int  s_kDestLines     = 2;    // a long file name wraps
     static constexpr int  s_kBannerEstDip  = 64;   // corrected once Layout runs
     static constexpr int  s_kGapDip        = 10;
     static constexpr int  s_kLineDip       = 19;

@@ -54,7 +54,7 @@ void SalvageDialogContent::SetAssessment (
     m_preferredHeightDip = s_kPathLines * s_kLineDip + s_kGapDip
                          + s_kProseLines * s_kLineDip + s_kGapDip
                          + static_cast<int> (m_rows.size()) * s_kLineDip + s_kGapDip
-                         + s_kLineDip + s_kGapDip
+                         + s_kDestLines * s_kLineDip + s_kGapDip
                          + s_kBannerEstDip;
 }
 
@@ -84,7 +84,7 @@ void SalvageDialogContent::Layout (const RECT & boundsDip, const DxuiDpiScaler &
     y += m_scaler.ToPx (s_kProseLines * s_kLineDip + s_kGapDip);
     y += m_scaler.ToPx (s_kPathLines * s_kLineDip + s_kGapDip);
     y += m_scaler.ToPx (s_kLineDip * static_cast<int> (m_rows.size()) + s_kGapDip);
-    y += m_scaler.ToPx (s_kLineDip + s_kGapDip);
+    y += m_scaler.ToPx (s_kDestLines * s_kLineDip + s_kGapDip);
 
     bannerRect.left   = boundsDip.left;
     bannerRect.top    = y;
@@ -232,12 +232,10 @@ void SalvageDialogContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     y += gap;
 
-    hr = text.DrawString (m_destLine.c_str(), left, y, width, lineH,
-                          theme.Foreground(), fontPx, face,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Top,
-                          DxuiFontWeight::SemiBold, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    y += lineH + gap;
+    //  The destination wraps as the path does: a long file name ran off the
+    //  right edge on one line.
+    y += DrawWrapped (text, theme, m_destLine, left, y, width, lineH * s_kDestLines,
+                      fontPx, face, DxuiFontWeight::SemiBold) + gap;
 
     // Size the banner to the height its text actually needs. Layout had to
     // estimate (no text renderer there), and the estimate rounds up so text

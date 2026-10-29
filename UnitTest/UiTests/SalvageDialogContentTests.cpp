@@ -72,4 +72,35 @@ public:
         Assert::IsTrue (drawn == DxuiFontWeight::SemiBold, L"semibold");
         Assert::IsTrue (measured == drawn, L"in the weight it is drawn in");
     }
+
+
+    //  The destination line wraps as the path does: a long file name ran off
+    //  the right edge on one line.
+    TEST_METHOD (TheDestinationLineIsMeasuredWrapped)
+    {
+        static constexpr const wchar_t *  kDest = L"A disk image with a long file name for the check.salvaged.woz";
+
+        SalvageDialogContent  content;
+        SalvageAssessment     assessment;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        CassoTheme            theme      = CassoTheme::MakeSkeuomorphic();
+        DxuiDpiScaler         scaler;
+        bool                  isMeasured = false;
+
+
+
+        assessment.totalSectors = 560;
+
+        content.SetAssessment (L"C:\\disks\\A disk image with a long file name for the check.woz", kDest, assessment);
+        content.Layout (RECT { 0, 0, 420, 400 }, scaler);
+        content.Paint (painter, text, theme);
+
+        for (const auto & [measuredText, weight] : text.WrappedMeasures())
+        {
+            isMeasured = isMeasured || (measuredText.find (kDest) != std::wstring::npos && weight == DxuiFontWeight::SemiBold);
+        }
+
+        Assert::IsTrue (isMeasured, L"the destination is measured wrapped, semibold");
+    }
 };
