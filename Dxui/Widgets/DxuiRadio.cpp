@@ -268,8 +268,22 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     uint32_t outline    = m_enabled ? ((theme.Foreground() & 0x00FFFFFFu) | 0x99000000u) : theme.ForegroundDisabled();
     uint32_t chosenFill = m_enabled ? theme.Accent() : theme.ForegroundDisabled();
     uint32_t dotColor   = DxuiTheme::GetContrastingText (chosenFill);
+    float    labelsW    = 0.0f;
 
 
+
+    //  The samples start in one column, after the widest label.
+    for (const DxuiRadioOption & opt : m_options)
+    {
+        float    width    = 0.0f;
+        float    height   = 0.0f;
+        HRESULT  measured = opt.sample.empty() ? S_FALSE : text.MeasureString (opt.label.c_str(), fontDip, DxuiTheme::GetUiFace(), width, height);
+
+        if (measured == S_OK)
+        {
+            labelsW = (std::max) (labelsW, width);
+        }
+    }
 
     for (i = 0; i < (int) n; ++i)
     {
@@ -325,6 +339,24 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (!opt.sample.empty())
+        {
+            constexpr float  s_kSampleGapDip = 16.0f;
+            float            sampleLeft      = textLeft + labelsW + m_scaler.ToPxf (s_kSampleGapDip);
+
+            hr = text.DrawString (opt.sample.c_str(),
+                                  sampleLeft,
+                                  (float) opt.rect.top,
+                                  textLeft + textWidth - sampleLeft,
+                                  labelH,
+                                  m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled(),
+                                  fontDip,
+                                  DxuiTheme::kMonoFace,
+                                  DxuiTextHAlign::Left,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
 
         //  The ring encloses the CIRCLE AND ITS LABEL, on the label's line.
         //  An option is one control; ringing the 16 DIP circle alone marked

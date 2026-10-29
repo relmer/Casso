@@ -32,10 +32,10 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kNoteHeightDip         = 72;
+    static constexpr int  kNoteHeightDip         = 124;
     static constexpr int  kOptionLabelHeightDip  = 20;
     static constexpr int  kOptionDescHeightDip   = 18;
-    static constexpr int  kOptionGapDip          = 6;
+    static constexpr int  kOptionGapDip          = 10;
 
 private:
     DxuiLabel       * m_namingLabel = nullptr;

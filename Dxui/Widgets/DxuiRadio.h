@@ -39,6 +39,10 @@ struct DxuiRadioOption
     // caller supplies; the widget splits what it is given rather than
     // growing to fit, because the caller owns the layout.
     std::wstring  description;
+
+    // Optional text after the label on its line, muted and in the monospace
+    // face, such as an example of what the option produces.
+    std::wstring  sample;
 };
 
 

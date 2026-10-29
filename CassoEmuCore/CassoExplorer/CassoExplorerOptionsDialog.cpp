@@ -102,16 +102,16 @@ bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 //
 //  CassoExplorerOptionsDialog::GetNamingOptions
 //
-//  Each style's name, over the file name of a BASIC program called HELLO in
-//  that style.
+//  Each style's name, the file name of a binary program called GAME that loads
+//  at $0803 in that style, and how the style stores the type and address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiRadioOption> CassoExplorerOptionsDialog::GetNamingOptions()
 {
-    return { DxuiRadioOption { {}, L"Descriptive", L"HELLO.Applesoft BASIC.txt" },
-             DxuiRadioOption { {}, L"CiderPress",  L"HELLO#FC0801" },
-             DxuiRadioOption { {}, L"AppleSingle", L"HELLO.as" } };
+    return { DxuiRadioOption { {}, L"Descriptive", L"The file type and load address are written into the file name in words.", L"GAME.Binary.$0803.bin" },
+             DxuiRadioOption { {}, L"CiderPress",  L"The file type and load address are written into the file name as six hex digits after a #, the form CiderPress uses.", L"GAME#060803" },
+             DxuiRadioOption { {}, L"AppleSingle", L"The file name is left as it is, and the file type and load address are stored in a header in front of the file's data.", L"GAME.as" } };
 }
 
 
@@ -136,9 +136,11 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_naming.SetOptions  (GetNamingOptions());
     m_naming.SetSelected (m_choices.hostNaming);
 
-    m_namingNote.SetText      (L"Apple files have a file type, and programs have a load address. A Windows file name has no place for either, "
-                               L"so when a file is copied to this PC, they are stored in its name or in an AppleSingle wrapper. Copying the file "
-                               L"back onto an Apple disk restores them. Casso Explorer reads all three forms, whichever is selected here.");
+    m_namingNote.SetText      (L"Apple files include metadata with the file's type (Applesoft BASIC, TEXT, ...) and, in the case of executable "
+                               L"programs, the load address for that program. When an Apple file is copied to the PC, this metadata must be stored "
+                               L"along with it so that when the file is copied back to an Apple disk, those properties can be restored.\n\n"
+                               L"Casso Explorer can read any of these formats when copying files into an Apple disk. The setting below controls "
+                               L"which format is used when Casso Explorer copies files from an Apple disk onto the PC.");
     ExplorerTextStyles::Apply (m_namingNote, ExplorerTextStyles::kFormNote);
     m_namingNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
