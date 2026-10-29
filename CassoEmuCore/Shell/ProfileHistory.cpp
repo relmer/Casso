@@ -295,11 +295,23 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfileHistory::GetBlocks (uint64_t fromCycle, std::vector<Block> & outBlocks) const
+void ProfileHistory::GetBlocks (
+    uint64_t                  fromCycle,
+    std::vector<Block>      & outBlocks,
+    std::optional<uint64_t>   toCycle) const
 {
     const KeyframeStore            * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
     std::vector<DebugEventBounds>    spans;
     size_t                           index     = 0;
+    auto                             cycleAt   = [&] (uint64_t position) -> std::optional<uint64_t>
+    {
+        size_t  at = 0;
+
+
+
+        return keyframes->TryFindByPosition (position, at) && keyframes->GetInfo (at).position == position
+                   ? std::optional<uint64_t> (keyframes->GetInfo (at).cycle) : std::nullopt;
+    };
 
 
 
@@ -344,6 +356,18 @@ void ProfileHistory::GetBlocks (uint64_t fromCycle, std::vector<Block> & outBloc
         block.endChecksum = block.isCacheable ? keyframes->GetInfo (index).checksum : 0;
         outBlocks.push_back (block);
     }
+
+    if (!toCycle.has_value() || keyframes == nullptr)
+    {
+        return;
+    }
+
+    std::erase_if (outBlocks, [&] (const Block & block) { return cycleAt (block.bounds.startPosition).value_or (0) >= *toCycle; });
+
+    for (Block & block : outBlocks)
+    {
+        block.isCacheable = block.isCacheable && cycleAt (block.bounds.endPosition).value_or (UINT64_MAX) <= *toCycle;
+    }
 }
 
 
@@ -374,16 +398,19 @@ ProfileHistory::BlockKey ProfileHistory::GetKey (const Block & block)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProfileHistory::Build (uint64_t fromCycle, std::string & error)
+HRESULT ProfileHistory::Build (
+    uint64_t                  fromCycle,
+    std::string             & error,
+    std::optional<uint64_t>   toCycle)
 {
-    HRESULT              hr      = S_OK;
-    uint64_t             toCycle = (m_machine.GetCpu() != nullptr) ? m_machine.GetCpu()->GetHistoryCycles() : 0;
+    HRESULT              hr       = S_OK;
+    uint64_t             endCycle = toCycle.value_or ((m_machine.GetCpu() != nullptr) ? m_machine.GetCpu()->GetHistoryCycles() : 0);
     std::vector<size_t>  pending;
-    bool                 isAny   = false;
+    bool                 isAny    = false;
 
 
 
-    GetBlocks (fromCycle, m_blocks);
+    GetBlocks (fromCycle, m_blocks, toCycle);
     isAny = !m_blocks.empty();
     CBRF (isAny, error = "There is no history to profile.");
 
@@ -396,6 +423,7 @@ HRESULT ProfileHistory::Build (uint64_t fromCycle, std::string & error)
     m_doneSpan   = 0;
     m_reused     = 0;
     m_isBuilding = true;
+    m_range      = { fromCycle, endCycle };
 
     for (size_t i = 0; i < m_blocks.size(); i++)
     {
@@ -419,7 +447,7 @@ HRESULT ProfileHistory::Build (uint64_t fromCycle, std::string & error)
 
     m_remaining = pending.size();
 
-    hr = SubmitBlocks (pending, fromCycle, toCycle);
+    hr = SubmitBlocks (pending, fromCycle, endCycle);
 
     //  A run that could not start cancels the runs that did, so the profile
     //  is not left building with nothing to finish it.
@@ -574,6 +602,7 @@ bool ProfileHistory::Pump (ProfileCountsPtr & outCounts)
 
     sum = std::make_shared<ProfileCounts>();
     sum->routines.SetFramesCoverAll (true);
+    sum->historyRange = m_range;
 
     for (const ProfileCountsPtr & counts : m_blockCounts)
     {

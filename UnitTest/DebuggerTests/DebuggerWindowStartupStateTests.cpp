@@ -131,6 +131,15 @@ namespace DebuggerStartupStateTests
     {
     public:
 
+        //  The caption has the label from `--title` ahead of Debugger, as the
+        //  emulator's window has it ahead of Casso.
+        TEST_METHOD (TheCaptionHasTheTitleLabelFirst)
+        {
+            Assert::AreEqual (std::wstring (L"Debugger"),                DebuggerWindow::GetCaption (L""));
+            Assert::AreEqual (std::wstring (L"035-debugger - Debugger"), DebuggerWindow::GetCaption (L"035-debugger"));
+        }
+
+
         //  While history recording is on, the live trace runs only while the trace
         //  pane is on screen: none is requested while the pane is behind
         //  another tab, one quiet trace-on action once it is on screen, and a

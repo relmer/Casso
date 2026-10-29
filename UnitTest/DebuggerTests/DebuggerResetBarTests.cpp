@@ -165,7 +165,7 @@ namespace DebuggerResetBarTests
 
             bar = window.GetCommandBar()->GetBounds();
 
-            Assert::AreEqual (std::string ("top 0"), host.savedDock);
+            Assert::AreEqual (std::string ("top 0 band 0"), host.savedDock, L"on the band the history timeline shares");
             Assert::IsFalse  (window.GetCommandBar()->IsVertical(), L"across the top");
             Assert::IsTrue   (bar.top < 120, L"right under the menu bar");
         }

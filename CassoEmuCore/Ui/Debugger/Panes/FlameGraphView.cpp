@@ -24,6 +24,7 @@ void FlameGraphView::SetData (const std::optional<ProfileData> & profile)
 {
     std::vector<uint64_t>  zoomPath;
     std::vector<uint64_t>  clickPath;
+    std::vector<uint64_t>  selectedPath;
     std::optional<size_t>  clicked;
 
 
@@ -35,6 +36,11 @@ void FlameGraphView::SetData (const std::optional<ProfileData> & profile)
 
     zoomPath = GetPath (m_tree, m_routines, m_zoom);
 
+    if (m_selected.has_value())
+    {
+        selectedPath = GetPath (m_tree, m_routines, *m_selected);
+    }
+
     if (m_click.has_value())
     {
         clickPath = GetPath (m_tree, m_routines, m_click->node);
@@ -44,6 +50,7 @@ void FlameGraphView::SetData (const std::optional<ProfileData> & profile)
     m_routines = profile->routines;
     m_zoom     = FindPath (m_tree, m_routines, zoomPath).value_or (0);
     clicked    = FindPath (m_tree, m_routines, clickPath);
+    m_selected = m_selected.has_value() ? FindPath (m_tree, m_routines, selectedPath) : std::nullopt;
 
     if (m_click.has_value() && clicked.has_value())
     {
@@ -355,6 +362,25 @@ void FlameGraphView::Relayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FlameGraphView::FindRoutineAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<size_t> FlameGraphView::FindRoutineAt (POINT point) const
+{
+    std::optional<size_t>  bar = FindBarAt (point);
+
+
+
+    return bar.has_value() ? std::optional<size_t> (m_tree[m_bars[*bar].node].routine) : std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FlameGraphView::GetRowTop
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,6 +452,14 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    for (const Bar & bar : m_bars)
+    {
+        if (m_selected == bar.node)
+        {
+            painter.OutlineRect (bar.x, GetRowTop (bar.row), std::max (1.0f, bar.width - 1.0f), row - 1.0f, m_scaler.ToPxf (2.0f), theme.FocusAccent());
+        }
+    }
+
     painter.PopClip();
 }
 
@@ -444,10 +478,11 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 bool FlameGraphView::OnMouse (const DxuiMouseEvent & ev)
 {
-    std::optional<size_t>  bar      = FindBarAt (ev.positionDip);
-    ULONGLONG              now      = GetTickCount64();
-    bool                   isDouble = false;
-    Word                   address  = 0;
+    std::optional<size_t>        bar      = FindBarAt (ev.positionDip);
+    ULONGLONG                    now      = GetTickCount64();
+    bool                         isDouble = false;
+    size_t                       node     = 0;
+    const ProfileRoutineEntry  * routine  = nullptr;
 
 
 
@@ -460,22 +495,34 @@ bool FlameGraphView::OnMouse (const DxuiMouseEvent & ev)
                std::abs (ev.positionDip.x - m_click->at.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
                std::abs (ev.positionDip.y - m_click->at.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
 
+    node = m_bars[*bar].node;
+
     if (isDouble)
     {
-        const ProfileRoutineEntry  & routine = m_routines[m_tree[m_click->node].routine];
-
-        address = routine.address;
         m_click.reset();
+        SetZoom (node);
 
-        if (routine.kind != RoutineKind::Top && m_activate)
+        if (m_onZoom)
         {
-            m_activate (address);
+            m_onZoom (node);
         }
 
         return true;
     }
 
-    m_click = Click { now, ev.positionDip, m_bars[*bar].node };
-    SetZoom (m_bars[*bar].node);
+    routine    = &m_routines[m_tree[node].routine];
+    m_click    = Click { now, ev.positionDip, node };
+    m_selected = node;
+
+    if (m_select)
+    {
+        m_select (m_tree[node].routine);
+    }
+
+    if (routine->kind != RoutineKind::Top && m_activate)
+    {
+        m_activate (routine->address);
+    }
+
     return true;
 }

@@ -5,6 +5,7 @@
 #include "Core/TextEncoding.h"
 #include "Debugger/LineAssembler.h"
 #include "OpcodeTable.h"
+#include "Ui/Debugger/Panes/AddSymbolDialog.h"
 #include "Ui/Debugger/TextDialog.h"
 
 
@@ -110,7 +111,7 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
     }
 
     items.push_back ({ L"Clear data marking", [this, range] { m_host.RunAction (DebuggerActions::GetClearData (range.first, range.second, m_host.GetMode())); } });
-    items.push_back ({ L"Add symbol here...", [this, at]    { AddSymbolAt (at); } });
+    items.push_back ({ L"Add symbol here...", [this, at]    { AddSymbolDialog::Run (m_host, at); } });
     items.push_back ({ L"Never step into this routine", [this, name, routine] { m_host.RunAction (DebuggerActions::GetSkipRoutine (name, routine, m_host.GetMode())); } });
 
     if (bookmark != snapshot.bookmarks.end())
@@ -388,37 +389,4 @@ void CodeEditCommands::Undo (bool redo)
     m_host.RunAction (redo ? DebuggerActions::GetPatch (edit.address, edit.after, m_host.GetMode(), edit.before)
                            : DebuggerActions::GetPatch (edit.address, edit.before, m_host.GetMode(), edit.after));
     to.push_back (std::move (edit));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CodeEditCommands::AddSymbolAt
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CodeEditCommands::AddSymbolAt (Word address)
-{
-    std::optional<std::wstring>  typed;
-
-
-
-    typed = m_host.RunTextDialog (L"Add symbol", L"Name", L"LOOP", [] (const std::wstring & text, std::wstring & error)
-    {
-        bool  isName = !text.empty() && iswalpha (text[0]) &&
-                       std::ranges::all_of (text, [] (wchar_t ch) { return iswalnum (ch) || ch == L'_' || ch == L'.'; });
-
-
-
-        error = isName ? std::wstring() : std::wstring (L"A symbol name starts with a letter and has letters, digits, _ and . after it.");
-        return isName;
-    });
-
-    if (typed.has_value())
-    {
-        m_host.RunAction (DebuggerActions::GetAddSymbol (TextEncoding::WideToNarrow (*typed), address, m_host.GetMode()));
-    }
 }

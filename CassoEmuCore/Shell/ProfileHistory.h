@@ -63,9 +63,9 @@ public:
     void  WaitForWork  ();
 
     //  The profile from fromCycle, or from history's start when it is
-    //  earlier, to the machine's position. An error when there is no
-    //  history to replay.
-    HRESULT  Build (uint64_t fromCycle, std::string & error);
+    //  earlier, to toCycle or, with none, the machine's position. An error
+    //  when there is no history to replay.
+    HRESULT  Build (uint64_t fromCycle, std::string & error, std::optional<uint64_t> toCycle = {});
 
     //  The finished profile, once the last block is in.
     bool  Pump (ProfileCountsPtr & outCounts);
@@ -77,7 +77,9 @@ public:
     //  wherever no gap divides them; for a test.
     void  GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds> & outBounds) const;
 
-    //  Those stretches cut into blocks, oldest first.
+    //  Those stretches cut into blocks, oldest first, the ones that start
+    //  at or past toCycle left out. A block that runs past toCycle is not
+    //  cached, since its counts stop there.
     struct Block
     {
         DebugEventBounds  bounds;
@@ -86,7 +88,7 @@ public:
         bool              isCacheable   = false;   // ends at a keyframe and lies wholly in the period
     };
 
-    void  GetBlocks (uint64_t fromCycle, std::vector<Block> & outBlocks) const;
+    void  GetBlocks (uint64_t fromCycle, std::vector<Block> & outBlocks, std::optional<uint64_t> toCycle = {}) const;
 
     //  How many blocks the last build used from the cache; for a test.
     size_t  GetReusedCount () const { return m_reused; }
@@ -123,6 +125,7 @@ private:
     bool                                    m_isBuilding     = false;
     uint64_t                                m_totalSpan      = 0;
     uint64_t                                m_doneSpan       = 0;
+    CycleRange                              m_range;                     // the cycles of the build under way
     uint64_t                                m_blockPositions = kBlockPositions;
     IsStoppedFn                             m_isStopped;
 };

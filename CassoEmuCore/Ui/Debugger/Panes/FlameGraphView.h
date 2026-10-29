@@ -13,9 +13,9 @@
 //
 //  The profile's call tree as rows of bars, Top level across the top and
 //  each routine under its caller, as wide as its total. A zoomed routine
-//  spans the width under its callers' bars; a click on a bar zooms to it,
-//  so a click on Top level zooms out, and a double-click moves the
-//  disassembly to the routine.
+//  spans the width under its callers' bars. A click on a bar selects its
+//  routine, outlining the bar, and moves the disassembly to it; a
+//  double-click zooms to it, so a double-click on Top level zooms out.
 //
 //  Bounds are pixels, like every Dxui control.
 //
@@ -33,15 +33,20 @@ public:
     };
 
     using ActivateFn = std::function<void (Word address)>;
+    using SelectFn   = std::function<void (size_t routine)>;
+    using ZoomFn     = std::function<void (size_t node)>;
 
     static constexpr int  kRowDip   = 20;
     static constexpr int  kLabelDip = 24;
 
     void  SetData       (const std::optional<ProfileData> & profile);
     void  SetOnActivate (ActivateFn activate) { m_activate = std::move (activate); }
+    void  SetOnSelect   (SelectFn select)     { m_select   = std::move (select); }
+    void  SetOnZoom     (ZoomFn zoom)         { m_onZoom   = std::move (zoom); }
     void  SetZoom       (size_t node);
 
     size_t                    GetZoom () const { return m_zoom; }
+    std::optional<size_t>     GetSelected () const { return m_selected; }
     const std::vector<Bar> &  GetBars () const { return m_bars; }
 
     //  The bars over a width: the zoomed node's callers full width, one row
@@ -52,7 +57,11 @@ public:
     //  A routine's color, one of a few hues by its place in the routines.
     static uint32_t  GetRoutineColor (size_t routine);
 
-    std::optional<size_t>  FindBarAt   (POINT point) const;
+    std::optional<size_t>  FindBarAt     (POINT point) const;
+
+    //  The routine of the bar at a point, an index in the profile's
+    //  routines, or none.
+    std::optional<size_t>  FindRoutineAt (POINT point) const;
     bool                   TryGetTipAt (POINT point, std::wstring & text) const;
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
@@ -79,7 +88,10 @@ private:
     std::vector<ProfileRoutineEntry>  m_routines;
     std::vector<Bar>                  m_bars;
     size_t                            m_zoom  = 0;
+    std::optional<size_t>             m_selected;
     std::optional<Click>              m_click;
     ActivateFn                        m_activate;
+    SelectFn                          m_select;
+    ZoomFn                            m_onZoom;
     DxuiDpiScaler                     m_scaler;
 };

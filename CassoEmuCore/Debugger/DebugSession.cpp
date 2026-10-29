@@ -1108,6 +1108,58 @@ void DebugSession::ForgetSymbolLoads (SymbolTableId table)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::NoteAddedSymbol
+//
+//  A name matches without regard to case, as the symbol tables match it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::NoteAddedSymbol (SymbolTableId table, const std::string & name, Word address)
+{
+    ForgetAddedSymbol (table, name);
+    m_addedSymbols.push_back ({ table, name, address });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ForgetAddedSymbol
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ForgetAddedSymbol (SymbolTableId table, const std::string & name)
+{
+    std::string  upper = SymbolTable::ToUpper (name);
+
+
+
+    std::erase_if (m_addedSymbols, [&] (const AddedSymbol & added) { return added.table == table && SymbolTable::ToUpper (added.name) == upper; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ForgetAddedSymbols
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ForgetAddedSymbols (SymbolTableId table)
+{
+    std::erase_if (m_addedSymbols, [table] (const AddedSymbol & added) { return added.table == table; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::NoteBinaryLoad
 //
 ////////////////////////////////////////////////////////////////////////////////

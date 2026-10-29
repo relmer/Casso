@@ -53,6 +53,10 @@ struct PaneTip
     //  A color for each line, 0 for the tip's own; none for a tip in one
     //  color.
     std::vector<uint32_t>  lineColors;
+
+    //  A swatch of color before each line, 0 for none (DxuiTooltip::
+    //  SetLineSwatches).
+    std::vector<uint32_t>  lineSwatches;
 };
 
 

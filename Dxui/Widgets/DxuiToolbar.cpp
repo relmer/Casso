@@ -2571,7 +2571,7 @@ void DxuiToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         painter.FillRect (bl,             btTop, 1.0f, bhAll, theme.ContentEdge());
         painter.FillRect (bl + bw - 1.0f, btTop, 1.0f, bhAll, theme.ContentEdge());
     }
-    else if (!m_vertical)
+    else if (!m_vertical && m_bottomEdge)
     {
         painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.ContentEdge());
     }

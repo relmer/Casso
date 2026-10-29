@@ -43,10 +43,11 @@ public:
     //  The profile as PROFILE LIST has it, with the list given.
     void  BuildProfile (DebugSession & session, ProfileList list, ProfileData & data) const;
 
-    //  PROFILE HISTORY's build, from a cycle to the machine's position, which
-    //  the shell's history replays; and its finished counts, which take the
-    //  place of the profile's, whether profiling is on or not.
-    using HistoryProfiler = std::function<HRESULT (uint64_t fromCycle, std::string & error)>;
+    //  PROFILE HISTORY's build, from a cycle to another or, with none, to the
+    //  machine's position, which the shell's history replays; and its
+    //  finished counts, which take the place of the profile's, whether
+    //  profiling is on or not.
+    using HistoryProfiler = std::function<HRESULT (uint64_t fromCycle, std::optional<uint64_t> toCycle, std::string & error)>;
 
     void  SetHistoryProfiler (HistoryProfiler profiler) { m_historyProfiler = std::move (profiler); }
     void  InstallProfile     (const ProfileCounts & counts);
@@ -104,7 +105,7 @@ private:
     static void  ShowBranchRecord  (DebugSession & session, Reply & reply);
     void         ToggleTrace       (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         Profile           (DebugSession & session, const DebugCommand & command, Reply & reply);
-    void         BuildProfileFromHistory (DebugSession & session, const std::string & argument, Reply & reply);
+    void         BuildProfileFromHistory (DebugSession & session, const std::string & arguments, Reply & reply);
     void         Stopwatch         (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         ShowStopwatch     (Reply & reply) const;
     void         ShowCycles        (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -134,6 +135,8 @@ private:
     HistoryProfiler                    m_historyProfiler;
     CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
+    std::optional<CycleRange>          m_historyRange;                    // the installed profile's, from history
+    uint64_t                           m_historyBuilds  = 0;              // the builds from history installed
     std::deque<Byte>                   m_keys;
     uint64_t                           m_lastRunCycles  = 0;
 };

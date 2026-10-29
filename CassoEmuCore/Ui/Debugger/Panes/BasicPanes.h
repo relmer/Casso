@@ -158,3 +158,39 @@ public:
 private:
     static std::string  Quote (BasicType type, const std::string & value);
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicAutoWatches
+//
+//  The BASIC variables among the automatic watches at each stop: the
+//  statement being run's, then those of the statement the stop before was
+//  at that this one does not use, as Visual Studio's Autos list the line
+//  before as well. A new stop has a cycle count different from the last
+//  one's. A value that differs from the stop before's is changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class BasicAutoWatches
+{
+public:
+    struct Row
+    {
+        BasicWatches::Item  item;
+        bool                isPrevious = false;     // the statement before's, not the one being run's
+        bool                isChanged  = false;
+    };
+
+    std::vector<Row>  Update (const DebuggerViewSnapshot::BasicState & basic, uint64_t cycles);
+
+private:
+    uint64_t                            m_cycles = UINT64_MAX;
+    std::vector<std::string>            m_names;            // the statement being run's, at this stop
+    std::vector<std::string>            m_previous;         // the statement the stop before was at
+    std::map<std::string, std::string>  m_values;           // at this stop
+    std::map<std::string, std::string>  m_lastValues;       // at the stop before
+};

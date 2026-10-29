@@ -182,6 +182,8 @@ bool TooltipCoordinator::TryShowPaneTip (POINT clientPx, DxuiTooltip & tip, int6
             tip.SetLineColors (std::move (paneTip.lineColors));
         }
 
+        tip.SetLineSwatches (std::move (paneTip.lineSwatches));
+
         if (paneTip.kind == PaneTip::Kind::Control)
         {
             tip.RequestShow (paneTip.anchor, paneTip.text, now);

@@ -2780,6 +2780,7 @@ int DxuiListView::GetCellLeadPx (const Cell & cell) const
 
     lead += cell.check.has_value() ? m_scaler.ToPx (s_kCellCheckDip + s_kCellCheckGapDip) : 0;
     lead += cell.icon              ? m_scaler.ToPx (s_kCellIconDip  + s_kCellIconGapDip)  : 0;
+    lead += (cell.swatch != 0)     ? m_scaler.ToPx (s_kCellSwatchDip + s_kCellIconGapDip) : 0;
 
     return lead;
 }
@@ -3497,6 +3498,16 @@ void DxuiListView::PaintDataRows (
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 iconShift += iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
+            }
+
+            if (cells[c].swatch != 0)
+            {
+                float  swatchPx = m_scaler.ToPxf ((float) s_kCellSwatchDip);
+
+                painter.FillRect (x + colOff + (float) colXPx[c] + cellPadL + iconShift, ry + std::round ((rowH - swatchPx) * 0.5f),
+                                  swatchPx, swatchPx, cells[c].swatch);
+
+                iconShift += swatchPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
             }
 
             //  The cell's own face where it has one, for every run drawn in it.

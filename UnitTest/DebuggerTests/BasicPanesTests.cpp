@@ -390,6 +390,43 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("S$"), items[0].name);
         }
 
+        //  After a step from I = I + 1 to GOTO 10, I is among the automatic
+        //  watches, as Visual Studio's Autos list what the line before used:
+        //  the statement just run's variables follow the next one's, marked
+        //  as the previous statement's, and a value that differs from the
+        //  last stop's is marked changed.
+        TEST_METHOD (TheStatementJustRunKeepsItsVariablesAmongTheAutos)
+        {
+            BasicLine                           increment = MakeLine (0x0810, 20, { "I", "=", "I", "+", "1" });
+            BasicLine                           jump      = MakeLine (0x0820, 30, { " GOTO ", "1", "0" });
+            DebuggerViewSnapshot::BasicState    state     = MakeState ({ increment, jump }, 20, (Word) (increment.address + kBodyOffset));
+            BasicAutoWatches                    autos;
+            std::vector<BasicAutoWatches::Row>  rows;
+
+
+
+            state.hasValues = true;
+            state.variables = { { "I", BasicType::Real, 0, "0" } };
+            rows            = autos.Update (state, 100);
+
+            Assert::AreEqual ((size_t) 1, rows.size());
+            Assert::AreEqual (std::string ("I"), rows[0].item.name);
+            Assert::IsFalse  (rows[0].isPrevious || rows[0].isChanged, L"the statement being run's, as it was");
+
+            state.line        = 30;
+            state.textPointer = (Word) (jump.address + kBodyOffset);
+            state.variables   = { { "I", BasicType::Real, 0, "1" } };
+            rows              = autos.Update (state, 200);
+
+            Assert::AreEqual ((size_t) 1, rows.size(), L"GOTO 10 has no variable, and I stays");
+            Assert::AreEqual (std::string ("1"), rows[0].item.value);
+            Assert::IsTrue   (rows[0].isPrevious, L"the statement just run's");
+            Assert::IsTrue   (rows[0].isChanged,  L"it changed since the last stop");
+
+            rows = autos.Update (state, 200);
+            Assert::IsTrue (rows.size() == 1 && rows[0].isPrevious && rows[0].isChanged, L"the same stop again has the same rows");
+        }
+
         //  The characters past the second are dimmed, up to the type's sign.
         TEST_METHOD (TheCharactersPastTheSecondAreDimmed)
         {

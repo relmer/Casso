@@ -25,6 +25,7 @@
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/Panes/ProfilerPane.h"
 #include "Ui/Debugger/StepFiltersDialog.h"
 
 

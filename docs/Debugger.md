@@ -418,7 +418,8 @@ reads.
 A debug project, one for each program, has the debugger's configuration:
 
 - breakpoints and the name of each, watches, zero-page pointers, bookmarks,
-  data directives, step filters, loaded symbol files and which symbol tables
+  data directives, step filters, loaded symbol files, the symbols you added
+  with `SYM name = addr` or **Add symbol here...**, and which symbol tables
   are on;
 - the command mode, the `CD` directory, the instruction trace and trace file,
   the profiler, the stopwatch and where the trip count starts;
@@ -641,7 +642,10 @@ a BASIC line breakpoint is set.
   line breakpoint there, or clears the one there. With the keys in this pane,
   Step into runs `BASICSTEP`, Step over `BASICLINE` and Step out `BASICOUT`.
 - **Watches** lists the variables while the machine is stopped in a running
-  program. The Automatic section has the ones the statement being run uses.
+  program. The Automatic section has the ones the statement being run uses,
+  then in italics the ones the statement just run used, so a step past
+  `I = I + 1` lists I there too; a value that changed since the last stop is in
+  the changed color.
   `W` with a variable or array element as Applesoft writes it, such as `A$`,
   `N%` or `X(2,3)`, watches it, as it does a plain name the stopped program
   has, unless a symbol has the name; text typed in the add row is read the
@@ -1138,18 +1142,33 @@ menu also opens these, which stay closed until first opened:
 - **Profiler**, the profile as `PROFILE` lists it, read while the machine
   is paused. Its bar builds the profile of a period of history with **Show**,
   starts the counts over with the Reset glyph, writes them to a text file with
-  the Save glyph, and chooses **Opcodes**, **Addresses**, **Routines**, **Call
-  tree** or **Flame graph**. A line above the list has the totals and the time
+  the Save glyph, and chooses **Routines**, the view it opens on, **Call
+  tree**, **Flame graph**, **Addresses** or **Opcodes**. A click on a
+  column's heading sorts the list by it, and a second click turns the order
+  around; each view opens sorted by cycles, or by total for the routines and
+  the call tree, most first, and the call tree sorts each routine's callees
+  under it. The routines and the call tree have a square of each routine's
+  timeline color before its name. A line above the list has the totals and the time
   the profile's cycles cover, so a period longer than the history reads as
   the shorter time there is; while a profile builds, its progress bar is drawn
   over the list. A timeline of the period runs across the top, each bar a
   frame, or several frames joined when the period has more than fit, with its
   cycles by routine, the eight hottest in color and the rest in
-  gray; resting the pointer on a bar lists its routines. The flame graph
+  gray; resting the pointer on a bar lists its routines. The wheel over the
+  timeline zooms it around the pointer, with or without Ctrl, and a
+  horizontal wheel or Shift+wheel pans it; once the wheel stops, the
+  zoomed span is profiled from history, so its bars are single frames. A
+  drag across the timeline selects whole frames, and the list and the flame
+  graph then cover only the selection; a click on the timeline clears it.
+  Each zoom, selection and flame graph zoom is a step that the mouse's back
+  and forward buttons, or Alt+Left and Alt+Right, move through, as in a
+  browser, without profiling again. The flame graph
   draws Top level across the top and each routine under its caller, as wide as
-  its total: a click zooms into a routine, a click on Top level or a caller
-  above zooms back out, and a double-click goes to the routine's code. In
-  every view, activating a routine moves the disassembly to it.
+  its total: a click selects a routine, outlining its bar, moves the
+  disassembly to it and selects its row the next time you switch to the
+  routines or the call tree; a double-click zooms into it, and a
+  double-click on Top level or a caller above zooms back out. In every view, activating a routine
+  moves the disassembly to it.
 - **Data ranges**, each range marked as data, with **Go to** and **Delete**.
 
 **Debug > Step filters...** lists the routines a step goes over, each a
@@ -1212,6 +1231,11 @@ video line and a beam position are rows of the pane after the table's
 breakpoints; unchecking or removing one runs `BRKUNINIT OFF`, `BPV OFF` or
 `BPBEAM OFF`, and a read before written is listed as counting from the next
 power cycle until the heat map tracks writes.
+
+An execution breakpoint set by a symbol's name, as `BP COUT`, is a function
+breakpoint: its Kind is "Function", `BPSAVE` writes it by name, and when a
+symbol load puts the name at another address, the breakpoint moves there. One
+set by address is "Breakpoint", a symbol at that address included.
 
 The Watches pane has an ID column: **Auto** for what the instruction at the
 PC and the one just run touch, the watch's number for a watch, and ZPn for a

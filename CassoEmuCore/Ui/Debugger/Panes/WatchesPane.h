@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/WatchHistory.h"
 
@@ -104,4 +105,5 @@ private:
     std::vector<Row>     m_rows;
     Edit                 m_edit;
     bool                 m_isBasicVariablesExpanded = false;
+    BasicAutoWatches     m_basicAutos;
 };

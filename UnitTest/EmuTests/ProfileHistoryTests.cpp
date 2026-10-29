@@ -63,8 +63,9 @@ namespace ProfileHistoryTests
 
 
 
-        //  The finished counts of a build from fromCycle.
-        ProfileCountsPtr  BuildFrom (uint64_t fromCycle)
+        //  The finished counts of a build from fromCycle, to toCycle or the
+        //  machine's position.
+        ProfileCountsPtr  BuildFrom (uint64_t fromCycle, std::optional<uint64_t> toCycle = {})
         {
             ProfileCountsPtr  counts;
             std::string       error;
@@ -72,7 +73,7 @@ namespace ProfileHistoryTests
 
 
 
-            hr = logs.GetProfileHistory().Build (fromCycle, error);
+            hr = logs.GetProfileHistory().Build (fromCycle, error, toCycle);
             AssertSucceeded (hr, TextEncoding::NarrowToWide (error).c_str());
 
             logs.GetProfileHistory().WaitForWork();
@@ -139,6 +140,44 @@ namespace ProfileHistoryTests
 
             Assert::IsTrue (counts->table.GetTotalCycles() + 8 >= kPeriod && counts->table.GetTotalCycles() <= kPeriod + 8,
                             std::format (L"{} cycles counted of {}", counts->table.GetTotalCycles(), kPeriod).c_str());
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ARangeCountsOnlyItsOwnCycles
+        //
+        //  A build of a range in the middle of history counts only the
+        //  instructions that start in it, and a block it cut short is not
+        //  cached for a later build of the whole.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ARangeCountsOnlyItsOwnCycles)
+        {
+            ProfileRig        rig;
+            uint64_t          first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t          span   = rig.machine.GetCpu()->GetTotalCycles() - first;
+            uint64_t          from   = first + span / 4;
+            uint64_t          to     = first + span / 2;
+            ProfileCountsPtr  counts;
+            ProfileCountsPtr  whole;
+
+
+
+            rig.logs.GetProfileHistory().SetBlockPositions (100'000);
+
+            counts = rig.BuildFrom (from, to);
+            Assert::IsTrue (counts->historyRange == CycleRange { from, to }, L"the counts have the range asked for");
+            Assert::IsTrue (counts->table.GetTotalCycles() + 8 >= to - from && counts->table.GetTotalCycles() <= to - from + 8,
+                            std::format (L"{} cycles counted of {}", counts->table.GetTotalCycles(), to - from).c_str());
+
+            whole = rig.BuildFrom (0);
+            Assert::IsTrue (whole->table.GetTotalCycles() + 8 >= span && whole->table.GetTotalCycles() <= span + 8,
+                            std::format (L"{} cycles counted of {}", whole->table.GetTotalCycles(), span).c_str());
         }
 
 

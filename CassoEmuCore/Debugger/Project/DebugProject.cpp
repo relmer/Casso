@@ -40,7 +40,14 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
 
 
-    script  = BreakpointHandlers::MakeScript (session);
+    //  The symbols the user added first, so a breakpoint or watch set by
+    //  such a symbol's name resolves.
+    for (const DebugSession::AddedSymbol & added : session.GetAddedSymbols())
+    {
+        script += std::format ("SYM{} {} = {:04X}\n", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (added.table)), added.name, added.address);
+    }
+
+    script += BreakpointHandlers::MakeScript (session);
     script += WatchHandlers::MakeScript (session, WatchListKind::Watch);
     script += WatchHandlers::MakeScript (session, WatchListKind::ZeroPage);
     script += WatchHandlers::MakeScript (session, WatchListKind::Bookmark);

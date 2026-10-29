@@ -220,6 +220,22 @@ public:
     void                              ForgetSymbolLoads (SymbolTableId table);
     const std::vector<SymbolLoad>   & GetSymbolLoads    () const { return m_symbolLoads; }
 
+    //  Each symbol the user added, with `SYM<table> name = addr` or Add
+    //  symbol here..., for a debug project to add again after its symbol files
+    //  load; adding a name again replaces it, and removing it or clearing
+    //  its table removes it.
+    struct AddedSymbol
+    {
+        SymbolTableId  table   = SymbolTableId::User;
+        std::string    name;
+        Word           address = 0;
+    };
+
+    void                              NoteAddedSymbol    (SymbolTableId table, const std::string & name, Word address);
+    void                              ForgetAddedSymbol  (SymbolTableId table, const std::string & name);
+    void                              ForgetAddedSymbols (SymbolTableId table);
+    const std::vector<AddedSymbol>  & GetAddedSymbols    () const { return m_addedSymbols; }
+
     //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
     //  and its file's name; a debug project's key while no debug file is
     //  loaded (FR-167).
@@ -518,6 +534,7 @@ private:
     uint64_t                              m_cycleMarker   = 0;
     StepFilter                            m_stepFilter;
     std::vector<SymbolLoad>               m_symbolLoads;
+    std::vector<AddedSymbol>              m_addedSymbols;
     std::string                           m_binaryKey;
     std::string                           m_binaryName;
     CallStackRecorder                     m_callRecorder;

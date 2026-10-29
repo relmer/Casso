@@ -36,17 +36,101 @@ void ProfileTimeline::SetData (const std::optional<ProfileData> & profile)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProfileTimeline::GetSlotX
+//  ProfileTimeline::GetDataSpan
+//
+//  From the first frame's start to the last one's end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float ProfileTimeline::GetSlotX (size_t slot) const
+ProfileTimeline::Range ProfileTimeline::GetDataSpan() const
 {
-    float  width = (float) (m_boundsDip.right - m_boundsDip.left);
+    constexpr int64_t  kFrame = (int64_t) RoutineProfile::kCyclesPerFrame;
 
 
 
-    return (float) m_boundsDip.left + width * (float) slot / (float) RoutineProfile::kFrameCount;
+    if (m_frames.empty())
+    {
+        return { 0, (int64_t) RoutineProfile::kFrameCount * kFrame };
+    }
+
+    return { (int64_t) m_frames.front().index * kFrame, (int64_t) (m_frames.back().index + m_frames.back().count) * kFrame };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::GetDefaultView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfileTimeline::Range ProfileTimeline::GetDefaultView() const
+{
+    Range  span = GetDataSpan();
+
+
+
+    return { std::min (span.first, span.second - (int64_t) RoutineProfile::kFrameCount * (int64_t) RoutineProfile::kCyclesPerFrame), span.second };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::SetView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileTimeline::SetView (int64_t fromCycle, int64_t toCycle)
+{
+    if (toCycle > fromCycle)
+    {
+        m_view = Range { fromCycle, toCycle };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::GetCycleX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float ProfileTimeline::GetCycleX (int64_t cycle) const
+{
+    Range   view  = GetView();
+    double  width = (double) (m_boundsDip.right - m_boundsDip.left);
+
+
+
+    return (float) ((double) m_boundsDip.left + width * (double) (cycle - view.first) / (double) std::max<int64_t> (view.second - view.first, 1));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::GetCycleAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t ProfileTimeline::GetCycleAt (int x) const
+{
+    Range   view  = GetView();
+    double  width = (double) std::max<LONG> (m_boundsDip.right - m_boundsDip.left, 1);
+
+
+
+    return view.first + (int64_t) std::llround ((double) (view.second - view.first) * (double) (x - m_boundsDip.left) / width);
 }
 
 
@@ -57,31 +141,29 @@ float ProfileTimeline::GetSlotX (size_t slot) const
 //
 //  ProfileTimeline::FindFrameAt
 //
-//  The frames fill the last slots, so the newest is always at the right.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<size_t> ProfileTimeline::FindFrameAt (POINT point) const
 {
-    float   width = (float) (m_boundsDip.right - m_boundsDip.left);
-    size_t  slot  = 0;
-    size_t  first = RoutineProfile::kFrameCount - std::min (m_frames.size(), RoutineProfile::kFrameCount);
+    constexpr int64_t  kFrame = (int64_t) RoutineProfile::kCyclesPerFrame;
+    int64_t            cycle  = GetCycleAt (point.x);
 
 
 
-    if (width <= 0.0f || point.x < m_boundsDip.left || point.x >= m_boundsDip.right || point.y < m_boundsDip.top || point.y >= m_boundsDip.bottom)
+    if (point.x < m_boundsDip.left || point.x >= m_boundsDip.right || point.y < m_boundsDip.top || point.y >= m_boundsDip.bottom)
     {
         return std::nullopt;
     }
 
-    slot = (size_t) ((float) (point.x - m_boundsDip.left) * (float) RoutineProfile::kFrameCount / width);
-
-    if (slot < first || slot - first >= m_frames.size())
+    for (size_t i = 0; i < m_frames.size(); i++)
     {
-        return std::nullopt;
+        if (cycle >= (int64_t) m_frames[i].index * kFrame && cycle < (int64_t) (m_frames[i].index + m_frames[i].count) * kFrame)
+        {
+            return i;
+        }
     }
 
-    return slot - first;
+    return std::nullopt;
 }
 
 
@@ -94,7 +176,11 @@ std::optional<size_t> ProfileTimeline::FindFrameAt (POINT point) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, const std::vector<ProfileRoutineEntry> & routines)
+std::wstring ProfileTimeline::GetFrameTip (
+    const ProfileFrameEntry                 & frame,
+    const std::vector<ProfileRoutineEntry>  & routines,
+    uint32_t                                  otherArgb,
+    std::vector<uint32_t>                   & swatches)
 {
     std::vector<std::pair<size_t, uint64_t>>  shares = frame.shares;
     uint64_t                                  total  = frame.other;
@@ -114,6 +200,8 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
                                             DebuggerStatusText::FormatCount (frame.index + frame.count - 1), DebuggerStatusText::FormatCount (total))
                              : std::format (L"Frame {}: {} cycles", DebuggerStatusText::FormatCount (frame.index), DebuggerStatusText::FormatCount (total));
 
+    swatches.assign (1, 0);
+
     for (size_t i = 0; i < shares.size(); i++)
     {
         if (i >= kTipRoutines)
@@ -124,14 +212,54 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
 
         text += std::format (L"\n{}: {} cycles ({:.1f}%)", TextEncoding::NarrowToWide (routines[shares[i].first].GetName()),
                              DebuggerStatusText::FormatCount (shares[i].second), 100.0 * (double) shares[i].second / (double) std::max<uint64_t> (total, 1));
+        swatches.push_back (GetShareColor (shares[i].first, otherArgb));
     }
 
     if (rest != 0)
     {
         text += std::format (L"\nOther routines: {} cycles", DebuggerStatusText::FormatCount (rest));
+        swatches.push_back (otherArgb);
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::SetPointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfileTimeline::SetPointer (std::optional<int> x)
+{
+    bool  isChanged = x != m_pointerX;
+
+
+
+    m_pointerX = x;
+    return isChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::GetShareColor
+//
+//  The kColoredRoutines hottest routines have the flame graph's colors, and
+//  the rest, SIZE_MAX among them, the color drawn for them together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ProfileTimeline::GetShareColor (size_t routine, uint32_t otherArgb)
+{
+    return (routine < kColoredRoutines) ? FlameGraphView::GetRoutineColor (routine) : otherArgb;
 }
 
 
@@ -144,7 +272,10 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProfileTimeline::TryGetTipAt (POINT point, std::wstring & text) const
+bool ProfileTimeline::TryGetTipAt (
+    POINT                    point,
+    std::wstring           & text,
+    std::vector<uint32_t>  & swatches) const
 {
     std::optional<size_t>  frame = FindFrameAt (point);
 
@@ -155,7 +286,7 @@ bool ProfileTimeline::TryGetTipAt (POINT point, std::wstring & text) const
         return false;
     }
 
-    text = GetFrameTip (m_frames[*frame], m_routines);
+    text = GetFrameTip (m_frames[*frame], m_routines, m_otherArgb, swatches);
     return true;
 }
 
@@ -191,9 +322,11 @@ void ProfileTimeline::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 
 void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float   height = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float   bottom = (float) m_boundsDip.bottom;
-    size_t  first  = RoutineProfile::kFrameCount - std::min (m_frames.size(), RoutineProfile::kFrameCount);
+    constexpr int64_t  kFrame = (int64_t) RoutineProfile::kCyclesPerFrame;
+    float              height = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float              bottom = (float) m_boundsDip.bottom;
+    float              left   = (float) m_boundsDip.left;
+    float              right  = (float) m_boundsDip.right;
 
 
 
@@ -204,15 +337,23 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         return;
     }
 
+    m_otherArgb = theme.Divider();
     painter.FillRect ((float) m_boundsDip.left, bottom - 1.0f, (float) (m_boundsDip.right - m_boundsDip.left), 1.0f, theme.Divider());
 
     for (size_t i = 0; i < m_frames.size(); i++)
     {
         std::vector<std::pair<size_t, uint64_t>>  shares = m_frames[i].shares;
-        float                                     x      = GetSlotX (first + i);
-        float                                     width  = std::max (1.0f, GetSlotX (first + i + 1) - x);
+        float                                     x      = std::max (left,  GetCycleX ((int64_t) m_frames[i].index * kFrame));
+        float                                     end    = std::min (right, GetCycleX ((int64_t) (m_frames[i].index + m_frames[i].count) * kFrame));
+        float                                     width  = std::max (1.0f, end - x);
         float                                     y      = bottom;
         uint64_t                                  rest   = m_frames[i].other;
+
+        //  Outside the range, the frame is not drawn.
+        if (end <= x)
+        {
+            continue;
+        }
 
         for (const auto & [routine, cycles] : shares)
         {
@@ -235,7 +376,27 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
             }
 
             y -= tall;
-            painter.FillRect (x, y, width, tall, (routine == SIZE_MAX) ? theme.Divider() : FlameGraphView::GetRoutineColor (routine));
+            painter.FillRect (x, y, width, tall, GetShareColor (routine, m_otherArgb));
         }
+    }
+
+    //  The selection, in the theme's focus color, see-through over the bars,
+    //  with its edges solid.
+    if (m_selection.has_value())
+    {
+        constexpr uint32_t  kSeeThrough = 0x50000000;
+        uint32_t            accent      = theme.FocusAccent();
+        float               from        = std::clamp (GetCycleX (m_selection->first),  left, right);
+        float               to          = std::clamp (GetCycleX (m_selection->second), left, right);
+
+        painter.FillRect (from, (float) m_boundsDip.top, std::max (1.0f, to - from), height, (accent & 0x00FFFFFF) | kSeeThrough);
+        painter.FillRect (from, (float) m_boundsDip.top, 1.0f, height, accent);
+        painter.FillRect (std::max (from, to - 1.0f), (float) m_boundsDip.top, 1.0f, height, accent);
+    }
+
+    if (m_pointerX.has_value())
+    {
+        painter.FillRect ((float) *m_pointerX, (float) m_boundsDip.top, std::max (1.0f, (float) std::lround (m_scaler.ToPxf (1.0f))), height,
+                          theme.PlayheadHoverLine());
     }
 }

@@ -404,6 +404,9 @@ enum class ProfileList
 
 // PROFILE LIST and its tables. The cycles total includes the penalties. The
 // routines, the call tree and the frames are there whatever the list.
+// A first and a last cycle.
+using CycleRange = std::pair<uint64_t, uint64_t>;
+
 struct ProfileData
 {
     bool                              isOn         = false;
@@ -418,6 +421,15 @@ struct ProfileData
     std::vector<ProfileRoutineEntry>  routines;
     std::vector<ProfileTreeEntry>     tree;
     std::vector<ProfileFrameEntry>    frames;
+
+    //  The first and last cycles requested of the build from history that
+    //  made the profile; none for a profile counted as the machine ran.
+    std::optional<CycleRange>         historyRange;
+
+    //  The count of builds from history installed in the session so far,
+    //  this profile's among them, so a later build of the same cycles is
+    //  distinct from an earlier one.
+    uint64_t                          historyBuild = 0;
 };
 
 struct CalcData
