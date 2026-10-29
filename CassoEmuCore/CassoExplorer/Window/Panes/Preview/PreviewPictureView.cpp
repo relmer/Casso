@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "Seams/IHostDialogs.h"
 
 
 
@@ -512,5 +513,65 @@ void PreviewPictureView::ShowContextMenu (int x, int y)
         m_context.menus.GetMenuCommands().back()->isChecked = [color, asColor]() { return color == asColor; };
     }
 
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    m_context.menus.AddMenuCommand (items, L"&Save picture as...", [this]() { SavePicture(); });
+
     DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewPictureView::SavePicture
+//
+//  The picture as the preview decodes it, on the monitor it is drawn for,
+//  without the CRT effects, at its rendered size. The file name starts as
+//  the selected entry's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewPictureView::SavePicture()
+{
+    const PreviewContent        & preview  = m_context.browser.GetPreview();
+    const std::vector<int>      & selected = m_context.browser.GetSelectedRows();
+    HRESULT                       hr       = S_OK;
+    std::filesystem::path         picked;
+    bool                          chosen   = false;
+    FileDialogSpec                spec;
+    std::vector<Byte>             png;
+    std::wstring                  name     = L"Picture";
+
+
+
+    BAIL_OUT_IF (preview.kind != PreviewContent::Kind::Picture || preview.bgra.empty() || m_context.app.fs == nullptr, S_OK);
+
+    if (selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < m_context.browser.GetRows().size())
+    {
+        name = m_context.browser.GetRows()[(size_t) selected[0]].name;
+    }
+
+    spec.filters          = { FileDialogFilter { L"PNG images (*.png)", L"*.png" } };
+    spec.clientGuid       = s_kSavePictureGuid;
+    spec.defaultFileName  = name + L".png";
+    spec.defaultExtension = L"png";
+    spec.title            = L"Save picture as";
+
+    hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, picked, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    hr = PicturePreview::EncodePng (preview.bgra, preview.width, preview.height, png);
+    CHR (hr);
+
+    hr = m_context.app.fs->WriteAllText (picked.wstring(), std::string (png.begin(), png.end()));
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (L"The picture could not be saved.", MB_ICONERROR);
+    }
 }

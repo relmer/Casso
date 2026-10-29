@@ -127,6 +127,9 @@ public:
         //  A CassoLink connection added, from See more as well as the tree.
         kAddLink,
 
+        //  The previewed Apple picture written to a PNG file.
+        kSavePicture,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -182,9 +185,13 @@ public:
     static constexpr int  kPreviewBarHex     = 2;
     static constexpr int  kPreviewBarPicture = 3;
 
+    //  A picture with no color choice: Save as PNG alone.
+    static constexpr int  kPreviewBarSave    = 4;
+
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
     static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
     static int                       GetPreviewBar               (int id);
+    static bool                      IsOnPreviewBar              (int id, int bar);
 
     //  The toolbar entries' commands in strip order, so a host moving focus
     //  along the strip can check whether each one is enabled.
@@ -343,6 +350,7 @@ private:
         { kWriteImageToDisk,  Menu::Count, L"Write image...",      nullptr,     false },
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
         { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
+        { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -426,6 +434,7 @@ private:
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr, L"Search",       L"",                                                       false, true },
         { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Monochrome",   L"Draw the picture as its bits, on a monochrome monitor" },
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, nullptr, L"Color",        L"Draw the picture in color, on the color monitor"      },
+        { kSavePicture,       DxuiToolbar::Kind::Command, 1, nullptr, L"Save as PNG",  L"Save the picture as a PNG file"                      },
     };
 
     static constexpr Key  kKeys[] =

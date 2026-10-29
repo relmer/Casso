@@ -6,6 +6,7 @@
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "Core/MemoryBus.h"
 #include "Core/MemoryDevice.h"
+#include "Devices/Printer/PngCodec.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -573,5 +574,25 @@ public:
         Assert::AreEqual (std::wstring(),            lines[1], L"Between two returns is an empty line");
         Assert::AreEqual (std::wstring (L"A       B"), lines[2], L"A tab is expanded to the next stop of eight, and a line feed after a return ends no line");
         Assert::AreEqual (std::wstring (L"C"),        lines[3], L"Zero bytes are dropped, and a last line without a return is a line");
+    }
+
+
+
+    //  A saved picture is the pixels the preview draws, opaque, at their size.
+    TEST_METHOD (EncodePng_WritesThePicturesPixels)
+    {
+        std::vector<uint32_t>  bgra = { 0xFFFF0000u, 0xFF00FF00u, 0xFF0000FFu, 0xFF123456u };
+        std::vector<Byte>      png;
+        RgbaImage              decoded;
+
+
+
+        AssertSucceeded (PicturePreview::EncodePng (bgra, 2, 2, png));
+        AssertSucceeded (PngCodec::DecodeRgba (png, decoded));
+
+        Assert::AreEqual (2, decoded.width);
+        Assert::AreEqual (2, decoded.height);
+        Assert::IsTrue (decoded.rgba == std::vector<Byte> { 0xFF, 0x00, 0x00, 0xFF,  0x00, 0xFF, 0x00, 0xFF,
+                                                            0x00, 0x00, 0xFF, 0xFF,  0x12, 0x34, 0x56, 0xFF });
     }
 };

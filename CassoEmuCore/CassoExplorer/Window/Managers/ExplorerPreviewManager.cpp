@@ -199,6 +199,7 @@ void ExplorerPreviewManager::FillPreview()
                                      : disasm   ? CassoExplorerCommands::kPreviewBarHex
                                      : program  ? CassoExplorerCommands::kPreviewBarListing
                                      : forms    ? CassoExplorerCommands::kPreviewBarPicture
+                                     : picture  ? CassoExplorerCommands::kPreviewBarSave
                                                 : CassoExplorerCommands::kPreviewBarNone;
     bool                    blank    = false;
 

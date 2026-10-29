@@ -42,6 +42,10 @@ public:
     void                       UpdateCrtPicture     (bool force);
     void                       SelectMonitor        (PicturePreview::Monitor monitor);
     void                       ShowForm             (bool color);
+    void                       SavePicture          ();
+
+    //  The PNG save picker's client GUID, so its history is separate.
+    static constexpr GUID  s_kSavePictureGuid = { 0xb7f3266b, 0x19b9, 0x45f0, { 0xa5, 0xd0, 0x58, 0x1a, 0x63, 0xf2, 0xda, 0xf7 } };
 
     bool                      HandleMouse         (const DxuiMouseEvent & ev);
 

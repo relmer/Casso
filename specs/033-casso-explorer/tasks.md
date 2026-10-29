@@ -1419,7 +1419,7 @@ waits for this phase, so it is tested once.
 before T079.
 The product-wide styles are GitHub issue #179.
 ## Section H dependencies
-- [ ] T308 Save a hi-res, double hi-res or lo-res picture from the preview as
+- [X] T308 Save a hi-res, double hi-res or lo-res picture from the preview as
   a PNG file, from the picture's menu and toolbar, at the size and colors the
   preview draws it.
 - [ ] T309 Add Apple file properties to the context menu for a file in a disk

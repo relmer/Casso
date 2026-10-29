@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Core/MemoryBus.h"
+#include "Devices/Printer/PngCodec.h"
 #include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "Machines/Apple2/Common/AppleLoResMode.h"
@@ -389,4 +390,46 @@ void PicturePreview::RenderMonochrome (std::span<const Byte> bytes, Word address
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PicturePreview::EncodePng
+//
+//  Each 0xAARRGGBB pixel becomes R, G, B and an opaque A.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PicturePreview::EncodePng (const std::vector<uint32_t> & bgra, int width, int height, std::vector<Byte> & outPng)
+{
+    HRESULT    hr    = S_OK;
+    size_t     count = bgra.size();
+    bool       sized = width > 0 && height > 0 && count == (size_t) width * height;
+    RgbaImage  image;
+
+
+
+    CBREx (sized, E_INVALIDARG);
+
+    image.width  = width;
+    image.height = height;
+    image.rgba.resize (count * 4);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        image.rgba[i * 4 + 0] = (Byte) (bgra[i] >> 16);
+        image.rgba[i * 4 + 1] = (Byte) (bgra[i] >> 8);
+        image.rgba[i * 4 + 2] = (Byte) bgra[i];
+        image.rgba[i * 4 + 3] = 0xFF;
+    }
+
+    hr = PngCodec::EncodeRgba (image, 96, outPng);
+    CHR (hr);
+
+Error:
+    return hr;
 }

@@ -196,6 +196,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kLineAddresses:     return m_context.preview.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
+        case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
         case CassoExplorerCommands::kFindNext:          return m_context.preview.GetFind().CanFindNext();
         case CassoExplorerCommands::kFind:
         case CassoExplorerCommands::kNoData:
@@ -498,6 +499,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kThemeRetroTerminal: m_context.themes.Select (CassoExplorerPrefs::kThemeRetroTerminal); break;
         case CassoExplorerCommands::kPictureMonochrome:  m_context.preview.GetPicture().ShowForm (false);                               break;
         case CassoExplorerCommands::kPictureColor:       m_context.preview.GetPicture().ShowForm (true);                                break;
+        case CassoExplorerCommands::kSavePicture:        m_context.preview.GetPicture().SavePicture();                                  break;
 
         case CassoExplorerCommands::kGoToOffset:
             m_context.preview.GetFind().FocusGoTo();

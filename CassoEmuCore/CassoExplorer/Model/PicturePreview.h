@@ -75,6 +75,9 @@ public:
     //  color monitor makes no change. `customArgb` is the custom monitor's.
     static void  Tint (std::vector<uint32_t> & bgra, Monitor monitor, uint32_t customArgb = kDefaultCustomArgb);
 
+    //  A rendered picture as a PNG file's bytes, at the size it was rendered.
+    static HRESULT  EncodePng (const std::vector<uint32_t> & bgra, int width, int height, std::vector<Byte> & outPng);
+
     static constexpr int  kWidth  = 560;
     static constexpr int  kHeight = 384;
 

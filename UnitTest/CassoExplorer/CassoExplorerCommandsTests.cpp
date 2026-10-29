@@ -158,16 +158,18 @@ public:
 
     //  Each preview bar has its own commands: a listing's address toggle, the
     //  hex view's Disassemble, Go to and search, or a double hi-res picture's two forms,
-    //  which are a choice of one.
+    //  which are a choice of one, and Save as PNG, which any other picture has alone.
     TEST_METHOD (PreviewBars_HaveTheirOwnCommands)
     {
         CassoExplorerCommands  commands ({});
 
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarListing) == std::vector<int> { CassoExplorerCommands::kLineAddresses });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarHex)     == std::vector<int> { CassoExplorerCommands::kToggleDisassembly, CassoExplorerCommands::kGoToOffset, CassoExplorerCommands::kFind });
-        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarPicture) == std::vector<int> { CassoExplorerCommands::kPictureMonochrome, CassoExplorerCommands::kPictureColor });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarPicture) == std::vector<int> { CassoExplorerCommands::kPictureMonochrome, CassoExplorerCommands::kPictureColor, CassoExplorerCommands::kSavePicture });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSave)    == std::vector<int> { CassoExplorerCommands::kSavePicture });
         Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone).empty());
 
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureMonochrome)->radio);
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureColor)->radio);
+        Assert::IsFalse (commands.Find (CassoExplorerCommands::kSavePicture)->radio);
     }};

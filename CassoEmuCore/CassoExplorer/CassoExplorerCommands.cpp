@@ -537,7 +537,7 @@ std::vector<DxuiToolbar::Entry> CassoExplorerCommands::BuildPreviewToolbarEntrie
     {
         DxuiToolbar::Entry  entry;
 
-        if (GetPreviewBar (row.id) != bar)
+        if (!IsOnPreviewBar (row.id, bar))
         {
             continue;
         }
@@ -576,7 +576,7 @@ std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar)
 
     for (const ToolbarRow & row : kPreviewToolbarRows)
     {
-        if (GetPreviewBar (row.id) == bar)
+        if (IsOnPreviewBar (row.id, bar))
         {
             ids.push_back (row.id);
         }
@@ -599,7 +599,24 @@ std::vector<int> CassoExplorerCommands::GetPreviewToolbarCommandIds (int bar)
 
 int CassoExplorerCommands::GetPreviewBar (int id)
 {
-    return (id == kLineAddresses)                            ? kPreviewBarListing
-         : (id == kPictureMonochrome || id == kPictureColor) ? kPreviewBarPicture
-                                                             : kPreviewBarHex;
+    return (id == kLineAddresses)                                                  ? kPreviewBarListing
+         : (id == kPictureMonochrome || id == kPictureColor || id == kSavePicture) ? kPreviewBarPicture
+                                                                                   : kPreviewBarHex;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCommands::IsOnPreviewBar
+//
+//  Save as PNG is on both picture bars.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerCommands::IsOnPreviewBar (int id, int bar)
+{
+    return GetPreviewBar (id) == bar || (id == kSavePicture && bar == kPreviewBarSave);
 }
