@@ -18,8 +18,8 @@ class DisplayPage;
 //
 //  CassoExplorerGeneralPage
 //
-//  The host file name style, its description above its choices, then the
-//  disk image types.
+//  Automatic preview, its description above its box, then the disk image
+//  types.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,36 @@ class CassoExplorerGeneralPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & namingLabel, DxuiRadioGroup & naming, DxuiLabel & namingNote, DxuiCheckbox & registration);
+    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & registration);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kNoteHeightDip = 40;
+
+private:
+    DxuiLabel     * m_previewNote = nullptr;
+    DxuiCheckbox  * m_autoPreview = nullptr;
+    DxuiCheckbox  * m_register    = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerHostNamesPage
+//
+//  The host file name style: its description above its choices.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerHostNamesPage : public DxuiPropertyPage
+{
+public:
+    explicit CassoExplorerHostNamesPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (DxuiLabel & namingNote, DxuiRadioGroup & naming);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -38,10 +67,8 @@ public:
     static constexpr int  kOptionGapDip          = 10;
 
 private:
-    DxuiLabel       * m_namingLabel = nullptr;
-    DxuiRadioGroup  * m_naming      = nullptr;
-    DxuiLabel       * m_namingNote  = nullptr;
-    DxuiCheckbox    * m_register    = nullptr;
+    DxuiRadioGroup  * m_naming     = nullptr;
+    DxuiLabel       * m_namingNote = nullptr;
 };
 
 
@@ -73,6 +100,9 @@ public:
         //  it runs from an installed package, whose manifest declares them.
         bool  registered = false;
         bool  packaged   = false;
+
+        //  Whether the preview pane opens and closes for the selected file.
+        bool  autoPreview = true;
 
 
         //  The preview's monitor, as a PicturePreview::Monitor, the custom
@@ -126,11 +156,13 @@ private:
     Choices                       m_original;
     Choices                       m_choices;
     bool                          m_confirmed     = false;
-    DxuiLabel                     m_namingLabel;
     DxuiRadioGroup                m_naming;
     DxuiLabel                     m_namingNote;
+    DxuiLabel                     m_previewNote;
+    DxuiCheckbox                  m_autoPreview;
     DxuiCheckbox                  m_register;
     ColorPickerOverlay            m_colorPicker;
     CassoExplorerGeneralPage    * m_general       = nullptr;
+    CassoExplorerHostNamesPage  * m_hostNames     = nullptr;
     DisplayPage                 * m_displayPage   = nullptr;
 };

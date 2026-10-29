@@ -478,6 +478,7 @@ void ExplorerCommandManager::Dispatch (int id)
 
         case CassoExplorerCommands::kTogglePreview:
             m_context.prefs.previewVisible = !m_context.prefs.previewVisible;
+            m_context.preview.SetPinned (m_context.prefs.previewVisible);
             m_context.preview.FillPreview();
             m_context.layout.RecomputeLayout();
             break;
@@ -660,6 +661,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
     choices.packaged     = packaged;
+    choices.autoPreview  = m_context.prefs.autoPreview;
 
     choices.monitor      = (int) m_context.preview.GetPicture().GetMonitor();
     choices.customArgb   = m_context.prefs.previewCustomArgb;
@@ -686,6 +688,8 @@ void ExplorerCommandManager::ShowOptions()
     {
         m_context.prefs.hostNaming = kNamings[choices.hostNaming];
     }
+
+    m_context.prefs.autoPreview = choices.autoPreview;
 
 
     //  The user's file types change only when the box was changed.

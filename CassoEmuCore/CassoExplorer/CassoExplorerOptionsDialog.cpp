@@ -24,16 +24,14 @@ static constexpr int  s_kSheetMinHeight = 320;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiRadioGroup & naming, DxuiLabel & namingNote, DxuiCheckbox & registration)
+void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & registration)
 {
-    m_namingLabel = &namingLabel;
-    m_naming      = &naming;
-    m_namingNote  = &namingNote;
+    m_previewNote = &previewNote;
+    m_autoPreview = &autoPreview;
     m_register    = &registration;
 
-    Adopt (namingLabel);
-    Adopt (naming);
-    Adopt (namingNote);
+    Adopt (previewNote);
+    Adopt (autoPreview);
     Adopt (registration);
 }
 
@@ -49,34 +47,21 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiRadioGroup & n
 
 void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    std::vector<DxuiRadioOption>  options     = m_naming->GetOptions();
-    int                           labelBottom = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackLabelHeightDip);
-    int                           noteTop     = labelBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int                           noteBottom  = noteTop + scaler.ToPx (kNoteHeightDip);
-    int                           optionH     = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip + kOptionGapDip);
-    int                           optionsTop  = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int                           optionsEnd  = optionsTop + optionH * (int) options.size();
-    int                           checkTop    = optionsEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 3);
-    int                           checkBottom = checkTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  noteBottom   = boundsDip.top + scaler.ToPx (kNoteHeightDip);
+    int  previewTop   = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  previewEnd   = previewTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  registerTop  = previewEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 3);
+    int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
 
     SetBounds (boundsDip);
 
-    //  One option under another, each its name over an example of a name.
-    for (size_t i = 0; i < options.size(); i++)
-    {
-        options[i].rect = RECT { boundsDip.left, optionsTop + optionH * (int) i, boundsDip.right, optionsTop + optionH * (int) (i + 1) };
-    }
+    m_previewNote->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteBottom }, scaler);
+    m_autoPreview->Layout (RECT { boundsDip.left, previewTop, boundsDip.right, previewEnd }, scaler);
+    m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
 
-    m_naming->SetOptions (std::move (options));
-
-    m_namingLabel->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, labelBottom }, scaler);
-    m_namingNote->Layout  (RECT { boundsDip.left, noteTop, boundsDip.right, noteBottom }, scaler);
-    m_naming->Layout      (RECT { boundsDip.left, optionsTop, boundsDip.right, optionsEnd }, scaler);
-    m_register->Layout    (RECT { boundsDip.left, checkTop, boundsDip.right, checkBottom }, scaler);
-
-    SetContentHeightPx (checkBottom - boundsDip.top);
+    SetContentHeightPx (registerEnd - boundsDip.top);
 }
 
 
@@ -91,7 +76,77 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_naming->OnMouse (ev) || m_register->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_register->OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerHostNamesPage::Init
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerHostNamesPage::Init (DxuiLabel & namingNote, DxuiRadioGroup & naming)
+{
+    m_namingNote = &namingNote;
+    m_naming     = &naming;
+
+    Adopt (namingNote);
+    Adopt (naming);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerHostNamesPage::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerHostNamesPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    std::vector<DxuiRadioOption>  options    = m_naming->GetOptions();
+    int                           noteBottom = boundsDip.top + scaler.ToPx (kNoteHeightDip);
+    int                           optionH    = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip + kOptionGapDip);
+    int                           optionsTop = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int                           optionsEnd = optionsTop + optionH * (int) options.size();
+
+
+
+    SetBounds (boundsDip);
+
+    //  One option under another, each its name over an example of a name.
+    for (size_t i = 0; i < options.size(); i++)
+    {
+        options[i].rect = RECT { boundsDip.left, optionsTop + optionH * (int) i, boundsDip.right, optionsTop + optionH * (int) (i + 1) };
+    }
+
+    m_naming->SetOptions (std::move (options));
+
+    m_namingNote->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteBottom }, scaler);
+    m_naming->Layout     (RECT { boundsDip.left, optionsTop, boundsDip.right, optionsEnd }, scaler);
+
+    SetContentHeightPx (optionsEnd - boundsDip.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerHostNamesPage::OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerHostNamesPage::OnMouse (const DxuiMouseEvent & ev)
+{
+    return m_naming->OnMouse (ev);
 }
 
 
@@ -109,7 +164,7 @@ bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 
 std::vector<DxuiRadioOption> CassoExplorerOptionsDialog::GetNamingOptions()
 {
-    return { DxuiRadioOption { {}, L"Descriptive", L"The file type and load address are written into the file name in words.", L"GAME.Binary.$0803.bin" },
+    return { DxuiRadioOption { {}, L"Descriptive", L"The file type and load address are added to the base filename.", L"GAME.Binary.$0803.bin" },
              DxuiRadioOption { {}, L"CiderPress",  L"A # and six hex digits end the file name: two for the file type (06 is Binary) and four for the load address (0803).", L"GAME#060803" },
              DxuiRadioOption { {}, L"AppleSingle", L"The metadata is stored in the AppleSingle container file, along with the file's data.", L"GAME.as" } };
 }
@@ -122,17 +177,13 @@ std::vector<DxuiRadioOption> CassoExplorerOptionsDialog::GetNamingOptions()
 //
 //  CassoExplorerOptionsDialog::OnBuildPages
 //
-//  The General page, then Casso's own Display page, which the dialog wires
+//  The General page, the host file name page, then Casso's Display page, which the dialog wires
 //  to its own copy of the choices rather than to Casso's settings.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerOptionsDialog::OnBuildPages()
 {
-    m_namingLabel.SetText      (L"Host file names");
-    ExplorerTextStyles::Apply (m_namingLabel, ExplorerTextStyles::kFormLabel);
-    m_namingLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-
     m_naming.SetOptions  (GetNamingOptions());
     m_naming.SetSelected (m_choices.hostNaming);
 
@@ -149,9 +200,19 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_register.SetChecked (m_choices.registered);
     m_register.SetEnabled (!m_choices.packaged);
 
-    m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
-    m_general->Init (m_namingLabel, m_naming, m_namingNote, m_register);
+    m_previewNote.SetText      (L"When a file is selected, the preview pane opens if the file is of a known type, and closes if it isn't. "
+                                L"Turn the pane on from the toolbar to keep it open for every file.");
+    ExplorerTextStyles::Apply (m_previewNote, ExplorerTextStyles::kFormNote);
+    m_previewNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
+    m_autoPreview.SetLabel   (L"Automatically preview known file types");
+    m_autoPreview.SetChecked (m_choices.autoPreview);
+
+    m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
+    m_general->Init (m_previewNote, m_autoPreview, m_register);
+
+    m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
+    m_hostNames->Init (m_namingNote, m_naming);
 
     m_displayPage = CreatePage<DisplayPage> (L"Display");
     m_displayPage->SetPopupHost     (GetPopupHost());
@@ -349,7 +410,8 @@ void CassoExplorerOptionsDialog::PreviewChoices()
 
 HRESULT CassoExplorerOptionsDialog::OnOk()
 {
-    m_choices.registered = m_register.IsChecked();
+    m_choices.registered  = m_register.IsChecked();
+    m_choices.autoPreview = m_autoPreview.IsChecked();
     m_choices.hostNaming = m_naming.GetSelected();
     m_confirmed          = true;
 

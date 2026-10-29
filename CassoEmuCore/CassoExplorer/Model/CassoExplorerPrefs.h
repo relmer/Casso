@@ -41,7 +41,11 @@ struct CassoExplorerPrefs
     };
 
     std::string            theme           = kThemeFollowSystem;
-    bool                   previewVisible  = true;
+    bool                   previewVisible  = false;
+
+    //  The preview pane opens for a selected file of a type Casso Explorer can
+    //  preview, and closes for any other, until the pane is turned on manually.
+    bool                   autoPreview     = true;
     std::string            hostNaming      = kNamingDescriptive;
 
 

@@ -42,6 +42,8 @@ public:
     void                              Layout                (const RECT & rect);
     void                              Hide                  ();
     void                              FillPreview           ();
+    void                              SetPinned             (bool pinned) { m_pinned = pinned; m_autoKey.clear(); }
+    static bool                       IsKnownPreview        (const PreviewContent & preview);
     void                              PaintBackground       (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     static uint32_t                   GetBackground         (const IDxuiTheme & theme);
     bool                              UpdateScrollbarHover  (POINT at);
@@ -90,4 +92,8 @@ private:
     int                                m_barFocus = 0;                                        // the toolbar's focused button
     RECT                               m_rect     = {};   // the pane, its toolbar included
     RECT                               m_content  = {};   // below the toolbar
+    bool                               m_pinned   = false;   // turned on manually, so automatic preview doesn't close it
+    std::wstring                       m_autoKey;            // the file automatic preview last checked
+
+    bool  UpdateAutoPreview ();
 };

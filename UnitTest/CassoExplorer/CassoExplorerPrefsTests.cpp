@@ -42,7 +42,8 @@ public:
         AssertSucceeded (prefs.Load (kBase, fs));
 
         Assert::AreEqual (std::string (CassoExplorerPrefs::kThemeFollowSystem), prefs.theme);
-        Assert::IsTrue   (prefs.previewVisible);
+        Assert::IsFalse  (prefs.previewVisible, L"the pane starts closed, for automatic preview to open");
+        Assert::IsTrue   (prefs.autoPreview);
         Assert::AreEqual (std::string (CassoExplorerPrefs::kNamingDescriptive), prefs.hostNaming);
         Assert::IsFalse  (prefs.placement.valid);
         Assert::AreEqual (CassoExplorerPrefs::kDefaultTreeWidthDip, prefs.treeWidthDip);
@@ -58,7 +59,8 @@ public:
         CassoExplorerPrefs  loaded;
 
         saved.theme               = CassoExplorerPrefs::kThemeDark;
-        saved.previewVisible      = false;
+        saved.previewVisible      = true;
+        saved.autoPreview         = false;
         saved.hostNaming          = CassoExplorerPrefs::kNamingCiderPress;
         saved.folderViews.Remember (L"C:\\Disks", DxuiListView::View::Tiles);
         saved.placement.x         = 10;
@@ -80,7 +82,8 @@ public:
         AssertSucceeded (loaded.Load (kBase, fs));
 
         Assert::AreEqual (saved.theme, loaded.theme);
-        Assert::IsFalse  (loaded.previewVisible);
+        Assert::IsTrue   (loaded.previewVisible);
+        Assert::IsFalse  (loaded.autoPreview);
         Assert::AreEqual (saved.hostNaming, loaded.hostNaming);
         Assert::IsTrue   (loaded.folderViews.GetView (L"c:\\disks\\", FolderViews::FolderType::Generic) == DxuiListView::View::Tiles);
         Assert::AreEqual (10,  loaded.placement.x);

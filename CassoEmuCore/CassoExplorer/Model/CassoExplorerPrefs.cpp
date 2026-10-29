@@ -482,6 +482,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("theme",          JsonValue (theme));
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
+    root.emplace_back ("autoPreview",    JsonValue (autoPreview));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
@@ -626,6 +627,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     }
 
     root.HasBool ("previewVisible", previewVisible);
+    root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("hexShowValues",  hexShowValues);
     for (const auto & [key, option] : GetNavOptions())

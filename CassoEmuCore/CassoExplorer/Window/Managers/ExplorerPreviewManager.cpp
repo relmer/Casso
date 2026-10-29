@@ -182,6 +182,7 @@ void ExplorerPreviewManager::Hide()
 void ExplorerPreviewManager::FillPreview()
 {
     const PreviewContent  & preview  = m_context.browser.GetPreview();
+    bool                    toggled  = UpdateAutoPreview();
     bool                    visible  = m_context.prefs.previewVisible;
     bool                    picture  = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
     bool                    hostFile = preview.kind == PreviewContent::Kind::Hex && !preview.hostPath.empty();
@@ -248,7 +249,88 @@ void ExplorerPreviewManager::FillPreview()
     m_text.SetVisible    (visible && !picture && !shell && !error && !hex && !columns && !blank);
     m_hex.SetVisible     (visible && hex);
 
+    //  Opened or closed for the file, so the list is resized around the pane.
+    if (toggled)
+    {
+        m_context.layout.RecomputeLayout();
+    }
+
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::IsKnownPreview
+//
+//  A file previewed as more than its bytes: a listing, text, a picture, a
+//  catalog or archive, an image's details, or the Windows preview of a PC
+//  file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::IsKnownPreview (const PreviewContent & preview)
+{
+    using Kind = PreviewContent::Kind;
+
+    return preview.kind == Kind::Listing || preview.kind == Kind::Text    || preview.kind == Kind::Catalog
+        || preview.kind == Kind::Details || preview.kind == Kind::Shell
+        || (preview.kind == Kind::Picture && !preview.bgra.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::UpdateAutoPreview
+//
+//  With automatic preview on, the pane opens for a newly selected file
+//  of a known type and closes for any other. A pane turned on manually
+//  stays open until it is turned off manually. True when the pane opened
+//  or closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::UpdateAutoPreview()
+{
+    const std::vector<int>  & selected = m_context.browser.GetSelectedRows();
+    const PreviewContent    & preview  = m_context.browser.GetPreview();
+    std::wstring              key      = m_context.browser.GetLocation().path;
+    bool                      known    = false;
+
+
+
+    if (!m_context.prefs.autoPreview || m_pinned)
+    {
+        return false;
+    }
+
+    if (!selected.empty() && selected[0] >= 0 && (size_t) selected[0] < m_context.browser.GetRows().size())
+    {
+        key += L"|" + m_context.browser.GetRows()[(size_t) selected[0]].name;
+    }
+
+    //  A linked drive's file is checked once it arrives.
+    if (key == m_autoKey || (preview.kind == PreviewContent::Kind::Error && preview.message == CassoExplorerBrowser::s_kWorkingText))
+    {
+        return false;
+    }
+
+    m_autoKey = key;
+    known     = !selected.empty() && IsKnownPreview (preview);
+
+    if (known == m_context.prefs.previewVisible)
+    {
+        return false;
+    }
+
+    m_context.prefs.previewVisible = known;
+    return true;
 }
 
 
