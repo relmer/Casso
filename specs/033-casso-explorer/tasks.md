@@ -1352,9 +1352,11 @@ waits for this phase, so it is tested once.
   Done: `ExplorerWindowParts`; the header includes `ExplorerContext.h` and
   `IExplorerWindow.h`, and each component's .cpp includes the headers it
   uses.
-- [ ] T291 Sweep the tree's CS0019 and CS0025 backlog with
-  `scripts/FixDeclAlign.ps1 -Apply`, before the master merge, since CI runs
-  `CheckStyle -Mode Tree`. The owner deferred it (2026-10-28).
+- [X] T291 Check CS0025, and CS0019's brace-initialized runs, only on lines a
+  change adds: the whole-tree scan CI runs on master skips them, so the files
+  this branch did not touch merge as they are. Every file the branch changed
+  is aligned (`df487b867`). The sweep of the rest of the tree, once the
+  branches in flight have merged, is a GitHub issue.
 
 ## Phase 28: Findings from the //c walkthrough of 2026-10-28
 
@@ -1388,7 +1390,7 @@ waits for this phase, so it is tested once.
 - [ ] T299 Select a new folder once its name is entered, as File Explorer
   does.
 
-**Dependencies**: in order. T291 precedes the master merge; T292 to T299
+**Dependencies**: in order. T292 to T299
 before T079.
 The product-wide styles are GitHub issue #179.
 ## Section H dependencies

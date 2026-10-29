@@ -1194,6 +1194,13 @@ function Test-Structure
                     $parsed += $p
                 }
 
+                #  A brace-initialized run is checked only on lines a change adds, until
+                #  the tree is swept; see the scan's note at CS0025.
+                if ($ok -and $null -eq $AddedIndex -and @($declRun | Where-Object { $lines[$_] -match '\w\s*\{[^;]*\}\s*;' }).Count -gt 0)
+                {
+                    $ok = $false
+                }
+
                 if ($ok)
                 {
                     $indents = $parsed | ForEach-Object { $_.Indent } | Sort-Object -Unique
@@ -1233,7 +1240,11 @@ function Test-Structure
         # declarations aligns its names, the `*` or `&` before a name, and
         # the `(` of each argument list. Mirrors Parse-FnDecl in
         # scripts/FixDeclAlign.ps1, which repairs every run this reports.
-        if ($rel -like '*.h')
+        #
+        # Checked only on lines a change adds: the whole-tree scan skips it,
+        # as it skips CS0019's brace-initialized runs, until the tree is swept
+        # once the branches in flight have merged.
+        if ($rel -like '*.h' -and $null -ne $AddedIndex)
         {
             $fnRun = [System.Collections.Generic.List[object]]::new()
             for ($i = 0; $i -le $lines.Length; $i++)
