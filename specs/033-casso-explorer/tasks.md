@@ -1419,7 +1419,43 @@ waits for this phase, so it is tested once.
 before T079.
 The product-wide styles are GitHub issue #179.
 ## Section H dependencies
-
+- [ ] T308 Save a hi-res, double hi-res or lo-res picture from the preview as
+  a PNG file, from the picture's menu and toolbar, at the size and colors the
+  preview draws it.
+- [ ] T309 Add Apple file properties to the context menu for a file in a disk
+  image or on a linked drive, and for a file on the PC whose name parses as
+  Descriptive or CiderPress or that is AppleSingle. One dialog for all:
+  - Apple name, editable. On a disk it renames the entry, checked against that
+    file system's rules. For an .as file it rewrites the name in the header,
+    with a checkbox to rename the .as file to match (checked when the PC name
+    matches the old Apple name; disabled with a reason when the new name is
+    taken). For a Descriptive or CiderPress file it renames the PC
+    file.
+  - File type: the DOS 3.3 list has T, I, A, B, S and R, plus the 20 or 40
+    type when the file has one; the ProDOS list has the types with names, and
+    Other. Each row has its letter or code, its hex byte and its name. A note
+    under the list: changing the type does not convert the data.
+  - Load address, record length or aux type in 4 hex digits, its label by
+    type; DOS 3.3 offers a load address for B files only and writes it into
+    the file's first two bytes.
+  - Access: Locked only for DOS 3.3; Read, Write, Rename, Destroy and Backup
+    for ProDOS and AppleSingle.
+  - Created and Modified for ProDOS and AppleSingle, editable in the Windows
+    date format, clearable; years 40 to 99 are 1940 to 1999 and 00 to 39 are
+    2000 to 2039.
+  - Size, read-only. OK, Cancel and Apply. Several files: a field that differs
+    reads (multiple) and changes only when edited; the second field is offered
+    only when every file has the same type. On a read-only disk the fields are
+    disabled and Close is the only button.
+  When an .as file is copied back to a disk, the name in its header is used
+  if the PC name is the one CE would write for it, or if the header name was
+  set in this dialog; otherwise the PC name is used.
+- [ ] T310 Add Lock and Unlock to the context menu for files in a disk image
+  or on a linked drive, over the whole selection.
+- [ ] T311 Add a Convert to submenu for files in a disk image or on a linked
+  drive: Text listing for an Applesoft or Integer BASIC file, and Applesoft
+  BASIC for a text file. Each writes a new file beside the original, selects
+  it for renaming, and never replaces the original.
 - **Phase 16 first.** T181 before T182 to T186.
 - **Phase 17 after T186.** Phase 18 after T188.
 - **Phase 19 after T182 and T189.**
