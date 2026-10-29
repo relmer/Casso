@@ -185,24 +185,40 @@ CassoLinkManager::~CassoLinkManager()
 //
 //  CassoLinkManager::ReadDiskToImage
 //
-//  The open Apple drive's disk into an image file the user picks, in the
-//  format of its extension. When sectors cannot be read, the user may read
-//  the disk again with them written as zeros.
+//  A linked Apple drive's disk into an image file the user picks, in the
+//  format of its extension. The drive is the one given, else the open
+//  drive, else the drive row selected on its machine; the list stays where
+//  it is. When sectors cannot be read, the user may read the disk again
+//  with them written as zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::ReadDiskToImage (bool blankUnreadable, const std::wstring & imagePath)
+void CassoLinkManager::ReadDiskToImage (const Location & drive)
 {
     HRESULT                        hr     = S_OK;
-    std::filesystem::path          picked = imagePath;
-    bool                           chosen = !imagePath.empty();
+    std::filesystem::path          picked;
+    bool                           chosen = false;
+    Location                       target = drive;
+    std::wstring                   link;
+    int                            slot   = 0;
+    int                            number = 0;
+    bool                           found  = false;
     FileDialogSpec                 spec;
     CassoExplorerActions::Outcome  outcome;
 
 
 
-    OpenSelectedLinkDrive();
-    BAIL_OUT_IF (!m_context.browser.IsAppleDriveOpen(), S_OK);
+    if (target.path.empty() && m_context.browser.IsAppleDriveOpen())
+    {
+        target = m_context.browser.GetLocation();
+    }
+    else if (target.path.empty())
+    {
+        found = TryGetSelectedLinkDrive (target);
+        BAIL_OUT_IF (!found, S_OK);
+    }
+
+    BAIL_OUT_IF (!TreeModel::TryParseLinkId (target.path, link, slot, number) || number == 0, S_OK);
 
     spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
                               FileDialogFilter { L"All files (*.*)", L"*.*" } };
@@ -210,7 +226,7 @@ void CassoLinkManager::ReadDiskToImage (bool blankUnreadable, const std::wstring
     spec.defaultFileName  = L"disk.dsk";
     spec.defaultExtension = L"dsk";
     spec.askToReplace     = false;
-    spec.title            = std::format (L"Create image from {}", m_context.actions.DescribeAppleDrive());
+    spec.title            = std::format (L"Create image from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
 
     //  The picker's own replace prompt is Win32's; this one follows the theme,
     //  and No goes back to the picker.
@@ -232,7 +248,7 @@ void CassoLinkManager::ReadDiskToImage (bool blankUnreadable, const std::wstring
 
     //  The second read goes to the link and drive the first one read, not to
     //  whatever drive the window has open by the time the first one fails.
-    outcome = m_context.actions.ReadDiskToImage (picked.wstring(), blankUnreadable, [this, picked] (const LinkOperation & operation, const std::string & link, int drive)
+    outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, [this, picked] (const LinkOperation & operation, const std::string & link, int drive)
     {
         std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkDiskTransfer::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
         std::wstring                   message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros? Their list is saved beside the image as " + list + L".";
@@ -1392,7 +1408,7 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  A drive's whole disk, read or written from its node.
         std::wstring  title = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
 
-        m_context.menus.AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { m_context.addressBar.GoToLocation (location); ReadDiskToImage(); });
+        m_context.menus.AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { ReadDiskToImage (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { m_context.addressBar.GoToLocation (location); WriteImageToDisk(); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { m_context.addressBar.GoToLocation (location); SaveLinkToDisk(); });
         m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });

@@ -289,6 +289,31 @@ public:
 
 
 
+    TEST_METHOD (CreateImage_FromADrivesMenu_LeavesTheListWhereItIs)
+    {
+        Rig                 rig;
+        FakeHostDialogs   * dialogs = nullptr;
+        Location            drive   = Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 1), std::string());
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+
+        dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
+        dialogs->picks = false;
+
+        rig.parts->cassoLinkManager.ReadDiskToImage (drive);
+
+        Assert::AreEqual (1, dialogs->saves);
+        Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Create image from"));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
+    }
+
+
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;

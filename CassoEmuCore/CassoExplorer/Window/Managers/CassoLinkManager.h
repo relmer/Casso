@@ -2,11 +2,12 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/Location.h"
+
 class FirewallMonitor;
 class ILinkAnnouncements;
 struct ExplorerContext;
 struct LinkTreeEntry;
-struct Location;
 
 
 
@@ -39,7 +40,7 @@ public:
     static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
 
     void          RefreshCassoLinkViews   ();
-    void          ReadDiskToImage         (bool blankUnreadable = false, const std::wstring & imagePath = std::wstring());
+    void          ReadDiskToImage         (const Location & drive = Location());
     void          StartImageWrite         (const Location & drive, const std::wstring & imagePath);
     bool          TryGetSelectedLinkDrive (Location & outDrive) const;
     bool          IsOnLinkedMachine       () const;

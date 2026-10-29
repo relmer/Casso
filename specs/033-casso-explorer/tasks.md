@@ -1382,7 +1382,7 @@ waits for this phase, so it is tested once.
   listing is old.
 - [ ] T294 Move a drag's drop highlight to the row under the pointer after
   the list or tree is refilled during the drag.
-- [ ] T295 Stop opening the drive in the list when Create image is chosen from
+- [X] T295 Stop opening the drive in the list when Create image is chosen from
   the drive's menu.
 - [X] T296 Paste with Ctrl+V into a linked drive's file list, as the command
   bar's Paste does.
