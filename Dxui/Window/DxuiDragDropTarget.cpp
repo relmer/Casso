@@ -268,15 +268,15 @@ STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 
 HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
-    HRESULT    hr               = S_OK;
-    FORMATETC  fmt              = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM  medium           = { };
-    HDROP      hDrop            = nullptr;
-    UINT       cFiles           = 0;
-    UINT       cchCopied        = 0;
-    bool       fLocked          = false;
-    bool       fGotMedium       = false;
-    wchar_t    buffer[MAX_PATH] = { };
+    HRESULT       hr         = S_OK;
+    FORMATETC     fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM     medium     = { };
+    HDROP         hDrop      = nullptr;
+    UINT          cFiles     = 0;
+    UINT          cch        = 0;
+    bool          fLocked    = false;
+    bool          fGotMedium = false;
+    std::wstring  path;
 
 
 
@@ -302,10 +302,14 @@ HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wst
     cFiles = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
     CBR (cFiles != 0);
 
-    cchCopied = DragQueryFileW (hDrop, 0, buffer, MAX_PATH);
-    CBR (cchCopied != 0);
+    // Sized from the query, as a path past MAX_PATH does not fit a fixed buffer.
+    cch = DragQueryFileW (hDrop, 0, nullptr, 0);
+    CBR (cch != 0);
 
-    outPath = buffer;
+    path.resize (cch);
+    DragQueryFileW (hDrop, 0, path.data(), cch + 1);
+
+    outPath = std::move (path);
 
 Error:
     if (fLocked)

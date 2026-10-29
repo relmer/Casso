@@ -222,6 +222,11 @@ public:
         ExpectRoundTrip (L"C:\\Disks\\\u00C5pple\\caf\u00E9.dsk");
     }
 
+    TEST_METHOD (ExtractFirstHDropPath_RoundTrips_PathBeyondMaxPath)
+    {
+        ExpectRoundTrip (L"C:\\Disks\\" + std::wstring (300, L'a') + L"\\work.dsk");
+    }
+
     TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsInvalidArg)
     {
         HRESULT       hr  = S_OK;

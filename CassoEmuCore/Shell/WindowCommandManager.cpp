@@ -49,6 +49,7 @@
 #include "Cassque/Model/KnownFolderStore.h"
 #include "Cassque/Model/LaunchCommand.h"
 #include "Config/Win32FileSystem.h"
+#include "Core/LongPath.h"
 #include "Core/PathResolver.h"
 #include "Seams/Win32ProcessLauncher.h"
 #include "Ui/Chrome/TapeDeckWidget.h"
@@ -1181,7 +1182,7 @@ void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<Dis
                                                                m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
     std::vector<DiskMru::Entry>  existing = mru.Prune ([] (const std::filesystem::path & p)
                                                        {
-                                                           return std::filesystem::exists (p)
+                                                           return std::filesystem::exists (std::filesystem::path (LongPath::ToWin32 (p.wstring())))
                                                                   && !AssetBootstrap::IsForeignCheckoutDisk (p);
                                                        });
     Win32FileSystem              fs;

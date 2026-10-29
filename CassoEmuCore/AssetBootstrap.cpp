@@ -22,6 +22,7 @@
 #include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/PickerBodyPanel.h"
 #include "Ui/PickerDialog.h"
+#include "Core/LongPath.h"
 #include "Core/UnicodeSymbols.h"
 #include "Net/WinHttpClient.h"
 
@@ -1439,15 +1440,16 @@ void AssetBootstrap::AppendSiblingDisksFromFolders (
     {
         error_code  ecDir;
 
-        for (const fs::directory_entry & entry : fs::directory_iterator (dir, ecDir))
+        for (const fs::directory_entry & entry : fs::directory_iterator (fs::path (LongPath::ToWin32 (dir.wstring())), ecDir))
         {
             error_code  ecFile;
+            fs::path    found = LongPath::FromWin32 (entry.path().wstring());
 
             if (entry.is_regular_file (ecFile) &&
-                isWanted (entry.path().wstring()) &&
-                !IsForeignCheckoutDisk (entry.path()))
+                isWanted (found.wstring()) &&
+                !IsForeignCheckoutDisk (found))
             {
-                discovered.push_back (entry.path().lexically_normal());
+                discovered.push_back (found.lexically_normal());
             }
         }
     }
@@ -1464,7 +1466,7 @@ void AssetBootstrap::AppendSiblingDisksFromFolders (
 
         for (const DiskMru::Entry & existing : mountable)
         {
-            if (fs::equivalent (existing.path, disk, ecDup))
+            if (fs::equivalent (fs::path (LongPath::ToWin32 (existing.path.wstring())), fs::path (LongPath::ToWin32 (disk.wstring())), ecDup))
             {
                 already = true;
                 break;
