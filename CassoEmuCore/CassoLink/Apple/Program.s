@@ -138,6 +138,7 @@ CMDLABEL  = $DC
 CMDLOG    = $DD
 CMDTIME   = $DE
 CMDEXIT   = $DF
+CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
 SHIM      = $3B00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
@@ -1104,7 +1105,9 @@ getsector: jsr getenvt
         cmp #CMDCANCEL
         bne gsdatacmd
         jmp cancel
-gsdatacmd: cmp #CMDDATA
+gsdatacmd: cmp #CMDBLANK
+        beq gsblank
+        cmp #CMDDATA
         bne gsfail
         jsr getbtq              ; track
         bcs gsfail
@@ -1142,6 +1145,24 @@ gscrc:  lda SECBUF,y
         clc
         rts
 gsfail: sec
+        rts
+
+; A sector of zeros: its track and sector, then the payload's EOR, and SECBUF
+; filled with zeros here rather than sent.
+gsblank: jsr getbtq             ; track
+        bcs gsfail
+        jsr getbtq              ; sector
+        bcs gsfail
+        cmp sector
+        bne gsfail
+        jsr getbtq              ; the payload's EOR
+        bcs gsfail
+        lda #0
+        tay
+gszero: sta SECBUF,y
+        iny
+        bne gszero
+        clc
         rts
 
 ; getenvt: an envelope, with a timeout. A and envcmd are the command and

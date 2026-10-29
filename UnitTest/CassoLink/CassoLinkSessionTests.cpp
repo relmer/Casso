@@ -683,6 +683,35 @@ public:
 
 
 
+    //  A sector of zeros is sent as its numbers alone, and written as zeros.
+    TEST_METHOD (WriteDisk_SendsSectorsOfZerosAsBlanks)
+    {
+        Rig                rig;
+        std::vector<Byte>  image  = BuildProDos();
+        std::vector<Byte>  file;
+        int                blanks = 0;
+
+        VolumeImage::DosLogicalToProDosFile (image, file);
+        rig.fileIo.files["in.po"] = file;
+
+        for (size_t at = 0; at < image.size(); at += 256)
+        {
+            blanks += std::all_of (image.begin() + (ptrdiff_t) at, image.begin() + (ptrdiff_t) at + 256, [] (Byte b) { return b == 0; }) ? 1 : 0;
+        }
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+        AssertSucceeded (rig.Finish (rig.session->WriteDisk (1, "in.po"))->result);
+
+        Assert::IsTrue   (rig.Drive (1) == image);
+        Assert::IsTrue   (blanks > 0, L"the image has sectors of zeros");
+        Assert::AreEqual (blanks, (int) rig.apple.blanksReceived);
+    }
+
+
+
+
     TEST_METHOD (WriteDisk_AnImageWithNonstandardTracks_WritesNothing)
     {
         Rig                rig;

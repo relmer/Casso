@@ -91,6 +91,10 @@ public:
     static constexpr Byte  kTimeDrive     = 0xDE;
     static constexpr Byte  kExit          = 0xDF;
 
+    //  Write track's sector of zeros, as its track and sector alone, which the
+    //  Apple fills in.
+    static constexpr Byte  kSectorBlank   = 0xE0;
+
     //  Time drive's marker, one a revolution, outside any packet.
     static constexpr Byte  kTimeMark     = 0xA5;
 
@@ -112,6 +116,7 @@ public:
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);
     static HRESULT   EncodeImageData   (Word startBlock, std::span<const Byte> data, std::vector<Byte> & out);
     static HRESULT   EncodeSectorData  (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out);
+    static HRESULT   EncodeSectorBlank (Byte track, Byte sector, std::vector<Byte> & out);
     static HRESULT   EncodeAcknowledge (Byte kind, Word block, std::vector<Byte> & out);
 
     // One packet from the front of `in`: with outComplete set, the packet and

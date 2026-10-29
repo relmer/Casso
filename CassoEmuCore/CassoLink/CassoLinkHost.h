@@ -263,6 +263,8 @@ private:
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);
 
+    static bool  IsBlank (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
+
     //  An operation sent again while its request is lost, up to
     //  kMaxResends times.
     template <typename Attempt>

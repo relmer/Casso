@@ -1457,7 +1457,7 @@ The product-wide styles are GitHub issue #179.
   drive: Text listing for an Applesoft or Integer BASIC file, and Applesoft
   BASIC for a text file. Each writes a new file beside the original, selects
   it for renaming, and never replaces the original.
-- [ ] T312 Send a blank marker in place of a sector of zeros when writing a
+- [X] T312 Send a blank marker in place of a sector of zeros when writing a
   disk over CassoLink; the Apple fills in the zeros and encodes them. Bump
   the program version, and run it on a real //c.
 - [X] T313 List what was last read when switching back to a tab on a linked

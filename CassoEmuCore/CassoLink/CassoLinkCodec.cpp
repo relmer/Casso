@@ -111,6 +111,25 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCodec::EncodeSectorBlank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCodec::EncodeSectorBlank (Byte track, Byte sector, std::vector<Byte> & out)
+{
+    const Byte  payload[] = { track, sector };
+
+
+
+    return Encode (kSectorBlank, payload, out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCodec::EncodeAcknowledge
 //
 //  The kind, then the number of the next block to send: the form in which

@@ -541,9 +541,14 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
 
         //  Write sectors takes each sector as its nibbles, written as they
         //  arrive; Write track takes the bytes, formatted with the track.
+        //  A sector of zeros goes to Write track as its numbers alone.
         if (command == CassoLinkCodec::kWriteSectors)
         {
             hr = CassoLinkCodec::EncodeSectorNibbles (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
+        }
+        else if (IsBlank (data.subspan (index * kSectorSize, kSectorSize)))
+        {
+            hr = CassoLinkCodec::EncodeSectorBlank (track, sectors[index], encoded);
         }
         else
         {

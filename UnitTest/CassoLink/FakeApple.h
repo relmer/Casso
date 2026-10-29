@@ -47,6 +47,7 @@ public:
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  catalogReads   { 0 };   // read requests on drive 1's track 17, a DOS 3.3 catalog's
     std::atomic<bool>                 speedSet       { false };   // a Set speed has arrived
+    std::atomic<int>                  blanksReceived { 0 };       // Write track's sectors of zeros, sent as their numbers
     std::atomic<int>                  sectorsWritten { 0 };
     std::atomic<int>                  cancels        { 0 };
     //  Idles received as a shim, before the program is loaded.
@@ -392,6 +393,11 @@ private:
             if (packet.command == CassoLinkCodec::kSectorNibbles)
             {
                 CassoLinkCodec::ParseSectorNibbles (packet, gotTrack, gotSector, data);
+            }
+            else if (packet.command == CassoLinkCodec::kSectorBlank)
+            {
+                std::fill (data.begin(), data.end(), (Byte) 0);
+                blanksReceived++;
             }
             else
             {
