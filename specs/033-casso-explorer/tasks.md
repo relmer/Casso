@@ -1457,10 +1457,16 @@ The product-wide styles are GitHub issue #179.
   drive: Text listing for an Applesoft or Integer BASIC file, and Applesoft
   BASIC for a text file. Each writes a new file beside the original, selects
   it for renaming, and never replaces the original.
+- [ ] T312 Send a blank marker in place of a sector of zeros when writing a
+  disk over CassoLink; the Apple fills in the zeros and encodes them. Bump
+  the program version, and run it on a real //c.
 - [X] T313 List what was last read when switching back to a tab on a linked
   machine or drive; Refresh, or going to the drive again, reads its disks.
 - [X] T314 Type the bootstrap as monitor lines of 64 bytes, a line ending
   where the shim starts, with 100 ms after each line rather than 250.
+- [X] T315 Show VERIFYING on the Apple's status row while a written track is
+  read back, and show track and sector as two digits, T01 and S01, so the
+  percentage after them stays in one column.- **Phase 16 first.** T181 before T182 to T186.
 - **Phase 17 after T186.** Phase 18 after T188.
 - **Phase 19 after T182 and T189.**
 - **Phase 20 after T197.**

@@ -207,6 +207,7 @@ misses   = $0A                  ; revolutions in a row with no address field
 revs     = $0B                  ; Time drive: passes left to report
 fgap     = $0C                  ; the gap after each sector, in self-sync bytes
 idles    = $0D                  ; Idle replies since the last operation
+vflag    = $0E                  ; nonzero while a written track is read back
 diskx    = $E0
 drive    = $E1                  ; 1 or 2
 track    = $E2
@@ -296,6 +297,7 @@ slotok:
         sta silent
         sta spinning
         sta fdata
+        sta vflag
         lda #3
         sta tmolen
         lda #<exitlink          ; Control-Reset ends CassoLink cleanly
@@ -644,7 +646,9 @@ wrgot:  jsr frameslot
         bne wrnext
         jsr writepass
         bcs wrdone
+        jsr startverify
         jsr verifysecs
+        jsr endverify
         jsr showprog
         jmp opdone
 
@@ -723,9 +727,23 @@ wtgot:  jsr encpage
         lda #>FSTREAM
         ldy #0
         jsr play
+        jsr startverify
         jsr verifytrack
+        jsr endverify
         jsr showprog
         jmp opdone
+
+; startverify and endverify: the status row reads VERIFYING while a written
+; track is read back. endverify saves and restores the carry flag, which
+; is verify's result.
+startverify: lda #1
+        sta vflag
+        jmp showstatus
+endverify: php
+        lda #0
+        sta vflag
+        plp
+        rts
 
 ; encpage: the page of `sector`'s groups in ENCBUF in A; its values are on
 ; the page after it.
@@ -2602,6 +2620,16 @@ putch:  cpy #40
 pcnext: iny
         rts
 
+
+; putdec2: A in decimal, with a leading zero below 10, so a track or sector
+; is always two digits and the percentage after it stays in place.
+putdec2: cmp #10
+        bcs putdec
+        pha
+        lda #'0'
+        jsr putch
+        pla
+
 ; putdec: A in decimal, without leading zeros, into the field from Y.
 putdec: ldx #0                  ; hundreds
 pdh:    cmp #100
@@ -2898,10 +2926,17 @@ showstatus: jsr percent
         sta ptr+1
         lda op                  ; idle with no PC: waiting for the connection,
         ora pcflag              ; not for a command
-        bne stput
+        bne stverify
         lda #<onopc
         sta ptr
         lda #>onopc
+        sta ptr+1
+        jmp stput
+stverify: lda vflag             ; a written track being read back
+        beq stput
+        lda #<overify
+        sta ptr
+        lda #>overify
         sta ptr+1
 stput:  jsr puttext
         lda op
@@ -2922,14 +2957,14 @@ strun:  lda #<stdrive
         sta ptr+1
         jsr puttext
         lda track
-        jsr putdec
+        jsr putdec2
         lda #<stsector
         sta ptr
         lda #>stsector
         sta ptr+1
         jsr puttext
         lda sector
-        jsr putdec
+        jsr putdec2
         lda #' '
         jsr putch
         lda #'('
@@ -2963,6 +2998,8 @@ oread:   .text "READING"
 owrite:  .text "WRITING"
          .byte 0
 oformat: .text "FORMATTING"
+         .byte 0
+overify: .text "VERIFYING"
          .byte 0
 ospeed:  .text "SETTING SPEED"
          .byte 0
@@ -3131,7 +3168,7 @@ senotwp: cmp #ERRNOTFND          ; a sector that cannot be read or verified:
         sta ptr+1
         jsr puttext
         lda track
-        jsr putdec
+        jsr putdec2
         lda #<stsector
         sta ptr
         lda #>stsector
