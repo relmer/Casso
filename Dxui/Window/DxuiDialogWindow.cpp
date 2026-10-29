@@ -185,49 +185,65 @@ void DxuiDialogWindow::OnDialogShowing()
 //  grows or shrinks by the difference, keeping its center where the caller
 //  put it. The work area's height is the ceiling.
 //
+//  The first resize can also change the window's frame, which takes width and
+//  height from the content on top of the difference. A second pass measures
+//  at the width the content has after that and closes the gap.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiDialogWindow::FitHeightToContent()
 {
-    HRESULT                 hr       = S_OK;
-    IDxuiMeasuredContent  * measured = dynamic_cast<IDxuiMeasuredContent *> (m_content);
-    IDxuiTextRenderer     * text     = GetTextRenderer();
-    const IDxuiTheme      * theme    = GetTheme();
-    HWND                    hwnd     = GetHwnd();
-    RECT                    content  = {};
-    RECT                    window   = {};
-    int                     needPx   = 0;
-    int                     heightPx = 0;
-    int                     top      = 0;
-    bool                    ok       = false;
-    HMONITOR                monitor  = nullptr;
-    MONITORINFO             mi       = { sizeof (mi) };
+    static constexpr int    s_kMaxPasses = 3;
+
+    HRESULT                 hr        = S_OK;
+    IDxuiMeasuredContent  * measured  = dynamic_cast<IDxuiMeasuredContent *> (m_content);
+    IDxuiTextRenderer     * text      = GetTextRenderer();
+    const IDxuiTheme      * theme     = GetTheme();
+    HWND                    hwnd      = GetHwnd();
+    RECT                    content   = {};
+    RECT                    window    = {};
+    int                     needPx    = 0;
+    int                     deltaPx   = 0;
+    int                     heightPx  = 0;
+    int                     top       = 0;
+    int                     pass      = 0;
+    bool                    ok        = false;
+    bool                    atCeiling = false;
+    HMONITOR                monitor   = nullptr;
+    MONITORINFO             mi        = { sizeof (mi) };
 
 
 
     BAIL_OUT_IF (measured == nullptr, S_OK);
     CBR (text != nullptr && theme != nullptr && hwnd != nullptr);
 
-    content = m_content->GetBounds();
-    ok      = measured->TryMeasureHeightPx (*text, *theme, content.right - content.left, needPx);
-    CBR (ok);
-
-    ok = GetWindowRect (hwnd, &window) != FALSE;
-    CBR (ok);
-
-    heightPx = (window.bottom - window.top) + needPx - (content.bottom - content.top);
-    top      = window.top - (heightPx - (window.bottom - window.top)) / 2;
-    monitor  = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-
-    if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))
+    for (pass = 0; pass < s_kMaxPasses && !atCeiling; pass++)
     {
-        heightPx = std::min (heightPx, (int) (mi.rcWork.bottom - mi.rcWork.top));
-        top      = std::clamp (top, (int) mi.rcWork.top, (int) mi.rcWork.bottom - heightPx);
-    }
+        content = m_content->GetBounds();
+        ok      = measured->TryMeasureHeightPx (*text, *theme, content.right - content.left, needPx);
+        CBR (ok);
 
-    ok = SetWindowPos (hwnd, nullptr, window.left, top, window.right - window.left, heightPx,
-                       SWP_NOZORDER | SWP_NOACTIVATE) != FALSE;
-    CBR (ok);
+        deltaPx = needPx - (content.bottom - content.top);
+        BAIL_OUT_IF (deltaPx == 0, S_OK);
+
+        ok = GetWindowRect (hwnd, &window) != FALSE;
+        CBR (ok);
+
+        heightPx = (window.bottom - window.top) + deltaPx;
+        top      = window.top - deltaPx / 2;
+        monitor  = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+
+        if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))
+        {
+            atCeiling = heightPx >= (int) (mi.rcWork.bottom - mi.rcWork.top);
+            heightPx  = std::min (heightPx, (int) (mi.rcWork.bottom - mi.rcWork.top));
+            top       = std::clamp (top, (int) mi.rcWork.top, (int) mi.rcWork.bottom - heightPx);
+        }
+
+        ok = SetWindowPos (hwnd, nullptr, window.left, top, window.right - window.left, heightPx,
+                           SWP_NOZORDER | SWP_NOACTIVATE) != FALSE;
+        CBR (ok);
+    }
 
 Error:
     return hr;
