@@ -310,12 +310,13 @@ STDMETHODIMP DxuiDragDropSource::QueryContinueDrag (BOOL escapePressed, DWORD ke
 STDMETHODIMP DxuiDragDropSource::GiveFeedback (DWORD effect)
 {
     //  While the shell's drag window is up, it draws the drop's icon and words
-    //  itself, as under File Explorer's drags; OLE's own cursors would cover
-    //  them, so the pointer is a plain arrow.
+    //  itself, as under File Explorer's drags; OLE's drop cursors would cover
+    //  them, so the pointer is a plain arrow, or the no-drop cursor where the
+    //  drop has no effect.
     if (GetStoredDword (L"IsShowingLayered", 0) != 0)
     {
         DescribeEffect (effect);
-        SetCursor (LoadCursorW (nullptr, IDC_ARROW));
+        SetCursor (LoadCursorW (nullptr, (effect & (DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK)) ? IDC_ARROW : IDC_NO));
         return S_OK;
     }
 
@@ -343,9 +344,8 @@ STDMETHODIMP DxuiDragDropSource::GiveFeedback (DWORD effect)
 //  words, wherever it has no effect yet, and a target may set none at all.
 //  Either way the type is filled in from the effect, so the window draws the
 //  effect's icon. A type the target chose is not replaced. With no effect
-//  the type is DROPIMAGE_INVALID, so the window doesn't draw a description and the pointer is
-//  the system's no-drop cursor, as in File Explorer; DROPIMAGE_NONE would
-//  draw its icon in an empty label.
+//  the type is DROPIMAGE_INVALID, so the window doesn't draw a description,
+//  as in File Explorer; DROPIMAGE_NONE would draw its icon in an empty label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

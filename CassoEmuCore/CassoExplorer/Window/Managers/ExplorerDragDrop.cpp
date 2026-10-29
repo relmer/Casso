@@ -647,6 +647,18 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
     {
         LeaveHostDrop();
         ShowDropTarget (tag, screen, true);
+
+        if (IsImageWriteDrop (source, location))
+        {
+            hr = DxuiDragDropTarget::SetDropDescription (data, DROPIMAGE_COPY, L"Write image to %1",
+                                                         m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path).c_str());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+        else
+        {
+            DescribeDrop (data, DROPEFFECT_COPY, location);
+        }
+
         return DROPEFFECT_COPY;
     }
 
@@ -684,8 +696,31 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerDragDrop::ReadDropSource
+//  ExplorerDragDrop::IsImageWriteDrop
 //
+//  One disk image dropped on a linked drive itself, which is written to the
+//  whole disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDragDrop::IsImageWriteDrop (const DropSource & source, const Location & drive)
+{
+    DiskFormat  format = DiskFormat::Dsk;
+    bool        single = !source.fromImage && source.hostPaths.size() == 1 && drive.innerPath.empty();
+    HRESULT     known  = single ? DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (source.hostPaths[0]), format) : E_FAIL;
+
+
+
+    return SUCCEEDED (known);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::ReadDropSource//
 //  Another image's entries when the drag holds them, host files otherwise.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1091,10 +1126,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     //  in. Each write goes over the link, and is reported when it is done.
     if (TryGetAppleDropDrive (tag, screen, location) && ReadDropSource (data, source))
     {
-        DiskFormat  format = DiskFormat::Dsk;
-        bool        single = !source.fromImage && source.hostPaths.size() == 1 && location.innerPath.empty();
-        HRESULT     known  = single ? DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (source.hostPaths[0]), format) : E_FAIL;
-        bool        image  = single && SUCCEEDED (known);
+        bool  image = IsImageWriteDrop (source, location);
 
         LeaveHostDrop();
         m_dropTarget.SetDropResult (DROPEFFECT_COPY);

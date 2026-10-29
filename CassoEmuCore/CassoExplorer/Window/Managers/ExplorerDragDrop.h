@@ -86,6 +86,7 @@ public:
     void                                    RunDrop              (CassoExplorerActions::Conversion conversion);
     void                                    ClearDropTarget      ();
     bool                                    ReadDropSource       (IDataObject * data, DropSource & outSource);
+    static bool                             IsImageWriteDrop     (const DropSource & source, const Location & drive);
     DWORD                                   ChooseDropEffect     (const DropSource & source, const Location & target) const;
     void                                    DescribeDrop         (IDataObject * data, DWORD effect, const Location & target);
     void                                    HoverDropTab         (POINT screen);
