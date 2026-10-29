@@ -471,9 +471,11 @@ Error:
 //
 //  BrowserLoader::RevisitLink
 //
-//  A Disk II has no signal for a changed disk, so a machine's
-//  drives, or a drive, are read again each time the list goes to them, and
-//  on a refresh; a reload as a read arrives is the same visit.
+//  A Disk II has no signal for a changed disk, so a machine's drives, or a
+//  drive, are read again when the list goes to them, and on a refresh; a
+//  reload as a read arrives is the same visit. A visit within
+//  kLinkRevisitMs of the last read lists what that read found, so moving
+//  between tabs does not spin the drives each time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -488,13 +490,24 @@ void BrowserLoader::RevisitLink (const Location & location)
     VolumeKind     kind    = VolumeKind::Unknown;
     HRESULT        result  = S_OK;
     std::string    message;
-    bool           revisit = parsed && location != m_linkVisit && m_browser.m_links->IsStarted (name);
+    bool           visit   = parsed && location != m_linkVisit;
+    ULONGLONG      now     = GetTickCount64();
+    auto           readAt  = m_linkReadAt.find (location.path);
+    bool           recent  = readAt != m_linkReadAt.end() && now - readAt->second < kLinkRevisitMs;
 
 
 
     m_linkVisit = parsed ? location : Location();
 
-    if (!revisit)
+    if (!visit || recent)
+    {
+        return;
+    }
+
+    //  The first visit, before the link has started, reads the drive too.
+    m_linkReadAt[location.path] = now;
+
+    if (!m_browser.m_links->IsStarted (name))
     {
         return;
     }

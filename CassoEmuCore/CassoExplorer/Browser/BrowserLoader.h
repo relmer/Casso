@@ -65,6 +65,8 @@ public:
     void     AddAdtProHelpItem     ();
     bool     IsAdtProServer        (const std::string & name) const;
     void     RevisitLink           (const Location & location);
+
+    static constexpr ULONGLONG  kLinkRevisitMs = 30000;   // a visit sooner than this to a drive lists what was read
     bool     CanListImage          (const std::wstring & imagePath);
     bool     TryGetImageLocation   (int row, Location & outLocation) const;
 
@@ -77,6 +79,7 @@ private:
     Location                          m_shellParent;
     CassoExplorerHostListings         m_hostListings;
     Location                          m_linkVisit;   // the linked machine or drive last listed
+    std::map<std::wstring, ULONGLONG> m_linkReadAt;  // when each linked machine or drive was last read again
     std::map<std::wstring, TreeNode>  m_nodes;
     std::vector<FileSystemEntry>      m_hostEntries;
     FolderOptions                     m_folderOptions;

@@ -45,6 +45,7 @@ public:
     std::atomic<int>                  promptsMissed  { 0 };
     std::atomic<int>                  sectorDelayMs  { 0 };
     std::atomic<int>                  sectorsRead    { 0 };
+    std::atomic<int>                  catalogReads   { 0 };   // read requests on drive 1's track 17, a DOS 3.3 catalog's
     std::atomic<int>                  sectorsWritten { 0 };
     std::atomic<int>                  cancels        { 0 };
     //  Idles received as a shim, before the program is loaded.
@@ -308,6 +309,11 @@ private:
         {
             SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, 0, CassoLinkHost::kErrorDrive });
             return;
+        }
+
+        if (drive == 1 && track == 17)
+        {
+            catalogReads++;
         }
 
         for (done = 0; done < count && !stop.stop_requested(); done++)

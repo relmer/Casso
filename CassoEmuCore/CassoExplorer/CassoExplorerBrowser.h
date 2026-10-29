@@ -235,7 +235,7 @@ public:
 
     //  The next list of a linked machine or drive reads its disks again, as
     //  a refresh does.
-    void  ForgetLinkVisit () { m_loader.m_linkVisit = Location(); }
+    void  ForgetLinkVisit () { m_loader.m_linkVisit = Location(); m_loader.m_linkReadAt.clear(); }
 
     //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const { return m_previewer.GetExtractTarget(); }

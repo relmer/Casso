@@ -192,6 +192,41 @@ public:
 
 
 
+    //  A drive visited again within moments lists what was read rather than
+    //  reading the disk again; a refresh reads it.
+    TEST_METHOD (ADriveVisitedAgainSoon_ListsWhatWasRead_UntilRefreshed)
+    {
+        Rig   rig;
+        int   reads = 0;
+        auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
+
+
+
+        rig.Open (1);
+        rig.Open (2);
+        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        reads = rig.apple.catalogReads;
+
+        //  A read would start on the session's thread, so it is given time.
+        rig.Open (1);
+        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        AssertSucceeded (rig.browser->Refresh());
+        Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read for a drive read moments ago");
+
+        rig.browser->ForgetLinkVisit();
+        AssertSucceeded (rig.browser->Refresh());
+
+        while (rig.apple.catalogReads == reads && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+            AssertSucceeded (rig.browser->Refresh());
+        }
+
+        Assert::IsTrue (rig.apple.catalogReads > reads, L"a refresh reads the catalog");
+    }
+
+
+
     TEST_METHOD (CopyOut_WritesTheFileToTheHostFolder)
     {
         Rig                     rig;

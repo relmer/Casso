@@ -1377,7 +1377,7 @@ waits for this phase, so it is tested once.
   makes neither directly nor through the functions it calls. None found
   past renames. The check compares calls only, so an assignment or a
   repeated call dropped from a function is not covered.
-- [ ] T293 Stop re-reading every drive's catalog when a tab moves to a linked
+- [X] T293 Stop re-reading every drive's catalog when a tab moves to a linked
   Apple; read again only when the drive reports a disk change or the
   listing is old.
 - [ ] T294 Move a drag's drop highlight to the row under the pointer after
