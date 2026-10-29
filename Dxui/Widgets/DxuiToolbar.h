@@ -275,6 +275,11 @@ public:
     void  SetEndEdges      (bool ends)                   { m_endEdges = ends; }
     bool  HasEndEdges      () const                      { return m_endEdges; }
 
+    //  Whether a horizontal strip without end edges draws its bottom
+    //  hairline; a pane's bar doesn't, as in Visual Studio.
+    void  SetBottomEdge    (bool bottom)                 { m_bottomEdge = bottom; }
+    bool  HasBottomEdge    () const                      { return m_bottomEdge; }
+
     //  The strip's length along its axis with nothing collapsed into See
     //  more: every label shown when horizontal, icons alone when vertical,
     //  and the grab handle included.
@@ -521,6 +526,7 @@ private:
     bool                     m_labels         = true;
     bool                     m_grip           = false;
     bool                     m_endEdges       = false;
+    bool                     m_bottomEdge     = true;
     RECT                     m_gripRect       = {};
     bool                     m_lifted         = false;
     DxuiSlide                m_liftSlide;

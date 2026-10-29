@@ -133,6 +133,7 @@ void HeatMapPane::Configure()
     m_viewBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_viewBar->SetCompact      (true);
     m_viewBar->SetBandDp       (HeatMapView::kBarDip);
+    m_viewBar->SetBottomEdge   (false);
     m_viewBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_viewBar->SetEntries      (m_commands->BuildViewRowEntries());
     m_viewBar->SetVisible      (false);

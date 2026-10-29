@@ -66,6 +66,7 @@ void PaneBarSlot::Configure()
     m_bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
     m_bar->SetCompact       (true);
     m_bar->SetPaneTextInset (true);
+    m_bar->SetBottomEdge    (false);
     m_bar->EnableSeeMore    (s_kpszMdl2More, L"See more");
     m_bar->SetVisible       (false);
 }
