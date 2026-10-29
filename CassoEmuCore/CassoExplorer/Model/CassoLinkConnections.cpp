@@ -1607,10 +1607,43 @@ void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
 
 void CassoLinkConnections::Sink::OnActivity (const std::string & text)
 {
+    Log (Activity(), text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::OnFinished
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::Sink::OnFinished (const LinkOperation & operation, const std::string & text)
+{
     Activity  entry;
 
 
 
+    entry.started   = operation.started;
+    entry.operation = true;
+
+    Log (std::move (entry), text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::Log
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::Sink::Log (Activity entry, const std::string & text)
+{
     GetLocalTime (&entry.time);
     entry.connection = TextEncoding::NarrowToWide (m_name);
     entry.text       = TextEncoding::NarrowToWide (text);

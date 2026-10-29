@@ -1387,8 +1387,10 @@ waits for this phase, so it is tested once.
 - [X] T296 Paste with Ctrl+V into a linked drive's file list, as the command
   bar's Paste does.
 - [X] T297 Remove a deleted file's row rather than refilling the list.
-- [ ] T298 In the CassoLink activity log: copy, lines that wrap only past the
-  dialog's width, a monospace face, and each operation's start time.
+- [X] T298 Show the CassoLink activity log as a list with Started, Ended,
+  Connection and Activity columns, newest first, its rows copied with Ctrl+C.
+  A list replaced the planned monospace text, so the times are in separate
+  columns; long entries scroll sideways rather than wrap.
 - [X] T299 Select a new folder once its name is entered, as File Explorer
   does.
 

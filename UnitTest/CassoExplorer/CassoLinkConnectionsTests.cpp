@@ -5,6 +5,7 @@
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoExplorer/CassoLinkActivityDialog.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoLink/CassoLinkSession.h"
@@ -144,6 +145,36 @@ public:
 
         Assert::IsTrue (rig.links->TryGetListing ("Test", 1, std::string(), listing, kind, result, message));
         Assert::IsFalse (std::any_of (listing.entries.begin(), listing.entries.end(), hello));
+    }
+
+
+
+    //  Newest first; an operation's row has its start and end times, any
+    //  other entry's the time it was logged.
+    TEST_METHOD (ActivityDialog_ListsOperationsWithTheirStartAndEnd)
+    {
+        std::vector<CassoLinkConnections::Activity>  log (2);
+        std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+        log[0].time       = SYSTEMTIME { 2026, 10, 4, 29, 9, 0, 0, 0 };
+        log[0].connection = L"Test";
+        log[0].text       = L"Connected to the Apple";
+        log[1].started    = SYSTEMTIME { 2026, 10, 4, 29, 9, 1, 0, 0 };
+        log[1].time       = SYSTEMTIME { 2026, 10, 4, 29, 9, 2, 30, 0 };
+        log[1].operation  = true;
+        log[1].connection = L"Test";
+        log[1].text       = L"Read disk 1: done";
+
+        rows = CassoLinkActivityDialog::BuildRows (log);
+
+        Assert::AreEqual ((size_t) 2, rows.size());
+        Assert::AreEqual (std::wstring (L"2026-10-29 09:01:00"), rows[0][0].text);
+        Assert::AreEqual (std::wstring (L"2026-10-29 09:02:30"), rows[0][1].text);
+        Assert::AreEqual (std::wstring (L"Read disk 1: done"),   rows[0][3].text);
+        Assert::AreEqual (std::wstring (L"2026-10-29 09:00:00"), rows[1][0].text);
+        Assert::IsTrue   (rows[1][1].text.empty());
     }
 
 

@@ -162,7 +162,9 @@ public:
     //  operations, and ADTPro's requests, oldest first, the latest kLogLength.
     struct Activity
     {
-        SYSTEMTIME    time = {};
+        SYSTEMTIME    time      = {};
+        SYSTEMTIME    started   = {};      // an operation's start; time is its end
+        bool          operation = false;
         std::wstring  connection;
         std::wstring  text;
     };
@@ -248,8 +250,11 @@ private:
         void  OnProgress     (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnDone         (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity     (const std::string & text) override;
+        void  OnFinished     (const LinkOperation & operation, const std::string & text) override;
 
     private:
+        void  Log (Activity entry, const std::string & text);
+
         CassoLinkConnections  & m_owner;
         std::string             m_name;
     };

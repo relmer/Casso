@@ -5,6 +5,7 @@
 #include "Seams/Win32FirewallHelper.h"
 #include "Net/FirewallText.h"
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
+#include "CassoExplorer/CassoLinkActivityDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Core/TextEncoding.h"
@@ -1862,9 +1863,11 @@ std::wstring CassoLinkManager::FormatActivity (size_t lines) const
 
 void CassoLinkManager::ShowActivityLog()
 {
-    std::wstring  text = FormatActivity (0);
+    std::vector<CassoLinkConnections::Activity>  log = (m_context.app.links != nullptr) ? m_context.app.links->GetActivity() : std::vector<CassoLinkConnections::Activity>();
+    HRESULT                                      hr  = S_OK;
 
 
 
-    DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"CassoLink activity", MB_OK);
+    hr = CassoLinkActivityDialog::Show (m_context.window.GetHwnd(), m_context.theme, log);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }

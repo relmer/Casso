@@ -71,6 +71,7 @@ struct LinkOperation
     std::atomic<LinkOperationState>  state    { LinkOperationState::Queued };
     HRESULT                          result   = S_OK;
     std::string                      message;
+    SYSTEMTIME                       started  = {};   // local time, once it is running
 
     VolumeListing                    listing;
     VolumeKind                       volumeKind = VolumeKind::Unknown;
@@ -116,6 +117,9 @@ public:
     //  A line for the activity log: a connection made or dropped, an
     //  operation finished, or a request of ADTPro's served.
     virtual void  OnActivity     (const std::string & text)                            { UNREFERENCED_PARAMETER (text); }
+
+    //  An operation finished, for the log with the time it started.
+    virtual void  OnFinished     (const LinkOperation & operation, const std::string & text) { UNREFERENCED_PARAMETER (operation); OnActivity (text); }
 };
 
 

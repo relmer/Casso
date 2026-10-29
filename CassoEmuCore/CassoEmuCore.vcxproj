@@ -291,6 +291,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerProperties.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerRawDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerWindow.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerAddressBar.cpp" />
@@ -770,6 +771,7 @@
     <ClInclude Include="CassoExplorer\CassoExplorerRawDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerShellListings.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
+    <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerOptionsDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerAddressBar.h" />

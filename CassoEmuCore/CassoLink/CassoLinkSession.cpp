@@ -635,6 +635,7 @@ void CassoLinkSession::Run (std::stop_token stop)
         }
 
         SetState (LinkState::Busy);
+        GetLocalTime (&operation->started);
         operation->state = LinkOperationState::Running;
         m_sink.OnProgress (operation);
 
@@ -651,7 +652,7 @@ void CassoLinkSession::Run (std::stop_token stop)
 
         if (operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
-            m_sink.OnActivity (std::format ("{}: {}", DescribeOperation (*operation), SUCCEEDED (hr) ? "done" : "failed"));
+            m_sink.OnFinished (*operation, std::format ("{}: {}", DescribeOperation (*operation), SUCCEEDED (hr) ? "done" : "failed"));
         }
 
         operation->state    = SUCCEEDED (hr)                              ? LinkOperationState::Done
