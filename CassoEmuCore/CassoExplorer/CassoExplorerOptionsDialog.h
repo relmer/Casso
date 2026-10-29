@@ -18,7 +18,8 @@ class DisplayPage;
 //
 //  CassoExplorerGeneralPage
 //
-//  Each setting a label over its control, down the page.
+//  The host file name style, its description above its choices, then the
+//  disk image types.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,17 +28,20 @@ class CassoExplorerGeneralPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiLabel & namingNote, DxuiCheckbox & registration);
+    void  Init    (DxuiLabel & namingLabel, DxuiRadioGroup & naming, DxuiLabel & namingNote, DxuiCheckbox & registration);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kNoteHeightDip  = 80;
+    static constexpr int  kNoteHeightDip         = 72;
+    static constexpr int  kOptionLabelHeightDip  = 20;
+    static constexpr int  kOptionDescHeightDip   = 18;
+    static constexpr int  kOptionGapDip          = 6;
 
 private:
-    DxuiLabel     * m_namingLabel = nullptr;
-    DxuiComboBox  * m_naming      = nullptr;
-    DxuiLabel     * m_namingNote  = nullptr;
-    DxuiCheckbox  * m_register    = nullptr;
+    DxuiLabel       * m_namingLabel = nullptr;
+    DxuiRadioGroup  * m_naming      = nullptr;
+    DxuiLabel       * m_namingNote  = nullptr;
+    DxuiCheckbox    * m_register    = nullptr;
 };
 
 
@@ -62,7 +66,7 @@ class CassoExplorerOptionsDialog : public DxuiPropertySheet
 public:
     struct Choices
     {
-        //  An index into GetNamingLabels.
+        //  An index into GetNamingOptions.
         int   hostNaming = 0;
 
         //  Whether Casso is the program for its disk image types.
@@ -86,7 +90,7 @@ public:
     };
 
     //  The host file name forms, in the order the setting stores them.
-    static std::vector<std::wstring>  GetNamingLabels ();
+    static std::vector<DxuiRadioOption>  GetNamingOptions ();
 
 
     //  Runs the dialog modally over `owner`. False when it was canceled or
@@ -121,7 +125,7 @@ private:
     Choices                       m_choices;
     bool                          m_confirmed     = false;
     DxuiLabel                     m_namingLabel;
-    DxuiComboBox                  m_naming;
+    DxuiRadioGroup                m_naming;
     DxuiLabel                     m_namingNote;
     DxuiCheckbox                  m_register;
     ColorPickerOverlay            m_colorPicker;

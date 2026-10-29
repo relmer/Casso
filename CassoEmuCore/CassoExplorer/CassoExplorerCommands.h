@@ -385,6 +385,7 @@ private:
         { kView,          DxuiToolbar::Kind::DropDown, 3, s_kpszMdl2List,   L"View",    L"View",                   false },
         { kAddLink,       DxuiToolbar::Kind::Command, 3, s_kpszMdl2Add,     L"Add a CassoLink connection...", L"Add a CassoLink connection", false, false, true },
         { kAbout,         DxuiToolbar::Kind::Command, 3, s_kpszMdl2Info,    L"About Casso Explorer", L"About Casso Explorer", false, false, true },
+        { kOptions,       DxuiToolbar::Kind::Command, 3, s_kpszMdl2Setting, L"Options", L"Options",            false, false, true },
         { kTheme,         DxuiToolbar::Kind::DropDown, 4, s_kpszMdl2Palette, L"Theme",  L"Theme",                  false, true },
         { kTogglePreview, DxuiToolbar::Kind::Toggle,  4, s_kpszMdl2Preview, L"Preview", L"Preview pane",           false, true },
     };

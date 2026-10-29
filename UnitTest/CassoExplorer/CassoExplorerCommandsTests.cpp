@@ -122,7 +122,8 @@ public:
                                                   CassoExplorerCommands::kCutItems, CassoExplorerCommands::kCopyItems, CassoExplorerCommands::kPasteItems,
                                                   CassoExplorerCommands::kRenameItem, CassoExplorerCommands::kShareItems, CassoExplorerCommands::kDeleteItems,
                                                   CassoExplorerCommands::kSort, CassoExplorerCommands::kView, CassoExplorerCommands::kAddLink,
-                                                  CassoExplorerCommands::kAbout, CassoExplorerCommands::kTheme, CassoExplorerCommands::kTogglePreview });
+                                                  CassoExplorerCommands::kAbout, CassoExplorerCommands::kOptions, CassoExplorerCommands::kTheme,
+                                                  CassoExplorerCommands::kTogglePreview });
 
         for (size_t i = 1; i < 7; i++)
         {
@@ -132,8 +133,8 @@ public:
 
         Assert::IsTrue  (bar[0].kind == DxuiToolbar::Kind::DropDown, L"New opens its choices");
         Assert::IsTrue  (bar[7].kind == DxuiToolbar::Kind::DropDown && bar[8].kind == DxuiToolbar::Kind::DropDown);
-        Assert::IsTrue  (bar[9].seeMoreOnly && bar[10].seeMoreOnly, L"Add a CassoLink machine and About live in See more");
-        Assert::IsTrue  (bar[11].trailing && bar[12].trailing, L"The theme and the preview toggle sit at the far end");
+        Assert::IsTrue  (bar[9].seeMoreOnly && bar[10].seeMoreOnly && bar[11].seeMoreOnly, L"Add a CassoLink machine, About and Options live in See more");
+        Assert::IsTrue  (bar[12].trailing && bar[13].trailing, L"The theme and the preview toggle sit at the far end");
         Assert::IsFalse (bar[8].trailing);
 
         //  An archive's Extract all follows View, as Explorer's does.

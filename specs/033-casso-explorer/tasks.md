@@ -1399,6 +1399,9 @@ waits for this phase, so it is tested once.
 - [X] T304 Outline an empty checkbox and radio button in the text color at
   60%, and fill a checked or selected one with the accent color, so they are
   visible in the Dark and Light themes.
+- [X] T305 Move Options from View to the See more menu, with a gear, as File
+  Explorer has it. On the General page, put the host file name description
+  above the choices, and replace the dropdown with radio buttons.
 - [X] T306 Open a path a second launch passes, with no other switch, in a new
   tab of the window in front rather than a new window.
 **Dependencies**: in order. T292 to T299

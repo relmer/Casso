@@ -24,7 +24,7 @@ static constexpr int  s_kSheetMinHeight = 320;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiLabel & namingNote, DxuiCheckbox & registration)
+void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiRadioGroup & naming, DxuiLabel & namingNote, DxuiCheckbox & registration)
 {
     m_namingLabel = &namingLabel;
     m_naming      = &naming;
@@ -49,21 +49,31 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiComboBox & nam
 
 void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  labelBottom = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackLabelHeightDip);
-    int  fieldTop    = labelBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int  fieldBottom = fieldTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  noteTop     = fieldBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int  noteBottom  = noteTop + scaler.ToPx (kNoteHeightDip);
-    int  checkTop    = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 3);
-    int  checkBottom = checkTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    std::vector<DxuiRadioOption>  options     = m_naming->GetOptions();
+    int                           labelBottom = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackLabelHeightDip);
+    int                           noteTop     = labelBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int                           noteBottom  = noteTop + scaler.ToPx (kNoteHeightDip);
+    int                           optionH     = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip + kOptionGapDip);
+    int                           optionsTop  = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int                           optionsEnd  = optionsTop + optionH * (int) options.size();
+    int                           checkTop    = optionsEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 3);
+    int                           checkBottom = checkTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
 
     SetBounds (boundsDip);
 
+    //  One option under another, each its name over an example of a name.
+    for (size_t i = 0; i < options.size(); i++)
+    {
+        options[i].rect = RECT { boundsDip.left, optionsTop + optionH * (int) i, boundsDip.right, optionsTop + optionH * (int) (i + 1) };
+    }
+
+    m_naming->SetOptions (std::move (options));
+
     m_namingLabel->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, labelBottom }, scaler);
-    m_naming->Layout      (RECT { boundsDip.left, fieldTop, boundsDip.right, fieldBottom }, scaler);
     m_namingNote->Layout  (RECT { boundsDip.left, noteTop, boundsDip.right, noteBottom }, scaler);
+    m_naming->Layout      (RECT { boundsDip.left, optionsTop, boundsDip.right, optionsEnd }, scaler);
     m_register->Layout    (RECT { boundsDip.left, checkTop, boundsDip.right, checkBottom }, scaler);
 
     SetContentHeightPx (checkBottom - boundsDip.top);
@@ -90,13 +100,18 @@ bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerOptionsDialog::GetNamingLabels
+//  CassoExplorerOptionsDialog::GetNamingOptions
+//
+//  Each style's name, over the file name of a BASIC program called HELLO in
+//  that style.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::wstring> CassoExplorerOptionsDialog::GetNamingLabels()
+std::vector<DxuiRadioOption> CassoExplorerOptionsDialog::GetNamingOptions()
 {
-    return { L"Descriptive (HELLO.Applesoft BASIC.txt)", L"CiderPress (HELLO#FC0801)", L"AppleSingle (HELLO.as)" };
+    return { DxuiRadioOption { {}, L"Descriptive", L"HELLO.Applesoft BASIC.txt" },
+             DxuiRadioOption { {}, L"CiderPress",  L"HELLO#FC0801" },
+             DxuiRadioOption { {}, L"AppleSingle", L"HELLO.as" } };
 }
 
 
@@ -118,14 +133,12 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     ExplorerTextStyles::Apply (m_namingLabel, ExplorerTextStyles::kFormLabel);
     m_namingLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
-    m_naming.SetPopupHost (GetPopupHost());
-    m_naming.SetItems     (GetNamingLabels());
-    m_naming.SetSelected  (m_choices.hostNaming);
+    m_naming.SetOptions  (GetNamingOptions());
+    m_naming.SetSelected (m_choices.hostNaming);
 
-    m_namingNote.SetText      (L"An Apple file has a file type, and a program has the address it loads at. A Windows file name "
-                               L"has neither, so a file copied to this PC has them in one of these forms, and a copy back onto an "
-                               L"Apple disk restores them: words in the name, the six hex digits CiderPress uses, or an "
-                               L"AppleSingle file around the data. All three are read back, whichever is chosen here.");
+    m_namingNote.SetText      (L"Apple files have a file type, and programs have a load address. A Windows file name has no place for either, "
+                               L"so when a file is copied to this PC, they are stored in its name or in an AppleSingle wrapper. Copying the file "
+                               L"back onto an Apple disk restores them. Casso Explorer reads all three forms, whichever is selected here.");
     ExplorerTextStyles::Apply (m_namingNote, ExplorerTextStyles::kFormNote);
     m_namingNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -334,7 +347,7 @@ void CassoExplorerOptionsDialog::PreviewChoices()
 HRESULT CassoExplorerOptionsDialog::OnOk()
 {
     m_choices.registered = m_register.IsChecked();
-    m_choices.hostNaming = m_naming.GetSelectedIndex();
+    m_choices.hostNaming = m_naming.GetSelected();
     m_confirmed          = true;
 
     return DxuiPropertySheet::OnOk();

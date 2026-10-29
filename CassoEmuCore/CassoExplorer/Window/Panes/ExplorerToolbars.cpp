@@ -589,9 +589,6 @@ void ExplorerToolbars::SetCommandBarDropDowns()
     sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
     sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_context.commands.Find (CassoExplorerCommands::kGroupBy), m_context.listPane.GetMenus().GetGroupChoices()));
 
-    viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kOptions)));
-
     for (int id : { (int) CassoExplorerCommands::kThemeSkeuomorphic, (int) CassoExplorerCommands::kThemeRetroTerminal, (int) CassoExplorerCommands::kThemeDarkModern,
                     (int) CassoExplorerCommands::kThemeDark, (int) CassoExplorerCommands::kThemeLight, (int) CassoExplorerCommands::kThemeSystem })
     {
