@@ -2958,14 +2958,16 @@ strun:  lda #<stdrive
         jsr puttext
         lda track
         jsr putdec2
-        lda #<stsector
+        lda vflag               ; a read-back takes the track's sectors in
+        bne stpct               ; whatever order they pass, so the row has
+        lda #<stsector          ; no sector while it runs
         sta ptr
         lda #>stsector
         sta ptr+1
         jsr puttext
         lda sector
         jsr putdec2
-        lda #' '
+stpct:  lda #' '
         jsr putch
         lda #'('
         jsr putch
@@ -2993,13 +2995,15 @@ oidle:   .text "WAITING FOR A COMMAND"
          .byte 0
 onopc:   .text "WAITING FOR CONNECTION"
          .byte 0
-oread:   .text "READING"
+; A running operation's name is padded to the length of FORMATTING, so the
+; drive and track after it are in the same columns for every operation.
+oread:   .text "READING   "
          .byte 0
-owrite:  .text "WRITING"
+owrite:  .text "WRITING   "
          .byte 0
 oformat: .text "FORMATTING"
          .byte 0
-overify: .text "VERIFYING"
+overify: .text "VERIFYING "
          .byte 0
 ospeed:  .text "SETTING SPEED"
          .byte 0

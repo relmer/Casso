@@ -1466,7 +1466,9 @@ The product-wide styles are GitHub issue #179.
   where the shim starts, with 100 ms after each line rather than 250.
 - [X] T315 Show VERIFYING on the Apple's status row while a written track is
   read back, and show track and sector as two digits, T01 and S01, so the
-  percentage after them stays in one column.- **Phase 16 first.** T181 before T182 to T186.
+  percentage after them stays in one column, and pad the operation's name to
+  ten characters, so the drive and track stay in one column. During a read-back the row has no sector,
+  since it reads the track's sectors in whatever order they pass.- **Phase 16 first.** T181 before T182 to T186.
 - [X] T316 Open a serial link's port at the link's speed before the bootstrap
   speed, so an Apple waiting at the link's speed connects at once
   rather than after the bootstrap speed's share of the connect timeout.
