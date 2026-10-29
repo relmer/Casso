@@ -200,7 +200,9 @@ public:
 
 
 
-    TEST_METHOD (ASerialLink_OpensAtTheBootstrapSpeed_ThenTheLinks)
+    //  An Apple that ran the link before waits at the link's speed, so the port
+    //  opens at that speed first, and never at the bootstrap speed.
+    TEST_METHOD (ASerialLink_TriesTheLinksSpeedFirst)
     {
         Rig                rig;
         CassoLinkSettings  settings;
@@ -215,8 +217,7 @@ public:
         rig.session->SetConnectTimeout (2000);
         AssertSucceeded (rig.session->Start (settings));
         Assert::IsTrue  (rig.sink.WaitForState (LinkState::Ready), L"connected at the link's speed");
-        Assert::AreEqual ((DWORD) 9600,   rig.factory.comBauds.front());
-        Assert::AreEqual ((DWORD) 115200, rig.factory.comBauds.back());
+        Assert::IsTrue  (rig.factory.comBauds == std::vector<DWORD> { 115200 }, L"on the first port opened");
     }
 
 
@@ -227,17 +228,20 @@ public:
         Rig                rig;
         CassoLinkSettings  settings;
 
-        rig.factory.comPorts     = { { L"COM3", Port::Apple } };
-        rig.factory.peerReady    = 1;
-        rig.factory.peerLagReads = 3;
+        rig.factory.comPorts            = { { L"COM3", Port::Apple } };
+        rig.factory.peerReady           = 1;
+        rig.factory.peerLagReads        = 3;
+        rig.factory.appleBaud           = 9600;
+        rig.factory.appleBaudAfterSpeed = 115200;
 
         settings.name      = "Test";
         settings.transport = LinkTransport::Serial;
         settings.port      = "COM3";
 
+        rig.session->SetConnectTimeout (2000);
         AssertSucceeded (rig.session->Start (settings));
         Assert::IsTrue   (rig.sink.WaitForState (LinkState::Ready));
-        Assert::IsTrue   (rig.factory.comBauds == std::vector<DWORD> { 9600, 115200 }, L"connected at the bootstrap speed, then opened again at the link's");
+        Assert::IsTrue   (rig.factory.comBauds == std::vector<DWORD> { 115200, 9600, 115200 }, L"silent at the link's speed, connected at the bootstrap speed, then opened again at the link's");
         Assert::AreEqual ((int) Byte (0x03), (int) rig.session->GetDriveMap(), L"the drives of the Ready before the port was opened again");
 
         Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 1000), L"DSR off on the port just opened is not the Apple gone");

@@ -1467,6 +1467,9 @@ The product-wide styles are GitHub issue #179.
 - [X] T315 Show VERIFYING on the Apple's status row while a written track is
   read back, and show track and sector as two digits, T01 and S01, so the
   percentage after them stays in one column.- **Phase 16 first.** T181 before T182 to T186.
+- [X] T316 Open a serial link's port at the link's speed before the bootstrap
+  speed, so an Apple waiting at the link's speed connects at once
+  rather than after the bootstrap speed's share of the connect timeout.
 - **Phase 17 after T186.** Phase 18 after T188.
 - **Phase 19 after T182 and T189.**
 - **Phase 20 after T197.**

@@ -179,7 +179,9 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     //  speed. The bootstrap speed is added only on a line just opened, for
     //  a shim typed in that is waiting at it; on a line open already, and
     //  once ADTPro's client has made a request, an attempt at the bootstrap
-    //  speed would garble ADTPro's requests at the link's speed.
+    //  speed would garble ADTPro's requests at the link's speed. The port opens
+    //  at it after the link's speed, since an Apple that ran the link before
+    //  waits at that speed, and a shim typed in at the keyboard is rarer.
     if (openAt != 0)
     {
         speeds = { openAt };
@@ -190,7 +192,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     }
     else if (m_session.m_settings.transport == LinkTransport::Serial && m_session.m_settings.baud != m_session.m_settings.bootstrapBaud && !m_adtPro && !IsLineOpen())
     {
-        speeds.insert (speeds.begin(), m_session.m_settings.bootstrapBaud);
+        speeds.push_back (m_session.m_settings.bootstrapBaud);
     }
 
     //  A line kept open between attempts is prompted again on each one. A

@@ -46,6 +46,7 @@ public:
     std::atomic<int>                  sectorDelayMs  { 0 };
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  catalogReads   { 0 };   // read requests on drive 1's track 17, a DOS 3.3 catalog's
+    std::atomic<bool>                 speedSet       { false };   // a Set speed has arrived
     std::atomic<int>                  sectorsWritten { 0 };
     std::atomic<int>                  cancels        { 0 };
     //  Idles received as a shim, before the program is loaded.
@@ -211,6 +212,7 @@ private:
 
                 case CassoLinkCodec::kSetSpeed:
                     SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, 0, 0 });
+                    speedSet = true;
                     break;
 
                 case CassoLinkCodec::kReadSectors:
@@ -460,8 +462,11 @@ public:
     std::vector<DWORD>            comBauds;
 
     //  The one speed an Apple port replies at; at any other it is silent.
-    //  With zero, it replies at every speed.
-    DWORD                         appleBaud = 0;
+    //  With zero, it replies at every speed. appleBaudAfterSpeed, when set,
+    //  replaces it once a Set speed arrives, as a shim typed in at the
+    //  bootstrap speed moves to the link's.
+    DWORD                         appleBaud           = 0;
+    DWORD                         appleBaudAfterSpeed = 0;
 
     //  Set when a COM port was opened while another was open.
     std::atomic<bool>             comOverlapped { false };
@@ -517,7 +522,9 @@ public:
         comBauds.push_back (settings.baud);
         m_ends.push_back (pcEnd);
 
-        if (found->second == Port::Apple && (appleBaud == 0 || appleBaud == settings.baud))
+        DWORD  replies = (m_apple.speedSet && appleBaudAfterSpeed != 0) ? appleBaudAfterSpeed : appleBaud;
+
+        if (found->second == Port::Apple && (replies == 0 || replies == settings.baud))
         {
             m_apple.Attach (appleEnd);
         }
