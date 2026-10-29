@@ -627,6 +627,22 @@ void CassoExplorerWindow::ShowMessage (const std::wstring & text, UINT icon)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::OpenPathInNewTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OpenPathInNewTab (const std::wstring & path)
+{
+    m_parts->tabManager.OpenPathInNewTab (path);
+    m_parts->listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::OnCopyData
 //
 //  A reply is queued and shown after the send returns: Casso is blocked in
@@ -647,8 +663,7 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
 
     if (copy != nullptr && copy->dwData == kOpenPathCopyId && copy->lpData != nullptr)
     {
-        m_parts->tabManager.OpenPathInNewTab (std::wstring ((const wchar_t *) copy->lpData, copy->cbData / sizeof (wchar_t)));
-        m_parts->listPane.FillList();
+        OpenPathInNewTab (std::wstring ((const wchar_t *) copy->lpData, copy->cbData / sizeof (wchar_t)));
 
         return DxuiMessageResult::Handled;
     }

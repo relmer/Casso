@@ -1134,7 +1134,8 @@ std::vector<CassoExplorerSessionWindow> CassoExplorerShell::GetOpenSession() con
 //
 //  CassoExplorerShell::RunLaunch
 //
-//  Another launch's window steps down and right from the window in front,
+//  A launch with a path alone opens it in a tab of the window in front.
+//  Any other launch's window steps down and right from the window in front,
 //  and comes forward itself. A command line that does not parse opens
 //  nothing; the launch that sent it had already checked it.
 //
@@ -1147,6 +1148,7 @@ void CassoExplorerShell::RunLaunch (const std::wstring & arguments)
     CassoExplorerPrefs::Placement  from;
     CassoExplorerWindow          * front   = GetWindowFor (GetForegroundWindow());
     CassoExplorerWindow          * opened  = nullptr;
+    bool                           tabbed  = false;
 
 
 
@@ -1165,6 +1167,18 @@ void CassoExplorerShell::RunLaunch (const std::wstring & arguments)
     {
         from = front->GetPlacement();
     }
+
+    //  A path alone, as File Explorer's Open in Casso Explorer passes, opens
+    //  in a tab of the window in front, as File Explorer opens a folder.
+    tabbed = front != nullptr && !options.openPath.empty() && !options.newWindow && !options.hasOwner;
+
+    if (tabbed)
+    {
+        front->OpenPathInNewTab (options.openPath);
+        FrontWindow (front->GetHwnd());
+    }
+
+    BAIL_OUT_IF (tabbed, S_OK);
 
     opened = OpenWindow (PlanForwardedLaunch (options, from));
     CBR (opened != nullptr);

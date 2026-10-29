@@ -1399,6 +1399,12 @@ waits for this phase, so it is tested once.
 - [X] T304 Outline an empty checkbox and radio button in the text color at
   60%, and fill a checked or selected one with the accent color, so they are
   visible in the Dark and Light themes.
+- [X] T306 Open a path a second launch passes, with no other switch, in a new
+  tab of the window in front rather than a new window.
+**Dependencies**: in order. T292 to T299
+before T079.
+The product-wide styles are GitHub issue #179.
+## Section H dependencies
 
 - **Phase 16 first.** T181 before T182 to T186.
 - **Phase 17 after T186.** Phase 18 after T188.
