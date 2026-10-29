@@ -1457,7 +1457,8 @@ The product-wide styles are GitHub issue #179.
   drive: Text listing for an Applesoft or Integer BASIC file, and Applesoft
   BASIC for a text file. Each writes a new file beside the original, selects
   it for renaming, and never replaces the original.
-- **Phase 16 first.** T181 before T182 to T186.
+- [X] T313 List what was last read when switching back to a tab on a linked
+  machine or drive; Refresh, or going to the drive again, reads its disks.
 - **Phase 17 after T186.** Phase 18 after T188.
 - **Phase 19 after T182 and T189.**
 - **Phase 20 after T197.**

@@ -227,6 +227,32 @@ public:
 
 
 
+    //  Switching back to a tab on a drive, however long after, doesn't read
+    //  its disk again.
+    TEST_METHOD (ReturningToADrivesTab_ListsWhatWasRead)
+    {
+        Rig   rig;
+        int   reads = 0;
+
+
+
+        rig.Open (1);
+        rig.browser->OpenInNewTab (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string()));
+        rig.Reload();
+        rig.browser->ForgetLinkVisit();
+        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        reads = rig.apple.catalogReads;
+
+        Assert::IsTrue (rig.browser->SwitchTab (0));
+        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+        AssertSucceeded (rig.browser->Refresh());
+
+        Assert::AreEqual (reads, (int) rig.apple.catalogReads, L"no catalog read on returning to the tab");
+    }
+
+
+
+
     TEST_METHOD (CopyOut_WritesTheFileToTheHostFolder)
     {
         Rig                     rig;

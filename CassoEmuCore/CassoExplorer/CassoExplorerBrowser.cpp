@@ -1378,7 +1378,10 @@ bool CassoExplorerBrowser::SwitchTab (size_t index)
         return false;
     }
 
-    names = m_model.GetActiveTab().selection;
+    //  Returning to a tab lists what was last read there; Refresh, or going to
+    //  the drive again, reads its disks.
+    names                 = m_model.GetActiveTab().selection;
+    m_loader.m_linkVisit  = GetLocation();
     m_loader.ReloadAfterNavigation();
     SelectRowsByKeys (names);
 
