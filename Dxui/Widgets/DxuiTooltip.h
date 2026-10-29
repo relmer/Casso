@@ -105,7 +105,12 @@ public:
     //  A square of a color beside each of the given lines, for a tip about
     //  colors; with an empty list, no squares are drawn.
     void  SetSwatches     (const std::vector<DxuiTooltipSwatch> & swatches);
-    void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
+
+    //  Line colors, one for each line from the top; zero, or a line past the
+    //  last, is drawn in the tip's text color. A tip with line colors is not
+    //  wrapped. Applies from the next RequestShow or RequestShowNow.
+    void  SetLineColors   (const std::vector<uint32_t> & argbs);
+    void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
@@ -236,6 +241,7 @@ private:
     bool                              m_isInstant         = false;
     bool                              m_hasLifetime       = true;
     std::vector<DxuiTooltipSwatch>    m_swatches;
+    std::vector<uint32_t>             m_lineArgbs;
     bool                              m_isSwatchChanged   = false;
     float                             m_lineHeightPx      = 0.0f;
     DxuiHwndSource                  * m_popupHost         = nullptr;

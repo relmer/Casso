@@ -358,6 +358,63 @@ public:
 
 
 
+    TEST_METHOD (ASectorTipDrawsItsChecksumErrorInTheFailedColor)
+    {
+        DiskAnalysis                    analysis;
+        InspectorViewModel              model;
+        InspectorViewContext            context;
+        std::shared_ptr<TrackAnalysis>  damaged;
+        std::wstring                    tip;
+        RECT                            anchor = {};
+        POINT                           at     = {};
+        vector<uint32_t>                colors;
+
+
+
+        AnalyzeDsk (analysis);
+
+        model.SetDisk (1);
+        model.SetAnalysis (&analysis);
+        context.palette  = DiskInspectorPalette::Resolve (DxuiTheme::Dark());
+        context.analysis = &analysis;
+        context.model    = &model;
+        context.hasDisk  = true;
+        model.SelectSector (68, 0);
+
+        SectorRowView  row (context);
+
+        row.Layout ({ 0, 0, 900, 200 }, DxuiDpiScaler());
+
+        for (int y = 0; y < 200 && !tip.starts_with (L"Sector $3\n"); y += 2)
+        {
+            for (int x = 0; x < 900 && !tip.starts_with (L"Sector $3\n"); x += 2)
+            {
+                tip.clear();
+                at = { x, y };
+                (void) row.GetTooltip (at, tip, anchor);
+            }
+        }
+
+        Assert::IsFalse (row.GetTooltipLineColors (at, colors), L"a good sector's lines are in the text color");
+
+        damaged = std::make_shared<TrackAnalysis> (*analysis.tracks[analysis.entries[68].slot]);
+
+        for (AnalyzedSector & sector : damaged->sectors)
+        {
+            sector.state = (sector.sector == 3) ? SectorState::BadData : sector.state;
+        }
+
+        analysis.tracks[analysis.entries[68].slot] = damaged;
+
+        (void) row.GetTooltip (at, tip, anchor);
+        Assert::IsTrue   (GetLine (tip, 2) == L"Data field checksum error", tip.c_str());
+        Assert::IsTrue   (row.GetTooltipLineColors (at, colors));
+        Assert::AreEqual (static_cast<size_t> (3), colors.size());
+        Assert::AreEqual (context.palette.GetStateColor (SectorState::BadData), colors[2]);
+        Assert::AreNotEqual (0u, colors[2]);
+    }
+
+
     TEST_METHOD (TheFileMapCellTipHasItsFindHit)
     {
         vector<Byte>               image  = FileMapTestImages::MakeDos33();

@@ -1694,6 +1694,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     RECT                                  anchor    = {};
     int64_t                               now       = static_cast<int64_t> (GetTickCount64());
     vector<DxuiTooltipSwatch>             swatches;
+    vector<uint32_t>                      lineColors;
     bool                                  isInstant = false;
     const std::array<InspectorView *, 13> views     = { m_session.views.platter, m_session.views.strip, m_session.views.stripB, m_session.views.sectorRow, m_session.views.sectors, m_session.views.nibbles, m_session.views.flux, m_session.views.header, m_session.views.image, m_session.views.tracks, m_session.views.issues, m_session.views.diffs, m_session.views.findResults };
 
@@ -1704,7 +1705,8 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
         if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && !(view == m_session.views.platter && m_corners->Contains (pointPx)) &&
             view->GetTooltip (pointPx, tip, anchor))
         {
-            view->GetTooltipSwatches (pointPx, swatches);
+            view->GetTooltipSwatches   (pointPx, swatches);
+            view->GetTooltipLineColors (pointPx, lineColors);
             isInstant = view == m_session.views.platter || view == m_session.views.strip || view == m_session.views.stripB;
         }
     }
@@ -1731,16 +1733,10 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     }
     else if (isInstant || tip != m_tooltipText || (!m_tooltip.IsShown() && !m_tooltip.IsPending()))
     {
-        m_tooltip.SetSwatches (swatches);
+        m_tooltip.SetSwatches   (swatches);
+        m_tooltip.SetLineColors (lineColors);
 
-        if (isInstant)
-        {
-            m_tooltip.RequestShowNow (anchor, tip, now);
-        }
-        else
-        {
-            m_tooltip.RequestShow (anchor, tip, now);
-        }
+        isInstant ? m_tooltip.RequestShowNow (anchor, tip, now) : m_tooltip.RequestShow (anchor, tip, now);
     }
 
     m_tooltipText = tip;

@@ -115,6 +115,15 @@ public:
         return false;
     }
 
+    //  A color for each tooltip line drawn in other than the text color,
+    //  such as an error; false when every line is in the text color.
+    virtual bool  GetTooltipLineColors (POINT pointPx, vector<uint32_t> & outArgbs) const
+    {
+        (void) pointPx;
+        (void) outArgbs;
+        return false;
+    }
+
     //  The text and the rectangle it describes, for the window's tooltip.
     virtual bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
     {

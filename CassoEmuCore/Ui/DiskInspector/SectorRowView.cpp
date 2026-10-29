@@ -204,6 +204,42 @@ bool SectorRowView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SectorRowView::GetTooltipLineColors
+//
+//  The sector's state color on the tip's third line, the checksum error or
+//  the missing data field, as the button is drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorRowView::GetTooltipLineColors (POINT pointPx, vector<uint32_t> & outArgbs) const
+{
+    const TrackAnalysis *  track    = m_context.GetTrack();
+    int                    position = (track != nullptr) ? HitTest (pointPx, *track) : -1;
+    SectorState            state    = SectorState::Good;
+    bool                   isError  = false;
+
+
+
+    if (position >= 0)
+    {
+        state   = track->sectors[GetPassingOrder (*track)[position]].state;
+        isError = state == SectorState::BadAddress || state == SectorState::BadData || state == SectorState::NoDataField;
+    }
+
+    if (isError)
+    {
+        outArgbs = { 0, 0, m_context.palette.GetStateColor (state) };
+    }
+
+    return isError;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SectorRowView::GetPassingOrder
 //
 ////////////////////////////////////////////////////////////////////////////////

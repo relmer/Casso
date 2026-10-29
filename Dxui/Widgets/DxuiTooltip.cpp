@@ -738,7 +738,7 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
     HWND     owner    = m_popupHost->GetHwnd();
     UINT     dpi      = m_scaler.GetDpi();
     float    fontPx   = m_scaler.ToPxf (m_fontDip);
-    float    maxWPx   = m_scaler.ToPxf (m_swatches.empty() ? s_kMaxTextWidthDip : s_kMaxSwatchTextWidthDip);
+    float    maxWPx   = m_scaler.ToPxf ((m_swatches.empty() && m_lineArgbs.empty()) ? s_kMaxTextWidthDip : s_kMaxSwatchTextWidthDip);
     float    padXPx   = m_scaler.ToPxf (s_kPadXDip);
     float    padYPx   = m_scaler.ToPxf (s_kPadYDip);
     float    textWPx  = 0.0f;
@@ -854,6 +854,26 @@ void DxuiTooltip::SetSwatches (const std::vector<DxuiTooltipSwatch> & swatches)
 
     m_isSwatchChanged = m_isSwatchChanged || !isSame;
     m_swatches        = swatches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLineColors
+//
+//  A color for each line from the top; zero, or a line past the last, is
+//  drawn in the tip's text color. A change raises the tip again, as a
+//  change of swatches does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::SetLineColors (const std::vector<uint32_t> & argbs)
+{
+    m_isSwatchChanged = m_isSwatchChanged || argbs != m_lineArgbs;
+    m_lineArgbs       = argbs;
 }
 
 
@@ -1070,13 +1090,37 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         painter.OutlineRect (padX, padY + s.line * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, borderPx, m_borderArgb);
     }
 
-    hr = text.DrawString (m_text.c_str(),
-                          padX + GetSwatchColumnPx(),
-                          padY,
-                          width  - padX * 2.0f - GetSwatchColumnPx(),
-                          height - padY * 2.0f,
-                          m_textArgb,
-                          fontPx,
-                          GetFace());
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    if (m_lineArgbs.empty())
+    {
+        hr = text.DrawString (m_text.c_str(),
+                              padX + GetSwatchColumnPx(),
+                              padY,
+                              width  - padX * 2.0f - GetSwatchColumnPx(),
+                              height - padY * 2.0f,
+                              m_textArgb,
+                              fontPx,
+                              GetFace());
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    //  With line colors, each line is drawn alone, at the line height the
+    //  swatches use.
+    for (size_t start = 0, line = 0; !m_lineArgbs.empty() && start <= m_text.size(); line++)
+    {
+        size_t        end  = std::min (m_text.find (L'\n', start), m_text.size());
+        std::wstring  part = m_text.substr (start, end - start);
+        uint32_t      argb = (line < m_lineArgbs.size() && m_lineArgbs[line] != 0) ? m_lineArgbs[line] : m_textArgb;
+
+        hr = text.DrawString (part.c_str(),
+                              padX + GetSwatchColumnPx(),
+                              padY + static_cast<float> (line) * m_lineHeightPx,
+                              width - padX * 2.0f - GetSwatchColumnPx(),
+                              m_lineHeightPx,
+                              argb,
+                              fontPx,
+                              GetFace());
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        start = end + 1;
+    }
 }
