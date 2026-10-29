@@ -135,6 +135,7 @@
     </ClCompile>
     <ClCompile Include="Ui\Dialogs\TapePositionDialog.cpp" />
     <ClCompile Include="Core\ThreadOwnership.cpp" />
+    <ClCompile Include="Core\LongPath.cpp" />
     <ClCompile Include="Shell\BackgroundWorkQueue.cpp" />
     <ClCompile Include="Devices\Tape\TapeRecorder.cpp" />
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
@@ -809,6 +810,7 @@
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
     <ClInclude Include="Core\ThreadOwnership.h" />
+    <ClInclude Include="Core\LongPath.h" />
     <ClInclude Include="Shell\BackgroundWorkQueue.h" />
     <ClInclude Include="Devices\Tape\RecordingCapture.h" />
     <ClInclude Include="Devices\Tape\TapeRecorder.h" />

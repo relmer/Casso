@@ -118,6 +118,12 @@
       character that code page cannot hold, such as Greek or CJK, arrives with
       `?` in its place and is never found.
 
+    longPathAware true
+      The same manifest declares the process long-path aware, which lifts
+      MAX_PATH from the file APIs on a system with LongPathsEnabled set. The
+      disk file I/O does not depend on it: it calls Windows with paths in the
+      \\?\ form, from LongPath.
+
       Set here so every executable gets it, including one added later. A DLL
       ignores activeCodePage, so the setting is inert in UnitTest.dll and
       ScenarioTests.dll. ExeManifestTests checks the shipped executables.

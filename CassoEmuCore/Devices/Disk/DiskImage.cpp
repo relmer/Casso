@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/LongPath.h"
 
 #include "DiskImage.h"
 #include "DamagedMountReport.h"
@@ -1037,7 +1038,7 @@ HRESULT DiskImage::Load (const string & filePath)
 
 
     {
-        ifstream file (filePath, ios::binary);
+        ifstream file (fs::path (LongPath::ToWin32 (filePath)), ios::binary);
         fileOk = file.good();
         CBR (fileOk);
 

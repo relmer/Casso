@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/LongPath.h"
 
 #include "ImageIdentity.h"
 
@@ -62,7 +63,7 @@ ImageIdentity ImageIdentity::ReadFromFileSystem (const std::string & path)
     ImageIdentity              identity;
     std::error_code            sizeEc;
     std::error_code            timeEc;
-    fs::path                   fsPath (path);
+    fs::path                   fsPath (LongPath::ToWin32 (path));
     uintmax_t                  size = 0;
     fs::file_time_type         written;
 

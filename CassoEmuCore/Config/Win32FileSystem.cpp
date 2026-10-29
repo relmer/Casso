@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/LongPath.h"
 
 #include "Config/Win32FileSystem.h"
 
@@ -536,7 +537,7 @@ HRESULT Win32FileSystem::GetReadOnlyAttribute (
 
     outReadOnly = false;
 
-    attrs = GetFileAttributesW (path.c_str());
+    attrs = GetFileAttributesW (LongPath::ToWin32 (path).c_str());
     CWR (attrs != INVALID_FILE_ATTRIBUTES);
 
     outReadOnly = (attrs & FILE_ATTRIBUTE_READONLY) != 0;
@@ -569,7 +570,7 @@ HRESULT Win32FileSystem::SetReadOnlyAttribute (
 
 
 
-    attrs = GetFileAttributesW (path.c_str());
+    attrs = GetFileAttributesW (LongPath::ToWin32 (path).c_str());
     CWR (attrs != INVALID_FILE_ATTRIBUTES);
 
     newAttrs = readOnly ? (attrs | FILE_ATTRIBUTE_READONLY)
@@ -577,7 +578,7 @@ HRESULT Win32FileSystem::SetReadOnlyAttribute (
 
     if (newAttrs != attrs)
     {
-        fSet = SetFileAttributesW (path.c_str(), newAttrs);
+        fSet = SetFileAttributesW (LongPath::ToWin32 (path).c_str(), newAttrs);
         CWR (fSet);
     }
 

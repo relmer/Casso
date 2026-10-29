@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/LongPath.h"
 
 #include "Core/ThreadName.h"
 #include "Win32ImageWatcher.h"
@@ -52,7 +53,7 @@ Win32ImageWatcher::~Win32ImageWatcher()
 bool Win32ImageWatcher::Watch (const std::string & directory, Callback callback)
 {
     std::lock_guard<std::mutex>  guard (m_mutex);
-    std::wstring                 wide  = fs::path (directory).wstring();
+    std::wstring                 wide  = LongPath::ToWin32 (directory);
     bool                         began = false;
 
 

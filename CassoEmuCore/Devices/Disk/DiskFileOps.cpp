@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/LongPath.h"
 
 #include "DiskFileOps.h"
 #include "DiskImageStore.h"
@@ -111,7 +112,7 @@ bool DiskFileOps::Exists (const std::string & path) const
         return fileIo->Exists (path);
     }
 
-    return fs::exists (fs::path (path), ec);
+    return fs::exists (fs::path (LongPath::ToWin32 (path)), ec);
 }
 
 
@@ -215,7 +216,7 @@ void DiskFileOps::ProbeWritability (const std::string & path, bool & outReadOnly
 {
     std::error_code  ec;
     fs::file_status  st;
-    fs::path         p (path);
+    fs::path         p (LongPath::ToWin32 (path));
 
 
 

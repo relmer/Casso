@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/LongPath.h"
 
 #include "Seams/Win32DiskFileIo.h"
 #include "Core/PathResolver.h"
@@ -16,7 +17,7 @@
 HRESULT Win32DiskFileIo::ReadAllBytes (const std::string & path, std::vector<Byte> & outBytes)
 {
     HRESULT        hr       = S_OK;
-    std::wstring   widePath = std::filesystem::path (path).wstring();
+    std::wstring   widePath = LongPath::ToWin32 (path);
     HANDLE         file     = INVALID_HANDLE_VALUE;
     LARGE_INTEGER  size     = {};
     DWORD          read     = 0;
@@ -79,7 +80,7 @@ Error:
 HRESULT Win32DiskFileIo::WriteAllBytes (const std::string & path, const std::vector<Byte> & bytes)
 {
     HRESULT       hr        = S_OK;
-    std::wstring  widePath  = std::filesystem::path (path).wstring();
+    std::wstring  widePath  = LongPath::ToWin32 (path);
     HANDLE        file      = INVALID_HANDLE_VALUE;
     DWORD         written   = 0;
     size_t        byteCount = bytes.size();
@@ -137,7 +138,7 @@ HRESULT Win32DiskFileIo::Stat (const std::string & path, FileStamp & outStamp)
 {
     HRESULT                     hr       = S_OK;
     WIN32_FILE_ATTRIBUTE_DATA   data     = {};
-    std::wstring                widePath = std::filesystem::path (path).wstring();
+    std::wstring                widePath = LongPath::ToWin32 (path);
     BOOL                        ok       = FALSE;
     ULARGE_INTEGER              size     = {};
     ULARGE_INTEGER              written  = {};
@@ -175,7 +176,7 @@ bool Win32DiskFileIo::Exists (const std::string & path)
 
 
 
-    return std::filesystem::exists (std::filesystem::path (path), ec);
+    return std::filesystem::exists (std::filesystem::path (LongPath::ToWin32 (path)), ec);
 }
 
 
@@ -217,8 +218,8 @@ HRESULT Win32DiskFileIo::Remove (const std::string & path)
 HRESULT Win32DiskFileIo::ReplaceAtomically (const std::string & tempPath, const std::string & targetPath)
 {
     HRESULT       hr       = S_OK;
-    std::wstring  wideTemp = std::filesystem::path (tempPath).wstring();
-    std::wstring  wideDest = std::filesystem::path (targetPath).wstring();
+    std::wstring  wideTemp = LongPath::ToWin32 (tempPath);
+    std::wstring  wideDest = LongPath::ToWin32 (targetPath);
     BOOL          ok       = FALSE;
 
 
@@ -255,7 +256,7 @@ Error:
 HRESULT Win32DiskFileIo::FlushToStorage (const std::string & path)
 {
     HRESULT       hr     = S_OK;
-    std::wstring  wide   = std::filesystem::path (path).wstring();
+    std::wstring  wide   = LongPath::ToWin32 (path);
     HANDLE        handle = INVALID_HANDLE_VALUE;
     BOOL          ok     = FALSE;
 
@@ -298,8 +299,8 @@ HRESULT Win32DiskFileIo::CopyFileMetadata (const std::string & fromPath, const s
 
 
     HRESULT                        hr       = S_OK;
-    std::wstring                   wideFrom = std::filesystem::path (fromPath).wstring();
-    std::wstring                   wideTo   = std::filesystem::path (toPath).wstring();
+    std::wstring                   wideFrom = LongPath::ToWin32 (fromPath);
+    std::wstring                   wideTo   = LongPath::ToWin32 (toPath);
     WIN32_FILE_ATTRIBUTE_DATA      from     = {};
     DWORD                          toAttrs  = 0;
     HANDLE                         handle   = INVALID_HANDLE_VALUE;
@@ -385,8 +386,8 @@ Error:
 HRESULT Win32DiskFileIo::RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath)
 {
     HRESULT       hr       = S_OK;
-    std::wstring  wideTemp = std::filesystem::path (tempPath).wstring();
-    std::wstring  wideDest = std::filesystem::path (targetPath).wstring();
+    std::wstring  wideTemp = LongPath::ToWin32 (tempPath);
+    std::wstring  wideDest = LongPath::ToWin32 (targetPath);
     BOOL          ok       = FALSE;
 
 
@@ -415,7 +416,7 @@ Error:
 
 bool Win32DiskFileIo::IsHeldByAnotherProcess (const std::string & path)
 {
-    std::wstring  widePath = std::filesystem::path (path).wstring();
+    std::wstring  widePath = LongPath::ToWin32 (path);
     HANDLE        handle   = INVALID_HANDLE_VALUE;
     bool          held     = false;
 

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/LongPath.h"
 
 #include "DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -764,7 +765,7 @@ HRESULT DiskImageStore::ReadFileBytes (const string & path, vector<Byte> & bytes
     CBRAEx (hasPath, E_INVALIDARG);
 
     {
-        ifstream  file (path, ios::binary | ios::ate);
+        ifstream  file (fs::path (LongPath::ToWin32 (path)), ios::binary | ios::ate);
 
         fileOk = file.good();
         CBR (fileOk);

@@ -95,6 +95,22 @@ public:
                         std::format (L"{} declares activeCodePage UTF-8", exeName).c_str());
     }
 
+    //  Long paths, past MAX_PATH. Windows honors the element only in the 2016
+    //  WindowsSettings namespace, and only on a system with LongPathsEnabled
+    //  set; LongPath's \\?\ form covers the file I/O on every other.
+    static void AssertLongPathAware (const wchar_t * exeName)
+    {
+        static constexpr const char * kpszElement =
+            "<longPathAware xmlns=\"http://schemas.microsoft.com/SMI/2016/WindowsSettings\">true</longPathAware>";
+
+        std::string  manifest = LoadManifest (exeName);
+
+
+
+        Assert::IsTrue (manifest.find (kpszElement) != std::string::npos,
+                        std::format (L"{} declares longPathAware", exeName).c_str());
+    }
+
     TEST_METHOD (Casso_DeclaresTheUtf8CodePage)
     {
         AssertUtf8CodePage (L"Casso.exe");
@@ -103,5 +119,15 @@ public:
     TEST_METHOD (CassoCli_DeclaresTheUtf8CodePage)
     {
         AssertUtf8CodePage (L"CassoCli.exe");
+    }
+
+    TEST_METHOD (Casso_IsLongPathAware)
+    {
+        AssertLongPathAware (L"Casso.exe");
+    }
+
+    TEST_METHOD (CassoCli_IsLongPathAware)
+    {
+        AssertLongPathAware (L"CassoCli.exe");
     }
 };
