@@ -110,7 +110,7 @@ bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 std::vector<DxuiRadioOption> CassoExplorerOptionsDialog::GetNamingOptions()
 {
     return { DxuiRadioOption { {}, L"Descriptive", L"The file type and load address are written into the file name in words.", L"GAME.Binary.$0803.bin" },
-             DxuiRadioOption { {}, L"CiderPress",  L"A # and six hex digits end the file name: two for the file type ($06 is Binary) and four for the load address ($0803).", L"GAME#060803" },
+             DxuiRadioOption { {}, L"CiderPress",  L"A # and six hex digits end the file name: two for the file type (06 is Binary) and four for the load address (0803).", L"GAME#060803" },
              DxuiRadioOption { {}, L"AppleSingle", L"The metadata is stored in the AppleSingle container file, along with the file's data.", L"GAME.as" } };
 }
 
