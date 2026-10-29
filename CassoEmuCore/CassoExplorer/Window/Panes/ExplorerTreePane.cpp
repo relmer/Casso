@@ -800,6 +800,7 @@ void ExplorerTreePane::RefreshTree()
     }
 
     m_context.folderSync.UpdateWatchedFolders();
+    m_context.dragDrop.RefreshDropTarget();
     m_context.window.Invalidate();
 }
 

@@ -81,6 +81,7 @@ public:
     DWORD                                   ForwardHostDrag      (IDataObject * data, const std::wstring & folder, POINT screen);
     void                                    LeaveHostDrop        ();
     void                                    ShowDropTarget       (int tag, POINT screen, bool accepted);
+    void                                    RefreshDropTarget    ();
     void                                    ShowDropMenu         ();
     void                                    RunDrop              (CassoExplorerActions::Conversion conversion);
     void                                    ClearDropTarget      ();
@@ -104,4 +105,8 @@ private:
     PendingDrop            m_pendingDrop;
     int                    m_treeDropRow     = -1;
     ULONGLONG              m_treeDropSinceMs = 0;
+    bool                   m_dropOver        = false;   // a drag is over the window, at m_dropTag and m_dropScreen
+    int                    m_dropTag         = 0;
+    POINT                  m_dropScreen      = {};
+    bool                   m_dropAccepted    = false;
 };

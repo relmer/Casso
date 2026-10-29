@@ -860,6 +860,7 @@ void ExplorerListPane::FillList()
     m_context.addressBar.FillNavTips();
     m_context.preview.FillPreview();
     m_context.statusBar.Fill();
+    m_context.dragDrop.RefreshDropTarget();
     m_context.window.Invalidate();
 }
 

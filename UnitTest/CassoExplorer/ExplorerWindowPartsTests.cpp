@@ -11,6 +11,7 @@
 #include "RecordingExplorerServices.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Window/ExplorerWindowParts.h"
 #include "Core/AppMessages.h"
@@ -309,6 +310,43 @@ public:
         Assert::AreEqual (1, dialogs->saves);
         Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Create image from"));
         Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
+    }
+
+
+
+
+    //  A file that sorts ahead of the image the drag is over takes its row,
+    //  and a file is no drop target.
+    TEST_METHOD (DropHighlight_FollowsTheRowUnderTheDrag_WhenTheListRefills)
+    {
+        Rig    rig;
+        POINT  at  = {};
+        bool   hit = false;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\m.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+
+        for (at.x = 640, at.y = 0; at.y < 800 && !hit; at.y += 2)
+        {
+            hit = rig.parts->listPane.HitTestRow (at) == 0;
+        }
+
+        Assert::IsTrue (hit);
+        at.y -= 2;
+
+        rig.parts->dragDrop.ShowDropTarget (CassoExplorerWindow::kDropTagList, at, true);
+        Assert::AreEqual (0, rig.parts->listPane.GetDropRow());
+
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\a.txt", "text"));
+        AssertSucceeded (rig.browser.Refresh());
+        rig.parts->listPane.FillList();
+
+        Assert::AreEqual (std::wstring (L"a.txt"), rig.browser.GetRows()[0].name);
+        Assert::AreEqual (-1, rig.parts->listPane.GetDropRow());
     }
 
 

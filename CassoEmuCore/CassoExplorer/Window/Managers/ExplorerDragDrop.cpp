@@ -888,6 +888,11 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 
 
 
+    m_dropOver     = true;
+    m_dropTag      = tag;
+    m_dropScreen   = screen;
+    m_dropAccepted = accepted;
+
     ScreenToClient (m_context.window.GetHwnd(), &client);
 
     if (accepted && tag == CassoExplorerWindow::kDropTagTree)
@@ -935,6 +940,44 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerDragDrop::RefreshDropTarget
+//
+//  The list or tree was filled again under a drag, so the rows the drop
+//  highlights are found again at the drag's last point. The tree node's
+//  wait to open goes on if the drag is over the same row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDragDrop::RefreshDropTarget()
+{
+    int        treeRow = m_treeDropRow;
+    ULONGLONG  since   = m_treeDropSinceMs;
+
+
+
+    if (!m_dropOver)
+    {
+        return;
+    }
+
+    m_context.listPane.SetDropRow (-1);
+    m_context.treePane.SetDropRow (-1);
+    m_treeDropRow = -1;
+
+    ShowDropTarget (m_dropTag, m_dropScreen, m_dropAccepted);
+
+    if (m_treeDropRow == treeRow)
+    {
+        m_treeDropSinceMs = since;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerDragDrop::ClearDropTarget
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -942,6 +985,8 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 void ExplorerDragDrop::ClearDropTarget()
 {
     LeaveHostDrop();
+
+    m_dropOver = false;
 
     if (m_context.listPane.GetDropRow() < 0 && m_treeDropRow < 0)
     {
