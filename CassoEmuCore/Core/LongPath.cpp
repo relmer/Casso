@@ -111,3 +111,50 @@ std::wstring LongPath::FromWin32 (const std::wstring & path)
 
     return result;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LongPath::ExpandShortNames
+//
+//  GetLongPathNameW fails for a file that does not exist, so a path to a file
+//  not yet created has its folder expanded and its last segment appended.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring LongPath::ExpandShortNames (const std::wstring & path)
+{
+    std::wstring           win32  = ToWin32 (path);
+    std::wstring           longForm;
+    std::wstring           result = path;
+    DWORD                  length = 0;
+    std::filesystem::path  asPath (path);
+
+
+
+    if (!path.empty())
+    {
+        length = GetLongPathNameW (win32.c_str(), nullptr, 0);
+
+        if (length != 0)
+        {
+            longForm.resize (length);
+            length = GetLongPathNameW (win32.c_str(), longForm.data(), length);
+            longForm.resize (length);
+        }
+
+        if (length != 0)
+        {
+            result = FromWin32 (longForm);
+        }
+        else if (asPath.has_parent_path() && asPath.parent_path() != asPath)
+        {
+            result = (std::filesystem::path (ExpandShortNames (asPath.parent_path().wstring())) / asPath.filename()).wstring();
+        }
+    }
+
+    return result;
+}

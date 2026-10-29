@@ -2,6 +2,8 @@
 
 #include "Seams/Win32HostDialogs.h"
 
+#include "Core/LongPath.h"
+
 
 
 
@@ -98,7 +100,8 @@ HRESULT Win32HostDialogs::ShowAndRead (IFileDialog * dialog, HWND owner, std::fi
     hr = item->GetDisplayName (SIGDN_FILESYSPATH, &path);
     CHR (hr);
 
-    outPath   = std::filesystem::path (path);
+    //  The shell returns the 8.3 short form for a path past MAX_PATH.
+    outPath   = std::filesystem::path (LongPath::ExpandShortNames (path));
     outPicked = true;
 
 Error:

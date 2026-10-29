@@ -26,9 +26,14 @@ public:
     //  The path absolute and normalized, with \\?\ before it, or \\?\UNC\ in
     //  place of a share's leading \\. An empty path, and one in a device form
     //  already (\\?\ or \\.\), are returned as given.
-    static std::wstring  ToWin32   (const std::wstring & path);
-    static std::wstring  ToWin32   (const std::string  & path);
+    static std::wstring  ToWin32          (const std::wstring & path);
+    static std::wstring  ToWin32          (const std::string  & path);
 
     //  The path without the prefix ToWin32 adds, for one Windows returned.
-    static std::wstring  FromWin32 (const std::wstring & path);
+    static std::wstring  FromWin32        (const std::wstring & path);
+
+    //  The path with each 8.3 short name replaced by the long name, for one the
+    //  shell returned in the short form to fit MAX_PATH. The last segment of a
+    //  file not yet created is returned as given.
+    static std::wstring  ExpandShortNames (const std::wstring & path);
 };
