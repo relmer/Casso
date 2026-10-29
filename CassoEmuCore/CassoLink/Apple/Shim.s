@@ -300,6 +300,8 @@ loadpg: jsr getenv
         jsr getbto              ; the page number
         bcs badpg
         sta page
+        cmp pages               ; a page at or past the count gets a NAK,
+        bcs badpg               ; so a damaged number never writes over the shim
         clc
         adc #>PROGRAM
         sta ptr+1

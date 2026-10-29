@@ -195,6 +195,50 @@ public:
             return operation;
         }
 
+        //  The bytes the machine has sent the PC, after stepping it until
+        //  there are some or the budget is spent.
+        std::vector<Byte>  Receive()
+        {
+            std::vector<Byte>  bytes (4096);
+            uint64_t           spent = 0;
+            size_t             read  = 0;
+
+
+
+            while (factory.pcEnd->GetReadableCount() == 0 && spent < kBudget)
+            {
+                machine.RunCycles (kFrame);
+                spent += kFrame;
+            }
+
+            AssertSucceeded (factory.pcEnd->Read (bytes.data(), bytes.size(), 0, read));
+            bytes.resize (read);
+            return bytes;
+        }
+
+        //  Steps the machine until it has sent a whole packet with this
+        //  command, and drops every byte received with it.
+        void  AwaitPacket (Byte command)
+        {
+            std::vector<Byte>  received;
+            CassoLinkPacket    packet;
+            size_t             consumed = 0;
+            bool               complete = false;
+
+
+
+            for (int tries = 0; tries < 200 && !(complete && packet.command == command); tries++)
+            {
+                std::vector<Byte>  more = Receive();
+
+                received.insert (received.end(), more.begin(), more.end());
+                AssertSucceeded (CassoLinkCodec::Decode (received, consumed, packet, complete));
+                received.erase (received.begin(), received.begin() + (std::ptrdiff_t) consumed);
+            }
+
+            Assert::IsTrue (complete && packet.command == command, L"the packet arrives");
+        }
+
         //  A drive's disk, as DOS-logical sectors.
         std::vector<Byte>  Sectors (int drive)
         {
@@ -524,6 +568,51 @@ public:
         Assert::AreEqual (std::string ("CONNECTED"), rig.Row (kRow3, kField));
     }
 
+
+
+    //  A program page numbered past the program's last page gets a NAK and is
+    //  not stored, and the shim then takes page 0.
+    TEST_METHOD (TheShim_NaksAPagePastTheProgram)
+    {
+        Rig                rig (false, 115200);
+        std::vector<Byte>  page (CassoLinkCodec::kPageSize, 0xEE);
+        std::vector<Byte>  before (CassoLinkCodec::kPageSize);
+        std::vector<Byte>  after (CassoLinkCodec::kPageSize);
+        std::vector<Byte>  wire;
+        std::vector<Byte>  reply;
+        Byte               count = 1;
+
+
+
+        for (size_t i = 0; i < before.size(); i++)
+        {
+            before[i] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kProgramAddress + 0x100 + i));
+        }
+
+        rig.AwaitPacket (CassoLinkCodec::kReady);
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kLoadProgram, std::span<const Byte> (&count, 1), wire));
+        AssertSucceeded (CassoLinkCodec::EncodeSectorData (1, 0, page, wire));
+        AssertSucceeded (rig.factory.pcEnd->Write (wire.data(), wire.size()));
+
+        reply = rig.Receive();
+        Assert::IsFalse (reply.empty());
+        Assert::AreEqual<int> (CassoLinkCodec::kNak, reply[0]);
+
+        for (size_t i = 0; i < after.size(); i++)
+        {
+            after[i] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kProgramAddress + 0x100 + i));
+        }
+
+        Assert::IsTrue (before == after, L"the page past the program is not stored");
+
+        wire.clear();
+        AssertSucceeded (CassoLinkCodec::EncodeSectorData (0, 0, page, wire));
+        AssertSucceeded (rig.factory.pcEnd->Write (wire.data(), wire.size()));
+
+        reply = rig.Receive();
+        Assert::IsFalse (reply.empty());
+        Assert::AreEqual<int> (CassoLinkCodec::kAck, reply[0]);
+    }
 
 
     //  A whole 140 KB disk at 115,200 baud within 30 seconds; the line alone

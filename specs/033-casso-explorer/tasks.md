@@ -758,10 +758,12 @@ listed in validation.md.
   the selection, with a test in `DxuiTabStripTests.cpp`. Per-path icons are
   dropped past `s_kMaxCachedIcons`, and a failed one is read again after
   `s_kRetryFailedMs`. The shim's page check moves to T257.
-- [ ] T257 Check the 6551 shim's page number against the page count in
+- [X] T257 Check the 6551 shim's page number against the page count in
   `CassoEmuCore/CassoLink/Apple/Shim.s`. Since T265 the shim has room for
   it, up to `kShimLimit`. After the owner's //c walkthrough (T214), so the
   shim that walkthrough checks is the one that ships.
+  Done: a page numbered at or past the count gets a NAK and is not stored;
+  shim version 7. `TheShim_NaksAPagePastTheProgram` covers it.
 - [X] T258 Report why a file in an image could not be read, found on
   2026-10-25 with an image whose file points at track 40. A drag of it to
   File Explorer was reported as "Unspecified error", and Copy as "The files
@@ -1356,7 +1358,7 @@ waits for this phase, so it is tested once.
   change adds: the whole-tree scan CI runs on master skips them, so the files
   this branch did not touch merge as they are. Every file the branch changed
   is aligned (`df487b867`). The sweep of the rest of the tree, once the
-  branches in flight have merged, is a GitHub issue.
+  branches in flight have merged, is relmer/Casso#180.
 
 ## Phase 28: Findings from the //c walkthrough of 2026-10-28
 
