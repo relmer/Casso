@@ -98,6 +98,56 @@ public:
 
 
 
+    //  A drive read again lists what it last read until the new listing
+    //  arrives, so the list's rows stay in place.
+    TEST_METHOD (Invalidate_ListsTheLastListingUntilTheNewOneArrives)
+    {
+        Rig            rig;
+        VolumeListing  listing;
+        VolumeListing  again;
+        VolumeKind     kind    = VolumeKind::Unknown;
+        HRESULT        result  = E_FAIL;
+        std::string    message;
+
+
+
+        Assert::IsTrue (rig.WaitForListing (1, listing, result));
+        AssertSucceeded (result);
+
+        rig.links->Invalidate ("Test", 1);
+
+        Assert::IsTrue (rig.links->TryGetListing ("Test", 1, std::string(), again, kind, result, message));
+        AssertSucceeded (result);
+        Assert::AreEqual (listing.entries.size(), again.entries.size());
+    }
+
+
+
+    //  An entry deleted from a drive is removed from its listing before the
+    //  drive is read again.
+    TEST_METHOD (RemoveListed_TakesADeletedEntryOutOfTheListing)
+    {
+        Rig            rig;
+        VolumeListing  listing;
+        VolumeKind     kind    = VolumeKind::Unknown;
+        HRESULT        result  = E_FAIL;
+        std::string    message;
+        auto           hello   = [] (const FileEntry & entry) { return entry.name == "HELLO"; };
+
+
+
+        Assert::IsTrue (rig.WaitForListing (1, listing, result));
+        Assert::IsTrue (std::any_of (listing.entries.begin(), listing.entries.end(), hello));
+
+        rig.links->RemoveListed ("Test", 1, std::string(), "HELLO");
+        rig.links->Invalidate ("Test", 1);
+
+        Assert::IsTrue (rig.links->TryGetListing ("Test", 1, std::string(), listing, kind, result, message));
+        Assert::IsFalse (std::any_of (listing.entries.begin(), listing.entries.end(), hello));
+    }
+
+
+
     //  A link any window has as its location is viewed, so another window
     //  going elsewhere does not stop it.
     TEST_METHOD (ALink_IsViewedWhileAnyWindowShowsIt)

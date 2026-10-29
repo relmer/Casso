@@ -138,7 +138,8 @@ public:
     //  on the first request. A failed read arrives as its result
     //  and message.
     bool  TryGetListing (const std::string & name, int drive, const std::string & directory,
-                         VolumeListing & outListing, VolumeKind & outKind, HRESULT & outResult, std::string & outMessage);
+                         VolumeListing & outListing, VolumeKind & outKind, HRESULT & outResult, std::string & outMessage,
+                         bool * outKept = nullptr);
     bool  TryGetFile    (const std::string & name, int drive, const std::string & path,
                          FilePayload & outPayload, HRESULT & outResult, std::string & outMessage);
 
@@ -186,8 +187,12 @@ public:
     //  progress, and how many follow it. Empty for none.
     static std::wstring  DescribeJobs (const std::vector<std::shared_ptr<LinkOperation>> & jobs);
 
-    //  Drops what was read from a drive, so it is read again.
-    void  Invalidate (const std::string & name, int drive);
+    //  Drops what was read from a drive, so it is read again; each listing as
+    //  last read is listed until the new one arrives, with TryGetListing's
+    //  outKept set. RemoveListed takes an entry deleted from the drive out
+    //  of that listing.
+    void  Invalidate   (const std::string & name, int drive);
+    void  RemoveListed (const std::string & name, int drive, const std::string & directory, const std::string & entry);
 
     //  Whether anything arrived since the last call.
     bool  TakeChanged ();
@@ -256,6 +261,7 @@ private:
         std::unique_ptr<Sink>                                      sink;
         std::unique_ptr<CassoLinkSession>                          session;
         std::map<std::string, std::shared_ptr<LinkOperation>>      requests;
+        std::map<std::string, std::shared_ptr<LinkOperation>>      shown;       // each listing as last read, listed while it is read again
         bool                                                       connected = false;   // as ProbeDrives last found it
     };
 

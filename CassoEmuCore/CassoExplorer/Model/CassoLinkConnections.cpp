@@ -789,12 +789,40 @@ void CassoLinkConnections::ProbeDrives()
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkConnections::TryGetListing (const std::string & name, int drive, const std::string & directory,
-                                          VolumeListing & outListing, VolumeKind & outKind, HRESULT & outResult, std::string & outMessage)
+                                          VolumeListing & outListing, VolumeKind & outKind, HRESULT & outResult, std::string & outMessage,
+                                          bool * outKept)
 {
     std::shared_ptr<LinkOperation>  operation;
-    bool                            arrived = TryGetResult (name, drive, MakeKey (drive, directory, false), LinkOperationKind::Enumerate, directory, operation);
+    std::string                     key     = MakeKey (drive, directory, false);
+    bool                            arrived = TryGetResult (name, drive, key, LinkOperationKind::Enumerate, directory, operation);
 
 
+
+    if (outKept != nullptr)
+    {
+        *outKept = false;
+    }
+
+    //  While a listing is read again, the one before it is listed, so the
+    //  rows stay in place rather than empty and refill.
+    if (!arrived)
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        for (const std::unique_ptr<Link> & link : m_started)
+        {
+            if (link->settings.name == name && link->shown.contains (key))
+            {
+                operation = link->shown.at (key);
+                arrived   = true;
+
+                if (outKept != nullptr)
+                {
+                    *outKept = true;
+                }
+            }
+        }
+    }
 
     if (arrived)
     {
@@ -1315,12 +1343,57 @@ void CassoLinkConnections::Invalidate (const std::string & name, int drive)
     {
         if (link->settings.name == name)
         {
+            for (const auto & request : link->requests)
+            {
+                bool  listed = request.second->kind == LinkOperationKind::Enumerate && request.second->state == LinkOperationState::Done
+                               && SUCCEEDED (request.second->result);
+
+                if (request.first.starts_with (prefix) && listed)
+                {
+                    link->shown[request.first] = request.second;
+                }
+            }
+
             std::erase_if (link->requests, [&prefix] (const auto & request)
             {
                 LinkOperationState  state = request.second->state;
 
                 return request.first.starts_with (prefix) && state != LinkOperationState::Queued && state != LinkOperationState::Running;
             });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::RemoveListed
+//
+//  An entry deleted from a drive is removed from its directory's listing,
+//  before the drive is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::RemoveListed (const std::string & name, int drive, const std::string & directory, const std::string & entry)
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    std::string                  key  = MakeKey (drive, directory, false);
+
+
+
+    for (const std::unique_ptr<Link> & link : m_started)
+    {
+        for (auto * lists : { &link->shown, &link->requests })
+        {
+            auto  found = lists->find (key);
+
+            if (link->settings.name == name && found != lists->end() && found->second->state == LinkOperationState::Done)
+            {
+                std::erase_if (found->second->listing.entries, [&entry] (const FileEntry & each) { return each.name == entry; });
+            }
         }
     }
 }

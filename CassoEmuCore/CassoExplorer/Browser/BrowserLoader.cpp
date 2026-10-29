@@ -898,7 +898,7 @@ HRESULT BrowserLoader::LoadAppleDrive (const Location & location)
         return S_OK;
     }
 
-    if (!m_browser.m_links->TryGetListing (TextEncoding::WideToNarrow (link), drive, location.innerPath, m_browser.m_listing, m_browser.m_kind, hr, message))
+    if (!m_browser.m_links->TryGetListing (TextEncoding::WideToNarrow (link), drive, location.innerPath, m_browser.m_listing, m_browser.m_kind, hr, message, &m_browser.m_listingKept))
     {
         m_listError = CassoExplorerBrowser::s_kWorkingText;
         return S_OK;

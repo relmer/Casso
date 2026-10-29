@@ -204,6 +204,7 @@ HRESULT CassoExplorerBrowser::Refresh()
     m_kind         = VolumeKind::Unknown;
     m_isImage      = false;
     m_isAppleDrive = false;
+    m_listingKept  = false;
     m_loader.m_writeProtected = false;
     m_loader.m_listError.clear();
     m_selectedRows.clear();

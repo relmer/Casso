@@ -461,15 +461,40 @@ ActionsTypes::Outcome ActionsAppleDrive::DeleteOnAppleDrive()
 
     m_actions.m_browser.GetSelectedEntries (entries);
 
+    //  Each entry is removed from the drive's listing once it is deleted, before
+    //  the drive is read again.
     for (const FileEntry & entry : entries)
     {
-        FilePath  path      = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
-        bool      directory = entry.isDirectory;
+        FilePath                 path      = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
+        bool                     isFolder  = entry.isDirectory;
+        CassoLinkConnections   * links     = m_actions.m_browser.GetLinks();
+        HRESULT                  hr        = S_OK;
+        std::string              name      = entry.name;
 
-        SubmitWrite (link, drive, [drive, path, directory] (CassoLinkSession & session)
+        hr = links->Submit (link, [drive, path, isFolder] (CassoLinkSession & session)
         {
-            return directory ? session.RemoveDirectory (drive, path) : session.Delete (drive, path);
-        }, outcome);
+            return isFolder ? session.RemoveDirectory (drive, path) : session.Delete (drive, path);
+        },
+        [links, link, drive, directory, name] (const LinkOperation & operation) -> std::wstring
+        {
+            if (SUCCEEDED (operation.result))
+            {
+                links->RemoveListed (link, drive, directory, name);
+            }
+
+            links->Invalidate (link, drive);
+
+            return FAILED (operation.result) ? CassoLinkConnections::DescribeFailure (operation) : std::wstring();
+        });
+
+        if (SUCCEEDED (hr))
+        {
+            outcome.written++;
+        }
+        else
+        {
+            ActionsCopy::AppendMessage (outcome, hr, L"CassoLink could not be started.");
+        }
     }
 
     return outcome;

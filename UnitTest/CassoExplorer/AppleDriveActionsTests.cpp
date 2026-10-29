@@ -80,7 +80,7 @@ public:
             Reload();
         }
 
-        //  Refreshes until the list has the drive's catalog.
+        //  Refreshes until the list has the drive's catalog as read now.
         void  Reload()
         {
             auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
@@ -89,7 +89,7 @@ public:
             {
                 AssertSucceeded (browser->Refresh());
 
-                if (browser->GetListError().empty())
+                if (browser->GetListError().empty() && !browser->IsListingKept())
                 {
                     return;
                 }

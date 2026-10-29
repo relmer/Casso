@@ -196,6 +196,7 @@ public:
     Location                  GetLocation           () const;
     VolumeKind                GetVolumeKind         () const { return m_kind; }
     bool                      IsAppleDriveLocation  () const { return m_isAppleDrive; }
+    bool                      IsListingKept         () const { return m_listingKept; }
 
     //  An Apple drive is open, whether or not its catalog could be read, as
     //  for a disk to format.
@@ -342,6 +343,7 @@ private:
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;
     bool                                m_isAppleDrive   = false;
+    bool                                m_listingKept    = false;   // an Apple drive's listing as last read, while it is read again
     CassoLinkConnections              * m_links          = nullptr;
     std::vector<int>                    m_selectedRows;
     Status                              m_status;
