@@ -33,9 +33,13 @@ HRESULT LinkBootstrap::BuildLines (DWORD baud, std::vector<std::string> & outLin
     outLines.push_back (kCancelLine);
     outLines.push_back ("CALL -151\r");
 
-    for (size_t at = 0; at < image.size(); at += kBytesPerLine)
+    //  A line ends where the shim starts, so the zeros before it are a
+    //  separate line and can be left out.
+    for (size_t at = 0, end = 0; at < image.size(); at = end)
     {
-        size_t       end  = std::min (at + kBytesPerLine, image.size());
+        size_t       shim = (size_t) (LinkProgram::kShimAddress - start);
+        end               = std::min (at + kBytesPerLine, image.size());
+        end               = (at < shim && end > shim) ? shim : end;
         bool         gap  = start + at < LinkProgram::kShimAddress && std::all_of (image.begin() + (ptrdiff_t) at, image.begin() + (ptrdiff_t) end, [] (Byte b) { return b == 0; });
         std::string  line = std::format ("{:04X}:", start + at);
 

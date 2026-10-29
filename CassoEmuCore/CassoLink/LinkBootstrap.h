@@ -19,7 +19,7 @@ class IByteStream;
 //  follows. The //c's firmware and the card's have the same commands. What
 //  arrives on the port is then typed: Ctrl-X, which cancels any partial line
 //  that stray bytes on the port put in the input buffer, CALL -151 for the
-//  monitor, the slot finder and the shim as monitor lines of eight bytes from
+//  monitor, the slot finder and the shim as monitor lines of 64 bytes from
 //  $3AA0, and 3AA0G. The finder takes the slot IN# set, and the shim runs at
 //  the bootstrap speed and sends Ready.
 //
@@ -31,8 +31,10 @@ class IByteStream;
 class LinkBootstrap
 {
 public:
-    static constexpr DWORD   kLinePauseMs  = 250;
-    static constexpr size_t  kBytesPerLine = 8;
+    //  64 bytes is a line of about 200 characters, inside the monitor's 255.
+    //  The pause after it covers the monitor storing the bytes.
+    static constexpr DWORD   kLinePauseMs  = 100;
+    static constexpr size_t  kBytesPerLine = 64;
     static constexpr DWORD   kCharPauseUs  = 3000;
 
     //  Ctrl-X, which GETLN takes as cancel line, in Applesoft and the monitor.
