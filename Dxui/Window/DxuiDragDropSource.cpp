@@ -341,8 +341,11 @@ STDMETHODIMP DxuiDragDropSource::GiveFeedback (DWORD effect)
 //
 //  File Explorer also clears the description, to DROPIMAGE_INVALID with no
 //  words, wherever it has no effect yet, and a target may set none at all.
-//  Either way the type is filled in from the effect, so the window still
-//  draws the effect's icon. A type the target chose is left alone.
+//  Either way the type is filled in from the effect, so the window draws the
+//  effect's icon. A type the target chose is not replaced. With no effect
+//  the type is DROPIMAGE_INVALID, so the window doesn't draw a description and the pointer is
+//  the system's no-drop cursor, as in File Explorer; DROPIMAGE_NONE would
+//  draw its icon in an empty label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,7 +354,7 @@ void DxuiDragDropSource::DescribeEffect (DWORD effect)
     CLIPFORMAT              format      = (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_DROPDESCRIPTION);
     std::vector<uint8_t>  & bytes       = m_stored[format];
     DROPDESCRIPTION       * description = nullptr;
-    DROPIMAGETYPE           type        = DROPIMAGE_NONE;
+    DROPIMAGETYPE           type        = DROPIMAGE_INVALID;
     HWND                    window      = nullptr;
 
 

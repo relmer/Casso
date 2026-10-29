@@ -907,7 +907,7 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 
         if (row >= 0 && ((m_context.browser.TryGetRowLocation (row, location) &&
                           (location.kind == Location::Kind::DiskDirectory || location.kind == Location::Kind::DiskImage
-                           || location.kind == Location::Kind::HostFolder))
+                           || location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::AppleDrive))
                          || IsShellDropFile (row, target)))
         {
             listRow = row;

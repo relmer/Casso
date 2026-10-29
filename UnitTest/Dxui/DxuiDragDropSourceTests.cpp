@@ -361,7 +361,7 @@ public:
         Assert::AreEqual ((int) DROPIMAGE_MOVE, (int) ReadDescription (fixture.source).type, L"A type the source set follows the effect");
 
         fixture.source->GiveFeedback (DROPEFFECT_NONE);
-        Assert::AreEqual ((int) DROPIMAGE_NONE, (int) ReadDescription (fixture.source).type);
+        Assert::AreEqual ((int) DROPIMAGE_INVALID, (int) ReadDescription (fixture.source).type, L"No effect draws no description, only the no-drop cursor");
     }
 
 
