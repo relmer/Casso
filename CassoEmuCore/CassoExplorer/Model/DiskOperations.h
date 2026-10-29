@@ -119,6 +119,8 @@ public:
     Result  WritePayload (const std::string & imagePath, const std::string & name, const FilePayload & payload);
     Result  Rename       (const std::string & imagePath, const std::string & from, const std::string & to,
                           size_t catalogIndex = kNoIndex);
+    Result  SetAttributes (const std::string & imagePath, const std::string & name, const FileAttributes & attributes,
+                           size_t catalogIndex = kNoIndex);
 
     //  The options a command-line invocation of this verb would parse to.
     static CommandLineOptions  MakeOptions (Command command, const std::string & imagePath);

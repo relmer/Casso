@@ -395,6 +395,7 @@
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />
     <ClCompile Include="UiTests\KnownFolderPickerTests.cpp" />
     <ClCompile Include="EmuTests\VolumeRenameTests.cpp" />
+    <ClCompile Include="EmuTests\VolumeAttributesTests.cpp" />
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />

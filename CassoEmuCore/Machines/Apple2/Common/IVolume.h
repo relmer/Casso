@@ -127,4 +127,12 @@ public:
     virtual HRESULT  Rename (const FilePath     & from,
                              const std::string  & to,
                              std::vector<Byte>  & outBuffer) const = 0;
+
+    //  Changes a file's type, aux type, access and dates in place, each only
+    //  when its has flag is set. A locked file can be changed, since unlocking
+    //  is one of the changes. A field the filesystem doesn't store fails with
+    //  ERROR_NOT_SUPPORTED.
+    virtual HRESULT  SetAttributes (const FilePath        & path,
+                                    const FileAttributes  & attributes,
+                                    std::vector<Byte>     & outBuffer) const = 0;
 };

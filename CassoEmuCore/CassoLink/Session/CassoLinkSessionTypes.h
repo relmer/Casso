@@ -40,6 +40,7 @@ enum class LinkOperationKind
     WriteFile,
     Delete,
     Rename,
+    SetAttributes,
     MakeDirectory,
     RemoveDirectory,
     ReadDisk,
@@ -65,6 +66,7 @@ struct LinkOperation
     int                              drive    = 1;
     FilePath                         path;
     std::string                      newName;
+    FileAttributes                   attributes;
     FilePayload                      payload;
 
     std::atomic<int>                 progress { 0 };

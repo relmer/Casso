@@ -93,6 +93,7 @@ public:
     std::shared_ptr<LinkOperation>  WriteFile     (int drive, const FilePath & path, const FilePayload & payload);
     std::shared_ptr<LinkOperation>  Delete        (int drive, const FilePath & path);
     std::shared_ptr<LinkOperation>  Rename        (int drive, const FilePath & path, const std::string & newName);
+    std::shared_ptr<LinkOperation>  SetAttributes (int drive, const FilePath & path, const FileAttributes & attributes);
     std::shared_ptr<LinkOperation>  MakeDirectory (int drive, const FilePath & path);
 
     //  A ProDOS directory and everything in it.

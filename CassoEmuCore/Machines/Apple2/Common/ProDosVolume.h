@@ -60,6 +60,7 @@ public:
     HRESULT  Write             (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const override { return m_writer.Write (path, payload, outBuffer); }
     HRESULT  SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const override { return m_writer.SetStartupProgram (path, outBuffer); }
     HRESULT  Rename            (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const override { return m_writer.Rename (from, to, outBuffer); }
+    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const override { return m_writer.SetAttributes (path, attributes, outBuffer); }
 
     HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const override { return m_remover.BuildRemovalPlan (path, outPlan); }
     HRESULT  RemoveDirectory  (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
@@ -134,6 +135,8 @@ private:
         Word      auxType     = 0;
         Word      modDate     = 0;
         Word      modTime     = 0;
+        Word      createDate  = 0;
+        Word      createTime  = 0;
         Word      caseFlags   = 0;
         uint32_t  eof         = 0;
         string    name;

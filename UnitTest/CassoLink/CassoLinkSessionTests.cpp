@@ -373,6 +373,34 @@ public:
 
 
 
+    //  The link writes the same sectors a local change would.
+    TEST_METHOD (SetAttributes_OnProDos)
+    {
+        Rig                rig;
+        std::vector<Byte>  expected = rig.apple.drives[1];
+        std::vector<Byte>  next;
+        FileAttributes     attributes;
+
+        attributes.type       = ProDosVolume::kTypeBinary;
+        attributes.auxType    = 0x0803;
+        attributes.access     = FilePayload::kAccessLocked;
+        attributes.hasType    = true;
+        attributes.hasAuxType = true;
+        attributes.hasAccess  = true;
+
+        AssertSucceeded (ProDosVolume (expected).SetAttributes (FilePath::Parse ("HELLO"), attributes, next));
+        expected = next;
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->SetAttributes (2, FilePath::Parse ("HELLO"), attributes))->result);
+
+        Assert::IsTrue (rig.Drive (2) == expected);
+    }
+
+
+
+
     TEST_METHOD (AWrite_ToADiskChangedSinceItsListing_Fails)
     {
         Rig                rig;

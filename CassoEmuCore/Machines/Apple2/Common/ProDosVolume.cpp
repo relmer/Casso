@@ -162,6 +162,8 @@ void ProDosVolume::CollectEntries (
             entry.auxType     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffAuxType);
             entry.modDate     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified);
             entry.modTime     = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffModified + 2);
+            entry.createDate  = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffCreated);
+            entry.createTime  = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffCreated + 2);
             entry.caseFlags   = ReadWord (dirBlock, at + ProDosSkeleton::kEntOffCaseFlags);
 
             entry.eof = (uint32_t)
@@ -352,6 +354,13 @@ FileEntry ProDosVolume::ToFileEntry (const RawEntry & entry)
     listed.auxType     = entry.auxType;
     listed.hasAuxType  = true;
     listed.hasModified = TryToUnixTime (entry.modDate, entry.modTime, listed.modifiedUnix);
+    listed.access       = entry.access;
+    listed.hasAccess    = true;
+    listed.createdDate  = entry.createDate;
+    listed.createdTime  = entry.createTime;
+    listed.modifiedDate = entry.modDate;
+    listed.modifiedTime = entry.modTime;
+    listed.hasDates     = true;
 
     // For a binary, the auxiliary type IS the load address. Naming it as such
     // saves every caller from knowing that.

@@ -64,6 +64,10 @@ public:
                         const std::string  & to,
                         vector<Byte>       & outBuffer) const override;
 
+    HRESULT  SetAttributes (const FilePath        & path,
+                            const FileAttributes  & attributes,
+                            vector<Byte>          & outBuffer) const override;
+
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
     //  that disagrees with itself in a way the buffer it was computed from did

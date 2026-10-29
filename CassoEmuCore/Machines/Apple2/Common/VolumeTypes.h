@@ -85,6 +85,16 @@ struct FileEntry
     int64_t      modifiedUnix   = 0;
     bool         hasModified    = false;
 
+    //  ProDOS's access byte and its date and time words as stored, for an
+    //  editor that writes back the values it read. DOS 3.3 doesn't store them.
+    Byte         access         = 0;
+    bool         hasAccess      = false;
+    Word         createdDate    = 0;
+    Word         createdTime    = 0;
+    Word         modifiedDate   = 0;
+    Word         modifiedTime   = 0;
+    bool         hasDates       = false;
+
     //  Where the entry sits in its directory's catalog, from 0. DOS 3.3 names
     //  can repeat, and this distinguishes two entries with the same name.
     size_t       catalogIndex   = 0;
@@ -149,6 +159,30 @@ struct FilePayload
     static constexpr Byte  kAccessWriteEnable = 0x02;
 
     bool  IsLocked() const { return hasAccess && (access & kAccessWriteEnable) == 0; }
+};
+
+
+
+//
+//  The catalog fields IVolume::SetAttributes changes, each only when its has
+//  flag is set. The access byte is ProDOS's; on DOS 3.3 a clear write-enable
+//  bit locks the file. The aux type is a DOS 3.3 binary's load address, which
+//  lives in the file's first two bytes. Dates are ProDOS's date and time words.
+//
+struct FileAttributes
+{
+    Byte  type         = 0;
+    Word  auxType      = 0;
+    Byte  access       = 0;
+    Word  createdDate  = 0;
+    Word  createdTime  = 0;
+    Word  modifiedDate = 0;
+    Word  modifiedTime = 0;
+    bool  hasType      = false;
+    bool  hasAuxType   = false;
+    bool  hasAccess    = false;
+    bool  hasCreated   = false;
+    bool  hasModified  = false;
 };
 
 

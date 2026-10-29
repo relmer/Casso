@@ -1410,3 +1410,91 @@ HRESULT ProDosVolumeWriter::Rename (
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolumeWriter::SetAttributes
+//
+//  Each field of the record whose has flag is set, and nothing else: no block
+//  moves. A subdirectory's type can't change, since it is what makes it one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolumeWriter::SetAttributes (
+    const FilePath        & path,
+    const FileAttributes  & attributes,
+    vector<Byte>          & outBuffer) const
+{
+    HRESULT                         hr          = S_OK;
+    size_t                          bufferBytes = m_volume.m_sectors.size();
+    bool                            found       = false;
+    bool                            isDirectory = false;
+    bool                            fullyParsed = true;
+    uint16_t                        owner       = 0;
+    int                             dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
+    int                             block       = 0;
+    size_t                          entry       = 0;
+    vector<ProDosVolume::RawEntry>  entries;
+    vector<std::string>             damage;
+    vector<Byte>                    result;
+    VolumeIntegrityReport           report;
+
+
+
+    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+
+    hr = m_volume.ResolveDirectory (ProDosVolume::GetParentPath (path), dirKeyBlock);
+    CHR (hr);
+
+    m_volume.CollectEntries (dirKeyBlock, entries, damage, fullyParsed);
+
+    found = ProDosVolume::TryFindEntry (entries, path.GetLeaf(), owner);
+    CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
+    CBREx (!isDirectory || !attributes.hasType, HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED));
+
+    hr = m_volume.BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_volume.m_sectors;
+    block  = entries[owner].dirBlock;
+    entry  = entries[owner].entryOffset;
+
+    if (attributes.hasType)
+    {
+        WriteByteAt (result, block, entry + ProDosSkeleton::kEntOffFileType, attributes.type);
+    }
+
+    if (attributes.hasAuxType)
+    {
+        WriteWordAt (result, block, entry + ProDosSkeleton::kEntOffAuxType, attributes.auxType);
+    }
+
+    if (attributes.hasAccess)
+    {
+        WriteByteAt (result, block, entry + ProDosSkeleton::kEntOffAccess, attributes.access);
+    }
+
+    if (attributes.hasCreated)
+    {
+        WriteWordAt (result, block, entry + ProDosSkeleton::kEntOffCreated,     attributes.createdDate);
+        WriteWordAt (result, block, entry + ProDosSkeleton::kEntOffCreated + 2, attributes.createdTime);
+    }
+
+    if (attributes.hasModified)
+    {
+        WriteWordAt (result, block, entry + ProDosSkeleton::kEntOffModified,     attributes.modifiedDate);
+        WriteWordAt (result, block, entry + ProDosSkeleton::kEntOffModified + 2, attributes.modifiedTime);
+    }
+
+    hr = ProDosVolume::HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}

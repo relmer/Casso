@@ -1072,6 +1072,7 @@ std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_p
         case LinkOperationKind::WriteFile:       what = L"Writing a file";    break;
         case LinkOperationKind::Delete:          what = L"Deleting";          break;
         case LinkOperationKind::Rename:          what = L"Renaming";          break;
+        case LinkOperationKind::SetAttributes:   what = L"Changing";          break;
         case LinkOperationKind::MakeDirectory:   what = L"Making a folder";   break;
         case LinkOperationKind::RemoveDirectory: what = L"Deleting a folder"; break;
         case LinkOperationKind::ReadDisk:        what = L"Reading the disk";  break;

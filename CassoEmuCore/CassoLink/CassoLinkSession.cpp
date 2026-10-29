@@ -224,6 +224,27 @@ std::shared_ptr<LinkOperation> CassoLinkSession::Rename (int drive, const FilePa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::SetAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::SetAttributes (int drive, const FilePath & path, const FileAttributes & attributes)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->attributes = attributes;
+
+    return Queue (LinkOperationKind::SetAttributes, drive, path, operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::MakeDirectory
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -802,6 +823,7 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
         case LinkOperationKind::WriteFile:       text = std::format ("{} {} TO {}", finished ? "COPIED" : "COPYING", path, drive);           break;
         case LinkOperationKind::Delete:          text = std::format ("{} {}", finished ? "DELETED" : "DELETING", path);                     break;
         case LinkOperationKind::Rename:          text = std::format ("{} {} TO {}", finished ? "RENAMED" : "RENAMING", path, operation.newName); break;
+        case LinkOperationKind::SetAttributes:   text = std::format ("{} {}", finished ? "CHANGED" : "CHANGING", path);                     break;
         case LinkOperationKind::MakeDirectory:   text = std::format ("{} FOLDER {}", finished ? "MADE" : "MAKING", path);                   break;
         case LinkOperationKind::RemoveDirectory: text = std::format ("{} FOLDER {}", finished ? "DELETED" : "DELETING", path);              break;
         case LinkOperationKind::ReadDisk:        text = std::format ("{} {} TO PC", finished ? "SENT" : "SENDING", drive);                  break;
@@ -903,6 +925,10 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
         case LinkOperationKind::Rename:
             hr = RunWrite (operation, [&] (const IVolume & volume, std::vector<Byte> & outBuffer) { return volume.Rename (operation.path, operation.newName, outBuffer); });
+            break;
+
+        case LinkOperationKind::SetAttributes:
+            hr = RunWrite (operation, [&] (const IVolume & volume, std::vector<Byte> & outBuffer) { return volume.SetAttributes (operation.path, operation.attributes, outBuffer); });
             break;
 
         case LinkOperationKind::MakeDirectory:

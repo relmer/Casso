@@ -853,3 +853,51 @@ DiskOperations::Result DiskOperations::Rename (
 
     return result;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::SetAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::SetAttributes (
+    const std::string     & imagePath,
+    const std::string     & name,
+    const FileAttributes  & attributes,
+    size_t                  catalogIndex)
+{
+    DiskImageSession::OpenedImage  opened;
+    Result                         result = OpenVolume (imagePath, opened);
+    HRESULT                        hr     = S_OK;
+    std::vector<Byte>              edited;
+
+
+
+    if (result.Succeeded())
+    {
+        Dos33Volume   dos (opened.sectors);
+        ProDosVolume  pro (opened.sectors);
+        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
+                             ? static_cast<IVolume &> (dos)
+                             : static_cast<IVolume &> (pro);
+
+        hr = volume.SetAttributes (MakeEntryPath (opened.kind, name, catalogIndex), attributes, edited);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to change {}: {}", name, DescribeVolumeRefusal (hr, opened.kind)));
+        }
+    }
+
+    if (result.Succeeded())
+    {
+        result = CommitEdit (imagePath, opened, edited);
+    }
+
+    return result;
+}

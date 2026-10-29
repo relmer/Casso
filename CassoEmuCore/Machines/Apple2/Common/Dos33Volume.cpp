@@ -1971,3 +1971,86 @@ HRESULT Dos33Volume::Rename (
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33Volume::SetAttributes
+//
+//  The type byte has both the type and the lock bit. A binary's load address
+//  is the first two bytes of its first data sector, found through the first
+//  pair of its track/sector list. DOS 3.3 doesn't store dates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dos33Volume::SetAttributes (
+    const FilePath        & path,
+    const FileAttributes  & attributes,
+    vector<Byte>          & outBuffer) const
+{
+    HRESULT                hr          = S_OK;
+    bool                   single      = path.IsSingleComponent();
+    bool                   dated       = attributes.hasCreated || attributes.hasModified;
+    bool                   whole       = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   listed      = false;
+    bool                   inImage     = false;
+    bool                   fullyParsed = true;
+    bool                   locked      = false;
+    uint16_t               owner       = 0;
+    Byte                   typeByte    = 0;
+    size_t                 pair        = 0;
+    size_t                 data        = 0;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    vector<Byte>           result;
+    VolumeIntegrityReport  report;
+
+
+
+    CBREx (whole, E_INVALIDARG);
+    CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+    CBREx (!dated, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    CBREx (!attributes.hasType || (attributes.type & kLockedBit) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER));
+
+    CollectEntries (entries, damage, fullyParsed);
+
+    hr = FindEntry (entries, path, owner);
+    CHR (hr);
+
+    typeByte = attributes.hasType ? (Byte) ((entries[owner].typeByte & kLockedBit) | attributes.type) : entries[owner].typeByte;
+    locked   = attributes.hasAccess ? (attributes.access & FilePayload::kAccessWriteEnable) == 0 : (typeByte & kLockedBit) != 0;
+    typeByte = locked ? (Byte) (typeByte | kLockedBit) : (Byte) (typeByte & ~kLockedBit);
+
+    hr = BuildIntegrityReport (report);
+    CHRA (hr);
+
+    result = m_sectors;
+
+    WriteByteAt (result, entries[owner].catalogTrack, entries[owner].catalogSector, entries[owner].entryOffset + kEntOffType, typeByte);
+
+    //  Only a binary has a load address, and an empty one has no data sector for it.
+    if (attributes.hasAuxType)
+    {
+        CBREx ((typeByte & ~kLockedBit) == kTypeBinary, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        pair   = Dos33Skeleton::GetSectorOffset (entries[owner].tsListTrack, entries[owner].tsListSector) + kTsOffFirstPair;
+        listed = pair + 1 < result.size() && result[pair] != 0;
+        CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        data    = Dos33Skeleton::GetSectorOffset (result[pair], result[pair + 1]);
+        inImage = data + 1 < result.size();
+        CBREx (inImage, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        result[data]     = (Byte) attributes.auxType;
+        result[data + 1] = (Byte) (attributes.auxType >> 8);
+    }
+
+    hr = HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}

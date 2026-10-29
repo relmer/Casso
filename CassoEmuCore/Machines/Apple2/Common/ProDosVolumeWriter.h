@@ -38,6 +38,10 @@ public:
                         const std::string  & to,
                         vector<Byte>       & outBuffer) const;
 
+    HRESULT  SetAttributes (const FilePath        & path,
+                            const FileAttributes  & attributes,
+                            vector<Byte>          & outBuffer) const;
+
 private:
     friend class ProDosVolume;
     friend class ProDosVolumeRemover;
