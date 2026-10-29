@@ -246,7 +246,8 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
 //
 //  ExplorerFileOps::EndRename
 //
-//  A name left as it was, or emptied, changes nothing.
+//  A name left as it was, or emptied, changes nothing. A renamed row is
+//  selected under its new name, as File Explorer selects it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -312,6 +313,12 @@ void ExplorerFileOps::EndRename (bool commit)
         }
 
         m_context.folderSync.RefreshAfterHostChange();
+
+        if (SUCCEEDED (hr))
+        {
+            m_context.listPane.SelectRowNamed (newName);
+        }
+
         return;
     }
 
@@ -329,9 +336,13 @@ void ExplorerFileOps::EndRename (bool commit)
         }
 
         m_context.commandManager.ReportOutcome (renamed, L"Rename");
-    }
+        m_context.listPane.FillList();
 
-    m_context.listPane.FillList();
+        if (renamed.Succeeded())
+        {
+            m_context.listPane.SelectRowNamed (newName);
+        }
+    }
 }
 
 

@@ -257,6 +257,38 @@ public:
 
 
 
+    TEST_METHOD (Rename_InADiskImage_SelectsTheRowUnderItsNewName)
+    {
+        Rig           rig;
+        DxuiKeyEvent  key;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"HELLO"));
+
+        rig.parts->fileOps.BeginRename();
+
+        for (wchar_t ch : std::wstring (L"BYE"))
+        {
+            key.kind = DxuiKeyEventKind::Char;
+            key.vk   = ch;
+            rig.parts->fileOps.HandleRenameKey (key);
+        }
+
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_RETURN;
+        rig.parts->fileOps.HandleRenameKey (key);
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetSelectedRows().size());
+        Assert::AreEqual (std::wstring (L"BYE"), rig.browser.GetRows()[(size_t) rig.browser.GetSelectedRows()[0]].name);
+    }
+
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;
