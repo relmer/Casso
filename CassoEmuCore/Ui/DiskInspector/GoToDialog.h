@@ -37,6 +37,7 @@ protected:
 
 private:
     void  OnOkClicked ();
+    void  ShowHint    (GoToKind kind);
 
     const IDxuiTheme *    m_theme        = nullptr;   // non-owning
     const DiskAnalysis *  m_analysis     = nullptr;   // non-owning
@@ -47,5 +48,6 @@ private:
 
     DxuiRadioGroup        m_kinds;
     DxuiTextInput         m_input;
+    DxuiLabel             m_hint;
     DxuiLabel             m_error;
 };

@@ -26,7 +26,8 @@ OverlayChip::OverlayChip (const std::wstring & label) :
 //
 //  OverlayChip::GetWidthPx
 //
-//  The label's measured width and its padding.
+//  The label's measured width, its padding, and room for the check mark,
+//  so a chip does not change width as it turns on and off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,7 @@ int OverlayChip::GetWidthPx (IDxuiTextRenderer & text, const DxuiDpiScaler & sca
 
     text.MeasureString (m_label.c_str(), scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, w, h);
 
-    return static_cast<int> (std::ceil (w)) + 2 * scaler.ToPx (static_cast<int> (kPadDip));
+    return static_cast<int> (std::ceil (w)) + 2 * scaler.ToPx (static_cast<int> (kPadDip)) + scaler.ToPx (static_cast<int> (kCheckDip + kCheckGapDip));
 }
 
 
@@ -66,8 +67,9 @@ void OverlayChip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  OverlayChip::Paint
 //
-//  On, a pill in the selection color under the label in full ink; off, the
-//  label in muted ink, with a faint pill under the pointer.
+//  A separate outlined pill. On, an accent tint and border and a check mark
+//  before the label in full ink; off, the label in muted ink, with a faint
+//  fill under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,6 +80,9 @@ void OverlayChip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     float  w      = static_cast<float> (m_boundsDip.right - m_boundsDip.left);
     float  h      = static_cast<float> (m_boundsDip.bottom - m_boundsDip.top);
     float  ring   = m_scaler.ToPxf (2.0f);
+    float  check  = m_scaler.ToPxf (kCheckDip);
+    float  pad    = m_scaler.ToPxf (kPadDip);
+    float  edge   = m_scaler.ToPxf (1.0f);
 
 
 
@@ -85,14 +90,22 @@ void OverlayChip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     {
         if (m_isOn)
         {
-            painter.FillRoundedRect (x, y, w, h, h / 2.0f, theme.SelectionBackground());
+            painter.FillRoundedRect    (x, y, w, h, h / 2.0f, (theme.Accent() & 0x00FFFFFFu) | 0x40000000u);
+            painter.OutlineRoundedRect (x, y, w, h, h / 2.0f, edge, theme.Accent());
+            text.DrawString (kpszCheck, x + pad, y, check, h, theme.Foreground(), check, kpszCheckFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+                             DxuiFontWeight::Normal, false);
         }
-        else if (m_isHover && IsEnabled())
+        else
         {
-            painter.FillRoundedRect (x, y, w, h, h / 2.0f, theme.HoverBackground());
+            if (m_isHover && IsEnabled())
+            {
+                painter.FillRoundedRect (x, y, w, h, h / 2.0f, theme.HoverBackground());
+            }
+
+            painter.OutlineRoundedRect (x, y, w, h, h / 2.0f, edge, theme.Border());
         }
 
-        text.DrawString (m_label.c_str(), x, y, w, h, !IsEnabled() ? theme.ForegroundDisabled() : m_isOn ? theme.Foreground() : theme.ForegroundMuted(),
+        text.DrawString (m_label.c_str(), x + check + m_scaler.ToPxf (kCheckGapDip), y, w - check - m_scaler.ToPxf (kCheckGapDip), h, !IsEnabled() ? theme.ForegroundDisabled() : m_isOn ? theme.Foreground() : theme.ForegroundMuted(),
                          m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
 
         if (m_isFocused && m_focusCueVisible)

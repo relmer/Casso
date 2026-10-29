@@ -13,7 +13,7 @@
 
 
 static constexpr int     s_kSectorRowDip = 32;
-static constexpr int     s_kSelectorDip  = 30;
+static constexpr int     s_kSelectorDip  = 26;
 static constexpr int     s_kMinSegmentDip = 64;
 static constexpr int     s_kSegmentPadDip = 24;
 

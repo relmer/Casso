@@ -685,11 +685,22 @@ int FilesView::GetSelectedMapCell() const
 
 void FilesView::SyncSelection()
 {
-    int   cell   = GetSelectedMapCell();
+    int   cell   = -1;
+    int   file   = m_session.goToFile;
     RECT  target = {};
 
 
 
+    //  A file gone to from the Go to dialog, on the volume it is on.
+    if (file >= 0)
+    {
+        m_session.goToFile = -1;
+        m_mapVolumes->SetSelected (m_session.mapIndex);
+        RefreshFileList();
+        ChooseFile (file);
+    }
+
+    cell = GetSelectedMapCell();
     m_mapGrid->SetSelected (cell, m_session.mapFile);
 
     //  A sector selected anywhere is scrolled to the middle of the grid's

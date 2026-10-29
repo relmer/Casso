@@ -12,7 +12,7 @@
 //
 //  The disk inspector window's saved state (FR-080): its placement and
 //  size, its mode and timing range, the overlays and "Show deleted
-//  files", Follow head and its zoom, and in Casso the last drive and
+//  files", Follow head and its zoom, the last kind of "Go to", and in Casso the last drive and
 //  whether the window was open at exit. A width of zero indicates the
 //  state was never saved.
 //
@@ -39,4 +39,5 @@ struct DiskInspectorPrefs
     int     lastDrive         = 0;
     bool    isOpen            = false;
     bool    isWalkthroughSeen = false;
+    int     goToKind          = 0;
 };

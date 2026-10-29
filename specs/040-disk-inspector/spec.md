@@ -170,6 +170,9 @@ comparing two quarter tracks of one disk.
 - Q: How does the head get from the top to the bottom when tilting? → A: The
   platter turns a half turn over about 300 ms, so the head sweeps around,
   whether or not the drive is turning (FR-152).
+- Q: The overlay chips look like a segmented control but act like
+  checkboxes. What should they look like? → A: Separate toggle chips, each
+  outlined, with a check mark and an accent tint while on (FR-031).
 - Q: Can a selection be returned to? → A: Back and Forward step through the
   user's selections, with Alt+Left and Alt+Right, the mouse's back and
   forward buttons, and the Go menu (FR-164).
@@ -1921,8 +1924,12 @@ legend, and tilt the platter and back.
   mode, "Fast cells", "Nominal 3.91µs" and "Slow cells" with the numeric
   scale and the note "Only flux tracks record timing; other tracks are
   dimmed"; and while the Files overlay is on, the color of each file map role.
+  The popup MUST be as wide as its widest columns of entries, its first title
+  "Platter structure" or "Platter timing".
   The legend MUST NOT take room from the platter.
-- **FR-031**: The platter's overlays MUST be compact on/off chips in its
+- **FR-031**: The platter's overlays MUST be compact on/off toggle chips,
+  each a separate outlined pill with a check mark and an accent tint while
+  on, so they do not read as a single-choice segmented control, in its
   bottom left corner, in the order "Files", in Casso "Reads", "Writes" and
   "Scans", "Track alignment", and while comparing "Differences", each also a checked
   item of the View menu. "Track alignment" MUST mark each track's sector 0
@@ -1935,7 +1942,8 @@ legend, and tilt the platter and back.
 **Track header and strip**
 
 - **FR-032**: The track header MUST show "Track 17", "Track 17.25", "Track
-  17.5" or "Track 17.75", the track's classification in a pill, and on the
+  17.5" or "Track 17.75", the track's classification in a pill when it
+  differs from the disk's format in the status band, and on the
   same line counts such as "51,007 cells · 6,352 nibbles · 16 sectors, 2 bad
   · flux" (", N bad" left out when no sector is bad, "no standard sectors"
   when there are none), or "Nothing recorded on this quarter track".
@@ -2207,7 +2215,11 @@ legend, and tilt the platter and back.
 - **FR-055**: "Go to" MUST select a track (with quarter fraction), a physical
   sector, a DOS 3.3 logical sector or a ProDOS block (on a 16-sector track,
   through the standard skew), a CP/M sector of a mapped CP/M volume (FR-085),
-  a nibble offset or a cell.
+  a nibble offset or a cell, or a file by its path, which chooses the file
+  as the Files view's list does. Under the entry, a line MUST state what the
+  entry may be for the kind chosen, such as "A sector from $0 to $F on track
+  17", and the dialog MUST open on the kind last used, saved across
+  launches.
 - **FR-056**: "Find" MUST search for a hex nibble pattern, where ? matches
   any hex digit and + after a nibble requires extra zero cells after it; for
   hex bytes in decoded sector data, where ? matches any hex digit; or for
@@ -2640,11 +2652,11 @@ legend, and tilt the platter and back.
   the clipboard as tab-separated text, and "Copy map" MUST put the grid on
   the clipboard as text, one row per track with one letter per sector and a
   key to the letters.
-- **FR-157**: Ctrl and the mouse wheel over the File map grid MUST zoom the
-  grid, not the window, about the point under the pointer, from 1, where the
-  grid fits the tab's width, to 32 times. Past 1, the grid MUST fill its view
-  and pan in it by a drag, by the wheel down and up, and by Shift and the
-  wheel across, with the track numbers and column headers pinned at its left
+- **FR-157**: The mouse wheel over the File map grid, with or without Ctrl,
+  MUST zoom the grid, not the window, about the point under the pointer, as
+  the wheel zooms the platter and the strip, from 1, where the grid fits the
+  tab's width, to 32 times. Past 1, the grid MUST fill its view and pan in it
+  by a drag and by Shift and the wheel across, with the track numbers and column headers pinned at its left
   and top edges, each centered on the part of its row or column in view, and
   with a scrollbar along the right or bottom edge wherever the cells run
   past the view, its thumb placed and sized as the view is among the cells,

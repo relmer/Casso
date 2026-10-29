@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "DxuiScrollbar.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -37,6 +38,7 @@ public:
         bool            stretch  = false;   // when true, column absorbs any remaining width after fixed/auto
         DxuiTextHAlign  align    = DxuiTextHAlign::Left;
         bool            visible  = true;
+        DxuiElide       elide    = DxuiElide::None;   // how a cell too wide for the column is cut
     };
 
     struct Cell
@@ -48,6 +50,9 @@ public:
         // as search-match highlights. Empty = none. Supplied sorted and
         // non-overlapping; honored only for left-aligned columns.
         std::vector<std::pair<int, int>>  matches;
+
+        // How a cell too wide for its column is cut; None takes the column's.
+        DxuiElide                         elide = DxuiElide::None;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -255,6 +260,10 @@ public:
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const;
     int   HitTestHeaderColumn (int xPx, int yPx) const;
     int   HitTestRow          (int xPx, int yPx) const;
+
+    //  The full text of the cell under a point, list-relative as HitTestRow's,
+    //  when its column elides it and the last paint cut it short.
+    bool  GetClippedCellText  (int xPx, int yPx, std::wstring & outText) const;
 
     // Self-contained mouse input. Forward widget-relative mouse events
     // (positionDip = the point minus the list's own origin) via OnMouse;
@@ -476,17 +485,18 @@ private:
     DxuiDpiScaler             m_scaler;
     // Virtual (provider) row model — see SetRowProvider. When m_virtual is
     // true, m_rows is empty and rows are pulled on demand into m_providerScratch.
-    bool                       m_virtual           = false;
-    int                        m_virtualCount      = 0;
-    RowProvider                m_rowProvider;
-    mutable std::vector<Cell>  m_providerScratch;
-    int                        m_hovered           = -1;
-    int                        m_selectedRow       = -1;
-    int                        m_sortColumn        = -1;
-    bool                       m_sortDescending    = false;
-    bool                       m_showHeader        = false;
-    int                        m_topRow            = 0;
-    bool                       m_stickyTail        = false;
+    bool                                         m_virtual         = false;
+    int                                          m_virtualCount    = 0;
+    RowProvider                                  m_rowProvider;
+    mutable std::vector<Cell>                    m_providerScratch;
+    int                                          m_hovered         = -1;
+    mutable std::vector<std::pair<int, size_t>>  m_clipped;
+    int                                          m_selectedRow     = -1;
+    int                                          m_sortColumn      = -1;
+    bool                                         m_sortDescending  = false;
+    bool                                         m_showHeader      = false;
+    int                                          m_topRow          = 0;
+    bool                                         m_stickyTail      = false;
 
     // Whether the host opted into sticky-tail behavior. Off by default: a
     // list opens at its top, and following the last row is for live logs.

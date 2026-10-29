@@ -96,7 +96,6 @@ private:
     RECT                       m_areaPx           = {};
     bool                       m_isLegendPinned   = false;
     int64_t                    m_legendClosedMs   = 0;
-    bool                       m_isOverTilt       = false;
     bool                       m_isSliderOut      = false;
     bool                       m_isAlignment      = false;
     bool                       m_isFilesDefaulted = false;

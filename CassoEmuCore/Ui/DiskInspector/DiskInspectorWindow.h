@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Pch.h"
 
@@ -176,7 +176,7 @@ private:
     RECT                               m_splitterPx       = {};
     std::wstring                       m_tooltipText;
 
-    DxuiIconButton        * m_copySector        = nullptr;
+    DxuiButton            * m_copySector        = nullptr;
     int                     m_flownQuarterTrack = -1;
     int                     m_flownSector       = -1;
     bool                    m_isFocusShown      = false;

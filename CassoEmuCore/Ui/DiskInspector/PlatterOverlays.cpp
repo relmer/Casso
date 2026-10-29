@@ -37,8 +37,8 @@ static constexpr float    s_kHitEdgeDip      = 1.0f;
 static constexpr float    s_kHitSolidDip     = 24.0f;
 static constexpr float    s_kReadsMinDip     = 2.0f;
 static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
-static constexpr uint32_t s_kHeatMinAlpha    = 0x90u;
-static constexpr uint32_t s_kHeatMaxAlpha    = 0xFFu;
+static constexpr uint32_t s_kHeatMinAlpha    = 0x50u;
+static constexpr uint32_t s_kHeatMaxAlpha    = 0xB8u;
 static constexpr uint32_t s_kAccessDimAlpha  = 0xA8000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 

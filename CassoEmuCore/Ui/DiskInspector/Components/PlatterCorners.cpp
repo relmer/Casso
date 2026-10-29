@@ -17,11 +17,13 @@
 
 static constexpr int      s_kGroupDip       = 36;
 static constexpr int      s_kPadDip         = 4;
-static constexpr int      s_kGapDip         = 2;
+static constexpr int      s_kGapDip         = 6;
 static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kSliderDip      = 120;
+static constexpr int      s_kSliderMarginDip = 16;
 static constexpr int      s_kInsetDip       = 4;
 static constexpr int64_t  s_kLegendReopenMs = 300;
+static constexpr int      s_kLegendWidthDip = 480;
 static constexpr double   s_kRadiansPerDeg  = 0.017453292519943295;
 static constexpr LPCWSTR  s_kpszGlyphLegend = L"\xE790";
 static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
@@ -85,6 +87,7 @@ void PlatterCorners::Create()
     m_legend->SetVisible (false);
 
     m_legendButton->SetGlyph          (s_kpszGlyphLegend);
+    m_legendButton->SetRound          (true);
     m_legendButton->SetAccessibleName (L"Legend");
     m_legendButton->SetOnClick ([this] ()
                                 {
@@ -117,9 +120,11 @@ void PlatterCorners::Create()
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Differences, isOn); });
 
     m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
+    m_zoomOut->SetRound          (true);
     m_zoomOut->SetAccessibleName (L"Zoom out");
     m_zoomOut->SetOnClick        ([this] () { m_platter.ZoomAboutCenter (1.0 / InspectorMetrics::kZoomStep); });
     m_zoomIn->SetGlyph           (s_kpszGlyphPlus);
+    m_zoomIn->SetRound           (true);
     m_zoomIn->SetAccessibleName  (L"Zoom in");
     m_zoomIn->SetOnClick         ([this] () { m_platter.ZoomAboutCenter (InspectorMetrics::kZoomStep); });
 }
@@ -341,11 +346,30 @@ void PlatterCorners::Update()
 //
 //  PlatterCorners::IsSliderWanted
 //
+//  The slider comes out with the tilt button under the pointer or focused,
+//  and stays out while the pointer is over the tilt group or within
+//  s_kSliderMarginDip of it, from where the cursor is, not from the last
+//  mouse event: a tooltip popping up under the pointer ends the window's
+//  hover, which would otherwise hide the slider mid-use.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PlatterCorners::IsSliderWanted() const
 {
-    return m_tilt->IsHovered() || m_tilt->IsFocused() || m_tiltSlider->IsFocused() || m_tiltSlider->IsDragging() || (m_isSliderOut && m_isOverTilt);
+    RECT   area   = m_tiltGroup->GetBounds();
+    POINT  cursor = {};
+    bool   isNear = false;
+    int    margin = m_scaler.ToPx (s_kSliderMarginDip);
+
+
+
+    if (m_isSliderOut && m_host.GetOwnerHwnd() != nullptr && GetCursorPos (&cursor) && ScreenToClient (m_host.GetOwnerHwnd(), &cursor))
+    {
+        InflateRect (&area, margin, margin);
+        isNear = PtInRect (&area, cursor) != FALSE;
+    }
+
+    return m_tilt->IsHovered() || m_tilt->IsFocused() || m_tiltSlider->IsFocused() || m_tiltSlider->IsDragging() || isNear;
 }
 
 
@@ -381,7 +405,7 @@ bool PlatterCorners::Contains (POINT pointPx) const
 //  PlatterCorners::OnMouse
 //
 //  The groups take the pointer as the window's children; here the legend
-//  previews under the pointer and the tilt group's hover is followed.
+//  previews under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -389,7 +413,6 @@ bool PlatterCorners::OnMouse (const DxuiMouseEvent & ev)
 {
     if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
     {
-        m_isOverTilt = ev.kind == DxuiMouseEventKind::Move && m_tiltGroup->Contains (ev.positionDip);
         TrackLegendHover (ev.kind == DxuiMouseEventKind::Leave ? POINT { SHRT_MIN, SHRT_MIN } : ev.positionDip);
     }
 
@@ -544,6 +567,7 @@ void PlatterCorners::ShowLegend (bool isPinned)
     RECT                       button   = m_legendButton->GetBounds();
     POINT                      topLeft  = { button.left,  button.top };
     POINT                      botRight = { button.right, button.bottom };
+    int                        width    = (m_host.GetTextRenderer() != nullptr) ? PlatterLegendView::GetWidthDip (*m_host.GetTextRenderer(), m_session.context) : s_kLegendWidthDip;
 
 
 
@@ -562,11 +586,11 @@ void PlatterCorners::ShowLegend (bool isPinned)
     params.flipIfOffscreen  = true;
     params.dismiss          = isPinned ? DxuiPopupDismiss::OnClickOutside : DxuiPopupDismiss::Manual;
     params.input            = isPinned ? DxuiPopupInput::Interactive : DxuiPopupInput::PassThrough;
-    params.sizeDip          = { PlatterLegendView::kWidthDip, m_legend->GetHeightDip() };
+    params.sizeDip          = { width, m_legend->GetHeightDip() };
     params.backgroundArgb   = m_session.theme->BackgroundElevated();
-    params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text)
+    params.renderContent    = [this, width] (IDxuiPainter & painter, IDxuiTextRenderer & text)
                               {
-                                  m_legend->Layout ({ 0, 0, m_session.scaler.ToPx (PlatterLegendView::kWidthDip), m_session.scaler.ToPx (m_legend->GetHeightDip()) }, m_session.scaler);
+                                  m_legend->Layout ({ 0, 0, m_session.scaler.ToPx (width), m_session.scaler.ToPx (m_legend->GetHeightDip()) }, m_session.scaler);
                                   m_legend->Paint  (painter, text, *m_session.theme);
                               };
     params.onClosed         = [this] ()

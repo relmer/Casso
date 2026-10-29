@@ -2030,6 +2030,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetClippedCellText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetClippedCellText (int xPx, int yPx, std::wstring & outText) const
+{
+    int               row     = HitTestRow (xPx, yPx);
+    int               cap     = GetVisibleRowCapacity();
+    bool              needBar = (GetRowCount() > cap) && (cap > 0);
+    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
+    bool              isCut   = false;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (row >= 0)
+    {
+        ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+        for (size_t c = 0; !isCut && c < m_columns.size(); ++c)
+        {
+            bool  isOver = m_columns[c].visible && xAdj >= colXPx[c] && xAdj < colXPx[c] + colWPx[c];
+
+            isCut = isOver && std::find (m_clipped.begin(), m_clipped.end(), std::pair<int, size_t> { row, c }) != m_clipped.end();
+
+            if (isCut)
+            {
+                outText = GetRowCells (row)[c].text;
+            }
+        }
+    }
+
+    return isCut;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Paints the background, optional bold header row (with sort glyph,
@@ -2389,6 +2432,8 @@ void DxuiListView::PaintDataRows (
 
 
 
+    m_clipped.clear();
+
     // Clamp the visible span to the real row range up front, so the loop
     // body needs no per-row range guard and can bind the row's cells at
     // its top.
@@ -2466,7 +2511,25 @@ void DxuiListView::PaintDataRows (
                 }
             }
 
-            hr = text.DrawString (cells[c].text.c_str(),
+            // A column that elides cuts a cell too wide for it, and the cell
+            // is noted for a tooltip with its full text.
+            std::wstring  shown = cells[c].text;
+            float         fitW  = (float) colWPx[c] - cellPadL - cellPadR;
+            float         textW = 0.0f;
+            float         textH = 0.0f;
+            HRESULT       hrW   = S_OK;
+
+            DxuiElide     mode  = (cells[c].elide != DxuiElide::None) ? cells[c].elide : m_columns[c].elide;
+
+            hrW = (mode != DxuiElide::None) ? text.MeasureString (shown.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH) : E_FAIL;
+
+            if (SUCCEEDED (hrW) && textW > fitW)
+            {
+                shown = DxuiTextElide::ToWidth (text, shown, fontPx, DxuiTheme::kBodyFace, fitW, mode);
+                m_clipped.push_back ({ r, c });
+            }
+
+            hr = text.DrawString (shown.c_str(),
                                   x + colOff + (float) colXPx[c] + cellPadL,
                                   ry,
                                   (float) colWPx[c] - cellPadL - cellPadR,

@@ -53,7 +53,6 @@ class PlatterLegendView : public InspectorView
 public:
     static constexpr int  kRowDip     = 20;
     static constexpr int  kColumns    = 3;
-    static constexpr int  kWidthDip   = 680;
     static constexpr int  kPadDip     = 12;
 
     explicit PlatterLegendView (InspectorViewContext & context) : InspectorView (context) {}
@@ -62,6 +61,10 @@ public:
 
     //  The legend's height for the sections it has now, padding included.
     int   GetHeightDip () const;
+
+    //  The legend's width for its entries, titles and notes, padding included.
+    static int    GetWidthDip  (IDxuiTextRenderer & text, const InspectorViewContext & context);
+    static float  GetColumnDip (IDxuiTextRenderer & text, const InspectorViewContext & context);
 
     static vector<LegendEntry>    BuildEntries  (const DiskInspectorPalette & palette, bool isTimingMode, double range);
     static std::wstring           GetNote       (bool isTimingMode);

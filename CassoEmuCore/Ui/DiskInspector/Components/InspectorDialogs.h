@@ -27,7 +27,9 @@ class InspectorDialogs : public IInspectorComponent
 public:
     InspectorDialogs (InspectorSession & session, IInspectorComponentHost & host);
 
-    void  Create () override {}
+    void  Create     () override {}
+    void  GetPrefs   (DiskInspectorPrefs & inOut) const override;
+    void  ApplyPrefs (const DiskInspectorPrefs & prefs) override;
 
     void  OpenGoTo           ();
     void  OpenExport         ();

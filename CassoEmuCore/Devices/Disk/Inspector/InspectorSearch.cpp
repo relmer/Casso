@@ -580,6 +580,78 @@ LPCWSTR InspectorGoTo::GetLabel (GoToKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorGoTo::GetRangeHint
+//
+//  What an entry of a kind may be, for the dialog's line under the entry:
+//  the range on the selected track for a sector, nibble or cell, in the base
+//  the inspector uses for it, and the disk's blocks for a ProDOS block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorGoTo::GetRangeHint (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind)
+{
+    const TrackAnalysis *  track  = GetTrack (analysis, quarterTrack);
+    std::wstring           where  = L" on track " + InspectorFormat::FormatQuarterTrack (quarterTrack);
+    std::wstring           hint;
+    int                    tracks = 0;
+    int                    low    = INT_MAX;
+    int                    high   = -1;
+
+
+
+    for (int t = 0; t * DiskImage::kQuarterTracksPerWholeTrack < DiskImage::kQuarterTrackCount; t++)
+    {
+        tracks = (GetTrack (analysis, t * DiskImage::kQuarterTracksPerWholeTrack) != nullptr) ? t + 1 : tracks;
+    }
+
+    for (const AnalyzedSector & sector : (track != nullptr) ? track->sectors : vector<AnalyzedSector>())
+    {
+        int  number = (kind == GoToKind::Dos33Sector) ? sector.dos33Logical : sector.sector;
+
+        low  = std::min (low,  number);
+        high = std::max (high, number);
+    }
+
+    switch (kind)
+    {
+        case GoToKind::Track:
+            hint = L"A track from 0 to 39.75, such as 17.25";
+            break;
+
+        case GoToKind::PhysicalSector:
+        case GoToKind::Dos33Sector:
+            hint = (high >= 0) ? L"A sector from " + InspectorFormat::FormatSector (static_cast<Byte> (low)) + L" to " + InspectorFormat::FormatSector (static_cast<Byte> (high)) + where
+                               : L"No sectors" + where;
+            break;
+
+        case GoToKind::ProDosBlock:
+            hint = (tracks > 0) ? std::format (L"A block from 0 to {}", tracks * s_kBlocksPerTrack - 1) : std::wstring (L"No tracks with data");
+            break;
+
+        case GoToKind::NibbleOffset:
+            hint = (track != nullptr && !track->framed.nibbles.empty()) ? L"An offset from $0 to " + InspectorFormat::FormatHexOffset (static_cast<int> (track->framed.nibbles.size()) - 1) + where
+                                                                        : L"Nothing recorded" + where;
+            break;
+
+        case GoToKind::Cell:
+            hint = (track != nullptr && track->framed.cellCount > 0) ? L"A cell from 0 to " + InspectorFormat::FormatCount (track->framed.cellCount - 1) + where
+                                                                     : L"Nothing recorded" + where;
+            break;
+
+        default:
+            hint = L"A file's path, such as HELLO";
+            break;
+    }
+
+    return hint;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorGoTo::GetTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -654,8 +726,10 @@ bool InspectorGoTo::FindFile (const DiskAnalysis & analysis, const std::wstring 
         });
     };
 
-    for (const FileMap & map : analysis.fileMaps)
+    for (size_t m = 0; m < analysis.fileMaps.size(); m++)
     {
+        const FileMap &  map = analysis.fileMaps[m];
+
         for (size_t f = 0; !isFound && f < map.files.size(); f++)
         {
             const MappedFile &  file = map.files[f];
@@ -670,6 +744,8 @@ bool InspectorGoTo::FindFile (const DiskAnalysis & analysis, const std::wstring 
                 if (!isFound && place.cell >= 0)
                 {
                     isFound                = true;
+                    outTarget.fileMap      = static_cast<int> (m);
+                    outTarget.file         = static_cast<int> (f);
                     outTarget.quarterTrack = map.GetTrack (place.cell) * DiskImage::kQuarterTracksPerWholeTrack;
                     physical               = map.GetPhysical (place.cell, 0);
                     track                  = GetTrack (analysis, outTarget.quarterTrack);

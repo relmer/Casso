@@ -51,6 +51,7 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
     bool  OnKey   (const DxuiKeyEvent & ev) override;
+    bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
 
 protected:
     //  The room above the list, for a caption or a subclass's own controls.

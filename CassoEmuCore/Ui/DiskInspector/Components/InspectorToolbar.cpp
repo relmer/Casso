@@ -14,6 +14,7 @@
 static constexpr int     s_kSegmentDip   = 80;
 static constexpr int     s_kRangeDip     = 110;
 static constexpr int     s_kControlInset = 5;
+static constexpr int     s_kSelectorDip  = 26;
 static constexpr double  s_kRanges[]     = { 0.01, 0.02, 0.03, 0.05, 0.10, 0.15, 0.20, 0.25 };
 
 
@@ -127,18 +128,22 @@ void InspectorToolbar::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     int  bottom  = area.bottom - inset;
     int  x       = area.left + margin;
     int  tools   = 0;
+    int  selTop  = (area.top + area.bottom - scaler.ToPx (s_kSelectorDip)) / 2;
+    int  selBot  = selTop + scaler.ToPx (s_kSelectorDip);
 
 
 
     m_rowPx = area;
 
+    //  The selectors are about twice their labels' height, as iOS's compact
+    //  segmented controls are, centered in the row.
     if (IsDriveShown())
     {
-        m_drives->Layout ({ x, top, x + m_driveCount * segment, bottom }, scaler);
+        m_drives->Layout ({ x, selTop, x + m_driveCount * segment, selBot }, scaler);
         x += m_driveCount * segment + 2 * margin;
     }
 
-    m_modes->Layout ({ x, top, x + 2 * segment, bottom }, scaler);
+    m_modes->Layout ({ x, selTop, x + 2 * segment, selBot }, scaler);
     x += 2 * segment + margin;
 
     m_rangeDown->Layout  ({ x,                                         top, x + button,                          bottom }, scaler);

@@ -92,6 +92,7 @@ static constexpr double   s_kCharWidthDip   = 6.6;
 static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
 static constexpr int      s_kExportButtonDip = 80;
+static constexpr int      s_kCopySectorDip   = 100;
 static constexpr int      s_kFindButtonDip   = 60;
 static constexpr int      s_kCompareDip      = 122;
 static constexpr int      s_kFollowDip       = 110;
@@ -547,7 +548,7 @@ void DiskInspectorWindow::OnCreate()
     m_session.views.sectors    = CreateChild<SectorsView>  (m_session.context);
     m_session.views.nibbles  = CreateChild<NibblesView>      (m_session.context);
     m_session.views.flux     = CreateChild<FluxView>   (m_session.context);
-    m_copySector   = CreateChild<DxuiIconButton>();
+    m_copySector   = CreateChild<DxuiButton> (L"Copy sector");
     m_session.views.tracks   = CreateChild<InspectorTableView> (m_session.context);
     m_session.views.issues = CreateChild<IssuesView>     (m_session.context);
     m_session.views.image    = CreateChild<InspectorTableView> (m_session.context);
@@ -573,9 +574,7 @@ void DiskInspectorWindow::OnCreate()
     m_session.views.tracks->SetOnSelect   ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.views.issues->SetOnSelect ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.context.edits = &m_session.edits;
-    m_copySector->SetGlyph          (L"\xE8C8");
-    m_copySector->SetAccessibleName (L"Copy sector");
-    m_copySector->SetOnClick        ([this] () { m_selection->CopySector(); });
+    m_copySector->SetOnClick ([this] () { m_selection->CopySector(); });
     m_session.views.stripB->SetSide (ComparisonSession::kSideB);
 
     m_corners     = std::make_unique<PlatterCorners> (m_session, GetHost(), *m_session.views.platter);
@@ -585,7 +584,7 @@ void DiskInspectorWindow::OnCreate()
     m_menus       = std::make_unique<InspectorMenus> (m_session, GetHost(), m_commands);
     m_menus->Create();
 
-    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_stripControls.get(), m_stripControls.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
+    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_stripControls.get(), m_dialogs.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -1190,8 +1189,8 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     //  The "Copy sector" icon at the end of the Sectors header's first line, with
     //  room reserved for it there.
-    m_copySector->Layout       ({ right.right - scaler.ToPx (SectorsView::kHeaderDip), y, right.right, y + scaler.ToPx (SectorsView::kHeaderDip) }, scaler);
-    m_session.views.sectors->SetHeaderReserve (scaler.ToPx (SectorsView::kHeaderDip) + margin);
+    m_copySector->Layout       ({ right.right - scaler.ToPx (s_kCopySectorDip), y, right.right, y + scaler.ToPx (SectorsView::kHeaderDip) + margin / 2 }, scaler);
+    m_session.views.sectors->SetHeaderReserve (scaler.ToPx (s_kCopySectorDip) + margin);
 
     //  The strip across the bottom, B's under it while comparing (FR-121).
     y = bandTop + margin;
@@ -1306,9 +1305,10 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
-    //  Ctrl and the wheel zoom the File map grid over it (FR-157), and the
-    //  whole window everywhere else (FR-154).
-    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && m_files->IsOverGrid (p))
+    //  The wheel zooms the File map grid over it, as it does the platter
+    //  and the strip, with Shift left to pan it (FR-157); Ctrl and the wheel
+    //  zoom the whole window everywhere else (FR-154).
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.shift && !ev.wheelHorizontal && m_files->IsOverGrid (p))
     {
         m_files->ZoomGrid (ev.wheelDelta, p);
         isHandled = true;
@@ -1695,7 +1695,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     int64_t                               now       = static_cast<int64_t> (GetTickCount64());
     vector<DxuiTooltipSwatch>             swatches;
     bool                                  isInstant = false;
-    const std::array<InspectorView *, 8>  views     = { m_session.views.platter, m_session.views.strip, m_session.views.stripB, m_session.views.sectorRow, m_session.views.sectors, m_session.views.nibbles, m_session.views.flux, m_session.views.header };
+    const std::array<InspectorView *, 13> views     = { m_session.views.platter, m_session.views.strip, m_session.views.stripB, m_session.views.sectorRow, m_session.views.sectors, m_session.views.nibbles, m_session.views.flux, m_session.views.header, m_session.views.image, m_session.views.tracks, m_session.views.issues, m_session.views.diffs, m_session.views.findResults };
 
 
 

@@ -129,6 +129,8 @@ struct GoToTarget
     int  quarterTrack = -1;
     int  sectorIndex  = -1;
     int  firstNibble  = -1;
+    int  fileMap      = -1;
+    int  file         = -1;
 };
 
 
@@ -152,6 +154,9 @@ public:
                           std::wstring & outError);
 
     static LPCWSTR  GetLabel (GoToKind kind);
+
+    //  What an entry of a kind may be, as "A sector from $0 to $F on track 17".
+    static std::wstring  GetRangeHint (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
 
 private:
     static const TrackAnalysis *  GetTrack (const DiskAnalysis & analysis, int quarterTrack);

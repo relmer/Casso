@@ -8,6 +8,7 @@
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
+#include "Ui/DiskInspector/SectorAccess.h"
 
 
 
@@ -150,6 +151,11 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
             tip.AddLine (std::format (L"{} of {} sectors good", track->sectorsGood, track->sectorsFound));
         }
 
+        if (sector >= 0)
+        {
+            tip.AddAccess (context, entry.slot, *track, sector);
+        }
+
         if (isShowingNibbles && nibble >= 0 && !isRandom)
         {
             tip.AddLine (std::format (L"Nibble {:02X} at offset {}{}cell {} of {}", track->framed.nibbles[nibble].value, InspectorFormat::FormatHexOffset (nibble),
@@ -256,6 +262,52 @@ InspectorTip InspectorTip::BuildNibbleTip (const InspectorViewContext & context,
     tip.AddFindHit (context, track, firstCell, cellCount);
 
     return tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTip::AddAccess
+//
+//  How many times the guest read, wrote and scanned a sector since the disk
+//  was inserted, summed over the quarter tracks that share its record, as
+//  the heat maps count them (FR-161). No line when all three are 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTip::AddAccess (const InspectorViewContext & context, int slot, const TrackAnalysis & track, int sector)
+{
+    std::array<uint32_t, 3>  counts = {};
+    std::wstring             line;
+
+
+
+    for (int qt = 0; context.drive != nullptr && context.drive->access != nullptr && qt < DiskImage::kQuarterTrackCount; qt++)
+    {
+        if (context.analysis->entries[static_cast<size_t> (qt)].slot == slot)
+        {
+            counts[0] += SectorAccess::CountReads  (track, context.drive->access->reads[static_cast<size_t> (qt)])[static_cast<size_t> (sector)];
+            counts[1] += SectorAccess::CountWrites (track, context.drive->access->writes[static_cast<size_t> (qt)])[static_cast<size_t> (sector)];
+            counts[2] += SectorAccess::CountScans  (track, context.drive->access->scans[static_cast<size_t> (qt)])[static_cast<size_t> (sector)];
+        }
+    }
+
+    for (size_t k = 0; k < counts.size(); k++)
+    {
+        if (counts[k] > 0)
+        {
+            line += (line.empty() ? L"" : s_kSeparator) + std::format (L"{} {} {}", (k == 0) ? L"Read" : (k == 1) ? L"Written" : L"Scanned",
+                                                                        counts[k], counts[k] == 1 ? L"time" : L"times");
+        }
+    }
+
+    if (!line.empty())
+    {
+        AddLine (line);
+    }
 }
 
 

@@ -11,6 +11,7 @@
 
 static constexpr float  s_kSwatchDip = 10.0f;
 static constexpr float  s_kGapDip    = 6.0f;
+static constexpr float  s_kColumnGapDip = 16.0f;
 
 
 
@@ -34,7 +35,7 @@ void PlatterLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float  textPx  = m_scaler.ToPxf (kSmallDip);
     float  left    = static_cast<float> (m_boundsDip.left) + pad;
     float  y       = static_cast<float> (m_boundsDip.top) + pad;
-    float  columnW = (GetWidth() - 2 * pad) / kColumns;
+    float  columnW = m_scaler.ToPxf (GetColumnDip (text, m_context));
 
 
 
@@ -66,6 +67,72 @@ void PlatterLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         y += rowH / 2;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterLegendView::GetColumnDip
+//
+//  A column as wide as its widest entry: the swatch, the gap, the label and
+//  a gap before the next column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float PlatterLegendView::GetColumnDip (IDxuiTextRenderer & text, const InspectorViewContext & context)
+{
+    float  widest = 0;
+    float  w      = 0;
+    float  h      = 0;
+
+
+
+    for (const LegendSection & section : BuildSections (context))
+    {
+        for (const LegendEntry & entry : section.entries)
+        {
+            text.MeasureString (entry.label.c_str(), kSmallDip, DxuiTheme::kBodyFace, w, h);
+            widest = std::max (widest, w);
+        }
+    }
+
+    return s_kSwatchDip + s_kGapDip + std::ceil (widest) + s_kColumnGapDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterLegendView::GetWidthDip
+//
+//  The columns side by side, or a title or note, whichever is widest, and
+//  the padding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PlatterLegendView::GetWidthDip (IDxuiTextRenderer & text, const InspectorViewContext & context)
+{
+    float  widest = GetColumnDip (text, context) * kColumns;
+    float  w      = 0;
+    float  h      = 0;
+
+
+
+    for (const LegendSection & section : BuildSections (context))
+    {
+        for (const std::wstring & line : { section.title, section.note })
+        {
+            text.MeasureString (line.c_str(), kSmallDip, DxuiTheme::kBodyFace, w, h);
+            widest = std::max (widest, w);
+        }
+    }
+
+    return static_cast<int> (std::ceil (widest)) + 2 * kPadDip;
 }
 
 
@@ -114,7 +181,7 @@ vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewConte
 
 
 
-    sections.push_back ({ context.isTimingMode ? L"Platter: Timing" : L"Platter: Structure",
+    sections.push_back ({ context.isTimingMode ? L"Platter timing" : L"Platter structure",
                           BuildEntries (context.palette, context.isTimingMode, context.timingRange), GetNote (context.isTimingMode) });
 
     if (context.isFilesOverlay && context.fileMap != nullptr && context.fileMap->notMapped == NotMappedReason::None)

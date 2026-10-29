@@ -60,6 +60,7 @@ void InspectorTableView::SetColumns (const vector<std::wstring> & titles)
         DxuiListView::Column  column;
 
         column.title = title;
+        column.elide = DxuiElide::Tail;
         columns.push_back (column);
     }
 
@@ -94,6 +95,10 @@ void InspectorTableView::SetRows (vector<TableRow> rows)
             DxuiListView::Cell  cell;
 
             cell.text = text;
+
+            //  A path is cut from its start, so the file's name at its end
+            //  is visible.
+            cell.elide = (text.size() > 2 && (text[1] == L':' || text.starts_with (L"\\\\"))) ? DxuiElide::PathHead : DxuiElide::None;
             line.push_back (cell);
         }
 
@@ -239,6 +244,33 @@ bool InspectorTableView::OnMouse (const DxuiMouseEvent & ev)
     listEv.positionDip = { ev.positionDip.x - list.left, ev.positionDip.y - list.top };
 
     return m_list.OnMouse (listEv);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTableView::GetTooltip
+//
+//  A cell its column cut short, in full.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorTableView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
+{
+    RECT  list  = m_list.GetBounds();
+    bool  isCut = m_list.GetClippedCellText (pointPx.x - list.left, pointPx.y - list.top, outText);
+
+
+
+    if (isCut)
+    {
+        outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+    }
+
+    return isCut;
 }
 
 

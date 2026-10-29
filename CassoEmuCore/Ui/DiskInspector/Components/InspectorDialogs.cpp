@@ -109,6 +109,38 @@ void InspectorDialogs::ApplySettings (const DecodeSettings & settings)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorDialogs::GetPrefs
+//
+//  The kind "Go to" last went to, so it opens on it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorDialogs::GetPrefs (DiskInspectorPrefs & inOut) const
+{
+    inOut.goToKind = static_cast<int> (m_goToKind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorDialogs::ApplyPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorDialogs::ApplyPrefs (const DiskInspectorPrefs & prefs)
+{
+    m_goToKind = static_cast<GoToKind> (std::clamp (prefs.goToKind, 0, GoToDialog::kKindCount - 1));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorDialogs::OpenGoTo
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +175,15 @@ void InspectorDialogs::OpenGoTo()
     m_goToKind = dialog.GetKind();
     target     = dialog.GetTarget();
 
-    if (dialog.IsChosen() && target.firstNibble >= 0)
+    //  A file gone to is chosen as a click in the Files view's list chooses
+    //  it, which selects its first sector; the view picks it up as it syncs.
+    if (dialog.IsChosen() && target.file >= 0)
+    {
+        m_session.mapIndex = target.fileMap;
+        m_session.goToFile = target.file;
+        m_host.OnSelection();
+    }
+    else if (dialog.IsChosen() && target.firstNibble >= 0)
     {
         m_session.model.SelectNibbles (target.quarterTrack, target.firstNibble, 1);
         m_host.OnSelection();

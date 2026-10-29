@@ -177,6 +177,22 @@ public:
 
 
 
+    TEST_METHOD (GoToGivesTheRangeOfEachKind)
+    {
+        DiskAnalysis  analysis;
+
+
+
+        AnalyzeDisk (analysis);
+
+        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"), InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::PhysicalSector));
+        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"), InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Dos33Sector));
+        Assert::AreEqual (std::wstring (L"A block from 0 to 279"),             InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::ProDosBlock));
+        Assert::IsTrue   (InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Cell).starts_with (L"A cell from 0 to "));
+        Assert::AreEqual (std::wstring (L"A track from 0 to 39.75, such as 17.25"), InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Track));
+    }
+
+
     TEST_METHOD (GoToReadsEachKindInItsBase)
     {
         DiskAnalysis  analysis;

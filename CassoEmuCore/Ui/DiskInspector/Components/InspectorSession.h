@@ -175,6 +175,7 @@ public:
     bool                                     isLayoutStale     = false;
     int                                      mapIndex          = 0;
     int                                      mapFile           = -1;
+    int                                      goToFile          = -1;
     bool                                     is35              = false;
     std::wstring                             openError;
     InspectorViews                           views;

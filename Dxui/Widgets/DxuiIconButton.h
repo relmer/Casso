@@ -27,6 +27,9 @@ public:
     ~DxuiIconButton() override = default;
 
     void  SetGlyph          (const wchar_t * glyph)     { m_glyph = glyph; }
+    //  A round button's hover fill and focus ring are circles, for a button
+    //  drawn on a round background.
+    void  SetRound          (bool isRound)              { m_isRound = isRound; }
     void  SetOnClick          (ClickFn click)             { m_click = std::move (click); }
     void  SetDpi            (UINT dpi)                  { m_scaler.SetDpi (dpi); }
     void  SetAccessibleName (const std::wstring & name) { m_a11yName = name; }
@@ -60,4 +63,5 @@ private:
     bool             m_focused  = false;
     bool             m_enabled  = true;
     bool             m_visible  = true;
+    bool             m_isRound  = false;
 };

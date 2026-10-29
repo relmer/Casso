@@ -1195,6 +1195,7 @@ JsonValue GlobalUserPrefs::ToJson() const
         inspector.emplace_back ("lastDrive",   JsonValue ((double) diskInspector.lastDrive));
         inspector.emplace_back ("open",        JsonValue (diskInspector.isOpen));
         inspector.emplace_back ("walkthroughSeen", JsonValue (diskInspector.isWalkthroughSeen));
+        inspector.emplace_back ("goToKind",        JsonValue ((double) diskInspector.goToKind));
 
         root.emplace_back ("diskInspector", JsonValue (std::move (inspector)));
     }
@@ -1452,6 +1453,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         diskInspector.lastDrive     = GetIntOpt     (*inspectorObj, "lastDrive",   diskInspector.lastDrive);
         diskInspector.isOpen        = TryGetBoolOpt (*inspectorObj, "open",        diskInspector.isOpen);
         diskInspector.isWalkthroughSeen = TryGetBoolOpt (*inspectorObj, "walkthroughSeen", diskInspector.isWalkthroughSeen);
+        diskInspector.goToKind          = GetIntOpt     (*inspectorObj, "goToKind",        diskInspector.goToKind);
     }
 
     // Capture unknown top-level keys for round-tripping.

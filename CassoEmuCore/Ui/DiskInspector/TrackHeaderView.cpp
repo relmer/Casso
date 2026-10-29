@@ -60,8 +60,13 @@ void TrackHeaderView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         text.DrawString (title.c_str(), x, y, w, line, theme.HeadingForeground(), m_scaler.ToPxf (kTextDip + 1.0f), DxuiTheme::kBodyFace,
                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
 
-        //  The pills after the title; the counts follow them.
-        titleW += gap / 2 + PaintPill (painter, text, theme, InspectorText::FormatTrackClass (trackClass), trackClass == TrackClass::Damaged, x + titleW + gap / 2, y);
+        //  The pills after the title; the counts follow them. The track's
+        //  class is left out when it is the disk's format, already in the
+        //  status band's first chip.
+        if (InspectorText::FormatTrackClass (trackClass) != InspectorText::FormatDiskFormat (m_context.analysis->summary.format))
+        {
+            titleW += gap / 2 + PaintPill (painter, text, theme, InspectorText::FormatTrackClass (trackClass), trackClass == TrackClass::Damaged, x + titleW + gap / 2, y);
+        }
 
         if (m_context.analysis->entries[qt].isBeyondHeadReach)
         {
