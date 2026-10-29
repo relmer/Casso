@@ -93,6 +93,10 @@ HRESULT AppleSingleCodec::Decode (std::span<const Byte> bytes, AppleSingleFile &
             file.fileType      = ReadBigEndian16 (bytes, offset + 2);
             file.auxType       = ReadBigEndian32 (bytes, offset + 4);
         }
+        else if (length > 0)
+        {
+            file.hasOtherEntries = true;
+        }
     }
 
 Error:

@@ -222,4 +222,29 @@ public:
         Assert::IsTrue (FAILED (hr), L"dates past the end of the file");
         Assert::IsTrue (error.find ("entry 8") != std::string::npos, TextEncoding::NarrowToWide (error).c_str());
     }
+
+
+
+    //  Decode skips a resource fork, so a rewrite through Encode would drop it.
+    TEST_METHOD (ResourceFork_IsReportedAsAnotherEntry)
+    {
+        std::vector<Byte>  bytes = { 0x00, 0x05, 0x16, 0x00,  0x00, 0x02, 0x00, 0x00 };
+        AppleSingleFile    decoded;
+        std::string        error;
+        auto               put32 = [&bytes] (uint32_t value) { for (int shift : { 24, 16, 8, 0 }) { bytes.push_back ((Byte) (value >> shift)); } };
+
+
+
+        bytes.resize (bytes.size() + 16, 0);
+        bytes.push_back (0x00);
+        bytes.push_back (0x02);
+        put32 (1);  put32 (50);  put32 (1);
+        put32 (2);  put32 (51);  put32 (1);
+        bytes.push_back (0xAA);
+        bytes.push_back (0xBB);
+
+        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error), TextEncoding::NarrowToWide (error).c_str());
+        Assert::IsTrue   (decoded.data == std::vector<Byte> { 0xAA });
+        Assert::IsTrue   (decoded.hasOtherEntries);
+    }
 };

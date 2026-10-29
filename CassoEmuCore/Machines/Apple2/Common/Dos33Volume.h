@@ -68,6 +68,9 @@ public:
                             const FileAttributes  & attributes,
                             vector<Byte>          & outBuffer) const override;
 
+    //  Whether DOS 3.3 could open a file of this name again, the rule Rename applies.
+    static bool  IsValidName (const std::string & name) { vector<Byte> bytes; return TryEncodeCatalogName (name, bytes); }
+
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
     //  that disagrees with itself in a way the buffer it was computed from did

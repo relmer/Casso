@@ -28,6 +28,10 @@ struct AppleSingleFile
     Word               fileType      = 0;
     uint32_t           auxType       = 0;
 
+    //  The file has an entry Decode skips, such as a resource fork, so a
+    //  rewrite through Encode would drop it.
+    bool               hasOtherEntries = false;
+
     std::optional<int32_t>  createDate;
     std::optional<int32_t>  modifyDate;
     std::optional<int32_t>  backupDate;

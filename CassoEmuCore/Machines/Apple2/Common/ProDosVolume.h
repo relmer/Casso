@@ -62,6 +62,9 @@ public:
     HRESULT  Rename            (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const override { return m_writer.Rename (from, to, outBuffer); }
     HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const override { return m_writer.SetAttributes (path, attributes, outBuffer); }
 
+    //  ProDOS's rule for a new name, the one Rename applies.
+    static bool  IsValidName (const std::string & name) { std::string stored; return ProDosVolumeWriter::TryEncodeDirectoryName (name, stored); }
+
     HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const override { return m_remover.BuildRemovalPlan (path, outPlan); }
     HRESULT  RemoveDirectory  (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
     HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer) const override { return m_remover.Delete (path, outBuffer); }
