@@ -31,14 +31,24 @@ PreviewShellView::PreviewShellView (ExplorerPreviewManager & manager, ExplorerCo
 //
 //  PreviewShellView::Configure
 //
+//  The preview helper posts its results to the window, so with no window,
+//  as in a test, the helper is not started.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewShellView::Configure()
 {
-    HRESULT  hr = m_shellPreview.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellPreview);
+    HWND     hwnd = m_context.window.GetHwnd();
+    HRESULT  hr   = S_OK;
 
 
 
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    hr = m_shellPreview.Start (hwnd, (UINT) AppMessage::ExplorerShellPreview);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

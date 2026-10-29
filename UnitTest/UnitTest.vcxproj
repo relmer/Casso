@@ -358,6 +358,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerAboutTests.cpp" />
@@ -385,6 +386,9 @@
     <ClCompile Include="CassoExplorer\TypedPathHistoryTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderWatchTests.cpp" />
     <ClCompile Include="CassoExplorer\RefreshAnchorTests.cpp" />
+    <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
+    <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
+    <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />
     <ClInclude Include="CassoExplorer\FakeFolderWatcher.h" />
     <ClCompile Include="CassoExplorer\CassoTargetingTests.cpp" />
     <ClCompile Include="CassoExplorer\DragPayloadTests.cpp" />

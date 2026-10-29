@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Seams/IInfoTips.h"
+
 
 
 
@@ -21,24 +23,24 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Win32InfoTips
+class Win32InfoTips : public IInfoTips
 {
 public:
     Win32InfoTips() = default;
-    ~Win32InfoTips();
+    ~Win32InfoTips() override;
 
     Win32InfoTips (const Win32InfoTips &)             = delete;
     Win32InfoTips & operator= (const Win32InfoTips &) = delete;
 
     //  Starts the thread; `message` goes to `hwnd` as each tip is ready.
-    void  Start (HWND hwnd, UINT message);
+    void  Start (HWND hwnd, UINT message) override;
 
     //  The tip for a path when it has been read; otherwise asks for it and
     //  answers false.
-    bool  TryGet (const std::wstring & path, std::wstring & outTip);
+    bool  TryGet (const std::wstring & path, std::wstring & outTip) override;
 
     //  Forgets every tip, as a folder's change may have changed them.
-    void  Clear();
+    void  Clear() override;
 
 private:
     void  Run();

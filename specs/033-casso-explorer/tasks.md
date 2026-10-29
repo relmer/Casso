@@ -1362,6 +1362,11 @@ waits for this phase, so it is tested once.
   tab strip's and address bar's setup, typed paths, column widths, the
   folder and Recycle Bin watches, the listing threads' targets, the CassoLink
   connections and the running Cassos' roots.
+- [X] T300 Test the window's creation, private messages and timers with no
+  window: `ExplorerWindowParts` runs them, the window's Windows services come
+  in as interfaces (`IInfoTips` added), and
+  `UnitTest/CassoExplorer/ExplorerWindowPartsTests.cpp` checks the startup
+  that T292 restored. Deleting that startup block again fails four of them.
 - [ ] T293 Stop re-reading every drive's catalog when a tab moves to a linked
   Apple; read again only when the drive reports a disk change or the
   listing is old.

@@ -22,10 +22,34 @@
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
-#include "Seams/Win32HostDialogs.h"
-#include "Seams/Win32InfoTips.h"
+#include "Seams/IHostDialogs.h"
+#include "Seams/IInfoTips.h"
+#include "Seams/IShellIcons.h"
+#include "Seams/IShellItemVerbs.h"
 #include "Seams/Win32IntentChannel.h"
-#include "Seams/Win32ShellItemVerbs.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerServices
+//
+//  The Windows services a Casso Explorer window uses: the Win32
+//  implementations in the app, fakes in a test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ExplorerServices
+{
+    std::unique_ptr<IHostDialogs>     dialogs;
+    std::unique_ptr<IShellIcons>      shellIcons;
+    std::unique_ptr<IInfoTips>        infoTips;
+    std::unique_ptr<IShellItemVerbs>  shellVerbs;
+
+    static ExplorerServices  CreateWin32 ();
+};
 
 
 
@@ -36,7 +60,9 @@
 //  ExplorerWindowParts
 //
 //  The Casso Explorer window's services, its ExplorerContext and its
-//  components, created with the window and destroyed with it.
+//  components, created with the window and destroyed with it. The window's
+//  creation, its private messages and its timers run here, so a test runs
+//  them with no window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,13 +74,17 @@ struct ExplorerWindowParts
                          CassoExplorerPrefs          & prefs,
                          CassoExplorerWindowContext  & app,
                          DxuiDpiScaler               & scaler,
-                         const DxuiTheme *           & theme);
+                         const DxuiTheme *           & theme,
+                         ExplorerServices              injected);
 
+    void  Prepare          ();
+    void  CreateControls   ();
+    void  Configure        ();
+    bool  HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lParam);
+    bool  HandleTimer      (UINT_PTR timerId);
+
+    ExplorerServices                        services;
     FolderOptions                           explorerOptions;
-    Win32HostDialogs                        dialogs;
-    Win32ShellIcons                         shellIcons;
-    Win32InfoTips                           infoTips;
-    Win32ShellItemVerbs                     shellVerbs;
     std::vector<Win32IntentChannel::Reply>  pendingReplies;
     CassoExplorerCommands                   commands;
     ExplorerContext                         context;

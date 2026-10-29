@@ -42,8 +42,11 @@ public:
     //  ordinary files by extension needs to know only whether this one is a
     //  directory, and every caller already holds that. Asking the file system
     //  instead costs a call for each row of a listing.
-    virtual std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring & path, bool isDirectory) = 0;
-    virtual std::shared_ptr<const DxuiIconImage>  GetForKind (Kind kind) = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetForPath         (const std::wstring & path, bool isDirectory) = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetForKind         (Kind kind) = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetForExtension    (const std::wstring & extension) { (void) extension; return nullptr; }
+    virtual std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource)  { (void) resource; return nullptr; }
+    virtual void                                  SetSizePx          (int sizePx)                     { (void) sizePx; }
 
     //  The icon as Explorer's navigation pane draws it: without the overlays
     //  its file list draws, such as a cloud folder's sync state. The path's

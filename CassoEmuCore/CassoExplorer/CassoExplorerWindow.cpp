@@ -31,7 +31,7 @@ CassoExplorerWindow::CassoExplorerWindow (CassoExplorerBrowser & browser, CassoE
       m_actions  (actions),
       m_prefs    (prefs),
       m_context  (std::move (context)),
-      m_parts    (std::make_unique<ExplorerWindowParts> (*this, browser, actions, prefs, m_context, m_scaler, m_theme))
+      m_parts    (std::make_unique<ExplorerWindowParts> (*this, browser, actions, prefs, m_context, m_scaler, m_theme, ExplorerServices::CreateWin32()))
 {
 }
 
@@ -59,7 +59,7 @@ CassoExplorerWindow::~CassoExplorerWindow()
     }
 
 
-    m_parts->shellVerbs.UnwatchRecycleBin();
+    m_parts->services.shellVerbs->UnwatchRecycleBin();
     m_parts->dragDrop.GetDropTarget().Shutdown();
     m_parts->treePane.HideLabelTip();
     DestroyBackend();
@@ -89,13 +89,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
 
 
 
-    m_parts->themes.ChooseInitial();
-
-    //  Before the first layout, which the window's creation can bring on. The
-    //  tabs run across the top, above the bars each tab's location drives, as
-    //  a browser's do.
-    m_parts->layout.DockBands();
-
+    m_parts->Prepare();
 
     params.title                    = title;
     params.hInstance                = instance;
@@ -322,66 +316,8 @@ CassoExplorerSessionWindow CassoExplorerWindow::GetSessionWindow() const
 
 void CassoExplorerWindow::OnCreate()
 {
-    CassoExplorerNamedControl<DxuiSplitter>  * treeSplitter    = nullptr;
-    CassoExplorerNamedControl<DxuiSplitter>  * previewSplitter = nullptr;
-
-
-
-    m_parts->treePane.Create();
-    m_parts->listPane.Create();
-    m_parts->cassoLinkManager.CreateListActions();
-    m_parts->preview.Create();
-    treeSplitter      = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
-    previewSplitter   = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
-
-    treeSplitter->SetAccessibleName    (L"Folder pane width");
-    previewSplitter->SetAccessibleName (L"Preview pane width");
-
-    m_parts->layout.SetSplitters (treeSplitter, previewSplitter);
-    m_parts->statusBar.Create();
-    m_parts->tabManager.Create();
-    m_parts->toolbars.CreateNavBar();
-    m_parts->addressBar.Create();
-    m_parts->toolbars.CreateMenuBar();
-    m_parts->fileOps.Create();
-    m_parts->toolbars.CreateCommandBar();
-    m_parts->preview.CreateToolbar();
-    m_parts->toolbars.Create();
-
-    m_parts->toolbars.SetCommandBarDropDowns();
-    m_parts->tips.Create (GetPopupHost());
-
-    //  The buttons along a context menu's edge have only a word under their
-    //  icons, so each has a tip, as Explorer's do.
-    GetPopupHost()->GetContextMenu().SetOnIconHover ([this] (const DxuiCommand * command)
-    {
-        POINT  pointer = {};
-        RECT   anchor  = {};
-
-        if (command == nullptr || !GetCursorPos (&pointer) || !ScreenToClient (GetHwnd(), &pointer))
-        {
-            m_parts->tips.HideHoverTip (ExplorerTips::TipOwner::Menu);
-            return;
-        }
-
-        anchor = { pointer.x, pointer.y, pointer.x + 1, pointer.y + 1 };
-        m_parts->tips.ShowHoverTip (ExplorerTips::TipOwner::Menu, anchor, ExplorerMenus::GetIconButtonTip (*command));
-    });
-
-    //  Drawn by the shell at the pixel size a row's icon is laid out at, and
-    //  handed to the browser before the first nodes and rows are built.
-    m_parts->shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
-    m_browser.SetShellIcons (&m_parts->shellIcons);
-    m_browser.SetShellVerbs (&m_parts->shellVerbs);
-    m_browser.SetPreviewMonitor (m_parts->preview.GetPicture().GetMonitor(), m_prefs.previewCustomArgb);
-    m_parts->explorerOptions = FolderOptions::ReadFromShell();
-    m_browser.SetFolderOptions (m_parts->explorerOptions);
-    m_parts->treePane.ApplyNavPaneOptions();
-    m_parts->listPane.SizeListIcons();
-    m_parts->listPane.StartLoaders();
-    m_parts->infoTips.Start (GetHwnd(), (UINT) AppMessage::ExplorerInfoTip);
-
-    m_parts->layout.ConfigureWidgets();
+    m_parts->CreateControls();
+    m_parts->Configure();
 }
 
 
@@ -749,15 +685,6 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
 
 DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    std::vector<Win32IntentChannel::Reply>  replies;
-
-
-
-    if (m_parts->preview.GetShell().HandleHelperMessage (msg, wParam, lParam))
-    {
-        return DxuiMessageResult::Handled;
-    }
-
     if (msg == (UINT) AppMessage::ExplorerLaunch)
     {
         std::vector<std::wstring>  launches = std::move (m_pendingLaunches);
@@ -772,149 +699,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::Handled;
     }
 
-    //  A change arrived. Restarting the timer rather than re-reading now is
-    //  what collapses a burst: a copy of a hundred files re-reads once, when
-    //  the copying stops. Only for so long, though: a folder that never stops
-    //  changing (a log being written, say) would hold off every re-read.
-    if (msg == (UINT) AppMessage::ExplorerShellPreview)
-    {
-        m_parts->preview.GetShell().HandleResult();
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerFolderChanged)
-    {
-        m_parts->folderSync.HandleFolderChanged();
-        return DxuiMessageResult::Handled;
-    }
-
-    //  The bin's changes come in bursts, as a folder's do, and matter only
-    //  while it is shown.
-    if (msg == (UINT) AppMessage::ExplorerRecycleBin)
-    {
-        if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
-        {
-            SetTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRecycleBin, kFolderSettleMs, nullptr);
-        }
-
-        return DxuiMessageResult::Handled;
-    }
-
-    //  A shell folder's listing is in: the list shows it if it is still the
-    //  folder shown, and the tree fills the node that asked for it.
-    if (msg == (UINT) AppMessage::ExplorerShellListed)
-    {
-        for (const std::wstring & key : m_browser.GetShellListings().TakeArrivedKeys())
-        {
-            m_parts->listPane.HandleShellListed (key);
-        }
-
-        for (const std::wstring & key : m_browser.GetHostListings().TakeArrivedKeys())
-        {
-            m_parts->listPane.HandleShellListed (key);
-        }
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerCassoLink)
-    {
-        m_parts->cassoLinkManager.HandleConnectionChanged();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerRunningCasso)
-    {
-        m_parts->cassoLinkManager.HandleRunningChanged();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerDropMenu)
-    {
-        m_parts->dragDrop.ShowDropMenu();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerInfoTip)
-    {
-        m_parts->listPane.RefreshTip();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerContentDetails)
-    {
-        m_parts->listPane.HandleContentDetailsArrived();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerIconsLoaded)
-    {
-        m_parts->listPane.HandleIconsLoaded();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    //  New's file types join the command bar's New once the shell lists them.
-    if (msg == (UINT) AppMessage::ExplorerNewChoices)
-    {
-        m_parts->toolbars.SetCommandBarDropDowns();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg == (UINT) AppMessage::ExplorerRunCommand)
-    {
-        if (m_parts->commandManager.IsEnabled ((int) wParam))
-        {
-            m_parts->commandManager.Dispatch ((int) wParam);
-        }
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (msg != (UINT) AppMessage::ExplorerReply)
-    {
-        return DxuiMessageResult::NotHandled;
-    }
-
-    replies.swap (m_parts->pendingReplies);
-
-    for (const Win32IntentChannel::Reply & reply : replies)
-    {
-        std::wstring  text = TextEncoding::NarrowToWide (reply.text);
-
-        switch (reply.kind)
-        {
-            case Win32IntentChannel::ReplyKind::MachineDescription:
-                m_parts->fileOps.SetCassoDriveCount (reply.driveCount);
-                break;
-
-            case Win32IntentChannel::ReplyKind::InsertDone:
-                m_parts->statusBar.SetDetail (L"Inserted into Casso");
-                break;
-
-            case Win32IntentChannel::ReplyKind::InsertRefused:
-                ShowMessage (L"Casso did not insert the disk.\n\n" + text, MB_ICONWARNING);
-                break;
-
-            case Win32IntentChannel::ReplyKind::ReloadConflict:
-            case Win32IntentChannel::ReplyKind::ReloadRefused:
-                ShowMessage (L"Casso did not reload the changed disk.\n\n" + text, MB_ICONWARNING);
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    Invalidate();
-
-    return DxuiMessageResult::Handled;
+    return m_parts->HandleAppMessage (msg, wParam, lParam) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 
@@ -1041,68 +826,8 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerShellPreview)
+    if (m_parts->HandleTimer (timerId))
     {
-        m_parts->preview.GetShell().ShowBytes();
-        return DxuiMessageResult::Handled;
-    }
-
-    //  The Recycle Bin restores on its own time, so the folder is read again
-    //  each second for a while after an undo.
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerRestore)
-    {
-        if (m_parts->fileOps.CountDownRestore())
-        {
-            KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore);
-        }
-
-        m_parts->folderSync.RefreshAfterHostChange();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerRecycleBin)
-    {
-        KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRecycleBin);
-
-        if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
-        {
-            m_parts->folderSync.RefreshAfterHostChange();
-        }
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
-    {
-        m_parts->folderSync.CheckDrives();
-        m_parts->cassoLinkManager.PollFirewall();
-
-        //  An announcement since the last look is listed, on the same poll
-        //  as a drive.
-        if (m_context.announced != nullptr && m_context.running != nullptr && m_context.links != nullptr
-            && m_context.announced->GetChangeCount() != m_parts->cassoLinkManager.GetAnnouncedChanges())
-        {
-            m_parts->cassoLinkManager.HandleRunningChanged();
-        }
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerRefresh)
-    {
-        KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRefresh);
-        m_parts->listPane.SetContentHidden (false);
-        m_parts->listPane.FillList();
-        Invalidate();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    if (timerId == (UINT_PTR) AppTimerId::ExplorerFolder)
-    {
-        m_parts->folderSync.HandleSettleTimer();
-
         return DxuiMessageResult::Handled;
     }
 

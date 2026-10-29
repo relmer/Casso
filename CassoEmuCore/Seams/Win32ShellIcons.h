@@ -37,7 +37,7 @@ public:
     Win32ShellIcons & operator= (const Win32ShellIcons &) = delete;
 
     //  The size the icons are drawn at, in pixels.
-    void  SetSizePx (int sizePx);
+    void  SetSizePx (int sizePx) override;
 
     //  The window's DPI, nonzero once set: an icon with no image at the size
     //  asked for is then drawn at its own pixel size, centered, as Explorer
@@ -57,10 +57,10 @@ public:
 
     //  An icon by its "path,index" resource, as IExplorerCommand::GetIcon
     //  returns it, at the row's size; null when it cannot be read.
-    std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource);
+    std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource) override;
 
     //  The icon of every file of a type, by its extension, at the row's size.
-    std::shared_ptr<const DxuiIconImage>  GetForExtension (const std::wstring & extension);
+    std::shared_ptr<const DxuiIconImage>  GetForExtension (const std::wstring & extension) override;
     std::shared_ptr<const DxuiIconImage>  GetForKind      (Kind kind) override;
     std::wstring                          GetTypeName     (const std::wstring & path, bool isDirectory) override;
     bool                                  GetDriveInfo    (const std::wstring & root, DriveInfo & outInfo) override;
