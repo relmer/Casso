@@ -12,6 +12,12 @@
 
 
 
+static constexpr int  s_kMaxFitPasses = 3;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetDialogContentOwned
@@ -193,8 +199,6 @@ void DxuiDialogWindow::OnDialogShowing()
 
 HRESULT DxuiDialogWindow::FitHeightToContent()
 {
-    static constexpr int    s_kMaxPasses = 3;
-
     HRESULT                 hr        = S_OK;
     IDxuiMeasuredContent  * measured  = dynamic_cast<IDxuiMeasuredContent *> (m_content);
     IDxuiTextRenderer     * text      = GetTextRenderer();
@@ -217,7 +221,7 @@ HRESULT DxuiDialogWindow::FitHeightToContent()
     BAIL_OUT_IF (measured == nullptr, S_OK);
     CBR (text != nullptr && theme != nullptr && hwnd != nullptr);
 
-    for (pass = 0; pass < s_kMaxPasses && !atCeiling; pass++)
+    for (pass = 0; pass < s_kMaxFitPasses && !atCeiling; pass++)
     {
         content = m_content->GetBounds();
         ok      = measured->TryMeasureHeightPx (*text, *theme, content.right - content.left, needPx);
