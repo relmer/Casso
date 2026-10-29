@@ -22,9 +22,11 @@
 class RecordingShellVerbs : public FakeRecycleBin
 {
 public:
-    void  WatchRecycleBin (HWND, UINT message) override { recycleBinMessage = message; }
+    void  WatchRecycleBin   (HWND, UINT message) override { recycleBinMessage = message; }
+    bool  ClipboardHasFiles () const override              { clipboardChecks++; return false; }
 
-    UINT  recycleBinMessage = 0;
+    UINT          recycleBinMessage = 0;
+    mutable int   clipboardChecks   = 0;
 };
 
 

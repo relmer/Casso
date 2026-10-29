@@ -1384,7 +1384,7 @@ waits for this phase, so it is tested once.
   the list or tree is refilled during the drag.
 - [ ] T295 Stop opening the drive in the list when Create image is chosen from
   the drive's menu.
-- [ ] T296 Paste with Ctrl+V into a linked drive's file list, as the command
+- [X] T296 Paste with Ctrl+V into a linked drive's file list, as the command
   bar's Paste does.
 - [ ] T297 Remove a deleted file's row rather than refilling the list.
 - [ ] T298 In the CassoLink activity log: copy, lines that wrap only past the

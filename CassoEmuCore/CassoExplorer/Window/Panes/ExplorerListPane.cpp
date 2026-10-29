@@ -521,11 +521,24 @@ bool ExplorerListPane::HandleShortcutKey (const DxuiKeyEvent & ev)
     }
 
     //  Copy in an image writes the files a paste would, as the context menu's
-    //  Copy row does; cut and paste are the host's alone.
+    //  Copy row does; cut is the host's alone.
     if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'C'
         && m_context.browser.IsVolumeLocation() && !m_context.browser.GetSelectedRows().empty())
     {
         m_context.fileOps.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle());
+        return true;
+    }
+
+    //  Paste in an image or a linked Apple's drive puts the clipboard's files
+    //  there, as the command bar's Paste does.
+    if (m_context.input.GetFocusPane() == ExplorerPane::List && ev.ctrl && !ev.alt && ev.vk == 'V'
+        && m_context.browser.IsVolumeLocation())
+    {
+        if (m_context.commandManager.IsEnabled (CassoExplorerCommands::kPasteItems))
+        {
+            m_context.commandManager.Dispatch (CassoExplorerCommands::kPasteItems);
+        }
+
         return true;
     }
 

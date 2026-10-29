@@ -4,6 +4,7 @@
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "FakeExplorerWindow.h"
 #include "FakeFolderWatcher.h"
@@ -94,12 +95,35 @@ public:
             links.reset();
         }
 
-        //  What the window runs as it opens, in order.
+        //  A fixture image at a path on the in-memory host.
+        void  Seed (const char * fixture, const wchar_t * path)
+        {
+            FixtureProvider    fixtures;
+            std::vector<Byte>  bytes;
+            std::string        narrow;
+
+
+
+            AssertSucceeded (fixtures.OpenFixture (fixture, bytes));
+            AssertSucceeded (fs.WriteAllText (path, std::string (bytes.begin(), bytes.end())));
+
+            for (const wchar_t * p = path; *p != L'\0'; p++)
+            {
+                narrow.push_back ((char) *p);
+            }
+
+            io.files[narrow]  = bytes;
+            io.stamps[narrow] = FileStamp { bytes.size(), 100 };
+        }
+
+        //  What the window runs as it opens, in order, then its first layout.
         void  Open()
         {
             parts->Prepare();
             parts->CreateControls();
             parts->Configure();
+            parts->layout.SetClient (RECT { 0, 0, 1280, 800 });
+            parts->layout.RecomputeLayout();
         }
     };
 
@@ -204,6 +228,31 @@ public:
         rig.parts->HandleAppMessage ((UINT) AppMessage::ExplorerRunCommand, CassoExplorerCommands::kExit, 0);
 
         Assert::IsTrue (rig.window.closed);
+    }
+
+
+
+    TEST_METHOD (CtrlV_InADiskImage_RunsPaste)
+    {
+        Rig           rig;
+        DxuiKeyEvent  key;
+        int           checks = 0;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+        Assert::IsTrue (rig.browser.IsVolumeLocation());
+
+        rig.parts->input.SetFocusPane (ExplorerPane::List);
+        checks   = rig.verbs->clipboardChecks;
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = 'V';
+        key.ctrl = true;
+
+        Assert::IsTrue (rig.parts->listPane.HandleShortcutKey (key));
+        Assert::IsTrue (rig.verbs->clipboardChecks > checks, L"Paste asks whether the clipboard has files");
     }
 
 
