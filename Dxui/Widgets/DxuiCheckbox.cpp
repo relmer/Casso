@@ -172,8 +172,14 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     uint32_t boxColor    = m_enabled
                             ? (m_pressed ? theme.ButtonPressed() : (m_hover ? theme.ButtonHover() : theme.ButtonIdle()))
                             : theme.PressedBackground();
-    glyphColor = m_enabled ? theme.ButtonText()  : theme.ForegroundDisabled();
-    textColor = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
+
+    //  As Windows 11 draws one: an empty box is outlined in the text color at
+    //  60%, so it is visible on any background, and a checked one is filled.
+    uint32_t outlineColor = m_enabled ? ((theme.Foreground() & 0x00FFFFFFu) | 0x99000000u) : theme.ForegroundDisabled();
+    uint32_t checkedFill  = m_enabled ? theme.Accent() : theme.ForegroundDisabled();
+
+    glyphColor = DxuiTheme::GetContrastingText (checkedFill);
+    textColor  = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
 
     // No area means this control has not been laid out yet: OnCreate() builds
     // the tree, but the first Layout() waits on the host sizing the window,
@@ -191,7 +197,15 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         float  labelX = 0.0f;
         float  labelW = 0.0f;
 
-        painter.FillRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), boxColor);
+        if (m_checked)
+        {
+            painter.FillRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), checkedFill);
+        }
+        else
+        {
+            painter.FillRoundedRect    (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), boxColor);
+            painter.OutlineRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), m_scaler.ToPxf (1.0f), outlineColor);
+        }
 
         if (m_checked)
         {

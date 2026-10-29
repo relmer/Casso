@@ -162,6 +162,10 @@ struct DxuiTheme : public IDxuiTheme
     //  Segoe UI where it does not.
     static const wchar_t *         GetUiFace ();
 
+    //  White or black, whichever reads on `fill`: the check in a checked box
+    //  and the dot in a selected radio button, on the accent color.
+    static uint32_t                GetContrastingText (uint32_t fill);
+
     static constexpr wchar_t       kMonoFace    [] = L"Cascadia Mono";
     static constexpr float         kBodySizeDip    = 13.0f;
     static constexpr float         kCaptionSizeDip = 12.0f;

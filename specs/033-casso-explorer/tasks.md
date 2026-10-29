@@ -1396,11 +1396,9 @@ waits for this phase, so it is tested once.
 - [X] T302 Retry an icon read by extension after a failure, as a per-path icon
   is. Before, after one failed read, every file of that type had no icon
   until the window closed (seen on .md files).
-
-**Dependencies**: in order. T292 to T299
-before T079.
-The product-wide styles are GitHub issue #179.
-## Section H dependencies
+- [X] T304 Outline an empty checkbox and radio button in the text color at
+  60%, and fill a checked or selected one with the accent color, so they are
+  visible in the Dark and Light themes.
 
 - **Phase 16 first.** T181 before T182 to T186.
 - **Phase 17 after T186.** Phase 18 after T188.

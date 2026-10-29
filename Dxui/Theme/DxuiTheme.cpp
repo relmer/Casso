@@ -24,3 +24,26 @@ const wchar_t * DxuiTheme::GetUiFace()
 
     return s_variable ? kVariableFace : kBodyFace;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTheme::GetContrastingText
+//
+//  By the fill's luminance, Rec. 709 weights.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTheme::GetContrastingText (uint32_t fill)
+{
+    float  r = (float) ((fill >> 16) & 0xFF);
+    float  g = (float) ((fill >>  8) & 0xFF);
+    float  b = (float) ( fill        & 0xFF);
+
+
+
+    return (0.2126f * r + 0.7152f * g + 0.0722f * b) > 140.0f ? 0xFF000000u : 0xFFFFFFFFu;
+}

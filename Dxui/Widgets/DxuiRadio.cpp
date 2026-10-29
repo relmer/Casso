@@ -265,7 +265,9 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
     float    fontDip    = m_scaler.ToPxf (s_kFontDip);
     uint32_t textColor  = m_enabled ? theme.Foreground() : theme.ForegroundDisabled();
-    uint32_t dotColor   = m_enabled ? theme.ButtonText() : theme.ForegroundDisabled();
+    uint32_t outline    = m_enabled ? ((theme.Foreground() & 0x00FFFFFFu) | 0x99000000u) : theme.ForegroundDisabled();
+    uint32_t chosenFill = m_enabled ? theme.Accent() : theme.ForegroundDisabled();
+    uint32_t dotColor   = DxuiTheme::GetContrastingText (chosenFill);
 
 
 
@@ -289,11 +291,18 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                             ? (m_hover == i ? theme.ButtonHover() : theme.ButtonIdle())
                                             : theme.PressedBackground();
 
-        painter.FillCircle (cx, cy, outerR, boxColor);
-
+        //  As Windows 11 draws one: an empty button is outlined in the text
+        //  color at 60%, so it is visible on any background, and the selected one
+        //  is filled with the accent color around its dot.
         if (m_selected == i)
         {
+            painter.FillCircle (cx, cy, outerR, chosenFill);
             painter.FillCircle (cx, cy, innerR, dotColor);
+        }
+        else
+        {
+            painter.FillCircle         (cx, cy, outerR, boxColor);
+            painter.OutlineRoundedRect (cx - outerR, cy - outerR, outerR * 2.0f, outerR * 2.0f, outerR, m_scaler.ToPxf (1.0f), outline);
         }
 
         float   textLeft  = boxLeft + boxSize + labelGap;
