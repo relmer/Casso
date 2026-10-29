@@ -528,7 +528,7 @@ public:
         AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
 
         rig.Open (2);
-        AssertSucceeded (rig.actions->SaveLinkToDisk (L"C:\\Temp").hr);
+        AssertSucceeded (rig.actions->SaveLinkToDisk ("Test", 2, L"C:\\Temp").hr);
 
         //  No catalog to list afterward: the disk has no file system.
         {

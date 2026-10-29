@@ -43,10 +43,11 @@ public:
     void          ReadDiskToImage         (const Location & drive = Location());
     void          StartImageWrite         (const Location & drive, const std::wstring & imagePath);
     bool          TryGetSelectedLinkDrive (Location & outDrive) const;
+    bool          TryGetTargetDrive       (const Location & drive, Location & outDrive, std::wstring & outLink, int & outNumber) const;
     bool          IsOnLinkedMachine       () const;
     void          OpenSelectedLinkDrive   ();
-    void          WriteImageToDisk        ();
-    void          SaveLinkToDisk          ();
+    void          WriteImageToDisk        (const Location & drive = Location());
+    void          SaveLinkToDisk          (const Location & drive = Location());
     void          FormatAppleDisk         (const Location & location);
     void          SaveLinkDiskImage       (const std::string & name);
     void          EditConnection          (const std::string & name);

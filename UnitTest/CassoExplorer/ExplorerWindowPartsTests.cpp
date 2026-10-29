@@ -315,6 +315,31 @@ public:
 
 
 
+    TEST_METHOD (WriteImage_FromADrivesMenu_LeavesTheListWhereItIs)
+    {
+        Rig                 rig;
+        FakeHostDialogs   * dialogs = nullptr;
+        Location            drive   = Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 2), std::string());
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks\\dos33.dsk"));
+
+        dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
+        dialogs->picks = false;
+
+        rig.parts->cassoLinkManager.WriteImageToDisk (drive);
+
+        Assert::AreEqual (1, dialogs->opens);
+        Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Write image to"));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
+    }
+
+
+
+
     //  A file that sorts ahead of the image the drag is over takes its row,
     //  and a file is no drop target.
     TEST_METHOD (DropHighlight_FollowsTheRowUnderTheDrag_WhenTheListRefills)

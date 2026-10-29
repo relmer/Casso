@@ -1022,26 +1022,16 @@ std::wstring ActionsAppleDrive::MakeDriveImageName (const VolumeListing & listin
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::SaveLinkToDisk (const std::wstring & tempFolder)
+ActionsTypes::Outcome ActionsAppleDrive::SaveLinkToDisk (const std::string & link, int drive, const std::wstring & tempFolder)
 {
     ActionsTypes::Outcome    outcome;
     CassoLinkConnections   * links     = m_actions.m_browser.GetLinks();
-    std::string              link;
-    std::string              directory;
-    int                      drive     = 0;
     CassoLinkSettings        chosen;
     std::vector<Byte>        disk;
     std::string              path;
     HRESULT                  hr        = S_OK;
 
 
-
-    if (!TryGetAppleDrive (link, drive, directory))
-    {
-        outcome.hr      = E_INVALIDARG;
-        outcome.message = L"Open a drive of a CassoLink connection first.";
-        return outcome;
-    }
 
     for (const CassoLinkSettings & settings : links->GetLinks())
     {

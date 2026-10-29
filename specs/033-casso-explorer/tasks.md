@@ -1472,6 +1472,8 @@ The product-wide styles are GitHub issue #179.
 - [X] T316 Open a serial link's port at the link's speed before the bootstrap
   speed, so an Apple waiting at the link's speed connects at once
   rather than after the bootstrap speed's share of the connect timeout.
+- [X] T317 Write an image or CassoLink to the drive whose menu was used, as
+  Create image does, without opening the drive in the list.
 - **Phase 17 after T186.** Phase 18 after T188.
 - **Phase 19 after T182 and T189.**
 - **Phase 20 after T197.**

@@ -168,7 +168,7 @@ public:
     //  The link's boot disk written to the open Apple drive over the link,
     //  through an image in tempFolder: its boot sector loads the shim at the
     //  link's speed.
-    Outcome  SaveLinkToDisk   (const std::wstring & tempFolder) { return m_appleDrive.SaveLinkToDisk (tempFolder); }
+    Outcome  SaveLinkToDisk   (const std::string & link, int drive, const std::wstring & tempFolder) { return m_appleDrive.SaveLinkToDisk (link, drive, tempFolder); }
 
     //  The open Apple drive formatted as DOS 3.3 or ProDOS, bootable or not,
     //  by writing it a new disk built in tempFolder from the request.
