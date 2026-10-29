@@ -428,3 +428,15 @@ wstring DiskStoreText::FormatExternalChangeMessage (const string & path)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreText::FormatCopySavedMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskStoreText::FormatCopySavedMessage (int drive, const string & copyPath)
+{
+    return ChangePrompt::DriveLabel (drive) + L"'s disk was also saved to "
+         + ChangePrompt::GetFileName (copyPath) + L" in the same folder.";
+}

@@ -85,4 +85,8 @@ public:
     //  the image, and says the writes are still held rather than lost, which is
     //  the part the user will worry about.
     static wstring FormatExternalChangeMessage (const string & path);
+
+    //  The dialog after a save wrote the guest's version beside a file that
+    //  is gone, while the question about that file was open.
+    static wstring FormatCopySavedMessage (int drive, const string & copyPath);
 };

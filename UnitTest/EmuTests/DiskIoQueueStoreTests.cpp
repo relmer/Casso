@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "DiskStoreTestSupport.h"
 #include "DeferredDiskIoQueue.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -395,5 +396,59 @@ public:
         Assert::IsFalse  (store->GetImage (kSlot, kDrive)->IsDirty(), L"and the completion, drained here, marked the disk saved");
 
         store->SetIoQueue (nullptr);
+    }
+
+
+    //  A dirty disk whose file is deleted: the question about the lost file
+    //  goes up, and the spin-down save, finding the file gone, writes the
+    //  guest's version under the name the question reserved. The question on
+    //  screen reads as though the disk exists in memory only, so a second
+    //  dialog states the copy.
+    TEST_METHOD (ACopySavedUnderALostFileQuestionIsStatedInASecondDialog)
+    {
+        static constexpr const char *  kFile = "lost.dsk";
+
+        ScopedFlushNotifyCapture   capture;
+        auto                       store    = std::make_unique<DiskImageStore>();
+        ImageIdentity              identity;
+        bool                       isGone   = false;
+        int64_t                    nowMs    = 0;
+        int                        asks     = 0;
+        std::vector<std::string>   copies;
+
+
+
+        identity.recorded           = true;
+        identity.stamp.sizeBytes    = NibblizationLayer::kImageByteSize;
+        identity.stamp.modifiedUnix = 100;
+
+        store->SetClock          ([&nowMs] { return nowMs; });
+        store->SetTimestampSource ([] { return (time_t) 1756500000; });
+        store->SetImageReader    ([&isGone] (const string &, vector<Byte> & bytes)
+        {
+            bytes = vector<Byte> (NibblizationLayer::kImageByteSize, 0x11);
+            return isGone ? HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) : S_OK;
+        });
+        store->SetIdentityReader ([&identity, &isGone] (const string &) { return isGone ? ImageIdentity() : identity; });
+        store->SetFlushSink      ([&copies] (const string & path, const vector<Byte> &) { if (path != kFile) { copies.push_back (path); } return S_OK; });
+        store->SetAskSink        ([&asks] (int, int, const ChangePrompt &) { asks++; return true; });
+
+        AssertSucceeded (store->Mount (kSlot, kDrive, kFile));
+        store->GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] ^= 0x01;
+        store->GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        isGone = true;
+        store->NoteExternalChange (kFile, ExternalChangeIntent::Unstated);
+        nowMs += MountedImageState::kQuietPeriodMs;
+        store->ApplyPendingReload();
+
+        Assert::AreEqual (1, asks, L"the question about the lost file is put");
+        Assert::AreEqual (0, s_flushNotifyCount, L"and nothing else is shown yet");
+
+        store->SaveAllUnlessHeld();
+
+        Assert::AreEqual ((size_t) 1, copies.size(), L"the save wrote the guest's version beside the file");
+        Assert::AreEqual (1, s_flushNotifyCount, L"and a second dialog states it");
+        Assert::IsTrue   (s_flushNotifyLast.find (TextEncoding::NarrowToWide (fs::path (copies[0]).filename().string())) != std::wstring::npos, s_flushNotifyLast.c_str());
     }
 };

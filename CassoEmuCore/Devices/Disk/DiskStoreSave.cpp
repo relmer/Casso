@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "ChangePrompt.h"
+#include "ExternalChangePolicy.h"
 #include "CommitPlan.h"
 #include "Seams/Win32DiskFileIo.h"
 
@@ -1040,6 +1041,13 @@ void DiskStoreSave::FinishPreserve (const shared_ptr<SaveJob> & job, const strin
         entry->sharedState.SetPreservedWritten (true);
         entry->image->SetSourceCrcMismatch (false);
         m_store.MarkStatusChanged();
+
+        //  The question on screen about a file that is gone reads as though the
+        //  disk exists in memory only; a second dialog states the copy.
+        if (isAsked && ExternalChangePolicy::IsFileLost (entry->sharedState.GetAskedAction()))
+        {
+            EhmNotifyUser (DiskStoreText::FormatCopySavedMessage (entry->drive, triedPath).c_str());
+        }
     }
 
     if (entry != nullptr && SUCCEEDED (hrKeep) && !isAsked)
