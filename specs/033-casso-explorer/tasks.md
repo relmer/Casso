@@ -1367,6 +1367,12 @@ waits for this phase, so it is tested once.
   in as interfaces (`IInfoTips` added), and
   `UnitTest/CassoExplorer/ExplorerWindowPartsTests.cpp` checks the startup
   that T292 restored. Deleting that startup block again fails four of them.
+- [X] T301 Audit the component split for code dropped as the startup block
+  was: every function of each class split in Phase 26, and of the window's
+  components at the end of Phase 26, checked for a call that its successor
+  makes neither directly nor through the functions it calls. None found
+  past renames. The check compares calls only, so an assignment or a
+  repeated call dropped from a function is not covered.
 - [ ] T293 Stop re-reading every drive's catalog when a tab moves to a linked
   Apple; read again only when the drive reports a disk change or the
   listing is old.
