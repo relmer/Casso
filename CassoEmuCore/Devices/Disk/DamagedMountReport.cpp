@@ -180,7 +180,7 @@ wstring DamagedMountReport::FormatBody (const WriteProtectInfo & wp, const wstri
     }
 
     text  = L"Casso found problems in ";
-    text += fileName.empty() ? wstring (L"this disk image") : fileName;
+    text += fileName.empty() ? wstring (L"this disk image") : L"\"" + fileName + L"\"";
     text += L":\n\n";
 
     if (wp.checksumMismatch)
@@ -196,13 +196,21 @@ wstring DamagedMountReport::FormatBody (const WriteProtectInfo & wp, const wstri
         text += L".\n";
     }
 
-    text += L"\nCasso has loaded the disk so you can read the undamaged portions and has "
-            L"write-protected it for this session, because rewriting the file would hide "
-            L"the damage.";
-
+    //  What a save would do, so the write protection reads as a reason rather
+    //  than a rule. With both kinds of damage, the unreadable tracks are the
+    //  reason given.
     if (wp.damagedTracks)
     {
-        text += L" Unreadable tracks read as blank.";
+        text += L"\nCasso has loaded the disk so you can read the undamaged portions; "
+                L"unreadable tracks read as blank. Casso has write-protected the disk for "
+                L"this session, because saving it would replace those tracks in the file "
+                L"with blank ones.";
+    }
+    else
+    {
+        text += L"\nCasso has loaded the disk so you can read it, and has write-protected it "
+                L"for this session. Saving it would store a new checksum, and the damage "
+                L"could no longer be detected.";
     }
 
     return text;

@@ -414,19 +414,19 @@ public:
         wp.checksumMismatch = true;
 
         Assert::AreEqual (
-            std::wstring (L"Casso found problems in suspect.woz:\n\n"
+            std::wstring (L"Casso found problems in \"suspect.woz\":\n\n"
                           L"\x2022 The stored checksum does not match the contents.\n"
-                          L"\nCasso has loaded the disk so you can read the undamaged portions and has "
-                          L"write-protected it for this session, because rewriting the file would "
-                          L"hide the damage."),
+                          L"\nCasso has loaded the disk so you can read it, and has write-protected it "
+                          L"for this session. Saving it would store a new checksum, and the damage "
+                          L"could no longer be detected."),
             ComposeWriteProtectTooltip (1, L"suspect.woz", wp));
 
         Assert::AreEqual (
             std::wstring (L"Casso found problems in this disk image:\n\n"
                           L"\x2022 The stored checksum does not match the contents.\n"
-                          L"\nCasso has loaded the disk so you can read the undamaged portions and has "
-                          L"write-protected it for this session, because rewriting the file would "
-                          L"hide the damage."),
+                          L"\nCasso has loaded the disk so you can read it, and has write-protected it "
+                          L"for this session. Saving it would store a new checksum, and the damage "
+                          L"could no longer be detected."),
             ComposeWriteProtectTooltip (1, std::wstring(), wp),
             L"and it still reads as a sentence without a file name");
     }
@@ -439,11 +439,12 @@ public:
         wp.damagedQuarterTracks = { 10, 14, 18, 34 };
 
         Assert::AreEqual (
-            std::wstring (L"Casso found problems in b.woz:\n\n"
+            std::wstring (L"Casso found problems in \"b.woz\":\n\n"
                           L"\x2022 Unable to read tracks 2.5-4.5, 8.5.\n"
-                          L"\nCasso has loaded the disk so you can read the undamaged portions and has "
-                          L"write-protected it for this session, because rewriting the file would "
-                          L"hide the damage. Unreadable tracks read as blank."),
+                          L"\nCasso has loaded the disk so you can read the undamaged portions; "
+                          L"unreadable tracks read as blank. Casso has write-protected the disk for "
+                          L"this session, because saving it would replace those tracks in the file "
+                          L"with blank ones."),
             ComposeWriteProtectTooltip (1, L"b.woz", wp));
     }
 
