@@ -18,7 +18,7 @@ class DisplayPage;
 //
 //  CassoExplorerGeneralPage
 //
-//  Automatic preview, its description above its box, then the disk image
+//  Automatic preview, its description below its box, then the disk image
 //  types.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +33,7 @@ public:
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip = 40;
+    static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
 
 private:
     DxuiLabel     * m_previewNote = nullptr;

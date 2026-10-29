@@ -47,18 +47,18 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
 
 void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  noteBottom   = boundsDip.top + scaler.ToPx (kNoteHeightDip);
-    int  previewTop   = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int  previewEnd   = previewTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  registerTop  = previewEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 3);
+    int  previewEnd   = boundsDip.top + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  noteTop      = previewEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  noteBottom   = noteTop + scaler.ToPx (kNoteHeightDip);
+    int  registerTop  = noteBottom + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
 
     SetBounds (boundsDip);
 
-    m_previewNote->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteBottom }, scaler);
-    m_autoPreview->Layout (RECT { boundsDip.left, previewTop, boundsDip.right, previewEnd }, scaler);
+    m_autoPreview->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, previewEnd }, scaler);
+    m_previewNote->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), noteTop, boundsDip.right, noteBottom }, scaler);
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
 
     SetContentHeightPx (registerEnd - boundsDip.top);
