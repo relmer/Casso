@@ -69,8 +69,10 @@ public:
         //  An index into GetNamingOptions.
         int   hostNaming = 0;
 
-        //  Whether Casso is the program for its disk image types.
+        //  Whether Casso is the program for its disk image types, and whether
+        //  it runs from an installed package, whose manifest declares them.
         bool  registered = false;
+        bool  packaged   = false;
 
 
         //  The preview's monitor, as a PicturePreview::Monitor, the custom

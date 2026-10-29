@@ -85,7 +85,7 @@ public:
 
         AssertSucceeded (FileAssociations::Register (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
 
-        Assert::IsTrue (FileAssociations::IsRegistered (classes));
+        Assert::IsTrue (FileAssociations::IsRegistered (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
         Assert::IsTrue (classes.notified > 0, L"File Explorer is told to redraw its icons");
 
         Assert::IsTrue (classes.GetValue (L"Casso.DiskImage\\shell\\open\\command", L"", value));
@@ -108,6 +108,20 @@ public:
             Assert::IsFalse (classes.GetValue (std::wstring (extension) + L"\\OpenWithProgids", L"CassoExplorer.DiskImage", value),
                              L"and is not a second type");
         }
+    }
+
+
+
+    //  A copy of Casso in another folder registered the types, so they open
+    //  in that copy rather than this one.
+    TEST_METHOD (IsRegistered_IsFalseForAnotherCopysRegistration)
+    {
+        FakeUserClasses  classes;
+
+        AssertSucceeded (FileAssociations::Register (classes, L"C:\\Old\\Casso.exe", L"C:\\Old\\CassoExplorer.exe"));
+
+        Assert::IsTrue  (FileAssociations::IsRegistered (classes, L"C:\\Old\\Casso.exe",   L"C:\\Old\\CassoExplorer.exe"));
+        Assert::IsFalse (FileAssociations::IsRegistered (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
     }
 
 
@@ -158,7 +172,7 @@ public:
 
         AssertSucceeded (FileAssociations::Unregister (classes, fileExts));
 
-        Assert::IsFalse (FileAssociations::IsRegistered (classes));
+        Assert::IsFalse (FileAssociations::IsRegistered (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
         Assert::IsTrue  (classes.keys == before.keys, L"Registering twice gives the type back, and nothing Casso wrote is left");
         Assert::IsTrue  (fileExts.keys == beforeExts.keys, L"File Explorer's record lists Casso's type nowhere");
     }

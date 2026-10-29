@@ -23,6 +23,8 @@
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Seams/Win32FirewallHelper.h"
+#include "Seams/Win32ProcessLauncher.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -104,6 +106,41 @@ static HRESULT ParseCommandLine (
     outParsed = CommandLineParser::ParseEmulator ((int) pointers.size(), pointers.data());
 
     LocalFree (argv);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenInCassoExplorer
+//
+//  The installed package declares the disk image types for Casso alone, so
+//  its Open in Casso Explorer command starts Casso with --explore, and Casso
+//  starts the Casso Explorer beside it on the image and exits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT OpenInCassoExplorer (const std::string & image)
+{
+    HRESULT               hr               = S_OK;
+    wchar_t               module[MAX_PATH] = {};
+    DWORD                 length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
+    Win32ProcessLauncher  launcher;
+    std::wstring          exe;
+
+
+
+    CBR (length != 0 && length < MAX_PATH);
+
+    exe = LaunchCommand::GetSiblingPath (fs::path (module).parent_path().wstring(), LaunchCommand::kCassoExplorerExe);
+
+    hr = launcher.Launch (exe, LaunchCommand::QuoteArgument (TextEncoding::NarrowToWide (image)));
+    CHR (hr);
 
 Error:
     return hr;
@@ -724,6 +761,16 @@ extern "C" int WINAPI wCassoMain (
     }
 
     BAIL_OUT_IF (answered, S_OK);
+
+    // --explore: the package's Open in Casso Explorer command. Nothing of the
+    // emulator starts.
+    if (!parsed.explore.empty())
+    {
+        hr = OpenInCassoExplorer (parsed.explore);
+        exitCode = SUCCEEDED (hr) ? 0 : 1;
+    }
+
+    BAIL_OUT_IF (!parsed.explore.empty(), S_OK);
 
     machineName   = TextEncoding::NarrowToWide (parsed.machine);
     disk1Path     = TextEncoding::NarrowToWide (parsed.disk1);

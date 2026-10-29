@@ -145,6 +145,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     //  Writes the user's file types only when OK is pressed with it changed.
     m_register.SetLabel   (L"Open disk images in Casso (.dsk, .do, .po, .woz, .nib, .nb2)");
     m_register.SetChecked (m_choices.registered);
+    m_register.SetEnabled (!m_choices.packaged);
 
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
     m_general->Init (m_namingLabel, m_naming, m_namingNote, m_register);

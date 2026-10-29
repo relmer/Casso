@@ -262,12 +262,32 @@ Error:
 //
 //  FileAssociations::IsRegistered
 //
-//  Every type is Casso's.
+//  Every type is Casso's, and its icon and both commands are these
+//  programs', so a registration a copy elsewhere made does not count.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FileAssociations::IsRegistered (const IUserClasses & classes)
+bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::wstring & cassoExe, const std::wstring & explorerExe)
 {
+    std::wstring  value;
+
+
+
+    if (!classes.GetValue (std::wstring (kCassoProgId) + L"\\shell\\open\\command", L"", value) || value != L"\"" + cassoExe + L"\" --disk1 \"%1\"")
+    {
+        return false;
+    }
+
+    if (!classes.GetValue (std::wstring (kCassoProgId) + L"\\DefaultIcon", L"", value) || value != L"\"" + cassoExe + L"\",-" + std::to_wstring (kDiskIconId))
+    {
+        return false;
+    }
+
+    if (!classes.GetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\shell\\open\\command", L"", value) || value != L"\"" + explorerExe + L"\" \"%1\"")
+    {
+        return false;
+    }
+
     for (const wchar_t * extension : kExtensions)
     {
         std::wstring  current;

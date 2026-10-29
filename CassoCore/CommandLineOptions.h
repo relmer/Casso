@@ -346,6 +346,7 @@ struct CommandLineOptions
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
         std::string  tape;                             // --tape <file>
+        std::string  explore;                          // --explore <image>: open it in Casso Explorer instead
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
 
         //  The power-on DRAM seed, so a startup fault seen once can be

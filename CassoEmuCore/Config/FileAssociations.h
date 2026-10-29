@@ -49,7 +49,7 @@ public:
 
     static HRESULT  Register     (IUserClasses & classes, const std::wstring & cassoExe, const std::wstring & explorerExe);
     static HRESULT  Unregister   (IUserClasses & classes, IUserClasses & fileExts);
-    static bool     IsRegistered (const IUserClasses & classes);
+    static bool     IsRegistered (const IUserClasses & classes, const std::wstring & cassoExe, const std::wstring & explorerExe);
 
 private:
     static HRESULT  WriteProgId  (IUserClasses & classes, const std::wstring & progId, const std::wstring & appName,

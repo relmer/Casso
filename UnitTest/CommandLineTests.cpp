@@ -3655,6 +3655,9 @@ namespace CommandLineTests
             Assert::IsTrue (parsed.erase ("serial-log") == 1,
                 L"the serial capture file is parsed and deliberately left out of the help");
 
+            Assert::IsTrue (parsed.erase ("explore") == 1,
+                L"the package's Open in Casso Explorer command is parsed and deliberately left out of the help");
+
             Assert::IsTrue (documented == parsed,
                 L"the emulator's help and its grammar have come apart");
         }

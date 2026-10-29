@@ -1396,6 +1396,13 @@ waits for this phase, so it is tested once.
 - [X] T302 Retry an icon read by extension after a failure, as a per-path icon
   is. Before, after one failed read, every file of that type had no icon
   until the window closed (seen on .md files).
+- [X] T303 Declare the disk image types in the MSIX manifest for Casso, with
+  the disk icon as each type's logo (scripts/GenerateFileTypeAssets.ps1) and
+  a second command, Open in Casso Explorer, that runs Casso with --explore.
+  A package declares each extension for one application only, so Casso
+  Explorer is not a second type. The Options box is checked and disabled
+  in a packaged install; in a zip or dev build it is checked only when the
+  types run this build's programs.
 - [X] T304 Outline an empty checkbox and radio button in the text color at
   60%, and fill a checked or selected one with the accent color, so they are
   visible in the Dark and Light themes.

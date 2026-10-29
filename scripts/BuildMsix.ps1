@@ -170,12 +170,14 @@ foreach ($required in @($manifestTemplate, $assetSource))
 # A missing logo packs without complaint and fails at install. The scale-100
 # stands in for its family; they are generated together. Casso Explorer's
 # tiles have the same names behind an Explorer prefix, and its own three are
-# the ones its Application element asks for.
+# the ones its Application element asks for. DiskImageLogo is the disk image
+# file type's, from GenerateFileTypeAssets.ps1.
 $namedLogos = @(
     'StoreLogo', 'Square44x44Logo', 'Square71x71Logo',
     'Square150x150Logo', 'Square310x310Logo', 'Wide310x150Logo',
     'ExplorerSquare44x44Logo', 'ExplorerSquare71x71Logo',
-    'ExplorerSquare150x150Logo', 'ExplorerSquare310x310Logo', 'ExplorerWide310x150Logo'
+    'ExplorerSquare150x150Logo', 'ExplorerSquare310x310Logo', 'ExplorerWide310x150Logo',
+    'DiskImageLogo'
 )
 
 foreach ($logo in $namedLogos)
@@ -183,7 +185,7 @@ foreach ($logo in $namedLogos)
     if (-not (Test-Path (Join-Path $assetSource "$logo.scale-100.png")))
     {
         throw "The manifest refers to $logo but $assetSource has no $logo.scale-100.png. " +
-              'Run scripts/GenerateMsixAssets.ps1.'
+              'Run scripts/GenerateMsixAssets.ps1 or scripts/GenerateFileTypeAssets.ps1.'
     }
 }
 

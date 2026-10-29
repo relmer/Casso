@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "Config/FileAssociations.h"
 #include "Seams/Win32UserClasses.h"
+#include "Update/Win32InstallEnvironment.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
 #include "Core/AppTimerIds.h"
@@ -639,18 +640,24 @@ void ExplorerCommandManager::ShowOptions()
 
 
 
-    Win32UserClasses  classes;
-    Win32UserClasses  fileExts         (Win32UserClasses::kFileExtsRoot);
-    bool              wasRegistered    = FileAssociations::IsRegistered (classes);
-    wchar_t           module[MAX_PATH] = {};
-    DWORD             length           = 0;
-    std::wstring      folder;
-    HRESULT           hr               = S_OK;
+    Win32UserClasses         classes;
+    Win32UserClasses         fileExts         (Win32UserClasses::kFileExtsRoot);
+    Win32InstallEnvironment  install;
+    wchar_t                  module[MAX_PATH] = {};
+    DWORD                    length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
+    std::wstring             folder           = std::filesystem::path (module).parent_path().wstring();
+    std::wstring             cassoExe         = LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe);
+    bool                     packaged         = install.HasPackageIdentity();
+    bool                     wasRegistered    = packaged || FileAssociations::IsRegistered (classes, cassoExe, module);
+    HRESULT                  hr               = S_OK;
 
 
 
+    //  An installed package declares the disk image types in its manifest,
+    //  so the box is checked and cannot be changed there.
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
+    choices.packaged     = packaged;
 
     choices.monitor      = (int) m_context.preview.GetPicture().GetMonitor();
     choices.customArgb   = m_context.prefs.previewCustomArgb;
@@ -680,11 +687,8 @@ void ExplorerCommandManager::ShowOptions()
 
 
     //  The user's file types change only when the box was changed.
-    if (choices.registered != wasRegistered)
+    if (!packaged && choices.registered != wasRegistered)
     {
-        length = GetModuleFileNameW (nullptr, module, MAX_PATH);
-        folder = std::filesystem::path (module).parent_path().wstring();
-
         //  A path cut short at MAX_PATH would register a command that runs nothing.
         if (choices.registered && (length == 0 || length >= MAX_PATH))
         {
@@ -692,7 +696,7 @@ void ExplorerCommandManager::ShowOptions()
         }
         else
         {
-            hr = choices.registered ? FileAssociations::Register (classes, LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe), module)
+            hr = choices.registered ? FileAssociations::Register (classes, cassoExe, module)
                                     : FileAssociations::Unregister (classes, fileExts);
         }
 

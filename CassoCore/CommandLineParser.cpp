@@ -323,6 +323,10 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     //  Also undocumented: what a relaunch after a self-update passes.
     "updated",
     "cleanup-old",
+
+    //  Undocumented as well: the installed package's Open in Casso Explorer
+    //  command, which opens the image in Casso Explorer instead.
+    "explore",
 };
 
 
@@ -347,6 +351,7 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
     { "serial-log",     CommandLineParser::OptionValue::OptionalPath, CommandLineParser::RelaunchRule::Drop   },
     { "updated",       CommandLineParser::OptionValue::None,         CommandLineParser::RelaunchRule::Drop   },
     { "cleanup-old",    CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "explore",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
 };
 
 
@@ -4369,6 +4374,7 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
         else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
+        else if (arg == "--explore" && hasValue) { parsed.explore = argv[++i]; }
         else if (arg == "--trace")
         {
             parsed.traceEntries = CommandLineOptions::EmulatorOptions::kTraceDefaultEntries;
