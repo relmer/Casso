@@ -91,7 +91,7 @@ private:
     std::shared_ptr<const DxuiIconImage>  LoadPicture      (const std::wstring & key, const std::wstring & file);
     std::shared_ptr<const DxuiIconImage>  Queue            (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays);
     std::shared_ptr<const DxuiIconImage>  GetIconForPath   (const std::wstring & path, bool isDirectory, bool overlays);
-    void                                  StorePathIcon    (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image);
+    void                                  StoreIcon        (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image);
     bool                                  IsFailureExpired (const std::wstring & key) const;
     void                                  RunLoader        ();
 

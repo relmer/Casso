@@ -1393,6 +1393,9 @@ waits for this phase, so it is tested once.
   columns; long entries scroll sideways rather than wrap.
 - [X] T299 Select a new folder once its name is entered, as File Explorer
   does.
+- [X] T302 Retry an icon read by extension after a failure, as a per-path icon
+  is. Before, after one failed read, every file of that type had no icon
+  until the window closed (seen on .md files).
 
 **Dependencies**: in order. T292 to T299
 before T079.

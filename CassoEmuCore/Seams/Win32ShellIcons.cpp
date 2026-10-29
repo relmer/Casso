@@ -105,7 +105,7 @@ bool Win32ShellIcons::TakeLoaded()
 
     for (Loaded & item : loaded)
     {
-        StorePathIcon (item.key, std::move (item.image));
+        StoreIcon (item.key, std::move (item.image));
     }
 
     return !loaded.empty();
@@ -117,16 +117,18 @@ bool Win32ShellIcons::TakeLoaded()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32ShellIcons::StorePathIcon
+//  Win32ShellIcons::StoreIcon
 //
 //  Per-path icons are the only ones whose number grows with what is browsed,
 //  so past s_kMaxCachedIcons they are all dropped and read again as they are
 //  drawn. A failure is stored too, with when it happened, so it is read
-//  again after s_kRetryFailedMs rather than on every repaint.
+//  again after s_kRetryFailedMs rather than on every repaint. An icon by
+//  extension is retried the same way; otherwise, after one failed read,
+//  every file of its type has no icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellIcons::StorePathIcon (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image)
+void Win32ShellIcons::StoreIcon (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image)
 {
     if (image == nullptr)
     {
@@ -1409,7 +1411,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstri
         AddOverlay (*image, overlay);
     }
 
-    m_cache[key] = image;
+    StoreIcon (key, image);
 
     return image;
 }
