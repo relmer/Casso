@@ -151,7 +151,9 @@ public:
         track = analysis.tracks[analysis.entries[68].slot].get();
         tip   = InspectorText::FormatSectorTooltip (track->sectors[5], *track);
 
-        Assert::AreEqual (std::wstring (L"Sector $5, 6th past the index\nVolume 254, track 17"), tip);
+        Assert::AreEqual (std::wstring (L"Sector $5\nAddress field: volume 254, track 17"), tip);
+        Assert::AreEqual (std::wstring (L"Reads: 2 \x00B7 Scans: 1,024"), InspectorText::FormatAccessCounts (2, 0, 1024));
+        Assert::IsTrue   (InspectorText::FormatAccessCounts (0, 0, 0).empty());
     }
 
 

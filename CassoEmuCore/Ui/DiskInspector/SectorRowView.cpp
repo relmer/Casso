@@ -156,9 +156,7 @@ bool SectorRowView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & ou
             uint32_t  writes = SectorAccess::CountWrites (*track, m_context.drive->access->writes[static_cast<size_t> (qt)])[s];
             uint32_t  scans  = SectorAccess::CountScans  (*track, m_context.drive->access->scans[static_cast<size_t> (qt)])[s];
 
-            outText += (reads > 0)  ? std::format (L"\nRead {} {}", reads, reads == 1 ? L"time" : L"times") : L"";
-            outText += (writes > 0) ? std::format (L"\nWritten {} {}", writes, writes == 1 ? L"time" : L"times") : L"";
-            outText += (scans > 0)  ? std::format (L"\nScanned {} {}", scans, scans == 1 ? L"time" : L"times") : L"";
+            outText += (reads + writes + scans > 0) ? L"\n" + InspectorText::FormatAccessCounts (reads, writes, scans) : L"";
         }
     }
     else if (hasTip)

@@ -79,6 +79,7 @@ public:
     static std::wstring         FormatMeasureLine   (const TrackAnalysis & track);
 
     static std::wstring         FormatSectorTooltip (const AnalyzedSector & sector, const TrackAnalysis & track);
+    static std::wstring         FormatAccessCounts  (uint32_t reads, uint32_t writes, uint32_t scans);
     static std::wstring         FormatNoSectors     (const QuarterTrackEntry & entry);
     static vector<HeaderItem>   BuildSectorHeader   (const AnalyzedSector & sector, const TrackAnalysis & track);
     static std::wstring         FormatNoSectorData  (const QuarterTrackEntry & entry, const TrackAnalysis * track);

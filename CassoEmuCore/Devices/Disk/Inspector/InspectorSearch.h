@@ -141,9 +141,9 @@ struct GoToTarget
 //
 //  InspectorGoTo
 //
-//  Reads a "Go to" entry and finds what it selects, from the selected track
-//  for a sector, nibble or cell, and from the block's own track for a ProDOS
-//  block. Says why when there is nothing there. Pure.
+//  Reads a "Go to" entry and finds what it selects, from the entered track
+//  for a sector, nibble or cell, and from the block's track for a ProDOS
+//  block. Returns an error message when there is nothing there. Pure.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,6 +157,10 @@ public:
 
     //  What an entry of a kind may be, as "A sector from $0 to $F on track 17".
     static std::wstring  GetRangeHint (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
+
+    //  Whether an entry of a kind is a place on a track: a sector, a nibble
+    //  offset or a cell, entered with its track.
+    static bool  IsOnTrack (GoToKind kind);
 
 private:
     static const TrackAnalysis *  GetTrack (const DiskAnalysis & analysis, int quarterTrack);

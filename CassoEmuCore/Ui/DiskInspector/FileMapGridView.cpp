@@ -890,10 +890,9 @@ bool FileMapGridView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & 
     if (cell >= 0)
     {
         outText     = (m_map->notMapped == NotMappedReason::None) ? FileMapText::FormatTooltip (*m_map, cell)
-                                                                  : std::format (L"Track {}, physical sector {}\n{}", m_map->GetTrack (cell),
-                                                                                 InspectorFormat::FormatSector (m_map->GetColumn (cell)),
-                                                                                 FileMapText::FormatResult (m_map->cells[cell].result));
-        outText    += IsDimmed (cell) ? L"\nDimmed: not part of " + m_map->files[m_selectedFile].path : L"";
+                                                                  : std::format (L"Track {}, physical sector {}", m_map->GetTrack (cell), InspectorFormat::FormatSector (m_map->GetColumn (cell)));
+        outText    += (m_map->notMapped != NotMappedReason::None && m_map->cells[cell].result != SectorResult::NotChecked)
+                      ? L"\n" + FileMapText::FormatResultPhrase (m_map->cells[cell].result) : L"";
         outText    += IsHitCell (cell) ? L"\n" + m_context.findMarks->FormatHitLine (1) : L"";
         outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }

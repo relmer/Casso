@@ -10,7 +10,8 @@
 
 
 
-static constexpr LPCWSTR  s_kpszLineEnd = L"\r\n";
+static constexpr LPCWSTR    s_kpszLineEnd = L"\r\n";
+static const std::wstring  s_kSeparator  = std::wstring (L" ") + s_kpszMiddleDot + L" ";
 
 
 
@@ -175,6 +176,35 @@ std::wstring FileMapText::FormatResult (SectorResult result)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FileMapText::FormatResultPhrase
+//
+//  A sector's read result as a phrase for a tooltip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileMapText::FormatResultPhrase (SectorResult result)
+{
+    std::wstring  text;
+
+
+
+    switch (result)
+    {
+        case SectorResult::Good:       text = L"Good";                  break;
+        case SectorResult::NotChecked: text = L"Checksum not checked";  break;
+        case SectorResult::Bad:        text = L"Checksum error";        break;
+        default:                       text = L"Not found";             break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FileMapText::FormatCell
 //
 //  A cell and the physical sector that contains it (FR-089): a DOS 3.3 logical
@@ -194,7 +224,7 @@ std::wstring FileMapText::FormatCell (const FileMap & map, int cell)
     switch (map.fileSystem)
     {
         case MapFileSystem::Dos33:
-            text = std::format (L"Track {}, DOS 3.3 sector {} (physical {})", track, InspectorFormat::FormatSector (column), InspectorFormat::FormatSector (map.GetPhysical (cell)));
+            text = std::format (L"Track {}, DOS 3.3 sector {} (physical sector {})", track, InspectorFormat::FormatSector (column), InspectorFormat::FormatSector (map.GetPhysical (cell)));
             break;
 
         case MapFileSystem::ProDos:
@@ -297,18 +327,22 @@ std::wstring FileMapText::FormatOwners (const FileMap & map, int cell)
 std::wstring FileMapText::FormatTooltip (const FileMap & map, int cell)
 {
     const MapCell &  at   = map.cells[cell];
-    std::wstring     text = FormatCell (map, cell) + L"\n" + FormatRole (map.fileSystem, at.role) + L", " + FormatResult (at.result);
+    std::wstring     text = FormatCell (map, cell) + L"\n" + FormatRole (map.fileSystem, at.role);
 
 
+
+    //  Omit the result of an unchecked sector, since checks are off for
+    //  the whole disk.
+    text += (at.result != SectorResult::NotChecked) ? s_kSeparator + FormatResultPhrase (at.result) : L"";
 
     if ((map.fileSystem == MapFileSystem::ProDos || map.fileSystem == MapFileSystem::Pascal) && at.halves[0] != at.halves[1])
     {
-        text += std::format (L" (first half {}, second half {})", FormatResult (at.halves[0]), FormatResult (at.halves[1]));
+        text += std::format (L" (first half: {}; second half: {})", FormatResultPhrase (at.halves[0]), FormatResultPhrase (at.halves[1]));
     }
 
     if (!at.owners.empty())
     {
-        text += L"\n" + FormatOwners (map, cell);
+        text += L"\nUsed by " + FormatOwners (map, cell);
     }
 
     return text;

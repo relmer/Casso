@@ -105,7 +105,7 @@ public:
         Assert::AreEqual (std::wstring (L"Track 17 \x00B7 Sector $3\n16 of 16 sectors good\nData field"), tip.GetText());
 
         tip = InspectorTip::BuildPlatterTip (context, 68, turn, kOneCell, true);
-        Assert::IsTrue (tip.GetText().find (L"\nNibble 96 at offset $") != std::wstring::npos, tip.GetText().c_str());
+        Assert::IsTrue (tip.GetText().find (L"\nNibble $96 at offset $") != std::wstring::npos, tip.GetText().c_str());
 
         tip = InspectorTip::BuildPlatterTip (context, DiskImage::kQuarterTrackCount - 1, 0.5, kOneCell, false);
         Assert::IsTrue (tip.GetText().ends_with (L"\nNothing recorded\nThe drive reads random bits here"), tip.GetText().c_str());
@@ -134,18 +134,18 @@ public:
         mark  = track->fields[track->sectors[3].addressField].firstNibble;
 
         tip = InspectorTip::BuildPlatterTip (context, 68, TrackAnalyzer::GetAngle (*track, track->framed.nibbles[mark + 1].startCell), kOneCell, false);
-        Assert::IsTrue   (tip.GetText().ends_with (L"\nFind hit for \"D5 AA 96\""), tip.GetText().c_str());
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nA match for the search \"D5 AA 96\""), tip.GetText().c_str());
         Assert::AreEqual (context.palette.colors.findHit, tip.GetSwatches().back().argb);
-        Assert::AreEqual (std::wstring (L"Find hit for \"D5 AA 96\""), GetLine (tip.GetText(), tip.GetSwatches().back().line));
+        Assert::AreEqual (std::wstring (L"A match for the search \"D5 AA 96\""), GetLine (tip.GetText(), tip.GetSwatches().back().line));
 
         tip = InspectorTip::BuildPlatterTip (context, 68, GetDataTurn (*track, 3, 20), kOneCell, false);
-        Assert::IsTrue   (tip.GetText().find (L"Find hit") == std::wstring::npos, tip.GetText().c_str());
+        Assert::IsTrue   (tip.GetText().find (L"A match for") == std::wstring::npos, tip.GetText().c_str());
 
         tip = InspectorTip::BuildNibbleTip (context, *track, mark + 2, track->framed.nibbles[mark + 2].startCell, 8, false);
-        Assert::IsTrue   (tip.GetText().ends_with (L"\nFind hit for \"D5 AA 96\""), tip.GetText().c_str());
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nA match for the search \"D5 AA 96\""), tip.GetText().c_str());
 
         tip = InspectorTip::BuildNibbleTip (context, *track, mark + 3, track->framed.nibbles[mark + 3].startCell, 8, false);
-        Assert::IsTrue   (tip.GetText().find (L"Find hit") == std::wstring::npos, L"the nibble after the hit");
+        Assert::IsTrue   (tip.GetText().find (L"A match for") == std::wstring::npos, L"the nibble after the hit");
     }
 
 
@@ -224,7 +224,7 @@ public:
         nibble = track->fields[track->sectors[3].dataField].bodyNibble + 20;
         tip    = InspectorTip::BuildNibbleTip (context, *track, nibble, track->framed.nibbles[nibble].startCell, 8, false);
 
-        Assert::IsTrue   (GetLine (tip.GetText(), 0).starts_with (L"96 at offset $"), tip.GetText().c_str());
+        Assert::IsTrue   (GetLine (tip.GetText(), 0).starts_with (L"Nibble $96 at offset $"), tip.GetText().c_str());
         Assert::IsTrue   (GetLine (tip.GetText(), 0).ends_with (L" \x00B7 Sector $3"), tip.GetText().c_str());
         Assert::IsTrue   (GetLine (tip.GetText(), 1).ends_with (L": 8 cells"), tip.GetText().c_str());
         Assert::AreEqual (static_cast<size_t> (1), tip.GetSwatches().size());
@@ -274,7 +274,7 @@ public:
         context.isFilesOverlay = true;
         tip = InspectorTip::BuildPlatterTip (context, qt, GetDataTurn (*track, maps[0].GetPhysical (cell), 20), kOneCell, false);
 
-        Assert::IsTrue   (GetLine (tip.GetText(), tip.GetSwatches().back().line).ends_with (L": HELLO, data sector 1 of 3"), tip.GetText().c_str());
+        Assert::IsTrue   (GetLine (tip.GetText(), tip.GetSwatches().back().line).starts_with (L"Used by HELLO, data sector 1 of 3"), tip.GetText().c_str());
         Assert::AreEqual (context.palette.GetRoleColor (MapRole::FileData), tip.GetSwatches().back().argb);
     }
 
@@ -343,7 +343,7 @@ public:
             }
         }
 
-        Assert::IsTrue (tip.ends_with (L"\n2 find hits for \"q\""), tip.c_str());
+        Assert::IsTrue (tip.ends_with (L"\n2 matches for the search \"q\""), tip.c_str());
 
         for (int y = 0; y < 700 && byteTip.empty(); y += 2)
         {
@@ -353,7 +353,7 @@ public:
             }
         }
 
-        Assert::IsTrue (byteTip == L"Byte $10\nFind hit for \"q\"" || byteTip == L"Byte $11\nFind hit for \"q\"", byteTip.c_str());
+        Assert::IsTrue (byteTip == L"Byte $10\nA match for the search \"q\"" || byteTip == L"Byte $11\nA match for the search \"q\"", byteTip.c_str());
     }
 
 
@@ -405,7 +405,7 @@ public:
         Assert::IsTrue (grid.GetCellRect (cell, rect));
 
         Assert::IsTrue   (grid.GetTooltip ({ (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 }, tip, anchor));
-        Assert::IsTrue   (tip.ends_with (L"\nFind hit for \"VTOC\""), tip.c_str());
+        Assert::IsTrue   (tip.ends_with (L"\nA match for the search \"VTOC\""), tip.c_str());
         Assert::IsTrue   (grid.GetTooltipSwatches ({ (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 }, swatches));
         Assert::AreEqual (context.palette.colors.findHit, swatches.back().argb);
         Assert::AreEqual (static_cast<int> (std::count (tip.begin(), tip.end(), L'\n')), swatches.back().line);

@@ -308,8 +308,8 @@ std::wstring InspectorText::FormatMeasureLine (const TrackAnalysis & track)
 //
 //  InspectorText::FormatSectorTooltip
 //
-//  "Sector $5, 6th past the index", the volume and track fields, and which
-//  checksum failed or was not checked (FR-039).
+//  "Sector $5", the address field's volume and track, and which checksum
+//  failed (FR-039).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -320,16 +320,45 @@ std::wstring InspectorText::FormatSectorTooltip (const AnalyzedSector & sector, 
 
 
 
-    text = std::format (L"Sector {}, {} past the index\nVolume {}, track {}", InspectorFormat::FormatSector (sector.sector),
-                        FormatOrdinal (sector.passingIndex + 1), address.volume, address.track);
+    text = std::format (L"Sector {}\nAddress field: volume {}, track {}", InspectorFormat::FormatSector (sector.sector), address.volume, address.track);
 
     switch (sector.state)
     {
-        case SectorState::BadAddress:  text += L"\nAddress field checksum failed"; break;
-        case SectorState::BadData:     text += L"\nData field checksum failed";    break;
-        case SectorState::NoDataField: text += L"\nNo data field";                 break;
-        case SectorState::NotChecked:  text += L"\nChecksum not checked";          break;
+        case SectorState::BadAddress:  text += L"\nAddress field checksum error"; break;
+        case SectorState::BadData:     text += L"\nData field checksum error";    break;
+        case SectorState::NoDataField: text += L"\nNo data field";                break;
         default:                                                                    break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatAccessCounts
+//
+//  How many times the guest read, wrote and scanned a sector, as "Reads: 2
+//  · Scans: 3", leaving out each that is 0; empty when all three are
+//  (FR-161).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatAccessCounts (uint32_t reads, uint32_t writes, uint32_t scans)
+{
+    std::wstring  text;
+
+
+
+    for (const std::pair<LPCWSTR, uint32_t> & item : { std::pair<LPCWSTR, uint32_t> { L"Reads", reads }, { L"Writes", writes }, { L"Scans", scans } })
+    {
+        if (item.second > 0)
+        {
+            text += (text.empty() ? L"" : s_kSeparator) + std::format (L"{}: {}", item.first, InspectorFormat::FormatCount (item.second));
+        }
     }
 
     return text;

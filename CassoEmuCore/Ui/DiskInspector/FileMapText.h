@@ -30,6 +30,7 @@ public:
 
     static std::wstring  FormatRole      (MapFileSystem fileSystem, SectorRole role);
     static std::wstring  FormatResult    (SectorResult result);
+    static std::wstring  FormatResultPhrase (SectorResult result);
     static std::wstring  FormatCell      (const FileMap & map, int cell);
     static std::wstring  FormatOwners    (const FileMap & map, int cell);
     static std::wstring  FormatTooltip   (const FileMap & map, int cell);

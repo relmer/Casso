@@ -181,7 +181,7 @@ bool FindMarks::IsRangeMarked (const TrackAnalysis * track, int first, int count
 
 std::wstring FindMarks::FormatHitLine (int count) const
 {
-    return (count > 1) ? std::format (L"{} find hits for \"{}\"", count, m_queryText) : std::format (L"Find hit for \"{}\"", m_queryText);
+    return (count > 1) ? std::format (L"{} matches for the search \"{}\"", count, m_queryText) : std::format (L"A match for the search \"{}\"", m_queryText);
 }
 
 

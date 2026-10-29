@@ -158,7 +158,7 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
 
         if (isShowingNibbles && nibble >= 0 && !isRandom)
         {
-            tip.AddLine (std::format (L"Nibble {:02X} at offset {}{}cell {} of {}", track->framed.nibbles[nibble].value, InspectorFormat::FormatHexOffset (nibble),
+            tip.AddLine (std::format (L"Nibble ${:02X} at offset {}{}cell {} of {}", track->framed.nibbles[nibble].value, InspectorFormat::FormatHexOffset (nibble),
                                       s_kSeparator, InspectorFormat::FormatCount (cell + 1), InspectorFormat::FormatCount (track->framed.cellCount)));
         }
 
@@ -221,7 +221,7 @@ InspectorTip InspectorTip::BuildNibbleTip (const InspectorViewContext & context,
 
     width = (width == 0) ? framed.cellCount : width;
     own   = std::min (own, width);
-    line  = std::format (L"{:02X} at offset {}", n.value, InspectorFormat::FormatHexOffset (nibble));
+    line  = std::format (L"Nibble ${:02X} at offset {}", n.value, InspectorFormat::FormatHexOffset (nibble));
 
     if (sector >= 0)
     {
@@ -295,14 +295,7 @@ void InspectorTip::AddAccess (const InspectorViewContext & context, int slot, co
         }
     }
 
-    for (size_t k = 0; k < counts.size(); k++)
-    {
-        if (counts[k] > 0)
-        {
-            line += (line.empty() ? L"" : s_kSeparator) + std::format (L"{} {} {}", (k == 0) ? L"Read" : (k == 1) ? L"Written" : L"Scanned",
-                                                                        counts[k], counts[k] == 1 ? L"time" : L"times");
-        }
-    }
+    line = InspectorText::FormatAccessCounts (counts[0], counts[1], counts[2]);
 
     if (!line.empty())
     {
@@ -507,6 +500,6 @@ void InspectorTip::AddFileRole (const InspectorViewContext & context, int wholeT
         const MapCell &  at = map->cells[cell];
 
         AddColor (context.palette.GetRoleColor (static_cast<MapRole> (at.role)),
-                  FileMapText::FormatRole (map->fileSystem, at.role) + (at.owners.empty() ? L"" : L": " + FileMapText::FormatOwners (*map, cell)));
+                  at.owners.empty() ? FileMapText::FormatRole (map->fileSystem, at.role) : L"Used by " + FileMapText::FormatOwners (*map, cell));
     }
 }

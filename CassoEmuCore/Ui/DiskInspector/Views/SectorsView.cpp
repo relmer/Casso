@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/Views/SectorsView.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/SectorAccess.h"
@@ -147,17 +148,17 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
 
         if (reads > 0)
         {
-            items.push_back ({ L"Read", std::format (L"{} {}", reads, reads == 1 ? L"time" : L"times") });
+            items.push_back ({ L"Reads", InspectorFormat::FormatCount (reads) });
         }
 
         if (writes > 0)
         {
-            items.push_back ({ L"Written", std::format (L"{} {}", writes, writes == 1 ? L"time" : L"times") });
+            items.push_back ({ L"Writes", InspectorFormat::FormatCount (writes) });
         }
 
         if (scans > 0)
         {
-            items.push_back ({ L"Scanned", std::format (L"{} {}", scans, scans == 1 ? L"time" : L"times") });
+            items.push_back ({ L"Scans", InspectorFormat::FormatCount (scans) });
         }
     }
 

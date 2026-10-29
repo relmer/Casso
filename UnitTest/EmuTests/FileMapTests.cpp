@@ -377,7 +377,8 @@ public:
 
         Assert::AreEqual (std::wstring (L"HELLO, data sector 2 of 3"), FileMapText::FormatOwners (map, DosCell (18, 13)));
         Assert::AreEqual (std::wstring (L"HELLO, track/sector list"),  FileMapText::FormatOwners (map, DosCell (18, 15)));
-        Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (17, 0)).starts_with (L"Track 17, DOS 3.3 sector $0 (physical $0)"));
+        Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (17, 0)).starts_with (L"Track 17, DOS 3.3 sector $0 (physical sector $0)"));
+        Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (18, 13)).ends_with (L" \x00B7 Good\nUsed by HELLO, data sector 2 of 3"));
         Assert::IsTrue   (std::none_of (rows.begin(), rows.end(), [] (const TableRow & r) { return r.cells[0] == L"OLD"; }), L"deleted files hidden by default");
         Assert::AreEqual (std::wstring (L"Complete"), rows[0].cells[4]);
         Assert::IsTrue   (copy.starts_with (L" 0  BBBBBBBBBBBBBBBB\r\n"), L"a row per track");

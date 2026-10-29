@@ -185,12 +185,33 @@ public:
 
         AnalyzeDisk (analysis);
 
-        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"), InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::PhysicalSector));
-        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"), InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Dos33Sector));
-        Assert::AreEqual (std::wstring (L"A block from 0 to 279"),             InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::ProDosBlock));
+        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"),       InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::PhysicalSector));
+        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"),       InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Dos33Sector));
+        Assert::AreEqual (std::wstring (L"A block from 0 to 279"),                   InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::ProDosBlock));
         Assert::IsTrue   (InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Cell).starts_with (L"A cell from 0 to "));
         Assert::AreEqual (std::wstring (L"A track from 0 to 39.75, such as 17.25"), InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Track));
     }
+
+
+
+    TEST_METHOD (GoToFindsASectorOnTheGivenTrack)
+    {
+        DiskAnalysis  analysis;
+        GoToTarget    target;
+        std::wstring  error;
+
+
+
+        AnalyzeDisk (analysis);
+
+        Assert::IsTrue   (InspectorGoTo::Resolve (analysis, 68, GoToKind::Dos33Sector, L"F", target, error));
+        Assert::AreEqual (68, target.quarterTrack);
+        Assert::IsTrue   (target.sectorIndex >= 0);
+
+        Assert::IsTrue   (InspectorGoTo::IsOnTrack (GoToKind::Cell));
+        Assert::IsFalse  (InspectorGoTo::IsOnTrack (GoToKind::ProDosBlock));
+    }
+
 
 
     TEST_METHOD (GoToReadsEachKindInItsBase)

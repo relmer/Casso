@@ -356,8 +356,8 @@ public:
         Assert::IsTrue   (marks.IsRangeMarked (track, first - 5, 6),  L"a spot that ends on a hit's first nibble");
         Assert::IsTrue   (marks.IsRangeMarked (track, first + 2, 10), L"a spot that starts on a hit's last nibble");
         Assert::IsFalse  (marks.IsRangeMarked (track, first + 3, 10));
-        Assert::AreEqual (std::wstring (L"Find hit for \"D5 AA 96\""),   marks.FormatHitLine (1));
-        Assert::AreEqual (std::wstring (L"3 find hits for \"D5 AA 96\""), marks.FormatHitLine (3));
+        Assert::AreEqual (std::wstring (L"A match for the search \"D5 AA 96\""),   marks.FormatHitLine (1));
+        Assert::AreEqual (std::wstring (L"3 matches for the search \"D5 AA 96\""), marks.FormatHitLine (3));
 
         hit.quarterTrack = 20;
         hit.track        = track;

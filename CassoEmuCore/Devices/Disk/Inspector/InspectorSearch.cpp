@@ -456,13 +456,13 @@ bool InspectorSearch::IsOutOfDate (const SearchHit & hit, const DiskAnalysis & a
 bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind, const std::wstring & text, GoToTarget & outTarget,
                              std::wstring & outError)
 {
-    const TrackAnalysis  * track  = nullptr;
+    const TrackAnalysis  * track    = nullptr;
     std::wstring           plain;
-    int                    value  = -1;
-    int                    nibble = -1;
-    uint32_t               best   = UINT32_MAX;
-    uint32_t               cells  = 0;
-    bool                   isRead = false;
+    int                    value    = -1;
+    int                    nibble   = -1;
+    uint32_t               best     = UINT32_MAX;
+    uint32_t               cells    = 0;
+    bool                   isRead   = false;
 
 
 
@@ -572,6 +572,21 @@ LPCWSTR InspectorGoTo::GetLabel (GoToKind kind)
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorGoTo::IsOnTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorGoTo::IsOnTrack (GoToKind kind)
+{
+    return kind == GoToKind::PhysicalSector || kind == GoToKind::Dos33Sector || kind == GoToKind::NibbleOffset || kind == GoToKind::Cell;
 }
 
 
