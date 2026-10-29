@@ -18,6 +18,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "Core/AppMessages.h"
+#include "Seams/Win32ShellItemVerbs.h"
 
 
 
@@ -80,6 +81,57 @@ void ExplorerLayout::ConfigureWidgets()
     });
 
     m_context.statusBar.Configure();
+    m_context.tabManager.Configure();
+    m_context.addressBar.Configure();
+
+    m_context.browser.GetTypedPaths().Reset (m_context.prefs.typedPaths);
+    m_context.listPane.GetColumns().ApplyStoredColumnWidths();
+
+    m_context.folderSync.StartWatch();
+
+    //  Deletions made anywhere reach the bin, so its list follows them.
+    m_context.shellVerbs.WatchRecycleBin (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerRecycleBin);
+
+    //  Slow shell folders, and host folders on the network, read on threads
+    //  of their own and post a message when done.
+    m_context.browser.GetShellListings().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
+    m_context.browser.GetHostListings().SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellListed);
+    m_context.browser.GetHostListings().SetLister ([] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries)
+    {
+        Win32FileSystem  fs;
+
+        return fs.EnumerateAllEntries (path, outEntries);
+    });
+
+    //  The CassoLink connections are under CassoLink; each is started when it is
+    //  opened, and posts here when an operation finishes or its state
+    //  changes.
+    if (m_context.app.links != nullptr)
+    {
+        m_context.app.links->SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCassoLink);
+        m_context.app.links->SetLinks (m_context.prefs.links);
+        m_context.browser.SetLinks (m_context.app.links);
+        m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());
+        m_context.treePane.RefreshTree();
+        m_context.cassoLinkManager.StartAdtProServers();
+    }
+
+    //  Each running Casso with a serial port on TCP is a root as well, read
+    //  now and again whenever a Casso starts, connects a port or exits.
+    if (m_context.app.links != nullptr && m_context.app.running != nullptr)
+    {
+        HWND             hwnd   = m_context.window.GetHwnd();
+        std::error_code  ignore;
+
+        std::filesystem::create_directories (m_context.app.running->GetFolder(), ignore);
+
+        if (m_context.app.watcher != nullptr)
+        {
+            m_context.app.watcher->Watch (m_context.app.running->GetFolder(), [hwnd] (const std::wstring &) { PostMessageW (hwnd, (UINT) AppMessage::ExplorerRunningCasso, 0, 0); });
+        }
+
+        m_context.cassoLinkManager.HandleRunningChanged();
+    }
 
     //  The tabs of the request, from the session or a torn-off tab, or Home.
     m_context.browser.RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);

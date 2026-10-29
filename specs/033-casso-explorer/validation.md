@@ -309,6 +309,35 @@ a probe outside the suite. The hardware findings are in
 | Step 5: Save link to disk, boot it | The link disk, program version 45, written to drive 2 over the link in 59.8 s, moved to drive 1 and booted: the shim waiting on port 2 at 115,200; the PC connected with no bootstrap in about 10 s, and both drives were listed |
 | Step 7: booting a written image | ADTPro 2.1.0's client disk, written to drive 2 over the link in 60.4 s, moved to drive 1 and booted to ADTPro's menu. Writing a `.woz` with a non-standard track fails with the track listed, in the scenario tests |
 
+### Quickstart 7b steps 5 to 7 on the owner's //c, 2026-10-28
+
+The same //c, cable and drives as 2026-10-20, with the Release build after
+the window rework (Phase 27) and the restored startup block. The owner timed each step with a
+stopwatch or estimated it.
+
+| Check | Result |
+|---|---|
+| SC-033: bootstrap | `IN#2` and Ctrl+A `14B` typed on the //c, then Bootstrap: about 45 s until the program was sent and 3 to 4 s more to the status screen; both drives listed with their volumes |
+| Step 5: Save link to disk, boot it | Written to drive 2, moved to drive 1 and booted: the shim waiting on both ports at 115,200, then connected on port 2 |
+| Write image to disk | ADTPro 2.1.0's client disk to drive 1, dropped on the drive's node: about a minute |
+| SC-027: disk to image | Drive 1 into `readback.dsk` in 27 s, byte for byte `ADTPRO-2.1.0.DSK` |
+| SC-028: file onto the //c | A 10 KB file, `T10K`, in about 5 s, the drive's spin-down included |
+| SC-028: file from the //c | `T10K` to a host folder in under a second or two; byte for byte the original |
+| Step 7: booting a written image | Drive 1 booted to ADTPro's menu |
+
+Found in the walk, each a task under Phase 28:
+
+- Saved connections had no roots until the window's startup block, dropped
+  by `313293aff`, was restored.
+- A tab switch to a linked Apple re-reads every drive's catalog.
+- After a refresh during a drag, the drop highlight stays on the old row.
+- Create image from a drive's menu also opens the drive in the list.
+- Ctrl+V does nothing in a linked drive's file list.
+- Deleting a file redraws the whole list.
+- The activity log has no copy, wraps its lines, is not monospace, and
+  lists only when operations finished.
+- A new folder isn't selected once its name is entered.
+
 ### The link over a Super Serial Card and an Uthernet II, 2026-10-21
 
 x64 Debug, the working tree after merge `1e6d77a7f` (T215 to T217), on an

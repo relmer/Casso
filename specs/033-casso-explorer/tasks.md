@@ -921,7 +921,8 @@ owner's walkthrough.
   - Casso Explorer accepts the connection on the network.
 
   A scenario test drives a scripted modem on the bridge. Per FR-093.
-- [ ] T214 [US14] On the owner's //c over a null modem cable, walk quickstart.md §7b steps 5 to 7 and record SC-027, SC-028 and SC-033 in `specs/033-casso-explorer/validation.md`. If 115,200 baud fails the polled receive loop, record the fallback to 57,600. Per SC-027, SC-028, SC-033 and the plan's Risks.
+- [X] T214 [US14] On the owner's //c over a null modem cable, walk quickstart.md §7b steps 5 to 7 and record SC-027, SC-028 and SC-033 in `specs/033-casso-explorer/validation.md`. If 115,200 baud fails the polled receive loop, record the fallback to 57,600. Per SC-027, SC-028, SC-033 and the plan's Risks.
+  Done 2026-10-20 and again 2026-10-28 after Phase 27; see `validation.md`.
 
 ## Phase 23: The cards, after their merges (US16, US15)
 
@@ -1355,7 +1356,29 @@ waits for this phase, so it is tested once.
   `scripts/FixDeclAlign.ps1 -Apply`, before the master merge, since CI runs
   `CheckStyle -Mode Tree`. The owner deferred it (2026-10-28).
 
-**Dependencies**: in order. T214 follows T290; T291 precedes the master merge.
+## Phase 28: Findings from the //c walkthrough of 2026-10-28
+
+- [X] T292 Restore the window's startup block that `313293aff` dropped: the
+  tab strip's and address bar's setup, typed paths, column widths, the
+  folder and Recycle Bin watches, the listing threads' targets, the CassoLink
+  connections and the running Cassos' roots.
+- [ ] T293 Stop re-reading every drive's catalog when a tab moves to a linked
+  Apple; read again only when the drive reports a disk change or the
+  listing is old.
+- [ ] T294 Move a drag's drop highlight to the row under the pointer after
+  the list or tree is refilled during the drag.
+- [ ] T295 Stop opening the drive in the list when Create image is chosen from
+  the drive's menu.
+- [ ] T296 Paste with Ctrl+V into a linked drive's file list, as the command
+  bar's Paste does.
+- [ ] T297 Remove a deleted file's row rather than refilling the list.
+- [ ] T298 In the CassoLink activity log: copy, lines that wrap only past the
+  dialog's width, a monospace face, and each operation's start time.
+- [ ] T299 Select a new folder once its name is entered, as File Explorer
+  does.
+
+**Dependencies**: in order. T291 precedes the master merge; T292 to T299
+before T079.
 The product-wide styles are GitHub issue #179.
 ## Section H dependencies
 
