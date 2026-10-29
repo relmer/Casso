@@ -2980,7 +2980,7 @@ strun:  lda #<stdrive
         lda track
         jsr putdec2
         lda vflag               ; a read-back takes the track's sectors in
-        bne stpct               ; whatever order they pass, so the row has
+        bne stnosec             ; whatever order they pass, so the row has
         lda #<stsector          ; no sector while it runs
         sta ptr
         lda #>stsector
@@ -2988,6 +2988,12 @@ strun:  lda #<stdrive
         jsr puttext
         lda sector
         jsr putdec2
+        jmp stpct
+stnosec: ldx #5                 ; blanks the width of ", S05", so the
+stblank: lda #' '               ; percentage stays in its column
+        jsr putch
+        dex
+        bne stblank
 stpct:  lda #' '
         jsr putch
         lda #'('
