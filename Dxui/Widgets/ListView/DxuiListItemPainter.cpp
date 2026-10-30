@@ -225,9 +225,13 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
             {
                 float  radius = m_list.m_scaler.ToPxf (4.0f);
 
-                if (look.fill != 0)
+                //  A hovered row's box is short of its pitch, in a neutral gray.
+                float     inset = m_list.m_items.IsHomeTile (item) ? 0.0f : m_list.m_scaler.ToPxf (2.5f);
+                uint32_t  fill  = (item == m_list.m_hovered && !isSel) ? DxuiColor::Mix (m_list.m_theme->ContentBackground(), m_list.m_theme->Foreground(), 0.07f) : look.fill;
+
+                if (fill != 0)
                 {
-                    painter.FillRoundedRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), radius, look.fill);
+                    painter.FillRoundedRect ((float) cell.left, (float) cell.top + inset, fillW, (float) (cell.bottom - cell.top) - 2.0f * inset, radius, fill);
                 }
 
                 if (look.edge != 0)
@@ -552,7 +556,7 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
     int           lines   = 1 + (cells[0].tileLines.empty() ? 0 : 1) + ((tile && cells[0].homePinned) ? 1 : 0);
     float         top     = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) lines * lineH) * 0.5f;
     float         width   = (float) (cell.right - cell.left);
-    float         nameEnd = (float) cell.right;
+    float         nameEnd = (float) cell.right - (tile ? m_list.m_scaler.ToPxf (14.0f) : 0.0f);
     HRESULT       hr      = S_OK;
     std::wstring  shown;
 
@@ -583,7 +587,7 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
         float  left = (float) cell.left + width * m_list.m_homeHeader.columnAt[at - 1];
         float  end  = (at < m_list.m_homeHeader.columnAt.size()) ? (float) cell.left + width * m_list.m_homeHeader.columnAt[at] : (float) cell.right;
 
-        nameEnd = (at == 1) ? left - fontPx : nameEnd;
+        nameEnd = (at == 1) ? left - m_list.m_scaler.ToPxf (30.0f) : nameEnd;
 
         hr = text.DrawString (cells[at].text.c_str(), left, (float) cell.top, end - left, (float) (cell.bottom - cell.top), pal.fg, fontPx, DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);

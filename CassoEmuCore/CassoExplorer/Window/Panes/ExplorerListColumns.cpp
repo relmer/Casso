@@ -378,6 +378,13 @@ void ExplorerListColumns::ApplyFolderView()
 
     m_viewKey = key;
     m_view    = m_context.prefs.folderViews.GetView (key, type);
+
+    //  Results from Home's search are in Content view, as File Explorer's are.
+    if (m_context.browser.GetLocation().path.starts_with (SearchQuery::MakeId (SearchQuery::kEverywhere, std::wstring())))
+    {
+        m_view = DxuiListView::View::Content;
+    }
+
     m_iconDip = m_context.prefs.folderViews.GetEntry (key, type).iconDip;
     m_pane.GetListView()->SetItemIconDip (m_iconDip);
     m_pane.GetListView()->SetView (m_view);

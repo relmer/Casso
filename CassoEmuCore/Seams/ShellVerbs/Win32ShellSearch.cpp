@@ -58,12 +58,14 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     {
         std::vector<std::wstring>  found;
 
-        indexed = IsIndexed (folder) && !SearchQuery::HasWildcards (query);
+        bool  everywhere = folder == SearchQuery::kEverywhere;
+
+        indexed = everywhere || (IsIndexed (folder) && !SearchQuery::HasWildcards (query));
         hr      = indexed ? QueryIndex (folder, query, found) : S_OK;
 
         //  A folder the index leaves out, or an index that cannot answer, is
-        //  searched by walking it.
-        if (!indexed || FAILED (hr))
+        //  searched by walking it. Everywhere has no folder to walk.
+        if (!everywhere && (!indexed || FAILED (hr)))
         {
             found.clear();
             WalkForNames (folder, SearchQuery::GetNameWords (query), found);
@@ -94,7 +96,10 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     //  Files inside the disk images there match by name too.
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
-        SearchImages (folder, SearchQuery::GetNameWords (query), outItems);
+        if (folder != SearchQuery::kEverywhere)
+        {
+            SearchImages (folder, SearchQuery::GetNameWords (query), outItems);
+        }
     }
 
 Error:
@@ -347,7 +352,8 @@ HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wst
     hr = helper->put_QuerySelectColumns (L"System.ItemPathDisplay");
     CHR (hr);
 
-    hr = helper->put_QueryWhereRestrictions ((L"AND SCOPE='file:" + scope + L"'").c_str());
+    //  The whole index has no scope to restrict it.
+    hr = helper->put_QueryWhereRestrictions ((L"AND SCOPE='file:" + ((scope == SearchQuery::kEverywhere) ? std::wstring() : scope) + L"'").c_str());
     CHR (hr);
 
     hr = helper->put_QueryMaxResults ((LONG) s_kMaxResults);

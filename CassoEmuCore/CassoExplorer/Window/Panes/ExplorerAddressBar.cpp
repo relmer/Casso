@@ -1209,7 +1209,11 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
         return;
     }
 
-    if (at.kind == Location::Kind::HostFolder)
+    if (m_context.browser.IsHomeLocation())
+    {
+        scope = SearchQuery::kEverywhere;
+    }
+    else if (at.kind == Location::Kind::HostFolder)
     {
         scope = at.path;
     }
@@ -1232,7 +1236,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
         return;
     }
 
-    m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query), SearchQuery::GetLabel (scope)));
+    m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
     m_context.listPane.FillList();
     m_context.input.SetFocusPane (ExplorerPane::List);
 }

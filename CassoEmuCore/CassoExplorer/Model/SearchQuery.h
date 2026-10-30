@@ -33,6 +33,10 @@ public:
     static std::wstring               JoinScopes  (const std::vector<std::wstring> & folders);
     static std::vector<std::wstring>  SplitScopes (const std::wstring & scope);
 
+    //  A search from Home covers everything the Windows index has, as File
+    //  Explorer's does, rather than a folder.
+    static constexpr const wchar_t *  kEverywhere = L"everywhere:";
+
     static std::wstring  MakeId     (const std::wstring & scope, const std::wstring & query);
     static bool          TryParseId (const std::wstring & id, std::wstring & outScope, std::wstring & outQuery);
     static bool          IsId       (const std::wstring & id) { return id.starts_with (kPrefix); }

@@ -145,6 +145,7 @@ private:
     uint64_t                   m_arrivalUntilMs = 0;   // GetTickCount64 past which the names are no longer awaited
     Location                   m_listLocation;
     size_t                     m_listTabCount   = 0;   // the tabs when FillList last saved the session
+    bool                       m_homeShown      = false;
 
     //  The list's rows, built as it first asks for each; see GetListRowCells.
     std::vector<std::vector<DxuiListView::Cell>>  m_rowCells;

@@ -865,7 +865,7 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
 
         if (group == m_hoverGroup && (float) m_hoverX + (float) m_list.m_boundsDip.left < boxX + boxW)
         {
-            painter.FillRoundedRect (boxX, ry + (rowH - boxH) * 0.5f, boxW, boxH, m_list.m_scaler.ToPxf (4.0f), m_list.m_theme->HoverBackground());
+            painter.FillRoundedRect (boxX, ry + (rowH - boxH) * 0.5f, boxW, boxH, m_list.m_scaler.ToPxf (4.0f), DxuiColor::Mix (m_list.m_theme->ContentBackground(), m_list.m_theme->Foreground(), 0.07f));
         }
 
         cx      = x + m_list.m_scaler.ToPxf (34.0f);

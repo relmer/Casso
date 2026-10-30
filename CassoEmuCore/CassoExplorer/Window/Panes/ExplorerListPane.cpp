@@ -870,6 +870,15 @@ void ExplorerListPane::FillList()
     });
     m_list->SetGroups    (m_context.browser.GetListGroups());
 
+    //  A new tab's location is the list's first, so nothing below names Home
+    //  in the search box.
+    if (m_context.browser.IsHomeLocation() && !m_homeShown)
+    {
+        m_context.addressBar.HandleLocationChanged (m_context.browser.GetLocation());
+    }
+
+    m_homeShown = m_context.browser.IsHomeLocation();
+
     if (m_context.browser.IsHomeLocation())
     {
         static constexpr int  s_kSharedTab = 2;
