@@ -23,7 +23,7 @@
 ;   Log             the PC's hour and minute, then text: a history line,
 ;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
-;   Exit            CassoLink ends, and control returns to BASIC or the monitor
+;   Exit            CassoLink ends, and control returns to BASIC
 ;
 ; Read sectors, Write sectors, Format track and Write track end with two
 ; percentages, the part of the user's whole operation the request covers, so
@@ -383,8 +383,8 @@ tomain: jmp main
 ; the 6551's DTR off, so the PC's DSR drops; the zero page and reset
 ; vector the shim saved are put back; BASIC's program is emptied as NEW
 ; does, since the program was loaded over it; input and output are the
-; keyboard and screen; and DOS's warm start follows, or the monitor when
-; there is no DOS.
+; keyboard and screen; and DOS's warm start follows, or Applesoft's cold
+; start when there is no DOS.
 exitlink: sei
         cld
         ldx #$FF
@@ -453,12 +453,12 @@ lvbasic: lda #0                 ; text output plain, whatever was saved:
         jsr $FC58               ; HOME
         lda $03D0               ; DOS's warm start, a JMP into DOS
         cmp #$4C
-        bne lvmon
+        bne lvcold
         lda $03D2
         cmp #$9D
-        bcc lvmon
+        bcc lvcold
         jmp $03D0
-lvmon:  jmp $FF69               ; the monitor
+lvcold: jmp $E000               ; Applesoft's cold start, at its ] prompt
 
 ; Time drive: sector 0's address field found on the track, then $A5 sent as
 ; each later pass of it is read, one a revolution; the time between the
