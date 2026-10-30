@@ -35,9 +35,9 @@ class FileMapGridView : public InspectorView
 {
 public:
     using ChooseFn = std::function<void (int cell)>;
-    using ZoomFn   = std::function<void ()>;
+    using ZoomFn   = std::function<void (int steps, POINT pointPx)>;
 
-    static constexpr double  kMaxZoom = 32.0;
+    static constexpr double  kMaxZoom = 256.0;
 
     explicit FileMapGridView (InspectorViewContext & context);
 
@@ -50,7 +50,8 @@ public:
     void  SetSelected    (int cell, int file)     { m_selectedCell = cell; m_selectedFile = file; }
     void  SetOnChoose    (ChooseFn choose)        { m_choose = std::move (choose); }
 
-    //  Called when a double-click returns the grid to a zoom of 1.
+    //  Called when a double-click zooms the grid a stop in, or with Shift a
+    //  stop out.
     void  SetOnZoom      (ZoomFn zoom)            { m_onZoom = std::move (zoom); }
 
     //  Zoom by a factor about a point, between 1 and kMaxZoom; back to 1;
@@ -61,6 +62,13 @@ public:
     bool    IsZoomed     () const { return m_zoom > 1.0; }
     double  GetZoom      () const { return m_zoom; }
 
+    //  The zoom a number of stops in (positive) or out from the current one.
+    //  The stops are by halves until the bytes are drawn, then where they are
+    //  drawn as squares, as hex, as bits and as labeled bits, and a step past
+    //  that.
+    double          GetSteppedZoom (int steps) const;
+    vector<double>  GetZoomStops   () const;
+
     //  The grid's height for a width, so the file list gets the rest.
     int   GetHeightFor   (int widthPx) const;
 
@@ -68,6 +76,19 @@ public:
     bool  GetCellRect    (int cell, RECT & outRectPx) const;
 
 private:
+    //  How a cell's bytes are drawn at a cell size: how many to a row, the
+    //  room for each, and how much of each byte is drawn.
+    struct ByteLayout
+    {
+        int    perRow    = 16;
+        float  slotW     = 0;
+        float  slotH     = 0;
+        bool   isRoom    = false;
+        bool   isHex     = false;
+        bool   isBits    = false;
+        bool   isDigits  = false;
+    };
+
     struct Grid
     {
         float  left      = 0;
@@ -93,6 +114,7 @@ private:
     void      MakeRoleLabels (IDxuiTextRenderer & text, const Grid & g, float textPx);
     void      PaintLabels    (IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & g, float textPx) const;
     bool      PaintBytes     (IDxuiPainter & painter, IDxuiTextRenderer & text, const SectorSource & source, int cell, uint32_t ink) const;
+    ByteLayout GetByteLayout (float cellW, float cellH) const;
     void      ClampPan       ();
     void      ConfigureBars  (const Grid & g);
 
@@ -117,4 +139,7 @@ private:
     int64_t                                 m_lastClickMs  = 0;
     DxuiScrollbar                           m_vBar;
     DxuiScrollbar                           m_hBar;
+    mutable float                           m_hexW         = 0;
+    mutable float                           m_hexH         = 0;
+    mutable float                           m_digitW       = 0;
 };

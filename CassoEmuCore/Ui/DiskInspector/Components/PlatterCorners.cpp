@@ -122,11 +122,11 @@ void PlatterCorners::Create()
     m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
     m_zoomOut->SetRound          (true);
     m_zoomOut->SetAccessibleName (L"Zoom out");
-    m_zoomOut->SetOnClick        ([this] () { m_platter.ZoomAboutCenter (1.0 / InspectorMetrics::kZoomStep); });
+    m_zoomOut->SetOnClick        ([this] () { m_platter.StepZoom (-1); });
     m_zoomIn->SetGlyph           (s_kpszGlyphPlus);
     m_zoomIn->SetRound           (true);
     m_zoomIn->SetAccessibleName  (L"Zoom in");
-    m_zoomIn->SetOnClick         ([this] () { m_platter.ZoomAboutCenter (InspectorMetrics::kZoomStep); });
+    m_zoomIn->SetOnClick         ([this] () { m_platter.StepZoom (1); });
 }
 
 

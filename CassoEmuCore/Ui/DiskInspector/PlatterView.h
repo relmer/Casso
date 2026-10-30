@@ -31,7 +31,6 @@ class InspectorTip;
 class PlatterView : public InspectorView
 {
 public:
-    static constexpr double  kWheelZoomStep = 1.25;
 
     explicit PlatterView (InspectorViewContext & context);
     ~PlatterView () override;
@@ -46,6 +45,9 @@ public:
     bool               IsDragging  () const { return m_isPanning || m_isTilting; }
     void               ZoomBy      (double factor, POINT anchorPx);
     void               ZoomAboutCenter (double factor);
+    void               StepZoom        (int steps);
+    void               StepZoomAt      (int steps, POINT anchorPx);
+    vector<double>     GetZoomStops    () const;
     //  Where the head's bullseye is drawn, or false when there is no head.
     bool               GetHeadPoint (POINT & outPointPx) const;
     void               SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
@@ -72,6 +74,7 @@ private:
     bool           BuildTip       (POINT pointPx, InspectorTip & outTip) const;
     bool           IsShowingValues (const PlatterPlacement & view, int quarterTrack) const;
     bool           IsShowingTicks  (const PlatterPlacement & view, int quarterTrack) const;
+    bool           IsShowingBits   (const PlatterPlacement & view, int quarterTrack) const;
     const TrackAnalysis *  GetRingTrack (int quarterTrack) const;
     const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);

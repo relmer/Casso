@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/StripGeometry.h"
+#include "Ui/DiskInspector/ZoomStops.h"
 
 
 
@@ -23,6 +24,13 @@ static constexpr float  s_kHoverOutlineDip  = 1.0f;
 static constexpr float  s_kSelectOutlineDip = 2.0f;
 static constexpr float  s_kValueMinDip      = 22.0f;
 static constexpr float  s_kTickMinDip       = 3.0f;
+static constexpr float  s_kBitMinDip        = 9.0f;
+static constexpr float  s_kNibbleSeenDip    = 1.0f;
+static constexpr float  s_kBitRowEm         = 1.5f;
+static constexpr double s_kFineRatio        = 1.25;
+static constexpr double s_kMinStepRatio     = 1.2;
+static constexpr double s_kTypicalCells     = 51200.0;
+static constexpr uint32_t s_kZeroBitAlpha   = 0x70000000u;
 static constexpr float  s_kTickShare        = 0.3f;
 static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
@@ -283,6 +291,7 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     double               ringW      = rOuter - rInner;
     bool                 showValues = IsShowingValues (view, quarterTrack);
     bool                 showTicks  = IsShowingTicks (view, quarterTrack);
+    bool                 showBits   = IsShowingBits (view, quarterTrack);
     double               rText      = showTicks ? rMid + ringW * s_kTickShare / 2 : rMid;
     float                textPx     = m_scaler.ToPxf (kSmallDip);
     size_t               n          = framed.nibbles.size();
@@ -338,15 +347,23 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                 cell  = framed.nibbles[i].startCell % framed.cellCount;
                 count = (framed.nibbles[(i + 1) % n].startCell + framed.cellCount - cell) % framed.cellCount;
 
+                //  A tick for each 1 cell, or once a cell has room for its digit,
+                //  each cell's 1 or 0, as in the strip.
                 for (c = 0; c < count; c++)
                 {
-                    k = (cell + static_cast<uint32_t> (c)) % framed.cellCount;
+                    k     = (cell + static_cast<uint32_t> (c)) % framed.cellCount;
+                    turn  = turns.cells[k] - turns.cells[cell];
+                    turn -= std::floor (turn);
+                    turn += a + (turns.cells[k + 1] - turns.cells[k]) / 2;
 
-                    if (framed.cells[k] != 0)
+                    if (showBits)
                     {
-                        turn  = turns.cells[k] - turns.cells[cell];
-                        turn -= std::floor (turn);
-                        turn += a + (turns.cells[k + 1] - turns.cells[k]) / 2;
+                        DrawUpright (text, view, turn, rText - textPx * s_kBitRowEm / local, (framed.cells[k] != 0) ? L"1" : L"0",
+                                     static_cast<float> ((turns.cells[k + 1] - turns.cells[k]) * s_kTwoPi * rMid * local), textPx,
+                                     (framed.cells[k] != 0) ? ink : (ink & 0x00FFFFFFu) | s_kZeroBitAlpha);
+                    }
+                    else if (framed.cells[k] != 0)
+                    {
                         DrawRadial (painter, view, turn, rInner + 1.0, rInner + ringW * s_kTickShare, 1.0f, ink);
                     }
                 }
@@ -513,6 +530,28 @@ bool PlatterView::IsShowingTicks (const PlatterPlacement & view, int quarterTrac
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterView::IsShowingBits
+//
+//  Whether a ring's mean cell is long enough for its 1 or 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::IsShowingBits (const PlatterPlacement & view, int quarterTrack) const
+{
+    const TrackAnalysis *  track = GetRingTrack (quarterTrack);
+    double                 rMid  = PlatterGeometry::GetRingMiddle (quarterTrack) * view.outerRadiusPx;
+
+
+
+    return IsShowingTicks (view, quarterTrack) && s_kTwoPi * rMid / track->framed.cellCount >= m_scaler.ToPxf (s_kBitMinDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterView::GetRingTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -605,7 +644,7 @@ bool PlatterView::OnMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Wheel:
             if (!ev.wheelHorizontal && isInside)
             {
-                ZoomBy (std::pow (kWheelZoomStep, ev.wheelDelta), p);
+                StepZoomAt (ZoomStops::GetWheelSteps (ev.wheelDelta), p);
                 isHandled = true;
             }
 
@@ -906,6 +945,75 @@ void PlatterView::OutlineCircle (IDxuiPainter & painter, float cx, float cy, flo
     {
         painter.OutlineRoundedRect (cx - radius, cy - radius, 2 * radius, 2 * radius, radius, thicknessPx, argb);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::StepZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::StepZoom (int steps)
+{
+    StepZoomAt (steps, { (m_boundsDip.left + m_boundsDip.right) / 2, (m_boundsDip.top + m_boundsDip.bottom) / 2 });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::StepZoomAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::StepZoomAt (int steps, POINT anchorPx)
+{
+    m_context.model->ZoomAbout (ZoomStops::Step (GetZoomStops(), m_context.model->GetZoom(), steps), ToViewPoint (anchorPx));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetZoomStops
+//
+//  The platter's zooms, from the selected track's ring: by quarters up to
+//  where its nibbles are a DIP wide, then doubling twice, then where their
+//  values fit, where cell ticks fit, where each cell's 1 or 0 fits and a
+//  step past it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<double> PlatterView::GetZoomStops() const
+{
+    const TrackAnalysis *  track     = GetRingTrack (m_context.model->GetQuarterTrack());
+    double                 fitR      = MakeView().outerRadiusPx / std::max (m_context.model->GetZoom(), 1.0);
+    double                 ring      = s_kTwoPi * PlatterGeometry::GetRingMiddle (m_context.model->GetQuarterTrack()) * std::max (fitR, 1.0);
+    double                 cells     = (track != nullptr && track->framed.cellCount > 0) ? track->framed.cellCount : s_kTypicalCells;
+    double                 nibbles   = (track != nullptr && !track->framed.nibbles.empty()) ? static_cast<double> (track->framed.nibbles.size()) : cells / 8;
+    double                 seen      = m_scaler.ToPxf (s_kNibbleSeenDip) * nibbles / ring;
+    vector<double>         details   = { seen, seen * 2, seen * 4,
+                                         m_scaler.ToPxf (s_kValueMinDip)   * nibbles / ring,
+                                         m_scaler.ToPxf (s_kTickMinDip)    * cells   / ring,
+                                         m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring,
+                                         m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring * s_kFineRatio };
+
+
+
+    for (double & detail : details)
+    {
+        detail = std::min (detail, InspectorViewModel::kMaxZoom);
+    }
+
+    return ZoomStops::Build (1.0, s_kFineRatio, details, s_kMinStepRatio);
 }
 
 

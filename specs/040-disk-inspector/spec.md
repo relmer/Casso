@@ -1873,8 +1873,11 @@ legend, and tilt the platter and back.
   the drive's speed; a coarser level has the mean of the cells it
   covers. The timing range MUST default to ±5% and
   be adjustable from ±1% to ±25%, and the legend MUST show its numeric scale.
-- **FR-025**: The platter MUST zoom from fit to at least 600×, about the
-  pointer, with the mouse wheel, the zoom group's "−" and "+" buttons, the
+- **FR-025**: The platter MUST zoom from fit in stops, about the pointer:
+  by quarters until the selected track's nibbles are a DIP wide; then doubling twice; then where its nibble
+  values fit, where cell ticks fit, where each cell's 1 or 0 fits, and a
+  step past that, which is the most it zooms. It MUST step with the mouse
+  wheel, the zoom group's "−" and "+" buttons, the
   View menu's "Zoom in", "Zoom out" and "Fit", and the plus, minus and 0
   keys, and MUST pan by dragging. The zoom group MUST be "−" then "+" in a
   row, with no readout of the zoom. A drag shorter than the Windows drag threshold MUST
@@ -1887,7 +1890,8 @@ legend, and tilt the platter and back.
   then each nibble's hex value along its ring, upright, with a divider at
   each nibble's start, once the value fits inside the nibble's arc at the
   window's text size; then a tick for each 1 cell, once ticks for adjacent
-  cells no longer touch.
+  cells no longer touch; then each cell's 1 or 0 beside the values in place
+  of the ticks, once a digit fits in a cell's arc.
 - **FR-027**: Hovering the platter MUST show a tooltip with the track, the
   kind, the sector, the ring's sectors good out of found, and, on flux
   tracks, the cell time and its deviation (for example "4.10µs cells
@@ -1955,8 +1959,11 @@ legend, and tilt the platter and back.
   its address prologue to the end of its data epilogue and labeled at the
   left of the bracket's visible part with its state's symbol and "Sector
   $N", or the symbol and "$N" where only that fits.
-- **FR-034**: The strip MUST zoom from the whole track down to about 20
-  cells across, about the pointer, with the mouse wheel, the "−", "+" and
+- **FR-034**: The strip MUST zoom in stops, about the pointer: the whole
+  track, then by fours while the nibbles are too narrow for their values,
+  then where the values fit, where each cell's bit fits, a step past that,
+  and on a flux track where each cell's timing fits; the last is the most it
+  zooms. It MUST step with the mouse wheel, the "−", "+" and
   "Whole track" buttons and the keyboard, and MUST pan with Shift and a drag,
   with Shift and the wheel, and with Left and Right. A drag MUST select a
   range (FR-043). Double-click MUST return to the whole track. A readout MUST
@@ -2209,7 +2216,9 @@ legend, and tilt the platter and back.
   sector, a DOS 3.3 logical sector or a ProDOS block (on a 16-sector track,
   through the standard skew), a CP/M sector of a mapped CP/M volume (FR-085),
   a nibble offset or a cell, or a file by its path, which chooses the file
-  as the Files view's list does. Under the entry, a line MUST state what the
+  as the Files view's list does. A sector, a nibble offset or a cell MUST be
+  entered in a separate field beside a Track field, which opens on the
+  selected track. Under the entry, a line MUST state what the
   entry may be for the kind chosen, such as "A sector from $0 to $F on track
   17", and the dialog MUST open on the kind last used, saved across
   launches.
@@ -2645,21 +2654,26 @@ legend, and tilt the platter and back.
   the clipboard as tab-separated text, and "Copy map" MUST put the grid on
   the clipboard as text, one row per track with one letter per sector and a
   key to the letters.
-- **FR-157**: The mouse wheel over the File map grid, with or without Ctrl,
-  MUST zoom the grid, not the window, about the point under the pointer, as
-  the wheel zooms the platter and the strip, from 1, where the grid fits the
-  tab's width, to 32 times. Past 1, the grid MUST fill its view and pan in it
-  by a drag and by Shift and the wheel across, with the track numbers and column headers pinned at its left
+- **FR-157**: The mouse wheel over the File map grid MUST zoom the grid, not
+  the window, about the point under the pointer, as the wheel zooms the
+  platter and the strip, in stops from 1, where the grid fits the tab's
+  width: by halves until its sectors' bytes are drawn, then where they are
+  drawn as squares, as hex, as bits and as labeled bits, and a step past that, which
+  is the most it zooms. Past 1, the grid MUST fill its view and pan in it by
+  a drag, down and up by Ctrl and the wheel, and across by Shift and the
+  wheel or the wheel turned sideways, with the track numbers and column headers pinned at its left
   and top edges, each centered on the part of its row or column in view, and
   with a scrollbar along the right or bottom edge wherever the cells run
   past the view, its thumb placed and sized as the view is among the cells,
   and a drag on the thumb panning the grid. A
-  double-click MUST return the grid to 1, and a new disk MUST start it at 1.
+  double-click MUST zoom the grid a stop in about the point, and Shift with a
+  double-click a stop out, and a new disk MUST start it at 1.
   As a cell grows, its sector's bytes MUST appear under its label, 16, 32 or
   64 to a row, the count with the most room for a byte's hex in the cell's
   width and height: as squares while they are too small for text, $00
   clear, $80 and up solid and the rest faint; then as hex; then, with room for eight bits a
-  byte, as its bits under the hex, each byte in a box of its own. A block's two sectors MUST follow one
+  byte, as its bits under the hex, each byte in a box of its own; then, with
+  room for a digit in each bit, each bit as a 1 or a 0. A block's two sectors MUST follow one
   another, and a sector chosen elsewhere MUST be panned to the middle of a
   zoomed grid.
 
@@ -3121,8 +3135,10 @@ legend, and tilt the platter and back.
   Ctrl+0 MUST return to 100%. The status band MUST show the zoom as a
   percentage at its right end; clicking it MUST show a slider between the
   "-" and "+" buttons, and clicking it again MUST hide them. The status band
-  MUST show the summary chips at its left end and the hint for the view
-  under the pointer. The zoom MUST be saved
+  MUST show the summary chips at its left end, then what is selected, as
+  "Selected: HELLO, data sector 1 of 3 at track 19, sector $F" or "Selected:
+  track 17, sector $3", with chips that would crowd it left out, and then
+  the hint for the view under the pointer. The zoom MUST be saved
   with the rest of the window's state (FR-080). The zoom MUST stop at the
   largest value at which the window's minimum size times the zoom fits the
   work area of its monitor; a zoom MUST grow a smaller window to that size,

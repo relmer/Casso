@@ -557,6 +557,7 @@
     <ClCompile Include="Ui\DiskInspector\ExportDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\FileMapGridView.cpp" />
     <ClCompile Include="Ui\DiskInspector\FileMapText.cpp" />
+    <ClCompile Include="Ui\DiskInspector\ZoomStops.cpp" />
     <ClCompile Include="Ui\DiskInspector\EditBar.cpp" />
     <ClCompile Include="Ui\DiskInspector\EditController.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindBar.cpp" />
@@ -1069,6 +1070,7 @@
     <ClInclude Include="Ui\DiskInspector\Components\IInspectorComponent.h" />
     <ClInclude Include="Ui\DiskInspector\Components\IInspectorComponentHost.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorMetrics.h" />
+    <ClInclude Include="Ui\DiskInspector\ZoomStops.h" />
     <ClInclude Include="Ui\DiskInspector\IDiskInspectorHost.h" />
     <ClInclude Include="Ui\DiskInspector\Views\IssuesView.h" />
     <ClInclude Include="Ui\DiskInspector\FluxTiming.h" />

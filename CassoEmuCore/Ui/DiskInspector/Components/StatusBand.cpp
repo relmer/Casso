@@ -117,14 +117,17 @@ void StatusBand::SetZoom (double zoom)
 //
 //  StatusBand::PaintUnder
 //
-//  The band's surface with a divider along its top, the chips, the hint in
-//  the room after them, and the "?" button.
+//  The band's surface with a divider along its top, the chips, what is
+//  selected, the hint in the room after them, and the "?" button.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float  x = static_cast<float> (m_chipsPx.left);
+    float         x         = static_cast<float> (m_chipsPx.left);
+    float         w         = 0;
+    float         h         = 0;
+    std::wstring  selection = GetSelectionLine();
 
 
 
@@ -133,7 +136,11 @@ void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     painter.FillRect (static_cast<float> (m_bandPx.left), static_cast<float> (m_bandPx.top), static_cast<float> (m_bandPx.right - m_bandPx.left), 1.0f,
                       theme.Divider());
 
-    PaintChips (painter, text, theme, x);
+    //  Room for the selection is set aside first; chips that would crowd it
+    //  are left out.
+    text.MeasureString (selection.c_str(), m_scaler.ToPxf (s_kHintTextDip), DxuiTheme::kBodyFace, w, h);
+    PaintChips     (painter, text, theme, static_cast<float> (m_chipsPx.right) - w, x);
+    PaintSelection (text, theme, selection, x);
 
     if (x < m_chipsPx.right)
     {
@@ -159,14 +166,13 @@ void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void StatusBand::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float & inOutX)
+void StatusBand::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float right, float & inOutX)
 {
     float                pad    = m_scaler.ToPxf (s_kChipPadDip);
     float                gap    = m_scaler.ToPxf (s_kChipGapDip);
     float                chipH  = m_scaler.ToPxf (s_kChipHeightDip);
     float                textPx = m_scaler.ToPxf (s_kChipTextDip);
     float                y      = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
-    float                right  = static_cast<float> (m_chipsPx.right);
     float                w      = 0;
     float                h      = 0;
     bool                 isFull = false;
@@ -224,6 +230,60 @@ void StatusBand::PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     }
 
     inOutX += (inOutX > m_chipsPx.left) ? gap : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StatusBand::PaintSelection
+//
+//  What is selected, after the chips where it fits. Moves inOutX past what
+//  it drew.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StatusBand::PaintSelection (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & line, float & inOutX) const
+{
+    float  textPx = m_scaler.ToPxf (s_kHintTextDip);
+    float  w      = 0;
+    float  h      = 0;
+
+
+
+    text.MeasureString (line.c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+
+    if (inOutX + w <= m_chipsPx.right)
+    {
+        text.DrawString (line.c_str(), inOutX, static_cast<float> (m_chipsPx.top), w + 1.0f, static_cast<float> (m_chipsPx.bottom - m_chipsPx.top), theme.Foreground(),
+                         textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        inOutX += w + m_scaler.ToPxf (s_kChipGapDip) * 3;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StatusBand::GetSelectionLine
+//
+//  What is selected, or nothing with no disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring StatusBand::GetSelectionLine() const
+{
+    const InspectorViewModel &  model = m_session.model;
+
+
+
+    return m_session.context.hasDisk ? InspectorText::FormatSelection (model.GetTrack(), model.GetQuarterTrack(), model.GetSectorIndex(), model.GetFirstNibble(),
+                                                                       model.GetNibbleCount(), m_session.GetFileMap())
+                                     : std::wstring();
 }
 
 

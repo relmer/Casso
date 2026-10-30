@@ -5,6 +5,8 @@
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
+#include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 
 
@@ -362,6 +364,51 @@ std::wstring InspectorText::FormatAccessCounts (uint32_t reads, uint32_t writes,
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatSelection
+//
+//  What is selected, for the status band: "Selected: LOADER.OBJ0, data
+//  sector 5 of 5 at track 21, sector $3" for a sector of a file, "Selected:
+//  track 17, sector $3" for any other sector, "Selected: 8 nibbles from
+//  offset $1A3 on track 17" for nibbles, and "Selected: track 17" for a
+//  track alone. Sectors are numbered as the sector buttons number them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatSelection (const TrackAnalysis * track, int quarterTrack, int sectorIndex, int firstNibble, int nibbleCount,
+                                             const FileMap * map)
+{
+    std::wstring  where  = L"track " + InspectorFormat::FormatQuarterTrack (quarterTrack);
+    std::wstring  owners;
+    int           half   = 0;
+    int           cell   = -1;
+    int           sector = -1;
+
+
+
+    if (track != nullptr && sectorIndex >= 0 && sectorIndex < static_cast<int> (track->sectors.size()))
+    {
+        sector = track->sectors[static_cast<size_t> (sectorIndex)].sector;
+        cell   = (map != nullptr && quarterTrack % DiskImage::kQuarterTracksPerWholeTrack == 0)
+               ? map->GetCellOf (quarterTrack / DiskImage::kQuarterTracksPerWholeTrack, sector, half) : -1;
+        owners = (cell >= 0 && !map->cells[static_cast<size_t> (cell)].owners.empty()) ? FileMapText::FormatOwners (*map, cell) + L" at " : L"";
+
+        return L"Selected: " + owners + where + L", sector " + InspectorFormat::FormatSector (static_cast<Byte> (sector));
+    }
+
+    if (track != nullptr && nibbleCount > 0)
+    {
+        return std::format (L"Selected: {} from offset {} on {}", FormatCount (nibbleCount, L"nibble", L"nibbles"), InspectorFormat::FormatHexOffset (firstNibble), where);
+    }
+
+    return L"Selected: " + where;
 }
 
 

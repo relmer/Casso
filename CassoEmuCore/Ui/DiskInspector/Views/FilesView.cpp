@@ -64,7 +64,7 @@ void FilesView::Create()
     m_mapCopy      = parent.CreateChild<DxuiButton> (L"Copy map");
 
     m_mapGrid->SetOnChoose    ([this] (int cell) { SelectMapCell (cell); });
-    m_mapGrid->SetOnZoom      ([this] () { m_host.Relayout(); });
+    m_mapGrid->SetOnZoom      ([this] (int steps, POINT pointPx) { ZoomGrid (steps, pointPx); });
     m_fileList->SetOnSelect   ([this] (const TableRow & row) { ChooseFile (row.finding); });
     m_fileList->SetOnSort     ([this] (int column) { m_fileSortDescending = (column == m_fileSortColumn) && !m_fileSortDescending; m_fileSortColumn = column; RefreshFileList(); });
     m_mapVolumes->SetOnChange ([this] (int index) { m_session.mapIndex = index; m_session.mapFile = -1; RefreshFileList(); });
@@ -752,14 +752,14 @@ bool FilesView::IsOverGrid (POINT pointPx) const
 //
 //  FilesView::ZoomGrid
 //
-//  The grid zoomed about the point by the wheel's notches. Entering or
+//  The grid zoomed a number of stops about the point. Entering or
 //  leaving the zoom changes the grid's bounds, from its whole height in the
 //  scrolling view to the view itself, so the pan shifts by as much as the
 //  bounds moved and the point stays under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FilesView::ZoomGrid (float notches, POINT pointPx)
+void FilesView::ZoomGrid (int steps, POINT pointPx)
 {
     RECT  before   = m_mapGrid->GetBounds();
     RECT  after    = {};
@@ -767,7 +767,7 @@ void FilesView::ZoomGrid (float notches, POINT pointPx)
 
 
 
-    m_mapGrid->ZoomAbout (std::pow (InspectorMetrics::kZoomStep, notches), pointPx);
+    m_mapGrid->ZoomAbout (m_mapGrid->GetSteppedZoom (steps) / m_mapGrid->GetZoom(), pointPx);
 
     if (m_mapGrid->IsZoomed() != isZoomed)
     {

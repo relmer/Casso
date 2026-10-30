@@ -38,8 +38,10 @@ public:
     void  SetZoom     (double zoom);
 
 private:
-    void  PaintChips (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float & inOutX);
-    void  PaintHelp  (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void          PaintChips       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float right, float & inOutX);
+    void          PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void          PaintSelection   (IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & line, float & inOutX) const;
+    std::wstring  GetSelectionLine () const;
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;

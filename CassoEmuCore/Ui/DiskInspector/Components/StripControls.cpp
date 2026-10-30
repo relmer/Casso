@@ -55,8 +55,8 @@ void StripControls::Create()
     m_in      = parent.CreateChild<DxuiButton> (L"+");
     m_whole   = parent.CreateChild<DxuiButton> (L"Whole track");
 
-    m_out->SetOnClick   ([this] () { m_strip.ZoomAboutCenter (1.0 / InspectorMetrics::kZoomStep); });
-    m_in->SetOnClick    ([this] () { m_strip.ZoomAboutCenter (InspectorMetrics::kZoomStep); });
+    m_out->SetOnClick   ([this] () { m_strip.StepZoom (-1); });
+    m_in->SetOnClick    ([this] () { m_strip.StepZoom (1); });
     m_whole->SetOnClick ([this] () { m_strip.ShowWholeTrack(); });
 }
 

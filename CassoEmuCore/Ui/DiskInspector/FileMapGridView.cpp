@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
+#include "Ui/DiskInspector/ZoomStops.h"
 
 
 
@@ -32,6 +33,11 @@ static constexpr float     s_kMinBitDip     = 3.0f;
 static constexpr float     s_kBytePadDip    = 2.0f;
 static constexpr uint32_t  s_kLowByteAlpha  = 0x60000000u;
 static constexpr uint32_t  s_kZeroBitAlpha  = 0x30000000u;
+static constexpr float     s_kEstDigitEm    = 0.6f;
+static constexpr double    s_kScanRatio     = 1.02;
+static constexpr double    s_kPastStepRatio = 1.25;
+static constexpr double    s_kCoarseRatio   = 2.0;
+static constexpr double    s_kMinStepRatio  = 1.2;
 
 
 
@@ -306,74 +312,44 @@ void FileMapGridView::PaintLabels (IDxuiTextRenderer & text, const IDxuiTheme & 
 //
 //  FileMapGridView::PaintBytes
 //
-//  A cell's bytes under its label's band, 16, 32 or 64 to a row, the count
-//  with the most room for a byte's hex in the cell's width and height, in
-//  its ink: squares
-//  where a byte is too small for text, $00 left clear, a byte of $80 or
-//  more solid and the rest faint; the bytes in hex once they fit; and with
-//  room for eight bits a byte, its bits, a 1 solid and a 0 faint, under the
-//  hex when that fits too. A block's two halves follow one another. Returns
+//  A cell's bytes under its label's band, laid out by GetByteLayout, in its
+//  ink: squares where a byte is too small for text, $00 left clear, a byte
+//  of $80 or more solid and the rest faint; the bytes in hex once they fit;
+//  with room for eight bits a byte, its bits, a 1 solid and a 0 faint, under
+//  the hex when that fits too; and with room for a digit in each bit, each
+//  bit as a 1 or a 0. A block's two halves follow one another. Returns
 //  whether the cell had room for the bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, const SectorSource & source, int cell, uint32_t ink) const
 {
-    RECT      cellPx  = {};
-    int       halves  = (m_map->cellsPerTrack == SectorSource::kBlocksPerTrack) ? 2 : 1;
-    int       bytes   = halves * SectorSource::kBytes;
-    int       perRow  = s_kBytesPerRow;
-    float     areaW   = 0;
-    float     areaH   = 0;
-    float     best    = 0;
-    float     fit     = 0;
-    float     monoPx  = m_scaler.ToPxf (kSmallDip);
-    float     pad     = m_scaler.ToPxf (s_kBytePadDip);
-    float     x0      = 0;
-    float     y0      = 0;
-    float     slotW   = 0;
-    float     slotH   = 0;
-    float     hexW    = 0;
-    float     hexH    = 0;
-    float     bitsTop = 0;
-    float     inset   = 0;
-    float     bitW    = 0;
-    bool      isHex   = false;
-    bool      isBits  = false;
-    bool      isRoom  = GetCellRect (cell, cellPx);
-    uint32_t  faint   = (ink & 0x00FFFFFFu) | s_kLowByteAlpha;
-    uint32_t  zeroBit = (ink & 0x00FFFFFFu) | s_kZeroBitAlpha;
+    RECT        cellPx  = {};
+    int         halves  = (m_map->cellsPerTrack == SectorSource::kBlocksPerTrack) ? 2 : 1;
+    float       monoPx  = m_scaler.ToPxf (kSmallDip);
+    float       pad     = m_scaler.ToPxf (s_kBytePadDip);
+    float       digitH  = 0;
+    float       x0      = 0;
+    float       y0      = 0;
+    float       bitsTop = 0;
+    float       inset   = m_scaler.ToPxf (s_kBytePadDip);
+    float       bitW    = 0;
+    bool        isCell  = GetCellRect (cell, cellPx);
+    ByteLayout  layout;
+    uint32_t    faint   = (ink & 0x00FFFFFFu) | s_kLowByteAlpha;
+    uint32_t    zeroBit = (ink & 0x00FFFFFFu) | s_kZeroBitAlpha;
 
 
 
-    text.MeasureString (L"FF", monoPx, DxuiTheme::kMonoFace, hexW, hexH);
+    text.MeasureString (L"FF", monoPx, DxuiTheme::kMonoFace, m_hexW, m_hexH);
+    text.MeasureString (L"0",  monoPx, DxuiTheme::kMonoFace, m_digitW, digitH);
 
-    x0    = cellPx.left + pad;
-    y0    = cellPx.top + monoPx * s_kLineEm;
-    areaW = cellPx.right - cellPx.left - 2 * pad;
-    areaH = cellPx.bottom - y0 - pad;
+    layout = GetByteLayout (static_cast<float> (cellPx.right - cellPx.left), static_cast<float> (cellPx.bottom - cellPx.top));
+    x0     = cellPx.left + pad;
+    y0     = cellPx.top + monoPx * s_kLineEm;
+    bitW   = (layout.slotW - 2 * inset) / 8;
 
-    for (int candidate = s_kBytesPerRow; candidate <= 4 * s_kBytesPerRow; candidate *= 2)
-    {
-        fit = std::min ((areaW / candidate) / (hexW + pad), (areaH / (bytes / candidate)) / hexH);
-
-        if (fit > best)
-        {
-            best   = fit;
-            perRow = candidate;
-        }
-    }
-
-    slotW  = areaW / perRow;
-    slotH  = areaH / (bytes / perRow);
-    isRoom = isRoom && slotW >= m_scaler.ToPxf (s_kMinSquareDip) && slotH >= m_scaler.ToPxf (s_kMinSquareDip);
-    isHex  = isRoom && slotW >= hexW + pad && slotH >= hexH;
-    isBits = isRoom && slotW >= 8 * m_scaler.ToPxf (s_kMinBitDip) && slotH >= m_scaler.ToPxf (s_kMinBitDip) + (isHex ? hexH : 0.0f);
-
-    inset = m_scaler.ToPxf (s_kBytePadDip);
-    bitW  = (slotW - 2 * inset) / 8;
-
-    for (int half = 0; isRoom && half < halves; half++)
+    for (int half = 0; isCell && layout.isRoom && half < halves; half++)
     {
         const SectorSource::Sector &  sector = source.GetPhysical (m_map->GetTrack (cell), m_map->GetPhysical (cell, half));
 
@@ -381,36 +357,162 @@ bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & te
         {
             Byte   b  = sector.bytes[i];
             int    at = half * SectorSource::kBytes + i;
-            float  x  = x0 + (at % perRow) * slotW;
-            float  y  = y0 + (at / perRow) * slotH;
+            float  x  = x0 + (at % layout.perRow) * layout.slotW;
+            float  y  = y0 + (at / layout.perRow) * layout.slotH;
 
-            if (isHex)
+            if (layout.isHex)
             {
-                text.DrawString (std::format (L"{:02X}", b).c_str(), x, y, slotW, isBits ? hexH : slotH, (b == 0) ? faint : ink, monoPx, DxuiTheme::kMonoFace,
-                                 DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                text.DrawString (std::format (L"{:02X}", b).c_str(), x, y, layout.slotW, layout.isBits ? m_hexH : layout.slotH, (b == 0) ? faint : ink, monoPx,
+                                 DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             }
-            else if (!isBits && b != 0)
+            else if (!layout.isBits && b != 0)
             {
-                painter.FillRect (x, y, slotW - 1.0f, slotH - 1.0f, (b >= s_kHighBit) ? ink : faint);
+                painter.FillRect (x, y, layout.slotW - 1.0f, layout.slotH - 1.0f, (b >= s_kHighBit) ? ink : faint);
             }
 
-            bitsTop = isHex ? y + hexH : y + inset;
+            bitsTop = layout.isHex ? y + m_hexH : y + inset;
 
             //  At the bit level, each byte in a box of its own around its hex
-            //  and its eight bits.
-            if (isBits)
+            //  and its eight bits; with room, each bit is a 1 or a 0.
+            if (layout.isBits)
             {
-                painter.OutlineRect (x + 0.5f, y + 0.5f, slotW - 2.0f, slotH - 2.0f, 1.0f, faint);
+                painter.OutlineRect (x + 0.5f, y + 0.5f, layout.slotW - 2.0f, layout.slotH - 2.0f, 1.0f, faint);
             }
 
-            for (int k = 0; isBits && k < 8; k++)
+            for (int k = 0; layout.isBits && k < 8; k++)
             {
-                painter.FillRect (x + inset + k * bitW, bitsTop, bitW - 1.0f, y + slotH - inset - bitsTop - 1.0f, ((b >> (7 - k)) & 1) ? ink : zeroBit);
+                bool  isOne = ((b >> (7 - k)) & 1) != 0;
+
+                if (layout.isDigits)
+                {
+                    text.DrawString (isOne ? L"1" : L"0", x + inset + k * bitW, bitsTop, bitW, y + layout.slotH - inset - bitsTop, isOne ? ink : faint, monoPx,
+                                     DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                }
+                else
+                {
+                    painter.FillRect (x + inset + k * bitW, bitsTop, bitW - 1.0f, y + layout.slotH - inset - bitsTop - 1.0f, isOne ? ink : zeroBit);
+                }
             }
         }
     }
 
-    return isRoom;
+    return isCell && layout.isRoom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::GetByteLayout
+//
+//  16, 32 or 64 bytes to a row, the count with the most room for a byte's
+//  hex in a cell of a size; then whether there is room for squares, for hex,
+//  for eight bits a byte, and for a digit in each bit. Before the first paint
+//  measures the font, its sizes are estimated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileMapGridView::ByteLayout FileMapGridView::GetByteLayout (float cellW, float cellH) const
+{
+    ByteLayout  layout;
+    int         halves = (m_map != nullptr && m_map->cellsPerTrack == SectorSource::kBlocksPerTrack) ? 2 : 1;
+    int         bytes  = halves * SectorSource::kBytes;
+    float       monoPx = m_scaler.ToPxf (kSmallDip);
+    float       pad    = m_scaler.ToPxf (s_kBytePadDip);
+    float       hexW   = (m_hexW > 0) ? m_hexW : monoPx * s_kEstDigitEm * 2;
+    float       hexH   = (m_hexH > 0) ? m_hexH : monoPx * s_kLineEm;
+    float       digitW = (m_digitW > 0) ? m_digitW : monoPx * s_kEstDigitEm;
+    float       areaW  = cellW - 2 * pad;
+    float       areaH  = cellH - monoPx * s_kLineEm - pad;
+    float       best   = 0;
+    float       fit    = 0;
+    float       bitW   = 0;
+
+
+
+    for (int candidate = s_kBytesPerRow; candidate <= 4 * s_kBytesPerRow; candidate *= 2)
+    {
+        fit = std::min ((areaW / candidate) / (hexW + pad), (areaH / (bytes / candidate)) / hexH);
+
+        if (fit > best)
+        {
+            best          = fit;
+            layout.perRow = candidate;
+        }
+    }
+
+    layout.slotW    = areaW / layout.perRow;
+    layout.slotH    = areaH / (bytes / layout.perRow);
+    bitW            = (layout.slotW - 2 * pad) / 8;
+    layout.isRoom   = layout.slotW >= m_scaler.ToPxf (s_kMinSquareDip) && layout.slotH >= m_scaler.ToPxf (s_kMinSquareDip);
+    layout.isHex    = layout.isRoom && layout.slotW >= hexW + pad && layout.slotH >= hexH;
+    layout.isBits   = layout.isRoom && layout.slotW >= 8 * m_scaler.ToPxf (s_kMinBitDip) && layout.slotH >= m_scaler.ToPxf (s_kMinBitDip) + (layout.isHex ? hexH : 0.0f);
+    layout.isDigits = layout.isBits && layout.isHex && bitW >= digitW + pad && layout.slotH >= 2 * hexH;
+
+    return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::GetZoomStops
+//
+//  Each zoom at which more of a cell's bytes is drawn, found by trying
+//  zooms a small ratio apart, the ones before them by halves, and a step past
+//  the labeled bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<double> FileMapGridView::GetZoomStops() const
+{
+    Grid            g       = MakeGrid();
+    float           baseW   = IsZoomed() ? m_baseCellW : g.cellW;
+    float           baseH   = IsZoomed() ? m_baseRowH  : g.rowH;
+    int             level   = 0;
+    int             deepest = 0;
+    vector<double>  details;
+    ByteLayout      layout;
+
+
+
+    for (double zoom = 1.0; zoom <= kMaxZoom && deepest < 4; zoom *= s_kScanRatio)
+    {
+        layout = GetByteLayout (static_cast<float> (baseW * zoom), static_cast<float> (baseH * zoom));
+        level  = layout.isDigits ? 4 : layout.isBits ? 3 : layout.isHex ? 2 : layout.isRoom ? 1 : 0;
+
+        if (level > deepest)
+        {
+            details.push_back (zoom);
+            deepest = level;
+        }
+    }
+
+    if (!details.empty())
+    {
+        details.push_back (std::min (details.back() * s_kPastStepRatio, kMaxZoom));
+    }
+
+    return ZoomStops::Build (1.0, s_kCoarseRatio, details, s_kMinStepRatio);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::GetSteppedZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double FileMapGridView::GetSteppedZoom (int steps) const
+{
+    return ZoomStops::Step (GetZoomStops(), m_zoom, steps);
 }
 
 
@@ -649,6 +751,7 @@ bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
     int      cell      = HitTest (p);
     bool     isInside  = PtInRect (&m_boundsDip, p) != FALSE;
     bool     isHandled = false;
+    bool     isAcross  = false;
     int64_t  now       = static_cast<int64_t> (GetTickCount64());
 
 
@@ -674,13 +777,15 @@ bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
 
     switch (ev.kind)
     {
-        //  Zoomed, the wheel pans the grid down and up, or with Shift
-        //  across.
+        //  Zoomed, Ctrl and the wheel pan the grid down and up, and Shift and
+        //  the wheel, or the wheel turned sideways, pan it across. The window
+        //  zooms the grid with the wheel alone.
         case DxuiMouseEventKind::Wheel:
-            if (IsZoomed() && isInside && !ev.ctrl)
+            if (IsZoomed() && isInside && (ev.ctrl || ev.shift || ev.wheelHorizontal))
             {
-                ShiftPan (ev.shift ? static_cast<int> (-ev.wheelDelta * m_scaler.ToPxf (s_kWheelStepDip)) : 0,
-                          ev.shift ? 0 : static_cast<int> (-ev.wheelDelta * m_scaler.ToPxf (s_kWheelStepDip)));
+                isAcross  = ev.shift || ev.wheelHorizontal;
+                ShiftPan (isAcross ? static_cast<int> (-ev.wheelDelta * m_scaler.ToPxf (s_kWheelStepDip)) : 0,
+                          isAcross ? 0 : static_cast<int> (-ev.wheelDelta * m_scaler.ToPxf (s_kWheelStepDip)));
                 isHandled = true;
             }
 
@@ -715,19 +820,18 @@ bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
             isHandled = m_isPressed;
             break;
 
-        //  A click chooses a cell; a second click soon after it returns a
-        //  zoomed grid to a zoom of 1.
+        //  A click chooses a cell; a second click soon after it zooms the grid
+        //  a stop in about the point, or with Shift a stop out.
         case DxuiMouseEventKind::Up:
             isHandled = m_isPressed;
 
-            if (m_isPressed && !m_isDragged && IsZoomed() && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
+            if (m_isPressed && !m_isDragged && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
             {
-                ResetZoom();
                 m_lastClickMs = 0;
 
                 if (m_onZoom)
                 {
-                    m_onZoom();
+                    m_onZoom (ev.shift ? -1 : 1, p);
                 }
             }
             else if (m_isPressed && !m_isDragged && cell >= 0)

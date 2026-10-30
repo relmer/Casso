@@ -5,6 +5,8 @@
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
 #include "Devices/Disk/IDiskImage.h"
 
+struct FileMap;
+
 
 
 
@@ -80,6 +82,8 @@ public:
 
     static std::wstring         FormatSectorTooltip (const AnalyzedSector & sector, const TrackAnalysis & track);
     static std::wstring         FormatAccessCounts  (uint32_t reads, uint32_t writes, uint32_t scans);
+    static std::wstring         FormatSelection     (const TrackAnalysis * track, int quarterTrack, int sectorIndex, int firstNibble, int nibbleCount,
+                                                     const FileMap * map);
     static std::wstring         FormatNoSectors     (const QuarterTrackEntry & entry);
     static vector<HeaderItem>   BuildSectorHeader   (const AnalyzedSector & sector, const TrackAnalysis & track);
     static std::wstring         FormatNoSectorData  (const QuarterTrackEntry & entry, const TrackAnalysis * track);

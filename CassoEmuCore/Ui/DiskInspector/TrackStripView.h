@@ -33,7 +33,6 @@ class InspectorTip;
 class TrackStripView : public InspectorView
 {
 public:
-    static constexpr double  kWheelZoomStep = 1.25;
 
     explicit TrackStripView (InspectorViewContext & context) : InspectorView (context) {}
 
@@ -43,6 +42,7 @@ public:
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     void          ZoomAboutCenter (double factor);
+    void          StepZoom        (int steps);
     void          PanBy           (double fractionOfView);
     void          ShowWholeTrack  ();
     std::wstring  GetReadout      () const;
@@ -80,6 +80,8 @@ private:
     bool           IsOverSeam      (const TrackAnalysis & track, float xPx) const;
     bool           BuildTip        (POINT pointPx, InspectorTip & outTip) const;
     float          GetCellPx       (const TrackAnalysis & track) const;
+    vector<double> GetZoomStops    (const TrackAnalysis & track) const;
+    void           StepZoomAt      (int steps, double fraction);
     static bool    IsTimed         (const TrackAnalysis & track);
     void           UpdateTurns  (const TrackAnalysis & track) const;
     StripGeometry  MakeGeometry () const;
@@ -100,4 +102,5 @@ private:
     POINT                          m_lastAt       = {};
     int64_t                        m_lastClickMs  = 0;
     int                            m_side         = 0;
+    float                          m_digitsW      = 0;
 };

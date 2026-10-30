@@ -10,6 +10,7 @@
 #include "Ui/DiskInspector/InspectorTip.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
+#include "Ui/DiskInspector/ZoomStops.h"
 
 
 
@@ -24,6 +25,10 @@ static constexpr float  s_kCellsPerNibble   = 8.0f;
 static constexpr float  s_kPadDip          = 6.0f;
 static constexpr float  s_kCellDigitDip    = 9.0f;
 static constexpr float  s_kCellTimingDip   = 30.0f;
+static constexpr float  s_kDigitsEstDip    = 14.0f;
+static constexpr double s_kCoarseRatio     = 4.0;
+static constexpr double s_kMinStepRatio    = 1.2;
+static constexpr double s_kBitStepRatio    = 1.25;
 static constexpr float  s_kValueShare      = 0.4f;
 static constexpr float  s_kLineInsetDip    = 3.0f;
 static constexpr float  s_kLineStepDip     = 2.0f;
@@ -125,6 +130,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     //  nibble is wide enough to tell from its neighbors, so a run of
     //  nibbles of one kind does not read as one block.
     text.MeasureString (L"FF", textPx, DxuiTheme::kMonoFace, digitsW, textH);
+    m_digitsW = digitsW;
 
     for (i = 0; i + 1 < m_turns.size(); i++)
     {
@@ -781,7 +787,6 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
     bool                   isHandled = false;
     double                 span      = m_context.model->GetStripSpan();
     double                 fraction  = (p.x - m_boundsDip.left) / std::max (GetWidth(), 1.0f);
-    double                 newSpan   = 0;
     int                    nibble    = -1;
     int                    sector    = -1;
     int64_t                now       = static_cast<int64_t> (GetTickCount64());
@@ -794,8 +799,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Wheel:
             if (isInside && !ev.wheelHorizontal && !ev.shift)
             {
-                newSpan = std::clamp (span / std::pow (kWheelZoomStep, ev.wheelDelta), StripGeometry::kMinSpan, 1.0);
-                m_context.model->SetStrip (StripGeometry::GetStartForZoom (m_context.model->GetStripStart(), span, newSpan, fraction), newSpan);
+                StepZoomAt (ZoomStops::GetWheelSteps (ev.wheelDelta), fraction);
                 isHandled = true;
             }
             else if (isInside)
@@ -1202,9 +1206,6 @@ bool TrackStripView::IsOverSeam (const TrackAnalysis & track, float xPx) const
 //
 //  TrackStripView::ZoomAboutCenter
 //
-//  For the strip's buttons and keys; the zoom keeps the middle of the view
-//  where it is.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void TrackStripView::ZoomAboutCenter (double factor)
@@ -1215,6 +1216,83 @@ void TrackStripView::ZoomAboutCenter (double factor)
 
 
     m_context.model->SetStrip (StripGeometry::GetStartForZoom (m_context.model->GetStripStart(), span, newSpan, 0.5), newSpan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::StepZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::StepZoom (int steps)
+{
+    StepZoomAt (steps, 0.5);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::StepZoomAt
+//
+//  The strip zoomed a number of stops about a point a fraction of the way
+//  across it, which stays under the point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::StepZoomAt (int steps, double fraction)
+{
+    const TrackAnalysis *  track   = m_context.GetTrack();
+    double                 span    = m_context.model->GetStripSpan();
+    double                 newSpan = span;
+
+
+
+    if (track != nullptr && span > 0)
+    {
+        newSpan = std::clamp (1.0 / ZoomStops::Step (GetZoomStops (*track), 1.0 / span, steps), StripGeometry::kMinSpan, 1.0);
+        m_context.model->SetStrip (StripGeometry::GetStartForZoom (m_context.model->GetStripStart(), span, newSpan, fraction), newSpan);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetZoomStops
+//
+//  The strip's zooms, as the whole track over the strip's width: by fours
+//  while the nibbles are too narrow for their values, then where the values
+//  fit, where each cell's bit fits and a step past it, and for a flux track
+//  where each cell's timing fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<double> TrackStripView::GetZoomStops (const TrackAnalysis & track) const
+{
+    double          cells   = static_cast<double> (std::max<uint32_t> (track.framed.cellCount, 1));
+    double          widthPx = std::max (GetWidth(), 1.0f);
+    double          digitsW = (m_digitsW > 0) ? m_digitsW : m_scaler.ToPxf (s_kDigitsEstDip);
+    double          hexCell = (digitsW + m_scaler.ToPxf (s_kValuePadDip)) / s_kCellsPerNibble;
+    double          bitCell = m_scaler.ToPxf (s_kCellDigitDip);
+    vector<double>  details = { hexCell * cells / widthPx, bitCell * cells / widthPx, bitCell * s_kBitStepRatio * cells / widthPx };
+
+
+
+    if (IsTimed (track))
+    {
+        details.push_back (m_scaler.ToPxf (s_kCellTimingDip) * cells / widthPx);
+    }
+
+    return ZoomStops::Build (1.0, s_kCoarseRatio, details, s_kMinStepRatio);
 }
 
 

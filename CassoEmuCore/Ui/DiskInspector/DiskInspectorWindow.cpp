@@ -53,6 +53,7 @@
 #include "Ui/DiskInspector/SectorRowView.h"
 #include "Ui/DiskInspector/TrackHeaderView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
+#include "Ui/DiskInspector/ZoomStops.h"
 
 
 
@@ -704,9 +705,9 @@ void DiskInspectorWindow::BuildCommands()
     c.widerRange->isEnabled     = [this] () { return m_session.context.isTimingMode && m_toolbar->CanStepRange (1); };
     c.narrowerRange             = make (L"&Narrower timing range", L"", [this] () { m_toolbar->StepRange (-1); });
     c.narrowerRange->isEnabled  = [this] () { return m_session.context.isTimingMode && m_toolbar->CanStepRange (-1); };
-    c.zoomIn                    = make (L"Zoom &in", L"+", [this] () { m_session.views.platter->ZoomAboutCenter (kZoomStep); });
+    c.zoomIn                    = make (L"Zoom &in", L"+", [this] () { m_session.views.platter->StepZoom (1); });
     c.zoomIn->isEnabled         = hasDisk;
-    c.zoomOut                   = make (L"Zoom &out", L"-", [this] () { m_session.views.platter->ZoomAboutCenter (1.0 / kZoomStep); });
+    c.zoomOut                   = make (L"Zoom &out", L"-", [this] () { m_session.views.platter->StepZoom (-1); });
     c.zoomOut->isEnabled        = [this] () { return m_session.context.hasDisk && !m_session.model.IsAtFit(); };
     c.fit                       = make (L"&Fit", L"0", [this] () { m_session.model.Fit(); });
     c.fit->isEnabled            = [this] () { return m_session.context.hasDisk && !m_session.model.IsAtFit(); };
@@ -1306,14 +1307,14 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
     //  The wheel zooms the File map grid over it, as it does the platter
-    //  and the strip, with Shift left to pan it (FR-157); Ctrl and the wheel
-    //  zoom the whole window everywhere else (FR-154).
-    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.shift && !ev.wheelHorizontal && m_files->IsOverGrid (p))
+    //  and the strip, with Shift and Ctrl left to pan it (FR-157); Ctrl and
+    //  the wheel zoom the whole window everywhere else (FR-154).
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.shift && !ev.ctrl && !ev.wheelHorizontal && m_files->IsOverGrid (p))
     {
-        m_files->ZoomGrid (ev.wheelDelta, p);
+        m_files->ZoomGrid (ZoomStops::GetWheelSteps (ev.wheelDelta), p);
         isHandled = true;
     }
-    else if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal)
+    else if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && !m_files->IsOverGrid (p))
     {
         SetZoom (DxuiZoomControl::StepZoom (m_zoom, (ev.wheelDelta > 0) ? 1 : -1));
         isHandled = true;
@@ -1512,8 +1513,8 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         {
             switch (ev.vk)
             {
-                case VK_OEM_PLUS:  case VK_ADD:      m_session.views.strip->ZoomAboutCenter (kZoomStep);       break;
-                case VK_OEM_MINUS: case VK_SUBTRACT: m_session.views.strip->ZoomAboutCenter (1.0 / kZoomStep); break;
+                case VK_OEM_PLUS:  case VK_ADD:      m_session.views.strip->StepZoom (1);  break;
+                case VK_OEM_MINUS: case VK_SUBTRACT: m_session.views.strip->StepZoom (-1); break;
                 case VK_LEFT:                        m_session.views.strip->PanBy (-s_kPanStep);               break;
                 case VK_RIGHT:                       m_session.views.strip->PanBy (s_kPanStep);                break;
                 default:                             m_session.views.strip->ShowWholeTrack();                  break;
@@ -1523,8 +1524,8 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         {
             switch (ev.vk)
             {
-                case VK_OEM_PLUS:  case VK_ADD:      m_session.views.platter->ZoomAboutCenter (kZoomStep);       break;
-                case VK_OEM_MINUS: case VK_SUBTRACT: m_session.views.platter->ZoomAboutCenter (1.0 / kZoomStep); break;
+                case VK_OEM_PLUS:  case VK_ADD:      m_session.views.platter->StepZoom (1);  break;
+                case VK_OEM_MINUS: case VK_SUBTRACT: m_session.views.platter->StepZoom (-1); break;
                 case '0':          case VK_NUMPAD0:  m_session.model.Fit();                                    break;
                 case VK_UP:    m_session.model.SelectQuarterTrack (qt - 1);                           OnSelection(); break;
                 case VK_DOWN:  m_session.model.SelectQuarterTrack (qt + 1);                           OnSelection(); break;

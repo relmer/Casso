@@ -158,6 +158,23 @@ public:
 
 
 
+    TEST_METHOD (TheStatusBandNamesWhatIsSelected)
+    {
+        DiskAnalysis           analysis;
+        const TrackAnalysis *  track    = nullptr;
+
+
+
+        AnalyzeDsk (analysis);
+        track = analysis.tracks[analysis.entries[68].slot].get();
+
+        Assert::AreEqual (std::wstring (L"Selected: track 17, sector $5"),                 InspectorText::FormatSelection (track, 68, 5, -1, 0, nullptr));
+        Assert::AreEqual (std::wstring (L"Selected: 8 nibbles from offset $1A3 on track 17"), InspectorText::FormatSelection (track, 68, -1, 0x1A3, 8, nullptr));
+        Assert::AreEqual (std::wstring (L"Selected: track 17.25"),                         InspectorText::FormatSelection (nullptr, 69, -1, -1, 0, nullptr));
+    }
+
+
+
     TEST_METHOD (TheSectorDataHeaderAndEmptyStatesUseTheSpecsWords)
     {
         DiskAnalysis           analysis;

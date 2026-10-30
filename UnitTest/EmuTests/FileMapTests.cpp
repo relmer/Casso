@@ -5,6 +5,8 @@
 #include "Devices/Disk/Inspector/InspectorSearch.h"
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/FileMapText.h"
+#include "Ui/DiskInspector/InspectorText.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "FileMapTestImages.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -372,13 +374,20 @@ public:
         FileMap           map  = MapOf (Images::MakeDos33(), false);
         vector<TableRow>  rows = FileMapText::BuildFileRows (map, false, false, 0, false);
         std::wstring      copy = FileMapText::FormatMap (map);
+        TrackAnalysis     physical;
+        AnalyzedSector    sector;
 
 
+
+        sector.sector = static_cast<decltype (sector.sector)> (map.GetPhysical (DosCell (18, 13)));
+        physical.sectors.push_back (sector);
 
         Assert::AreEqual (std::wstring (L"HELLO, data sector 2 of 3"), FileMapText::FormatOwners (map, DosCell (18, 13)));
         Assert::AreEqual (std::wstring (L"HELLO, track/sector list"),  FileMapText::FormatOwners (map, DosCell (18, 15)));
         Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (17, 0)).starts_with (L"Track 17, DOS 3.3 sector $0 (physical sector $0)"));
         Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (18, 13)).ends_with (L" \x00B7 Good\nUsed by HELLO, data sector 2 of 3"));
+        Assert::AreEqual (L"Selected: HELLO, data sector 2 of 3 at track 18, sector " + InspectorFormat::FormatSector (static_cast<Byte> (physical.sectors[0].sector)),
+                          InspectorText::FormatSelection (&physical, 72, 0, -1, 0, &map));
         Assert::IsTrue   (std::none_of (rows.begin(), rows.end(), [] (const TableRow & r) { return r.cells[0] == L"OLD"; }), L"deleted files hidden by default");
         Assert::AreEqual (std::wstring (L"Complete"), rows[0].cells[4]);
         Assert::IsTrue   (copy.starts_with (L" 0  BBBBBBBBBBBBBBBB\r\n"), L"a row per track");
@@ -386,6 +395,41 @@ public:
         Assert::IsTrue   (copy.find (L"17  VCCCCCCCCCCCCCCC") != std::wstring::npos);
     }
 
+
+
+    //  At each zoom stop in turn, the cell under the pointer stays there, and
+    //  the stops end at a zoom with room for each bit's digit.
+    TEST_METHOD (TheGridStepsThroughItsZoomStopsAboutThePointer)
+    {
+        FileMap               map    = MapOf (Images::MakeDos33(), false);
+        InspectorViewContext  context;
+        FileMapGridView       grid (context);
+        DxuiDpiScaler         scaler;
+        RECT                  rect   = {};
+        POINT                 p      = {};
+        vector<double>        stops;
+        constexpr int         kCell  = 19 * 16 + 15;
+
+
+
+        grid.SetMap (&map);
+        grid.Layout ({ 0, 0, 640, 600 }, scaler);
+        Assert::IsTrue (grid.GetCellRect (kCell, rect));
+
+        p     = { (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 };
+        stops = grid.GetZoomStops();
+        Assert::IsTrue (stops.size() >= 5, L"squares, hex, bits, labeled bits and a step past");
+
+        for (size_t s = 1; s < stops.size(); s++)
+        {
+            grid.ZoomAbout (grid.GetSteppedZoom (1) / grid.GetZoom(), p);
+            Assert::AreEqual (stops[s], grid.GetZoom(), 1e-9);
+            Assert::IsTrue   (grid.GetCellRect (kCell, rect));
+            Assert::IsTrue   (p.x >= rect.left && p.x < rect.right && p.y >= rect.top && p.y < rect.bottom, std::format (L"the same cell at stop {}", s).c_str());
+        }
+
+        Assert::AreEqual (stops.back(), grid.GetSteppedZoom (1), L"the last stop is the most");
+    }
 
 
     //  The point under the pointer stays there as the grid zooms; the pan

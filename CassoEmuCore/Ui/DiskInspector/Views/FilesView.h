@@ -42,7 +42,7 @@ public:
     void  ChooseFile      (int file);
     void  ResetZoom       ();
     bool  IsOverGrid      (POINT pointPx) const;
-    void  ZoomGrid        (float notches, POINT pointPx);
+    void  ZoomGrid        (int steps, POINT pointPx);
     bool  IsListAt        (POINT pointPx) const;
     void  CopyFileMap     ();
     bool  HasMap          () const;
