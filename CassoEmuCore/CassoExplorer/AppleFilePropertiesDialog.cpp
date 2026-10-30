@@ -368,7 +368,21 @@ void AppleFilePropertiesDialog::OnCreate()
     m_created.SetOnChange  ([this] (const std::wstring &) { m_createdEdited  = true; });
     m_modified.SetOnChange ([this] (const std::wstring &) { m_modifiedEdited = true; });
 
-    for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { &m_createdLabel, &m_created, &m_modifiedLabel, &m_modified })
+    //  Each date drops a calendar, as Windows' date picker does; the time
+    //  is typed.
+    for (auto [pick, field, edited] : { std::tuple<DxuiIconButton *, DxuiTextInput *, bool *> { &m_createdPick,  &m_created,  &m_createdEdited },
+                                        std::tuple<DxuiIconButton *, DxuiTextInput *, bool *> { &m_modifiedPick, &m_modified, &m_modifiedEdited } })
+    {
+        DxuiTextInput  * target = field;
+        bool           * flag   = edited;
+
+        pick->SetGlyph          (s_kpszMdl2Calendar);
+        pick->SetAccessibleName (L"Choose a date");
+        pick->SetEnabled        (!m_readOnly);
+        pick->SetOnClick        ([this, target, flag]() { PickDate (*target, *flag); });
+    }
+
+    for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { &m_createdLabel, &m_created, &m_createdPick, &m_modifiedLabel, &m_modified, &m_modifiedPick })
     {
         control->SetVisible (proDos && (!m_hasHost || m_host.showDates));
     }
@@ -386,8 +400,8 @@ void AppleFilePropertiesDialog::OnCreate()
     rows.push_back ({ &m_typeNote,      {}, false, 20 });
     rows.push_back ({ &m_auxLabel,      { { &m_aux, s_kHexWidthDip } } });
     rows.push_back ({ &m_accessLabel,   { { &m_locked, 90 }, { &m_read, 70 }, { &m_write, 72 }, { &m_rename, 86 }, { &m_destroy, 86 }, { &m_backup, 86 } }, true });
-    rows.push_back ({ &m_createdLabel,  { { &m_created } }, true });
-    rows.push_back ({ &m_modifiedLabel, { { &m_modified } } });
+    rows.push_back ({ &m_createdLabel,  { { &m_created, s_kDateWidthDip }, { &m_createdPick, s_kPickWidthDip } }, true });
+    rows.push_back ({ &m_modifiedLabel, { { &m_modified, s_kDateWidthDip }, { &m_modifiedPick, s_kPickWidthDip } } });
     rows.push_back ({ &m_sizeLabel,     { { &m_size } }, true });
 
     m_body = CreateDialogContent<AppleFilePropertiesPanel>();
@@ -475,6 +489,57 @@ void AppleFilePropertiesDialog::UpdateTypeRow()
         FitToRows();
         Invalidate();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleFilePropertiesDialog::PickDate
+//
+//  The calendar opens on the field's date, and the day picked replaces the
+//  date; the time typed is unaffected. A date ProDOS can't store is ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleFilePropertiesDialog::PickDate (DxuiTextInput & field, bool & edited)
+{
+    Word               date  = 0;
+    Word               time  = 0;
+    DxuiCalendar::Day  shown;
+    int                two   = 0;
+    RECT               where = field.GetRect();
+
+
+
+    if (AppleFileProperties::TryParseDate (field.GetText(), date, time) && date != 0)
+    {
+        two   = (date >> 9) & 0x7F;
+        shown = DxuiCalendar::Day { two + ((two < AppleFileProperties::kPivot) ? 2000 : 1900), (date >> 5) & 0x0F, date & 0x1F };
+    }
+
+    if (m_theme == nullptr || GetPopupHost() == nullptr)
+    {
+        return;
+    }
+
+    m_calendar.Show (*GetPopupHost(), *m_theme, where, shown, [this, &field, &edited, time] (const DxuiCalendar::Day & day)
+    {
+        Word  picked = 0;
+
+        if (day.year < AppleFileProperties::kFirstYear || day.year > AppleFileProperties::kLastYear)
+        {
+            return;
+        }
+
+        picked = (Word) (((day.year % 100) << 9) | (day.month << 5) | day.day);
+
+        field.SetText (AppleFileProperties::FormatDate (picked, time));
+        edited = true;
+        Invalidate();
+    });
 }
 
 

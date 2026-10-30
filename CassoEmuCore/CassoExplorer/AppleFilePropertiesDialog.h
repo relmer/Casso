@@ -109,6 +109,7 @@ private:
 
     void  ResetEdited     ();
     void  FitToRows       ();
+    void  PickDate        (DxuiTextInput & field, bool & edited);
     void  UpdateTypeRow   ();
     void  UpdateRenameBox ();
     Byte  GetChosenType   (bool & outKnown) const;
@@ -116,9 +117,11 @@ private:
     template <typename T>
     static bool  IsSame (const std::vector<FileEntry> & entries, T get) { return std::all_of (entries.begin(), entries.end(), [&] (const FileEntry & e) { return get (e) == get (entries[0]); }); }
 
-    static constexpr int  s_kChromeDip   = 130;
-    static constexpr int  s_kWidthDip    = 620;
-    static constexpr int  s_kHexWidthDip = 70;
+    static constexpr int  s_kChromeDip    = 130;
+    static constexpr int  s_kWidthDip     = 620;
+    static constexpr int  s_kHexWidthDip  = 70;
+    static constexpr int  s_kDateWidthDip = 220;
+    static constexpr int  s_kPickWidthDip = 32;
 
     const IDxuiTheme                              * m_theme      = nullptr;
     std::vector<FileEntry>                          m_entries;
@@ -157,8 +160,11 @@ private:
     DxuiCheckbox    m_backup  { L"Backup" };
     DxuiLabel                   m_createdLabel;
     DxuiTextInput               m_created;
+    DxuiIconButton              m_createdPick;
     DxuiLabel                   m_modifiedLabel;
     DxuiTextInput               m_modified;
+    DxuiIconButton              m_modifiedPick;
+    DxuiCalendar                m_calendar;
     DxuiLabel                   m_sizeLabel;
     DxuiLabel                   m_size;
     AppleFilePropertiesPanel  * m_body          = nullptr;

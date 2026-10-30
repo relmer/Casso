@@ -615,6 +615,7 @@
     <ClCompile Include="Dxui\DxuiPopupMenuScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupMenuIconRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarTests.cpp" />
+    <ClCompile Include="Dxui\DxuiCalendarTests.cpp" />
     <ClCompile Include="Dxui\DxuiCaptionBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiRowLookTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnOrderTests.cpp" />

@@ -135,6 +135,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Theme/DxuiRowLook.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiCalendar.h"
 #include "Widgets/DxuiComboBox.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Widgets/DxuiDivider.h"
