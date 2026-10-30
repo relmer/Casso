@@ -59,8 +59,8 @@ Error:
 //
 //  CassoLinkConnector::RunBootstrap
 //
-//  The loader is typed at the bootstrap speed, and the session then waits on
-//  the same line for the shim's Ready. No Apple on any port replies before
+//  The loader is typed at the bootstrap speed and sent the shim, and the
+//  session then waits on the same line for the shim's Ready. No Apple on any port replies before
 //  the loader runs, so a serial link with no port set cannot search: the
 //  loader goes to the PC's only COM port, and with none or several the user
 //  enters the port.
@@ -71,6 +71,7 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
 {
     HRESULT                    hr      = S_OK;
     std::vector<std::string>   lines;
+    std::vector<Byte>          transfer;
     std::vector<std::wstring>  ports;
     bool                       hasPort = m_session.m_settings.transport != LinkTransport::Serial || !m_port.empty();
     bool                       typable = m_session.m_settings.transport != LinkTransport::Uthernet;
@@ -111,7 +112,10 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
 
     CBREx (hasPort, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    hr = LinkBootstrap::BuildLines (m_session.m_settings.bootstrapBaud, lines);
+    hr = LinkBootstrap::BuildLines (lines);
+    CHR (hr);
+
+    hr = LinkBootstrap::BuildShimTransfer (m_session.m_settings.bootstrapBaud, transfer);
     CHR (hr);
 
     m_session.SetState (LinkState::Bootstrapping);
@@ -120,6 +124,9 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
     CHR (hr);
 
     hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
+    CHR (hr);
+
+    hr = LinkBootstrap::SendShim (*m_stream, transfer);
     CHR (hr);
 
     //  The shim starts on the open line and sends Ready unprompted. With an

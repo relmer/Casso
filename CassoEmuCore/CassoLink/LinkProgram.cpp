@@ -383,6 +383,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::AssembleSerialLoader
+//
+//  The loader must end before the shim starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::AssembleSerialLoader (std::vector<Byte> & outBytes, std::string & outErrors)
+{
+    HRESULT  hr   = S_OK;
+    bool     fits = false;
+
+
+
+    hr = Assemble ("SERIALLOAD = 1\n" + GetSlotFinderSource(), kSerialLoaderAddress, LinkChip::Acia, outBytes, outErrors);
+    CHR (hr);
+
+    fits = outBytes.size() <= (size_t) (kShimAddress - kSerialLoaderAddress);
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::BuildBootstrapImage
 //
 ////////////////////////////////////////////////////////////////////////////////

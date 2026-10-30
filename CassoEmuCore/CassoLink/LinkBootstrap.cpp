@@ -14,47 +14,119 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkBootstrap::BuildLines (DWORD baud, std::vector<std::string> & outLines)
+HRESULT LinkBootstrap::BuildLines (std::vector<std::string> & outLines)
 {
-    HRESULT            hr    = S_OK;
-    std::vector<Byte>  image;
-    LinkShimOptions    options;
-    Word               start = 0;
+    HRESULT            hr     = S_OK;
+    std::vector<Byte>  loader;
+    std::string        errors;
+    Word               start  = LinkProgram::kSerialLoaderAddress;
 
 
 
     outLines.clear();
 
-    options.baud = baud;
-
-    hr = LinkProgram::BuildBootstrapImage (options, image, start);
+    hr = LinkProgram::AssembleSerialLoader (loader, errors);
     CHR (hr);
 
     outLines.push_back (kCancelLine);
     outLines.push_back ("CALL -151\r");
 
-    //  A line ends where the shim starts, so the zeros before it are a
-    //  separate line and can be left out.
-    for (size_t at = 0, end = 0; at < image.size(); at = end)
+    for (size_t at = 0; at < loader.size(); at += kBytesPerLine)
     {
-        size_t       shim = (size_t) (LinkProgram::kShimAddress - start);
-        end               = std::min (at + kBytesPerLine, image.size());
-        end               = (at < shim && end > shim) ? shim : end;
-        bool         gap  = start + at < LinkProgram::kShimAddress && std::all_of (image.begin() + (ptrdiff_t) at, image.begin() + (ptrdiff_t) end, [] (Byte b) { return b == 0; });
+        size_t       end  = std::min (at + kBytesPerLine, loader.size());
         std::string  line = std::format ("{:04X}:", start + at);
 
         for (size_t i = at; i < end; i++)
         {
-            line += std::format (" {:02X}", image[i]);
+            line += std::format (" {:02X}", loader[i]);
         }
 
-        if (!gap)
-        {
-            outLines.push_back (line + "\r");
-        }
+        outLines.push_back (line + "\r");
     }
 
     outLines.push_back (std::format ("{:04X}G\r", start));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkBootstrap::BuildShimTransfer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkBootstrap::BuildShimTransfer (DWORD baud, std::vector<Byte> & outBytes)
+{
+    HRESULT            hr    = S_OK;
+    std::vector<Byte>  shim;
+    size_t             pages = 0;
+    Byte               sum   = 0;
+
+
+
+    outBytes.clear();
+
+    hr = LinkProgram::BuildShim (baud, shim);
+    CHR (hr);
+
+    pages = (shim.size() + 255) / 256;
+    CBREx (pages > 0 && pages < 256, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    shim.resize (pages * 256, 0);
+
+    for (Byte value : shim)
+    {
+        sum ^= value;
+    }
+
+    outBytes.push_back ((Byte) pages);
+    outBytes.insert    (outBytes.end(), shim.begin(), shim.end());
+    outBytes.push_back (sum);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkBootstrap::SendShim
+//
+//  The monitor echoes nothing to the port, so the ready byte is normally
+//  the first one there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkBootstrap::SendShim (IByteStream & stream, const std::vector<Byte> & transfer)
+{
+    HRESULT  hr       = S_OK;
+    Byte     got      = 0;
+    size_t   read     = 0;
+    bool     ready    = false;
+    auto     deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kLoaderReadyWaitMs);
+
+
+
+    while (!ready && std::chrono::steady_clock::now() < deadline)
+    {
+        hr = stream.Read (&got, 1, 100, read);
+        CHR (hr);
+
+        ready = read == 1 && got == kLoaderReady;
+    }
+
+    CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
+
+    hr = stream.Write (transfer.data(), transfer.size());
+    CHR (hr);
 
 Error:
     return hr;

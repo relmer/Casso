@@ -5,6 +5,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkProgram.h"
 #include "Seams/IByteStreamFactory.h"
 #include "Seams/InProcessByteStream.h"
@@ -64,6 +65,12 @@ public:
     std::set<std::pair<int, int>>     badSectors;
     std::vector<Byte>                 loadedProgram;
 
+    //  As the serial loader typed in by a bootstrap: once the command that
+    //  runs it arrives, it sends the ready byte and reads the shim into
+    //  loadedShim, then serves as the shim. A line opened after that finds
+    //  the shim running.
+    std::atomic<bool>                 typedLoader    { false };
+    std::vector<Byte>                 loadedShim;
     //  Each Label's text, in the order received.
     std::vector<std::string>          labels;
     std::mutex                        lock;
@@ -160,8 +167,67 @@ private:
         return false;
     }
 
-    static size_t  Index (int track, int physical)
+    //  Skips the typed lines through the command that runs the loader, then
+    //  reads the page count, the pages and their XOR.
+    bool  RunLoader (std::stop_token stop, Line & line)
     {
+        static constexpr std::string_view  kRun = "3A50G\r";
+        Byte                               chunk[4096];
+        size_t                             got  = 0;
+        size_t                             need = 0;
+        auto                               run  = line.buffer.end();
+
+        while (!stop.stop_requested() && !line.stream.IsClosed())
+        {
+            run = std::search (line.buffer.begin(), line.buffer.end(), kRun.begin(), kRun.end());
+
+            if (run != line.buffer.end())
+            {
+                break;
+            }
+
+            line.stream.Read (chunk, sizeof (chunk), 20, got);
+            line.buffer.insert (line.buffer.end(), chunk, chunk + got);
+        }
+
+        if (run == line.buffer.end())
+        {
+            return false;
+        }
+
+        line.buffer.erase (line.buffer.begin(), run + (ptrdiff_t) kRun.size());
+        Send (line, std::array<Byte, 1> { LinkBootstrap::kLoaderReady });
+
+        while (!stop.stop_requested() && !line.stream.IsClosed())
+        {
+            need = line.buffer.empty() ? 1 : (size_t) line.buffer[0] * 256 + 2;
+
+            if (line.buffer.size() >= need && need > 1)
+            {
+                break;
+            }
+
+            line.stream.Read (chunk, sizeof (chunk), 20, got);
+            line.buffer.insert (line.buffer.end(), chunk, chunk + got);
+        }
+
+        if (need <= 1 || line.buffer.size() < need)
+        {
+            return false;
+        }
+
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            loadedShim.assign (line.buffer.begin() + 1, line.buffer.begin() + (ptrdiff_t) need - 1);
+        }
+
+        line.buffer.erase (line.buffer.begin(), line.buffer.begin() + (ptrdiff_t) need);
+        typedLoader = false;
+        return true;
+    }
+
+    static size_t  Index (int track, int physical)    {
         return (size_t) (track * 16 + CassoLinkSession::GetLogicalSector (physical)) * 256;
     }
 
@@ -172,6 +238,10 @@ private:
         CassoLinkPacket  packet;
         bool             silent  = readySentEarly;
 
+        if (typedLoader && !RunLoader (stop, line))
+        {
+            return;
+        }
         while (!stop.stop_requested() && !stream.IsClosed())
         {
             if (!silent)

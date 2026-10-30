@@ -18,8 +18,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  LinkBootstrapTests
 //
 //  The text typed into the Apple's monitor to start the link:
-//  Ctrl-X, CALL -151, the shim as lines of 64 bytes from its address, and the
-//  command that runs it; and the typing itself.
+//  Ctrl-X, CALL -151, the serial loader as typed lines and the command that
+//  runs it, the shim it reads, and the typing itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,50 +27,62 @@ TEST_CLASS (LinkBootstrapTests)
 {
 public:
 
-    //  The slot finder at $3AA0, then the shim from $3B00, with the zeros
-    //  between them not typed, and the finder run.
-    TEST_METHOD (Lines_TypeTheFinderAndTheShimIntoTheMonitor_AndRunTheFinder)
+    //  The serial loader typed into the monitor from $3A50 and run; the shim
+    //  is not typed.
+    TEST_METHOD (Lines_TypeTheSerialLoaderIntoTheMonitor_AndRunIt)
     {
         std::vector<std::string>  lines;
-        std::vector<Byte>         image;
+        std::vector<Byte>         loader;
         std::vector<Byte>         typed;
-        Word                      start = 0;
-        Word                      next  = LinkProgram::kSlotFinderAddress;
-        LinkShimOptions           options;
+        std::string               errors;
+        Word                      start = LinkProgram::kSerialLoaderAddress;
 
-        options.baud = 9600;
+        AssertSucceeded (LinkBootstrap::BuildLines (lines));
+        AssertSucceeded (LinkProgram::AssembleSerialLoader (loader, errors));
 
-        AssertSucceeded (LinkBootstrap::BuildLines (9600, lines));
-        AssertSucceeded (LinkProgram::BuildBootstrapImage (options, image, start));
-
-        Assert::AreEqual (LinkProgram::kSlotFinderAddress, start);
         Assert::AreEqual (std::string ("\x18"),        lines[0], L"Ctrl-X cancels a partial line from stray bytes");
         Assert::AreEqual (std::string ("CALL -151\r"), lines[1]);
-        Assert::AreEqual (std::string ("3AA0G\r"),     lines.back());
-
-        typed.assign (image.size(), 0);
+        Assert::AreEqual (std::string ("3A50G\r"),     lines.back());
 
         for (size_t i = 2; i + 1 < lines.size(); i++)
         {
             const std::string  & line    = lines[i];
             Word                 address = (Word) std::stoul (line.substr (0, 4), nullptr, 16);
-            size_t               at      = (size_t) (address - start);
 
-            Assert::IsTrue   (address >= next, L"each line follows the last");
-            Assert::AreEqual (':', line[4]);
+            Assert::AreEqual ((size_t) (address - start), typed.size(), L"each line follows the last");
             Assert::AreEqual ('\r', line.back());
 
             for (size_t column = 5; column + 3 <= line.size(); column += 3)
             {
-                typed[at++] = (Byte) std::stoul (line.substr (column + 1, 2), nullptr, 16);
+                typed.push_back ((Byte) std::stoul (line.substr (column + 1, 2), nullptr, 16));
             }
-
-            next = (Word) (start + at);
         }
 
-        Assert::IsTrue (typed == image, L"the lines are the finder and the shim, at the bootstrap speed");
+        Assert::IsTrue (typed == loader, L"the lines are the loader");
     }
 
+
+
+    //  The page count, the shim padded to whole pages, and their XOR.
+    TEST_METHOD (ShimTransfer_IsThePageCountThePagesAndTheirXor)
+    {
+        std::vector<Byte>  transfer;
+        std::vector<Byte>  shim;
+        Byte               sum = 0;
+
+        AssertSucceeded (LinkBootstrap::BuildShimTransfer (9600, transfer));
+        AssertSucceeded (LinkProgram::BuildShim (9600, shim));
+
+        Assert::AreEqual ((size_t) transfer[0] * 256 + 2, transfer.size());
+        Assert::IsTrue   (std::equal (shim.begin(), shim.end(), transfer.begin() + 1), L"the shim, at the bootstrap speed");
+
+        for (size_t i = 1; i + 1 < transfer.size(); i++)
+        {
+            sum ^= transfer[i];
+        }
+
+        Assert::AreEqual (sum, transfer.back());
+    }
 
 
     //  The cassette record: the leader, the two sync half-cycles, two equal

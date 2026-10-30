@@ -258,6 +258,7 @@ public:
 
         rig.factory.comPorts = { { L"COM3", Port::Apple } };
         rig.apple.startAsShim = true;
+        rig.apple.typedLoader = true;
 
         settings.name      = "Test";
         settings.transport = LinkTransport::Serial;

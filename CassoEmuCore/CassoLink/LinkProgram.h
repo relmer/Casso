@@ -138,6 +138,10 @@ public:
     //  tape, in the page the shim's copy of the zero page later fills.
     static constexpr Word    kSlotFinderAddress = 0x3AA0;
 
+    //  The slot finder built to read the shim from the 6551 itself, the only
+    //  part of a serial bootstrap that is typed.
+    static constexpr Word    kSerialLoaderAddress = 0x3A50;
+
     static HRESULT      AssembleShim     (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);
     static HRESULT      AssembleProgram  (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);
 
@@ -165,6 +169,7 @@ public:
     //  then the shim, so the shim takes its slot from the Apple; for a
     //  W5100, the shim alone.
     static HRESULT      AssembleSlotFinder     (std::vector<Byte> & outBytes, std::string & outErrors);
+    static HRESULT      AssembleSerialLoader   (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildBootstrapImage    (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart);
 
     static std::string  GetShimSource       ();
