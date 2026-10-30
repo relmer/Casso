@@ -319,6 +319,104 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnector::ConnectOrBootstrap
+//
+//  A serial or emulated line with no Apple answering is probed for one
+//  waiting at a prompt, which is then bootstrapped as if Bootstrap had been
+//  chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkConnector::ConnectOrBootstrap (std::stop_token stop)
+{
+    HRESULT  hr      = S_OK;
+    HRESULT  probed  = S_OK;
+    bool     waiting = false;
+    bool     typable = (m_session.m_settings.transport == LinkTransport::Serial || m_session.m_settings.transport == LinkTransport::Emulated) && !m_adtPro;
+
+
+
+    hr = Connect (stop);
+    BAIL_OUT_IF (SUCCEEDED (hr) || !typable || stop.stop_requested(), hr);
+
+    probed = ProbeForPrompt (stop, waiting);
+    BAIL_OUT_IF (FAILED (probed) || !waiting, hr);
+
+    m_bootstrap       = std::make_shared<LinkOperation>();
+    m_bootstrap->id   = m_nextId++;
+    m_bootstrap->kind = LinkOperationKind::Bootstrap;
+
+    hr = RunBootstrap (stop, *m_bootstrap);
+    m_session.m_sink.OnDone (m_bootstrap);
+    m_bootstrap.reset();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnector::ProbeForPrompt
+//
+//  On a COM port, the probe goes to the port the search found, or to the
+//  PC's only COM port. Ctrl-X first discards what earlier attempts typed into the input
+//  line. Nothing else on the line sends $A5 unprompted: the shim and the
+//  program send packets, which start with a command byte.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkConnector::ProbeForPrompt (std::stop_token stop, bool & outWaiting)
+{
+    HRESULT                    hr       = S_OK;
+    std::vector<std::wstring>  ports;
+    Byte                       got[64]  = {};
+    size_t                     read     = 0;
+    auto                       deadline = std::chrono::steady_clock::time_point();
+
+
+
+    outWaiting = false;
+
+    if (m_session.m_settings.IsComPort() && m_port.empty())
+    {
+        hr = m_session.m_factory.ListComPorts (ports);
+        CHR (hr);
+        BAIL_OUT_IF (ports.size() != 1, S_OK);
+
+        m_port = ports[0];
+    }
+
+    hr = OpenStream (m_session.m_settings.bootstrapBaud, stop);
+    CHR (hr);
+
+    hr = LinkBootstrap::Send (*m_stream, { LinkBootstrap::kCancelLine, kPromptProbe }, m_bootstrapPauseMs,
+                              [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
+    CHR (hr);
+
+    deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kPromptProbeWaitMs);
+
+    while (!outWaiting && !stop.stop_requested() && std::chrono::steady_clock::now() < deadline)
+    {
+        hr = m_stream->Read (got, sizeof (got), 100, read);
+        CHR (hr);
+
+        outWaiting = std::find (got, got + read, LinkBootstrap::kLoaderReady) != got + read;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnector::LogOnApple
 //
 ////////////////////////////////////////////////////////////////////////////////

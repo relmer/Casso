@@ -30,11 +30,21 @@ public:
 
     static constexpr DWORD  kPeerOffMs        = 500;
 
+    //  Typed at the bootstrap speed after Ctrl-X: Applesoft stores $A5 in the
+    //  6551 of the slot IN# set, which sends it to the PC. KSW's high byte at
+    //  $39 is $Cn for slot n, and the 6551's data register is at $C088 +
+    //  n * 16.
+    static constexpr const char *  kPromptProbe       = "POKE 49288+16*(PEEK(57)-192),165\r";
+    static constexpr DWORD         kPromptProbeWaitMs = 1500;
     HRESULT  StartWithBootstrap (const CassoLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
     HRESULT  Connect            (std::stop_token stop, DWORD openAt = 0);
     HRESULT  RunBootstrap       (std::stop_token stop, LinkOperation & operation);
     HRESULT  OpenStream         (DWORD baud, std::stop_token stop);
-    void     ServeUntilRetry    (std::stop_token stop);
+
+    //  Connect, and with no reply from an Apple on a serial line, the probe:
+    //  an Apple waiting at a prompt with IN# set to the port is bootstrapped.
+    HRESULT  ConnectOrBootstrap (std::stop_token stop);
+    HRESULT  ProbeForPrompt     (std::stop_token stop, bool & outWaiting);    void     ServeUntilRetry    (std::stop_token stop);
 
     //  An ADTPro-compatible server's whole run: the line opened at the
     //  link's speed and ADTPro's client served on it, opened again after

@@ -594,7 +594,7 @@ void CassoLinkSession::Run (std::stop_token stop)
     }
     else
     {
-        hr = m_connector.Connect (stop);
+        hr = m_connector.ConnectOrBootstrap (stop);
     }
 
     while (!server && !stop.stop_requested())
@@ -620,7 +620,7 @@ void CassoLinkSession::Run (std::stop_token stop)
             //  when it is.
             m_connector.ServeUntilRetry (stop);
 
-            hr = stop.stop_requested() ? S_OK : m_connector.Connect (stop);
+            hr = stop.stop_requested() ? S_OK : m_connector.ConnectOrBootstrap (stop);
             continue;
         }
 

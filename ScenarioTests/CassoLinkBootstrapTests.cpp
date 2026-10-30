@@ -181,6 +181,73 @@ public:
 
 
 
+    //  A link started with no Bootstrap chosen, on an Apple at the BASIC
+    //  prompt with IN#2 and Ctrl-A 14B typed: the connection doesn't get a reply,
+    //  the prompt probe's $A5 comes back, and the Apple is bootstrapped.
+    TEST_METHOD (AnAppleWaitingAtThePrompt_IsFoundByTheProbe_AndBootstrapped)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        InMemoryCassoLinkFolder               folder;
+        FakeDiskFileIo                        fileIo;
+        Sink                                  sink;
+        FixtureProvider                       fixtures;
+        std::vector<uint8_t>                  bytes;
+        std::vector<Byte>                     disk;
+        CassoLinkSettings                     settings;
+        uint64_t                              spent = 0;
+        std::vector<std::string>              screen;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        disk.assign (bytes.begin(), bytes.end());
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+        machine.PowerCycle();
+        machine.RunCycles (2'000'000ULL);
+
+        machine.GetCpu()->SetPC (0xE000);
+        machine.RunCycles (2'000'000ULL);
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+
+        Type (machine, "IN#2\r");
+        Type (machine, "\x01" "14B");
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+
+        settings.name      = "//c";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+
+        {
+            CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            session.SetBootstrapPause (40);
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = session.Enumerate (2, FilePath());
+
+            while (!sink.IsDone (list) && spent < kBudget)
+            {
+                machine.RunCycles (kFrame);
+                spent += kFrame;
+            }
+
+            Assert::IsTrue (sink.IsDone (list));
+            AssertSucceeded (list->result);
+        }
+
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+        Assert::IsTrue (screen[0].starts_with ("CASSOLINK"), L"the program's status screen");
+    }
+
+
+
     //  The disk Save link to disk makes boots into the shim at the link's
     //  speed; the shim has no program, so the session loads it.
     TEST_METHOD (TheLinkBootDisk_Boots_AndTheProgramIsLoaded)
