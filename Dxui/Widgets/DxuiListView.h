@@ -344,10 +344,11 @@ public:
     //  An icon view's icon size, as Ctrl with the wheel sets it in File
     //  Explorer, in place of the view's default; 0 is the default. Only
     //  Extra large, Large, Medium and Small icons have one.
-    void                SetItemIconDip   (int iconDip)  { m_itemIconDip = iconDip; }
-    void                SetHomeHeader    (DxuiListViewTypes::HomeHeader header) { m_homeHeader = std::move (header); }
-    int                 GetItemIconDip   () const       { return m_itemIconDip; }
-    int                 GetViewIconPx    () const       { return m_items.GetViewIconPx(); }
+    void  SetItemIconDip    (int iconDip)  { m_itemIconDip = iconDip; }
+    void  SetHomeHeader     (DxuiListViewTypes::HomeHeader header) { m_homeHeader = std::move (header); }
+    int   HitTestHomeAction (int row, int xPx, int yPx) const { return m_items.HitTestHomeAction (row, xPx, yPx); }
+    int   GetItemIconDip    () const       { return m_itemIconDip; }
+    int   GetViewIconPx     () const       { return m_items.GetViewIconPx(); }
 
     //  Under a big icon: how far into its cell the icon starts, and the gap
     //  between it and the name, as Explorer's are measured.

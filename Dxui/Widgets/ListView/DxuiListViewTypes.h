@@ -189,6 +189,7 @@ struct DxuiListViewTypes
         //  A hovered row's buttons, left of its first column: 0 opens the
         //  file's location, 1 asks Copilot, 2 shows more actions.
         std::function<void (int, int, POINT)>  onRowAction;
+        const std::string *                    actionSvgs[3] = {};   // each button's icon, or the icon font's
     };
 
     struct ItemMetrics

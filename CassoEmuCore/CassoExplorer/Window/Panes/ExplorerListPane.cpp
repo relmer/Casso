@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Core/AppTimerIds.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -753,6 +754,16 @@ void ExplorerListPane::RefreshTip()
         return;
     }
 
+    //  Home's row buttons say what they do.
+    if (row >= 0 && m_list->HitTestHomeAction (row, point.x - list.left, point.y - list.top) >= 0)
+    {
+        static constexpr const wchar_t *  s_kActionTips[] = { L"Open file location", L"Ask Copilot", L"See more actions" };
+
+        anchor = RECT { point.x, point.y, point.x + 1, point.y + 1 };
+        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::List, anchor, s_kActionTips[m_list->HitTestHomeAction (row, point.x - list.left, point.y - list.top)]);
+        return;
+    }
+
     {
         const CatalogRow &  row0 = m_context.browser.GetRows()[(size_t) row];
 
@@ -897,6 +908,9 @@ void ExplorerListPane::FillList()
             FillList();
             m_context.window.Invalidate();
         };
+
+        header.actionSvgs[0] = m_context.menus.GetMenuSvg (L"windows.shortcut.opencontaining");
+        header.actionSvgs[1] = m_context.menus.GetMenuSvg (L"windows.askchat");
 
         header.onRowAction = [this] (int row, int action, POINT)
         {

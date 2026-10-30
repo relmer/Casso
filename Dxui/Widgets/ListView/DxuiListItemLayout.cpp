@@ -1298,6 +1298,71 @@ bool DxuiListItemLayout::IsHomeTile (int item) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListItemLayout::GetHomeColumnPx
+//
+//  A column's left, as a share of the width, with the first far enough along
+//  for the icon, a name and the three buttons; the rest share what is left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiListItemLayout::GetHomeColumnPx (int column, float widthPx) const
+{
+    const std::vector<float> &  shares  = m_list.m_homeHeader.columnAt;
+    float                       minimum = m_list.m_scaler.ToPxf (s_kHomeNameMinDip);
+    float                       first   = 0.0f;
+
+
+
+    if (column < 0 || (size_t) column >= shares.size())
+    {
+        return widthPx;
+    }
+
+    first = (std::max) (widthPx * shares[0], (std::min) (minimum, widthPx * 0.75f));
+
+    return first + (widthPx - first) * (shares[(size_t) column] - shares[0]) / (1.0f - shares[0]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemLayout::HitTestHomeAction
+//
+//  The row's button under a point relative to the list, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListItemLayout::HitTestHomeAction (int item, int xPx, int yPx) const
+{
+    RECT   place = {};
+    POINT  point { xPx, yPx };
+    bool   has   = m_list.m_view == DxuiListViewTypes::View::Home && item >= 0 && !IsHomeTile (item) && GetItemRectPx (item, place);
+
+
+
+    for (int action = 0; has && action < 3; action++)
+    {
+        RECT  button = {};
+        bool  found  = GetHomeActionRect (place, action, button);
+
+        if (found && PtInRect (&button, point))
+        {
+            return action;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListItemLayout::GetHomeActionRect
 //
 //  One of a row's three buttons, ending short of its first column.
@@ -1317,7 +1382,7 @@ bool DxuiListItemLayout::GetHomeActionRect (const RECT & cell, int action, RECT 
         return false;
     }
 
-    first = cell.left + (int) ((float) (cell.right - cell.left) * m_list.m_homeHeader.columnAt[0]) - m_list.m_scaler.ToPx (12) - 3 * pitch;
+    first = cell.left + (int) GetHomeColumnPx (0, (float) (cell.right - cell.left)) - m_list.m_scaler.ToPx (12) - 3 * pitch;
 
     outRect.left   = first + action * pitch;
     outRect.top    = cell.top + ((cell.bottom - cell.top) - side) / 2;

@@ -278,7 +278,12 @@ void BrowserPreviewer::UpdatePreview()
     {
         folder = m_browser.m_rows[m_browser.m_selectedRows[0]].folderPath;
     }
-    else if (!m_browser.m_isImage && location.kind == Location::Kind::ShellFolder && m_browser.m_selectedRows.size() == 1)
+    else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
+    {
+        //  A cloud item has no file here to preview, so the pane has nothing.
+        return;
+    }
+    else if (!m_browser.m_isImage && (location.kind == Location::Kind::ShellFolder || m_browser.IsHomeLocation()) && m_browser.m_selectedRows.size() == 1)
     {
         PreviewShellItem (m_browser.m_rows[m_browser.m_selectedRows[0]]);
         return;

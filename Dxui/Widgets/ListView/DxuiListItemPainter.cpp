@@ -585,8 +585,8 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
 
     for (size_t at = 1; !tile && at < cells.size() && at - 1 < m_list.m_homeHeader.columnAt.size(); at++)
     {
-        float  left = (float) cell.left + width * m_list.m_homeHeader.columnAt[at - 1];
-        float  end  = (at < m_list.m_homeHeader.columnAt.size()) ? (float) cell.left + width * m_list.m_homeHeader.columnAt[at] : (float) cell.right;
+        float  left = (float) cell.left + m_list.m_items.GetHomeColumnPx ((int) at - 1, width);
+        float  end  = (float) cell.left + m_list.m_items.GetHomeColumnPx ((int) at, width);
 
         nameEnd = (at == 1) ? left - m_list.m_scaler.ToPxf (30.0f) : nameEnd;
 
@@ -609,7 +609,12 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
             {
                 nameEnd = (action == 0) ? (float) place.left - fontPx : nameEnd;
 
-                hr = text.DrawString (s_kActionGlyphs[action], (float) place.left, (float) place.top, (float) (place.right - place.left), (float) (place.bottom - place.top),
+                const std::string *  svg  = m_list.m_homeHeader.actionSvgs[action];
+                float                side = m_list.m_scaler.ToPxf (16.0f);
+
+                hr = (svg != nullptr)
+                   ? text.DrawSvgIcon (*svg, (float) place.left + ((float) (place.right - place.left) - side) * 0.5f, (float) place.top + ((float) (place.bottom - place.top) - side) * 0.5f, side)
+                   : text.DrawString (s_kActionGlyphs[action], (float) place.left, (float) place.top, (float) (place.right - place.left), (float) (place.bottom - place.top),
                                       pal.fg, fontPx * 1.2f, s_kGlyphFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
                 IGNORE_RETURN_VALUE (hr, S_OK);
             }

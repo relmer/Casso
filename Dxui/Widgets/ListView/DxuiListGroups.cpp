@@ -749,9 +749,12 @@ bool DxuiListGroups::OnPress (int lx, int ly)
             }
         }
 
-        if (HitTestGroupChevron (lx, group))
+        //  The whole box opens and closes: the chevron's beside the tabs, and
+        //  the heading's with its text.
+        if (lx < m_list.m_scaler.ToPx ((group == 0) ? 160 : 52))
         {
             SetGroupCollapsed (group, !IsGroupCollapsed (group));
+            m_list.m_focusGroup = group;
         }
 
         return true;
@@ -1000,7 +1003,7 @@ void DxuiListGroups::PaintHomeTabs (IDxuiPainter & painter, IDxuiTextRenderer & 
 
     for (size_t column = 0; column < header.columns.size() && column < header.columnAt.size(); column++)
     {
-        hr = text.DrawString (header.columns[column].c_str(), rowX + width * header.columnAt[column], titleY, width, titleH, pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        hr = text.DrawString (header.columns[column].c_str(), rowX + m_list.m_items.GetHomeColumnPx ((int) column, width), titleY, width, titleH, pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
