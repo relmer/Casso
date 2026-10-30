@@ -383,7 +383,7 @@ tomain: jmp main
 ; the 6551's DTR off, so the PC's DSR drops; the zero page and reset
 ; vector the shim saved are put back; BASIC's program is emptied as NEW
 ; does, since the program was loaded over it; input and output are the
-; keyboard and screen; and DOS's warm start follows, or Applesoft's cold
+; keyboard and screen; and DOS's warm start follows, or Applesoft's warm
 ; start when there is no DOS.
 exitlink: sei
         cld
@@ -453,12 +453,12 @@ lvbasic: lda #0                 ; text output plain, whatever was saved:
         jsr $FC58               ; HOME
         lda $03D0               ; DOS's warm start, a JMP into DOS
         cmp #$4C
-        bne lvcold
+        bne lvwarm
         lda $03D2
         cmp #$9D
-        bcc lvcold
+        bcc lvwarm
         jmp $03D0
-lvcold: jmp $E000               ; Applesoft's cold start, at its ] prompt
+lvwarm: jmp $E003               ; Applesoft's warm start, at its ] prompt
 
 ; Time drive: sector 0's address field found on the track, then $A5 sent as
 ; each later pass of it is read, one a revolution; the time between the

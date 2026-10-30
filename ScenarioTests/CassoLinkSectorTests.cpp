@@ -216,7 +216,7 @@ public:
     }
 
     //  CassoLink ended: the marks back, BASIC's program empty, and with no
-    //  DOS in memory, the monitor's prompt.
+    //  DOS in memory, Applesoft's prompt.
     static void  AssertMachinePutBack (Rig & rig)
     {
         std::string  screen;
@@ -244,7 +244,7 @@ public:
         Assert::AreEqual<int> (0x00, rig.machine.GetCpu()->ReadByte (0x0802));
 
         screen = rig.Screen();
-        Assert::IsTrue (screen.find ('*') != std::string::npos, L"the monitor's prompt");
+        Assert::IsTrue (screen.find (']') != std::string::npos, L"Applesoft's prompt");
     }
 
 
