@@ -31,7 +31,7 @@ class IByteStream;
 class LinkBootstrap
 {
 public:
-    //  8 bytes keep a line on one screen row. A longer line wraps, and a //c
+    //  A line of 8 bytes fits on one screen row. A longer line wraps, and a //c
     //  drops characters that arrive while the monitor scrolls.
     static constexpr DWORD   kLinePauseMs  = 250;
     static constexpr size_t  kBytesPerLine = 8;
