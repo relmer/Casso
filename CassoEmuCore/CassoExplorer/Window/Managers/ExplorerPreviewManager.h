@@ -42,7 +42,7 @@ public:
     void                              Layout                (const RECT & rect);
     void                              Hide                  ();
     void                              FillPreview           ();
-    void                              SetPinned             (bool pinned) { m_pinned = pinned; m_autoKey.clear(); }
+    void                              SetPinned             (bool pinned);
     static bool                       IsKnownPreview        (const PreviewContent & preview);
     void                              PaintBackground       (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     static uint32_t                   GetBackground         (const IDxuiTheme & theme);
@@ -95,5 +95,6 @@ private:
     bool                               m_pinned   = false;   // turned on manually, so automatic preview doesn't close it
     std::wstring                       m_autoKey;            // the file automatic preview last checked
 
-    bool  UpdateAutoPreview ();
+    std::wstring  GetAutoKey        () const;
+    bool          UpdateAutoPreview ();
 };

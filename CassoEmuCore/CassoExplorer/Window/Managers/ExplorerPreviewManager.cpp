@@ -287,6 +287,52 @@ bool ExplorerPreviewManager::IsKnownPreview (const PreviewContent & preview)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::SetPinned
+//
+//  A pane turned off stays off for the selected file, and automatic preview
+//  opens it again for the next one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SetPinned (bool pinned)
+{
+    m_pinned  = pinned;
+    m_autoKey = pinned ? std::wstring() : GetAutoKey();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::GetAutoKey
+//
+//  The location and the selected file's name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerPreviewManager::GetAutoKey() const
+{
+    const std::vector<int>  & selected = m_context.browser.GetSelectedRows();
+    std::wstring              key      = m_context.browser.GetLocation().path;
+
+
+
+    if (!selected.empty() && selected[0] >= 0 && (size_t) selected[0] < m_context.browser.GetRows().size())
+    {
+        key += L"|" + m_context.browser.GetRows()[(size_t) selected[0]].name;
+    }
+
+    return key;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::UpdateAutoPreview
 //
 //  With automatic preview on, the pane opens for a newly selected file
@@ -300,7 +346,7 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
 {
     const std::vector<int>  & selected = m_context.browser.GetSelectedRows();
     const PreviewContent    & preview  = m_context.browser.GetPreview();
-    std::wstring              key      = m_context.browser.GetLocation().path;
+    std::wstring              key      = GetAutoKey();
     bool                      known    = false;
 
 
@@ -308,11 +354,6 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
     if (!m_context.prefs.autoPreview || m_pinned)
     {
         return false;
-    }
-
-    if (!selected.empty() && selected[0] >= 0 && (size_t) selected[0] < m_context.browser.GetRows().size())
-    {
-        key += L"|" + m_context.browser.GetRows()[(size_t) selected[0]].name;
     }
 
     //  A linked drive's file is checked once it arrives.
