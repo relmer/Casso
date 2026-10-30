@@ -547,7 +547,7 @@ int DxuiListColumns::GetColumnNaturalWidthPx (size_t c) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListColumns::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c) const
+int DxuiListColumns::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c, int firstRow, int endRow) const
 {
     HRESULT            hr     = S_OK;
     float              fontPx = (float) m_list.m_scaler.ToPxf (m_list.m_fontDip);
@@ -572,7 +572,7 @@ int DxuiListColumns::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c
         wpx = (int) std::ceil (w);
     }
 
-    for (int r = 0; r < m_list.GetRowCount(); r++)
+    for (int r = (std::max) (firstRow, 0); r < (std::min) (endRow, m_list.GetRowCount()); r++)
     {
         const std::vector<DxuiListViewTypes::Cell> &  cells = m_list.GetRowCells (r);
 
@@ -621,6 +621,31 @@ void DxuiListColumns::FitColumnToContent (size_t idx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FitColumnToVisibleContent
+//
+//  A fit that costs a screenful of rows, however long the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::FitColumnToVisibleContent (size_t idx)
+{
+    if (idx >= m_list.m_columns.size() || !m_list.m_columns[idx].visible)
+    {
+        return;
+    }
+
+    if (std::find (m_pendingVisibleFits.begin(), m_pendingVisibleFits.end(), idx) == m_pendingVisibleFits.end())
+    {
+        m_pendingVisibleFits.push_back (idx);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FitAllColumnsToContent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -647,17 +672,30 @@ void DxuiListColumns::FitAllColumnsToContent()
 
 void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
 {
-    int                  minPx     = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
-    int                  contentPx = 0;
-    std::vector<size_t>  pending   = std::move (m_pendingFits);
+    int                                    minPx     = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
+    int                                    contentPx = 0;
+    int                                    topRow    = m_list.GetTopRow();
+    std::vector<std::pair<size_t, bool>>   pending;
 
 
+
+    for (size_t idx : m_pendingFits)
+    {
+        pending.emplace_back (idx, false);
+    }
+
+    for (size_t idx : m_pendingVisibleFits)
+    {
+        pending.emplace_back (idx, true);
+    }
 
     m_pendingFits.clear();
+    m_pendingVisibleFits.clear();
 
-    for (size_t idx : pending)
+    for (const auto & [idx, visibleRows] : pending)
     {
-        contentPx = GetColumnContentWidthPx (text, idx);
+        contentPx = visibleRows ? GetColumnContentWidthPx (text, idx, topRow, topRow + m_list.GetVisibleRowCapacity() + 1)
+                                : GetColumnContentWidthPx (text, idx);
 
         if (contentPx <= 0)
         {

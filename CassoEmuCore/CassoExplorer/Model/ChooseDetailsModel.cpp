@@ -32,11 +32,10 @@ void ChooseDetailsModel::Build (const std::vector<Column>                       
             continue;
         }
 
-        entry.title    = columns[column].title;
-        entry.column   = (int) column;
-        entry.checked  = columns[column].chosen || columns[column].fixed;
-        entry.fixed    = columns[column].fixed;
-        entry.widthDip = columns[column].widthDip;
+        entry.title   = columns[column].title;
+        entry.column  = (int) column;
+        entry.checked = columns[column].chosen || columns[column].fixed;
+        entry.fixed   = columns[column].fixed;
 
         m_entries.push_back (std::move (entry));
     }
@@ -52,7 +51,6 @@ void ChooseDetailsModel::Build (const std::vector<Column>                       
 
         entry.title         = property.title;
         entry.canonicalName = property.canonicalName;
-        entry.widthDip      = property.widthDip;
 
         m_entries.push_back (std::move (entry));
     }
@@ -148,23 +146,6 @@ void ChooseDetailsModel::MoveDown (size_t entry)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ChooseDetailsModel::SetWidth
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ChooseDetailsModel::SetWidth (size_t entry, int widthDip)
-{
-    if (entry < m_entries.size() && widthDip > 0)
-    {
-        m_entries[entry].widthDip = widthDip;
-    }
-}
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -202,16 +183,10 @@ ChooseDetailsModel::Result ChooseDetailsModel::GetResult() const
             column = next++;
             result.added.push_back (entry.canonicalName);
             result.chosen.push_back (true);
-            result.widths.emplace_back (column, entry.widthDip);
         }
         else
         {
             result.chosen[(size_t) column] = entry.checked;
-
-            if (entry.widthDip != m_columns[(size_t) column].widthDip)
-            {
-                result.widths.emplace_back (column, entry.widthDip);
-            }
         }
 
         result.order.push_back (column);

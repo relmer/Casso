@@ -116,6 +116,10 @@ public:
     //  the fit is applied on the next paint rather than here.
     void  FitColumnToContent        (size_t idx) { m_columnSizing.FitColumnToContent (idx); }
 
+    //  As FitColumnToContent, measuring only the rows on screen, so a long
+    //  list costs no more than a short one.
+    void  FitColumnToVisibleContent (size_t idx) { m_columnSizing.FitColumnToVisibleContent (idx); }
+
     //  Every shown column fitted to its content, as FitColumnToContent does
     //  one.
     void  FitAllColumnsToContent    () { m_columnSizing.FitAllColumnsToContent(); }

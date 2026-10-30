@@ -55,6 +55,11 @@ public:
     void                                     RefreshPropertyCells    ();
     Win32PropertyColumns                   & GetPropertyValues       () { return m_propertyValues; }
 
+    //  Fits a property column to the values on screen as they are read, until
+    //  every one is, or the folder changes.
+    void                                     FitColumnOnceRead       (size_t column);
+    void                                     FitColumnsRead          ();
+
     //  An item's date and size, so its properties are read again when it changes.
     static std::wstring  GetPropertyStamp (const CatalogRow & row) { return std::to_wstring (row.modifiedUnix) + L"." + std::to_wstring (row.sizeBytes); }
     const std::vector<DxuiListView::Cell>  & GetListRowCells         (int row);
@@ -123,6 +128,7 @@ private:
     Win32ContentDetails     m_contentDetails;
     Win32PropertyColumns    m_propertyValues;
     bool                    m_propertiesShown = false;   // a property column is visible for the folder on display
+    std::vector<size_t>     m_columnsToFit;              // property columns fitted as their values arrive
     Location                m_listLocation;
     size_t                  m_listTabCount    = 0;   // the tabs when FillList last saved the session
 

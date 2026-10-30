@@ -13,18 +13,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChooseDetailsPanel::Init (DxuiLabel & prompt, DxuiListView & list, std::vector<DxuiButton *> buttons, DxuiLabel & widthLabel, DxuiTextInput & width)
+void ChooseDetailsPanel::Init (DxuiLabel & prompt, DxuiListView & list, std::vector<DxuiButton *> buttons)
 {
-    m_prompt     = &prompt;
-    m_list       = &list;
-    m_buttons    = std::move (buttons);
-    m_widthLabel = &widthLabel;
-    m_width      = &width;
+    m_prompt  = &prompt;
+    m_list    = &list;
+    m_buttons = std::move (buttons);
 
     Adopt (prompt);
     Adopt (list);
-    Adopt (widthLabel);
-    Adopt (width);
 
     for (DxuiButton * button : m_buttons)
     {
@@ -47,18 +43,14 @@ void ChooseDetailsPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sc
     int  gap        = scaler.ToPx (kGapDip);
     int  listTop    = boundsPx.top + scaler.ToPx (kPromptDip) + gap;
     int  listRight  = boundsPx.right - scaler.ToPx (kButtonWidthDip) - gap;
-    int  fieldTop   = boundsPx.bottom - scaler.ToPx (kFieldDip);
-    int  fieldLeft  = listRight - scaler.ToPx (kFieldWidthDip);
     int  buttonTop  = listTop;
 
 
 
     SetBounds (boundsPx);
 
-    m_prompt->Layout     (RECT { boundsPx.left, boundsPx.top, boundsPx.right, listTop - gap }, scaler);
-    m_list->Layout       (RECT { boundsPx.left, listTop, listRight, fieldTop - gap }, scaler);
-    m_widthLabel->Layout (RECT { boundsPx.left, fieldTop, fieldLeft - gap, (LONG) boundsPx.bottom }, scaler);
-    m_width->Layout      (RECT { fieldLeft, fieldTop, listRight, (LONG) boundsPx.bottom }, scaler);
+    m_prompt->Layout (RECT { boundsPx.left, boundsPx.top, boundsPx.right, listTop - gap }, scaler);
+    m_list->Layout   (RECT { boundsPx.left, listTop, listRight, (LONG) boundsPx.bottom }, scaler);
 
     for (DxuiButton * button : m_buttons)
     {
@@ -100,7 +92,7 @@ bool ChooseDetailsPanel::OnMouse (const DxuiMouseEvent & ev)
         local.kind = DxuiMouseEventKind::Leave;
         m_list->OnMouse (local);
 
-        for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { m_width, m_buttons[0], m_buttons[1], m_buttons[2], m_buttons[3] })
+        for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { m_buttons[0], m_buttons[1], m_buttons[2], m_buttons[3] })
         {
             if (taker == nullptr && control->IsEnabled() && control->OnMouse (ev))
             {
@@ -196,14 +188,9 @@ bool ChooseDetailsDialog::Run (HWND owner, const IDxuiTheme * theme, ChooseDetai
 
 void ChooseDetailsDialog::OnCreate()
 {
-    for (DxuiLabel * label : { &m_prompt, &m_widthLabel })
-    {
-        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
-        label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    }
-
-    m_prompt.SetText     (L"Select the details you want to display for the items in this folder.");
-    m_widthLabel.SetText (L"Width of selected column (in pixels):");
+    ExplorerTextStyles::Apply (m_prompt, ExplorerTextStyles::kFormLabel);
+    m_prompt.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_prompt.SetText      (L"Select the details you want to display for the items in this folder.");
 
     m_list.SetDpi                (GetDpi());
     m_list.SetTheme              (m_theme);
@@ -216,11 +203,6 @@ void ChooseDetailsDialog::OnCreate()
     m_list.SetOnCheckToggled     ([this] (int row) { m_model->Toggle ((size_t) row); FillList(); });
     m_list.SetOnSelectionChanged ([this] (int row) { m_selected = row; UpdateButtons(); });
 
-    m_width.SetTheme        (m_theme);
-    m_width.SetHwnd         (GetHwnd());
-    m_width.SetTextRenderer (GetTextRenderer());
-    m_width.SetMaxLength    (4);
-    m_width.SetOnChange     ([this] (const std::wstring &) { ReadWidth(); });
 
     m_up.SetOnClick   ([this]() { m_model->MoveUp   ((size_t) m_selected); FillList(); SelectEntry ((size_t) m_selected - 1); KeepFocus (m_up); });
     m_down.SetOnClick ([this]() { m_model->MoveDown ((size_t) m_selected); FillList(); SelectEntry ((size_t) m_selected + 1); KeepFocus (m_down); });
@@ -228,7 +210,7 @@ void ChooseDetailsDialog::OnCreate()
     m_hide.SetOnClick ([this]() { SetChecked (false); KeepFocus (m_hide); });
 
     m_body = CreateDialogContent<ChooseDetailsPanel>();
-    m_body->Init (m_prompt, m_list, { &m_up, &m_down, &m_show, &m_hide }, m_widthLabel, m_width);
+    m_body->Init (m_prompt, m_list, { &m_up, &m_down, &m_show, &m_hide });
     m_body->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
 
     AddDialogButton (L"OK", IDOK);
@@ -306,16 +288,12 @@ void ChooseDetailsDialog::SelectEntry (size_t entry)
 //
 //  ChooseDetailsDialog::UpdateButtons
 //
-//  The width field has the selected entry's width, in pixels at the
-//  dialog's DPI, as in File Explorer.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ChooseDetailsDialog::UpdateButtons()
 {
     const std::vector<ChooseDetailsModel::Entry> &  entries  = m_model->GetEntries();
     bool                                            selected = m_selected >= 0 && (size_t) m_selected < entries.size() && m_list.GetSelectedRows().size() == 1;
-    const ChooseDetailsModel::Entry               * entry    = selected ? &entries[(size_t) m_selected] : nullptr;
 
 
 
@@ -323,42 +301,6 @@ void ChooseDetailsDialog::UpdateButtons()
     m_down.SetEnabled (selected && m_model->CanMoveDown ((size_t) m_selected));
     m_show.SetEnabled (std::any_of (m_list.GetSelectedRows().begin(), m_list.GetSelectedRows().end(), [&entries] (int row) { return row >= 0 && (size_t) row < entries.size() && !entries[(size_t) row].fixed && !entries[(size_t) row].checked; }));
     m_hide.SetEnabled (std::any_of (m_list.GetSelectedRows().begin(), m_list.GetSelectedRows().end(), [&entries] (int row) { return row >= 0 && (size_t) row < entries.size() && !entries[(size_t) row].fixed && entries[(size_t) row].checked; }));
-    m_width.SetEnabled (entry != nullptr);
-
-    m_showingWidth = true;
-
-    if (entry != nullptr && entry->widthDip > 0)
-    {
-        m_width.SetText (std::to_wstring (MulDiv (entry->widthDip, (int) GetDpi(), (int) DxuiDpiScaler::kBaseDpi)));
-    }
-    else
-    {
-        m_width.SetText (std::wstring());
-    }
-
-    m_showingWidth = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ChooseDetailsDialog::ReadWidth
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ChooseDetailsDialog::ReadWidth()
-{
-    int  pixels = _wtoi (m_width.GetText().c_str());
-
-
-
-    if (!m_showingWidth && m_selected >= 0 && pixels > 0)
-    {
-        m_model->SetWidth ((size_t) m_selected, MulDiv (pixels, (int) DxuiDpiScaler::kBaseDpi, (int) GetDpi()));
-    }
 }
 
 

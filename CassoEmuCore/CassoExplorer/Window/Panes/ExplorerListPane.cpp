@@ -855,6 +855,7 @@ void ExplorerListPane::FillList()
 
         m_context.folderSync.UpdateWatchedFolders();
         m_propertyValues.Clear();
+        m_columnsToFit.clear();
         changed = true;
     }
 
@@ -1511,7 +1512,76 @@ void ExplorerListPane::HandleContentDetailsArrived()
     if (m_propertyValues.TakeArrived())
     {
         RefreshPropertyCells();
+        FitColumnsRead();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::FitColumnOnceRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::FitColumnOnceRead (size_t column)
+{
+    if (std::find (m_columnsToFit.begin(), m_columnsToFit.end(), column) == m_columnsToFit.end())
+    {
+        m_columnsToFit.push_back (column);
+    }
+
+    FitColumnsRead();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::FitColumnsRead
+//
+//  Each column waiting for its values is fitted to the rows on screen, which
+//  costs a screenful however large the folder. It stops waiting once every
+//  row on screen has its values.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::FitColumnsRead()
+{
+    const std::vector<CatalogRow> &  rows    = m_context.browser.GetRows();
+    int                              top     = m_list->GetTopRow();
+    int                              end     = (std::min) ((int) rows.size(), top + m_list->GetVisibleRowCapacity() + 1);
+    bool                             allRead = true;
+    Win32PropertyColumns::Values     values;
+    std::wstring                     path;
+
+
+
+    if (m_columnsToFit.empty())
+    {
+        return;
+    }
+
+    for (int row = top; row < end && allRead; row++)
+    {
+        allRead = !m_context.browser.TryGetRowPath (row, path) || m_propertyValues.TryGet (path, GetPropertyStamp (rows[(size_t) row]), values);
+    }
+
+    for (size_t column : m_columnsToFit)
+    {
+        m_list->FitColumnToVisibleContent (column);
+    }
+
+    if (allRead)
+    {
+        m_columnsToFit.clear();
+    }
+
+    m_context.window.Invalidate();
 }
 
 

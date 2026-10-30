@@ -657,7 +657,6 @@ void ExplorerListColumns::ChooseDetails()
         column.offered  = IsListColumnOffered (c, location.kind, searching);
         column.chosen   = c < m_chosen.size() && m_chosen[c];
         column.fixed    = c == (size_t) CatalogModel::Column::Name;
-        column.widthDip = MulDiv (m_pane.GetListView()->GetColumnEffectiveWidthPx (c), (int) DxuiDpiScaler::kBaseDpi, (int) m_pane.GetListView()->GetDpi());
 
         columns.push_back (std::move (column));
     }
@@ -705,18 +704,13 @@ void ExplorerListColumns::ChooseDetails()
 
     RememberFolderColumns();
 
-    for (const auto & [column, widthDip] : result.widths)
-    {
-        if ((size_t) column >= m_context.prefs.columnWidthsDip.size())
-        {
-            m_context.prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
-        }
-
-        m_context.prefs.columnWidthsDip[(size_t) column] = widthDip;
-        RememberFolderColumnWidths (column, widthDip);
-    }
-
-    //  The folder's view applied again, with its new columns.
+    //  The folder's view applied again, with its new columns, each fitted to
+    //  its values on screen once they are read.
     m_viewKey.clear();
     m_pane.FillList();
+
+    for (size_t added = 0; added < result.added.size(); added++)
+    {
+        m_pane.FitColumnOnceRead (first + added);
+    }
 }

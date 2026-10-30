@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  ChooseDetailsModelTests
 //
 //  Choose Details with no window: the entries listed for the list's columns
-//  and the shell's properties, what moving, checking and a width make of
+//  and the shell's properties, what moving and checking make of
 //  them, the sort by a property's values, and the properties saved in the
 //  preferences.
 //
@@ -31,11 +31,11 @@ public:
         std::vector<ChooseDetailsModel::Column>      columns (5);
         std::vector<Win32PropertyColumns::Property>  properties (2);
 
-        columns[0] = { L"Name", true, true, true, 250 };
-        columns[1] = { L"Date modified", true, true, false, 144 };
-        columns[2] = { L"Type", true, true, false, 120 };
-        columns[3] = { L"Size", true, false, false, 80 };
-        columns[4] = { L"Address", false, true, false, 72 };
+        columns[0] = { L"Name", true, true, true };
+        columns[1] = { L"Date modified", true, true, false };
+        columns[2] = { L"Type", true, true, false };
+        columns[3] = { L"Size", true, false, false };
+        columns[4] = { L"Address", false, true, false };
 
         properties[0] = { L"System.Author", L"Authors", 140 };
         properties[1] = { L"System.Size",   L"Size",    80 };
@@ -86,9 +86,8 @@ public:
         ChooseDetailsModel          model = MakeModel();
         ChooseDetailsModel::Result  result;
 
-        model.Toggle   (4);
-        model.Toggle   (2);
-        model.SetWidth (1, 200);
+        model.Toggle (4);
+        model.Toggle (2);
         result = model.GetResult();
 
         Assert::AreEqual ((size_t) 1, result.added.size());
@@ -97,8 +96,6 @@ public:
         Assert::IsFalse  (result.chosen[1], L"Date modified hidden");
         Assert::IsTrue   (result.chosen[5], L"Authors visible");
         Assert::IsTrue   (result.chosen[4], L"Address's choice is copied");
-        Assert::IsTrue   (std::find (result.widths.begin(), result.widths.end(), std::pair<int, int> (2, 200)) != result.widths.end(), L"Type's new width");
-        Assert::IsTrue   (std::find (result.widths.begin(), result.widths.end(), std::pair<int, int> (5, 140)) != result.widths.end(), L"Authors' default width");
     }
 
 

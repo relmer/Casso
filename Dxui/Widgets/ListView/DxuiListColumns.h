@@ -30,6 +30,9 @@ public:
 
     void  FitColumnToContent        (size_t idx);
 
+    //  As FitColumnToContent, measuring only the rows on screen.
+    void  FitColumnToVisibleContent (size_t idx);
+
     void  FitAllColumnsToContent    ();
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
@@ -67,7 +70,8 @@ public:
 
     //  What a column's content wants, ignoring any override already on it, so
     //  fitting a column that has been dragged still measures the content.
-    int          GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c) const;
+    //  The rows measured are [firstRow, endRow).
+    int          GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c, int firstRow = 0, int endRow = INT_MAX) const;
 
     //  Applies a width a fit asked for, once the paint pass has measured it.
     void  ApplyPendingFit     (IDxuiTextRenderer & text);
@@ -91,4 +95,5 @@ private:
     bool                      m_preciseAutoFit = false;
     mutable bool              m_measureDirty   = false;
     std::vector<size_t>       m_pendingFits;
+    std::vector<size_t>       m_pendingVisibleFits;
 };
