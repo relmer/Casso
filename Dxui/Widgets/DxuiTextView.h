@@ -186,6 +186,7 @@ private:
     Position           m_caret;
     Position           m_lastClick;
     int64_t            m_lastClickMs   = 0;
+    int                m_clicks        = 0;   // the clicks in a row on one spot, each within the double-click time
     bool               m_dragging      = false;
     bool               m_wordDrag      = false;
     Position           m_wordFirst;

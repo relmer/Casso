@@ -131,6 +131,30 @@ public:
     }
 
 
+    //  A double-click selects a word, and a third click on the same spot
+    //  selects everything.
+    TEST_METHOD (TripleClick_SelectsEverything)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"A", L"one two" }), MakeRow ({ L"B", L"three" }) });
+
+        for (int click = 0; click < 2; click++)
+        {
+            Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
+            Mouse (view, DxuiMouseEventKind::Up,   6 + 3 * 8, 6 + 4);
+        }
+
+        Assert::AreEqual (std::wstring (L"one"), view.GetSelectionText(), L"Two clicks select the word");
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 3 * 8, 6 + 4);
+
+        Assert::AreEqual (std::wstring (L"A\tone two\r\nB\tthree"), view.GetSelectionText(), L"and a third selects everything");
+    }
+
+
     TEST_METHOD (Commands_CopyNeedsASelection_SelectAllTakesEverything)
     {
         DxuiTextView  view;

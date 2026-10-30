@@ -952,6 +952,7 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     int64_t   nowMs   = (int64_t) GetTickCount64();
     bool      handled = false;
     bool      twice   = false;
+    bool      thrice  = false;
     Position  pos;
 
 
@@ -984,18 +985,27 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         }
         else if (ev.button == DxuiMouseButton::Left)
         {
-            pos   = HitTest (point);
-            twice = (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime() && pos == m_lastClick;
+            pos    = HitTest (point);
+            twice  = (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime() && pos == m_lastClick;
+            thrice = twice && m_clicks == 2;
 
-            m_lastClickMs = twice ? 0 : nowMs;
+            m_clicks      = twice ? m_clicks + 1 : 1;
+            m_lastClickMs = nowMs;
             m_lastClick   = pos;
 
-            m_wordDrag = twice;
+            m_wordDrag = twice && !thrice;
 
-            //  A double-click selects the word, and dragging on from it
-            //  takes whole words until the button comes up.
-            if (twice)
+            if (thrice)
             {
+                //  A triple-click selects everything, as in a browser's text.
+                SelectAll();
+                m_clicks   = 0;
+                m_dragging = false;
+            }
+            else if (twice)
+            {
+                //  A double-click selects the word, and dragging on from it
+                //  takes whole words until the button comes up.
                 GetWordBounds (pos, m_wordFirst, m_wordLast);
 
                 m_anchor   = m_wordFirst;

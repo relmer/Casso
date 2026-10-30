@@ -505,6 +505,15 @@ bool ExplorerPreviewManager::HandleShortcutKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    //  A text or hex preview copies and selects all, as its menu does.
+    if ((m_text.IsShowing() || m_hex.IsShowing()) && ev.ctrl && !ev.shift && (ev.vk == 'C' || ev.vk == 'A'))
+    {
+        GetFocusedControl()->InvokeCommand ((ev.vk == 'C') ? DxuiStandardCommand::Copy : DxuiStandardCommand::SelectAll);
+        m_context.statusBar.Fill();
+        m_context.window.Invalidate();
+        return true;
+    }
+
     return false;
 }
 
