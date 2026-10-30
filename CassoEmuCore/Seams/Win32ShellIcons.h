@@ -105,6 +105,7 @@ private:
     static constexpr int       s_kExtraLargeIconPx = 48;
     static constexpr int       s_kSmallThumbnailPx = 128;
     static constexpr int       s_kLargeThumbnailPx = 256;
+    static constexpr int       s_kLoaderCount      = 3;
     static constexpr size_t    s_kMaxCachedIcons   = 4096;
     static constexpr uint64_t  s_kRetryFailedMs    = 30000;
 
@@ -144,7 +145,7 @@ private:
     //  m_pending holds the keys asked for and not yet taken.
     HWND                              m_notifyHwnd    = nullptr;
     UINT                              m_notifyMessage = 0;
-    std::thread                       m_loader;
+    std::vector<std::thread>          m_loaders;
     std::mutex                        m_lock;
     std::condition_variable           m_wake;
     std::deque<Request>               m_requests;

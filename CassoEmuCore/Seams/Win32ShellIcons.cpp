@@ -48,9 +48,9 @@ Win32ShellIcons::~Win32ShellIcons()
 
     m_wake.notify_all();
 
-    if (m_loader.joinable())
+    for (std::thread & loader : m_loaders)
     {
-        m_loader.join();
+        loader.join();
     }
 }
 
@@ -69,9 +69,9 @@ void Win32ShellIcons::LoadInBackground (HWND hwnd, UINT message)
     m_notifyHwnd    = hwnd;
     m_notifyMessage = message;
 
-    if (!m_loader.joinable())
+    while ((int) m_loaders.size() < s_kLoaderCount)
     {
-        m_loader = std::thread ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso Explorer icon loader"); IGNORE_RETURN_VALUE (hrName, S_OK); RunLoader(); });
+        m_loaders.emplace_back ([this] { HRESULT hrName = ThreadName::SetForCurrentThread (L"Casso Explorer icon loader"); IGNORE_RETURN_VALUE (hrName, S_OK); RunLoader(); });
     }
 }
 
@@ -729,7 +729,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
     //  A picture or a video has a thumbnail, made in the background, as File
     //  Explorer draws it. While one is made at a new size, as Ctrl with the
     //  wheel moves through them, the last one made is drawn.
-    if (m_loader.joinable() && overlays && m_thumbnails && cacheKey.starts_with (L"*ext:") && HasThumbnail (cacheKey.substr (5)))
+    if (!m_loaders.empty() && overlays && m_thumbnails && cacheKey.starts_with (L"*ext:") && HasThumbnail (cacheKey.substr (5)))
     {
         std::shared_ptr<const DxuiIconImage>  waiting;
         int                                   bucket = (m_sizePx <= s_kSmallThumbnailPx) ? s_kSmallThumbnailPx : s_kLargeThumbnailPx;
@@ -758,7 +758,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
 
     //  A per-path icon is the slow kind; one by extension is quick, and the
     //  same for every file of its type.
-    if (m_loader.joinable() && GetCacheKey (path, isDirectory).starts_with (L"*path:"))
+    if (!m_loaders.empty() && GetCacheKey (path, isDirectory).starts_with (L"*path:"))
     {
         return Queue (key, path, isDirectory, overlays);
     }

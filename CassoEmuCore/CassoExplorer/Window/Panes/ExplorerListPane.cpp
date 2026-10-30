@@ -1130,12 +1130,43 @@ void ExplorerListPane::SizeListIcons()
 
     m_listIcons.SetDpi    (dpi);
     m_listIcons.SetSizePx ((m_columns.GetView() == DxuiListView::View::Details) ? MulDiv (DxuiTreeView::s_kIconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi)
-                                                                        : m_list->GetViewIconPx());
+                           : (m_columns.GetIconDip() > 0)                       ? GetIconBucketPx (m_list->GetViewIconPx())
+                                                                                : m_list->GetViewIconPx());
 
     //  File Explorer draws thumbnails where a name goes under the icon.
     m_listIcons.SetThumbnails (DxuiListItemLayout::GetItemMetrics (m_columns.GetView()).labelBelow);
 
     m_context.dragDrop.SetIconDpi (dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::GetIconBucketPx
+//
+//  The size an icon sized with Ctrl and the wheel is read at, then scaled to as
+//  it is drawn, so that moving between sizes reads few icons from the shell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerListPane::GetIconBucketPx (int iconPx)
+{
+    static constexpr int  s_kBucketsPx[] = { 16, 20, 24, 32, 40, 48, 64, 96, 128, 192, 256 };
+
+
+
+    for (int bucket : s_kBucketsPx)
+    {
+        if (bucket >= iconPx)
+        {
+            return bucket;
+        }
+    }
+
+    return iconPx;
 }
 
 

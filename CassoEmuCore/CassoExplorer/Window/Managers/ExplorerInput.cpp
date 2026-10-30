@@ -394,11 +394,18 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
         && ExplorerLayout::Contains (m_context.listPane.GetListView()->GetBounds(), point))
     {
+        auto  IsIconView = [] (DxuiListView::View view)
+        {
+            return view == DxuiListView::View::ExtraLargeIcons || view == DxuiListView::View::LargeIcons
+                || view == DxuiListView::View::MediumIcons     || view == DxuiListView::View::SmallIcons;
+        };
+
         m_iconWheelNotches += ev.wheelDelta;
 
         while (std::abs (m_iconWheelNotches) >= 1.0f)
         {
-            bool  larger = m_iconWheelNotches > 0.0f;
+            bool                larger = m_iconWheelNotches > 0.0f;
+            DxuiListView::View  view   = m_context.listPane.GetColumns().GetView();
 
             m_iconWheelNotches += larger ? -1.0f : 1.0f;
 
@@ -406,7 +413,18 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
             {
                 m_context.toolbars.ShowViewOnButton();
                 m_context.listPane.SizeListIcons();
-                m_context.listPane.FillList();
+
+                //  Among the icon views only the icons change; any other view is
+                //  laid out from its rows.
+                if (IsIconView (view) && IsIconView (m_context.listPane.GetColumns().GetView()))
+                {
+                    m_context.listPane.RefreshListIcons();
+                }
+                else
+                {
+                    m_context.listPane.FillList();
+                }
+
                 m_context.window.Invalidate();
             }
         }

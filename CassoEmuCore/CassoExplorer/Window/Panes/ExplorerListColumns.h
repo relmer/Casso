@@ -52,6 +52,7 @@ public:
     void                  ApplyFolderView    ();
     void                  RememberFolderSort ();
     DxuiListView::View    GetView            () const { return m_view; }
+    int                   GetIconDip         () const { return m_iconDip; }
     std::vector<bool>   & GetChosen          ()       { return m_chosen; }
     void                  SetView            (DxuiListView::View view);
 

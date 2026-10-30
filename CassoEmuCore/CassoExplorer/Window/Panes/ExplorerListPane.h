@@ -53,6 +53,7 @@ public:
     //  few seconds, and are discarded when another folder is opened.
     void                                     SelectWhenListed        (const std::wstring & folder, std::vector<std::wstring> names);
     void                                     SizeListIcons           ();
+    static int                               GetIconBucketPx         (int iconPx);
     void                                     RefreshListIcons        ();
     void                                     RefreshContentDetails   ();
     void                                     StartLoaders            ();
