@@ -29,7 +29,7 @@ public:
     struct TypeChoice
     {
         Byte          type = 0;
-        std::wstring  label;   // letter or code, hex byte, name: "B  04  Binary"
+        std::wstring  label;   // letter or code, hex byte and name, tab-separated for a list's columns
     };
 
     //  What goes in the field after the type, for a type.

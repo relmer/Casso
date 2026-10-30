@@ -41,14 +41,17 @@ ExplorerListMenus::ExplorerListMenus (ExplorerListPane & pane, ExplorerContext &
 //  ExplorerListMenus::ShowListHeaderMenu
 //
 //  Explorer's header menu: fit the column under the pointer, fit them all,
-//  then every column with a check by those showing. Name always shows.
+//  then the columns that apply to the folder on display, with a check by the
+//  visible ones. Name is always visible.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 {
     std::vector<DxuiPopupMenuItem>     items;
-    std::vector<DxuiListView::Column>  columns = BrowserCells::GetColumns();
+    std::vector<DxuiListView::Column>  columns   = BrowserCells::GetColumns();
+    Location                           location  = m_context.browser.GetLocation();
+    bool                               searching = SearchQuery::IsId (location.path);
 
 
 
@@ -75,8 +78,13 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
+        if (!ExplorerListColumns::IsListColumnOffered (c, location.kind, searching))
+        {
+            continue;
+        }
+
         command->label     = columns[c].title;
-        command->isChecked = [this, c]() { return m_pane.GetColumns().GetChosen()[c]; };
+        command->isChecked = [this, c, location, searching]() { return ExplorerListColumns::IsListColumnShown (c, m_pane.GetColumns().GetChosen()[c], location.kind, searching); };
         command->isEnabled = [c]() { return c != (size_t) CatalogModel::Column::Name; };
         command->dispatch  = [this, c]()
         {
@@ -323,8 +331,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             command->isEnabled = [this]() { return m_context.shellVerbs.ClipboardHasFiles(); };
         }
 
-        //  Convert to's one choice for the file, in a submenu as Explorer
-        //  groups its conversions.
+        //  Convert to's one choice for the file, labeled with what it makes.
         if (verb == CassoExplorerActions::Verb::ConvertTo)
         {
             AddConvertMenu (items);
@@ -817,17 +824,16 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
 //  ExplorerListMenus::AddConvertMenu
 //
 //  A BASIC program converts to its text listing, and a text file to an
-//  Applesoft BASIC program.
+//  Applesoft BASIC program. A file has one conversion, so it is a row of the
+//  menu rather than a submenu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
 {
-    std::vector<DxuiPopupMenuItem>  choices;
     std::vector<FileEntry>          entries;
-    std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
-    std::shared_ptr<DxuiCommand>    child  = std::make_shared<DxuiCommand>();
-    BasicConversion::Kind           kind   = BasicConversion::Kind::None;
+    std::shared_ptr<DxuiCommand>    command = std::make_shared<DxuiCommand>();
+    BasicConversion::Kind           kind    = BasicConversion::Kind::None;
 
 
 
@@ -840,13 +846,9 @@ void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
 
     kind = BasicConversion::GetKind (m_context.browser.GetVolumeKind(), entries[0].type);
 
-    child->label    = (kind == BasicConversion::Kind::ToListing) ? L"&Text listing" : L"&Applesoft BASIC";
-    child->dispatch = [this]() { m_context.commandManager.RunVerb (CassoExplorerActions::Verb::ConvertTo); };
+    command->label    = (kind == BasicConversion::Kind::ToListing) ? L"Con&vert to text listing" : L"Con&vert to Applesoft BASIC";
+    command->dispatch = [this]() { m_context.commandManager.RunVerb (CassoExplorerActions::Verb::ConvertTo); };
 
-    choices.push_back (DxuiPopupMenuItem::ForCommand (child));
-    m_context.menus.GetMenuCommands().push_back (std::move (child));
-
-    parent->label = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ConvertTo);
-    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
-    m_context.menus.GetMenuCommands().push_back (std::move (parent));
+    items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    m_context.menus.GetMenuCommands().push_back (std::move (command));
 }

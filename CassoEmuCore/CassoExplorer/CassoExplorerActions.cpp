@@ -1393,10 +1393,9 @@ ActionsTypes::Outcome CassoExplorerActions::SetLockedSelected (bool locked)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome CassoExplorerActions::ApplyProperties (const AppleFileProperties::Edits & edits)
+ActionsTypes::Outcome CassoExplorerActions::ApplyProperties (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits)
 {
     Outcome                 outcome;
-    std::vector<FileEntry>  entries;
     std::wstring            imagePath = m_browser.GetLocation().path;
     std::string             image     = TextEncoding::WideToNarrow (imagePath);
 
@@ -1404,10 +1403,9 @@ ActionsTypes::Outcome CassoExplorerActions::ApplyProperties (const AppleFileProp
 
     if (m_browser.IsAppleDriveLocation())
     {
-        return m_appleDrive.ApplyPropertiesOnAppleDrive (edits);
+        return m_appleDrive.ApplyPropertiesOnAppleDrive (std::move (entries), edits);
     }
 
-    m_browser.GetSelectedEntries (entries);
 
     if (edits.nameEdited && entries.size() == 1)
     {

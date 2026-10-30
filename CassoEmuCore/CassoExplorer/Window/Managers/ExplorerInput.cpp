@@ -539,6 +539,17 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     m_context.window.ArmTick();
 
+    //  Alt+Enter opens a Properties dialog from inside this key-down, and the
+    //  dialog's message loop would take the WM_SYSCHAR TranslateMessage has
+    //  already queued for it as a menu mnemonic with no match, and beep. Casso
+    //  Explorer has no Enter mnemonic, so the character is dropped.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.alt && ev.vk == VK_RETURN)
+    {
+        MSG  pending = {};
+
+        PeekMessageW (&pending, m_context.window.GetHwnd(), WM_SYSCHAR, WM_SYSCHAR, PM_REMOVE);
+    }
+
     if (m_context.tabManager.HandleEscapeKey (ev))
     {
         return true;

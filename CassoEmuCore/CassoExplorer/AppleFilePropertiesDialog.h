@@ -75,8 +75,8 @@ class AppleFilePropertiesDialog : public DxuiDialogWindow
 {
 public:
     //  Writes the edits to the files, returning the reason it failed, or
-    //  nothing when it succeeded.
-    using ApplyFn = std::function<std::wstring (const AppleFileProperties::Edits & edits)>;
+    //  nothing when it succeeded, and the files as they are after the write.
+    using ApplyFn = std::function<std::wstring (const AppleFileProperties::Edits & edits, std::vector<FileEntry> & inOutEntries)>;
 
     static void  Show (HWND owner, const IDxuiTheme * theme, const std::vector<FileEntry> & entries, VolumeKind kind, bool readOnly, ApplyFn apply);
 

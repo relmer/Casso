@@ -106,7 +106,8 @@ void ExplorerListColumns::SetView (DxuiListView::View view)
 //  ExplorerListColumns::IsListColumnShown
 //
 //  Whether a list column is visible: the user's choice from the header's
-//  menu, and the catalog's two columns only inside a disk image.
+//  menu, and the catalog's two columns only inside a disk image or on a
+//  linked drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +115,7 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
 {
     bool  catalog     = column == (size_t) CatalogModel::Column::Address || column == (size_t) CatalogModel::Column::Locked;
     bool  recycled    = column == (size_t) CatalogModel::Column::OriginalLocation || column == (size_t) CatalogModel::Column::DateDeleted;
-    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory;
+    bool  insideImage = kind == Location::Kind::DiskImage || kind == Location::Kind::DiskDirectory || kind == Location::Kind::AppleDrive;
     bool  inBin       = kind == Location::Kind::RecycleBin;
 
 
@@ -136,6 +137,24 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
     }
 
     return chosen && (insideImage || !catalog);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::IsListColumnOffered
+//
+//  Whether the header's menu lists a column for the folder on display: one
+//  that applies there, whatever the user chose.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsListColumnOffered (size_t column, Location::Kind kind, bool searching)
+{
+    return IsListColumnShown (column, true, kind, searching);
 }
 
 

@@ -586,18 +586,15 @@ ActionsTypes::Outcome ActionsAppleDrive::SetLockedOnAppleDrive (bool locked)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::ApplyPropertiesOnAppleDrive (const AppleFileProperties::Edits & edits)
+ActionsTypes::Outcome ActionsAppleDrive::ApplyPropertiesOnAppleDrive (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits)
 {
     ActionsTypes::Outcome   outcome;
-    std::vector<FileEntry>  entries;
     std::string             link;
     std::string             directory;
     int                     drive     = 0;
     VolumeKind              volume    = m_actions.m_browser.GetVolumeKind();
 
 
-
-    m_actions.m_browser.GetSelectedEntries (entries);
 
     if (!TryGetAppleDrive (link, drive, directory) || entries.empty())
     {

@@ -120,9 +120,9 @@ public:
     //  Locks or unlocks every selected entry.
     Outcome  SetLockedSelected (bool locked);
 
-    //  The Apple file properties dialog's edits, on every selected entry; a
-    //  new name only when one entry is selected.
-    Outcome  ApplyProperties (const AppleFileProperties::Edits & edits);
+    //  The Apple file properties dialog's edits, on each of the entries; a
+    //  new name only when there is one entry.
+    Outcome  ApplyProperties (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits);
 
     //  The selected file converted, as BasicConversion converts it, into a
     //  new file beside it; outNewName is the new file's name.

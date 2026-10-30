@@ -937,7 +937,7 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         textWidth = 0;
     }
 
-    if (m_elide != DxuiElide::None && !label.empty())
+    if (m_elide != DxuiElide::None && !label.empty() && label.find (L'\t') == std::wstring::npos)
     {
         label = DxuiTextElide::ToWidth (text, label, fontDip, s_kFontFamily,
                                         (float) textWidth - GetGlyphIndent (fontDip), m_elide);
@@ -959,17 +959,8 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
     PaintItemGlyph (text, m_selected, (float) (m_boundsDip.left + textInset), (float) m_boundsDip.top,
                     (float) (m_boundsDip.bottom - m_boundsDip.top), textColor, fontDip);
 
-    hr = text.DrawString (label.c_str(),
-                          (float) (m_boundsDip.left + textInset) + GetGlyphIndent (fontDip),
-                          (float) m_boundsDip.top,
-                          (float) textWidth - GetGlyphIndent (fontDip),
-                          (float) (m_boundsDip.bottom - m_boundsDip.top),
-                          textColor,
-                          fontDip,
-                          s_kFontFamily,
-                          DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    DrawItemText (text, label, (float) (m_boundsDip.left + textInset) + GetGlyphIndent (fontDip), (float) m_boundsDip.top,
+                  (float) textWidth - GetGlyphIndent (fontDip), (float) (m_boundsDip.bottom - m_boundsDip.top), textColor, fontDip);
 
     //  A down caret, two thin smoothed strokes meeting at a point, as the other
     //  dropdown arrows are drawn, rather than a filled triangle.
@@ -1012,13 +1003,14 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
 float DxuiComboBox::GetFitWidthPx (IDxuiTextRenderer & text) const
 {
-    HRESULT  hr        = S_OK;
-    float    fontPx    = m_scaler.ToPxf (s_kFontDip);
-    float    widest    = 0.0f;
-    float    width     = 0.0f;
-    float    height    = 0.0f;
-    float    inset     = (float) m_scaler.ToPx (s_kTextInsetDip);
-    float    arrow     = (float) (m_scaler.ToPx (s_kChevronWidthDip) + m_scaler.ToPx (s_kChevronRightDip));
+    HRESULT             hr      = S_OK;
+    float               fontPx  = m_scaler.ToPxf (s_kFontDip);
+    float               widest  = 0.0f;
+    float               width   = 0.0f;
+    float               height  = 0.0f;
+    float               inset   = (float) m_scaler.ToPx (s_kTextInsetDip);
+    float               arrow   = (float) (m_scaler.ToPx (s_kChevronWidthDip) + m_scaler.ToPx (s_kChevronRightDip));
+    std::vector<float>  columns;
 
 
 
@@ -1032,7 +1024,118 @@ float DxuiComboBox::GetFitWidthPx (IDxuiTextRenderer & text) const
         }
     }
 
+    widest = (std::max) (widest, GetColumnStarts (text, fontPx, columns));
+
     return inset + GetGlyphIndent (fontPx) + widest + inset + arrow;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetColumnStarts
+//
+//  Where each tab-separated part starts, from the widest of that part in any
+//  item, and the width of the widest whole item laid out that way. A list
+//  with no tabs has one column at 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiComboBox::GetColumnStarts (IDxuiTextRenderer & text, float fontPx, std::vector<float> & outStarts) const
+{
+    std::vector<float>  widest;
+    float               gap    = fontPx;
+    float               total  = 0.0f;
+
+
+
+    for (const std::wstring & item : m_items)
+    {
+        size_t  column = 0;
+
+        for (size_t start = 0, tab = 0; start <= item.size(); start = tab + 1, column++)
+        {
+            float         width  = 0.0f;
+            float         height = 0.0f;
+            HRESULT       hr     = S_OK;
+            std::wstring  part;
+
+            tab  = item.find (L'\t', start);
+            tab  = (tab == std::wstring::npos) ? item.size() : tab;
+            part = item.substr (start, tab - start);
+
+            hr = text.MeasureString (part.c_str(), fontPx, s_kFontFamily, width, height);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (widest.size() <= column)
+            {
+                widest.push_back (0.0f);
+            }
+
+            widest[column] = (std::max) (widest[column], width);
+        }
+    }
+
+    outStarts.assign (1, 0.0f);
+
+    for (size_t column = 0; column < widest.size(); column++)
+    {
+        total += widest[column] + ((column + 1 < widest.size()) ? gap : 0.0f);
+
+        if (column + 1 < widest.size())
+        {
+            outStarts.push_back (total);
+        }
+    }
+
+    return total;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawItemText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::DrawItemText (IDxuiTextRenderer & text, const std::wstring & item, float x, float top, float width, float height, uint32_t color, float fontPx) const
+{
+    std::vector<float>  starts;
+    size_t              column = 0;
+    HRESULT             hr     = S_OK;
+
+
+
+    if (item.find (L'\t') == std::wstring::npos)
+    {
+        hr = text.DrawString (item.c_str(), x, top, width, height, color, fontPx, s_kFontFamily,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    GetColumnStarts (text, fontPx, starts);
+
+    for (size_t start = 0, tab = 0; start <= item.size() && column < starts.size(); start = tab + 1, column++)
+    {
+        std::wstring  part;
+
+        tab  = item.find (L'\t', start);
+        tab  = (tab == std::wstring::npos) ? item.size() : tab;
+        part = item.substr (start, tab - start);
+
+        if (starts[column] < width)
+        {
+            hr = text.DrawString (part.c_str(), x + starts[column], top, width - starts[column], height, color, fontPx, s_kFontFamily,
+                                  DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
 }
 
 
@@ -1156,17 +1259,8 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
         IGNORE_RETURN_VALUE (hr, S_OK);
         PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), ink, fontDip);
 
-        hr = text.DrawString (m_items[(size_t) i].c_str(),
-                              (float) (row.left + textInset) + GetGlyphIndent (fontDip),
-                              (float) row.top,
-                              (float) (row.right - row.left - textInset) - GetGlyphIndent (fontDip),
-                              (float) (row.bottom - row.top),
-                              ink,
-                              fontDip,
-                              s_kFontFamily,
-                              DxuiTextHAlign::Left,
-                              DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        DrawItemText (text, m_items[(size_t) i], (float) (row.left + textInset) + GetGlyphIndent (fontDip), (float) row.top,
+                      (float) (row.right - row.left - textInset) - GetGlyphIndent (fontDip), (float) (row.bottom - row.top), ink, fontDip);
     }
 }
 
@@ -1245,17 +1339,8 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
 
         PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), ink, fontPx);
 
-        hr = text.DrawString (m_items[(size_t) i].c_str(),
-                              (float) (row.left + textInset) + GetGlyphIndent (fontPx),
-                              (float) row.top,
-                              (float) (row.right - row.left - textInset) - GetGlyphIndent (fontPx),
-                              (float) (row.bottom - row.top),
-                              ink,
-                              fontPx,
-                              s_kFontFamily,
-                              DxuiTextHAlign::Left,
-                              DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        DrawItemText (text, m_items[(size_t) i], (float) (row.left + textInset) + GetGlyphIndent (fontPx), (float) row.top,
+                      (float) (row.right - row.left - textInset) - GetGlyphIndent (fontPx), (float) (row.bottom - row.top), ink, fontPx);
     }
 }
 
@@ -1391,6 +1476,7 @@ std::wstring DxuiComboBox::GetAccessibleName() const
     if (hasSelection)
     {
         name = m_items[(size_t) m_selected];
+        std::replace (name.begin(), name.end(), L'\t', L' ');
     }
 
     return name;

@@ -624,7 +624,7 @@ bool AppleFilePropertiesDialog::Apply()
         return true;
     }
 
-    error = m_apply ? m_apply (edits) : std::wstring();
+    error = m_apply ? m_apply (edits, m_entries) : std::wstring();
 
     if (!error.empty())
     {

@@ -842,11 +842,29 @@ void ExplorerFileOps::ShowAppleProperties()
     m_context.browser.GetSelectedEntries (entries);
 
     AppleFilePropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, entries, m_context.browser.GetVolumeKind(), readOnly,
-                                     [this] (const AppleFileProperties::Edits & edits) -> std::wstring
+                                     [this] (const AppleFileProperties::Edits & edits, std::vector<FileEntry> & inOutEntries) -> std::wstring
     {
-        CassoExplorerActions::Outcome  outcome = m_context.actions.ApplyProperties (edits);
+        CassoExplorerActions::Outcome  outcome = m_context.actions.ApplyProperties (inOutEntries, edits);
 
         m_context.listPane.FillList();
+
+        //  The dialog's files as the list has them now, so the next Apply
+        //  starts from what this one wrote. The list's selection doesn't
+        //  survive the refill, so the files go by name.
+        for (FileEntry & entry : inOutEntries)
+        {
+            std::string  name = (edits.nameEdited && inOutEntries.size() == 1) ? TextEncoding::WideToNarrow (edits.name) : entry.name;
+            FileEntry    fresh;
+
+            for (int row = 0; row < (int) m_context.browser.GetRows().size(); row++)
+            {
+                if (m_context.browser.TryGetRowEntry (row, fresh) && _stricmp (fresh.name.c_str(), name.c_str()) == 0)
+                {
+                    entry = fresh;
+                    break;
+                }
+            }
+        }
 
         return outcome.Succeeded() ? std::wstring() : (outcome.message.empty() ? std::wstring (L"The changes weren't written.") : outcome.message);
     });

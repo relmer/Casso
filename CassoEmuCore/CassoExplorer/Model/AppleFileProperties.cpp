@@ -18,7 +18,7 @@
 
 AppleFileProperties::TypeChoice AppleFileProperties::MakeChoice (const NamedType & row)
 {
-    return TypeChoice { row.type, std::format (L"{:<3}  {:02X}  {}", row.code, row.type, row.name) };
+    return TypeChoice { row.type, std::format (L"{}\t{:02X}\t{}", row.code, row.type, row.name) };
 }
 
 

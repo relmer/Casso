@@ -26,10 +26,10 @@ public:
         auto  spare = AppleFileProperties::GetTypeChoices (VolumeKind::Dos33, 0x40);
 
         Assert::AreEqual ((size_t) 6, plain.size());
-        Assert::AreEqual (std::wstring (L"B    04  Binary"), plain[3].label);
+        Assert::AreEqual (std::wstring (L"B\t04\tBinary"), plain[3].label);
         Assert::AreEqual (-1, AppleFileProperties::FindChoice (plain, 0x40));
         Assert::AreEqual (6,  AppleFileProperties::FindChoice (spare, 0x40));
-        Assert::AreEqual (std::wstring (L"B    40  Binary (second B)"), spare[6].label);
+        Assert::AreEqual (std::wstring (L"B\t40\tBinary (second B)"), spare[6].label);
     }
 
 
@@ -38,7 +38,7 @@ public:
     {
         auto  choices = AppleFileProperties::GetTypeChoices (VolumeKind::ProDos, 0x06);
 
-        Assert::AreEqual (std::wstring (L"BIN  06  Binary"), choices[(size_t) AppleFileProperties::FindChoice (choices, 0x06)].label);
+        Assert::AreEqual (std::wstring (L"BIN\t06\tBinary"), choices[(size_t) AppleFileProperties::FindChoice (choices, 0x06)].label);
         Assert::AreEqual (-1, AppleFileProperties::FindChoice (choices, 0xC1), L"a type with no name is entered as hex");
     }
 

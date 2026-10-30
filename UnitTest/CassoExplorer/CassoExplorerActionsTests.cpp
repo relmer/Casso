@@ -519,18 +519,46 @@ public:
 
         host.OpenImage();
         host.browser.SetSelectedRows ({ host.Find (L"ODD") });
+        host.browser.GetSelectedEntries (entries);
 
         edits.name         = L"EVEN";
         edits.nameEdited   = true;
         edits.lockedEdited = true;
         edits.locked       = true;
 
-        Assert::IsTrue (host.actions.ApplyProperties (edits).Succeeded());
+        Assert::IsTrue (host.actions.ApplyProperties (entries, edits).Succeeded());
         Assert::AreEqual (-1, host.Find (L"ODD"));
 
         host.browser.SetSelectedRows ({ host.Find (L"EVEN") });
         host.browser.GetSelectedEntries (entries);
         Assert::IsTrue (entries.size() == 1 && entries[0].isLocked, L"locked under its new name");
+    }
+
+
+    //  The dialog applies to the files it opened with, whatever the list has selected
+    //  after the refill: lock several, then unlock the same ones.
+    TEST_METHOD (Properties_ApplyAgain_ToTheSameFiles)
+    {
+        Host                        host;
+        AppleFileProperties::Edits  edits;
+        std::vector<FileEntry>      entries;
+        std::vector<FileEntry>      after;
+
+        host.OpenImage();
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
+        host.browser.GetSelectedEntries (entries);
+
+        edits.lockedEdited = true;
+        edits.locked       = true;
+        Assert::IsTrue (host.actions.ApplyProperties (entries, edits).Succeeded());
+
+        host.browser.SetSelectedRows ({});
+        edits.locked = false;
+        Assert::IsTrue (host.actions.ApplyProperties (entries, edits).Succeeded());
+
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"ODD") });
+        host.browser.GetSelectedEntries (after);
+        Assert::IsTrue (after.size() == 2 && !after[0].isLocked && !after[1].isLocked);
     }
 
 

@@ -84,7 +84,7 @@ public:
     ActionsTypes::Outcome  DeleteOnAppleDrive          ();
     ActionsTypes::Outcome  RenameOnAppleDrive          (const std::string & newName);
     ActionsTypes::Outcome  SetLockedOnAppleDrive       (bool locked);
-    ActionsTypes::Outcome  ApplyPropertiesOnAppleDrive (const AppleFileProperties::Edits & edits);
+    ActionsTypes::Outcome  ApplyPropertiesOnAppleDrive (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits);
     ActionsTypes::Outcome  ConvertOnAppleDrive         (const FileEntry & entry, BasicConversion::Kind kind, std::string & outNewName);
     ActionsTypes::Outcome  CreateFolderOnAppleDrive    (const std::string & name);
     void     PutItemsOnAppleDrive     (const std::string & link, int drive, const std::string & directory, std::vector<std::string> taken,
