@@ -142,6 +142,45 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HitTestFilterChevron
+//
+//  The chevron is the right end of the header cell, inside the divider's
+//  grab zone, so a press there opens the filter rather than sorting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListHeader::HitTestFilterChevron (int xPx, int yPx, RECT & outChevron) const
+{
+    int               column  = HitTestHeaderColumn (xPx, yPx);
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int               shift   = m_list.m_hScrollEnabled ? -m_list.m_leftPx : 0;
+    int               width   = m_list.m_scaler.ToPx (s_kChevronDip);
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (column < 0 || !m_list.m_columns[(size_t) column].filterable)
+    {
+        return -1;
+    }
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    outChevron = RECT { colXPx[(size_t) column] + colWPx[(size_t) column] - width + shift, 0,
+                        colXPx[(size_t) column] + colWPx[(size_t) column] + shift, m_list.GetHeaderBarPx() };
+
+    return (xPx >= outChevron.left && xPx < outChevron.right) ? column : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintHeader
 //
 //  Paints the header background, the column titles, the active sort
@@ -232,6 +271,23 @@ void DxuiListHeader::PaintHeader (
                               DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  File Explorer's filter chevron, at the cell's right end while the
+        //  header is hovered, and always while the column is filtered.
+        if (m_list.m_columns[c].filterable && ((int) c == m_hoverCol || m_list.m_columns[c].filtered) && !dragged)
+        {
+            float     chevronW = (float) m_list.m_scaler.ToPxf ((float) s_kChevronDip);
+            float     left     = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - chevronW;
+            float     cx       = left + chevronW / 2.0f;
+            float     cy       = y + titleH / 2.0f;
+            float     halfW    = (float) m_list.m_scaler.ToPxf (4.0f);
+            float     halfH    = (float) m_list.m_scaler.ToPxf (2.0f);
+            float     thick    = (float) m_list.m_scaler.ToPxf (1.0f);
+            uint32_t  ink      = (m_list.m_columns[c].filtered && pal.edgeSel != 0) ? pal.edgeSel : pal.hdrFg;
+
+            painter.DrawLine (cx - halfW, cy - halfH, cx, cy + halfH, thick, ink);
+            painter.DrawLine (cx, cy + halfH, cx + halfW, cy - halfH, thick, ink);
+        }
 
         //  File Explorer's sort indicator: a small chevron centered over the
         //  column title, pointing up for ascending and down for descending.
@@ -666,6 +722,18 @@ bool DxuiListHeader::OnPress (int lx, int ly)
         m_resizeStartXPx = lx;
         m_resizeStartWPx = m_list.m_columnSizing.GetColumnEffectiveWidthPx ((size_t) resizeCol);
         return true;
+    }
+
+    //  A filterable header's chevron opens its filter, ahead of sorting.
+    {
+        RECT  chevron = {};
+        int   filter  = HitTestFilterChevron (lx, ly, chevron);
+
+        if (filter >= 0 && m_onFilter)
+        {
+            m_onFilter (filter, chevron);
+            return true;
+        }
     }
 
     headerCol = HitTestHeaderColumn (lx, ly);

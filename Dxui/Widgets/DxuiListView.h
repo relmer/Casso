@@ -375,6 +375,10 @@ public:
     void  ClearSelection        ()                               { SetSelectedRows ({}, -1); if (m_onSelectionChanged) { m_onSelectionChanged (-1); } }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_header.m_onSortColumn       = std::move (cb); }
+    //  A press on a filterable header's chevron, with the chevron's rect in
+    //  the list's pixels, for the host to open its filter choices under.
+    void  SetOnHeaderFilter     (std::function<void (int, RECT)>  cb)  { m_header.m_onFilter = std::move (cb); }
+    void  SetColumnFilter       (size_t column, bool filterable, bool filtered);
 
     // Mouse activation policy. By default a click release over a row raises
     // onActivateRow; with double-click required, the release only activates

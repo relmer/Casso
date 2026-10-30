@@ -102,6 +102,10 @@ struct DxuiCommand
     //  checked, it is marked with a dot rather than a check.
     bool                           radio        = false;
 
+    //  A check row that toggles without closing its menu, as a filter's
+    //  choices do in File Explorer.
+    bool                           keepsMenuOpen = false;
+
     //  Absent means the label is drawn at its full width.
     std::optional<DxuiLabelFit>    labelFit;
 

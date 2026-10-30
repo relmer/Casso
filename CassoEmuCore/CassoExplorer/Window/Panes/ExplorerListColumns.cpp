@@ -50,6 +50,10 @@ void ExplorerListColumns::ShowChosenColumns()
     for (size_t c = 0; c < m_chosen.size(); c++)
     {
         m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path)));
+
+        //  File Explorer's filters, on a folder's or a disk's list.
+        m_pane.GetListView()->SetColumnFilter (c, CassoExplorerBrowser::GetFilterField (c) != RowGrouping::Field::None && location.kind != Location::Kind::Root,
+                                               m_context.browser.IsFiltering (CassoExplorerBrowser::GetFilterField (c)));
     }
 }
 

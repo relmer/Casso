@@ -1537,3 +1537,22 @@ void DxuiListView::SetView (View view)
 
     EnsureVisible (m_selectedRow);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetColumnFilter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetColumnFilter (size_t column, bool filterable, bool filtered)
+{
+    if (column < m_columns.size())
+    {
+        m_columns[column].filterable = filterable;
+        m_columns[column].filtered   = filtered;
+    }
+}

@@ -1459,6 +1459,22 @@ void DxuiPopupMenu::Commit (int index)
     root = GetRoot();
     cb   = root->m_onSelect;
 
+    //  A toggle that keeps the menu open runs and redraws its check.
+    if (cmd->keepsMenuOpen)
+    {
+        if (cmd->dispatch)
+        {
+            cmd->dispatch();
+        }
+
+        if (m_activePopup != nullptr)
+        {
+            m_activePopup->MarkDirty();
+        }
+
+        return;
+    }
+
     root->m_committing = true;
     root->Hide();
 

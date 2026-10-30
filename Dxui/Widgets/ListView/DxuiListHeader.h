@@ -48,6 +48,12 @@ public:
 
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const;
     int   HitTestHeaderColumn (int xPx, int yPx) const;
+
+    //  The filterable column whose chevron is under the point, and the
+    //  chevron's rect, in the list's pixels; -1 for none.
+    int   HitTestFilterChevron (int xPx, int yPx, RECT & outChevron) const;
+
+    static constexpr int  s_kChevronDip = 22;
     void  SetColumnOrder      (const std::vector<size_t> & order);
 
     int   GetColumnDropPosition (int xPx) const;
@@ -108,6 +114,7 @@ private:
     int                        m_focusedDividerCol = -1;
     int                        m_kbColFocus        = -1;
     std::function<void (int)>         m_onSortColumn;
+    std::function<void (int, RECT)>   m_onFilter;
     std::function<void (const std::vector<size_t> &)>  m_onColumnsReordered;
 
     std::vector<HeaderSlide>  m_headerSlides;

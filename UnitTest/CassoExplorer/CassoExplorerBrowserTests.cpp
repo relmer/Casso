@@ -978,6 +978,46 @@ public:
     }
 
 
+    //  A column's filter lists the groups of every row in the folder, keeps
+    //  the rows in a checked group, and ends when the folder changes.
+    TEST_METHOD (ColumnFilter_KeepsTheCheckedGroups_UntilTheFolderChanges)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+        size_t        all    = 0;
+
+        Assert::IsTrue (CassoExplorerBrowser::GetFilterField ((size_t) CatalogModel::Column::Type) == RowGrouping::Field::Type);
+        Assert::IsTrue (CassoExplorerBrowser::GetFilterField ((size_t) CatalogModel::Column::Address) ==RowGrouping::Field::None);
+
+        AssertSucceeded (host.browser.SelectTreeNode (host.FindChildId (folder, L"dos33.dsk")));
+        all = host.browser.GetRows().size();
+
+        Assert::AreEqual ((size_t) 2, host.browser.GetFilterChoices (RowGrouping::Field::Name).size());
+
+        host.browser.ToggleFilter (RowGrouping::Field::Name, L"A - H");
+        AssertSucceeded (host.browser.Reload (true));
+
+        Assert::IsTrue (host.browser.IsFiltering (RowGrouping::Field::Name));
+        Assert::IsTrue (host.browser.GetRows().size() < all);
+
+        for (const CatalogRow & row : host.browser.GetRows())
+        {
+            Assert::IsTrue (row.name[0] <= L'H');
+        }
+
+        Assert::AreEqual ((size_t) 2, host.browser.GetFilterChoices (RowGrouping::Field::Name).size(), L"The choices include the rows filtered out");
+
+        host.browser.ToggleFilter (RowGrouping::Field::Name, L"A - H");
+        AssertSucceeded (host.browser.Reload (true));
+        Assert::IsFalse  (host.browser.IsFiltering (RowGrouping::Field::Name), L"Unchecking the last group ends the filter");
+        Assert::AreEqual (all, host.browser.GetRows().size());
+
+        host.browser.ToggleFilter (RowGrouping::Field::Name, L"A - H");
+        AssertSucceeded (host.browser.SelectTreeNode (folder));
+        Assert::IsFalse (host.browser.IsFiltering (RowGrouping::Field::Name), L"Another folder starts unfiltered");
+    }
+
+
     TEST_METHOD (Status_ImageFreeSpaceIsOfTheWhole_AndSaysWhichDisk)
     {
         Host          host;

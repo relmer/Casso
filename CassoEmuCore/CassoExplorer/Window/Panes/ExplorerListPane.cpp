@@ -148,6 +148,14 @@ void ExplorerListPane::Configure()
         FillList();
     });
 
+    //  A header's chevron opens its column's filter, under the chevron.
+    m_list->SetOnHeaderFilter ([this] (int column, RECT chevron)
+    {
+        RECT  bounds = m_list->GetBounds();
+
+        m_menus.ShowFilterMenu ((size_t) column, RECT { bounds.left + chevron.left, bounds.top + chevron.top, bounds.left + chevron.right, bounds.top + chevron.bottom });
+    });
+
     //  A width the user set, by dragging a divider or by double-clicking one
     //  to fit it, is kept for the next run.
     m_list->SetOnColumnResized ([this] (int column, int widthPx)

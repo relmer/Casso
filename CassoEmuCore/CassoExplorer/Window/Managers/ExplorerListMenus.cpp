@@ -878,3 +878,75 @@ void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
     m_context.menus.GetMenuCommands().push_back (std::move (command));
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::ShowFilterMenu
+//
+//  The column's groups, as Group by names them, each checked while the list
+//  shows it; a check filters the list at once and leaves the menu open, as
+//  File Explorer's does. Clear filter ends the column's filter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    RowGrouping::Field              field  = CassoExplorerBrowser::GetFilterField (column);
+
+
+
+    if (field == RowGrouping::Field::None)
+    {
+        return;
+    }
+
+    m_context.menus.GetMenuCommands().clear();
+
+    for (const RowGrouping::Group & group : m_context.browser.GetFilterChoices (field))
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        std::wstring                  label   = group.label;
+
+        command->label         = ExplorerAddressBar::EscapeMnemonics (label);
+        command->keepsMenuOpen = true;
+        command->isChecked     = [this, field, label]() { return m_context.browser.IsFilterChecked (field, label); };
+        command->dispatch      = [this, field, label]()
+        {
+            HRESULT  hr = S_OK;
+
+            m_context.browser.ToggleFilter (field, label);
+            hr = m_context.browser.Reload (true);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            m_pane.FillList();
+        };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+        m_context.menus.GetMenuCommands().push_back (std::move (command));
+    }
+
+    if (m_context.browser.IsFiltering (field))
+    {
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        m_context.menus.AddMenuCommand (items, L"&Clear filter", [this, field]()
+        {
+            HRESULT  hr = S_OK;
+
+            m_context.browser.ClearFilter (field);
+            hr = m_context.browser.Reload (true);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            m_pane.FillList();
+        });
+    }
+
+    if (items.empty())
+    {
+        return;
+    }
+
+    DxuiContextMenu::ShowUnder (*m_context.window.GetPopupHost(), chevron, std::move (items));
+}

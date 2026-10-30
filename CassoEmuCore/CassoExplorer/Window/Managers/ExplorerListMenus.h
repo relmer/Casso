@@ -27,6 +27,10 @@ public:
     ExplorerListMenus (ExplorerListPane & pane, ExplorerContext & context);
 
     void                            ShowListHeaderMenu  (int x, int y, int column);
+
+    //  A column's filter choices, each a check that stays open, under the
+    //  header's chevron at `chevron`, in the window's pixels.
+    void                            ShowFilterMenu      (size_t column, RECT chevron);
     void                            ShowListContextMenu (int x, int y, int group = -1);
     bool                            IsListVerbOffered   (CassoExplorerActions::Verb verb) const;
     std::vector<DxuiPopupMenuItem>  GetSortChoices      ();

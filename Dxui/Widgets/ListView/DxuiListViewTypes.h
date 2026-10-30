@@ -26,6 +26,11 @@ struct DxuiListViewTypes
         bool            stretch  = false;   // when true, column absorbs any remaining width after fixed/auto
         DxuiTextHAlign  align    = DxuiTextHAlign::Left;
         bool            visible  = true;
+
+        //  A column the list can be filtered on has File Explorer's chevron
+        //  on its header while hovered, and always while filtered.
+        bool            filterable = false;
+        bool            filtered   = false;
     };
 
     struct Cell
