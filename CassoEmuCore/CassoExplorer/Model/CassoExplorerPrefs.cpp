@@ -415,6 +415,12 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
         fields.emplace_back ("key",             JsonValue (TextEncoding::WideToNarrow (entry.key)));
         fields.emplace_back ("view",            JsonValue ((double) (int) entry.view));
+
+        if (entry.iconDip > 0)
+        {
+            fields.emplace_back ("iconDip", JsonValue ((double) entry.iconDip));
+        }
+
         fields.emplace_back ("sortColumn",      JsonValue ((double) entry.sortColumn));
         fields.emplace_back ("sortDescending",  JsonValue (entry.sortDescending));
         fields.emplace_back ("groupBy",         JsonValue ((double) entry.groupBy));
@@ -831,6 +837,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
 
                 //  Each kept only when present, so a file from before them
                 //  reads with the defaults.
+                if (value.HasInt ("iconDip", number) && number > 0)           { entry.iconDip         = number; }
                 if (value.HasInt ("sortColumn", number) && number >= 0)       { entry.sortColumn      = number; }
                 if (value.HasBool ("sortDescending", flag))                   { entry.sortDescending  = flag;   }
                 if (value.HasInt ("groupBy", number) && number >= 0)          { entry.groupBy         = number; }

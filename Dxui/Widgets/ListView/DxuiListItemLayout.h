@@ -42,10 +42,29 @@ public:
     static constexpr float  s_kXLargeBoxPadDip     = 6.0f;
     static constexpr float  s_kItemBoxPadDip       = 5.33f;
 
+    //  A box of a size set with SetItemIconDip, measured over File Explorer's
+    //  sizes at 125% and 150%: its icon and a ninth of Large's icon or less,
+    //  never narrower than Medium's; the name is this much narrower than the
+    //  box; and Small icons' row is its icon and this much, or its default.
+    static constexpr int    s_kSizedBoxPadDivisor  = 9;
+    static constexpr int    s_kSizedBoxPadExtraPx  = 3;
+    static constexpr float  s_kSizedLabelInsetDip  = 14.33f;
+    static constexpr float  s_kSizedSmallRowPadDip = 16.2f;
+
     //  An item's icon in pixels: the view's size, scaled, but never past the
     //  256 pixels of the shell's largest icon, as Explorer draws Extra large.
     static constexpr int  s_kMaxItemIconPx = 256;
     static int          GetItemIconPx    (DxuiListViewTypes::View view, UINT dpi);
+
+    //  The icon of a size set with SetItemIconDip, as File Explorer scales one:
+    //  by the DPI up to Large's 96, and from there on to Extra large's 256 by
+    //  even steps to the 256 pixels of the shell's largest icon.
+    static constexpr int  s_kSizedLargeDip = 96;
+    static constexpr int  s_kSizedMaxDip   = 256;
+    static int          GetSizedIconPx   (int iconDip, UINT dpi);
+
+    //  The icon of the view on display, at the size set for it, if any.
+    int                 GetViewIconPx    () const;
     bool                GetItemRectPx    (int item, RECT & outRect) const;
 
 

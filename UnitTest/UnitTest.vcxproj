@@ -359,6 +359,7 @@
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsModelTests.cpp" />
+    <ClCompile Include="CassoExplorer\IconSizeStepsTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />

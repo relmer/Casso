@@ -1130,7 +1130,10 @@ void ExplorerListPane::SizeListIcons()
 
     m_listIcons.SetDpi    (dpi);
     m_listIcons.SetSizePx ((m_columns.GetView() == DxuiListView::View::Details) ? MulDiv (DxuiTreeView::s_kIconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi)
-                                                                        : DxuiListItemLayout::GetItemIconPx (m_columns.GetView(), dpi));
+                                                                        : m_list->GetViewIconPx());
+
+    //  File Explorer draws thumbnails where a name goes under the icon.
+    m_listIcons.SetThumbnails (DxuiListItemLayout::GetItemMetrics (m_columns.GetView()).labelBelow);
 
     m_context.dragDrop.SetIconDpi (dpi);
 }

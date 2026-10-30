@@ -726,14 +726,31 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
         return found->second;
     }
 
-    //  A picture or a video in an icon view larger than the large icon has a
-    //  thumbnail, made in the background, as File Explorer draws it.
-    if (m_loader.joinable() && overlays && m_sizePx > s_kLargeIconPx && cacheKey.starts_with (L"*ext:") && HasThumbnail (cacheKey.substr (5)))
+    //  A picture or a video has a thumbnail, made in the background, as File
+    //  Explorer draws it. While one is made at a new size, as Ctrl with the
+    //  wheel moves through them, the last one made is drawn.
+    if (m_loader.joinable() && overlays && m_thumbnails && cacheKey.starts_with (L"*ext:") && HasThumbnail (cacheKey.substr (5)))
     {
+        std::shared_ptr<const DxuiIconImage>  waiting;
+
         key   = GetSizedKey (L"*thumb:" + path);
         found = m_cache.find (key);
 
-        return (found != m_cache.end()) ? found->second : Queue (key, path, false, overlays, true);
+        if (found != m_cache.end())
+        {
+            if (m_lastThumbnails.size() >= s_kMaxCachedIcons)
+            {
+                m_lastThumbnails.clear();
+            }
+
+            m_lastThumbnails[path] = found->second;
+
+            return found->second;
+        }
+
+        waiting = Queue (key, path, false, overlays, true);
+
+        return m_lastThumbnails.contains (path) ? m_lastThumbnails[path] : waiting;
     }
 
     //  A per-path icon is the slow kind; one by extension is quick, and the

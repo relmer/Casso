@@ -200,6 +200,7 @@
     <ClCompile Include="Seams\Win32ContentDetails.cpp" />
     <ClCompile Include="Seams\Win32PropertyColumns.cpp" />
     <ClCompile Include="CassoExplorer\Model\ChooseDetailsModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\IconSizeSteps.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CrtPictureRenderer.cpp" />
     <ClCompile Include="Seams\Win32InfoTips.cpp" />
@@ -723,6 +724,7 @@
     <ClInclude Include="Seams\Win32ContentDetails.h" />
     <ClInclude Include="Seams\Win32PropertyColumns.h" />
     <ClInclude Include="CassoExplorer\Model\ChooseDetailsModel.h" />
+    <ClInclude Include="CassoExplorer\Model\IconSizeSteps.h" />
     <ClInclude Include="CassoExplorer\ChooseDetailsDialog.h" />
     <ClInclude Include="CassoExplorer\CrtPictureRenderer.h" />
     <ClInclude Include="Seams\Win32InfoTips.h" />

@@ -44,7 +44,7 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
     int                             first   = 0;
     int                             last    = rows;
     int                             pad     = m_list.m_scaler.ToPx (DxuiListView::s_kItemPadDip);
-    int                             iconPx  = DxuiListItemLayout::GetItemIconPx (m_list.m_view, m_list.m_scaler.GetDpi());
+    int                             iconPx  = m_list.m_items.GetViewIconPx();
     int                             lineH   = m_list.m_scaler.ToPx (metrics.lineDip);
     float                           fontPx  = m_list.m_scaler.ToPxf (m_list.m_fontDip);
     bool                            listGrp = m_list.m_flow.HasListGroups();

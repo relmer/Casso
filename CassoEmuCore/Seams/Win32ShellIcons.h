@@ -44,6 +44,10 @@ public:
     //  draws it.
     void  SetDpi    (UINT dpi) { m_dpi = dpi; }
 
+    //  Whether a picture or a video has a thumbnail in place of its type's
+    //  icon, made in the background.
+    void  SetThumbnails (bool thumbnails) { m_thumbnails = thumbnails; }
+
     //  Loads per-path icons in the background and posts `message` to `hwnd`
     //  when some are ready; the window then calls TakeLoaded.
     void  LoadInBackground (HWND hwnd, UINT message);
@@ -131,6 +135,8 @@ private:
     std::unordered_map<std::wstring, uint64_t>                              m_failedAt;   // GetTickCount64 of a per-path icon that failed to load
     std::unordered_map<std::wstring, std::wstring>                          m_typeNames;
     std::unordered_map<std::wstring, bool>                                  m_thumbnailTypes;   // by extension, whether the shell makes thumbnails of it
+    std::unordered_map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_lastThumbnails;   // by path, the last made, drawn until the one at a new size is ready
+    bool                                                                    m_thumbnails = false;
 
     //  The background loader. Requests and results pass under the lock;
     //  m_pending holds the keys asked for and not yet taken.

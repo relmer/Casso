@@ -420,6 +420,7 @@ private:
     bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
     bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)
     bool                               m_modalDone       = false;
+    bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
     int                                m_modalResult     = 0;
     int                                m_defaultButtonId = 0;
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)

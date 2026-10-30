@@ -341,6 +341,13 @@ public:
     void                SetView          (View view);
     View                GetView          () const    { return m_view; }
 
+    //  An icon view's icon size, as Ctrl with the wheel sets it in File
+    //  Explorer, in place of the view's default; 0 is the default. Only
+    //  Extra large, Large, Medium and Small icons have one.
+    void                SetItemIconDip   (int iconDip)  { m_itemIconDip = iconDip; }
+    int                 GetItemIconDip   () const       { return m_itemIconDip; }
+    int                 GetViewIconPx    () const       { return m_items.GetViewIconPx(); }
+
     //  Under a big icon: how far into its cell the icon starts, and the gap
     //  between it and the name, as Explorer's are measured.
     static int          GetIconTopDip    (View view)  { return (view == View::MediumIcons || view == View::LargeIcons || view == View::ExtraLargeIcons) ? 2 : s_kItemPadDip; }
@@ -605,6 +612,7 @@ private:
     bool                       m_textSelectionColors = false;
     bool                       m_showHeader          = false;
     View                       m_view                = View::Details;
+    int                        m_itemIconDip         = 0;
     bool                       m_detailsHeader       = false;   // the header Details had, while another view shows
     int                        m_topRow              = 0;
     bool                       m_flushBottom         = false;   // Details: the rows lifted so the last whole one ends at the bottom

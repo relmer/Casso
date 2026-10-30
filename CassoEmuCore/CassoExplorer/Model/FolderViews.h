@@ -20,6 +20,7 @@ struct FolderViewEntry
 {
     std::wstring        key;
     DxuiListView::View  view            = DxuiListView::View::Details;
+    int                 iconDip         = 0;          // the view's icon size, from Ctrl with the wheel; 0 is its default
     int                 sortColumn      = 0;
     bool                sortDescending  = false;
     int                 groupBy         = 0;          // a RowGrouping::Field
@@ -64,7 +65,7 @@ public:
     static DxuiListView::View  GetDefaultView (FolderType type);
 
     DxuiListView::View  GetView  (const std::wstring & key, FolderType type) const;
-    void                Remember (const std::wstring & key, DxuiListView::View view);
+    void                Remember (const std::wstring & key, DxuiListView::View view, int iconDip = 0);
 
     //  The folder's entry, or one with the defaults for its type when none was
     //  kept; and keeping one, first, whole.

@@ -55,12 +55,17 @@ public:
     std::vector<bool>   & GetChosen          ()       { return m_chosen; }
     void                  SetView            (DxuiListView::View view);
 
+    //  One notch of Ctrl with the wheel, as in File Explorer: a larger or
+    //  smaller icon, or the next view past the smallest. Whether it changed.
+    bool                  StepIconSize       (bool larger);
+
 private:
     ExplorerListPane                   & m_pane;
     ExplorerContext                    & m_context;
     std::vector<bool>                    m_chosen;   // the columns the user chose
     std::vector<int>                     m_folderOrder;   // the column order the folder on display uses
     DxuiListView::View                   m_view        = DxuiListView::View::Details;
+    int                                  m_iconDip     = 0;   // the view's icon size; 0 is its default
     std::wstring                         m_viewKey;   // the folder the view was chosen for: a new folder opens in its view
     std::vector<DxuiListView::Column>    m_listColumns;
 };

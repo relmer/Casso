@@ -52,9 +52,10 @@ public:
 
 private:
     ExplorerContext  & m_context;
-    ExplorerPane       m_focus           = ExplorerPane::Tree;
-    POINT              m_dragStart       = {};
-    int                m_toolbarFocus    = 0;
-    int                m_commandBarFocus = 0;
+    ExplorerPane       m_focus            = ExplorerPane::Tree;
+    POINT              m_dragStart        = {};
+    int                m_toolbarFocus     = 0;
+    int                m_commandBarFocus  = 0;
+    float              m_iconWheelNotches = 0.0f;   // a touchpad's part notches of Ctrl with the wheel, until they make one
     RightPress         m_rightPress;
 };

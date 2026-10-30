@@ -390,6 +390,30 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  Ctrl with the wheel over the list sizes its icons, as in File Explorer.
+    if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal
+        && ExplorerLayout::Contains (m_context.listPane.GetListView()->GetBounds(), point))
+    {
+        m_iconWheelNotches += ev.wheelDelta;
+
+        while (std::abs (m_iconWheelNotches) >= 1.0f)
+        {
+            bool  larger = m_iconWheelNotches > 0.0f;
+
+            m_iconWheelNotches += larger ? -1.0f : 1.0f;
+
+            if (m_context.listPane.GetColumns().StepIconSize (larger))
+            {
+                m_context.toolbars.ShowViewOnButton();
+                m_context.listPane.SizeListIcons();
+                m_context.listPane.FillList();
+                m_context.window.Invalidate();
+            }
+        }
+
+        return true;
+    }
+
     if (m_context.toolbars.HandleMenuBarMouse (ev))
     {
         return true;

@@ -722,9 +722,10 @@ DxuiMessageResult DxuiWindow::OnMouseLeave()
 
 DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    HWND   hwnd  = GetHwnd();
-    POINT  point = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    float  notch = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+    HWND               hwnd   = GetHwnd();
+    POINT              point  = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    float              notch  = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
 
@@ -733,12 +734,19 @@ DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool h
         ScreenToClient (hwnd, &point);
     }
 
-    return DispatchMouse (DxuiMouseEventKind::Wheel,
-                          DxuiMouseButton::None,
-                          point.x,
-                          point.y,
-                          notch,
-                          horizontal);
+    //  The message's flags are the keys as they were when the wheel turned.
+    m_wheelCtrl = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
+
+    result = DispatchMouse (DxuiMouseEventKind::Wheel,
+                            DxuiMouseButton::None,
+                            point.x,
+                            point.y,
+                            notch,
+                            horizontal);
+
+    m_wheelCtrl = false;
+
+    return result;
 }
 
 
@@ -1282,7 +1290,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     ev.wheelDelta      = wheelDelta;
     ev.wheelHorizontal = wheelHorizontal;
     ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    ev.ctrl        = m_wheelCtrl || (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
     // A modal overlay captures all mouse input so the page beneath it stays

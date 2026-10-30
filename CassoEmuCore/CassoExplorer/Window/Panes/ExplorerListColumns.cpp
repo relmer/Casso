@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Model/IconSizeSteps.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -96,10 +97,45 @@ void ExplorerListColumns::SetChosen (size_t column, bool chosen)
 void ExplorerListColumns::SetView (DxuiListView::View view)
 {
     m_view    = view;
+    m_iconDip = 0;
     m_viewKey = GetFolderViewKey (nullptr);
 
     m_context.prefs.folderViews.Remember (m_viewKey, m_view);
+    m_pane.GetListView()->SetItemIconDip (0);
     m_pane.GetListView()->SetView (m_view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::StepIconSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::StepIconSize (bool larger)
+{
+    IconSizeSteps::Size  current { m_view, m_iconDip };
+    IconSizeSteps::Size  next    = IconSizeSteps::Step (current, larger);
+
+
+
+    if (next == current)
+    {
+        return false;
+    }
+
+    m_view    = next.view;
+    m_iconDip = next.iconDip;
+    m_viewKey = GetFolderViewKey (nullptr);
+
+    m_context.prefs.folderViews.Remember (m_viewKey, m_view, m_iconDip);
+    m_pane.GetListView()->SetItemIconDip (m_iconDip);
+    m_pane.GetListView()->SetView (m_view);
+
+    return true;
 }
 
 
@@ -314,6 +350,8 @@ void ExplorerListColumns::ApplyFolderView()
 
     m_viewKey = key;
     m_view    = m_context.prefs.folderViews.GetView (key, type);
+    m_iconDip = m_context.prefs.folderViews.GetEntry (key, type).iconDip;
+    m_pane.GetListView()->SetItemIconDip (m_iconDip);
     m_pane.GetListView()->SetView (m_view);
     m_context.toolbars.ShowViewOnButton();
     m_pane.SizeListIcons();

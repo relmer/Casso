@@ -72,6 +72,46 @@ int DxuiListItemLayout::GetItemIconPx (DxuiListViewTypes::View view, UINT dpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListItemLayout::GetSizedIconPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListItemLayout::GetSizedIconPx (int iconDip, UINT dpi)
+{
+    int  base = (std::min) (MulDiv ((std::min) (iconDip, s_kSizedLargeDip), (int) dpi, (int) DxuiDpiScaler::kBaseDpi), s_kMaxItemIconPx);
+
+
+
+    if (iconDip <= s_kSizedLargeDip)
+    {
+        return base;
+    }
+
+    return base + MulDiv (s_kMaxItemIconPx - base, (std::min) (iconDip, s_kSizedMaxDip) - s_kSizedLargeDip, s_kSizedMaxDip - s_kSizedLargeDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemLayout::GetViewIconPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListItemLayout::GetViewIconPx() const
+{
+    return (m_list.m_itemIconDip > 0) ? GetSizedIconPx (m_list.m_itemIconDip, m_list.m_scaler.GetDpi())
+                                      : GetItemIconPx (m_list.m_view, m_list.m_scaler.GetDpi());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListItemLayout::GetItemGrid
 //
 //  How the items of the current view fit the list: the cell in pixels, how
@@ -94,7 +134,7 @@ DxuiListViewTypes::ItemGrid DxuiListItemLayout::GetItemGrid() const
 
     //  A big icon's row is its fixed part and one caption line, which is the
     //  font's height in GDI's measure, as Explorer's rows are.
-    grid.cellH = metrics.labelBelow              ? GetItemIconPx (m_list.m_view, m_list.m_scaler.GetDpi()) + (int) std::lround (m_list.m_scaler.ToPxf (s_kItemBoxPadDip))
+    grid.cellH = metrics.labelBelow              ? GetViewIconPx() + (int) std::lround (m_list.m_scaler.ToPxf (s_kItemBoxPadDip))
                                                    + (int) std::lround (m_list.m_scaler.ToPxf (DxuiListView::s_kItemRowGapDip)) + GetCaptionLinePx()
                : (m_list.m_view == DxuiListViewTypes::View::Tiles)      ? GetTileRowPx (0)
                : (m_list.m_view == DxuiListViewTypes::View::Content)    ? (int) std::lround (m_list.m_scaler.ToPxf ((m_list.m_scaler.GetDpi() >= 144) ? s_kContentRowDip : s_kContentRowLowDpiDip))
@@ -385,10 +425,16 @@ int DxuiListItemLayout::GetItemExtraPx (int item) const
 int DxuiListItemLayout::GetSmallRowPx() const
 {
     int  icon = GetItemIconPx (DxuiListViewTypes::View::SmallIcons, m_list.m_scaler.GetDpi());
+    int  row  = GetCaptionLinePx() + icon + ((m_list.m_scaler.GetDpi() >= 144) ? 2 : 0);
 
 
 
-    return GetCaptionLinePx() + icon + ((m_list.m_scaler.GetDpi() >= 144) ? 2 : 0);
+    if (m_list.m_itemIconDip > 0 && m_list.m_view == DxuiListViewTypes::View::SmallIcons)
+    {
+        row = (std::max) (row, GetViewIconPx() + (int) std::lround (m_list.m_scaler.ToPxf (s_kSizedSmallRowPadDip)));
+    }
+
+    return row;
 }
 
 
@@ -523,7 +569,7 @@ void DxuiListItemLayout::MeasureItemNames (IDxuiTextRenderer & text) const
 
 int DxuiListItemLayout::GetNameCellWPx (int textPx) const
 {
-    return GetItemIconLeftPx() + GetItemIconPx (m_list.m_view, m_list.m_scaler.GetDpi()) + m_list.GetNameTextGapPx() + textPx
+    return GetItemIconLeftPx() + GetViewIconPx() + m_list.GetNameTextGapPx() + textPx
          + (int) std::lround (m_list.m_scaler.ToPxf (s_kNameRightPadDip)) + (int) std::lround (m_list.m_scaler.ToPxf (DxuiListView::s_kNameColumnGapDip));
 }
 
@@ -1045,6 +1091,20 @@ bool DxuiListItemLayout::IsFirstOfGroup (int item) const
 
 int DxuiListItemLayout::GetItemBoxPx() const
 {
+    if (m_list.m_itemIconDip > 0)
+    {
+        int  icon = GetViewIconPx();
+        int  pad  = icon / s_kSizedBoxPadDivisor;
+
+        if (m_list.m_itemIconDip > s_kSizedLargeDip)
+        {
+            pad = GetSizedIconPx (s_kSizedLargeDip, m_list.m_scaler.GetDpi()) / s_kSizedBoxPadDivisor
+                + MulDiv (s_kSizedBoxPadExtraPx, m_list.m_itemIconDip - s_kSizedLargeDip, s_kSizedMaxDip - s_kSizedLargeDip);
+        }
+
+        return (std::max) ((int) std::floor (m_list.m_scaler.ToPxf (s_kMediumBoxDip)), icon + pad);
+    }
+
     if (m_list.m_view == DxuiListViewTypes::View::ExtraLargeIcons)
     {
         return GetItemIconPx (m_list.m_view, m_list.m_scaler.GetDpi()) + s_kXLargeBoxPadPx + (int) std::lround (m_list.m_scaler.ToPxf (s_kXLargeBoxPadDip));
@@ -1425,7 +1485,7 @@ RECT DxuiListItemLayout::GetItemLabelRectPx (const RECT & cell) const
 {
     DxuiListViewTypes::ItemMetrics  metrics = GetItemMetrics (m_list.m_view);
     int                             pad     = m_list.m_scaler.ToPx (DxuiListView::s_kItemPadDip);
-    int                             iconPx  = GetItemIconPx (m_list.m_view, m_list.m_scaler.GetDpi());
+    int                             iconPx  = GetViewIconPx();
     int                             lineH   = metrics.labelBelow ? GetCaptionLinePx() : m_list.m_scaler.ToPx (metrics.lineDip);
     int                             gap     = pad;
     int                             right   = pad;
@@ -1446,6 +1506,12 @@ RECT DxuiListItemLayout::GetItemLabelRectPx (const RECT & cell) const
         {
             width = (m_list.m_view == DxuiListViewTypes::View::ExtraLargeIcons) ? iconPx - s_kXLargeLabelInsetPx
                   : (int) std::lround (m_list.m_scaler.ToPxf ((m_list.m_view == DxuiListViewTypes::View::MediumIcons) ? s_kMediumLabelWDip : s_kLargeLabelWDip));
+
+            if (m_list.m_itemIconDip > 0)
+            {
+                width = GetItemBoxPx() - (int) std::lround (m_list.m_scaler.ToPxf (s_kSizedLabelInsetDip));
+            }
+
             inset = ((cell.right - cell.left) - width) / 2;
         }
 

@@ -57,13 +57,14 @@ DxuiListView::View FolderViews::GetView (const std::wstring & key, FolderType ty
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FolderViews::Remember (const std::wstring & key, DxuiListView::View view)
+void FolderViews::Remember (const std::wstring & key, DxuiListView::View view, int iconDip)
 {
     FolderViewEntry  entry = GetEntry (key, FolderType::Generic);
 
 
 
-    entry.view = view;
+    entry.view    = view;
+    entry.iconDip = iconDip;
     Remember (entry);
 }
 
