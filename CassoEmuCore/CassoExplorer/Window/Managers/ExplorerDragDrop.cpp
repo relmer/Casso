@@ -636,7 +636,9 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
         LeaveHostDrop();
 
         effect = (TryGetHostDropFolder (tag, screen, hostFolder) && !hostFolder.starts_with (L"shell:")) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+        location.path = hostFolder;
 
+        DescribeDrop   (data, effect, location);
         ShowDropTarget (tag, screen, effect != DROPEFFECT_NONE);
         return effect;
     }
