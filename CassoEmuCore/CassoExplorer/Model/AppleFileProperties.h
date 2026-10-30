@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-
-enum class VolumeKind;
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/VolumeTypes.h"
 
 
 
@@ -61,6 +61,46 @@ public:
     //  A name the file system can store; for a file on the PC, DOS 3.3's
     //  rule, the looser of the two.
     static bool                     IsValidName    (VolumeKind kind, const std::wstring & name);
+
+    //  What the dialog's fields changed, each only where its edited flag is
+    //  set. Access is ProDOS's bits, the changed ones in accessMask; on DOS 3.3
+    //  the Locked box is the lock.
+    struct Edits
+    {
+        std::wstring  name;
+        Byte          type           = 0;
+        Word          aux            = 0;
+        Byte          access         = 0;
+        Byte          accessMask     = 0;
+        bool          locked         = false;
+        Word          createdDate    = 0;
+        Word          createdTime    = 0;
+        Word          modifiedDate   = 0;
+        Word          modifiedTime   = 0;
+        bool          nameEdited     = false;
+        bool          typeEdited     = false;
+        bool          auxEdited      = false;
+        bool          lockedEdited   = false;
+        bool          createdEdited  = false;
+        bool          modifiedEdited = false;
+
+        bool  ChangesAttributes () const { return typeEdited || auxEdited || accessMask != 0 || lockedEdited || createdEdited || modifiedEdited; }
+    };
+
+    //  The catalog changes for one file: its access with only the changed bits
+    //  replaced, and the second field only where the file's type, after the
+    //  edit, has one.
+    static FileAttributes  MakeAttributes (const FileEntry & entry, VolumeKind kind, const Edits & edits);
+
+    //  An entry's ProDOS access byte; a DOS 3.3 entry's from its lock.
+    static Byte            GetAccess      (const FileEntry & entry);
+
+    //  ProDOS's access bits, in the order the dialog lists them.
+    static constexpr Byte  kAccessRead    = 0x01;
+    static constexpr Byte  kAccessWrite   = 0x02;
+    static constexpr Byte  kAccessBackup  = 0x20;
+    static constexpr Byte  kAccessRename  = 0x40;
+    static constexpr Byte  kAccessDestroy = 0x80;
 
     static constexpr int   kFirstYear = 1940;
     static constexpr int   kLastYear  = 2039;

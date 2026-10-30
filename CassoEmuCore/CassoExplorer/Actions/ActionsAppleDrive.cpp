@@ -582,6 +582,61 @@ ActionsTypes::Outcome ActionsAppleDrive::SetLockedOnAppleDrive (bool locked)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsAppleDrive::ApplyPropertiesOnAppleDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::ApplyPropertiesOnAppleDrive (const AppleFileProperties::Edits & edits)
+{
+    ActionsTypes::Outcome   outcome;
+    std::vector<FileEntry>  entries;
+    std::string             link;
+    std::string             directory;
+    int                     drive     = 0;
+    VolumeKind              volume    = m_actions.m_browser.GetVolumeKind();
+
+
+
+    m_actions.m_browser.GetSelectedEntries (entries);
+
+    if (!TryGetAppleDrive (link, drive, directory) || entries.empty())
+    {
+        outcome.hr = E_INVALIDARG;
+        return outcome;
+    }
+
+    //  The name first, as a locked file can't be renamed; the link runs the
+    //  writes in the order they are submitted.
+    if (edits.nameEdited && entries.size() == 1)
+    {
+        FilePath     path = FilePath::Parse (m_actions.m_browser.GetEntryPath (entries[0]));
+        std::string  name = TextEncoding::WideToNarrow (edits.name);
+
+        SubmitWrite (link, drive, [drive, path, name] (CassoLinkSession & session) { return session.Rename (drive, path, name); }, outcome);
+
+        entries[0].name = name;
+    }
+
+    for (const FileEntry & entry : entries)
+    {
+        FilePath        path       = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
+        FileAttributes  attributes = AppleFileProperties::MakeAttributes (entry, volume, edits);
+
+        if (edits.ChangesAttributes())
+        {
+            SubmitWrite (link, drive, [drive, path, attributes] (CassoLinkSession & session) { return session.SetAttributes (drive, path, attributes); }, outcome);
+        }
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsAppleDrive::ConvertOnAppleDrive
 //
 //  The file is read over the link, and the converted file written once the

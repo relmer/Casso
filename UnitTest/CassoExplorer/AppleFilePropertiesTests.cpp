@@ -98,6 +98,51 @@ public:
 
 
 
+    //  Only the fields edited change: an access bit edited replaces that bit
+    //  alone, and the second field goes only to a type that has one.
+    TEST_METHOD (Attributes_CarryOnlyTheEdits)
+    {
+        FileEntry                   entry;
+        AppleFileProperties::Edits  edits;
+        FileAttributes              attributes;
+
+        entry.type      = 0x06;
+        entry.access    = 0xE3;
+        entry.hasAccess = true;
+
+        attributes = AppleFileProperties::MakeAttributes (entry, VolumeKind::ProDos, edits);
+        Assert::IsFalse (attributes.hasType || attributes.hasAuxType || attributes.hasAccess || attributes.hasCreated || attributes.hasModified);
+
+        edits.accessMask = AppleFileProperties::kAccessWrite;
+        edits.access     = 0;
+        attributes = AppleFileProperties::MakeAttributes (entry, VolumeKind::ProDos, edits);
+        Assert::IsTrue   (attributes.hasAccess);
+        Assert::AreEqual ((Byte) 0xE1, attributes.access, L"write cleared, the other bits as they were");
+
+        edits            = AppleFileProperties::Edits();
+        edits.typeEdited = true;
+        edits.type       = 0xFF;
+        edits.auxEdited  = true;
+        edits.aux        = 0x2000;
+        attributes = AppleFileProperties::MakeAttributes (entry, VolumeKind::ProDos, edits);
+        Assert::IsTrue   (attributes.hasType && attributes.hasAuxType);
+        Assert::AreEqual ((Word) 0x2000, attributes.auxType);
+
+        //  A DOS 3.3 text file has no load address to set.
+        edits.type = 0x00;
+        attributes = AppleFileProperties::MakeAttributes (entry, VolumeKind::Dos33, edits);
+        Assert::IsFalse (attributes.hasAuxType);
+
+        //  On DOS 3.3 the Locked box is the lock.
+        edits              = AppleFileProperties::Edits();
+        edits.lockedEdited = true;
+        edits.locked       = true;
+        attributes = AppleFileProperties::MakeAttributes (FileEntry(), VolumeKind::Dos33, edits);
+        Assert::AreEqual ((Byte) 0x01, attributes.access);
+    }
+
+
+
     TEST_METHOD (Names_FollowEachFileSystemsRule)
     {
         Assert::IsTrue  (AppleFileProperties::IsValidName (VolumeKind::Dos33,  L"MY GAME/TWO"));

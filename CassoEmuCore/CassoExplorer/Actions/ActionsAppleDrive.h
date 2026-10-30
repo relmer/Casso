@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
+#include "CassoExplorer/Model/AppleFileProperties.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -78,13 +79,14 @@ public:
     //  The verbs on an Apple drive. Each queues its operations on the link
     //  and returns at once; each result is reported when the link's
     //  completions run.
-    ActionsTypes::Outcome  GetFromAppleDrive        (const std::wstring & hostFolder, HostFileNaming::Style style, const ActionsTypes::CollisionFn & collision);
-    ActionsTypes::Outcome  PutOnAppleDrive          (const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress);
-    ActionsTypes::Outcome  DeleteOnAppleDrive       ();
-    ActionsTypes::Outcome  RenameOnAppleDrive       (const std::string & newName);
-    ActionsTypes::Outcome  SetLockedOnAppleDrive    (bool locked);
-    ActionsTypes::Outcome  ConvertOnAppleDrive      (const FileEntry & entry, BasicConversion::Kind kind, std::string & outNewName);
-    ActionsTypes::Outcome  CreateFolderOnAppleDrive (const std::string & name);
+    ActionsTypes::Outcome  GetFromAppleDrive           (const std::wstring & hostFolder, HostFileNaming::Style style, const ActionsTypes::CollisionFn & collision);
+    ActionsTypes::Outcome  PutOnAppleDrive             (const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress);
+    ActionsTypes::Outcome  DeleteOnAppleDrive          ();
+    ActionsTypes::Outcome  RenameOnAppleDrive          (const std::string & newName);
+    ActionsTypes::Outcome  SetLockedOnAppleDrive       (bool locked);
+    ActionsTypes::Outcome  ApplyPropertiesOnAppleDrive (const AppleFileProperties::Edits & edits);
+    ActionsTypes::Outcome  ConvertOnAppleDrive         (const FileEntry & entry, BasicConversion::Kind kind, std::string & outNewName);
+    ActionsTypes::Outcome  CreateFolderOnAppleDrive    (const std::string & name);
     void     PutItemsOnAppleDrive     (const std::string & link, int drive, const std::string & directory, std::vector<std::string> taken,
                                        const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress, ActionsTypes::Outcome & inOutOutcome);
     void     SubmitWrite              (const std::string & link, int drive, CassoLinkConnections::Queuer queue, ActionsTypes::Outcome & inOutOutcome);

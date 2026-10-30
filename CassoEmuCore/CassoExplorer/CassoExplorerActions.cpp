@@ -1386,6 +1386,60 @@ ActionsTypes::Outcome CassoExplorerActions::SetLockedSelected (bool locked)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerActions::ApplyProperties
+//
+//  The name first, as a locked file can't be renamed, then the attributes
+//  under the new name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome CassoExplorerActions::ApplyProperties (const AppleFileProperties::Edits & edits)
+{
+    Outcome                 outcome;
+    std::vector<FileEntry>  entries;
+    std::wstring            imagePath = m_browser.GetLocation().path;
+    std::string             image     = TextEncoding::WideToNarrow (imagePath);
+
+
+
+    if (m_browser.IsAppleDriveLocation())
+    {
+        return m_appleDrive.ApplyPropertiesOnAppleDrive (edits);
+    }
+
+    m_browser.GetSelectedEntries (entries);
+
+    if (edits.nameEdited && entries.size() == 1)
+    {
+        Append (outcome, m_browser.GetOperations().Rename (image, m_browser.GetEntryPath (entries[0]), TextEncoding::WideToNarrow (edits.name),
+                                                           entries[0].catalogIndex));
+
+        entries[0].name = TextEncoding::WideToNarrow (edits.name);
+    }
+
+    for (const FileEntry & entry : entries)
+    {
+        if (edits.ChangesAttributes() && outcome.Succeeded())
+        {
+            Append (outcome, m_browser.GetOperations().SetAttributes (image, m_browser.GetEntryPath (entry),
+                                                                      AppleFileProperties::MakeAttributes (entry, m_browser.GetVolumeKind(), edits), entry.catalogIndex));
+        }
+    }
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (imagePath);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerActions::ConvertSelected
 //
 ////////////////////////////////////////////////////////////////////////////////

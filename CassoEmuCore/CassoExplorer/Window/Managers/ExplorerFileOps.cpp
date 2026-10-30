@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/AppleFilePropertiesDialog.h"
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/Model/CassoTargeting.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
@@ -795,11 +796,11 @@ void ExplorerFileOps::ShowRowProperties (int row)
         return;
     }
 
-    //  An entry inside an image: Explorer's General tab, from its catalog.
+    //  An entry inside an image or on a linked drive: its Apple properties,
+    //  editable.
     if (m_context.browser.TryGetRowEntry (row, entry))
     {
-        CassoExplorerPropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, m_context.browser.GetRows()[(size_t) row].name,
-                                            CassoExplorerProperties::DescribeEntry (entry, m_context.browser.GetVolumeKind(), BrowserModel::FormatAddress (location)));
+        ShowAppleProperties();
         return;
     }
 
@@ -815,6 +816,40 @@ void ExplorerFileOps::ShowRowProperties (int row)
     }
 
     m_context.window.ShowMessage (text, MB_ICONINFORMATION);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::ShowAppleProperties
+//
+//  The selected entries of the open disk, in the Apple file properties
+//  dialog. Its edits are written as it applies them, and the list is filled
+//  again after each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::ShowAppleProperties()
+{
+    std::vector<FileEntry>  entries;
+    bool                    readOnly = m_context.browser.IsImageLocation() && m_context.browser.IsWriteProtected();
+
+
+
+    m_context.browser.GetSelectedEntries (entries);
+
+    AppleFilePropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, entries, m_context.browser.GetVolumeKind(), readOnly,
+                                     [this] (const AppleFileProperties::Edits & edits) -> std::wstring
+    {
+        CassoExplorerActions::Outcome  outcome = m_context.actions.ApplyProperties (edits);
+
+        m_context.listPane.FillList();
+
+        return outcome.Succeeded() ? std::wstring() : (outcome.message.empty() ? std::wstring (L"The changes weren't written.") : outcome.message);
+    });
 }
 
 

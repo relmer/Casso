@@ -461,6 +461,12 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
             m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
         }
+        else if (m_context.browser.IsVolumeLocation())
+        {
+            m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.fileOps.ShowAppleProperties(); }, L"Alt+Enter");
+            m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+            m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
+        }
         else if (!selectedPaths.empty())
         {
             m_context.menus.AddMenuCommand (items, L"P&roperties", [this, selectedPaths]() { m_context.fileOps.ShowHostProperties (selectedPaths); }, L"Alt+Enter");

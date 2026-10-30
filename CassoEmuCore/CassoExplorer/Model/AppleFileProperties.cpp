@@ -290,3 +290,87 @@ bool AppleFileProperties::IsValidName (VolumeKind kind, const std::wstring & nam
 
     return (kind == VolumeKind::ProDos) ? ProDosVolume::IsValidName (narrow) : Dos33Volume::IsValidName (narrow);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleFileProperties::GetAccess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte AppleFileProperties::GetAccess (const FileEntry & entry)
+{
+    if (entry.hasAccess)
+    {
+        return entry.access;
+    }
+
+    return entry.isLocked ? FilePayload::kAccessLocked : FilePayload::kAccessUnlocked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleFileProperties::MakeAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileAttributes AppleFileProperties::MakeAttributes (const FileEntry & entry, VolumeKind kind, const Edits & edits)
+{
+    FileAttributes  attributes;
+    Byte            type       = edits.typeEdited ? edits.type : entry.type;
+    Byte            access     = GetAccess (entry);
+    Byte            lockBits   = kAccessDestroy | kAccessRename | kAccessWrite;
+
+
+
+    if (edits.typeEdited)
+    {
+        attributes.type    = edits.type;
+        attributes.hasType = true;
+    }
+
+    if (edits.auxEdited && GetAuxKind (kind, type) != AuxKind::None)
+    {
+        attributes.auxType    = edits.aux;
+        attributes.hasAuxType = true;
+    }
+
+    if (edits.accessMask != 0)
+    {
+        access = (Byte) ((access & ~edits.accessMask) | (edits.access & edits.accessMask));
+    }
+
+    if (edits.lockedEdited)
+    {
+        access = edits.locked ? (Byte) (access & ~lockBits) : (Byte) (access | lockBits | kAccessRead);
+    }
+
+    if (edits.accessMask != 0 || edits.lockedEdited)
+    {
+        attributes.access    = access;
+        attributes.hasAccess = true;
+    }
+
+    if (edits.createdEdited)
+    {
+        attributes.createdDate = edits.createdDate;
+        attributes.createdTime = edits.createdTime;
+        attributes.hasCreated  = true;
+    }
+
+    if (edits.modifiedEdited)
+    {
+        attributes.modifiedDate = edits.modifiedDate;
+        attributes.modifiedTime = edits.modifiedTime;
+        attributes.hasModified  = true;
+    }
+
+    return attributes;
+}

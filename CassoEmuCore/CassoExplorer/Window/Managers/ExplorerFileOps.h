@@ -75,6 +75,7 @@ public:
     void                                 CopySelectedPaths           ();
     void                                 OpenEachSelected            ();
     void                                 ShowRowProperties           (int row);
+    void                                 ShowAppleProperties         ();
     void                                 ShowLocationProperties      (const Location & location);
     void                                 ShowHostProperties          (const std::wstring & path);
     bool                                 TryGetSelectedShellIds      (std::vector<std::wstring> & outIds) const;

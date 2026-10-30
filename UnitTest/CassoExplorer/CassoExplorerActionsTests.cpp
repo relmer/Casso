@@ -511,6 +511,29 @@ public:
     }
 
 
+    TEST_METHOD (Properties_RenameAndRetypeTheEntry)
+    {
+        Host                        host;
+        AppleFileProperties::Edits  edits;
+        std::vector<FileEntry>      entries;
+
+        host.OpenImage();
+        host.browser.SetSelectedRows ({ host.Find (L"ODD") });
+
+        edits.name         = L"EVEN";
+        edits.nameEdited   = true;
+        edits.lockedEdited = true;
+        edits.locked       = true;
+
+        Assert::IsTrue (host.actions.ApplyProperties (edits).Succeeded());
+        Assert::AreEqual (-1, host.Find (L"ODD"));
+
+        host.browser.SetSelectedRows ({ host.Find (L"EVEN") });
+        host.browser.GetSelectedEntries (entries);
+        Assert::IsTrue (entries.size() == 1 && entries[0].isLocked, L"locked under its new name");
+    }
+
+
     TEST_METHOD (Get_WritesTheDescriptiveHostName)
     {
         Host  host;
