@@ -1411,8 +1411,13 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
     //  gives the files a folder they never came from.
     if (SUCCEEDED (hr) && ActionsCopy::IsCassoCopy (data.Get()))
     {
-        m_context.commandManager.ReportOutcome (m_context.actions.PasteVirtualFiles (data.Get(), folder, MakeCollisionPrompt(), pasted.created), L"Copy");
+        CassoExplorerActions::Outcome  outcome = m_context.actions.PasteVirtualFiles (data.Get(), folder, MakeCollisionPrompt(), pasted.created);
+
+        m_context.commandManager.ReportOutcome (outcome, L"Copy");
         pasted.sources.assign (pasted.created.size(), std::wstring());
+
+        //  A cut's files are deleted where they were, now they are here.
+        ReportPasted (data.Get(), outcome);
     }
     else
     {
@@ -1435,6 +1440,19 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
         step.sources = pasted.sources;
 
         PushUndo (std::move (step));
+    }
+
+    //  What was pasted is selected once it is listed, as in File Explorer.
+    if (!pasted.created.empty())
+    {
+        std::vector<std::wstring>  names;
+
+        for (const std::wstring & path : pasted.created)
+        {
+            names.push_back (std::filesystem::path (path).filename().wstring());
+        }
+
+        m_context.listPane.SelectWhenListed (folder, std::move (names));
     }
 
     m_context.folderSync.RefreshAfterHostChange();

@@ -68,6 +68,10 @@ public:
 
     void                                    SetIconDpi           (UINT dpi);
     static std::vector<std::wstring>        GetDraggedPaths      (IDataObject * data);
+
+    //  The names the dropped items have, files' or virtual files' alike;
+    //  a virtual file inside a dragged folder is not listed.
+    static std::vector<std::wstring>        GetDroppedNames      (IDataObject * data);
     static bool                             IsDraggedFromFolder  (IDataObject * data, const std::wstring & folder);
     static bool                             IsDraggedItem        (IDataObject * data, const std::wstring & target);
     void                                    BeginTreeDrag        (const Location & location);

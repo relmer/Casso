@@ -46,6 +46,12 @@ public:
     ExplorerListMenus                      & GetMenus                () { return m_menus; }
     void                                     FillList                ();
     bool                                     SelectRowNamed          (const std::wstring & name);
+
+    //  Selects the items with these names in `folder` once a listing has every
+    //  one of them, as File Explorer selects what was dropped or pasted. A
+    //  copy finishes after the drop returns, so the names are awaited for a
+    //  few seconds, and are discarded when another folder is opened.
+    void                                     SelectWhenListed        (const std::wstring & folder, std::vector<std::wstring> names);
     void                                     SizeListIcons           ();
     void                                     RefreshListIcons        ();
     void                                     RefreshContentDetails   ();
@@ -59,6 +65,7 @@ public:
     //  every one is, or the folder changes.
     void                                     FitColumnOnceRead       (size_t column);
     void                                     FitColumnsRead          ();
+    void                                     SelectArrivals          ();
 
     //  An item's date and size, so its properties are read again when it changes.
     static std::wstring  GetPropertyStamp (const CatalogRow & row) { return std::to_wstring (row.modifiedUnix) + L"." + std::to_wstring (row.sizeBytes); }
@@ -120,17 +127,22 @@ private:
         POINT  start   = {};
     };
 
-    ExplorerContext       & m_context;
-    DxuiListView          * m_list            = nullptr;
-    DxuiLabel             * m_listMessage     = nullptr;
-    bool                    m_listMessageTop  = false;   // a search's message, at the list's top
-    Win32ShellIcons         m_listIcons;
-    Win32ContentDetails     m_contentDetails;
-    Win32PropertyColumns    m_propertyValues;
-    bool                    m_propertiesShown = false;   // a property column is visible for the folder on display
-    std::vector<size_t>     m_columnsToFit;              // property columns fitted as their values arrive
-    Location                m_listLocation;
-    size_t                  m_listTabCount    = 0;   // the tabs when FillList last saved the session
+    ExplorerContext            & m_context;
+    DxuiListView               * m_list            = nullptr;
+    DxuiLabel                  * m_listMessage     = nullptr;
+    bool                         m_listMessageTop  = false;   // a search's message, at the list's top
+    Win32ShellIcons              m_listIcons;
+    Win32ContentDetails          m_contentDetails;
+    Win32PropertyColumns         m_propertyValues;
+    bool                         m_propertiesShown = false;   // a property column is visible for the folder on display
+    std::vector<size_t>          m_columnsToFit;   // property columns fitted as their values arrive
+    static constexpr uint64_t    s_kArrivalWaitMs  = 10000;
+
+    std::wstring               m_arrivalFolder;   // see SelectWhenListed
+    std::vector<std::wstring>  m_arrivalNames;
+    uint64_t                   m_arrivalUntilMs = 0;   // GetTickCount64 past which the names are no longer awaited
+    Location                   m_listLocation;
+    size_t                     m_listTabCount   = 0;   // the tabs when FillList last saved the session
 
     //  The list's rows, built as it first asks for each; see GetListRowCells.
     std::vector<std::vector<DxuiListView::Cell>>  m_rowCells;

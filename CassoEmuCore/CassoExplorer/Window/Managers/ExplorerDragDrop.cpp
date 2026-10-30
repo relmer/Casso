@@ -402,6 +402,65 @@ bool ExplorerDragDrop::IsProgramPath (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerDragDrop::GetDroppedNames
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerDragDrop::GetDroppedNames (IDataObject * data)
+{
+    std::vector<std::wstring>     names;
+    FORMATETC                     format = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                     medium = {};
+    HRESULT                       hr     = S_OK;
+    const FILEGROUPDESCRIPTORW  * group  = nullptr;
+
+
+
+    for (const std::wstring & path : GetDraggedPaths (data))
+    {
+        names.push_back (std::filesystem::path (path).filename().wstring());
+    }
+
+    if (!names.empty() || data == nullptr)
+    {
+        return names;
+    }
+
+    hr = data->GetData (&format, &medium);
+
+    if (FAILED (hr))
+    {
+        return names;
+    }
+
+    group = (const FILEGROUPDESCRIPTORW *) GlobalLock (medium.hGlobal);
+
+    for (UINT i = 0; group != nullptr && i < group->cItems; i++)
+    {
+        std::wstring  name = group->fgd[i].cFileName;
+
+        if (name.find_first_of (L"\\/") == std::wstring::npos)
+        {
+            names.push_back (std::move (name));
+        }
+    }
+
+    if (group != nullptr)
+    {
+        GlobalUnlock (medium.hGlobal);
+    }
+
+    ReleaseStgMedium (&medium);
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerDragDrop::GetDraggedPaths
 //
 //  The paths in a drag's file list; empty when the drag has no file list.
@@ -1111,12 +1170,20 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     //  Onto a host folder, the folder's own target does the drop.
     if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && ExplorerFolderSync::IsSameFolder (hostFolder, m_hostDropFolder))
     {
+        std::vector<std::wstring>  names = GetDroppedNames (data);
+
         effect = m_dropTarget.GetAllowedEffects();
 
         HRESULT  hr = m_hostDrop->Drop (data, m_dropTarget.GetDragKeyState(), at, &effect);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_dropTarget.SetDropResult (effect);
+
+        //  What was dropped is selected once it is listed, as in File Explorer.
+        if (SUCCEEDED (hr) && effect != DROPEFFECT_NONE && !names.empty())
+        {
+            m_context.listPane.SelectWhenListed (hostFolder, std::move (names));
+        }
 
         m_hostDrop.Reset();
         m_hostDropFolder.clear();

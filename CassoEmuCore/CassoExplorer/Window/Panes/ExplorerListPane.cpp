@@ -881,6 +881,7 @@ void ExplorerListPane::FillList()
 
     m_list->SetSelectedRows (m_context.browser.GetSelectedRows(), m_context.browser.GetSelectedRows().empty() ? -1 : m_context.browser.GetSelectedRows()[0]);
 
+    SelectArrivals();
 
     if (model.HasTabs())
     {
@@ -1132,6 +1133,85 @@ void ExplorerListPane::SizeListIcons()
                                                                         : DxuiListItemLayout::GetItemIconPx (m_columns.GetView(), dpi));
 
     m_context.dragDrop.SetIconDpi (dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::SelectWhenListed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::SelectWhenListed (const std::wstring & folder, std::vector<std::wstring> names)
+{
+    m_arrivalFolder  = folder;
+    m_arrivalNames   = std::move (names);
+    m_arrivalUntilMs = GetTickCount64() + s_kArrivalWaitMs;
+
+    SelectArrivals();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::SelectArrivals
+//
+//  Once every awaited name is listed, those rows are selected, the first
+//  focused and scrolled to, and the names are no longer awaited.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::SelectArrivals()
+{
+    const std::vector<CatalogRow> &  rows     = m_context.browser.GetRows();
+    const Location &                 location = m_context.browser.GetLocation();
+    std::vector<int>                 found;
+
+
+
+    if (m_arrivalNames.empty())
+    {
+        return;
+    }
+
+    if (GetTickCount64() > m_arrivalUntilMs || location.kind != Location::Kind::HostFolder || !ExplorerFolderSync::IsSameFolder (location.path, m_arrivalFolder))
+    {
+        m_arrivalNames.clear();
+        return;
+    }
+
+    for (size_t i = 0; i < rows.size(); i++)
+    {
+        for (const std::wstring & name : m_arrivalNames)
+        {
+            if (_wcsicmp (rows[i].name.c_str(), name.c_str()) == 0)
+            {
+                found.push_back ((int) i);
+                break;
+            }
+        }
+    }
+
+    if (found.size() < m_arrivalNames.size())
+    {
+        return;
+    }
+
+    m_arrivalNames.clear();
+
+    m_context.browser.SetSelectedRows (found);
+    m_list->SetSelectedRows (found, found[0]);
+    m_list->EnsureVisible (found[0]);
+
+    m_context.preview.FillPreview();
+    m_context.statusBar.Fill();
+    m_context.toolbars.UpdateCommandBar();
 }
 
 
