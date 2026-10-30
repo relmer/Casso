@@ -180,7 +180,7 @@ bool Win32ShellIcons::IsFailureExpired (const std::wstring & key) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays, bool thumbnail)
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays, bool thumbnail, int sizePx)
 {
     bool  added = false;
 
@@ -193,7 +193,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring 
 
         if (added)
         {
-            m_requests.push_back (Request { key, path, isDirectory, m_sizePx, overlays, thumbnail });
+            m_requests.push_back (Request { key, path, isDirectory, (sizePx > 0) ? sizePx : m_sizePx, overlays, thumbnail });
         }
     }
 
@@ -732,8 +732,11 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
     if (m_loader.joinable() && overlays && m_thumbnails && cacheKey.starts_with (L"*ext:") && HasThumbnail (cacheKey.substr (5)))
     {
         std::shared_ptr<const DxuiIconImage>  waiting;
+        int                                   bucket = (m_sizePx <= s_kSmallThumbnailPx) ? s_kSmallThumbnailPx : s_kLargeThumbnailPx;
 
-        key   = GetSizedKey (L"*thumb:" + path);
+        //  Made once at a bucket's size and scaled as it is drawn, so a change
+        //  of size within a bucket reads nothing.
+        key   = std::to_wstring (bucket) + L"|*thumb:" + path;
         found = m_cache.find (key);
 
         if (found != m_cache.end())
@@ -748,7 +751,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
             return found->second;
         }
 
-        waiting = Queue (key, path, false, overlays, true);
+        waiting = Queue (key, path, false, overlays, true, bucket);
 
         return m_lastThumbnails.contains (path) ? m_lastThumbnails[path] : waiting;
     }

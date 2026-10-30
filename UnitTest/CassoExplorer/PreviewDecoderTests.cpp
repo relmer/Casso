@@ -573,6 +573,17 @@ public:
 
 
     //  The WOZ spec's machine codes, as names, one a line.
+    TEST_METHOD (Details_SplitWozValues_AndKeepAnUnknownDateAsItIs)
+    {
+        std::string  date = DiskImageSession::DescribeImageDate ("2022-05-26T20:50:59.621Z");
+
+        Assert::AreEqual (std::string ("Tony Ngo\nBenny Ngo"), DiskImageSession::SplitMetaValues ("Tony Ngo|Benny Ngo"));
+        Assert::AreEqual (std::string ("sometime"), DiskImageSession::DescribeImageDate ("sometime"));
+        Assert::IsTrue   (date.ends_with ("\n(2022-05-26T20:50:59.621Z)"), L"The recorded date follows the local one");
+    }
+
+
+
     TEST_METHOD (Details_ListTheWozMachines)
     {
         Assert::AreEqual (std::string ("Apple ][\nEnhanced Apple //e\nApple IIgs\n9z"), DiskImageSession::DescribeMachines ("2|2e+|2gs|9z"));

@@ -94,7 +94,7 @@ private:
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon, int overlay = 0);
     std::wstring                          GetSizedKey (const std::wstring & key) const { return std::to_wstring (m_sizePx) + L"|" + key; }
     std::shared_ptr<const DxuiIconImage>  LoadPicture      (const std::wstring & key, const std::wstring & file);
-    std::shared_ptr<const DxuiIconImage>  Queue            (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays, bool thumbnail = false);
+    std::shared_ptr<const DxuiIconImage>  Queue            (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays, bool thumbnail = false, int sizePx = 0);
     bool                                  HasThumbnail     (const std::wstring & extension);
     std::shared_ptr<const DxuiIconImage>  GetIconForPath   (const std::wstring & path, bool isDirectory, bool overlays);
     void                                  StoreIcon        (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image);
@@ -103,6 +103,8 @@ private:
 
     static constexpr int       s_kLargeIconPx      = 32;
     static constexpr int       s_kExtraLargeIconPx = 48;
+    static constexpr int       s_kSmallThumbnailPx = 128;
+    static constexpr int       s_kLargeThumbnailPx = 256;
     static constexpr size_t    s_kMaxCachedIcons   = 4096;
     static constexpr uint64_t  s_kRetryFailedMs    = 30000;
 

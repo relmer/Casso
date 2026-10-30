@@ -32,8 +32,95 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
     { "language",         "language"  },
     { "requires_machine", "machine"   },
     { "requires_ram",     "RAM"       },
+    { "requires_rom",     "requires ROM" },
     { "notes",            "notes"     },
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::SplitMetaValues
+//
+//  The WOZ spec separates a field's values with |; each goes on a line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::SplitMetaValues (std::string value)
+{
+    std::replace (value.begin(), value.end(), '|', '\n');
+
+    return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::DescribeImageDate
+//
+//  The WOZ spec's UTC date, as 2022-05-26T20:50:59.621Z, in the local time
+//  zone with the zone's name, then the file's text, in parentheses. A date in
+//  any other form is returned unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeImageDate (const std::string & value)
+{
+    SYSTEMTIME             utc     = {};
+    SYSTEMTIME             local   = {};
+    TIME_ZONE_INFORMATION  zone    = {};
+    int                    year    = 0;
+    int                    month   = 0;
+    int                    day     = 0;
+    int                    hour    = 0;
+    int                    minute  = 0;
+    int                    second  = 0;
+    int                    fields  = sscanf_s (value.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+    BOOL      hasZone   = FALSE;
+    BOOL      hasTime   = FALSE;
+    FILETIME  utcFile   = {};
+    FILETIME  locFile   = {};
+    int64_t   offset    = 0;
+    char      note[160] = {};
+    bool      daylight  = false;
+
+
+
+    if (fields != 6 || value.empty() || value.back() != 'Z')
+    {
+        return value;
+    }
+
+    utc.wYear   = (WORD) year;
+    utc.wMonth  = (WORD) month;
+    utc.wDay    = (WORD) day;
+    utc.wHour   = (WORD) hour;
+    utc.wMinute = (WORD) minute;
+    utc.wSecond = (WORD) second;
+
+    hasZone = GetTimeZoneInformationForYear ((USHORT) year, nullptr, &zone);
+    hasTime = SystemTimeToTzSpecificLocalTime (&zone, &utc, &local);
+
+    if (!hasZone || !hasTime || !SystemTimeToFileTime (&utc, &utcFile) || !SystemTimeToFileTime (&local, &locFile))
+    {
+        return value;
+    }
+
+    //  Whichever of the zone's two names has the offset this date is at.
+    offset   = ((int64_t) ULARGE_INTEGER { utcFile.dwLowDateTime, utcFile.dwHighDateTime }.QuadPart - (int64_t) ULARGE_INTEGER { locFile.dwLowDateTime, locFile.dwHighDateTime }.QuadPart) / 600000000;
+    daylight = zone.DaylightDate.wMonth != 0 && offset == (int64_t) zone.Bias + zone.DaylightBias;
+
+    snprintf (note, sizeof (note), "%d/%d/%d %d:%02d:%02d %s %s", local.wMonth, local.wDay, local.wYear,
+              (local.wHour % 12 == 0) ? 12 : local.wHour % 12, local.wMinute, local.wSecond, (local.wHour < 12) ? "AM" : "PM",
+              TextEncoding::WideToNarrow (daylight ? zone.DaylightName : zone.StandardName).c_str());
+
+    return std::string (note) + "\n(" + value + ")";
+}
 
 
 
@@ -218,7 +305,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     }
 
     snprintf (note, sizeof (note),
-              "%d tracks with data, on %d of the 160 quarter-track positions",
+              "%d tracks of bits, on %d of the 160 quarter-track positions",
               woz.trackSlotsWithData, woz.quarterTracksWithData);
 
     text += FormatDetailLine ("surface", note);
@@ -244,7 +331,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
             {
                 std::string  value = TextEncoding::Utf8ToNarrow (field.value);
 
-                text += FormatDetailLine (highlight[1], (field.key == "requires_machine") ? DescribeMachines (value) : value);
+                text += FormatDetailLine (highlight[1], (field.key == "requires_machine") ? DescribeMachines (value) : SplitMetaValues (value));
                 break;
             }
         }
@@ -272,7 +359,9 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
                 c = (c == '_') ? ' ' : c;
             }
 
-            text += FormatDetailLine (label.c_str(), TextEncoding::Utf8ToNarrow (field.value));
+            std::string  value = TextEncoding::Utf8ToNarrow (field.value);
+
+            text += FormatDetailLine (label.c_str(), (field.key == "image_date") ? DescribeImageDate (value) : SplitMetaValues (value));
         }
     }
 
@@ -376,12 +465,12 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
             decoded += note;
         }
 
+        text += FormatDetailLine ("decoded", decoded);
+
         if (complete == 0)
         {
-            decoded += "\ncopy-protected disks often use their own track format";
+            text += FormatDetailLine ("note", "copy-protected disks often use their own track format");
         }
-
-        text += FormatDetailLine ("decoded", decoded);
     }
 
     // ZEROS IN THE BUFFER MEAN TWO DIFFERENT THINGS and only one of them is

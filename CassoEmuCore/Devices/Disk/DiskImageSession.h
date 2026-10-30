@@ -155,6 +155,11 @@ public:
     //  A WOZ requires_machine value, as 2|2e+, as the machines' names.
     static std::string  DescribeMachines (const std::string & codes);
 
+    //  A WOZ META value with each of its |-separated values on a line, and
+    //  its image_date in local time, then the file's text.
+    static std::string  SplitMetaValues   (std::string value);
+    static std::string  DescribeImageDate (const std::string & value);
+
     //  Names the image and the reason, sets the no-output status, and returns
     //  nothing -- so a refusal path cannot report one without the other.
     static void  RefuseCommit (const std::string  & imagePath,
