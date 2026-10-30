@@ -213,6 +213,8 @@ void Win32ShellNamespace::ReadHomeProperties (IShellItem2 * item, IShellItemVerb
     static constexpr int64_t  s_kTicksPerSecond   = 10000000;
     static constexpr int64_t  s_kTicksToUnixEpoch = 116444736000000000;
 
+
+
     ULONG     group    = 0;
     ULONG     order    = 0;
     BOOL      flag     = FALSE;
