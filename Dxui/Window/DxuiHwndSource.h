@@ -364,8 +364,8 @@ public:
     //  will not say where the anchor or its monitor is.
     bool  TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const;
 
-    //  The window restored to the size and placement it was created with,
-    //  for a "Default size" command.
+    //  The window returned to the size it was created at, about its center on
+    //  the monitor it is on, for a "Default size" command.
     HRESULT  RestoreInitialPlacement();
 
     //  The rect of the system button (minimize, maximize, close) under a

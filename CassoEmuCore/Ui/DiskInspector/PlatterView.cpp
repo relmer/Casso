@@ -26,7 +26,7 @@ static constexpr float  s_kValueMinDip      = 22.0f;
 static constexpr float  s_kTickMinDip       = 3.0f;
 static constexpr float  s_kBitMinDip        = 9.0f;
 static constexpr float  s_kNibbleSeenDip    = 1.0f;
-static constexpr float  s_kBitRowEm         = 1.5f;
+static constexpr float  s_kBitRowEm         = 0.8f;
 static constexpr double s_kFineRatio        = 1.25;
 static constexpr double s_kMinStepRatio     = 1.2;
 static constexpr double s_kTypicalCells     = 51200.0;
@@ -347,8 +347,8 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                 cell  = framed.nibbles[i].startCell % framed.cellCount;
                 count = (framed.nibbles[(i + 1) % n].startCell + framed.cellCount - cell) % framed.cellCount;
 
-                //  A tick for each 1 cell, or once a cell has room for its digit,
-                //  each cell's 1 or 0, as in the strip.
+                //  A tick for each 1 cell, and once a cell has room for its digit,
+                //  each cell's 1 or 0 past the tick's end, as in the strip.
                 for (c = 0; c < count; c++)
                 {
                     k     = (cell + static_cast<uint32_t> (c)) % framed.cellCount;
@@ -356,15 +356,16 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                     turn -= std::floor (turn);
                     turn += a + (turns.cells[k + 1] - turns.cells[k]) / 2;
 
-                    if (showBits)
-                    {
-                        DrawUpright (text, view, turn, rText - textPx * s_kBitRowEm / local, (framed.cells[k] != 0) ? L"1" : L"0",
-                                     static_cast<float> ((turns.cells[k + 1] - turns.cells[k]) * s_kTwoPi * rMid * local), textPx,
-                                     (framed.cells[k] != 0) ? ink : (ink & 0x00FFFFFFu) | s_kZeroBitAlpha);
-                    }
-                    else if (framed.cells[k] != 0)
+                    if (framed.cells[k] != 0)
                     {
                         DrawRadial (painter, view, turn, rInner + 1.0, rInner + ringW * s_kTickShare, 1.0f, ink);
+                    }
+
+                    if (showBits)
+                    {
+                        DrawUpright (text, view, turn, rInner + ringW * s_kTickShare + textPx * s_kBitRowEm / local, (framed.cells[k] != 0) ? L"1" : L"0",
+                                     static_cast<float> ((turns.cells[k + 1] - turns.cells[k]) * s_kTwoPi * rMid * local), textPx,
+                                     (framed.cells[k] != 0) ? ink : (ink & 0x00FFFFFFu) | s_kZeroBitAlpha);
                     }
                 }
             }

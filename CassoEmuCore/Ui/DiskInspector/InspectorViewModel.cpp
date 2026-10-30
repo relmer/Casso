@@ -885,6 +885,55 @@ void InspectorViewModel::StepTiltTurn (double nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorViewModel::StepCoast
+//
+//  While the drive turns, the platter's rotation follows the drive. When it
+//  stops, the platter turns on from kTurnsPerMs, slowing evenly to a stop
+//  over kCoastMs: by v (s - s^2 / 2T) after s of T. A turn of the drive
+//  ends the coast. Zoomed in or in a flight, the platter does not turn, but
+//  the coast's time runs on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::StepCoast (double nowMs, bool isTurning)
+{
+    double  done = 0.0;
+    double  move = 0.0;
+
+
+
+    if (isTurning)
+    {
+        m_isCoasting = false;
+    }
+    else if (m_wasTurning)
+    {
+        m_isCoasting  = true;
+        m_coastFromMs = nowMs;
+        m_coastDoneMs = 0.0;
+    }
+    else if (m_isCoasting)
+    {
+        done          = std::min (nowMs - m_coastFromMs, kCoastMs);
+        move          = kTurnsPerMs * ((done - m_coastDoneMs) - (done * done - m_coastDoneMs * m_coastDoneMs) / (2.0 * kCoastMs));
+        m_coastDoneMs = done;
+        m_isCoasting  = done < kCoastMs;
+
+        if (IsAtFit() && !m_isFlying)
+        {
+            m_rotation -= move;
+        }
+    }
+
+    m_wasTurning = isTurning;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorViewModel::Ease
 //
 //  Progress whose speed follows half a sine wave: slow at the start, fastest

@@ -417,4 +417,29 @@ public:
         Assert::AreEqual (0.0,  model.GetHeadSide(), 1e-9);
         Assert::AreEqual (-0.5, model.GetRotation(), 1e-9, L"a half turn in all");
     }
+
+
+
+    TEST_METHOD (WhenTheMotorStopsThePlatterCoastsToAStop)
+    {
+        InspectorViewModel  model;
+        constexpr double    kCoast = InspectorViewModel::kCoastMs;
+        constexpr double    kSpeed = InspectorViewModel::kTurnsPerMs;
+
+
+
+        model.StepCoast (0.0, true);
+        model.StepCoast (0.0, false);
+        Assert::IsTrue (model.IsCoasting());
+
+        model.StepCoast (kCoast / 2, false);
+        Assert::AreEqual (-kSpeed * (kCoast / 2 - kCoast / 8), model.GetRotation(), 1e-9, L"three quarters of full speed's distance by halfway");
+
+        model.StepCoast (kCoast, false);
+        Assert::AreEqual (-kSpeed * kCoast / 2, model.GetRotation(), 1e-9, L"half of full speed's distance in all");
+        Assert::IsFalse  (model.IsCoasting());
+
+        model.StepCoast (2 * kCoast, false);
+        Assert::AreEqual (-kSpeed * kCoast / 2, model.GetRotation(), 1e-9, L"stopped");
+    }
 };

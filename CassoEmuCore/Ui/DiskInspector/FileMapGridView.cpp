@@ -332,6 +332,7 @@ bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & te
     float       x0      = 0;
     float       y0      = 0;
     float       bitsTop = 0;
+    float       bitsEnd = 0;
     float       inset   = m_scaler.ToPxf (s_kBytePadDip);
     float       bitW    = 0;
     bool        isCell  = GetCellRect (cell, cellPx);
@@ -373,24 +374,24 @@ bool FileMapGridView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & te
             bitsTop = layout.isHex ? y + m_hexH : y + inset;
 
             //  At the bit level, each byte in a box of its own around its hex
-            //  and its eight bits; with room, each bit is a 1 or a 0.
+            //  and its eight bits; with room, each bit's 1 or 0 under its bar.
             if (layout.isBits)
             {
                 painter.OutlineRect (x + 0.5f, y + 0.5f, layout.slotW - 2.0f, layout.slotH - 2.0f, 1.0f, faint);
             }
 
+            bitsEnd = y + layout.slotH - inset - (layout.isDigits ? m_hexH : 0.0f);
+
             for (int k = 0; layout.isBits && k < 8; k++)
             {
                 bool  isOne = ((b >> (7 - k)) & 1) != 0;
 
+                painter.FillRect (x + inset + k * bitW, bitsTop, bitW - 1.0f, bitsEnd - bitsTop - 1.0f, isOne ? ink : zeroBit);
+
                 if (layout.isDigits)
                 {
-                    text.DrawString (isOne ? L"1" : L"0", x + inset + k * bitW, bitsTop, bitW, y + layout.slotH - inset - bitsTop, isOne ? ink : faint, monoPx,
-                                     DxuiTheme::kMonoFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-                }
-                else
-                {
-                    painter.FillRect (x + inset + k * bitW, bitsTop, bitW - 1.0f, y + layout.slotH - inset - bitsTop - 1.0f, isOne ? ink : zeroBit);
+                    text.DrawString (isOne ? L"1" : L"0", x + inset + k * bitW, bitsEnd, bitW, m_hexH, isOne ? ink : faint, monoPx, DxuiTheme::kMonoFace,
+                                     DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
                 }
             }
         }
@@ -449,7 +450,7 @@ FileMapGridView::ByteLayout FileMapGridView::GetByteLayout (float cellW, float c
     layout.isRoom   = layout.slotW >= m_scaler.ToPxf (s_kMinSquareDip) && layout.slotH >= m_scaler.ToPxf (s_kMinSquareDip);
     layout.isHex    = layout.isRoom && layout.slotW >= hexW + pad && layout.slotH >= hexH;
     layout.isBits   = layout.isRoom && layout.slotW >= 8 * m_scaler.ToPxf (s_kMinBitDip) && layout.slotH >= m_scaler.ToPxf (s_kMinBitDip) + (layout.isHex ? hexH : 0.0f);
-    layout.isDigits = layout.isBits && layout.isHex && bitW >= digitW + pad && layout.slotH >= 2 * hexH;
+    layout.isDigits = layout.isBits && layout.isHex && bitW >= digitW + pad && layout.slotH >= 3 * hexH;
 
     return layout;
 }

@@ -59,7 +59,7 @@ public:
         chips = InspectorText::BuildChips (summary);
 
         Assert::AreEqual (static_cast<size_t> (5), chips.size(), L"no nonstandard, unformatted, flux or damaged chips");
-        Assert::AreEqual (std::wstring (L"16 sector"),                    chips[0].text);
+        Assert::AreEqual (std::wstring (L"16-sector"),                    chips[0].text);
         Assert::AreEqual (std::wstring (L"35 tracks with data"),          chips[1].text);
         Assert::AreEqual (std::wstring (L"1,559 of 1,560 sectors good"),  chips[2].text);
         Assert::IsTrue   (chips[2].isBad, L"the sectors-good chip takes the bad color when a sector is bad");

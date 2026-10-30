@@ -874,26 +874,30 @@ void PlatterOverlays::DrawMarqueeArc (const InspectorMarquee & marquee, IDxuiPai
 //
 //  The parts of the stretch from turn `a` to turn `b` inside the view: all
 //  of it when the platter's center is inside, otherwise its overlap with the
-//  turns between the view's corners, a turn either side included.
+//  turns between the view's corners, a turn either side included, so a view
+//  across the index has a part on each side of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 vector<std::pair<double, double>> PlatterOverlays::GetVisibleParts (const PlatterPlacement & view, double a, double b) const
 {
     vector<std::pair<double, double>>  parts;
-    double                             start = 0;
-    double                             end   = 1;
-    double                             low   = 0;
-    double                             high  = 0;
+    double                             start  = 0;
+    double                             end    = 1;
+    double                             low    = 0;
+    double                             high   = 0;
+    bool                               isPart = false;
 
 
 
-    if (!PlatterGeometry::GetVisibleTurns (view, m_view.m_boundsDip, start, end))
+    isPart = PlatterGeometry::GetVisibleTurns (view, m_view.m_boundsDip, start, end);
+
+    if (!isPart)
     {
         parts.push_back ({ a, b });
     }
 
-    for (int k = -2; parts.empty() && k <= 2; k++)
+    for (int k = -2; isPart && k <= 2; k++)
     {
         low  = std::max (a, start + k);
         high = std::min (b, end + k);

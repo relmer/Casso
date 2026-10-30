@@ -128,6 +128,15 @@ public:
     double  GetHeadSide     () const { return m_headSide; }
     void    StepTiltTurn    (double nowMs);
 
+    //  When the drive's motor stops, the disk coasts to a stop: StepCoast
+    //  turns the platter at fit from kTurnsPerMs, the speed of 300 RPM,
+    //  slowing evenly to a stop over kCoastMs (FR-064).
+    static constexpr double  kTurnsPerMs = 300.0 / 60000.0;
+    static constexpr double  kCoastMs    = 1000.0;
+
+    void    StepCoast       (double nowMs, bool isTurning);
+    bool    IsCoasting      () const { return m_isCoasting; }
+
     //  A point on a ring at fit, zoom 1 and no pan, as the tilt draws it.
     Point   GetFitPoint     (int quarterTrack, double turn) const;
 
@@ -203,5 +212,9 @@ private:
     double                m_headSideFrom  = 0.0;
     double                m_headSideTo    = 0.0;
     double                m_tiltTurnMs    = -1.0;
+    bool                  m_wasTurning    = false;
+    bool                  m_isCoasting    = false;
+    double                m_coastFromMs   = 0.0;
+    double                m_coastDoneMs   = 0.0;
     SelectionHistory      m_history;
 };

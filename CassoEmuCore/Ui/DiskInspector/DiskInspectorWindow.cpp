@@ -889,7 +889,7 @@ void DiskInspectorWindow::UpdateTitle()
 //  DiskInspectorWindow::OnSysCommand
 //
 //  On "Default size", the window is returned to the size it opens at,
-//  centered over the main window.
+//  about its center on the monitor it is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

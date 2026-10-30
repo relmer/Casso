@@ -352,6 +352,10 @@ void HostLink::TickHead()
         m_session.model.SetRotation (m_session.model.GetHeadSide() - m_session.headState->angle);
     }
 
+    //  When the motor stops, the disk coasts to a stop rather than stopping
+    //  at once.
+    m_session.model.StepCoast (InspectorMarquee::GetClockMs(), isOnDisk && m_session.headState->isTurning);
+
     if (qt >= 0)
     {
         SelectHeadTrack (qt);

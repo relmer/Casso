@@ -456,6 +456,10 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T198 Elide table cells that do not fit, paths from the front, with the full text in a tooltip; label "Copy sector"; hide the track's class pill when it is the disk's format; zoom the File map grid with the plain wheel; space the window zoom slider's ticks every 50%, per FR-032, FR-071, FR-154, FR-157
 - [X] T199 Reword the inspector's tooltips; enter a sector, nibble offset or cell beside a Track field in "Go to"; draw a sector tooltip's checksum error line in the failed sector's color through `DxuiTooltip::SetLineColors`, with tests, per FR-039, FR-055, FR-089
 - [X] T200 Add `ZoomStops` with tests, and step the strip, the platter and the File map grid through zoom stops at each level of new detail, the last stop the most each zooms, per FR-025, FR-034, FR-157
-- [X] T201 Draw each cell's 1 or 0 on the platter and each bit's 1 or 0 in the File map grid once a digit fits, per FR-026, FR-157
+- [X] T201 Draw each cell's 1 or 0 past its tick on the platter and each bit's 1 or 0 under its bar in the File map grid once a digit fits, per FR-026, FR-157
 - [X] T202 In the File map grid, pan down and up with Ctrl and the wheel and across with the wheel turned sideways, and zoom a stop in with a double-click and out with Shift and a double-click, per FR-157
 - [X] T203 Show what is selected in the status band, ahead of the chips that would crowd it, with tests, per FR-154
+- [X] T204 Return the window to its default size on the monitor it is on, at that monitor's DPI, in `DxuiHwndSource::RestoreInitialPlacement`, per FR-007
+- [X] T205 Shade every visible part of an arc across the index in `PlatterOverlays::GetVisibleParts`, so the access overlays dim the whole view, per FR-031
+- [X] T206 Coast the platter to a stop when the motor stops, in `InspectorViewModel::StepCoast`, with a test, per FR-064
+- [X] T207 Hyphenate the sector-format chips and classes, as "16-sector", per FR-018

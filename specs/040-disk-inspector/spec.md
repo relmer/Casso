@@ -1726,7 +1726,8 @@ legend, and tilt the platter and back.
   the display, and the platter MUST stay square. A "Default size" command on
   the window's system menu, opened by a right-click on its title bar or
   Alt+Space, and in the Window menu, MUST return it to the size it opens at,
-  centered over the main window.
+  scaled for the monitor it is on, about its center and inside that
+  monitor's work area, without moving it to another monitor.
 
 **Analysis**
 
@@ -1890,8 +1891,8 @@ legend, and tilt the platter and back.
   then each nibble's hex value along its ring, upright, with a divider at
   each nibble's start, once the value fits inside the nibble's arc at the
   window's text size; then a tick for each 1 cell, once ticks for adjacent
-  cells no longer touch; then each cell's 1 or 0 beside the values in place
-  of the ticks, once a digit fits in a cell's arc.
+  cells no longer touch; then, once a digit fits in a cell's arc, each cell's
+  1 or 0 past the end of its tick, as the strip has them.
 - **FR-027**: Hovering the platter MUST show a tooltip with the track, the
   kind, the sector, the ring's sectors good out of found, and, on flux
   tracks, the cell time and its deviation (for example "4.10µs cells
@@ -2321,7 +2322,9 @@ legend, and tilt the platter and back.
 - **FR-064**: While the motor is on, the controller has this drive enabled
   and a disk is inserted, the head marker MUST sit at 12 o'clock and the
   platter MUST turn counterclockwise so that the drive's current position is
-  under the marker; otherwise the platter MUST stay still. The head marker
+  under the marker. When the motor stops, the platter MUST coast to a stop
+  from 300 RPM, slowing evenly over a second; otherwise the platter MUST
+  stay still. The head marker
   MUST point at the head's quarter track and show idle, reading, writing and
   write blocked differently. While the platter is zoomed in it MUST stay
   still and the head marker MUST move around it instead. The head marker MUST
@@ -2673,7 +2676,7 @@ legend, and tilt the platter and back.
   width and height: as squares while they are too small for text, $00
   clear, $80 and up solid and the rest faint; then as hex; then, with room for eight bits a
   byte, as its bits under the hex, each byte in a box of its own; then, with
-  room for a digit in each bit, each bit as a 1 or a 0. A block's two sectors MUST follow one
+  room for a digit in each bit, each bit's 1 or 0 under its bar. A block's two sectors MUST follow one
   another, and a sector chosen elsewhere MUST be panned to the middle of a
   zoomed grid.
 

@@ -1108,24 +1108,23 @@ bool DxuiHwndSource::TryGetPlacementForSize (const SIZE & windowSizePx, POINT & 
 //
 //  DxuiHwndSource::RestoreInitialPlacement
 //
-//  The size the window was created at, at its anchor's DPI and fitted to the
-//  work area as at creation, positioned by the placement it was created
-//  with. A window with a Default placement is resized about its center.
+//  The size the window was created at, at the DPI of the monitor it is on
+//  and fitted to that monitor's work area, about the window's center and
+//  inside the work area, on the same monitor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiHwndSource::RestoreInitialPlacement()
 {
-    HRESULT  hr         = S_OK;
-    HWND     anchorHwnd = (m_params.placementAnchorHwnd != nullptr) ? m_params.placementAnchorHwnd : m_params.ownerHwnd;
-    UINT     dpi        = 0;
-    SIZE     sizePx     = {};
-    RECT     workArea   = {};
-    RECT     windowPx   = {};
-    POINT    topLeft    = {};
-    POINT    placed     = {};
-    BOOL     isRead     = FALSE;
-    BOOL     isPlaced   = FALSE;
+    HRESULT  hr       = S_OK;
+    UINT     dpi      = 0;
+    SIZE     sizePx   = {};
+    RECT     workArea = {};
+    RECT     windowPx = {};
+    POINT    topLeft  = {};
+    BOOL     isRead   = FALSE;
+    BOOL     isPlaced = FALSE;
+    bool     isWork   = false;
 
 
 
@@ -1133,11 +1132,17 @@ HRESULT DxuiHwndSource::RestoreInitialPlacement()
 
     BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
 
-    dpi    = GetDpiForWindow (anchorHwnd != nullptr ? anchorHwnd : m_hwnd);
+    if (IsZoomed (m_hwnd))
+    {
+        ShowWindow (m_hwnd, SW_RESTORE);
+    }
+
+    dpi    = GetDpiForWindow (m_hwnd);
     dpi    = (dpi != 0) ? dpi : s_kDefaultDpi;
     sizePx = { MulDiv (m_params.initialSizeDip.cx, (int) dpi, (int) s_kDefaultDpi), MulDiv (m_params.initialSizeDip.cy, (int) dpi, (int) s_kDefaultDpi) };
+    isWork = TryGetAnchorWorkArea (m_hwnd, workArea);
 
-    if (m_params.fitToWorkArea && TryGetAnchorWorkArea (anchorHwnd != nullptr ? anchorHwnd : m_hwnd, workArea))
+    if (m_params.fitToWorkArea && isWork)
     {
         sizePx = FitSizeToWorkArea (sizePx, workArea);
     }
@@ -1146,14 +1151,11 @@ HRESULT DxuiHwndSource::RestoreInitialPlacement()
     CWRA (isRead);
 
     topLeft = { (windowPx.left + windowPx.right - sizePx.cx) / 2, (windowPx.top + windowPx.bottom - sizePx.cy) / 2 };
-    if (TryGetPlacementForSize (sizePx, placed))
-    {
-        topLeft = placed;
-    }
 
-    if (IsZoomed (m_hwnd))
+    if (isWork)
     {
-        ShowWindow (m_hwnd, SW_RESTORE);
+        topLeft.x = std::clamp (topLeft.x, workArea.left, std::max (workArea.left, workArea.right  - sizePx.cx));
+        topLeft.y = std::clamp (topLeft.y, workArea.top,  std::max (workArea.top,  workArea.bottom - sizePx.cy));
     }
 
     isPlaced = SetWindowPos (m_hwnd, nullptr, topLeft.x, topLeft.y, sizePx.cx, sizePx.cy, SWP_NOZORDER | SWP_NOACTIVATE);

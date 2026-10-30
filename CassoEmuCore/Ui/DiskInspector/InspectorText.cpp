@@ -107,9 +107,9 @@ std::wstring InspectorText::FormatDiskFormat (DiskFormatClass format)
     switch (format)
     {
         case DiskFormatClass::NothingRecorded:    text = L"Nothing recorded";   break;
-        case DiskFormatClass::ThirteenAndSixteen: text = L"13 and 16 sector";   break;
-        case DiskFormatClass::Sixteen:            text = L"16 sector";          break;
-        case DiskFormatClass::Thirteen:           text = L"13 sector";          break;
+        case DiskFormatClass::ThirteenAndSixteen: text = L"13- and 16-sector"; break;
+        case DiskFormatClass::Sixteen:            text = L"16-sector";          break;
+        case DiskFormatClass::Thirteen:           text = L"13-sector";          break;
         case DiskFormatClass::Nonstandard:        text = L"Nonstandard";        break;
         case DiskFormatClass::Unformatted:        text = L"Unformatted";        break;
         case DiskFormatClass::Damaged:            text = L"Damaged";            break;
@@ -206,9 +206,9 @@ std::wstring InspectorText::FormatTrackClass (TrackClass trackClass)
     {
         case TrackClass::NothingRecorded:    text = L"Nothing recorded"; break;
         case TrackClass::Damaged:            text = L"Damaged";          break;
-        case TrackClass::Sixteen:            text = L"16 sector";        break;
-        case TrackClass::Thirteen:           text = L"13 sector";        break;
-        case TrackClass::ThirteenAndSixteen: text = L"13 and 16 sector"; break;
+        case TrackClass::Sixteen:            text = L"16-sector";        break;
+        case TrackClass::Thirteen:           text = L"13-sector";        break;
+        case TrackClass::ThirteenAndSixteen: text = L"13- and 16-sector"; break;
         case TrackClass::Unformatted:        text = L"Unformatted";      break;
         case TrackClass::Nonstandard:        text = L"Nonstandard";      break;
     }
