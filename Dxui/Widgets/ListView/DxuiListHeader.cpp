@@ -207,6 +207,13 @@ void DxuiListHeader::PaintHeader (
         else
         {
             shift = GetHeaderSlidePx (c, m_list.GetClockMs());
+
+            //  The header under the pointer, or pressed, is highlighted as
+            //  Explorer's is.
+            if ((int) c == m_hoverCol || (int) c == m_headerPressCol)
+            {
+                painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], headerH, pal.bgHover);
+            }
         }
 
         if (titleW < 0.0f)
@@ -716,6 +723,25 @@ bool DxuiListHeader::OnDrag (int lx)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::OnHover (int lx, int ly, bool inside)
+{
+    int  grabTol = m_list.m_scaler.ToPx (DxuiListView::s_kResizeGrabDip);
+
+
+
+    m_hoverCol = (inside && HitTestColumnResize (lx, ly, grabTol) < 0) ? HitTestHeaderColumn (lx, ly) : -1;
 }
 
 

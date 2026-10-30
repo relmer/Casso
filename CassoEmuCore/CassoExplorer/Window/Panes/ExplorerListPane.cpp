@@ -345,6 +345,39 @@ bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::ClearHoverOutside
+//
+//  The list's row and header highlights go off once the pointer is off the
+//  list, since moves reach the list only while the pointer is over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::ClearHoverOutside (const DxuiMouseEvent & ev)
+{
+    DxuiMouseEvent  leave = ev;
+
+
+
+    if (m_list == nullptr || m_list->IsInteracting() || (ev.kind != DxuiMouseEventKind::Move && ev.kind != DxuiMouseEventKind::Leave))
+    {
+        return;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move && ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip))
+    {
+        return;
+    }
+
+    leave.kind = DxuiMouseEventKind::Leave;
+    m_list->OnMouse (leave);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::HandleMouse
 //
 ////////////////////////////////////////////////////////////////////////////////

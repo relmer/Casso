@@ -339,6 +339,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.treePane.UpdateLabelTip (ev);
     m_context.tabManager.ClearHoverOnLeave (ev);
+    m_context.listPane.ClearHoverOutside (ev);
     m_context.addressBar.CloseSuggestionsOnPress (ev);
 
     if (m_context.preview.HandleMessageMouse (ev))

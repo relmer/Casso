@@ -91,6 +91,7 @@ public:
     void  HandleContentDetailsArrived ();
     bool  HandleCapturedMouse         (const DxuiMouseEvent & ev);
     bool  HandleMouse                 (const DxuiMouseEvent & ev);
+    void  ClearHoverOutside           (const DxuiMouseEvent & ev);
     bool  HandleCharKey               (const DxuiKeyEvent & ev);
     bool  HandleShortcutKey           (const DxuiKeyEvent & ev);
     bool  HandleKey                   (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }

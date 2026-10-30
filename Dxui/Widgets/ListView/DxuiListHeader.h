@@ -32,6 +32,10 @@ public:
     //  release; each returns whether the header took the event.
     bool  OnPress          (int lx, int ly);
     bool  OnDrag           (int lx);
+
+    //  The header under the pointer, which is drawn highlighted; none when the
+    //  pointer is outside the list or on a divider.
+    void  OnHover          (int lx, int ly, bool inside);
     bool  OnRelease        (int lx, int ly);
     bool  IsInteracting    () const { return m_resizeColumn >= 0 || m_headerPressCol >= 0; }
     bool  IsResizingColumn () const { return m_resizeColumn >= 0; }
@@ -114,6 +118,7 @@ private:
     //  dragged, and the last press on one, which a second press fits.
     std::vector<size_t>  m_columnOrder;
     int                  m_headerPressCol = -1;
+    int                  m_hoverCol       = -1;
     int                  m_headerPressXPx = 0;
     int                  m_headerDragXPx  = 0;
     bool                 m_headerDragging = false;

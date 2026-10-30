@@ -1205,7 +1205,7 @@ bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
                                                   : OnDrag    (lx, ly, inside);     break;
         case DxuiMouseEventKind::Up:    handled = OnRelease (lx, ly, inside);      break;
         case DxuiMouseEventKind::Wheel: handled = m_scrollbars.OnWheel (ev, inside);          break;
-        case DxuiMouseEventKind::Leave: SetHoveredRow (-1); m_grouping.ClearHover();              break;
+        case DxuiMouseEventKind::Leave: SetHoveredRow (-1); m_grouping.ClearHover(); m_header.OnHover (-1, -1, false); break;
         default:                                                                            break;
     }
 
@@ -1284,6 +1284,8 @@ bool DxuiListView::OnDrag (int lx, int ly, bool inside)
     {
         return true;
     }
+
+    m_header.OnHover (lx, ly, inside);
 
     if (!inside)
     {
