@@ -363,6 +363,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
         cells[0].tileLines  = { DxuiListView::Cell { row.folderDisplay, false } };
         cells[0].homePinned = row.homePinned;
         cells[0].homeCloud  = row.hostPath.empty();
+        cells[0].homeBadge  = (cells[0].homeCloud && icons != nullptr) ? icons->GetLinkBadge() : nullptr;
 
         if (row.homeGroup == s_kHomeGroupShared)
         {

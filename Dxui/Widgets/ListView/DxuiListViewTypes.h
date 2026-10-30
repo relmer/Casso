@@ -55,8 +55,9 @@ struct DxuiListViewTypes
         bool          iconGhosted = false;
 
         //  Home: a pin under a tile's lines, and a cloud ahead of a row.
-        bool          homePinned  = false;
-        bool          homeCloud   = false;
+        bool                                  homePinned = false;
+        bool                                  homeCloud  = false;
+        std::shared_ptr<const DxuiIconImage>  homeBadge;
 
         //  A red badge with a cross at the icon's lower left, for an item
         //  that cannot be opened.
@@ -184,6 +185,10 @@ struct DxuiListViewTypes
         std::vector<std::wstring>  columns;
         std::vector<float>         columnAt;   // each column's left, as a share of the width
         std::function<void (int)>  onTab;
+
+        //  A hovered row's buttons, left of its first column: 0 opens the
+        //  file's location, 1 asks Copilot, 2 shows more actions.
+        std::function<void (int, int, POINT)>  onRowAction;
     };
 
     struct ItemMetrics

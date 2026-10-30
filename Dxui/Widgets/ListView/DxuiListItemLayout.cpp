@@ -1298,6 +1298,41 @@ bool DxuiListItemLayout::IsHomeTile (int item) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListItemLayout::GetHomeActionRect
+//
+//  One of a row's three buttons, ending short of its first column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListItemLayout::GetHomeActionRect (const RECT & cell, int action, RECT & outRect) const
+{
+    int  side  = m_list.m_scaler.ToPx (28);
+    int  pitch = m_list.m_scaler.ToPx (37);
+    int  first = 0;
+
+
+
+    if (m_list.m_homeHeader.columnAt.empty())
+    {
+        return false;
+    }
+
+    first = cell.left + (int) ((float) (cell.right - cell.left) * m_list.m_homeHeader.columnAt[0]) - m_list.m_scaler.ToPx (12) - 3 * pitch;
+
+    outRect.left   = first + action * pitch;
+    outRect.top    = cell.top + ((cell.bottom - cell.top) - side) / 2;
+    outRect.right  = outRect.left + side;
+    outRect.bottom = outRect.top + side;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListItemLayout::GetItemRectPx
 //
 //  An item's cell relative to the list's top-left, wherever it is scrolled.

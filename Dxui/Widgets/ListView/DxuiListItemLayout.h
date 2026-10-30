@@ -63,16 +63,18 @@ public:
     static constexpr int  s_kSizedMaxDip   = 256;
 
     //  File Explorer's Home, measured at 150%.
-    static constexpr int  s_kHomeTileLeftDip   = 16;
-    static constexpr int  s_kHomeTileWDip      = 263;
-    static constexpr int  s_kHomeTilePitchDip  = 284;
-    static constexpr int  s_kHomeTileHDip      = 60;
-    static constexpr int  s_kHomeRowDip        = 44;
-    static constexpr int  s_kHomeHeaderDip     = 52;
-    static constexpr int  s_kHomeTabsHeaderDip = 112;
+    static constexpr int    s_kHomeTileLeftDip   = 16;
+    static constexpr int    s_kHomeTileWDip      = 263;
+    static constexpr int    s_kHomeTilePitchDip  = 284;
+    static constexpr int    s_kHomeTileHDip      = 60;
+    static constexpr int    s_kHomeRowDip        = 44;
+    static constexpr int    s_kHomeHeaderDip     = 49;
+    static constexpr int    s_kHomeTabsHeaderDip = 112;
+    static constexpr float  s_kHomeTabsCenterDip = 30.5f;
 
-    bool        IsHomeTile     (int item) const;
-    static int  GetSizedIconPx (int iconDip, UINT dpi);
+    bool        IsHomeTile        (int item) const;
+    bool        GetHomeActionRect (const RECT & cell, int action, RECT & outRect) const;
+    static int  GetSizedIconPx    (int iconDip, UINT dpi);
 
     //  The icon of the view on display, at the size set for it, if any.
     int                 GetViewIconPx    () const;

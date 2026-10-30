@@ -193,7 +193,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring 
 
         if (added)
         {
-            m_requests.push_back (Request { key, path, isDirectory, (sizePx > 0) ? sizePx : m_sizePx, overlays, thumbnail });
+            m_requests.push_back (Request { key, path, isDirectory, (sizePx > 0) ? sizePx : m_sizePx, overlays, thumbnail, m_plainFolders });
         }
     }
 
@@ -291,14 +291,23 @@ void Win32ShellIcons::RunLoader()
 
             image = Rasterize ((thumbnail != nullptr) ? thumbnail : LoadSized (request.path, false, request.sizePx, request.overlays, &overlay), request.sizePx, m_dpi);
         }
+        else if (request.plain && request.isDirectory)
+        {
+            image = Rasterize (LoadLargerForPath (request.path, true, request.sizePx), request.sizePx, m_dpi);
+        }
         else
         {
             image = Rasterize (LoadSized (request.path, request.isDirectory, request.sizePx, request.overlays, &overlay), request.sizePx, m_dpi);
         }
 
+        if (request.plain && overlay == 0)
+        {
+            overlay = GetOverlayIndex (request.path);
+        }
+
         if (image != nullptr && overlay > 0)
         {
-            AddOverlay (*image, overlay);
+            AddOverlay (*image, overlay, request.plain);
         }
 
         if (image != nullptr && !request.isDirectory && RunsElevated (request.path))
@@ -437,7 +446,7 @@ void Win32ShellIcons::AddShield (DxuiIconImage & image)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay)
+void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay, bool smallMark)
 {
     HRESULT               hr      = S_OK;
     ComPtr<IImageList>    list;
@@ -474,7 +483,17 @@ void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay)
     hr = DxuiIconImage::FromHicon (icon, art.bmWidth, badge);
     CHR (hr);
 
-    DrawOver (image, DxuiIconImage::Resample (badge, image.width), 0, 0);
+    if (smallMark)
+    {
+        //  Home's mark is a small one at the art's corner.
+        int  side = image.width * 2 / 7;
+
+        DrawOver (image, DxuiIconImage::Resample (badge, side), image.width / 16, image.height - side - image.height / 12);
+    }
+    else
+    {
+        DrawOver (image, DxuiIconImage::Resample (badge, image.width), 0, 0);
+    }
 
 Error:
     if (icon != nullptr)
@@ -715,7 +734,7 @@ Error:
 std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std::wstring & path, bool isDirectory, bool overlays)
 {
     std::wstring  cacheKey = GetCacheKey (path, isDirectory);
-    std::wstring  key      = GetSizedKey ((overlays || !cacheKey.starts_with (L"*path:")) ? cacheKey : L"*tree" + cacheKey);
+    std::wstring  key      = (m_plainFolders ? std::wstring (L"plain|") : std::wstring()) + GetSizedKey ((overlays || !cacheKey.starts_with (L"*path:")) ? cacheKey : L"*tree" + cacheKey);
     auto          found    = m_cache.find (key);
 
 
@@ -758,6 +777,8 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
 
             return found->second;
         }
+
+        if (m_plainFolders) { key = L"plain|" + key; found = m_cache.find (key); if (found != m_cache.end()) { return found->second; } }
 
         waiting = Queue (key, path, false, overlays, true, bucket);
 
@@ -962,6 +983,65 @@ Error:
     }
 
     return icon;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::GetOverlayIndex
+//
+//  The shell's overlay for an item, as a sync mark, or 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Win32ShellIcons::GetOverlayIndex (const std::wstring & path)
+{
+    SHFILEINFOW  info   = {};
+    DWORD_PTR    result = SHGetFileInfoW (path.c_str(), 0, &info, sizeof (info), SHGFI_ICON | SHGFI_OVERLAYINDEX | SHGFI_SMALLICON);
+
+
+
+    if (info.hIcon != nullptr)
+    {
+        DestroyIcon (info.hIcon);
+    }
+
+    return (result != 0) ? (info.iIcon >> 24) & 0xFF : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::GetLinkBadge
+//
+//  The shell's shortcut arrow, at the icons' size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetLinkBadge()
+{
+    std::wstring   key   = GetSizedKey (L"*linkbadge");
+    auto             found = m_cache.find (key);
+    SHSTOCKICONINFO  info  = {};
+    HRESULT          hr    = S_OK;
+
+
+
+    if (found != m_cache.end())
+    {
+        return found->second;
+    }
+
+    info.cbSize = sizeof (info);
+    hr          = SHGetStockIconInfo (SIID_LINK, SHGSI_ICON | SHGSI_LARGEICON, &info);
+
+    return SUCCEEDED (hr) ? Remember (key, info.hIcon) : nullptr;
 }
 
 

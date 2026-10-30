@@ -881,12 +881,17 @@ void ExplorerListPane::FillList()
         header.glyphs   = { L"\xE823", L"\xE734", L"\xE716" };
         header.active   = m_context.browser.GetHomeTab();
         header.columns  = shared ? std::vector<std::wstring> { L"Date shared", L"Shared by", L"Activity" } : std::vector<std::wstring> { L"Date accessed", L"Activity" };
-        header.columnAt = shared ? std::vector<float> { 0.41f, 0.60f, 0.80f } : std::vector<float> { 0.49f, 0.74f };
+        header.columnAt = shared ? std::vector<float> { 0.41f, 0.60f, 0.80f } : std::vector<float> { 0.495f, 0.755f };
         header.onTab    = [this] (int tab)
         {
             m_context.browser.SetHomeTab (tab);
             FillList();
             m_context.window.Invalidate();
+        };
+
+        header.onRowAction = [this] (int row, int action, POINT)
+        {
+            HandleHomeRowAction (row, action);
         };
 
         m_list->SetHomeHeader (std::move (header));
@@ -1194,7 +1199,68 @@ void ExplorerListPane::SizeListIcons()
     //  File Explorer draws thumbnails where a name goes under the icon.
     m_listIcons.SetThumbnails (DxuiListItemLayout::GetItemMetrics (m_columns.GetView()).labelBelow || m_columns.GetView() == DxuiListView::View::Home);
 
+    m_listIcons.SetPlainFolders (m_columns.GetView() == DxuiListView::View::Home);
+
     m_context.dragDrop.SetIconDpi (dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::HandleHomeRowAction
+//
+//  A local file's location opens here with the file selected; a cloud file's
+//  is its own command's. Copilot has no command on the item, so it opens by
+//  its address. More actions are the shell's menu for the item.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::HandleHomeRowAction (int row, int action)
+{
+    static constexpr int  s_kOpenLocation = 0;
+    static constexpr int  s_kAskCopilot   = 1;
+
+
+
+    CatalogRow  item;
+    POINT       screen = {};
+    HRESULT     hr     = S_OK;
+
+
+
+    if (row < 0 || (size_t) row >= m_context.browser.GetRows().size())
+    {
+        return;
+    }
+
+    item = m_context.browser.GetRows()[(size_t) row];
+
+    if (action == s_kOpenLocation && !item.hostPath.empty())
+    {
+        std::wstring  folder = CassoExplorerBrowser::GetParentFolder (item.hostPath);
+
+        m_context.browser.NavigateToLocation (Location::MakeHostFolder (folder));
+        FillList();
+        SelectWhenListed (folder, { item.name });
+    }
+    else if (action == s_kOpenLocation)
+    {
+        hr = m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), { item.shellId }, "opencontaining");
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else if (action == s_kAskCopilot)
+    {
+        ShellExecuteW (m_context.window.GetHwnd(), L"open", L"ms-copilot:", nullptr, nullptr, SW_SHOWNORMAL);
+    }
+    else
+    {
+        GetCursorPos (&screen);
+        hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), { item.hostPath.empty() ? item.shellId : item.hostPath }, screen, {});
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

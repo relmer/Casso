@@ -1253,6 +1253,26 @@ bool DxuiListView::OnPress (const DxuiMouseEvent & ev, int lx, int ly, bool insi
         return true;
     }
 
+    //  A press on a hovered Home row's button is the button's.
+        if (m_view == View::Home && m_homeHeader.onRowAction && row >= 0 && !m_items.IsHomeTile (row))
+        {
+            RECT  place = {};
+            bool  has   = m_items.GetItemRectPx (row, place);
+
+            for (int action = 0; has && action < 3; action++)
+            {
+                RECT   button = {};
+                POINT  point  { lx, ly };
+                bool   found  = m_items.GetHomeActionRect (place, action, button);
+
+                if (found && PtInRect (&button, point))
+                {
+                    m_homeHeader.onRowAction (row, action, point);
+                    return true;
+                }
+            }
+        }
+
     if (m_grouping.OnPress (lx, ly) || m_rows.OnPress (ev, row))
     {
         // Taken.

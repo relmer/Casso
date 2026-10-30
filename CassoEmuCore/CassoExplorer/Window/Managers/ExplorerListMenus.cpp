@@ -146,6 +146,14 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
 
 
+    //  Home's items have the shell's own menu: Add to Favorites, Remove from
+    //  list and the rest are its commands.
+    if (m_context.browser.IsHomeLocation() && group < 0 && m_context.browser.GetSelectedRows().size() == 1)
+    {
+        m_context.listPane.HandleHomeRowAction (m_context.browser.GetSelectedRows()[0], 2);
+        return;
+    }
+
     m_context.menus.GetMenuCommands().clear();
     m_context.fileOps.AskCassoToDescribe();
 

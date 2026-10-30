@@ -44,7 +44,7 @@ public:
     static constexpr float  s_kContentRuleEndDip     = 6.67f;
 
     void          PaintItems         (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, float x, float y) const;
-    void          PaintHomeItem      (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int item, const RECT & cell, const std::vector<DxuiListViewTypes::Cell> & cells) const;
+    void          PaintHomeItem      (IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int item, const RECT & cell, const std::vector<DxuiListViewTypes::Cell> & cells) const;
     void          PaintMeter         (IDxuiPainter & painter, float x, float y, float w, float lineH, float fraction) const;
     static float  MeasureContentLine (IDxuiTextRenderer & text, const DxuiListViewTypes::Cell & line, float fontPx);
     static void   PaintContentLine   (IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, const DxuiListViewTypes::Cell & line, float x, float y, float w, float lineH, float fontPx);

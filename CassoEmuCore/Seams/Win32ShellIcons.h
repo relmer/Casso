@@ -48,6 +48,11 @@ public:
     //  icon, made in the background.
     void  SetThumbnails (bool thumbnails) { m_thumbnails = thumbnails; }
 
+    //  Home draws a folder's plain icon, and sync marks on its items.
+    void  SetPlainFolders (bool plain) { m_plainFolders = plain; }
+
+    std::shared_ptr<const DxuiIconImage>  GetLinkBadge () override;
+
     //  Loads per-path icons in the background and posts `message` to `hwnd`
     //  when some are ready; the window then calls TakeLoaded.
     void  LoadInBackground (HWND hwnd, UINT message);
@@ -83,6 +88,7 @@ private:
         int           sizePx      = kDefaultSizePx;
         bool          overlays    = true;
         bool          thumbnail   = false;   // a picture's or a video's thumbnail, as File Explorer's icon views draw it
+        bool          plain       = false;
     };
 
     struct Loaded
@@ -118,6 +124,7 @@ private:
     static HICON                           LoadLargerByAttributes (bool isDirectory, int sizePx);
     static HICON                           LoadShellItemIcon      (const std::wstring & path, int sizePx, SIIGBF flags);
     static HICON                           LoadThumbnail          (const std::wstring & path, int sizePx);
+    static int                             GetOverlayIndex        (const std::wstring & path);
     static HICON                           LoadForShellName       (const std::wstring & name, bool overlays, int * outOverlay = nullptr);
     static std::shared_ptr<DxuiIconImage>  Rasterize              (HICON icon, int sizePx, UINT dpi = 0);
     static HICON                           LoadForKind            (Kind kind, UINT sizeFlag);
@@ -125,7 +132,7 @@ private:
     static void                            DeleteIconBitmaps      (const ICONINFO & info);
     static bool                            RunsElevated           (const std::wstring & path);
     static void                            AddShield              (DxuiIconImage & image);
-    static void                            AddOverlay             (DxuiIconImage & image, int overlay);
+    static void                            AddOverlay             (DxuiIconImage & image, int overlay, bool smallMark = false);
     static void                            DrawOver               (DxuiIconImage & image, const DxuiIconImage & top, int left, int topY);
     static UINT                            GetOverlayFlags        (bool overlays, const int * outOverlay);
 
@@ -147,13 +154,14 @@ private:
     HWND                              m_notifyHwnd    = nullptr;
     UINT                              m_notifyMessage = 0;
     std::vector<std::thread>          m_loaders;
+    bool                              m_plainFolders  = false;
     std::mutex                        m_lock;
     std::condition_variable           m_wake;
     std::deque<Request>               m_requests;
     std::vector<Loaded>               m_loaded;
     std::unordered_set<std::wstring>  m_pending;
     bool                              m_stopping      = false;
-    int                               m_loading       = 0;     // requests the loaders are working on
+    int                               m_loading       = 0;   // requests the loaders are working on
     uint64_t                          m_postedAtMs    = 0;
     bool                              m_posted        = false;
 };

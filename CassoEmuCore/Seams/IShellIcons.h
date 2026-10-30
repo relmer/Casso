@@ -47,6 +47,7 @@ public:
     virtual std::shared_ptr<const DxuiIconImage>  GetForExtension    (const std::wstring & extension) { (void) extension; return nullptr; }
     virtual std::shared_ptr<const DxuiIconImage>  GetForIconResource (const std::wstring & resource)  { (void) resource; return nullptr; }
     virtual void                                  SetSizePx          (int sizePx)                     { (void) sizePx; }
+    virtual std::shared_ptr<const DxuiIconImage>  GetLinkBadge       () { return nullptr; }
 
     //  The icon as Explorer's navigation pane draws it: without the overlays
     //  its file list draws, such as a cloud folder's sync state. The path's

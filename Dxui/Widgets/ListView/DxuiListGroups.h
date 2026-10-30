@@ -57,7 +57,7 @@ public:
 
     void  PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int group, float x, float rowX, float ry, float layoutW) const;
     void  PaintHomeTabs    (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, float x, float ry, float layoutW) const;
-    static constexpr float     s_kHomeHeadingScale = 1.2f;
+    static constexpr float     s_kHomeHeadingScale = 1.15f;
     int                        m_hoverX            = 0;
     mutable std::vector<RECT>  m_homeTabs;   // each Home tab's pill, relative to the list
 

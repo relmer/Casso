@@ -825,7 +825,9 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
 {
     HRESULT      hr      = S_OK;
     bool         home    = m_list.m_view == DxuiListViewTypes::View::Home;
-    float        rowH    = home ? m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeHeaderDip) : (float) m_list.GetRowHeightPx();
+    float        rowH    = !home        ? (float) m_list.GetRowHeightPx()
+                         : (group == 0) ? m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeHeaderDip)
+                                        : m_list.m_scaler.ToPxf (2.0f * DxuiListItemLayout::s_kHomeTabsCenterDip);
     float        labelX  = x + m_list.m_scaler.ToPxf ((float) (m_list.m_flow.HasListGroups() ? s_kListGroupLabelDip : DxuiListView::s_kGroupLabelDip));
     float        armHalf = m_list.m_scaler.ToPxf (s_kGroupChevronArmDip);
     float        thick   = (std::max) (std::floor (m_list.m_scaler.ToPxf (1.0f)), 1.0f);
@@ -868,7 +870,9 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
 
         cx      = x + m_list.m_scaler.ToPxf (34.0f);
         labelX  = x + m_list.m_scaler.ToPxf (60.0f);
-        armHalf = m_list.m_scaler.ToPxf (6.0f);
+        armHalf = m_list.m_scaler.ToPxf (6.5f);
+        thick   = std::round (m_list.m_scaler.ToPxf (1.34f));
+        cy      = ry + rowH * 0.5f;
         steps   = (int) (armHalf - thick * 0.5f);
         ink     = pal.fg;
     }
@@ -941,20 +945,20 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
 
 void DxuiListGroups::PaintHomeTabs (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, float x, float ry, float layoutW) const
 {
-    static constexpr const wchar_t *  s_kGlyphFace = L"Segoe MDL2 Assets";
+    static constexpr const wchar_t *  s_kGlyphFace = L"Segoe Fluent Icons";
 
 
 
     const DxuiListViewTypes::HomeHeader  & header = m_list.m_homeHeader;
     float                                  fontPx = m_list.m_scaler.ToPxf (m_list.m_fontDip) * s_kHomeHeadingScale;
     float                                  pillH  = m_list.m_scaler.ToPxf (31.0f);
-    float                                  pad    = m_list.m_scaler.ToPxf (11.0f);
+    float                                  pad    = m_list.m_scaler.ToPxf (12.0f);
     float                                  glyphW = m_list.m_scaler.ToPxf (24.0f);
     float                                  left   = x + m_list.m_scaler.ToPxf (60.0f);
-    float                                  top    = ry + (m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeHeaderDip) - pillH) * 0.5f;
+    float                                  top    = ry + m_list.m_scaler.ToPxf (DxuiListItemLayout::s_kHomeTabsCenterDip) - pillH * 0.5f;
     float                                  width  = layoutW - 2.0f * m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeTileLeftDip);
     float                                  rowX   = x + m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeTileLeftDip);
-    float                                  titleY = ry + m_list.m_scaler.ToPxf (64.0f);
+    float                                  titleY = ry + m_list.m_scaler.ToPxf (69.5f);
     float                                  titleH = m_list.m_scaler.ToPxf (24.0f);
     HRESULT                                hr     = S_OK;
 
@@ -979,7 +983,7 @@ void DxuiListGroups::PaintHomeTabs (IDxuiPainter & painter, IDxuiTextRenderer & 
 
         if (tab < header.glyphs.size())
         {
-            hr = text.DrawString (header.glyphs[tab].c_str(), left + pad, top, glyphW, pillH, ink, fontPx, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            hr = text.DrawString (header.glyphs[tab].c_str(), left + pad, top, glyphW, pillH, ink, fontPx * 1.15f, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 

@@ -351,6 +351,15 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
 
 
 
+    //  Automatic preview closes the pane with nothing selected, however it opened.
+    if (m_context.prefs.autoPreview && selected.empty() && m_context.prefs.previewVisible)
+    {
+        m_pinned                       = false;
+        m_context.prefs.previewVisible = false;
+        m_autoKey                      = key;
+        return true;
+    }
+
     if (!m_context.prefs.autoPreview || m_pinned)
     {
         return false;
