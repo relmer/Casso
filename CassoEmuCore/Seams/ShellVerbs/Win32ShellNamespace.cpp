@@ -213,61 +213,66 @@ void Win32ShellNamespace::ReadHomeProperties (IShellItem2 * item, IShellItemVerb
     static constexpr int64_t  s_kTicksPerSecond   = 10000000;
     static constexpr int64_t  s_kTicksToUnixEpoch = 116444736000000000;
 
-    PROPERTYKEY  key      = {};
-    ULONG        group    = 0;
-    ULONG        order    = 0;
-    BOOL         flag     = FALSE;
-    FILETIME     when     = {};
-    PWSTR        text     = nullptr;
+    ULONG     group    = 0;
+    ULONG     order    = 0;
+    BOOL      flag     = FALSE;
+    FILETIME  when     = {};
+    PWSTR     text     = nullptr;
+    bool      hasGroup = false;
+    bool      hasValue = false;
 
-    auto  ToUnix = [] (const FILETIME & time) -> int64_t
+    auto  Read = [] (const wchar_t * name, auto && get) -> bool
     {
-        int64_t  ticks = (int64_t) (((uint64_t) time.dwHighDateTime << 32) | time.dwLowDateTime);
+        PROPERTYKEY  key = {};
+        HRESULT      hr  = PSGetPropertyKeyFromName (name, &key);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = get (key);
+        }
+
+        return SUCCEEDED (hr);
+    };
+
+    auto  ReadUnix = [&] (const wchar_t * name) -> int64_t
+    {
+        bool     read  = Read (name, [&] (const PROPERTYKEY & key) { return item->GetFileTime (key, &when); });
+        int64_t  ticks = read ? (int64_t) (((uint64_t) when.dwHighDateTime << 32) | when.dwLowDateTime) : 0;
 
         return (ticks > s_kTicksToUnixEpoch) ? (ticks - s_kTicksToUnixEpoch) / s_kTicksPerSecond : 0;
     };
 
 
 
-    if (FAILED (PSGetPropertyKeyFromName (L"System.Home.Grouping", &key)) || FAILED (item->GetUInt32 (key, &group)))
+    hasGroup = Read (L"System.Home.Grouping", [&] (const PROPERTYKEY & key) { return item->GetUInt32 (key, &group); });
+
+    if (!hasGroup)
     {
         return;
     }
 
     outEntry.homeGroup = (int) group;
 
-    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.Home.SortOrder", &key)) && SUCCEEDED (item->GetUInt32 (key, &order)))
-    {
-        outEntry.homeOrder = order;
-    }
+    hasValue = Read (L"System.Home.SortOrder", [&] (const PROPERTYKEY & key) { return item->GetUInt32 (key, &order); });
+    outEntry.homeOrder = hasValue ? order : 0;
 
-    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.Home.IsPinned", &key)) && SUCCEEDED (item->GetBool (key, &flag)))
-    {
-        outEntry.homePinned = flag != FALSE;
-    }
+    hasValue = Read (L"System.Home.IsPinned", [&] (const PROPERTYKEY & key) { return item->GetBool (key, &flag); });
+    outEntry.homePinned = hasValue && flag != FALSE;
 
-    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.IsShared", &key)) && SUCCEEDED (item->GetBool (key, &flag)))
-    {
-        outEntry.isShared = flag != FALSE;
-    }
+    hasValue = Read (L"System.IsShared", [&] (const PROPERTYKEY & key) { return item->GetBool (key, &flag); });
+    outEntry.isShared = hasValue && flag != FALSE;
 
-    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.DateAccessed", &key)) && SUCCEEDED (item->GetFileTime (key, &when)))
-    {
-        outEntry.accessedUnix = ToUnix (when);
-    }
+    outEntry.accessedUnix = ReadUnix (L"System.DateAccessed");
+    outEntry.activityUnix = ReadUnix (L"System.ActivityDate");
 
-    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.ActivityDate", &key)) && SUCCEEDED (item->GetFileTime (key, &when)))
-    {
-        outEntry.activityUnix = ToUnix (when);
-    }
+    hasValue = Read (L"System.ItemFolderPathDisplay", [&] (const PROPERTYKEY & key) { return item->GetString (key, &text); });
 
-    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.ItemFolderPathDisplay", &key)) && SUCCEEDED (item->GetString (key, &text)) && text != nullptr)
+    if (hasValue && text != nullptr)
     {
         outEntry.folderDisplay = text;
         CoTaskMemFree (text);
     }
 }
-
 
 
 
