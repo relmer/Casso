@@ -49,4 +49,5 @@ enum class AppMessage : UINT
     PreviewHelperRunLoad   = WM_APP + 0x42,   // to the preview helper's window
     PreviewHelperUnload    = WM_APP + 0x43,   // to the preview helper's window
     ShellPreviewLoad       = WM_APP + 0x44,   // to the shell preview's thread
+    ExplorerCutPasted      = WM_APP + 0x45,   // a target pasted the files a cut put on the clipboard
 };

@@ -32,6 +32,24 @@ class ActionsAppleDrive
 public:
     explicit ActionsAppleDrive (CassoExplorerActions & actions);
 
+    //  Entries to delete from a drive, read while the drive is on display, so
+    //  they can be deleted after the window has moved on, as a cut's are
+    //  once they are pasted.
+    struct DriveDeletion
+    {
+        struct Item
+        {
+            std::string  path;
+            std::string  name;
+            bool         isFolder = false;
+        };
+
+        std::string        link;
+        int                drive = 0;
+        std::string        directory;
+        std::vector<Item>  items;
+    };
+
     bool     TryGetAppleDrive (std::string & outLink, int & outDrive, std::string & outDirectory) const;
 
     ActionsTypes::Outcome  CopyEntriesToAppleDrive (const std::string & sourceImage, VolumeKind sourceKind, const std::vector<std::string> & catalogPaths);
@@ -82,6 +100,8 @@ public:
     ActionsTypes::Outcome  GetFromAppleDrive           (const std::wstring & hostFolder, HostFileNaming::Style style, const ActionsTypes::CollisionFn & collision);
     ActionsTypes::Outcome  PutOnAppleDrive             (const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress);
     ActionsTypes::Outcome  DeleteOnAppleDrive          (std::vector<FileEntry> entries = {});
+    bool                   TryPlanDeletion             (std::vector<FileEntry> entries, DriveDeletion & outPlan) const;
+    ActionsTypes::Outcome  RunDeletion                 (const DriveDeletion & plan);
     ActionsTypes::Outcome  RenameOnAppleDrive          (const std::string & newName);
     ActionsTypes::Outcome  SetLockedOnAppleDrive       (bool locked);
     ActionsTypes::Outcome  ApplyPropertiesOnAppleDrive (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits);

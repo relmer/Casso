@@ -71,6 +71,12 @@ public:
     CassoExplorerActions::CollisionFn    MakeCollisionPrompt         ();
     std::wstring                         GetPasteFolder              () const;
     void                                 CopyEntriesToClipboard      (HostFileNaming::Style style);
+
+    //  Cut on an image's or an Apple drive's entries: they go on the
+    //  clipboard as Copy puts them, and are deleted once a target reports
+    //  the paste, in FinishCut.
+    void                                 CutEntriesToClipboard       (HostFileNaming::Style style);
+    void                                 FinishCut                   ();
     HRESULT                              RecycleHostFiles            (const std::vector<std::wstring> & paths);
     void                                 CopySelectedPaths           ();
     void                                 OpenEachSelected            ();
@@ -96,7 +102,21 @@ public:
     void  HandleRenameKey   (const DxuiKeyEvent & ev);
 
 private:
+    //  What the last cut takes away once it is pasted, read when it was cut.
+    struct CutSource
+    {
+        bool                              valid   = false;
+        bool                              onDrive = false;
+        std::string                       image;
+        std::vector<std::string>          catalogPaths;
+        ActionsAppleDrive::DriveDeletion  drive;
+    };
+
+    void  ReportPasted (IDataObject * data, const CassoExplorerActions::Outcome & outcome);
+    bool  IsCutFrom    (const std::string & inner) const;
+
     ExplorerContext        & m_context;
+    CutSource                m_cut;
     Win32ProcessLauncher     m_launcher;
     int                      m_defaultDriveCount = -1;   // the default machine's, once read
     int                      m_cassoDriveCount   = 0;   // the drives the Casso the window targets has

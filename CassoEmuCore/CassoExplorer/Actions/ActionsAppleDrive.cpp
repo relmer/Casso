@@ -445,34 +445,83 @@ void ActionsAppleDrive::PutItemsOnAppleDrive (const std::string & link, int driv
 
 ActionsTypes::Outcome ActionsAppleDrive::DeleteOnAppleDrive (std::vector<FileEntry> entries)
 {
-    ActionsTypes::Outcome   outcome;
-    std::string             link;
-    std::string             directory;
-    int                     drive     = 0;
+    ActionsTypes::Outcome  outcome;
+    DriveDeletion          plan;
 
 
 
-    if (!TryGetAppleDrive (link, drive, directory))
+    if (!TryPlanDeletion (std::move (entries), plan))
     {
         outcome.hr = E_UNEXPECTED;
         return outcome;
     }
 
-    //  None given is the selection.
+    return RunDeletion (plan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::TryPlanDeletion
+//
+//  None given is the selection. False when no Apple drive is on display.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsAppleDrive::TryPlanDeletion (std::vector<FileEntry> entries, DriveDeletion & outPlan) const
+{
+    outPlan = DriveDeletion();
+
+    if (!TryGetAppleDrive (outPlan.link, outPlan.drive, outPlan.directory))
+    {
+        return false;
+    }
+
     if (entries.empty())
     {
         m_actions.m_browser.GetSelectedEntries (entries);
     }
 
-    //  Each entry is removed from the drive's listing once it is deleted, before
-    //  the drive is read again.
     for (const FileEntry & entry : entries)
     {
-        FilePath                 path      = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
-        bool                     isFolder  = entry.isDirectory;
-        CassoLinkConnections   * links     = m_actions.m_browser.GetLinks();
-        HRESULT                  hr        = S_OK;
-        std::string              name      = entry.name;
+        outPlan.items.push_back (DriveDeletion::Item { m_actions.m_browser.GetEntryPath (entry), entry.name, entry.isDirectory });
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::RunDeletion
+//
+//  Each entry is removed from the drive's listing once it is deleted, before
+//  the drive is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::RunDeletion (const DriveDeletion & plan)
+{
+    ActionsTypes::Outcome    outcome;
+    CassoLinkConnections   * links     = m_actions.m_browser.GetLinks();
+    std::string              link      = plan.link;
+    int                      drive     = plan.drive;
+    std::string              directory = plan.directory;
+
+
+
+    for (const DriveDeletion::Item & item : plan.items)
+    {
+        FilePath     path     = FilePath::Parse (item.path);
+        bool         isFolder = item.isFolder;
+        std::string  name     = item.name;
+        HRESULT      hr       = S_OK;
 
         hr = links->Submit (link, [drive, path, isFolder] (CassoLinkSession & session)
         {

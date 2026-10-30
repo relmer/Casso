@@ -1255,6 +1255,8 @@ void ExplorerDragDrop::BeginDragOut()
 {
     HRESULT                                  hr       = S_OK;
     DWORD                                    effect   = DROPEFFECT_NONE;
+    DWORD                                    logical  = DROPEFFECT_NONE;
+    bool                                     moved    = false;
     HostFileNaming::Style                    style    = m_context.commandManager.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
     std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log);
@@ -1279,7 +1281,9 @@ void ExplorerDragDrop::BeginDragOut()
     //  file of their own, which the shell has no image for.
     for (int row : m_context.browser.GetSelectedRows())
     {
-        images = images && row >= 0 && (size_t) row < m_context.browser.GetRows().size() && m_context.browser.GetRows()[(size_t) row].isDiskImage;
+        const CatalogRow *  dragged = (row >= 0 && (size_t) row < m_context.browser.GetRows().size()) ? &m_context.browser.GetRows()[(size_t) row] : nullptr;
+
+        images = images && dragged != nullptr && (dragged->isDiskImage || (!dragged->isDirectory && !CatalogModel::GetDiskImageTypeName (dragged->name).empty()));
     }
 
     //  Dragging a linked machine's drive drags its whole disk, as dragging its
@@ -1328,9 +1332,14 @@ void ExplorerDragDrop::BeginDragOut()
     got = GetCursorPos (&start);
     IGNORE_RETURN_VALUE (got, TRUE);
 
-    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect, nullptr,
+    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect, &logical,
                                     (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  File Explorer reports a move of files it read from the drag's streams
+    //  in the logical effect, and returns none from the drag itself; the
+    //  files are still the source's to delete.
+    moved = effect == DROPEFFECT_MOVE || logical == DROPEFFECT_MOVE;
 
     //  A target that moved the entries by copying them leaves their removal
     //  to the source, as Explorer does with files it cannot move itself. A
@@ -1339,18 +1348,18 @@ void ExplorerDragDrop::BeginDragOut()
     //  deleted only when the target read every file whole: not one skipped
     //  in its conflict dialog, one that failed to read, or one from a disk
     //  with sectors that could not be decoded.
-    if (effect == DROPEFFECT_MOVE && (inImage || onDrive) && !paths.empty() && !log->IsWhole())
+    if (moved && (inImage || onDrive) && !paths.empty() && !log->IsWhole())
     {
         m_context.window.ShowMessage (L"The originals were not deleted, because the destination did not get every file whole: a file was "
                               L"skipped, could not be read, or came from sectors the disk could not decode.", MB_ICONWARNING);
     }
-    else if (effect == DROPEFFECT_MOVE && onDrive && !entries.empty())
+    else if (moved && onDrive && !entries.empty())
     {
         //  Deleted over the link, after the reads the drop made.
         outcome = m_context.actions.DeleteDriveEntries (entries);
         m_context.commandManager.ReportOutcome (outcome, L"Move");
     }
-    else if (effect == DROPEFFECT_MOVE && inImage && !paths.empty())
+    else if (moved && inImage && !paths.empty())
     {
         outcome = m_context.actions.DeleteEntries (image, paths);
         m_context.commandManager.ReportOutcome (outcome, L"Move");

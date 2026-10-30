@@ -84,7 +84,7 @@ public:
 
             browser.GetTreeRoots (roots);
 
-            std::wstring  folder = browser.GetTreeChildren (roots[0].id)[0].id;
+            std::wstring  folder = browser.GetTreeChildren (roots[1].id)[0].id;
 
             AssertSucceeded (browser.SelectTreeNode (folder));
             Assert::IsTrue (browser.OpenRow (Find (L"dos33.dsk")));
@@ -428,7 +428,7 @@ public:
         verbs = host.actions.GetListVerbs();
         Assert::IsFalse (has (CassoExplorerActions::Verb::OpenWith));
         Assert::IsFalse (has (CassoExplorerActions::Verb::MoreOptions));
-        Assert::IsFalse (has (CassoExplorerActions::Verb::Cut), L"Entries in an image are copied out with Get");
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::Cut), L"Entries in an image are cut, and deleted once they are pasted");
     }
 
 
@@ -822,7 +822,7 @@ public:
         host.SeedBytes   (Bytes ("10 PRINT \"SUB\"\n20 END\n"), L"C:\\In\\subprog.bas");
 
         host.browser.GetTreeRoots (roots);
-        AssertSucceeded (host.browser.SelectTreeNode (host.browser.GetTreeChildren (roots[0].id)[0].id));
+        AssertSucceeded (host.browser.SelectTreeNode (host.browser.GetTreeChildren (roots[1].id)[0].id));
         Assert::IsTrue  (host.browser.OpenRow (host.Find (L"prodos.po")));
 
         Assert::IsTrue  (host.actions.CreateFolder (L"NESTED").Succeeded());

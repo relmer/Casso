@@ -302,6 +302,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerCutPasted)
+    {
+        fileOps.FinishCut();
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerInfoTip)
     {
         listPane.RefreshTip();

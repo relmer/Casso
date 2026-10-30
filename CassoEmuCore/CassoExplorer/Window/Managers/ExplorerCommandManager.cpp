@@ -941,6 +941,12 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::Cut:
         case CassoExplorerActions::Verb::Copy:
+            if (m_context.browser.IsVolumeLocation() && verb == CassoExplorerActions::Verb::Cut)
+            {
+                m_context.fileOps.CutEntriesToClipboard (GetNamingStyle());
+                break;
+            }
+
             if (m_context.browser.IsVolumeLocation())
             {
                 m_context.fileOps.CopyEntriesToClipboard (GetNamingStyle());

@@ -18,6 +18,7 @@
 #include "Core/JsonWriter.h"
 #include "Core/MachineScanner.h"
 #include "Core/TextEncoding.h"
+#include "Core/AppMessages.h"
 #include "Core/AppTimerIds.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
@@ -632,6 +633,100 @@ void ExplorerFileOps::CopyEntriesToClipboard (HostFileNaming::Style style)
     {
         m_context.window.ShowMessage ((failure.empty() ? L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::CutEntriesToClipboard
+//
+//  What is deleted is read now, while the entries are on display: the
+//  paste may come after the window has moved elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::CutEntriesToClipboard (HostFileNaming::Style style)
+{
+    std::wstring            failure;
+    HRESULT                 hr      = S_OK;
+    CutSource               cut;
+    std::vector<FileEntry>  entries;
+    HWND                    hwnd    = m_context.window.GetHwnd();
+
+
+
+    if (m_context.browser.IsAppleDriveLocation())
+    {
+        cut.onDrive = true;
+
+        if (!m_context.actions.TryPlanDriveDeletion (cut.drive))
+        {
+            return;
+        }
+    }
+    else
+    {
+        cut.image = TextEncoding::WideToNarrow (m_context.browser.GetLocation().path);
+        m_context.browser.GetSelectedEntries (entries);
+
+        for (const FileEntry & entry : entries)
+        {
+            cut.catalogPaths.push_back (m_context.browser.GetEntryPath (entry));
+        }
+    }
+
+    hr = CassoExplorerDragOut::CopyToClipboard (m_context.browser, style, failure, true, [hwnd]()
+    {
+        BOOL  posted = PostMessageW (hwnd, (UINT) AppMessage::ExplorerCutPasted, 0, 0);
+
+        IGNORE_RETURN_VALUE (posted, TRUE);
+    });
+
+    if (FAILED (hr))
+    {
+        m_context.window.ShowMessage ((failure.empty() ? L"The files could not be cut: " + CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
+        return;
+    }
+
+    cut.valid = true;
+    m_cut     = std::move (cut);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::FinishCut
+//
+//  The cut entries deleted, now that a target has pasted them. A drive's
+//  deletions go over the link and are reported as they finish.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::FinishCut()
+{
+    CassoExplorerActions::Outcome  outcome;
+    CutSource                      cut     = std::move (m_cut);
+
+
+
+    m_cut = CutSource();
+
+    if (!cut.valid)
+    {
+        return;
+    }
+
+    outcome = cut.onDrive ? m_context.actions.RunDriveDeletion (cut.drive)
+                          : m_context.actions.DeleteEntries (cut.image, cut.catalogPaths);
+
+    m_context.commandManager.ReportOutcome (outcome, L"Move");
+    m_context.folderSync.RefreshAfterHostChange();
 }
 
 
@@ -1385,6 +1480,7 @@ void ExplorerFileOps::PasteIntoVolume()
                                    : m_context.actions.PutFiles (source.hostPaths, MakeAddressPrompt());
 
         m_context.commandManager.ReportOutcome (outcome, L"Put");
+        ReportPasted (data.Get(), outcome);
         return;
     }
 
@@ -1401,7 +1497,113 @@ void ExplorerFileOps::PasteIntoVolume()
 
     PushPutUndo (outcome, location.path, inner);
     m_context.commandManager.ReportOutcome (outcome, L"Put");
+
+    //  Pasted back where it was cut from, nothing moved.
+    if (!(source.fromImage && _wcsicmp (TextEncoding::NarrowToWide (source.image).c_str(), location.path.c_str()) == 0 && IsCutFrom (inner)))
+    {
+        ReportPasted (data.Get(), outcome);
+    }
+
     m_context.folderSync.RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::ReportPasted
+//
+//  As File Explorer reports a paste of a cut, so the source deletes what it
+//  cut: only when every file landed whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::ReportPasted (IDataObject * data, const CassoExplorerActions::Outcome & outcome)
+{
+    HRESULT    hr        = S_OK;
+    FORMATETC  preferred = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  pasted    = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PASTESUCCEEDED), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium    = {};
+    DWORD      effect    = DROPEFFECT_NONE;
+    DWORD    * locked    = nullptr;
+
+
+
+    if (data == nullptr || !outcome.IsWhole() || outcome.written == 0)
+    {
+        return;
+    }
+
+    hr = data->GetData (&preferred, &medium);
+
+    if (SUCCEEDED (hr))
+    {
+        locked = (DWORD *) GlobalLock (medium.hGlobal);
+
+        if (locked != nullptr)
+        {
+            effect = *locked;
+            GlobalUnlock (medium.hGlobal);
+        }
+
+        ReleaseStgMedium (&medium);
+    }
+
+    if (effect != DROPEFFECT_MOVE)
+    {
+        return;
+    }
+
+    medium         = {};
+    medium.tymed   = TYMED_HGLOBAL;
+    medium.hGlobal = GlobalAlloc (GMEM_MOVEABLE, sizeof (DWORD));
+
+    if (medium.hGlobal == nullptr)
+    {
+        return;
+    }
+
+    locked = (DWORD *) GlobalLock (medium.hGlobal);
+
+    if (locked != nullptr)
+    {
+        *locked = DROPEFFECT_MOVE;
+        GlobalUnlock (medium.hGlobal);
+    }
+
+    hr = data->SetData (&pasted, &medium, TRUE);
+
+    if (FAILED (hr))
+    {
+        ReleaseStgMedium (&medium);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::IsCutFrom
+//
+//  Whether the last cut's entries came from the image directory `inner`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFileOps::IsCutFrom (const std::string & inner) const
+{
+    if (!m_cut.valid || m_cut.onDrive || m_cut.catalogPaths.empty())
+    {
+        return false;
+    }
+
+    const std::string &  first = m_cut.catalogPaths[0];
+    size_t               slash = first.find_last_of ('/');
+
+    return ((slash == std::string::npos) ? std::string() : first.substr (0, slash)) == inner;
 }
 
 

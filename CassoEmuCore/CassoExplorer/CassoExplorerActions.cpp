@@ -70,8 +70,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             //  as the files a paste would write.
             verbs.push_back (Verb::Copy);
 
+            //  Cut copies the same way, and the entries are deleted once a
+            //  target pastes them.
             if (writable)
             {
+                verbs.push_back (Verb::Cut);
                 verbs.push_back (Verb::Delete);
             }
         }
@@ -114,6 +117,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (!entries.empty())
         {
             verbs.push_back (Verb::Get);
+            verbs.push_back (Verb::Cut);
             verbs.push_back (Verb::Copy);
             verbs.push_back (Verb::Delete);
             verbs.push_back (Verb::Rename);

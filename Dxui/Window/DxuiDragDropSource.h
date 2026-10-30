@@ -66,6 +66,13 @@ public:
     //  A DWORD a target stored under the registered format, or `fallback`.
     DWORD  GetStoredDword (const wchar_t * formatName, DWORD fallback) const;
 
+    //  Called with each format a target stores and its first DWORD, as a
+    //  paste of a cut stores CFSTR_PASTESUCCEEDED. Called on the thread the
+    //  object lives on, during the target's call.
+    using StoredFn = std::function<void (CLIPFORMAT format, DWORD value)>;
+
+    void  SetOnStored (StoredFn onStored) { m_onStored = std::move (onStored); }
+
     //  How many times each item was rendered, for a test to count.
     int  GetRenderCount (CLIPFORMAT format, int index) const;
 
@@ -114,4 +121,5 @@ private:
     std::map<CLIPFORMAT, std::vector<uint8_t>>                  m_stored;
     std::map<CLIPFORMAT, DWORD>                                 m_storedTymed;               // the medium each was set in, read back in it
     bool                                                        m_describesEffect = false;   // the stored description's type is one GiveFeedback set
+    StoredFn                                                    m_onStored;
 };

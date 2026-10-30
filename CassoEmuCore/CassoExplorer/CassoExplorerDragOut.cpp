@@ -154,7 +154,8 @@ DiskOperations::Encoding CassoExplorerDragOut::GetEncoding (const DragPayload::D
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure)
+HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure,
+                                               bool cut, std::function<void()> onMovePasted)
 {
     HRESULT                                  hr      = S_OK;
     std::shared_ptr<RenderLog>               log     = std::make_shared<RenderLog>();
@@ -194,8 +195,39 @@ HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, H
                                                      } });
     }
 
+    //  A cut asks the target to move the files. Having copied them, the
+    //  target reports the paste, and the originals are deleted here.
+    if (cut)
+    {
+        held.push_back (DxuiDragDropSource::Format { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), 1,
+                                                     [] (int, std::vector<uint8_t> & out)
+                                                     {
+                                                         DWORD  effect = DROPEFFECT_MOVE;
+
+                                                         out.assign ((const uint8_t *) &effect, (const uint8_t *) &effect + sizeof (effect));
+                                                         return S_OK;
+                                                     } });
+    }
+
     hr = DxuiDragDropSource::Create (std::move (held), &source);
     CHR (hr);
+
+    if (cut && onMovePasted)
+    {
+        auto  pasted = std::make_shared<bool> (false);
+
+        source->SetOnStored ([pasted, onMovePasted] (CLIPFORMAT format, DWORD value)
+        {
+            bool  moved = value == DROPEFFECT_MOVE && (format == (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PASTESUCCEEDED)
+                                                    || format == (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PERFORMEDDROPEFFECT));
+
+            if (moved && !*pasted)
+            {
+                *pasted = true;
+                onMovePasted();
+            }
+        });
+    }
 
     hr = OleSetClipboard (source);
     CHR (hr);

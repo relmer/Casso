@@ -65,7 +65,13 @@ public:
     //  selection it began with; a paste can come long after the selection
     //  moved, so every file is read before the clipboard is set. A file that
     //  could not be read has its name and why in outFailure.
-    static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure);
+    //
+    //  A cut offers the files to be moved, and `onMovePasted` is called
+    //  once a target reports that it pasted them, when the originals are the
+    //  source's to delete. It is called during the target's call to the
+    //  clipboard's object, so it should only schedule the deletion.
+    static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure,
+                                     bool cut = false, std::function<void()> onMovePasted = nullptr);
 
     //  Why CopyToClipboard failed, as the end of a sentence: the clipboard
     //  in use, the Apple gone while its files were read, or the system's

@@ -729,6 +729,14 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
         m_describesEffect = false;
     }
 
+    if (m_onStored && m_stored[format->cfFormat].size() >= sizeof (DWORD))
+    {
+        DWORD  value = 0;
+
+        memcpy (&value, m_stored[format->cfFormat].data(), sizeof (value));
+        m_onStored (format->cfFormat, value);
+    }
+
     if (release)
     {
         ReleaseStgMedium (medium);

@@ -117,8 +117,12 @@ public:
 
     //  Entries on the open linked drive, for the second half of a move.
     Outcome  DeleteDriveEntries (const std::vector<FileEntry> & entries) { return m_appleDrive.DeleteOnAppleDrive (entries); }
-    Outcome  BootSelected       ();
-    Outcome  RenameSelected     (const std::wstring & newName);
+
+    //  The selected entries of the drive on display, to delete later.
+    bool     TryPlanDriveDeletion (ActionsAppleDrive::DriveDeletion & outPlan) const { return m_appleDrive.TryPlanDeletion ({}, outPlan); }
+    Outcome  RunDriveDeletion     (const ActionsAppleDrive::DriveDeletion & plan)    { return m_appleDrive.RunDeletion (plan); }
+    Outcome  BootSelected         ();
+    Outcome  RenameSelected       (const std::wstring & newName);
 
     //  Locks or unlocks every selected entry.
     Outcome  SetLockedSelected (bool locked);
