@@ -74,4 +74,10 @@ public:
 
     //  Another launch of Casso Explorer, forwarded here with its arguments.
     virtual void  RunLaunch     (const std::wstring & arguments) = 0;
+
+    //  Help > Check for updates, from the window `hwnd`.
+    virtual void  CheckForUpdates (HWND hwnd) = 0;
+
+    //  True when the update indicator in the window `hwnd` took the event.
+    virtual bool  OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) = 0;
 };

@@ -45,6 +45,7 @@ class ShellSettings;
 class ShellSerialCard;
 class ShellNetworkCard;
 class ShellTapeDeck;
+class EmulatorUpdaterHost;
 class ShellUpdater;
 struct MonitorSpec;
 
@@ -686,7 +687,8 @@ private:
 
     // The shell's components, each owned here and reached through its
     // getter. Held by pointer so this header needs only their names.
-    std::unique_ptr<ShellUpdater>    m_updater;
+    std::unique_ptr<EmulatorUpdaterHost>  m_updaterHost;
+    std::unique_ptr<ShellUpdater>         m_updater;
 
     // MachineManager, WindowCommandManager and the shell's components touch
     // enough shell state during construction and command dispatch that
@@ -702,7 +704,7 @@ private:
     friend class ShellSerialCard;
     friend class ShellNetworkCard;
     friend class ShellTapeDeck;
-    friend class ShellUpdater;
+    friend class EmulatorUpdaterHost;
     friend class MachineManager;
     friend class WindowCommandManager;
     friend class SettingsSheet;

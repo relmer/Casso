@@ -419,7 +419,11 @@ hardware.
 
 ### Session 2026-10-30
 
+- Q: How does Casso Explorer detect and install new versions? -> A: Casso and Casso Explorer share one implementation, ShellUpdater, behind a small host interface that each app supplies. Whichever app notices an update first shows it. The schedule, the skipped version and the check record are shared in Casso's prefs file, and only the update fields are written from Casso Explorer. Applying an update while the other app runs stops and asks the user to close the other app; the other app is never closed silently. Casso Explorer has the same title bar indicator and update dialog as Casso, in one open window, plus Help > Check for updates, an automatic check at startup, --updated and --cleanup-old, and the pending update applied at exit.
+
 - Q: What does Home show, and where does it read it? -> A: File Explorer's Home page: Quick access tiles, then Recent, Favorites and Shared tabs over two-line rows. Recent and Quick access come from the Home shell folder; Favorites are the pinned items of the MS Graph Recent File Folder and Shared is the MS Graph Shared File Folder, so no sign-in is needed. Those folder ids are undocumented, so a tab is empty if Windows drops them.
+
+- Q: How does a box of floppies get archived from a //c? -> A: Full send, a CassoLink session that alternates between the Apple's two drives with no interaction on the PC. Disk II hardware has no usable disk-change signal, so a new disk is recognized by a fingerprint of track 0 and the catalog track. With no new fingerprint in either drive, the session pauses until Space on the Apple, and Space also forces a send, since two freshly formatted disks can match. Each image's name comes from its catalog where the disk has one. Labels are not typed on the Apple, whose keyboard has a one-character latch that a disk read can't poll; the user renames images on the PC afterward. Raw capture of copy-protected disks is a follow-on; the manifest flags those disks.
 
 ### Session 2026-10-26
 
@@ -1093,6 +1097,49 @@ to Casso over TCP.
    with the port and speed, and then the program loading.
 
 ---
+### User Story 17 - Full send a box of floppies (Priority: P2)
+
+A user sits at a //c with a box of floppies and archives them to the PC.
+They start a full send from Casso Explorer, then only feed disks: while one
+drive transfers, they put a new disk in the other. Each drive follows the
+other as fast as the Apple can read and the link can send.
+
+**Why this priority**: Archiving a collection is a main reason to connect an
+Apple to a PC, and starting each disk from the PC makes a user walk between
+two machines for every floppy.
+
+**Independent Test**: In an emulated //c, start a full send with a different
+disk in each drive, swap in new disks during each transfer, and include one
+duplicate and one disk with an unreadable sector. Compare each image with its
+source and read the manifest. Repeat on a real //c with real floppies.
+
+**Acceptance Scenarios**:
+
+1. **Given** a linked Apple with two drives and a disk in drive 1, **When**
+   the user starts a full send and chooses a folder, **Then** the disk's
+   image is written to that folder and drive 2 is checked next.
+2. **Given** drive 1 is transferring, **When** the user swaps the disk in
+   drive 2, **Then** drive 2's disk is sent as soon as drive 1 finishes.
+3. **Given** a transfer finishes, **When** the other drive's disk has a new
+   fingerprint, **Then** it is sent with no key press.
+4. **Given** neither drive has a disk with a new fingerprint, **When** the
+   check finishes, **Then** a prompt for a new disk appears on the Apple's
+   screen, and both drives are checked again after Space.
+5. **Given** a disk whose fingerprint matches one already sent, **When** the
+   user presses Space with no other new disk present, **Then** that disk is
+   sent.
+6. **Given** a sent disk's whole-image hash matches an earlier image in the
+   session, **When** the read finishes, **Then** the second image is discarded, the
+   manifest lists the duplicate, and the duplicate tone sounds.
+7. **Given** a ProDOS, DOS 3.3 or other disk, **When** its image is written,
+   **Then** its file name is the session's sequence number and a name from
+   the catalog where one exists, and the sequence number alone otherwise.
+8. **Given** a disk with unreadable sectors, **When** its transfer ends,
+   **Then** its image and unreadable list are written as by Read disk to
+   image, the manifest flags it as possibly copy-protected, and the bad
+   sectors tone sounds.
+
+---
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -1226,6 +1273,15 @@ to Casso over TCP.
   listed order and then the //c's ports, and the others are empty.
 - **Two operations at once**: one runs at a time per Apple; others queue,
   and when the running one is canceled the Apple is ready for the next.
+- **A disk swapped during its transfer, or not fully seated**: a disk
+  whose fingerprint reads differently on a second read is not sent yet, and a
+  disk that changes during a transfer fails that image with no file left on
+  the PC, and the session continues.
+- **An Apple with one drive**: a full send uses that drive alone, and pauses
+  until Space after each disk.
+- **A full send when the link drops**: the session ends with the reason, the
+  images already written and the manifest remain on the PC, and the partial
+  image is discarded.
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -1910,6 +1966,46 @@ to Casso over TCP.
   guest opens that the address translation mirrors onto the PC. Only the
   link's own ports are fixed enough to declare.
 
+**Full send**
+
+- **FR-107**: Casso Explorer MUST offer a full send on a linked Apple, with a
+  destination folder and the image format chosen when it starts: any format
+  Casso writes, defaulting to .po for a ProDOS disk and .dsk for any other.
+- **FR-108**: A full send MUST read one drive at a time, and when a disk
+  finishes MUST check the other drive first, alternating for as long as the
+  session runs.
+- **FR-109**: A disk's fingerprint MUST be a hash of track 0 and the catalog
+  track, and MUST read the same on two reads before the disk is sent. A
+  disk whose fingerprint is not among those sent in the session MUST be sent
+  with no key press. A drive with no readable disk MUST count as having no
+  new disk.
+- **FR-110**: With no new disk in either drive, the session MUST pause until
+  Space on the Apple, without spinning a drive while it waits. Space MUST
+  check both drives, and MUST send a present disk whose fingerprint matches
+  an earlier one when no drive has a new disk.
+- **FR-111**: An image whose whole-disk hash matches an earlier image in the
+  session MUST be discarded, and the manifest MUST list it as a duplicate of
+  that image.
+- **FR-112**: An image's file name MUST begin with the session's sequence
+  number, followed by the volume name on ProDOS or Apple Pascal, or the
+  startup or first program's name on DOS 3.3. With no name in the catalog,
+  the sequence number MUST be the whole name. An existing file MUST NOT be
+  overwritten.
+- **FR-113**: A full send MUST NOT accept a label typed on the Apple. Images
+  MUST be renamed on the PC.
+- **FR-114**: The session MUST write a manifest to the destination folder,
+  updated after each disk: each image's file name, drive, hash, time,
+  unreadable sector count, and whether it is a duplicate or possibly
+  copy-protected.
+- **FR-115**: The session MUST sound one tone on the Apple's speaker for a finished disk,
+  another for a duplicate and another for a disk with bad sectors. The
+  Apple's screen MUST contain each drive's state, the current image's name and
+  progress, and the session's counts of disks sent, duplicates and disks with
+  bad sectors.
+- **FR-116**: A disk with unreadable sectors MUST NOT stop the session. Escape
+  on the Apple or Cancel on the PC MUST end the session after discarding any
+  partial image.
+
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -1964,6 +2060,9 @@ to Casso over TCP.
 - **Printer connection**: the one connector the emulated ImageWriter II is
   attached to: a parallel card's slot, a Super Serial Card's slot, a //c
   serial port, or none.
+- **Full send session**: one run of alternating disk reads from a linked
+  Apple: its destination folder, image format, sequence number, the
+  fingerprints and hashes of its disks, and its manifest.
 
 ## Success Criteria *(mandatory)*
 
@@ -2075,6 +2174,13 @@ to Casso over TCP.
   class split to get there is a set of component classes with separate
   state rather than one class across several files. The unit and scenario
   suites pass unchanged in what they check before and after each split.
+- **SC-038**: On a //c at 115,200 baud, a full send of two 140K disks with a
+  swap during each transfer runs with no PC interaction and no key press, at
+  under 30 seconds a disk, and each image matches one read by Read disk to
+  image from the same disk.
+- **SC-039**: In a full send that includes a duplicate and a disk with an
+  unreadable sector, the manifest lists both correctly, no duplicate image is
+  on the PC, and the session continues past each.
 
 ## Assumptions
 

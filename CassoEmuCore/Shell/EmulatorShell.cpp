@@ -21,6 +21,7 @@
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/EmulatorUpdaterHost.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -139,7 +140,8 @@ EmulatorShell::EmulatorShell() :
 
     m_settings      = std::make_unique<ShellSettings> (*this);
     m_window        = std::make_unique<ShellWindow> (*this);
-    m_updater       = std::make_unique<ShellUpdater> (*this);
+    m_updaterHost   = std::make_unique<EmulatorUpdaterHost> (*this);
+    m_updater       = std::make_unique<ShellUpdater> (*m_updaterHost);
     m_audio         = std::make_unique<ShellAudio>();
     m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
     m_printer       = std::make_unique<ShellPrinter> (*this);

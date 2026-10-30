@@ -130,6 +130,9 @@ public:
         //  The previewed Apple picture written to a PNG file.
         kSavePicture,
 
+        //  Help > Check for updates.
+        kCheckForUpdates,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -364,6 +367,7 @@ private:
         { kBack,              Menu::Go,   L"&Back",               L"Alt+Left", false },
         { kForward,           Menu::Go,   L"&Forward",            L"Alt+Right", false },
         { kUp,                Menu::Go,   L"&Up one level",       L"Alt+Up",   false },
+        { kCheckForUpdates,   Menu::Help, L"Check for &updates...",      nullptr,     false },
         { kAbout,             Menu::Help, L"&About Casso Explorer...",   L"F1",       false },
     };
 

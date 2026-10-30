@@ -82,6 +82,10 @@ public:
                                     LoadReport       & outReport);
     HRESULT      SaveAll           (const GlobalUserPrefs & prefs,
                                     IFileSystem           & fs) const;
+    // Writes only the update fields of `prefs` over the file's global section.
+    // Fails without writing when an existing file cannot be read.
+    HRESULT      SaveUpdateFields  (const GlobalUserPrefs & prefs,
+                                    IFileSystem           & fs);
     // Reads the global section another Casso may have written, leaving this
     // store's state and the file untouched.
     HRESULT      ReadGlobalPrefs   (IFileSystem      & fs,

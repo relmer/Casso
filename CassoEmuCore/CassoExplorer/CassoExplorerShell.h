@@ -42,6 +42,8 @@ struct CassoExplorerLaunchOptions
     HWND          owner     = nullptr;
     bool          hasOwner  = false;
     bool          newWindow = false;
+    bool          wasUpdated    = false;   // --updated: started by a finished update
+    DWORD         cleanupOldPid = 0;       // --cleanup-old <pid>: the process that ran the old files
     std::wstring  titlePrefix;
     std::wstring  openPath;
     std::wstring  refusal;
@@ -76,6 +78,8 @@ struct CassoExplorerLaunchOptions
 //  reopens where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+class ExplorerUpdaterHost;
 
 class CassoExplorerShell : public ICassoExplorerHost
 {
@@ -137,6 +141,10 @@ public:
     //  Restores a minimized window and brings it forward.
     static void  FrontWindow (HWND hwnd);
 
+    //  Waits for the process a finished update is replacing, so this launch does
+    //  not find its window and forward to it.
+    static void  WaitForUpdatedProcess (DWORD processId);
+
     //  The palette Light, Dark or Follow system selects. The window applies
     //  Casso's own themes itself; for any other name this follows the system.
     static const DxuiTheme &  ChooseTheme (const std::string    & theme,
@@ -166,13 +174,15 @@ public:
     HWND     GetWindow      () const;
 
     //  ICassoExplorerHost
-    CassoExplorerWindow *  OpenWindow    (CassoExplorerWindowRequest request) override;
-    CassoExplorerWindow *  GetWindowFor  (HWND hwnd) override;
-    void                   ForEachWindow (const std::function<void (CassoExplorerWindow & window)> & fn) override;
-    void                   CloseWindow   (CassoExplorerWindow & window) override;
-    void                   ExitAll       () override;
-    void                   SaveSession   () override;
-    void                   RunLaunch     (const std::wstring & arguments) override;
+    CassoExplorerWindow  * OpenWindow          (CassoExplorerWindowRequest request) override;
+    CassoExplorerWindow  * GetWindowFor        (HWND hwnd) override;
+    void                   ForEachWindow       (const std::function<void (CassoExplorerWindow & window)> & fn) override;
+    void                   CloseWindow         (CassoExplorerWindow & window) override;
+    void                   ExitAll             () override;
+    void                   SaveSession         () override;
+    void                   RunLaunch           (const std::wstring & arguments) override;
+    void                   CheckForUpdates     (HWND hwnd) override;
+    bool                   OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) override;
 
     static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
     static constexpr const wchar_t *  kOwnerProperty = L"CassoExplorerOwner";
@@ -205,6 +215,7 @@ private:
     Win32LinkAnnouncements                    m_announcements;
     Win32HostFirewall                         m_hostFirewall;
     FirewallMonitor                           m_firewall;
+    std::unique_ptr<ExplorerUpdaterHost>      m_updaterHost;
     std::vector<std::unique_ptr<WindowSlot>>  m_windows;
     std::vector<ClosedWindow>                 m_closed;
     std::vector<std::wstring>                 m_knownFolders;

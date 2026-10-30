@@ -1412,3 +1412,24 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::CopyUpdateFieldsFrom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::CopyUpdateFieldsFrom (const GlobalUserPrefs & other)
+{
+    autoUpdateCheck      = other.autoUpdateCheck;
+    lastUpdateCheckUtc   = other.lastUpdateCheckUtc;
+    latestKnownVersion   = other.latestKnownVersion;
+    skippedVersion       = other.skippedVersion;
+    pendingUpdateVersion = other.pendingUpdateVersion;
+    pendingUpdateKind    = other.pendingUpdateKind;
+    pendingUpdateFailure = other.pendingUpdateFailure;
+}

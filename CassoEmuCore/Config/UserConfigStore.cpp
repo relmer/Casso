@@ -1541,13 +1541,75 @@ Error:
 //
 //  UserConfigStore::SaveAll
 //
+//  An existing file's update fields stay as they are: Casso Explorer and other
+//  running Cassos write them, and only SaveUpdateFields changes them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::SaveAll (
     const GlobalUserPrefs & prefs,
     IFileSystem           & fs) const
 {
-    return SaveCombinedJson (&prefs, fs, nullptr);
+    GlobalUserPrefs  stored;
+    GlobalUserPrefs  merged = prefs;
+    HRESULT          hrRead = ReadGlobalPrefs (fs, stored);
+
+
+
+    if (SUCCEEDED (hrRead))
+    {
+        merged.CopyUpdateFieldsFrom (stored);
+    }
+
+    IGNORE_RETURN_VALUE (hrRead, S_OK);
+
+    return SaveCombinedJson (&merged, fs, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::SaveUpdateFields
+//
+//  Every other field comes from the file, so an app with no other use for the
+//  global section can write here. With no file yet, the load runs any legacy
+//  migration first, since the file written here would otherwise prevent it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::SaveUpdateFields (
+    const GlobalUserPrefs & prefs,
+    IFileSystem           & fs)
+{
+    HRESULT          hr      = S_OK;
+    GlobalUserPrefs  stored;
+    LoadReport       report;
+    bool             hasFile = fs.Exists (GetUserPrefsFilePath());
+
+
+
+    if (hasFile)
+    {
+        hr = ReadGlobalPrefs (fs, stored);
+    }
+    else
+    {
+        hr      = LoadAll (stored, fs, report);
+        m_prefs = nullptr;
+    }
+
+    CHR (hr);
+
+    stored.CopyUpdateFieldsFrom (prefs);
+
+    hr = SaveCombinedJson (&stored, fs, nullptr);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 

@@ -3,9 +3,11 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
+#include "CassoExplorer/ExplorerUpdaterHost.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "Seams/Win32FolderWatcher.h"
+#include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
 
 
@@ -156,6 +158,14 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         else if (argument == L"--title" && hasValue && outOptions.titlePrefix.empty())
         {
             outOptions.titlePrefix = arguments[++i];
+        }
+        else if (argument == L"--updated")
+        {
+            outOptions.wasUpdated = true;
+        }
+        else if (argument == L"--cleanup-old" && hasValue)
+        {
+            outOptions.cleanupOldPid = (DWORD) wcstoul (arguments[++i].c_str(), nullptr, 10);
         }
         else if (argument == L"--new-window" && !outOptions.newWindow)
         {
@@ -758,6 +768,13 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
 
     m_knownFolders = KnownFolderStore::ListRootFolders (m_fs, m_baseDir, entries);
 
+    m_updaterHost = std::make_unique<ExplorerUpdaterHost> (m_fs, m_baseDir, m_options.titlePrefix);
+
+    hr = m_updaterHost->Create (instance);
+    CHR (hr);
+
+    m_updaterHost->GetUpdater().SetUpdateLaunch (m_options.wasUpdated, m_options.cleanupOldPid);
+
     //  A session that cannot be read is no session.
     hrSession = CassoExplorerSession::Load (m_fs, m_baseDir, session);
     IGNORE_RETURN_VALUE (hrSession, S_OK);
@@ -778,6 +795,8 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     CBR (opened);
 
     SaveSession();
+
+    m_updaterHost->PostAutomaticCheck();
 
 Error:
     return hr;
@@ -873,6 +892,11 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     //  The launch's nCmdShow value applies to the first window; the rest open
     //  normally.
     m_showCommand = SW_SHOWNORMAL;
+
+    if (m_updaterHost != nullptr && m_updaterHost->GetWindow() == nullptr)
+    {
+        m_updaterHost->SetWindow (window);
+    }
 
     if (!m_initializing)
     {
@@ -981,6 +1005,22 @@ void CassoExplorerShell::CloseWindow (CassoExplorerWindow & window)
     }
 
     closing->closed = true;
+
+    if (m_updaterHost != nullptr && m_updaterHost->GetWindow() == &window)
+    {
+        CassoExplorerWindow  * next = nullptr;
+
+        for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+        {
+            if (next == nullptr && !slot->closed)
+            {
+                next = slot->window.get();
+            }
+        }
+
+        m_updaterHost->SetWindow (next);
+    }
+
     window.CloseForApp();
 
     if (!last)
@@ -1010,6 +1050,11 @@ void CassoExplorerShell::ExitAll()
 
     SaveSession();
     m_exiting = true;
+
+    if (m_updaterHost != nullptr)
+    {
+        m_updaterHost->SetWindow (nullptr);
+    }
 
     for (const std::unique_ptr<WindowSlot> & slot : m_windows)
     {
@@ -1264,6 +1309,97 @@ HWND CassoExplorerShell::GetWindow() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::CheckForUpdates
+//
+//  The dialog opens over the window that ran the command, so the indicator moves there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::CheckForUpdates (HWND hwnd)
+{
+    CassoExplorerWindow  * window = GetWindowFor (hwnd);
+
+
+
+    if (m_updaterHost != nullptr && window != nullptr)
+    {
+        m_updaterHost->SetWindow (window);
+        m_updaterHost->GetUpdater().CheckForUpdatesNow();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::OfferMouseToUpdater
+//
+//  Only the window with the indicator passes it mouse events.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev)
+{
+    bool  isLeft  = ev.button == DxuiMouseButton::Left;
+    bool  isTaken = false;
+
+
+
+    if (m_updaterHost == nullptr || m_updaterHost->GetOwnerWindow() != hwnd)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Leave)
+    {
+        m_updaterHost->GetUpdater().OnMouseLeave();
+    }
+    else if (ev.kind == DxuiMouseEventKind::Move || (isLeft && (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Up)))
+    {
+        isTaken = m_updaterHost->GetUpdater().OfferMouseToUpdateIndicator (ev.kind, ev.positionDip.x, ev.positionDip.y);
+    }
+
+    return isTaken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::WaitForUpdatedProcess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::WaitForUpdatedProcess (DWORD processId)
+{
+    constexpr DWORD  kWaitMs = 30000;
+
+
+
+    HANDLE  process = (processId != 0) ? OpenProcess (SYNCHRONIZE, FALSE, processId) : nullptr;
+    DWORD   waited  = WAIT_OBJECT_0;
+
+
+
+    if (process != nullptr)
+    {
+        waited = WaitForSingleObject (process, kWaitMs);
+        CloseHandle (process);
+    }
+
+    IGNORE_RETURN_VALUE (waited, WAIT_OBJECT_0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::RunMessageLoop
 //
 //  The loop runs while any window is open. The preferences are written once
@@ -1308,6 +1444,12 @@ int CassoExplorerShell::RunMessageLoop()
 
     hr = m_prefs.Save (m_baseDir, m_fs);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_updaterHost != nullptr)
+    {
+        m_updaterHost->Destroy();
+        m_updaterHost->GetUpdater().CommitPendingUpdateAtExit();
+    }
 
     return (got == -1) ? 1 : (got == 0) ? (int) message.wParam : 0;
 }

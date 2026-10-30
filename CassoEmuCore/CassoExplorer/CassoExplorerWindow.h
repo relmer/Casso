@@ -85,6 +85,9 @@ public:
     void                             ShowAbout             () override;
     void                             ArmTick               () override;
     void                             CloseWindow           () override                         { OnWindowClose(); }
+    const IDxuiTheme               * GetDialogTheme        () const;
+    void                             ShowUpdateTip         (const RECT & anchorPx, const std::wstring & text);
+    void                             HideUpdateTip         ();
     ExplorerTabManager             & GetTabManager         ();
     CassoLinkManager               & GetCassoLinkManager   ();
     void                             OpenPathInNewTab      (const std::wstring & path);

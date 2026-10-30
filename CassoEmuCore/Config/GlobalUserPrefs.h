@@ -257,6 +257,9 @@ struct GlobalUserPrefs
     std::string   pendingUpdateKind;
     int           pendingUpdateFailure     = 0;
 
+    // Sets the update check and pending update fields above to those of `other`.
+    void  CopyUpdateFieldsFrom (const GlobalUserPrefs & other);
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 

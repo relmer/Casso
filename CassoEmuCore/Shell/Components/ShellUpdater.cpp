@@ -1,13 +1,11 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellUpdater.h"
-#include "Shell/EmulatorShell.h"
 #include "Ui/Dialogs/DialogDefinition.h"
-#include "Shell/Components/ShellChrome.h"
-#include "Config/UserConfigStore.h"
-#include "Shell/Components/ShellSettings.h"
-#include "Shell/EmulatorShellInternal.h"
 #include "Ui/Dialogs/UpdateDialog.h"
+#include "Config/GlobalUserPrefs.h"
+#include "Core/AppMessages.h"
+#include "Update/IUpdaterHost.h"
 #include "Update/UpdateDialogModel.h"
 #include "Update/UpdateResult.h"
 #include "Update/UpdateRuntime.h"
@@ -19,9 +17,6 @@
 #include "Update/Win32UpdateHost.h"
 #include "Update/ZipUpdateInstaller.h"
 #include "Core/TextEncoding.h"
-#include "Core/PathResolver.h"
-#include "Ui/Settings/SettingsSheet.h"
-#include "CommandLineParser.h"
 #include "Version.h"
 #include "Core/AppTimerIds.h"
 
@@ -35,8 +30,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ShellUpdater::ShellUpdater (EmulatorShell & shell)
-    : m_shell (shell)
+ShellUpdater::ShellUpdater (IUpdaterHost & host)
+    : m_host (host)
 {
 }
 
@@ -90,8 +85,8 @@ void ShellUpdater::OnMouseLeave()
 {
     if (m_updateIndicator.OnPointer (false, (int64_t) GetTickCount64()).hideTip)
     {
-        m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
-        InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
+        m_host.HideIndicatorTip();
+        m_host.RequestRepaint();
     }
 }
 
@@ -179,9 +174,9 @@ std::wstring ShellUpdater::MakeUpdateHeader (const std::string & runningReleaseD
 
 UpdateService * ShellUpdater::GetUpdateService()
 {
-    if (m_updateRuntime == nullptr && m_shell.m_hwnd != nullptr)
+    if (m_updateRuntime == nullptr && m_host.GetResultWindow() != nullptr)
     {
-        m_updateRuntime = std::make_unique<UpdateRuntime> (m_shell.m_hwnd, (UINT) AppMessage::ShellUpdateResult);
+        m_updateRuntime = std::make_unique<UpdateRuntime> (m_host.GetResultWindow(), (UINT) AppMessage::ShellUpdateResult);
     }
 
     return (m_updateRuntime != nullptr) ? &m_updateRuntime->GetService() : nullptr;
@@ -199,8 +194,10 @@ UpdateService * ShellUpdater::GetUpdateService()
 
 void ShellUpdater::SetAutoUpdateCheck (bool enabled)
 {
-    m_shell.m_settings->GetPrefs().autoUpdateCheck = enabled;
-    m_shell.m_settings->SaveGlobalPrefs();
+    AdoptStoredUpdateFields();
+
+    m_host.GetPrefs().autoUpdateCheck = enabled;
+    m_host.SavePrefs();
 }
 
 
@@ -222,12 +219,14 @@ void ShellUpdater::StopSkippingVersion()
 
 
 
-    m_shell.m_settings->GetPrefs().skippedVersion.clear();
-    m_shell.m_settings->SaveGlobalPrefs();
+    AdoptStoredUpdateFields();
+
+    m_host.GetPrefs().skippedVersion.clear();
+    m_host.SavePrefs();
 
     isShown = m_isUpdatePending ||
-              (m_shell.m_settings->GetPrefs().autoUpdateCheck &&
-               UpdateSchedule::ShouldShowIndicator (GetRunningVersion(), m_shell.m_settings->GetPrefs().latestKnownVersion, m_shell.m_settings->GetPrefs().skippedVersion));
+              (m_host.GetPrefs().autoUpdateCheck &&
+               UpdateSchedule::ShouldShowIndicator (GetRunningVersion(), m_host.GetPrefs().latestKnownVersion, m_host.GetPrefs().skippedVersion));
 
     if (m_updateCheckStarted)
     {
@@ -235,6 +234,58 @@ void ShellUpdater::StopSkippingVersion()
     }
 
     RefreshSettingsUpdateStatus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellUpdater::AdoptStoredUpdateFields
+//
+//  Casso and Casso Explorer share these fields in one file, so a change starts
+//  from what the other app last wrote. A failed read keeps the values in memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellUpdater::AdoptStoredUpdateFields()
+{
+    GlobalUserPrefs  stored;
+    HRESULT          hr     = m_host.ReadStoredPrefs (stored);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        m_host.GetPrefs().CopyUpdateFieldsFrom (stored);
+    }
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellUpdater::RebindIndicator
+//
+//  The host moved to another caption. The indicator goes into that caption at
+//  the width its text fits there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellUpdater::RebindIndicator()
+{
+    if (m_updateCheckStarted)
+    {
+        m_host.SetCaptionAccessory (&m_updateIndicator);
+
+        m_indicatorWidthDip = 0;
+        RefitUpdateIndicator (true);
+    }
 }
 
 
@@ -251,10 +302,7 @@ void ShellUpdater::StopSkippingVersion()
 
 void ShellUpdater::RefreshSettingsUpdateStatus()
 {
-    if (m_shell.m_settings->GetSheet() != nullptr)
-    {
-        m_shell.m_settings->GetSheet()->RefreshUpdateStatus();
-    }
+    m_host.RefreshUpdateStatus();
 }
 
 
@@ -285,15 +333,14 @@ void ShellUpdater::StartAutomaticUpdateCheck()
 
     m_updateCheckStarted = true;
 
+    AdoptStoredUpdateFields();
+
     service = GetUpdateService();
     BAIL_OUT_IF (service == nullptr, S_OK);
 
-    if (m_shell.m_host != nullptr)
-    {
-        m_shell.m_host->SetCaptionAccessory (&m_updateIndicator);
-    }
+    m_host.SetCaptionAccessory (&m_updateIndicator);
 
-    service->SetRelaunchArguments (GetRelaunchArguments());
+    service->SetRelaunchArguments (m_host.GetRelaunchArguments());
 
     if (m_cleanupOldPid != 0)
     {
@@ -303,7 +350,7 @@ void ShellUpdater::StartAutomaticUpdateCheck()
 
     if (m_wasLaunchedByUpdate)
     {
-        m_shell.m_chrome->ShowNotice (UpdateDialogModel::MakeUpdatedNotice (VERSION_STRING));
+        m_host.ShowNotice (UpdateDialogModel::MakeUpdatedNotice (VERSION_STRING));
     }
     else
     {
@@ -311,30 +358,30 @@ void ShellUpdater::StartAutomaticUpdateCheck()
     }
 
     isDue = UpdateSchedule::IsCheckDue (UpdateCheckTrigger::Automatic,
-                                        m_shell.m_settings->GetPrefs().autoUpdateCheck,
-                                        m_shell.m_settings->GetPrefs().lastUpdateCheckUtc,
+                                        m_host.GetPrefs().autoUpdateCheck,
+                                        m_host.GetPrefs().lastUpdateCheckUtc,
                                         UpdateRuntime::GetUtcNow(),
                                         m_updateRuntime->IsUsingLocalFeed());
 
     if (isDue)
     {
-        m_launchCheckUtc = m_shell.m_settings->GetPrefs().lastUpdateCheckUtc;
+        m_launchCheckUtc = m_host.GetPrefs().lastUpdateCheckUtc;
 
-        hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_shell.m_settings->GetPrefs().skippedVersion);
+        hr = service->StartCheck (UpdateCheckTrigger::Automatic, running, m_host.GetPrefs().skippedVersion);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         OutputDebugStringW (std::format (L"Casso: update check started (automatic, hr=0x{:08X})\n", (unsigned) hr).c_str());
     }
     else
     {
-        isShown = m_shell.m_settings->GetPrefs().autoUpdateCheck &&
-                  UpdateSchedule::ShouldShowIndicator (running, m_shell.m_settings->GetPrefs().latestKnownVersion, m_shell.m_settings->GetPrefs().skippedVersion);
+        isShown = m_host.GetPrefs().autoUpdateCheck &&
+                  UpdateSchedule::ShouldShowIndicator (running, m_host.GetPrefs().latestKnownVersion, m_host.GetPrefs().skippedVersion);
         ShowUpdateIndicator (isShown);
 
         OutputDebugStringW (std::format (L"Casso: update check not due (auto={}, last={}); latest known '{}', skipped '{}': indicator {}\n",
-                                         m_shell.m_settings->GetPrefs().autoUpdateCheck, m_shell.m_settings->GetPrefs().lastUpdateCheckUtc,
-                                         TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().latestKnownVersion),
-                                         TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().skippedVersion),
+                                         m_host.GetPrefs().autoUpdateCheck, m_host.GetPrefs().lastUpdateCheckUtc,
+                                         TextEncoding::Utf8ToWide (m_host.GetPrefs().latestKnownVersion),
+                                         TextEncoding::Utf8ToWide (m_host.GetPrefs().skippedVersion),
                                          isShown ? L"shown" : L"hidden").c_str());
     }
 
@@ -367,7 +414,9 @@ void ShellUpdater::CheckForUpdatesNow()
 
     m_isManualCheckPending = true;
 
-    hr = service->StartCheck (UpdateCheckTrigger::Manual, GetRunningVersion(), m_shell.m_settings->GetPrefs().skippedVersion);
+    AdoptStoredUpdateFields();
+
+    hr = service->StartCheck (UpdateCheckTrigger::Manual, GetRunningVersion(), m_host.GetPrefs().skippedVersion);
 
     if (hr == E_PENDING)
     {
@@ -487,9 +536,11 @@ void ShellUpdater::HandleUpdateCheckResult (UpdateResult & result)
         return;
     }
 
-    m_shell.m_settings->GetPrefs().lastUpdateCheckUtc = result.checkedAtUtc;
-    m_shell.m_settings->GetPrefs().latestKnownVersion = result.release.version.ToString();
-    m_shell.m_settings->SaveGlobalPrefs();
+    AdoptStoredUpdateFields();
+
+    m_host.GetPrefs().lastUpdateCheckUtc = result.checkedAtUtc;
+    m_host.GetPrefs().latestKnownVersion = result.release.version.ToString();
+    m_host.SavePrefs();
     RefreshSettingsUpdateStatus();
 
     m_updateRelease     = result.release;
@@ -530,9 +581,7 @@ void ShellUpdater::StartSharedCheckWait()
 
     m_sharedCheckPolls = 0;
 
-    BAIL_OUT_IF (m_shell.m_host == nullptr, S_OK);
-
-    hr = m_shell.m_host->SetTimer ((UINT_PTR) AppTimerId::ShellSharedCheck, UpdateSchedule::kSharedCheckPollMs);
+    hr = m_host.StartSharedCheckTimer (UpdateSchedule::kSharedCheckPollMs);
     CHRA (hr);
 
     m_isSharedCheckWaiting = true;
@@ -564,35 +613,32 @@ void ShellUpdater::PollSharedCheckRecord()
     HRESULT             hr       = S_OK;
     GlobalUserPrefs     stored;
     SharedCheckOutcome  outcome  = SharedCheckOutcome::Wait;
-    bool                hasStore = m_shell.m_settings->GetConfigStore() != nullptr;
 
 
 
     m_sharedCheckPolls++;
 
-    CBRA (hasStore);
-
-    hr = m_shell.m_settings->GetConfigStore()->ReadGlobalPrefs (m_shell.m_settings->GetFileSystem(), stored);
+    hr = m_host.ReadStoredPrefs (stored);
     CHR (hr);
 
     outcome = UpdateSchedule::DecideSharedCheck (m_launchCheckUtc,
                                                  stored.lastUpdateCheckUtc,
-                                                 m_shell.m_settings->GetPrefs().autoUpdateCheck,
+                                                 m_host.GetPrefs().autoUpdateCheck,
                                                  GetRunningVersion(),
                                                  stored.latestKnownVersion,
                                                  stored.skippedVersion,
                                                  m_sharedCheckPolls >= UpdateSchedule::kSharedCheckPollLimit);
     BAIL_OUT_IF (outcome == SharedCheckOutcome::Wait, S_OK);
 
-    m_shell.m_settings->GetPrefs().lastUpdateCheckUtc = stored.lastUpdateCheckUtc;
-    m_shell.m_settings->GetPrefs().latestKnownVersion = stored.latestKnownVersion;
-    m_shell.m_settings->GetPrefs().skippedVersion     = stored.skippedVersion;
+    m_host.GetPrefs().lastUpdateCheckUtc = stored.lastUpdateCheckUtc;
+    m_host.GetPrefs().latestKnownVersion = stored.latestKnownVersion;
+    m_host.GetPrefs().skippedVersion     = stored.skippedVersion;
 
     ShowUpdateIndicator (outcome == SharedCheckOutcome::Show);
     RefreshSettingsUpdateStatus();
 
     OutputDebugStringW (std::format (L"Casso: adopted another Casso's update check record; latest known '{}': indicator {}\n",
-                                     TextEncoding::Utf8ToWide (m_shell.m_settings->GetPrefs().latestKnownVersion),
+                                     TextEncoding::Utf8ToWide (m_host.GetPrefs().latestKnownVersion),
                                      outcome == SharedCheckOutcome::Show ? L"shown" : L"hidden").c_str());
 
 Error:
@@ -616,14 +662,9 @@ Error:
 
 void ShellUpdater::StopSharedCheckWait()
 {
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_isSharedCheckWaiting && m_shell.m_host != nullptr)
+    if (m_isSharedCheckWaiting)
     {
-        hr = m_shell.m_host->KillTimer ((UINT_PTR) AppTimerId::ShellSharedCheck);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_host.StopSharedCheckTimer();
     }
 
     m_isSharedCheckWaiting = false;
@@ -648,7 +689,6 @@ void ShellUpdater::StopSharedCheckWait()
 void ShellUpdater::HandleUpdateApplyResult (UpdateResult & result)
 {
     HRESULT          hr      = S_OK;
-    HRESULT          hrFlush = S_OK;
     UpdateService  * service = GetUpdateService();
     std::wstring     message;
 
@@ -674,7 +714,7 @@ void ShellUpdater::HandleUpdateApplyResult (UpdateResult & result)
         }
         else
         {
-            m_shell.ShowNotification (message);
+            m_host.ShowNotification (message);
         }
 
         return;
@@ -687,9 +727,7 @@ void ShellUpdater::HandleUpdateApplyResult (UpdateResult & result)
             m_updateDialog->ShowInstalling();
         }
 
-        hrFlush = m_shell.m_machine.GetDiskStore().FlushAllForShutdown();
-        IGNORE_RETURN_VALUE (hrFlush, S_OK);
-        m_shell.m_settings->FlushDeferredGlobalPrefs();
+        m_host.PrepareForDeploy();
 
         CBRA (service != nullptr);
 
@@ -721,7 +759,7 @@ void ShellUpdater::HandleUpdateApplyResult (UpdateResult & result)
 
     if (result.installType == InstallType::Zip)
     {
-        PostMessageW (m_shell.m_hwnd, WM_CLOSE, 0, 0);
+        m_host.RequestClose();
     }
 
 Error:
@@ -740,7 +778,7 @@ Error:
 
 void ShellUpdater::ShowUpdateIndicator (bool isShown)
 {
-    std::string  version = m_shell.m_settings->GetPrefs().latestKnownVersion;
+    std::string  version = m_host.GetPrefs().latestKnownVersion;
 
 
 
@@ -783,10 +821,7 @@ void ShellUpdater::ShowUpdateIndicator (bool isShown)
         m_updateIndicator.SetPressed (false);
     }
 
-    if (m_shell.m_hwnd != nullptr)
-    {
-        InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
-    }
+    m_host.RequestRepaint();
 }
 
 
@@ -892,8 +927,8 @@ void ShellUpdater::OpenUpdateDialog()
                    std::move (callbacks));
 
     params.title                    = UpdateDialogModel::kpszTitle;
-    params.hInstance                = m_shell.m_hInstance;
-    params.ownerHwnd                = m_shell.m_hwnd;
+    params.hInstance                = m_host.GetInstance();
+    params.ownerHwnd                = m_host.GetOwnerWindow();
     params.initialSizeDip           = { kWidthDip, kHeightDip };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
@@ -908,7 +943,7 @@ void ShellUpdater::OpenUpdateDialog()
     hr = dlg.Create (params);
     CHRA (hr);
 
-    dlg.SetTheme (&m_shell.m_chrome->GetTheme());
+    dlg.SetTheme (m_host.GetDialogTheme());
 
     m_updateDialog = &dlg;
 
@@ -951,8 +986,10 @@ Error:
 
 void ShellUpdater::SkipOfferedRelease()
 {
-    m_shell.m_settings->GetPrefs().skippedVersion = m_updateRelease.version.ToString();
-    m_shell.m_settings->SaveGlobalPrefs();
+    AdoptStoredUpdateFields();
+
+    m_host.GetPrefs().skippedVersion = m_updateRelease.version.ToString();
+    m_host.SavePrefs();
 
     ShowUpdateIndicator (false);
     RefreshSettingsUpdateStatus();
@@ -981,7 +1018,7 @@ void ShellUpdater::ReportUpdateCheckFailure (UpdateFailure failure)
     def.body.push_back ({ L"Open the release page", true, UpdateService::kpszReleasesPage });
     def.buttons.push_back ({ L"OK", 0, true, true });
 
-    (void) m_shell.ShowModalDialog (def);
+    (void) m_host.ShowModalDialog (def);
 }
 
 
@@ -1005,7 +1042,7 @@ void ShellUpdater::ReportUpToDate()
     def.body.push_back ({ UpdateDialogModel::MakeUpToDateText (GetRunningVersion()), false, L"" });
     def.buttons.push_back ({ L"OK", 0, true, true });
 
-    (void) m_shell.ShowModalDialog (def);
+    (void) m_host.ShowModalDialog (def);
 }
 
 
@@ -1054,17 +1091,20 @@ bool ShellUpdater::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx
 
     int64_t  nowMs      = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                               std::chrono::steady_clock::now().time_since_epoch()).count();
-    UINT                                  dpi        = m_shell.m_scaler.GetDpi();
+    UINT                                  dpi        = m_host.GetDpi();
     POINT                                 pointDip   = { MulDiv (xPx, kBaseDpi, (int) dpi), MulDiv (yPx, kBaseDpi, (int) dpi) };
-    bool                                  hasCaption = m_shell.m_host != nullptr && m_shell.m_host->GetCaptionHeightPx() > 0;
+    bool                                  hasCaption = m_host.HasCaption();
     bool                                  isInside   = hasCaption && m_updateIndicator.ContainsDip (pointDip);
     bool                                  isTaken    = false;
     UpdateIndicatorButton::PointerResult  pointer;
     RECT                                  bounds     = m_updateIndicator.GetBounds();
-    RECT     anchorPx   = { m_shell.m_scaler.ToPx (bounds.left),  m_shell.m_scaler.ToPx (bounds.top),
-                            m_shell.m_scaler.ToPx (bounds.right), m_shell.m_scaler.ToPx (bounds.bottom) };
+    DxuiDpiScaler                         scaler;
+    RECT                                  anchorPx   = {};
 
 
+
+    scaler.SetDpi (dpi);
+    anchorPx = { scaler.ToPx (bounds.left), scaler.ToPx (bounds.top), scaler.ToPx (bounds.right), scaler.ToPx (bounds.bottom) };
 
     switch (kind)
     {
@@ -1073,19 +1113,19 @@ bool ShellUpdater::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx
 
             if (pointer.repaint)
             {
-                InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
+                m_host.RequestRepaint();
             }
 
             if (pointer.showTip)
             {
-                m_shell.m_chrome->GetCaptionTooltip().RequestShow (UpdateIndicatorButton::GetTipAnchorPx (anchorPx, DxuiTooltip::MeasurePointerExtent(),
-                                                                                                          m_shell.m_scaler.ToPx (UpdateIndicatorButton::kTipGapDip)),
-                                                                   m_updateIndicator.GetToolTipText().c_str(), nowMs);
+                m_host.ShowIndicatorTip (UpdateIndicatorButton::GetTipAnchorPx (anchorPx, DxuiTooltip::MeasurePointerExtent(), scaler.ToPx (UpdateIndicatorButton::kTipGapDip)),
+                                         m_updateIndicator.GetToolTipText(),
+                                         nowMs);
             }
 
             if (pointer.hideTip)
             {
-                m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
+                m_host.HideIndicatorTip();
             }
 
             isTaken = isInside;
@@ -1097,8 +1137,8 @@ bool ShellUpdater::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx
             if (isInside)
             {
                 m_updateIndicator.SetPressed (true);
-                m_shell.m_chrome->GetCaptionTooltip().HideImmediate();
-                InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
+                m_host.HideIndicatorTip();
+                m_host.RequestRepaint();
             }
 
             break;
@@ -1109,7 +1149,7 @@ bool ShellUpdater::OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx
             if (isTaken)
             {
                 m_updateIndicator.SetPressed (false);
-                InvalidateRect (m_shell.m_hwnd, nullptr, FALSE);
+                m_host.RequestRepaint();
             }
 
             if (isTaken && isInside)
@@ -1154,10 +1194,7 @@ void ShellUpdater::StopUpdateService()
         m_updateRuntime->GetService().Stop();
     }
 
-    if (m_shell.m_host != nullptr)
-    {
-        m_shell.m_host->SetCaptionAccessory (nullptr);
-    }
+    m_host.SetCaptionAccessory (nullptr);
 
     m_updateRuntime.reset();
 }
@@ -1183,19 +1220,16 @@ void ShellUpdater::RefitUpdateIndicator (bool force)
 
 
 
-    RECT          client    = {};
     IndicatorFit  fit;
     int           widthPx   = 0;
-    UINT          dpi       = m_shell.m_scaler.GetDpi();
+    UINT          dpi       = m_host.GetDpi();
 
 
 
-    if (m_shell.m_host == nullptr || m_shell.m_hwnd == nullptr || GetClientRect (m_shell.m_hwnd, &client) == FALSE)
+    if (!m_host.TryGetClientWidthPx (widthPx))
     {
         return;
     }
-
-    widthPx = client.right - client.left;
 
     if (!force && widthPx == m_indicatorClientPx)
     {
@@ -1205,7 +1239,7 @@ void ShellUpdater::RefitUpdateIndicator (bool force)
     m_indicatorClientPx = widthPx;
 
     fit = UpdateIndicatorModel::Fit (MulDiv (widthPx, kBaseDpi, (int) dpi),
-                                     m_shell.m_host->GetCaptionReservedWidthDip(),
+                                     m_host.GetCaptionReservedWidthDip(),
                                      m_updateIndicatorLine);
 
     m_updateIndicator.SetShowsText (fit.showsText);
@@ -1213,7 +1247,7 @@ void ShellUpdater::RefitUpdateIndicator (bool force)
     if (fit.widthDip != m_indicatorWidthDip)
     {
         m_indicatorWidthDip = fit.widthDip;
-        m_shell.m_host->SetCaptionAccessoryWidth (fit.widthDip);
+        m_host.SetCaptionAccessoryWidth (fit.widthDip);
     }
 }
 
@@ -1241,56 +1275,6 @@ bool ShellUpdater::TickUpdateIndicator (int64_t nowMs)
     m_updateIndicator.SetAnimationsEnabled (DxuiSystemSettings::Instance().AreAnimationsEnabled());
 
     return m_updateIndicator.TickShimmer (nowMs);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellUpdater::GetRelaunchArguments
-//
-//  The options this process was started with that a relaunch after an
-//  update repeats, as CommandLineParser decides them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> ShellUpdater::GetRelaunchArguments()
-{
-    int                        argc  = 0;
-    LPWSTR                   * argvW = CommandLineToArgvW (GetCommandLineW(), &argc);
-    std::vector<std::string>   narrow;
-    std::vector<char *>        argv;
-    std::vector<std::string>   kept;
-    std::vector<std::wstring>  wide;
-
-
-
-    // argv[0] is the program itself.
-    for (int i = 1; argvW != nullptr && i < argc; i++)
-    {
-        narrow.push_back (TextEncoding::WideToUtf8 (argvW[i]));
-    }
-
-    if (argvW != nullptr)
-    {
-        LocalFree (argvW);
-    }
-
-    for (std::string & arg : narrow)
-    {
-        argv.push_back (arg.data());
-    }
-
-    kept = CommandLineParser::SelectRelaunchArguments ((int) argv.size(), argv.data());
-
-    for (const std::string & arg : kept)
-    {
-        wide.push_back (TextEncoding::Utf8ToWide (arg));
-    }
-
-    return wide;
 }
 
 
@@ -1332,28 +1316,34 @@ std::wstring ShellUpdater::GetInstallDirectory()
 
 void ShellUpdater::HandlePendingUpdateAtLaunch()
 {
-    PendingUpdate          pending;
-    PendingLaunchAction    action;
-    Win32UpdateFileSystem  fileSystem;
-    UpdateService        * service = GetUpdateService();
-    HRESULT                hr      = S_OK;
+    PendingUpdate            pending;
+    PendingLaunchAction      action;
+    Win32UpdateFileSystem    fileSystem;
+    UpdateService          * service     = GetUpdateService();
+    HRESULT                  hr          = S_OK;
+    bool                     isOtherOpen = false;
 
 
 
-    pending.version = m_shell.m_settings->GetPrefs().pendingUpdateVersion;
-    pending.kind    = m_shell.m_settings->GetPrefs().pendingUpdateKind;
-    pending.failure = (UpdateFailure) m_shell.m_settings->GetPrefs().pendingUpdateFailure;
+    //  The other app's staged files and pending record are not this launch's to
+    //  judge. The first launch with no other app open reports on them.
+    isOtherOpen = m_updateRuntime != nullptr && m_updateRuntime->IsOtherInstanceRunning();
+    BAIL_OUT_IF (isOtherOpen, S_OK);
+
+    pending.version = m_host.GetPrefs().pendingUpdateVersion;
+    pending.kind    = m_host.GetPrefs().pendingUpdateKind;
+    pending.failure = (UpdateFailure) m_host.GetPrefs().pendingUpdateFailure;
 
     action = PendingUpdateModel::DecideAtLaunch (pending, GetRunningVersion());
 
     if (action.showUpdated)
     {
-        m_shell.m_chrome->ShowNotice (UpdateDialogModel::MakeUpdatedNotice (pending.version));
+        m_host.ShowNotice (UpdateDialogModel::MakeUpdatedNotice (pending.version));
     }
 
     if (action.failure != UpdateFailure::None)
     {
-        m_shell.ShowNotification (UpdateDialogModel::MakeUpdateFailedText (action.failure));
+        m_host.ShowNotification (UpdateDialogModel::MakeUpdateFailedText (action.failure));
     }
 
     // The process that ran the old files exited before this one started.
@@ -1378,6 +1368,9 @@ void ShellUpdater::HandlePendingUpdateAtLaunch()
         m_isUpdatePending   = true;
         m_pendingInstallType = InstallType::Msix;
     }
+
+Error:
+    return;
 }
 
 
@@ -1405,10 +1398,12 @@ void ShellUpdater::SetUpdatePending (const UpdateResult & result)
     m_pendingPaths       = result.stagedPaths;
     m_pendingBundlePath  = result.bundlePath;
 
-    m_shell.m_settings->GetPrefs().pendingUpdateVersion = m_updateRelease.version.ToString();
-    m_shell.m_settings->GetPrefs().pendingUpdateKind    = isZip ? PendingUpdate::kpszZip : PendingUpdate::kpszMsix;
-    m_shell.m_settings->GetPrefs().pendingUpdateFailure = 0;
-    m_shell.m_settings->SaveGlobalPrefs();
+    AdoptStoredUpdateFields();
+
+    m_host.GetPrefs().pendingUpdateVersion = m_updateRelease.version.ToString();
+    m_host.GetPrefs().pendingUpdateKind    = isZip ? PendingUpdate::kpszZip : PendingUpdate::kpszMsix;
+    m_host.GetPrefs().pendingUpdateFailure = 0;
+    m_host.SavePrefs();
 
     if (m_updateDialog != nullptr)
     {
@@ -1430,17 +1425,21 @@ void ShellUpdater::SetUpdatePending (const UpdateResult & result)
 
 void ShellUpdater::ClearPendingUpdatePrefs()
 {
-    bool  isSet = !m_shell.m_settings->GetPrefs().pendingUpdateVersion.empty() || m_shell.m_settings->GetPrefs().pendingUpdateFailure != 0;
+    bool  isSet = false;
 
 
 
-    m_shell.m_settings->GetPrefs().pendingUpdateVersion.clear();
-    m_shell.m_settings->GetPrefs().pendingUpdateKind.clear();
-    m_shell.m_settings->GetPrefs().pendingUpdateFailure = 0;
+    AdoptStoredUpdateFields();
+
+    isSet = !m_host.GetPrefs().pendingUpdateVersion.empty() || m_host.GetPrefs().pendingUpdateFailure != 0;
+
+    m_host.GetPrefs().pendingUpdateVersion.clear();
+    m_host.GetPrefs().pendingUpdateKind.clear();
+    m_host.GetPrefs().pendingUpdateFailure = 0;
 
     if (isSet)
     {
-        m_shell.m_settings->SaveGlobalPrefs();
+        m_host.SavePrefs();
     }
 }
 
@@ -1535,8 +1534,10 @@ Error:
         hr = ZipUpdateInstaller::DiscardStaged (fileSystem, m_pendingInstallDir);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        m_shell.m_settings->GetPrefs().pendingUpdateFailure = (int) failure;
-        m_shell.m_settings->SaveGlobalPrefs();
+        AdoptStoredUpdateFields();
+
+        m_host.GetPrefs().pendingUpdateFailure = (int) failure;
+        m_host.SavePrefs();
     }
 
     m_isUpdatePending = false;

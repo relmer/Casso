@@ -1092,14 +1092,20 @@ Error:
 
 void UpdateService::RunDeploy (std::wstring bundlePath)
 {
-    HRESULT                        hr     = S_OK;
-    std::unique_ptr<UpdateResult>  result = std::make_unique<UpdateResult>();
+    HRESULT                        hr          = S_OK;
+    std::unique_ptr<UpdateResult>  result      = std::make_unique<UpdateResult>();
+    bool                           isOtherOpen = false;
 
 
 
     result->kind        = UpdateResultKind::Applied;
     result->installType = InstallType::Msix;
     result->bundlePath  = bundlePath;
+
+    //  A deploy now force-closes every running copy of the package, so another
+    //  app opened during the download stops it here.
+    isOtherOpen = m_deps.host->IsOtherInstanceRunning();
+    CBRF (!isOtherOpen, result->failure = UpdateFailure::OtherInstanceRunning);
 
     hr = m_deps.deployer->DeployBundle (bundlePath, DeployTiming::Now, MakeRestartArgs (m_relaunchArgs));
     CHRF (hr, result->failure = UpdateFailure::InstallFailed);

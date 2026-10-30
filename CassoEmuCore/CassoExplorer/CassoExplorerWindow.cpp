@@ -392,6 +392,52 @@ void CassoExplorerWindow::OnThemeChanged()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::GetDialogTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const IDxuiTheme * CassoExplorerWindow::GetDialogTheme() const
+{
+    return m_theme;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowUpdateTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowUpdateTip (const RECT & anchorPx, const std::wstring & text)
+{
+    m_parts->tips.ShowHoverTip (ExplorerTips::TipOwner::Caption, anchorPx, text);
+    ArmTick();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::HideUpdateTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::HideUpdateTip()
+{
+    m_parts->tips.HideHoverTip (ExplorerTips::TipOwner::Caption);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::ShowAbout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1007,6 +1053,13 @@ LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
 
 bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 {
+    ArmTick();
+
+    if (m_context.host != nullptr && m_context.host->OfferMouseToUpdater (GetHwnd(), ev))
+    {
+        return true;
+    }
+
     return m_parts->input.HandleMouse (ev);
 }
 

@@ -9,7 +9,7 @@
 
 
 
-class EmulatorShell;
+class IUpdaterHost;
 class UpdateDialog;
 class UpdateRuntime;
 class UpdateService;
@@ -32,7 +32,7 @@ struct UpdateResult;
 class ShellUpdater
 {
 public:
-    explicit ShellUpdater (EmulatorShell & shell);
+    explicit ShellUpdater (IUpdaterHost & host);
     ~ShellUpdater();
 
     // A launch by a finished zip update (--updated, --cleanup-old <pid>).
@@ -47,6 +47,7 @@ public:
     void  StopSkippingVersion ();
 
     bool                    HasCheckStarted             () const { return m_updateCheckStarted; }
+    bool                    IsIndicatorVisible          () const { return m_updateIndicator.IsVisible(); }
     void                    StartAutomaticUpdateCheck   ();
     void                    CheckForUpdatesNow          ();
     void                    HandleUpdateResult          (UpdateResult & result);
@@ -55,6 +56,7 @@ public:
     std::optional<int64_t>  GetMsUntilShimmer           (int64_t nowMs) const;
     bool                    OfferMouseToUpdateIndicator (DxuiMouseEventKind kind, int xPx, int yPx);
     void                    OnMouseLeave                ();
+    void                    RebindIndicator             ();
     void                    StopUpdateService           ();
     void                    CommitPendingUpdateAtExit   ();
 
@@ -82,11 +84,11 @@ private:
     void                                HandlePendingUpdateAtLaunch ();
     void                                SetUpdatePending            (const UpdateResult & result);
     void                                ClearPendingUpdatePrefs     ();
+    void                                AdoptStoredUpdateFields     ();
     void                                ApplyPendingUpdateNow       ();
-    static std::vector<std::wstring>    GetRelaunchArguments        ();
     static std::wstring                 GetInstallDirectory         ();
 
-    EmulatorShell                 & m_shell;
+    IUpdaterHost                  & m_host;
 
     std::unique_ptr<UpdateRuntime>  m_updateRuntime;
     UpdateIndicatorButton           m_updateIndicator;

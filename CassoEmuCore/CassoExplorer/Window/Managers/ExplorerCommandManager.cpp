@@ -558,6 +558,14 @@ void ExplorerCommandManager::Dispatch (int id)
             m_context.addressBar.ShowHistoryDropDown();
             break;
 
+        case CassoExplorerCommands::kCheckForUpdates:
+            if (m_context.app.host != nullptr)
+            {
+                m_context.app.host->CheckForUpdates (m_context.window.GetHwnd());
+            }
+
+            break;
+
         case CassoExplorerCommands::kAbout:
             m_context.window.ShowAbout();
             break;

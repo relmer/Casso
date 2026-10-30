@@ -113,6 +113,8 @@ extern "C" int WINAPI wCassoExplorerMain (
 
     BAIL_OUT_IF (exitCode != 0, S_OK);
 
+    CassoExplorerShell::WaitForUpdatedProcess (options.cleanupOldPid);
+
     existing = options.newWindow ? nullptr : CassoExplorerShell::FindWindowForOwner (options.owner);
 
     if (existing != nullptr)
