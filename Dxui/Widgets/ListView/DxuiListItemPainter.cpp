@@ -64,6 +64,7 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
 
 
     m_nameCut.clear();
+    m_homeCut.clear();
 
     //  The captions' line pitch, which the layout's row heights are built from;
     //  a change moves every row, so the layout is laid out again.
@@ -237,7 +238,7 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
 
                 if (look.edge != 0)
                 {
-                    painter.OutlineRoundedRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), radius, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+                    painter.OutlineRoundedRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), radius, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), m_list.m_theme->Accent());
                 }
 
                 PaintHomeItem (text, pal, item, cell, cells);
@@ -590,7 +591,9 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
 
         nameEnd = (at == 1) ? left - m_list.m_scaler.ToPxf (30.0f) : nameEnd;
 
-        hr = text.DrawString (cells[at].text.c_str(), left, (float) cell.top, end - left, (float) (cell.bottom - cell.top), pal.fg, fontPx, DxuiTheme::kBodyFace,
+        shown = DxuiTextElide::ToWidth (text, cells[at].text, fontPx, DxuiTheme::kBodyFace, end - left - fontPx, DxuiElide::Tail, 0, true);
+
+        hr = text.DrawString (shown.c_str(), left, (float) cell.top, end - left, (float) (cell.bottom - cell.top), pal.fg, fontPx, DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -623,6 +626,11 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
 
     shown = DxuiTextElide::ToWidth (text, cells[0].text, fontPx, DxuiTheme::kBodyFace, nameEnd - textX, DxuiElide::Tail, 0, true);
 
+    if (shown != cells[0].text)
+    {
+        m_homeCut.emplace_back (item, 0);
+    }
+
     hr = text.DrawString (shown.c_str(), textX, top, nameEnd - textX, lineH, pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -631,6 +639,11 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
     if (!cells[0].tileLines.empty())
     {
         shown = DxuiTextElide::ToWidth (text, cells[0].tileLines[0].text, fontPx, DxuiTheme::kBodyFace, nameEnd - textX, DxuiElide::Tail, 0, true);
+
+        if (shown != cells[0].tileLines[0].text)
+        {
+            m_homeCut.emplace_back (item, 1);
+        }
 
         hr = text.DrawString (shown.c_str(), textX, top, nameEnd - textX, lineH, m_list.m_theme->ContentBackground() < 0xFF808080 ? s_kPathArgb : pal.fgDim, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);

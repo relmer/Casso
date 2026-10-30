@@ -94,7 +94,8 @@ void BrowserCells::UpdateStatus()
 
         for (int selected : m_browser.m_selectedRows)
         {
-            if (!m_browser.m_rows[(size_t) selected].isDirectory)
+            //  A cloud item on Home has no size here.
+            if (!m_browser.m_rows[(size_t) selected].isDirectory && !(m_browser.IsHomeLocation() && m_browser.m_rows[(size_t) selected].hostPath.empty()))
             {
                 bytes  += m_browser.m_rows[(size_t) selected].sizeBytes;
                 anyFile = true;
@@ -112,7 +113,7 @@ void BrowserCells::UpdateStatus()
 
         if (!row.isDirectory)
         {
-            m_browser.m_status.detail += L", " + FormatSize (row.sizeBytes);
+            m_browser.m_status.detail += (m_browser.IsHomeLocation() && row.hostPath.empty()) ? std::wstring() : L", " + FormatSize (row.sizeBytes);
         }
 
         if (!row.addressText.empty())

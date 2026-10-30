@@ -754,7 +754,6 @@ bool DxuiListGroups::OnPress (int lx, int ly)
         if (lx < m_list.m_scaler.ToPx ((group == 0) ? 160 : 52))
         {
             SetGroupCollapsed (group, !IsGroupCollapsed (group));
-            m_list.m_focusGroup = group;
         }
 
         return true;
@@ -887,7 +886,7 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
         painter.FillRect (rowX, ry, layoutW, rowH, look.fill);
     }
 
-    if (focused)
+    if (focused && !home)
     {
         painter.OutlineRect (rowX, ry, layoutW, rowH, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), m_list.m_theme->Foreground());
     }

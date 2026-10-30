@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Seams/ShellItemId.h"
 
 #include "Seams/ShellVerbs/Win32ShellNamespace.h"
 #include "Seams/Win32ShellItemVerbs.h"
@@ -77,7 +78,20 @@ HRESULT Win32ShellNamespace::ReadHomeFolder (std::vector<IShellItemVerbs::ShellF
 
         hrItem = DescribeShellItem (item.Get(), entry);
 
-        //  Home's folders are Quick access, and its files Recent.
+        //  Home's folders are Quick access, and its files Recent. A file's menu
+        //  has Home's commands only through its place in Home.
+        if (SUCCEEDED (hrItem) && !entry.isFolder && !ShellItemId::IsEncoded (entry.id))
+        {
+            PIDLIST_ABSOLUTE  pidl   = nullptr;
+            HRESULT           hrPidl = SHGetIDListFromObject (item.Get(), &pidl);
+
+            if (SUCCEEDED (hrPidl))
+            {
+                entry.id = ShellItemId::Encode (pidl, entry.name);
+                CoTaskMemFree (pidl);
+            }
+        }
+
         if (SUCCEEDED (hrItem))
         {
             entry.homeGroup = (entry.homeGroup != 0) ? entry.homeGroup : entry.isFolder ? s_kHomeGroupQuickAccess : s_kHomeGroupRecent;
@@ -430,6 +444,21 @@ HRESULT Win32ShellNamespace::DescribeShellItem (IShellItem * item, IShellItemVer
         outEntry.name = text;
         CoTaskMemFree (text);
         text = nullptr;
+    }
+
+    //  A cloud item's parsing name is only its file name, which cannot be parsed
+    //  back.
+    if (outEntry.id.find_first_of (L"\\:") == std::wstring::npos)
+    {
+        PIDLIST_ABSOLUTE  pidl   = nullptr;
+        HRESULT           hrPidl = SHGetIDListFromObject (item, &pidl);
+
+        if (SUCCEEDED (hrPidl))
+        {
+            outEntry.id     = ShellItemId::Encode (pidl, outEntry.name);
+            outEntry.iconId = outEntry.name;
+            CoTaskMemFree (pidl);
+        }
     }
 
     outEntry.path = Win32ShellTransfers::GetItemPath (item);
@@ -964,7 +993,7 @@ HRESULT Win32ShellNamespace::CreateItem (const std::wstring & id, IShellItem ** 
         return SHCreateItemFromIDList ((PCIDLIST_ABSOLUTE) &s_kEmpty, IID_PPV_ARGS (outItem));
     }
 
-    return SHCreateItemFromParsingName (id.c_str(), nullptr, IID_PPV_ARGS (outItem));
+    return ShellItemId::ToItem (id, IID_PPV_ARGS (outItem));
 }
 
 

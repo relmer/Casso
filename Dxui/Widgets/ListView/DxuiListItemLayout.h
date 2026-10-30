@@ -68,7 +68,7 @@ public:
     static constexpr int    s_kHomeTilePitchDip  = 284;
     static constexpr int    s_kHomeTileHDip      = 60;
     static constexpr int    s_kHomeRowDip        = 44;
-    static constexpr int    s_kHomeNameMinDip    = 480;
+    static constexpr int    s_kHomeNameMinDip    = 340;
     static constexpr int    s_kHomeHeaderDip     = 49;
     static constexpr int    s_kHomeTabsHeaderDip = 112;
     static constexpr float  s_kHomeTabsCenterDip = 30.5f;

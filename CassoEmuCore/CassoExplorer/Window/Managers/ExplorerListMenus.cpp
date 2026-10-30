@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Seams/ShellItemId.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -121,6 +122,108 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListMenus::ShowHomeItemMenu
+//
+//  File Explorer's menu for an item on Home: Share across the top, then the
+//  commands the shell has for the item, in its order, each run by its label.
+//  A file on a disk also has the full menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
+{
+    struct Entry
+    {
+        const wchar_t *  label;
+        const wchar_t *  shown;
+        const wchar_t *  svg;
+        const wchar_t *  accelerator;
+    };
+
+    static constexpr Entry  s_kEntries[] =
+    {
+        { L"Open",                 L"Open",                 nullptr,                             L"Enter" },
+        { L"Share",                L"Share",                L"Windows.ModernShare",              L""      },
+        { L"Open file location",   L"Open file location",   L"windows.shortcut.opencontaining",  L""      },
+        { L"Remove from list",     L"Remove from list",     L"windows.close",                    L""      },
+        { L"Add to Favorites",     L"Add to Favorites",     nullptr,                             L""      },
+        { L"Remove from Favorites", L"Remove from Favorites", nullptr,                           L""      },
+        { L"Copy as path",         L"Copy as path",         L"windows.copyaspath",               L"Ctrl+Shift+C" },
+        { L"Properties",           L"Properties",           nullptr,                             L"Alt+Enter" },
+    };
+
+    std::vector<DxuiPopupMenuItem>  items;
+    std::vector<std::wstring>       labels;
+    std::wstring                    id;
+    HRESULT                         hr   = S_OK;
+    HWND                            hwnd = m_context.window.GetHwnd();
+
+
+
+    if (row < 0 || (size_t) row >= m_context.browser.GetRows().size())
+    {
+        return;
+    }
+
+    {
+        const CatalogRow &  item = m_context.browser.GetRows()[(size_t) row];
+
+        id = (item.hostPath.empty() || ShellItemId::IsEncoded (item.shellId)) ? item.shellId : item.hostPath;
+    }
+
+    hr = m_context.shellVerbs.GetItemVerbLabels (hwnd, { id }, labels);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const Entry & entry : s_kEntries)
+    {
+        if (std::find (labels.begin(), labels.end(), entry.label) == labels.end())
+        {
+            continue;
+        }
+
+        m_context.menus.AddMenuCommand (items, entry.shown, [this, id, label = std::wstring (entry.label)]()
+        {
+            HRESULT  ran = m_context.shellVerbs.RunItemVerbByLabel (m_context.window.GetHwnd(), { id }, label);
+
+            IGNORE_RETURN_VALUE (ran, S_OK);
+
+            //  Favorites and the list change with these.
+            if (label != L"Open" && label != L"Share" && label != L"Properties" && label != L"Copy as path")
+            {
+                ran = m_context.browser.Refresh();
+                IGNORE_RETURN_VALUE (ran, S_OK);
+                m_pane.FillList();
+                m_context.window.Invalidate();
+            }
+        }, entry.accelerator);
+
+        if (entry.svg != nullptr)
+        {
+            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (entry.svg);
+        }
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    m_context.menus.AddMenuCommand (items, L"Show more options", [this, id]()
+    {
+        POINT    screen = {};
+        BOOL     got    = GetCursorPos (&screen);
+        HRESULT  shown  = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), { id }, screen, {});
+
+        IGNORE_RETURN_VALUE (got, TRUE);
+        IGNORE_RETURN_VALUE (shown, S_OK);
+    }, L"Shift+F10");
+
+    DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListMenus::ShowListContextMenu
 //
 //  The rows come from the actions' verb list; each command runs its verb.
@@ -150,7 +253,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  list and the rest are its commands.
     if (m_context.browser.IsHomeLocation() && group < 0 && m_context.browser.GetSelectedRows().size() == 1)
     {
-        m_context.listPane.HandleHomeRowAction (m_context.browser.GetSelectedRows()[0], 2);
+        ShowHomeItemMenu (x, y, m_context.browser.GetSelectedRows()[0]);
         return;
     }
 

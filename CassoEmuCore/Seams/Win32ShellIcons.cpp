@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Seams/ShellItemId.h"
 
 #include "Core/PathResolver.h"
 #include "Core/ThreadName.h"
@@ -954,7 +955,7 @@ HICON Win32ShellIcons::LoadShellItemIcon (const std::wstring & path, int sizePx,
 
 
 
-    hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&factory));
+    hr = ShellItemId::ToItem (path, IID_PPV_ARGS (&factory));
     CHR (hr);
 
     hr = factory->GetImage (SIZE { sizePx, sizePx }, flags, &color);
@@ -1080,7 +1081,7 @@ HICON Win32ShellIcons::LoadThumbnail (const std::wstring & path, int sizePx)
 
 
 
-    hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&factory));
+    hr = ShellItemId::ToItem (path, IID_PPV_ARGS (&factory));
     CHR (hr);
 
     hr = factory->GetImage (SIZE { sizePx, sizePx }, SIIGBF_THUMBNAILONLY, &thumb);

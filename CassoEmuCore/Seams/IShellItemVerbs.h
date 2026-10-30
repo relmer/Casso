@@ -121,7 +121,9 @@ public:
 
     //  One verb from the items' shell menu, by its canonical name, invoked
     //  as if picked there: an archive's `extract` opens its Extract All.
-    virtual HRESULT  RunItemVerb (HWND owner, const std::vector<std::wstring> & paths, const char * verb) = 0;
+    virtual HRESULT  RunItemVerb        (HWND owner, const std::vector<std::wstring> & paths, const char * verb) = 0;
+    virtual HRESULT  GetItemVerbLabels  (HWND owner, const std::vector<std::wstring> & paths, std::vector<std::wstring> & outLabels) { (void) owner; (void) paths; (void) outLabels; return E_NOTIMPL; }
+    virtual HRESULT  RunItemVerbByLabel (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label) { (void) owner; (void) paths; (void) label; return E_NOTIMPL; }
 
     //  Which of the canonical verbs the items' shell menu has, in the order
     //  given, with the menu's label for each: a drive's Format and Eject come

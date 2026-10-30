@@ -28,6 +28,7 @@ public:
 
     void  ShowHoverTip        (TipOwner owner, const RECT & anchor, const std::wstring & text,
                                float maxWidthDip = DxuiTooltip::kDefaultMaxTextWidthDip);
+    void  ShowHoverTipBelow   (TipOwner owner, const RECT & anchor, const std::wstring & text);
     void  HideHoverTip        (TipOwner owner);
 
     //  The tooltip, which follows the pointer, at the window's DPI and size.

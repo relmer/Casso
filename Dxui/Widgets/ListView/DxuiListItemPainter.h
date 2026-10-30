@@ -57,5 +57,6 @@ private:
 
     DxuiListView  & m_list;
 
-    mutable std::vector<int>  m_nameCut;   // the items drawn cut short in the last paint
+    mutable std::vector<int>                  m_nameCut;   // the items drawn cut short in the last paint
+    mutable std::vector<std::pair<int, int>>  m_homeCut;   // Home's items and lines drawn cut short
 };

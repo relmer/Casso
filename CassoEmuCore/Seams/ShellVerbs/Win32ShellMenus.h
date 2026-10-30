@@ -32,6 +32,9 @@ public:
     HRESULT  ShowShellMenu       (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename);
     HRESULT  ShowBackgroundMenu  (HWND owner, const std::wstring & folder, POINT screenPx);
     HRESULT  RunItemVerb         (HWND owner, const std::vector<std::wstring> & paths, const char * verb);
+    HRESULT  GetItemVerbLabels   (HWND owner, const std::vector<std::wstring> & paths, std::vector<std::wstring> & outLabels);
+    HRESULT  RunItemVerbByLabel  (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label);
+    HRESULT  WalkItemVerbs       (HWND owner, const std::vector<std::wstring> & paths, const std::wstring * run, std::vector<std::wstring> * outLabels);
     HRESULT  ListItemVerbs       (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<IShellItemVerbs::ItemVerb> & outFound);
     static constexpr const wchar_t * s_kClassName      = L"CassoExplorerShellMenuHost";
 

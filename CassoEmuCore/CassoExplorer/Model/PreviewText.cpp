@@ -294,5 +294,10 @@ std::wstring PreviewText::FormatPreviewError (const std::wstring & message)
         return message;
     }
 
+    if (reason.starts_with (L"No preview"))
+    {
+        return reason;
+    }
+
     return L"No preview\n\n\n" + reason;
 }

@@ -32,9 +32,33 @@ ExplorerTips::ExplorerTips (ExplorerContext & context)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  ExplorerTips::ShowHoverTipBelow
+//
+//  Below its anchor rather than at the pointer, or above where there is no room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTips::ShowHoverTipBelow (TipOwner owner, const RECT & anchor, const std::wstring & text)
+{
+    m_tipOwner = owner;
+    m_tooltip.SetFollowPointer (false);
+    m_tooltip.RequestShow (anchor, text, CassoExplorerWindow::GetNowMs());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTips::ShowHoverTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void ExplorerTips::ShowHoverTip (TipOwner owner, const RECT & anchor, const std::wstring & text, float maxWidthDip)
 {
     m_tipOwner = owner;
+    m_tooltip.SetFollowPointer (true);
     m_tooltip.SetMaxTextWidthDip (maxWidthDip);
     m_tooltip.RequestShow (anchor, text, CassoExplorerWindow::GetNowMs());
 }

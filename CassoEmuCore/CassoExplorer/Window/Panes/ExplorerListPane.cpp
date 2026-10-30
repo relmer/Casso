@@ -472,6 +472,11 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
 
             //  A group's header selects its rows and adds the group's own
             //  commands to the menu for them, as Explorer's does.
+            if (group >= 0 && m_context.browser.IsHomeLocation())
+            {
+                return true;
+            }
+
             if (group >= 0)
             {
                 m_list->SelectGroup (group);
@@ -740,6 +745,39 @@ void ExplorerListPane::RefreshTip()
         row = m_list->HitTestRow (point.x - list.left, point.y - list.top);
     }
 
+    //  Home's buttons have their names below them; a cut line has its whole
+    //  text, and a row's location is otherwise its tip, as in File Explorer.
+    if (row >= 0 && m_context.browser.IsHomeLocation() && row < (int) m_context.browser.GetRows().size())
+    {
+        static constexpr const wchar_t *  s_kActionTips[] = { L"Open file location", L"Ask Copilot", L"See more actions" };
+
+        const CatalogRow &  home   = m_context.browser.GetRows()[(size_t) row];
+        int                 action = m_list->HitTestHomeAction (row, point.x - list.left, point.y - list.top);
+        int                 line   = m_list->HitTestHomeLine (row, point.y - list.top);
+
+        if (action >= 0 && m_list->GetHomeActionRect (row, action, anchor))
+        {
+            OffsetRect (&anchor, list.left, list.top);
+            m_context.tips.ShowHoverTipBelow (ExplorerTips::TipOwner::List, anchor, s_kActionTips[action]);
+            return;
+        }
+
+        tip = (line == 0 && m_list->IsHomeLineCut (row, 0)) ? home.name
+            : (line == 1 && m_list->IsHomeLineCut (row, 1)) ? home.folderDisplay
+            : home.isDirectory                              ? std::wstring()
+                                                            : L"Path: " + home.folderDisplay;
+
+        if (tip.empty())
+        {
+            m_context.tips.HideHoverTip (ExplorerTips::TipOwner::List);
+            return;
+        }
+
+        anchor = RECT { point.x, point.y, point.x + 1, point.y + 1 };
+        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::List, anchor, tip);
+        return;
+    }
+
     if (row >= 0 && row < (int) m_context.browser.GetRows().size() && m_list->GetCellTextRectPx (row, 0, text))
     {
         OffsetRect (&text, list.left, list.top);
@@ -754,15 +792,6 @@ void ExplorerListPane::RefreshTip()
         return;
     }
 
-    //  Home's row buttons say what they do.
-    if (row >= 0 && m_list->HitTestHomeAction (row, point.x - list.left, point.y - list.top) >= 0)
-    {
-        static constexpr const wchar_t *  s_kActionTips[] = { L"Open file location", L"Ask Copilot", L"See more actions" };
-
-        anchor = RECT { point.x, point.y, point.x + 1, point.y + 1 };
-        m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::List, anchor, s_kActionTips[m_list->HitTestHomeAction (row, point.x - list.left, point.y - list.top)]);
-        return;
-    }
 
     {
         const CatalogRow &  row0 = m_context.browser.GetRows()[(size_t) row];
@@ -1280,9 +1309,14 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
     }
     else
     {
-        GetCursorPos (&screen);
-        hr = m_context.shellVerbs.ShowShellMenu (m_context.window.GetHwnd(), { item.hostPath.empty() ? item.shellId : item.hostPath }, screen, {});
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        //  The menu opens at the pointer.
+        BOOL  got = GetCursorPos (&screen);
+
+        IGNORE_RETURN_VALUE (got, TRUE);
+        got = ScreenToClient (m_context.window.GetHwnd(), &screen);
+        IGNORE_RETURN_VALUE (got, TRUE);
+
+        m_menus.ShowHomeItemMenu (screen.x, screen.y, row);
     }
 }
 

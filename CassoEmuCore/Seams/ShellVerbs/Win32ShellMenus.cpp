@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Seams/ShellItemId.h"
 
 #include "Seams/ShellVerbs/Win32ShellMenus.h"
 #include "Seams/Win32ShellItemVerbs.h"
@@ -239,7 +240,7 @@ HRESULT Win32ShellMenus::GetItemsMenu (HWND owner, const std::vector<std::wstrin
     {
         PIDLIST_ABSOLUTE  pidl = nullptr;
 
-        hr = SHParseDisplayName (path.c_str(), nullptr, &pidl, 0, nullptr);
+        hr = ShellItemId::ToPidl (path, &pidl);
         CHR (hr);
 
         full.push_back (pidl);
@@ -553,6 +554,126 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellMenus::GetItemVerbLabels
+//
+//  The labels of the items' menu, without access keys. The labels are the only
+//  name some cloud commands have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellMenus::GetItemVerbLabels (HWND owner, const std::vector<std::wstring> & paths, std::vector<std::wstring> & outLabels)
+{
+    return WalkItemVerbs (owner, paths, nullptr, &outLabels);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::RunItemVerbByLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellMenus::RunItemVerbByLabel (HWND owner, const std::vector<std::wstring> & paths, const std::wstring & label)
+{
+    return WalkItemVerbs (owner, paths, &label, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellMenus::WalkItemVerbs
+//
+//  Builds the items' menu, then lists its labels or invokes the one matching.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellMenus::WalkItemVerbs (HWND owner, const std::vector<std::wstring> & paths, const std::wstring * run, std::vector<std::wstring> * outLabels)
+{
+    Win32ShellVerbsTypes::CenterDialogsOver  centered (owner);
+    HRESULT                hr     = S_OK;
+    ComPtr<IContextMenu>   menu;
+    HMENU                  popup  = nullptr;
+    int                    count  = 0;
+    bool                   found  = false;
+
+
+
+    hr = CreateMenuHost (owner);
+    CHR (hr);
+
+    hr = GetItemsMenu (m_verbs.m_menuHost, paths, &menu);
+    CHR (hr);
+
+    popup = CreatePopupMenu();
+    CWR (popup != nullptr);
+
+    hr = menu->QueryContextMenu (popup, 0, Win32ShellItemVerbs::s_kFirstCommandId, Win32ShellItemVerbs::s_kLastCommandId, CMF_NORMAL);
+    CHR (hr);
+
+    count = GetMenuItemCount (popup);
+
+    for (int at = 0; at < count && !found; at++)
+    {
+        wchar_t        text[260] = {};
+        MENUITEMINFOW  info      = { sizeof (info) };
+        BOOL           read      = FALSE;
+        std::wstring   label;
+
+        info.fMask      = MIIM_STRING | MIIM_ID;
+        info.dwTypeData = text;
+        info.cch        = (UINT) std::size (text);
+        read            = GetMenuItemInfoW (popup, (UINT) at, TRUE, &info);
+
+        if (!read || text[0] == L'\0')
+        {
+            continue;
+        }
+
+        label = text;
+        std::erase (label, L'&');
+
+        if (outLabels != nullptr)
+        {
+            outLabels->push_back (label);
+        }
+
+        if (run != nullptr && label == *run)
+        {
+            CMINVOKECOMMANDINFOEX  invoke = { sizeof (invoke) };
+
+            invoke.fMask  = CMIC_MASK_UNICODE;
+            invoke.hwnd   = owner;
+            invoke.lpVerb  = MAKEINTRESOURCEA (info.wID - Win32ShellItemVerbs::s_kFirstCommandId);
+            invoke.lpVerbW = MAKEINTRESOURCEW (info.wID - Win32ShellItemVerbs::s_kFirstCommandId);
+            invoke.nShow   = SW_SHOWNORMAL;
+            found          = true;
+
+            hr = menu->InvokeCommand ((LPCMINVOKECOMMANDINFO) &invoke);
+            CHR (hr);
+        }
+    }
+
+Error:
+    if (popup != nullptr)
+    {
+        DestroyMenu (popup);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellMenus::RunItemVerb
 //
 //  The menu is built, as for showing it, so the handlers that own the verb
@@ -570,7 +691,7 @@ HRESULT Win32ShellMenus::RunItemVerb (HWND owner, const std::vector<std::wstring
     HMENU                  popup    = nullptr;
     CMINVOKECOMMANDINFOEX  invoke   = { sizeof (invoke) };
     std::wstring           wideVerb (verb, verb + strlen (verb));
-    std::wstring           folder   = paths.empty() ? std::wstring() : std::filesystem::path (paths[0]).parent_path().wstring();
+    std::wstring           folder   = paths.empty() || ShellItemId::IsEncoded (paths[0]) ? std::wstring() : std::filesystem::path (paths[0]).parent_path().wstring();
     std::string            narrow   = TextEncoding::WideToNarrow (folder);
 
 

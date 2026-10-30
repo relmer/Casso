@@ -347,6 +347,24 @@ public:
     void  SetItemIconDip    (int iconDip)  { m_itemIconDip = iconDip; }
     void  SetHomeHeader     (DxuiListViewTypes::HomeHeader header) { m_homeHeader = std::move (header); }
     int   HitTestHomeAction (int row, int xPx, int yPx) const { return m_items.HitTestHomeAction (row, xPx, yPx); }
+    bool  IsHomeLineCut     (int row, int line) const { return std::find (m_itemPainter.m_homeCut.begin(), m_itemPainter.m_homeCut.end(), std::make_pair (row, line)) != m_itemPainter.m_homeCut.end(); }
+
+    //  Which of a Home item's lines a height is on: 0 for its name, else 1.
+    int                 HitTestHomeLine  (int row, int yPx) const
+    {
+        RECT  place  = {};
+        bool  placed = m_items.GetItemRectPx (row, place);
+
+        return (placed && yPx < (place.top + place.bottom) / 2 - (m_items.IsHomeTile (row) ? m_scaler.ToPx (8) : 0)) ? 0 : 1;
+    }
+
+    bool                GetHomeActionRect (int row, int action, RECT & outRect) const
+    {
+        RECT  place  = {};
+        bool  placed = m_items.GetItemRectPx (row, place);
+
+        return placed && m_items.GetHomeActionRect (place, action, outRect);
+    }
     int   GetItemIconDip    () const       { return m_itemIconDip; }
     int   GetViewIconPx     () const       { return m_items.GetViewIconPx(); }
 

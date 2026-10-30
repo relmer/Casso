@@ -280,7 +280,9 @@ void BrowserPreviewer::UpdatePreview()
     }
     else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
     {
-        //  A cloud item has no file here to preview, so the pane has nothing.
+        //  A cloud item has no file here, and its stream is a web page.
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = L"No preview available.";
         return;
     }
     else if (!m_browser.m_isImage && (location.kind == Location::Kind::ShellFolder || m_browser.IsHomeLocation()) && m_browser.m_selectedRows.size() == 1)

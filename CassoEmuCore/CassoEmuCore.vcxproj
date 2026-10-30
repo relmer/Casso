@@ -866,6 +866,7 @@
     <ClInclude Include="Seams\ShellVerbs\Win32ShellVerbsTypes.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
     <ClInclude Include="Seams\Win32PreviewHelper.h" />
+    <ClInclude Include="Seams\ShellItemId.h" />
     <ClInclude Include="Seams\Win32ShellPreview.h" />
     <ClInclude Include="CassoExplorer\Model\Location.h" />
     <ClInclude Include="CassoExplorer\Model\ArchiveProbe.h" />
