@@ -279,6 +279,7 @@ void Win32ShellNamespace::ReadHomeProperties (IShellItem2 * item, IShellItemVerb
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Win32ShellNamespace::DescribeShellItem
