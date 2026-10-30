@@ -313,6 +313,7 @@ void DxuiTextView::Rebuild()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTextView::BuildLines
@@ -1081,6 +1082,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTextView::DrawRun
@@ -1144,6 +1146,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
         start = i;
     }
 }
+
 
 
 
@@ -1220,6 +1223,7 @@ void DxuiTextView::FillSelectedRange (IDxuiPainter & painter, int y, int row, in
                           trailPx, (float) m_cellHeightPx, argb);
     }
 }
+
 
 
 
