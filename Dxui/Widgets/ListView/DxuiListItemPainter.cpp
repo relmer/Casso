@@ -220,6 +220,25 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
 
             float  fillW = (float) (cell.right - cell.left);
 
+            //  Home's items are rounded.
+            if (m_list.m_view == DxuiListViewTypes::View::Home)
+            {
+                float  radius = m_list.m_scaler.ToPxf (4.0f);
+
+                if (look.fill != 0)
+                {
+                    painter.FillRoundedRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), radius, look.fill);
+                }
+
+                if (look.edge != 0)
+                {
+                    painter.OutlineRoundedRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), radius, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), look.edge);
+                }
+
+                PaintHomeItem (painter, text, pal, item, cell, cells);
+                continue;
+            }
+
             if (look.fill != 0)
             {
                 painter.FillRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), look.fill);
@@ -232,11 +251,6 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
             }
         }
 
-        if (m_list.m_view == DxuiListViewTypes::View::Home)
-        {
-            PaintHomeItem (text, pal, item, cell, cells);
-            continue;
-        }
 
         //  Content's rule between items, though not under a group's header.
         if (m_list.m_view == DxuiListViewTypes::View::Content && m_list.m_theme != nullptr && item > 0 && (!m_list.m_items.HasItemGroups() || !m_list.m_items.IsFirstOfGroup (item)))
@@ -516,20 +530,23 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int item, const RECT & cell, const std::vector<DxuiListViewTypes::Cell> & cells) const
+void DxuiListItemPainter::PaintHomeItem (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int item, const RECT & cell, const std::vector<DxuiListViewTypes::Cell> & cells) const
 {
     static constexpr const wchar_t *  s_kGlyphFace  = L"Segoe MDL2 Assets";
     static constexpr const wchar_t *  s_kPinGlyph   = L"\xE840";
+    static constexpr const wchar_t *  s_kPinFill    = L"\xE842";
     static constexpr const wchar_t *  s_kCloudGlyph = L"\xE753";
+    static constexpr const wchar_t *  s_kArrowGlyph = L"\xE8A7";
+    static constexpr uint32_t         s_kCloudArgb  = 0xFF0F6CBD;
 
 
 
     bool          tile    = m_list.m_items.IsHomeTile (item);
     float         fontPx  = m_list.m_scaler.ToPxf (m_list.m_fontDip);
-    float         iconPx  = m_list.m_scaler.ToPxf (tile ? 48.0f : 32.0f);
-    float         iconX   = (float) cell.left + m_list.m_scaler.ToPxf (tile ? 62.0f : 60.0f);
+    float         iconPx  = m_list.m_scaler.ToPxf (tile ? 42.0f : 28.0f);
+    float         iconX   = (float) cell.left + m_list.m_scaler.ToPxf (tile ? 78.0f : 76.0f);
     float         iconY   = (float) cell.top + ((float) (cell.bottom - cell.top) - iconPx) * 0.5f;
-    float         textX   = (float) cell.left + m_list.m_scaler.ToPxf (tile ? 120.0f : 104.0f);
+    float         textX   = (float) cell.left + m_list.m_scaler.ToPxf (tile ? 136.0f : 120.0f);
     float         lineH   = m_list.m_scaler.ToPxf (16.0f);
     int           lines   = 1 + (cells[0].tileLines.empty() ? 0 : 1) + ((tile && cells[0].homePinned) ? 1 : 0);
     float         top     = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) lines * lineH) * 0.5f;
@@ -548,8 +565,16 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
 
     if (!tile && cells[0].homeCloud)
     {
-        hr = text.DrawString (s_kCloudGlyph, (float) cell.left + m_list.m_scaler.ToPxf (30.0f), (float) cell.top, m_list.m_scaler.ToPxf (24.0f), (float) (cell.bottom - cell.top),
-                              m_list.m_theme->Accent(), fontPx * 1.2f, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        float  badge = m_list.m_scaler.ToPxf (11.0f);
+
+        hr = text.DrawString (s_kCloudGlyph, (float) cell.left + m_list.m_scaler.ToPxf (46.0f), (float) cell.top, m_list.m_scaler.ToPxf (24.0f), (float) (cell.bottom - cell.top),
+                              s_kCloudArgb, fontPx * 1.4f, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        //  A cloud item is a shortcut to its file, with the shortcut's arrow.
+        painter.FillRect (iconX, iconY + iconPx - badge, badge, badge, 0xFFFFFFFF);
+
+        hr = text.DrawString (s_kArrowGlyph, iconX, iconY + iconPx - badge, badge, badge, s_kCloudArgb, badge * 0.8f, s_kGlyphFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -584,6 +609,9 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
 
     if (tile && cells[0].homePinned)
     {
+        hr = text.DrawString (s_kPinFill, textX, top, lineH, lineH, pal.fgDim, fontPx * 0.9f, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
         hr = text.DrawString (s_kPinGlyph, textX, top, lineH, lineH, pal.fgDim, fontPx * 0.9f, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }

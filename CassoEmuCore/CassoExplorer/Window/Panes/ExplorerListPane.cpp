@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/AppTimerIds.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -133,7 +134,18 @@ void ExplorerListPane::Configure()
     m_list->SetOnSelectionChanged ([this] (int)
     {
         m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
-        m_context.preview.FillPreview();
+
+        //  Automatic preview waits to see that this isn't a double-click's
+        //  first press, so an item being opened doesn't open the pane.
+        if (m_context.prefs.autoPreview && !m_context.prefs.previewVisible)
+        {
+            SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview, GetDoubleClickTime(), nullptr);
+        }
+        else
+        {
+            m_context.preview.FillPreview();
+        }
+
         m_context.statusBar.Fill();
         m_context.toolbars.UpdateCommandBar();
     });
@@ -179,6 +191,30 @@ void ExplorerListPane::Configure()
 
     m_list->SetOnActivateRow ([this] (int row)
     {
+        //  A double-click isn't a selection for automatic preview.
+        KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview);
+
+        //  Home's folders open here, and its files as Explorer opens them.
+        if (m_context.browser.IsHomeLocation() && row >= 0 && (size_t) row < m_context.browser.GetRows().size())
+        {
+            const CatalogRow  item = m_context.browser.GetRows()[(size_t) row];
+
+            if (item.isDirectory && !item.hostPath.empty())
+            {
+                m_context.browser.NavigateToLocation (Location::MakeHostFolder (item.hostPath));
+                FillList();
+            }
+            else
+            {
+                HRESULT  hr = item.hostPath.empty() ? m_context.shellVerbs.OpenShellItem (m_context.window.GetHwnd(), item.shellId)
+                                                    : m_context.shellVerbs.Open (m_context.window.GetHwnd(), item.hostPath);
+
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
+
+            return;
+        }
+
         //  A deleted item opens its properties, as Explorer's does.
         if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
         {

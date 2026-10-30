@@ -398,7 +398,11 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
     }
     else
     {
-        m_context.browser.OpenInNewTab (Location::MakeHostFolder (CassoExplorerBrowser::GetParentFolder (full)));
+        //  A file opens its folder with the file selected and previewed.
+        std::wstring  folder = CassoExplorerBrowser::GetParentFolder (full);
+
+        m_context.browser.OpenInNewTab (Location::MakeHostFolder (folder));
+        m_context.listPane.SelectWhenListed (folder, { std::filesystem::path (full).filename().wstring() });
     }
 }
 

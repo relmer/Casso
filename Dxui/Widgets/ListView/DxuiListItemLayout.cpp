@@ -676,7 +676,7 @@ DxuiListViewTypes::ItemLayout DxuiListItemLayout::BuildItemLayout (int openGroup
     DxuiListViewTypes::ItemGrid    grid    = GetItemGrid();
     int                            rows    = m_list.GetRowCount();
     int                            headerH = m_list.GetRowHeightPx();
-    int                            y       = m_list.m_scaler.ToPx (s_kItemsTopDip);
+    int                            y       = (m_list.m_view == DxuiListViewTypes::View::Home) ? 0 : m_list.m_scaler.ToPx (s_kItemsTopDip);
     bool                           grouped = !m_list.GetGroups().empty();
     size_t                         runs    = grouped ? m_list.GetGroups().size() : 1;
 

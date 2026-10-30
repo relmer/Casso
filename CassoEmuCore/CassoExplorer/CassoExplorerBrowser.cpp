@@ -315,6 +315,13 @@ void CassoExplorerBrowser::SortRows()
             }
         }
 
+        //  The pinned folders keep their order and the frequent ones follow by
+        //  name; Shared is by name; the others are as the shell has them.
+        std::stable_sort (m_rows.begin(), m_rows.end(), [] (const CatalogRow & a, const CatalogRow & b)
+        {
+            return (a.homePinned != b.homePinned) ? a.homePinned : (!a.homePinned && _wcsicmp (a.name.c_str(), b.name.c_str()) < 0);
+        });
+
         m_homeFirstTabRow = (int) m_rows.size();
 
         for (const CatalogRow & row : m_homeRows)
@@ -323,6 +330,14 @@ void CassoExplorerBrowser::SortRows()
             {
                 m_rows.push_back (row);
             }
+        }
+
+        if (s_kTabGroups[m_homeTab] == 4)
+        {
+            std::stable_sort (m_rows.begin() + m_homeFirstTabRow, m_rows.end(), [] (const CatalogRow & a, const CatalogRow & b)
+            {
+                return _wcsicmp (a.name.c_str(), b.name.c_str()) < 0;
+            });
         }
 
         return;
