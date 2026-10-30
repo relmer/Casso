@@ -490,6 +490,13 @@ LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
 
 
 
+    //  An open menu has the mouse while it is open, and the pointer over it is
+    //  the arrow, whatever the window has under the menu.
+    if (m_context.window.GetPopupHost() != nullptr && m_context.window.GetPopupHost()->GetContextMenu().IsVisible())
+    {
+        return IDC_ARROW;
+    }
+
     if (cursor == nullptr)
     {
         cursor = m_context.preview.GetCursorForPoint (clientPx);
