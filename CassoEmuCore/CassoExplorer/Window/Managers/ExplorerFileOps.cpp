@@ -5,6 +5,9 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/AppleFilePropertiesDialog.h"
 #include "CassoExplorer/CassoExplorerProperties.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "CassoExplorer/Model/CassoTargeting.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -868,6 +871,133 @@ void ExplorerFileOps::ShowAppleProperties()
 
         return outcome.Succeeded() ? std::wstring() : (outcome.message.empty() ? std::wstring (L"The changes weren't written.") : outcome.message);
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::IsHostAppleFile
+//
+//  A file on the PC whose name is in the Descriptive or CiderPress form, or
+//  an AppleSingle container, known here by its .as name; opening the dialog
+//  reads it to be sure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFileOps::IsHostAppleFile (const std::wstring & path)
+{
+    std::wstring    leaf   = std::filesystem::path (path).filename().wstring();
+    ParsedHostName  parsed;
+
+
+
+    if (_wcsicmp (std::filesystem::path (path).extension().wstring().c_str(), L".as") == 0)
+    {
+        return true;
+    }
+
+    return HostFileNaming::Parse (leaf, parsed) && parsed.hasType && parsed.converted == ParsedHostName::ConvertedKind::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::ShowHostAppleProperties
+//
+//  An Apple file on the PC in the Apple file properties dialog, in ProDOS's
+//  vocabulary. Each Apply rewrites an AppleSingle file and renames the file
+//  for its form, then reads it again for the next.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::ShowHostAppleProperties (const std::wstring & path)
+{
+    IDiskFileIo                             & io      = m_context.browser.GetOperations().GetFileIo();
+    std::vector<Byte>                         bytes;
+    HostAppleFile                             file;
+    AppleFilePropertiesDialog::HostOptions    options;
+    std::wstring                              current = path;
+    HRESULT                                   hr      = S_OK;
+
+
+
+    hr = io.ReadAllBytes (TextEncoding::WideToNarrow (path), bytes);
+
+    if (SUCCEEDED (hr))
+    {
+        file = HostAppleFile::Read (std::filesystem::path (path).filename().wstring(), bytes);
+    }
+
+    if (file.form == HostAppleFile::Form::None)
+    {
+        m_context.window.ShowMessage (std::filesystem::path (path).filename().wstring() + L" isn't an Apple file: its name doesn't record a type, and it isn't AppleSingle.",
+                                      MB_ICONINFORMATION);
+        return;
+    }
+
+    options.showAccess  = file.form == HostAppleFile::Form::AppleSingle;
+    options.showDates   = file.form == HostAppleFile::Form::AppleSingle;
+    options.offerRename = file.form == HostAppleFile::Form::AppleSingle;
+    options.nameKind    = VolumeKind::Dos33;
+    options.leafName    = file.leafName;
+    options.isTaken     = [folder = std::filesystem::path (path).parent_path()] (const std::wstring & leaf)
+    {
+        return GetFileAttributesW ((folder / leaf).c_str()) != INVALID_FILE_ATTRIBUTES;
+    };
+
+    AppleFilePropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, { file.entry }, VolumeKind::ProDos, false,
+                                     [this, &io, &file, &current] (const AppleFileProperties::Edits & edits, std::vector<FileEntry> & inOutEntries) -> std::wstring
+    {
+        HostAppleFile::Change  change;
+        std::wstring           target;
+        std::vector<Byte>      fresh;
+        HRESULT                result = file.Apply (edits, edits.renameHostFile, change);
+
+        if (result == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))
+        {
+            return L"This AppleSingle file has parts, such as a resource fork, that rewriting it would drop, so it can't be changed here.";
+        }
+
+        if (SUCCEEDED (result) && !change.bytes.empty())
+        {
+            result = io.WriteAllBytes (TextEncoding::WideToNarrow (current), change.bytes);
+        }
+
+        target = (std::filesystem::path (current).parent_path() / change.leafName).wstring();
+
+        if (SUCCEEDED (result) && _wcsicmp (target.c_str(), current.c_str()) != 0)
+        {
+            result = MoveFileExW (current.c_str(), target.c_str(), 0) ? S_OK : HRESULT_FROM_WIN32 (GetLastError());
+
+            if (SUCCEEDED (result))
+            {
+                current = target;
+            }
+        }
+
+        m_context.folderSync.RefreshAfterHostChange();
+
+        if (FAILED (result))
+        {
+            return L"The changes weren't written: " + TextEncoding::NarrowToWide (std::system_category().message (HRESULT_CODE (result)));
+        }
+
+        result = io.ReadAllBytes (TextEncoding::WideToNarrow (current), fresh);
+
+        if (SUCCEEDED (result))
+        {
+            file         = HostAppleFile::Read (std::filesystem::path (current).filename().wstring(), fresh);
+            inOutEntries = { file.entry };
+        }
+
+        return std::wstring();
+    }, &options);
 }
 
 

@@ -578,9 +578,14 @@ std::wstring CassoExplorerActions::DescribePlan (const PutPlan & plan, VolumeKin
 //
 //  CassoExplorerActions::PlanAppleSingle
 //
-//  The data fork under the real name, with the ProDOS type and aux type the
-//  container records and no dialog. A container without them holds a binary
-//  file, at the address a binary put would suggest.
+//  The data fork, with the ProDOS type and aux type stored in the container,
+//  and no dialog. A container without them has a binary file, at the address
+//  a binary put would suggest.
+//
+//  The real name is used, except for an .as file renamed on the PC: that one
+//  goes in under its new name, unless the real name was set in the properties
+//  dialog. A container with another name, such as a download, goes in under
+//  its real name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -590,12 +595,21 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanAppleSingle (const std::wstring 
     std::wstring  name  = TextEncoding::NarrowToWide (file.realName);
     bool          isDos = kind == VolumeKind::Dos33;
     Word          load  = (file.data.size() == 8192) ? 0x2000 : 0x0803;
+    std::wstring  stem  = std::filesystem::path (GetLeafName (hostName)).stem().wstring();
+    bool          same  = true;
+    bool          legal = false;
+    bool          isAs  = _wcsicmp (std::filesystem::path (hostName).extension().wstring().c_str(), L".as") == 0;
 
 
 
-    if (name.empty())
+    if (isAs)
     {
-        name = std::filesystem::path (GetLeafName (hostName)).stem().wstring();
+        same = _wcsicmp (HostFileNaming::MakeHostLegal (file.realName, legal).c_str(), stem.c_str()) == 0;
+    }
+
+    if (name.empty() || (!same && !file.nameSetByUser))
+    {
+        name = stem;
     }
 
     plan.catalogName = SanitizeCatalogName (name, kind);

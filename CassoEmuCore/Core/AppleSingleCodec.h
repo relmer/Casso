@@ -32,6 +32,10 @@ struct AppleSingleFile
     //  rewrite through Encode would drop it.
     bool               hasOtherEntries = false;
 
+    //  The real name was set in Casso Explorer's properties dialog, so a copy
+    //  to a disk uses it even when the file on the PC was renamed.
+    bool               nameSetByUser   = false;
+
     std::optional<int32_t>  createDate;
     std::optional<int32_t>  modifyDate;
     std::optional<int32_t>  backupDate;
@@ -75,6 +79,7 @@ private:
     static constexpr uint32_t  kRealNameId     = 3;
     static constexpr uint32_t  kFileDatesId    = 8;
     static constexpr uint32_t  kProDosInfoId   = 11;
+    static constexpr uint32_t  kCassoNameSetId = 0x43534E4D;   // "CSNM", empty: the marker for nameSetByUser
     static constexpr uint32_t  kUnknownDate    = 0x80000000;
 
     static uint32_t  ReadBigEndian32 (std::span<const Byte> bytes, size_t at);

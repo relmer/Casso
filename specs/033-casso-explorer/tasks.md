@@ -1422,7 +1422,7 @@ The product-wide styles are GitHub issue #179.
 - [X] T308 Save a hi-res, double hi-res or lo-res picture from the preview as
   a PNG file, from the picture's menu and toolbar, at the size and colors the
   preview draws it.
-- [ ] T309 Add Apple file properties to the context menu for a file in a disk
+- [X] T309 Add Apple file properties to the context menu for a file in a disk
   image or on a linked drive, and for a file on the PC whose name parses as
   Descriptive or CiderPress or that is AppleSingle. One dialog for all:
   - Apple name, editable. On a disk it renames the entry, checked against that

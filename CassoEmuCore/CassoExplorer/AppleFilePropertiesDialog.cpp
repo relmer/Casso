@@ -3,6 +3,7 @@
 #include "CassoExplorer/AppleFilePropertiesDialog.h"
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
 #include "Core/TextEncoding.h"
 
@@ -174,7 +175,8 @@ bool AppleFilePropertiesPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleFilePropertiesDialog::Show (HWND owner, const IDxuiTheme * theme, const std::vector<FileEntry> & entries, VolumeKind kind, bool readOnly, ApplyFn apply)
+void AppleFilePropertiesDialog::Show (HWND owner, const IDxuiTheme * theme, const std::vector<FileEntry> & entries, VolumeKind kind, bool readOnly, ApplyFn apply,
+                                      const HostOptions * host)
 {
     HRESULT                    hr     = S_OK;
     AppleFilePropertiesDialog  dialog;
@@ -192,6 +194,8 @@ void AppleFilePropertiesDialog::Show (HWND owner, const IDxuiTheme * theme, cons
     dialog.m_kind     = kind;
     dialog.m_readOnly = readOnly;
     dialog.m_apply    = std::move (apply);
+    dialog.m_hasHost  = host != nullptr;
+    dialog.m_host     = (host != nullptr) ? *host : HostOptions();
 
     params.title                    = (entries.size() == 1) ? TextEncoding::NarrowToWide (entries[0].name) + L" Properties" : std::wstring (L"Properties");
     params.hInstance                = GetModuleHandleW (nullptr);
@@ -270,6 +274,13 @@ void AppleFilePropertiesDialog::OnCreate()
     m_name.SetText    (m_nameShown);
     m_name.SetEnabled (single && !m_readOnly);
 
+    //  An AppleSingle file on the PC is renamed to match, checked when its name
+    //  on the PC is its Apple name with .as added.
+    m_renameHost.SetSingleLineLabel (true);
+    m_renameHost.SetVisible (m_hasHost && m_host.offerRename && single);
+    m_renameHost.SetChecked (m_hasHost && _wcsicmp (m_host.leafName.c_str(), HostAppleFile::MakeAppleSingleName (first.name).c_str()) == 0);
+    m_name.SetOnChange      ([this] (const std::wstring &) { UpdateRenameBox(); });
+    UpdateRenameBox();
     //  The type list, (multiple) first when the files' types differ, and on
     //  ProDOS, Other with its hex byte for a type with no name.
     m_sameType   = IsSame (m_entries, [] (const FileEntry & e) { return e.type; });
@@ -327,7 +338,7 @@ void AppleFilePropertiesDialog::OnCreate()
     //  between the files starts clear and changes only when it is clicked.
     m_locked.SetChecked  (std::all_of (m_entries.begin(), m_entries.end(), [] (const FileEntry & e) { return e.isLocked; }));
     m_locked.SetEnabled  (!m_readOnly);
-    m_locked.SetVisible  (!proDos);
+    m_locked.SetVisible  (!proDos && (!m_hasHost || m_host.showAccess));
     m_locked.SetOnChange ([this] (bool) { m_lockedEdited = true; });
 
     for (auto [box, bit] : bits)
@@ -336,7 +347,7 @@ void AppleFilePropertiesDialog::OnCreate()
 
         box->SetChecked  (std::all_of (m_entries.begin(), m_entries.end(), [mask] (const FileEntry & e) { return (AppleFileProperties::GetAccess (e) & mask) != 0; }));
         box->SetEnabled  (!m_readOnly);
-        box->SetVisible  (proDos);
+        box->SetVisible  (proDos && (!m_hasHost || m_host.showAccess));
         box->SetSingleLineLabel (true);
         box->SetOnChange ([this, mask] (bool) { m_accessMask |= mask; });
     }
@@ -357,7 +368,7 @@ void AppleFilePropertiesDialog::OnCreate()
 
     for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { &m_createdLabel, &m_created, &m_modifiedLabel, &m_modified })
     {
-        control->SetVisible (proDos);
+        control->SetVisible (proDos && (!m_hasHost || m_host.showDates));
     }
 
     for (const FileEntry & entry : m_entries)
@@ -368,6 +379,7 @@ void AppleFilePropertiesDialog::OnCreate()
     m_size.SetText (CassoExplorerProperties::FormatBytes (bytes));
 
     rows.push_back ({ &m_nameLabel,     { { &m_name } } });
+    rows.push_back ({ nullptr,          { { &m_renameHost } } });
     rows.push_back ({ &m_typeLabel,     { { &m_type }, { &m_typeHex, s_kHexWidthDip } }, true });
     rows.push_back ({ &m_typeNote,      {}, false, 20 });
     rows.push_back ({ &m_auxLabel,      { { &m_aux, s_kHexWidthDip } } });
@@ -504,6 +516,45 @@ void AppleFilePropertiesDialog::FitToRows()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleFilePropertiesDialog::UpdateRenameBox
+//
+//  The box is disabled, with the reason, when the file's new name on the PC
+//  is another file's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleFilePropertiesDialog::UpdateRenameBox()
+{
+    std::wstring  name  = m_name.GetText();
+    std::wstring  leaf;
+    bool          taken = false;
+
+
+
+    if (!m_renameHost.IsVisible())
+    {
+        return;
+    }
+
+    for (wchar_t & c : name)
+    {
+        c = (wchar_t) towupper (c);
+    }
+
+    leaf  = HostAppleFile::MakeAppleSingleName (TextEncoding::WideToNarrow (name));
+    taken = _wcsicmp (leaf.c_str(), m_host.leafName.c_str()) != 0 && m_host.isTaken && m_host.isTaken (leaf);
+
+    m_renameHost.SetLabel   (taken ? std::format (L"Also rename {} ({} already exists)", m_host.leafName, leaf) : L"Also rename " + m_host.leafName);
+    m_renameHost.SetEnabled (!taken && !m_readOnly);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleFilePropertiesDialog::ResetEdited
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -547,12 +598,14 @@ bool AppleFilePropertiesDialog::CollectEdits (AppleFileProperties::Edits & outEd
         c = (wchar_t) towupper (c);
     }
 
-    if (outEdits.nameEdited && !AppleFileProperties::IsValidName (m_kind, outEdits.name))
+    if (outEdits.nameEdited && !AppleFileProperties::IsValidName (m_hasHost ? m_host.nameKind : m_kind, outEdits.name))
     {
-        outError = (m_kind == VolumeKind::ProDos) ? L"A ProDOS name has up to 15 letters, digits and periods, and starts with a letter."
+        outError = ((m_hasHost ? m_host.nameKind : m_kind) == VolumeKind::ProDos) ? L"A ProDOS name has up to 15 letters, digits and periods, and starts with a letter."
                                                   : L"A DOS 3.3 name has up to 30 characters, starts with a letter, and has no comma.";
         return false;
     }
+
+    outEdits.renameHostFile = m_renameHost.IsVisible() && m_renameHost.IsEnabled() && m_renameHost.IsChecked();
 
     outEdits.type       = GetChosenType (known);
     outEdits.typeEdited = m_typeEdited && !(m_typeOffset && m_type.GetSelectedIndex() == 0);
@@ -632,8 +685,14 @@ bool AppleFilePropertiesDialog::Apply()
         return false;
     }
 
+    if (edits.renameHostFile)
+    {
+        m_host.leafName = HostAppleFile::MakeAppleSingleName (TextEncoding::WideToNarrow (edits.name));
+    }
+
     m_name.SetText (edits.name);
     ResetEdited();
+    UpdateRenameBox();
 
     return true;
 }

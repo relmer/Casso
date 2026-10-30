@@ -86,6 +86,10 @@ HRESULT AppleSingleCodec::Decode (std::span<const Byte> bytes, AppleSingleFile &
             file.backupDate = ReadDate (bytes, offset + 8);
             file.accessDate = ReadDate (bytes, offset + 12);
         }
+        else if (id == kCassoNameSetId)
+        {
+            file.nameSetByUser = true;
+        }
         else if (id == kProDosInfoId && length >= kProDosInfoSize)
         {
             file.hasProDosInfo = true;
@@ -112,7 +116,8 @@ Error:
 //  AppleSingleCodec::Encode
 //
 //  A version 2 file with the data fork, the real name when there is one, the
-//  dates when any is set, and the ProDOS info when it is set, in that order.
+//  dates when any is set, the ProDOS info when it is set, and Casso's empty
+//  name marker when the name was set by the user, in that order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +125,7 @@ void AppleSingleCodec::Encode (const AppleSingleFile & file, std::vector<Byte> &
 {
     bool    hasDates = file.createDate.has_value() || file.modifyDate.has_value() ||
                        file.backupDate.has_value() || file.accessDate.has_value();
-    size_t  count    = 1 + (file.realName.empty() ? 0 : 1) + (hasDates ? 1 : 0) + (file.hasProDosInfo ? 1 : 0);
+    size_t  count    = 1 + (file.realName.empty() ? 0 : 1) + (hasDates ? 1 : 0) + (file.hasProDosInfo ? 1 : 0) + (file.nameSetByUser ? 1 : 0);
     size_t  offset   = kHeaderSize + count * kEntrySize;
 
 
@@ -157,6 +162,14 @@ void AppleSingleCodec::Encode (const AppleSingleFile & file, std::vector<Byte> &
         WriteBigEndian32 (bytes, kProDosInfoId);
         WriteBigEndian32 (bytes, (uint32_t) offset);
         WriteBigEndian32 (bytes, (uint32_t) kProDosInfoSize);
+        offset += kProDosInfoSize;
+    }
+
+    if (file.nameSetByUser)
+    {
+        WriteBigEndian32 (bytes, kCassoNameSetId);
+        WriteBigEndian32 (bytes, (uint32_t) offset);
+        WriteBigEndian32 (bytes, 0);
     }
 
     bytes.insert (bytes.end(), file.data.begin(), file.data.end());

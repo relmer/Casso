@@ -468,13 +468,23 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
             m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
         }
-        else if (m_context.browser.IsVolumeLocation())
+
+        //  An Apple file on the PC has its Apple properties beside Windows'.
+        if (selectedPaths.size() == 1 && ExplorerFileOps::IsHostAppleFile (selectedPaths[0]))
+        {
+            std::wstring  path = selectedPaths[0];
+
+            m_context.menus.AddMenuCommand (items, L"&Apple properties", [this, path]() { m_context.fileOps.ShowHostAppleProperties (path); });
+            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.properties");
+        }
+
+        if (m_context.browser.GetSelectedRows().size() > 1 && m_context.browser.IsVolumeLocation())
         {
             m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.fileOps.ShowAppleProperties(); }, L"Alt+Enter");
             m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
             m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
         }
-        else if (!selectedPaths.empty())
+        else if (m_context.browser.GetSelectedRows().size() > 1 && !selectedPaths.empty())
         {
             m_context.menus.AddMenuCommand (items, L"P&roperties", [this, selectedPaths]() { m_context.fileOps.ShowHostProperties (selectedPaths); }, L"Alt+Enter");
             m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;

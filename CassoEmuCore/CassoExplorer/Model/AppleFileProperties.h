@@ -84,6 +84,9 @@ public:
         bool          createdEdited  = false;
         bool          modifiedEdited = false;
 
+        //  An AppleSingle file on the PC is renamed to match its new name.
+        bool          renameHostFile = false;
+
         bool  ChangesAttributes () const { return typeEdited || auxEdited || accessMask != 0 || lockedEdited || createdEdited || modifiedEdited; }
     };
 

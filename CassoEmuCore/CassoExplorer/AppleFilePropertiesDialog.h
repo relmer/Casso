@@ -78,7 +78,21 @@ public:
     //  nothing when it succeeded, and the files as they are after the write.
     using ApplyFn = std::function<std::wstring (const AppleFileProperties::Edits & edits, std::vector<FileEntry> & inOutEntries)>;
 
-    static void  Show (HWND owner, const IDxuiTheme * theme, const std::vector<FileEntry> & entries, VolumeKind kind, bool readOnly, ApplyFn apply);
+    //  For a file on the PC: which rows it has, the file system whose name
+    //  rule its name follows, and for an AppleSingle file, the box that
+    //  renames it on the PC too, with whether a name is taken there.
+    struct HostOptions
+    {
+        bool                                            showAccess  = true;
+        bool                                            showDates   = true;
+        VolumeKind                                      nameKind    = VolumeKind::Dos33;
+        bool                                            offerRename = false;
+        std::wstring                                    leafName;
+        std::function<bool (const std::wstring & leaf)> isTaken;
+    };
+
+    static void  Show (HWND owner, const IDxuiTheme * theme, const std::vector<FileEntry> & entries, VolumeKind kind, bool readOnly, ApplyFn apply,
+                       const HostOptions * host = nullptr);
 
     static constexpr const wchar_t *  s_kMultiple = L"(multiple)";
 
@@ -93,10 +107,11 @@ private:
     //  false, after a message box, when the edits can't be used or written.
     bool  Apply         ();
 
-    void  ResetEdited   ();
-    void  FitToRows     ();
-    void  UpdateTypeRow ();
-    Byte  GetChosenType (bool & outKnown) const;
+    void  ResetEdited     ();
+    void  FitToRows       ();
+    void  UpdateTypeRow   ();
+    void  UpdateRenameBox ();
+    Byte  GetChosenType   (bool & outKnown) const;
 
     template <typename T>
     static bool  IsSame (const std::vector<FileEntry> & entries, T get) { return std::all_of (entries.begin(), entries.end(), [&] (const FileEntry & e) { return get (e) == get (entries[0]); }); }
@@ -114,6 +129,8 @@ private:
     bool                                            m_typeOffset = false;   // (multiple) is the combo's first row
     bool                                            m_sameType   = true;
     std::wstring                                    m_nameShown;
+    bool                                            m_hasHost    = false;
+    HostOptions                                     m_host;
 
     bool  m_typeEdited     = false;
     bool  m_auxEdited      = false;
@@ -124,6 +141,7 @@ private:
 
     DxuiLabel       m_nameLabel;
     DxuiTextInput   m_name;
+    DxuiCheckbox    m_renameHost;
     DxuiLabel       m_typeLabel;
     DxuiComboBox    m_type;
     DxuiTextInput   m_typeHex;
