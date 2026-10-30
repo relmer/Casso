@@ -115,12 +115,18 @@ void ExplorerListColumns::SetView (DxuiListView::View view)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerListColumns::StepIconSize (bool larger)
+bool ExplorerListColumns::StepIconSize (int notches)
 {
     IconSizeSteps::Size  current { m_view, m_iconDip };
-    IconSizeSteps::Size  next    = IconSizeSteps::Step (current, larger, GetDpiForWindow (m_context.window.GetHwnd()));
+    IconSizeSteps::Size  next    = current;
+    UINT                 dpi     = GetDpiForWindow (m_context.window.GetHwnd());
 
 
+
+    for (int at = 0; at < std::abs (notches); at++)
+    {
+        next = IconSizeSteps::Step (next, notches > 0, dpi);
+    }
 
     if (next == current)
     {

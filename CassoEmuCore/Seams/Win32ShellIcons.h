@@ -106,6 +106,7 @@ private:
     static constexpr int       s_kSmallThumbnailPx = 128;
     static constexpr int       s_kLargeThumbnailPx = 256;
     static constexpr int       s_kLoaderCount      = 3;
+    static constexpr uint64_t  s_kLoadBatchMs      = 100;
     static constexpr size_t    s_kMaxCachedIcons   = 4096;
     static constexpr uint64_t  s_kRetryFailedMs    = 30000;
 
@@ -152,5 +153,7 @@ private:
     std::vector<Loaded>               m_loaded;
     std::unordered_set<std::wstring>  m_pending;
     bool                              m_stopping      = false;
+    int                               m_loading       = 0;     // requests the loaders are working on
+    uint64_t                          m_postedAtMs    = 0;
     bool                              m_posted        = false;
 };

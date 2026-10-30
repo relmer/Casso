@@ -1115,7 +1115,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
     int       first  = selected ? std::clamp (selFrom - flatStart, 0, count) : count;
     int       end    = selected ? std::clamp (selTo - flatStart, first, count) : count;
     bool      label  = m_proportional && cell + 1 < (int) m_rows[(size_t) row].cells.size();
-    uint32_t  normal = label ? theme.ForegroundMuted() : DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
+    uint32_t  normal = m_rows[(size_t) row].heading ? theme.Accent() : label ? theme.ForegroundMuted() : DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), m_textStrength);
     int       start  = 0;
 
 

@@ -402,14 +402,23 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
         m_iconWheelNotches += ev.wheelDelta;
 
-        while (std::abs (m_iconWheelNotches) >= 1.0f)
+        //  Notches already waiting are taken with this one, so a hard spin goes
+        //  straight to where it ends, as File Explorer's does.
+        for (MSG waiting; PeekMessageW (&waiting, m_context.window.GetHwnd(), WM_MOUSEWHEEL, WM_MOUSEWHEEL, PM_NOREMOVE)
+                          && (GET_KEYSTATE_WPARAM (waiting.wParam) & MK_CONTROL) != 0; )
         {
-            bool                larger = m_iconWheelNotches > 0.0f;
-            DxuiListView::View  view   = m_context.listPane.GetColumns().GetView();
+            PeekMessageW (&waiting, m_context.window.GetHwnd(), WM_MOUSEWHEEL, WM_MOUSEWHEEL, PM_REMOVE);
+            m_iconWheelNotches += (float) GET_WHEEL_DELTA_WPARAM (waiting.wParam) / WHEEL_DELTA;
+        }
 
-            m_iconWheelNotches += larger ? -1.0f : 1.0f;
+        if (std::abs (m_iconWheelNotches) >= 1.0f)
+        {
+            int                 notches = (int) m_iconWheelNotches;
+            DxuiListView::View  view    = m_context.listPane.GetColumns().GetView();
 
-            if (m_context.listPane.GetColumns().StepIconSize (larger))
+            m_iconWheelNotches -= (float) notches;
+
+            if (m_context.listPane.GetColumns().StepIconSize (notches))
             {
                 m_context.toolbars.ShowViewOnButton();
                 m_context.listPane.SizeListIcons();

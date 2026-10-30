@@ -549,13 +549,13 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         //  are missing or appear twice; an unformatted one has none at all.
         std::string  decoded;
 
-        snprintf (note, sizeof (note), "%d of %d whole tracks are standard 16-sector data", complete, trackCount);
+        snprintf (note, sizeof (note), "%d of %d whole tracks have all 16 standard sectors", complete, trackCount);
         decoded = note;
 
         //  One count a line, each under the one before.
         if (partial > 0)
         {
-            snprintf (note, sizeof (note), "\n%d %s sectors that could not be read",
+            snprintf (note, sizeof (note), "\n%d %s only some of them",
                       partial, (partial == 1) ? "track has" : "tracks have");
             decoded += note;
         }
@@ -569,7 +569,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 
         if (empty > 0)
         {
-            snprintf (note, sizeof (note), "\n%d whole %s empty", empty, (empty == 1) ? "track is" : "tracks are");
+            snprintf (note, sizeof (note), "\nNothing is recorded on the %s%d whole %s", (empty < trackCount) ? "other " : "", empty, (empty == 1) ? "track" : "tracks");
             decoded += note;
         }
 
@@ -579,7 +579,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         //  with none, an undecoded disk is only a possibility of it.
         if (woz.slotsOffWholeTracks > 0)
         {
-            snprintf (note, sizeof (note), "%d %s on half or quarter track positions, a common copy protection",
+            snprintf (note, sizeof (note), "%d %s recorded between the whole tracks, at half or quarter positions, a common copy protection",
                       woz.slotsOffWholeTracks, (woz.slotsOffWholeTracks == 1) ? "track is" : "tracks are");
             text += FormatDetailLine ("note", note);
         }
@@ -593,9 +593,9 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // "blank". A track that decoded cleanly and holds zeros really is empty; a
     // track that never decoded reads back as zeros too, and calling that one
     // blank would tell somebody their bootable disk does not boot.
-    if (!trackZeroOk)
+    if (!trackZeroOk && !opened.report.IsSectorRecovered (0, 0))
     {
-        text += FormatDetailLine ("boot sector", "track 0 is not standard sectors, so its contents are unknown");
+        text += FormatDetailLine ("boot sector", "track 0 doesn't have a standard sector 0, so its contents are unknown");
     }
     else
     {

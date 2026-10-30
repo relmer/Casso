@@ -92,6 +92,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
                 }
 
                 rows.push_back (DxuiTextView::Row { { field.first } });
+                rows.back().heading = true;
                 continue;
             }
 

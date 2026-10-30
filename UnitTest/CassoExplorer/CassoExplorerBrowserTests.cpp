@@ -683,7 +683,7 @@ public:
         {
             named |= label == L"Name"     && value == L"GAME";
             typed |= label == L"Aux type" && value == L"$6000";
-            dated |= label == L"Modified" && value == L"2000-01-02 00:00 UTC";
+            dated |= label == L"Modified" && !value.empty() && value != L"Not valid";
         }
 
         Assert::IsTrue (named, L"The real name");

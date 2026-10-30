@@ -351,19 +351,26 @@ void PreviewDecoder::RenderAppleSingle (const AppleSingleFile & file, PreviewCon
 std::wstring PreviewDecoder::FormatAppleSingleDate (int32_t secondsFrom2000)
 {
     static constexpr int64_t  kUnixSecondsAt2000 = 946684800;
-    __time64_t                when               = kUnixSecondsAt2000 + secondsFrom2000;
-    tm                        parts              = {};
-    wchar_t                   text[40]           = {};
-    errno_t                   err                = _gmtime64_s (&parts, &when);
+    static constexpr int64_t  kTicksPerSecond    = 10000000;
+    static constexpr int64_t  kTicksToUnixEpoch  = 116444736000000000;
+    int64_t                   ticks              = (kUnixSecondsAt2000 + secondsFrom2000) * kTicksPerSecond + kTicksToUnixEpoch;
+    FILETIME                  utc                = { (DWORD) ticks, (DWORD) (ticks >> 32) };
+    SYSTEMTIME                when               = {};
+    SYSTEMTIME                local              = {};
+    wchar_t                   date[80]           = {};
+    wchar_t                   time[80]           = {};
+    std::wstring              text;
 
 
 
-    if (err != 0)
+    if (!FileTimeToSystemTime (&utc, &when) || !SystemTimeToTzSpecificLocalTime (nullptr, &when, &local)
+        || GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, date, (int) std::size (date), nullptr) == 0
+        || GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &local, nullptr, time, (int) std::size (time)) == 0)
     {
         return L"Not valid";
     }
 
-    swprintf_s (text, L"%04d-%02d-%02d %02d:%02d UTC", parts.tm_year + 1900, parts.tm_mon + 1, parts.tm_mday, parts.tm_hour, parts.tm_min);
+    text = std::wstring (date) + L" " + time;
     return text;
 }
 

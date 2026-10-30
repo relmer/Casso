@@ -71,6 +71,15 @@ public:
     bool     TryGetImageLocation   (int row, Location & outLocation) const;
 
 private:
+    struct ImageProblem
+    {
+        uint64_t      time = 0;
+        uint64_t      size = 0;
+        std::wstring  problem;
+    };
+
+    std::unordered_map<std::wstring, ImageProblem>  m_imageProblems;
+
     friend class CassoExplorerBrowser;
 
     CassoExplorerBrowser  & m_browser;

@@ -59,6 +59,7 @@ public:
     {
         std::vector<std::wstring>  cells;
         bool                       warning = false;
+        bool                       heading = false;   // drawn in the accent color
         std::vector<Span>          spans;
     };
 

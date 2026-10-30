@@ -282,6 +282,7 @@ void Win32ShellIcons::RunLoader()
 
             request = std::move (m_requests.back());
             m_requests.pop_back();
+            m_loading++;
         }
 
         if (request.thumbnail)
@@ -309,8 +310,15 @@ void Win32ShellIcons::RunLoader()
             std::lock_guard<std::mutex>  guard (m_lock);
 
             m_loaded.push_back (Loaded { request.key, std::move (image) });
-            post     = !m_posted;
-            m_posted = true;
+            m_loading--;
+
+            //  In batches, so a screenful appears together rather than one by one.
+            if (!m_posted && ((m_requests.empty() && m_loading == 0) || GetTickCount64() - m_postedAtMs >= s_kLoadBatchMs))
+            {
+                post         = true;
+                m_posted     = true;
+                m_postedAtMs = GetTickCount64();
+            }
         }
 
         if (post && m_notifyHwnd != nullptr)

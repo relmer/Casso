@@ -58,7 +58,7 @@ public:
 
     //  One notch of Ctrl with the wheel, as in File Explorer: a larger or
     //  smaller icon, or the next view past the smallest. Whether it changed.
-    bool                  StepIconSize       (bool larger);
+    bool                  StepIconSize       (int notches);
 
 private:
     ExplorerListPane                   & m_pane;

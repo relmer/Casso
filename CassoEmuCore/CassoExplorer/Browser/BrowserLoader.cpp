@@ -342,9 +342,13 @@ void BrowserLoader::GetAllRecycledIds (std::vector<std::wstring> & outIds) const
 
 std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
 {
-    VolumeListing           listing;
-    VolumeKind              kind = VolumeKind::Unknown;
-    DiskOperations::Result  result;
+    VolumeListing               listing;
+    VolumeKind                  kind = VolumeKind::Unknown;
+    DiskOperations::Result      result;
+    WIN32_FILE_ATTRIBUTE_DATA   file = {};
+    uint64_t                    time = 0;
+    uint64_t                    size = 0;
+    std::wstring                problem;
 
 
 
@@ -353,14 +357,32 @@ std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
         return std::wstring();
     }
 
-    result = m_browser.m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
-
-    if (result.Succeeded() || result.message.find (s_kNoFileSystem) != std::string::npos)
+    //  Each file is read once until it changes: the rows that ask for this are
+    //  built again whenever the list is filled.
+    if (GetFileAttributesExW (imagePath.c_str(), GetFileExInfoStandard, &file))
     {
-        return std::wstring();
+        auto  found = m_imageProblems.end();
+
+        time  = ((uint64_t) file.ftLastWriteTime.dwHighDateTime << 32) | file.ftLastWriteTime.dwLowDateTime;
+        size  = ((uint64_t) file.nFileSizeHigh << 32) | file.nFileSizeLow;
+        found = m_imageProblems.find (imagePath);
+
+        if (found != m_imageProblems.end() && found->second.time == time && found->second.size == size)
+        {
+            return found->second.problem;
+        }
     }
 
-    return BrowserCells::FormatImageError (imagePath, result.message);
+    result = m_browser.m_operations.List (TextEncoding::WideToNarrow (imagePath), listing, kind);
+
+    if (!result.Succeeded() && result.message.find (s_kNoFileSystem) == std::string::npos)
+    {
+        problem = BrowserCells::FormatImageError (imagePath, result.message);
+    }
+
+    m_imageProblems[imagePath] = ImageProblem { time, size, problem };
+
+    return problem;
 }
 
 
