@@ -872,8 +872,9 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
         steps   = (int) (armHalf - thick * 0.5f);
         ink     = pal.fg;
     }
+
     //  The whole pane's width, not the columns': a header is not a row.
-    else if (look.fill != 0)
+    if (!home && look.fill != 0)
     {
         painter.FillRect (rowX, ry, layoutW, rowH, look.fill);
     }
