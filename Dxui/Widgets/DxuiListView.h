@@ -365,6 +365,7 @@ public:
 
         return placed && m_items.GetHomeActionRect (place, action, outRect);
     }
+
     int   GetItemIconDip    () const       { return m_itemIconDip; }
     int   GetViewIconPx     () const       { return m_items.GetViewIconPx(); }
 
