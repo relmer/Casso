@@ -516,6 +516,7 @@ std::wstring CatalogModel::GetDiskImageTypeName (const std::wstring & name)
         { L".po",  L"ProDOS-order disk image"   },
         { L".d13", L"13-sector disk image"      },
         { L".nib", L"Nibble disk image"         },
+        { L".nb2", L"NB2 nibble disk image"     },
         { L".woz", L"WOZ disk image"            },
         { L".2mg", L"2IMG disk image"           },
         { L".hdv", L"ProDOS hard disk image"    },

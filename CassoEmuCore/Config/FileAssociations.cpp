@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Config/FileAssociations.h"
+#include "CassoExplorer/Model/CatalogModel.h"
 
 
 
@@ -18,7 +19,15 @@ HRESULT FileAssociations::Register (IUserClasses & classes, const std::wstring &
 
 
 
-    hr = WriteProgId (classes, kCassoProgId, L"Casso", cassoExe, L"\"" + cassoExe + L"\" --disk1 \"%1\"");
+    for (const wchar_t * extension : kExtensions)
+    {
+        hr = WriteProgId (classes, GetProgId (extension), CatalogModel::GetDiskImageTypeName (extension), L"Casso", cassoExe,
+                          L"\"" + cassoExe + L"\" --disk1 \"%1\"");
+        CHR (hr);
+    }
+
+    //  The single type an earlier build registered goes.
+    hr = classes.DeleteKey (kCassoProgId);
     CHR (hr);
 
     hr = classes.SetValue (std::wstring (L"Applications\\") + kExplorerApp, L"FriendlyAppName", L"Casso Explorer");
@@ -51,14 +60,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FileAssociations::WriteProgId (IUserClasses & classes, const std::wstring & progId, const std::wstring & appName,
-                                       const std::wstring & iconExe, const std::wstring & command)
+HRESULT FileAssociations::WriteProgId (IUserClasses & classes, const std::wstring & progId, const std::wstring & typeName,
+                                       const std::wstring & appName, const std::wstring & iconExe, const std::wstring & command)
 {
     HRESULT  hr = S_OK;
 
 
 
-    hr = classes.SetValue (progId, L"", L"Apple II disk image");
+    hr = classes.SetValue (progId, L"", typeName);
     CHR (hr);
 
     hr = classes.SetValue (progId + L"\\DefaultIcon", L"", L"\"" + iconExe + L"\",-" + std::to_wstring (kDiskIconId));
@@ -95,16 +104,19 @@ HRESULT FileAssociations::TakeType (IUserClasses & classes, const std::wstring &
 
 
 
-    if (had && previous != kCassoProgId)
+    if (had && !IsCassoType (extension, previous))
     {
         hr = classes.SetValue (extension, kPreviousName, previous);
         CHR (hr);
     }
 
-    hr = classes.SetValue (extension, L"", kCassoProgId);
+    hr = classes.SetValue (extension, L"", GetProgId (extension));
     CHR (hr);
 
-    hr = classes.SetValue (extension + L"\\OpenWithProgids", kCassoProgId, L"");
+    hr = classes.DeleteValue (extension + L"\\OpenWithProgids", kCassoProgId);
+    CHR (hr);
+
+    hr = classes.SetValue (extension + L"\\OpenWithProgids", GetProgId (extension), L"");
     CHR (hr);
 
     hr = classes.SetValue (extension + L"\\OpenWithList\\" + kExplorerApp, L"", L"");
@@ -136,6 +148,12 @@ HRESULT FileAssociations::Unregister (IUserClasses & classes, IUserClasses & fil
         CHR (hr);
 
         hr = ClearRecord (fileExts, extension);
+        CHR (hr);
+    }
+
+    for (const wchar_t * extension : kExtensions)
+    {
+        hr = classes.DeleteKey (GetProgId (extension));
         CHR (hr);
     }
 
@@ -176,7 +194,7 @@ HRESULT FileAssociations::ReturnType (IUserClasses & classes, const std::wstring
 
 
 
-    if (classes.GetValue (extension, L"", current) && current == kCassoProgId)
+    if (classes.GetValue (extension, L"", current) && IsCassoType (extension, current))
     {
         hr = classes.GetValue (extension, kPreviousName, previous) ? classes.SetValue (extension, L"", previous)
                                                                    : classes.DeleteValue (extension, L"");
@@ -187,6 +205,9 @@ HRESULT FileAssociations::ReturnType (IUserClasses & classes, const std::wstring
     CHR (hr);
 
     hr = classes.DeleteValue (withKey, kCassoProgId);
+    CHR (hr);
+
+    hr = classes.DeleteValue (withKey, GetProgId (extension));
     CHR (hr);
 
     hr = classes.DeleteValue (withKey, kExplorerProgId);
@@ -241,6 +262,9 @@ HRESULT FileAssociations::ClearRecord (IUserClasses & fileExts, const std::wstri
     hr = fileExts.DeleteValue (withKey, kCassoProgId);
     CHR (hr);
 
+    hr = fileExts.DeleteValue (withKey, GetProgId (extension));
+    CHR (hr);
+
     hr = fileExts.DeleteValue (withKey, kExplorerProgId);
     CHR (hr);
 
@@ -273,16 +297,6 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
 
 
 
-    if (!classes.GetValue (std::wstring (kCassoProgId) + L"\\shell\\open\\command", L"", value) || value != L"\"" + cassoExe + L"\" --disk1 \"%1\"")
-    {
-        return false;
-    }
-
-    if (!classes.GetValue (std::wstring (kCassoProgId) + L"\\DefaultIcon", L"", value) || value != L"\"" + cassoExe + L"\",-" + std::to_wstring (kDiskIconId))
-    {
-        return false;
-    }
-
     if (!classes.GetValue (std::wstring (L"Applications\\") + kExplorerApp + L"\\shell\\open\\command", L"", value) || value != L"\"" + explorerExe + L"\" \"%1\"")
     {
         return false;
@@ -290,13 +304,40 @@ bool FileAssociations::IsRegistered (const IUserClasses & classes, const std::ws
 
     for (const wchar_t * extension : kExtensions)
     {
-        std::wstring  current;
+        std::wstring  progId = GetProgId (extension);
 
-        if (!classes.GetValue (extension, L"", current) || current != kCassoProgId)
+        if (!classes.GetValue (extension, L"", value) || value != progId)
+        {
+            return false;
+        }
+
+        if (!classes.GetValue (progId + L"\\shell\\open\\command", L"", value) || value != L"\"" + cassoExe + L"\" --disk1 \"%1\"")
+        {
+            return false;
+        }
+
+        if (!classes.GetValue (progId + L"\\DefaultIcon", L"", value) || value != L"\"" + cassoExe + L"\",-" + std::to_wstring (kDiskIconId))
         {
             return false;
         }
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileAssociations::IsCassoType
+//
+//  The extension's type, or the single type an earlier build registered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileAssociations::IsCassoType (const std::wstring & extension, const std::wstring & progId)
+{
+    return progId == GetProgId (extension) || progId == kCassoProgId;
 }

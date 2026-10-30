@@ -88,7 +88,7 @@ public:
         Assert::IsTrue (FileAssociations::IsRegistered (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
         Assert::IsTrue (classes.notified > 0, L"File Explorer is told to redraw its icons");
 
-        Assert::IsTrue (classes.GetValue (L"Casso.DiskImage\\shell\\open\\command", L"", value));
+        Assert::IsTrue (classes.GetValue (L"Casso.DiskImage.woz\\shell\\open\\command", L"", value));
         Assert::AreEqual (std::wstring (L"\"C:\\Casso\\Casso.exe\" --disk1 \"%1\""), value);
 
         Assert::IsTrue (classes.GetValue (L"Applications\\CassoExplorer.exe\\shell\\open\\command", L"", value));
@@ -96,8 +96,16 @@ public:
         Assert::IsTrue (classes.GetValue (L"Applications\\CassoExplorer.exe", L"FriendlyAppName", value));
         Assert::AreEqual (std::wstring (L"Casso Explorer"), value);
 
-        Assert::IsTrue (classes.GetValue (L"Casso.DiskImage\\DefaultIcon", L"", value));
+        Assert::IsTrue (classes.GetValue (L"Casso.DiskImage.woz\\DefaultIcon", L"", value));
         Assert::AreEqual (std::wstring (L"\"C:\\Casso\\Casso.exe\",-") + std::to_wstring (FileAssociations::kDiskIconId), value);
+
+        //  Each type has the text Casso Explorer's Type column has for it.
+        Assert::IsTrue (classes.GetValue (L"Casso.DiskImage.woz", L"", value));
+        Assert::AreEqual (std::wstring (L"WOZ disk image"), value);
+        Assert::IsTrue (classes.GetValue (L"Casso.DiskImage.po", L"", value));
+        Assert::AreEqual (std::wstring (L"ProDOS-order disk image"), value);
+        Assert::IsTrue (classes.GetValue (L".po", L"", value));
+        Assert::AreEqual (std::wstring (L"Casso.DiskImage.po"), value);
 
         //  Casso's is the one type offered, so Windows opens the files with
         //  it and no prompt; Casso Explorer is under Open with as a program.
@@ -122,6 +130,31 @@ public:
 
         Assert::IsTrue  (FileAssociations::IsRegistered (classes, L"C:\\Old\\Casso.exe",   L"C:\\Old\\CassoExplorer.exe"));
         Assert::IsFalse (FileAssociations::IsRegistered (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
+    }
+
+
+
+    //  An earlier build's single type for every extension is replaced by one
+    //  type each, and what the earlier build wrote doesn't count as the
+    //  program the type had.
+    TEST_METHOD (Register_ReplacesAnEarlierBuildsSingleType)
+    {
+        FakeUserClasses  classes;
+        FakeUserClasses  fileExts;
+        std::wstring     value;
+
+        classes.SetValue (L"Casso.DiskImage", L"", L"Apple II disk image");
+        classes.SetValue (L".dsk", L"", L"Casso.DiskImage");
+        classes.SetValue (L".dsk\\OpenWithProgids", L"Casso.DiskImage", L"");
+
+        AssertSucceeded (FileAssociations::Register (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
+
+        Assert::IsFalse (classes.keys.contains (L"Casso.DiskImage"));
+        Assert::IsFalse (classes.GetValue (L".dsk", FileAssociations::kPreviousName, value));
+        Assert::IsFalse (classes.GetValue (L".dsk\\OpenWithProgids", L"Casso.DiskImage", value));
+
+        AssertSucceeded (FileAssociations::Unregister (classes, fileExts));
+        Assert::IsTrue (classes.keys.empty(), L"Nothing Casso wrote is left");
     }
 
 
@@ -167,8 +200,8 @@ public:
 
         //  File Explorer adds Casso's type to its record as the files are
         //  opened.
-        fileExts.SetValue (L".dsk\\OpenWithProgids", L"Casso.DiskImage", L"");
-        fileExts.SetValue (L".do\\OpenWithProgids", L"Casso.DiskImage", L"");
+        fileExts.SetValue (L".dsk\\OpenWithProgids", L"Casso.DiskImage.dsk", L"");
+        fileExts.SetValue (L".do\\OpenWithProgids", L"Casso.DiskImage.do", L"");
 
         AssertSucceeded (FileAssociations::Unregister (classes, fileExts));
 

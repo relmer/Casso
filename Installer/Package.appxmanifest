@@ -69,21 +69,88 @@
             </uap:VisualElements>
 
             <Extensions>
-                <!-- The disk image types, with the disk icon File Explorer
-                     draws for them; the extensions match
-                     FileAssociations::kExtensions. A package declares each
+                <!-- The disk image types, each a separate type with the text
+                     Casso Explorer's Type column has for it, and the disk icon File
+                     Explorer draws for them; the extensions and names match
+                     FileAssociations::kExtensions and
+                     CatalogModel::GetDiskImageTypeName. A package declares each
                      type for one application only, so Casso Explorer is
                      reached by the second command, which Casso passes on. -->
                 <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="appleiidiskimage" Parameters="--disk1 &quot;%1&quot;">
+                    <uap3:FileTypeAssociation Name="appleiidskimage" Parameters="--disk1 &quot;%1&quot;">
                         <uap:DisplayName>Apple II disk image</uap:DisplayName>
                         <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
                         <uap:SupportedFileTypes>
                             <uap:FileType>.dsk</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiidoimage" Parameters="--disk1 &quot;%1&quot;">
+                        <uap:DisplayName>DOS-order disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
                             <uap:FileType>.do</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiipoimage" Parameters="--disk1 &quot;%1&quot;">
+                        <uap:DisplayName>ProDOS-order disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
                             <uap:FileType>.po</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiiwozimage" Parameters="--disk1 &quot;%1&quot;">
+                        <uap:DisplayName>WOZ disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
                             <uap:FileType>.woz</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiinibimage" Parameters="--disk1 &quot;%1&quot;">
+                        <uap:DisplayName>Nibble disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
                             <uap:FileType>.nib</uap:FileType>
+                        </uap:SupportedFileTypes>
+                        <uap2:SupportedVerbs>
+                            <uap3:Verb Id="open" Parameters="--disk1 &quot;%1&quot;">Open</uap3:Verb>
+                            <uap3:Verb Id="explore" Parameters="--explore &quot;%1&quot;">Open in Casso Explorer</uap3:Verb>
+                        </uap2:SupportedVerbs>
+                    </uap3:FileTypeAssociation>
+                </uap3:Extension>
+
+                <uap3:Extension Category="windows.fileTypeAssociation">
+                    <uap3:FileTypeAssociation Name="appleiinb2image" Parameters="--disk1 &quot;%1&quot;">
+                        <uap:DisplayName>NB2 nibble disk image</uap:DisplayName>
+                        <uap:Logo>Assets\DiskImageLogo.png</uap:Logo>
+                        <uap:SupportedFileTypes>
                             <uap:FileType>.nb2</uap:FileType>
                         </uap:SupportedFileTypes>
                         <uap2:SupportedVerbs>

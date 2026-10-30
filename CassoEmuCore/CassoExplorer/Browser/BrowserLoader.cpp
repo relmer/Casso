@@ -196,7 +196,9 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.imageCatalogIndex = items[index].catalogIndex;
         row.imageDirectory    = items[index].imageDirectory;
         row.isDiskImage  = !row.isDirectory && !row.hostPath.empty() && TreeModel::IsSupportedImage (row.hostPath);
-        row.typeText     = (row.isDiskImage && !CatalogModel::GetDiskImageTypeName (row.name).empty()) ? CatalogModel::GetDiskImageTypeName (row.name) : row.typeText;
+        //  An image the shell lists with no file on the disk, as one inside a
+        //  zip, has its kind's type text.
+        row.typeText     = (!row.isDirectory && !CatalogModel::GetDiskImageTypeName (row.name).empty()) ? CatalogModel::GetDiskImageTypeName (row.name) : row.typeText;
         row.sourceIndex  = index;
         row.shellOrder   = items[index].shellOrder;
         row.iconId       = items[index].iconId;

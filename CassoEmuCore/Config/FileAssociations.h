@@ -15,7 +15,9 @@
 //
 //  Casso as the current user's program for the disk image types it reads:
 //  each shows Casso's disk icon in File Explorer, opens in Casso with the
-//  image in drive 1, and lists Casso Explorer under Open with.
+//  image in drive 1, and lists Casso Explorer under Open with. Each
+//  extension is a separate type, with the text Casso Explorer's Type column
+//  has for it, so File Explorer sorts and groups them apart.
 //
 //  ONLY BY THE USER'S CHOICE. Nothing calls Register but a command the user
 //  picks; installing or starting Casso writes nothing. No administrator
@@ -35,7 +37,13 @@ class FileAssociations
 {
 public:
     static constexpr const wchar_t *  kExtensions[]     = { L".dsk", L".do", L".po", L".woz", L".nib", L".nb2" };
+
+    //  Each extension's type is this followed by the extension, as
+    //  Casso.DiskImage.woz. An earlier build registered every extension as
+    //  this one type, which Register replaces and Unregister also removes.
     static constexpr const wchar_t *  kCassoProgId      = L"Casso.DiskImage";
+
+    static std::wstring  GetProgId (const std::wstring & extension) { return std::wstring (kCassoProgId) + extension; }
 
     //  Casso Explorer is offered under Open with by its program's own entry,
     //  not as a second type: for two types with no choice made yet, Windows
@@ -52,8 +60,9 @@ public:
     static bool     IsRegistered (const IUserClasses & classes, const std::wstring & cassoExe, const std::wstring & explorerExe);
 
 private:
-    static HRESULT  WriteProgId  (IUserClasses & classes, const std::wstring & progId, const std::wstring & appName,
-                                  const std::wstring & iconExe, const std::wstring & command);
+    static HRESULT  WriteProgId  (IUserClasses & classes, const std::wstring & progId, const std::wstring & typeName,
+                                  const std::wstring & appName, const std::wstring & iconExe, const std::wstring & command);
+    static bool     IsCassoType  (const std::wstring & extension, const std::wstring & progId);
     static HRESULT  TakeType     (IUserClasses & classes, const std::wstring & extension);
     static HRESULT  ReturnType   (IUserClasses & classes, const std::wstring & extension);
     static HRESULT  ClearRecord  (IUserClasses & fileExts, const std::wstring & extension);

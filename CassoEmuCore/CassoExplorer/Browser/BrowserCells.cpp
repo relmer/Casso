@@ -807,8 +807,9 @@ std::wstring BrowserCells::GetTabLabel (size_t index) const
 //  BrowserCells::GetRowIcon
 //
 //  A host folder's rows are real files and folders, so each gets the shell's
-//  icon for its path, except a disk image, which has Casso's floppy. A row inside an image has no host path, so it gets the generic
-//  folder or file icon.
+//  icon for its path, except a disk image, which has Casso's floppy. A row
+//  inside an image has no host path, so it gets the generic folder or file
+//  icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -820,9 +821,10 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
 
 
 
-    //  A disk image has Casso's floppy wherever it is listed, as does a
-    //  linked Apple's drive.
-    if (row.isDiskImage || (TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) && drive != 0))
+    //  A disk image has Casso's floppy wherever it is listed, one inside a zip
+    //  too, as does a linked Apple's drive.
+    if (row.isDiskImage || (TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) && drive != 0)
+        || (at.kind == Location::Kind::ShellFolder && !row.isDirectory && !CatalogModel::GetDiskImageTypeName (row.name).empty()))
     {
         return icons.GetForKind (IShellIcons::Kind::DiskImage);
     }
