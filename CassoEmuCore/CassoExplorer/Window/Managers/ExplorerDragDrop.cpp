@@ -1337,8 +1337,8 @@ void ExplorerDragDrop::BeginDragOut()
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     //  File Explorer reports a move of files it read from the drag's streams
-    //  in the logical effect, and returns none from the drag itself; the
-    //  files are still the source's to delete.
+    //  in the logical effect, and the drag itself returns DROPEFFECT_NONE.
+    //  The source deletes the files either way.
     moved = effect == DROPEFFECT_MOVE || logical == DROPEFFECT_MOVE;
 
     //  A target that moved the entries by copying them leaves their removal

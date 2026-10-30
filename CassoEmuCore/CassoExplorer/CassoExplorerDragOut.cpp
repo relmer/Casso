@@ -195,8 +195,8 @@ HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, H
                                                      } });
     }
 
-    //  A cut asks the target to move the files. Having copied them, the
-    //  target reports the paste, and the originals are deleted here.
+    //  A cut offers the files to be moved. Having copied them, the target
+    //  reports the paste, and the originals are deleted here.
     if (cut)
     {
         held.push_back (DxuiDragDropSource::Format { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_PREFERREDDROPEFFECT), 1,
