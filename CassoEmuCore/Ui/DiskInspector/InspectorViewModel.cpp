@@ -19,21 +19,16 @@
 void InspectorViewModel::SetDisk (uint64_t mediaId)
 {
     double  tilt = m_tilt;
-    double  side = m_headSideTo;
 
 
 
     //  The tilt is the window's, saved with its state, so it outlasts the
-    //  disk, and so does where the head's angle sits.
+    //  disk.
     if (mediaId != m_mediaId)
     {
-        *this          = InspectorViewModel();
-        m_mediaId      = mediaId;
-        m_tilt         = tilt;
-        m_headSide     = side;
-        m_headSideFrom = side;
-        m_headSideTo   = side;
-        m_tiltTurnMs   = 0.0;
+        *this     = InspectorViewModel();
+        m_mediaId = mediaId;
+        m_tilt    = tilt;
     }
 }
 
@@ -830,53 +825,6 @@ bool InspectorViewModel::StepFlight (double nowMs)
     }
 
     return m_isFlying;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InspectorViewModel::StepTiltTurn
-//
-//  A change between flat and tilted starts the head's angle easing to its
-//  place in the other view; the first step takes the place at once, so a
-//  window that opens tilted does not turn. At fit, outside a flight, the
-//  platter turns by the same amount, so the head sweeps around whether or
-//  not the drive is turning. Zoomed in, the platter does not turn (FR-064).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InspectorViewModel::StepTiltTurn (double nowMs)
-{
-    double  target = IsTilted() ? 0.5 : 0.0;
-    double  before = m_headSide;
-    double  t      = 1.0;
-
-
-
-    if (m_tiltTurnMs < 0.0)
-    {
-        m_headSideFrom = target;
-        m_headSideTo   = target;
-        m_tiltTurnMs   = nowMs;
-        before         = target;
-    }
-    else if (target != m_headSideTo)
-    {
-        m_headSideFrom = m_headSide;
-        m_headSideTo   = target;
-        m_tiltTurnMs   = nowMs;
-    }
-
-    t          = std::clamp ((nowMs - m_tiltTurnMs) / kTiltTurnMs, 0.0, 1.0);
-    m_headSide = m_headSideFrom + (m_headSideTo - m_headSideFrom) * Ease (t);
-
-    if (IsAtFit() && !m_isFlying)
-    {
-        m_rotation += m_headSide - before;
-    }
 }
 
 

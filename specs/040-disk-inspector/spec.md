@@ -161,9 +161,9 @@ comparing two quarter tracks of one disk.
 - Q: After a state restore, what is "As inserted"? → A: The disk as it was
   first inserted, not the restored disk; the rest of the restore is handled
   as a reload (FR-069, FR-117).
-- Q: How does the head get from the top to the bottom when tilting? → A: The
-  platter turns a half turn over about 300 ms, so the head sweeps around,
-  whether or not the drive is turning (FR-152).
+- Q: How does the head get from the top to the bottom when tilting? → A: It
+  does not move: the head sits at 6 o'clock, flat or tilted (FR-064,
+  FR-152). An earlier half turn on each tilt was dropped.
 - Q: The overlay chips look like a segmented control but act like
   checkboxes. What should they look like? → A: Separate toggle chips, each
   outlined, with a check mark and an accent tint while on (FR-031).
@@ -2320,7 +2320,7 @@ legend, and tilt the platter and back.
   drive MUST be made by Casso at a safe point (FR-103). Taking the copies
   counts toward the limits in SC-005.
 - **FR-064**: While the motor is on, the controller has this drive enabled
-  and a disk is inserted, the head marker MUST sit at 12 o'clock and the
+  and a disk is inserted, the head marker MUST sit at 6 o'clock and the
   platter MUST turn counterclockwise so that the drive's current position is
   under the marker. When the motor stops, the platter MUST coast to a stop
   from 300 RPM, slowing evenly over a second; otherwise the platter MUST
@@ -3113,11 +3113,9 @@ legend, and tilt the platter and back.
   address exactly the cell under the pointer. Nibble values MUST be left out
   where rings are too thin to fit them, and zooming MUST move the view
   toward the point under the pointer.
-- **FR-152**: In Casso, the tilted view MUST draw the head at the near edge
-  as the head arm of FR-064 projected onto the disk, with a soft shadow.
-  When the platter tilts or lies flat at fit, it MUST turn a half turn over
-  about 300 ms, slow at the start and end, so the head sweeps between 12
-  o'clock and the near edge, whether or not the drive is turning.
+- **FR-152**: In Casso, the tilted view MUST draw the head at the near edge,
+  6 o'clock as in the flat view, as the head arm of FR-064 projected onto
+  the disk, with a soft shadow. Tilting MUST NOT turn the platter.
   Hovering and clicking over the head MUST act on the disk, as over the
   flat view's head marker.
 - **FR-153**: The first time someone opens the inspector, a walkthrough MUST

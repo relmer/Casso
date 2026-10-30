@@ -119,14 +119,10 @@ public:
     bool    IsTilted        () const { return m_tilt > 0.0; }
 
     //  Where the head's angle sits, as a fraction of a turn from 12 o'clock:
-    //  0 flat, 0.5 at the near edge tilted (FR-152). When the platter tilts
-    //  or lies flat, StepTiltTurn eases it to the other over kTiltTurnMs and
-    //  turns the platter at fit with it, so the head sweeps from one place to
-    //  the other.
-    static constexpr double  kTiltTurnMs = 300.0;
+    //  6 o'clock, the near edge when tilted, flat or tilted (FR-064, FR-152).
+    static constexpr double  kHeadSide = 0.5;
 
-    double  GetHeadSide     () const { return m_headSide; }
-    void    StepTiltTurn    (double nowMs);
+    double  GetHeadSide     () const { return kHeadSide; }
 
     //  When the drive's motor stops, the disk coasts to a stop: StepCoast
     //  turns the platter at fit from kTurnsPerMs, the speed of 300 RPM,
@@ -208,10 +204,6 @@ private:
     bool                  m_isTwoLegs     = false;
     double                m_flightStartMs = 0.0;
     bool                  m_isFlying      = false;
-    double                m_headSide      = 0.0;
-    double                m_headSideFrom  = 0.0;
-    double                m_headSideTo    = 0.0;
-    double                m_tiltTurnMs    = -1.0;
     bool                  m_wasTurning    = false;
     bool                  m_isCoasting    = false;
     double                m_coastFromMs   = 0.0;

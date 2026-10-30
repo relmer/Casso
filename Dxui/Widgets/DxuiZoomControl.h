@@ -42,6 +42,10 @@ public:
     void    SetOnZoom  (ZoomFn fn) { m_onZoom = std::move (fn); }
     bool    IsSliderShown () const { return m_isSliderShown; }
 
+    //  Whether the slider's thumb is being dragged. When the drag ends, the
+    //  callback is called again with the zoom it ended on.
+    bool    IsDragging    () const { return m_slider->IsDragging(); }
+
     //  The zoom a number of steps from `zoom` through the standard stops, as
     //  a browser zooms: -1 for the next stop down, 1 for the next one up.
     static double  StepZoom      (double zoom, int steps);

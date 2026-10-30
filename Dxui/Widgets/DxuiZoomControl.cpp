@@ -42,6 +42,7 @@ DxuiZoomControl::DxuiZoomControl()
     m_slider->SetShowValue (false);
     m_slider->SetValue     (100.0f);
     m_slider->SetOnChange  ([this] (float value) { ChangeZoom (value / 100.0); });
+    m_slider->SetOnDragEnd ([this] () { if (m_onZoom) { m_onZoom (m_zoom); } });
 
     m_zoomOut->SetOnClick ([this] () { ChangeZoom (StepZoom (m_zoom, -1)); });
     m_zoomIn->SetOnClick  ([this] () { ChangeZoom (StepZoom (m_zoom,  1)); });

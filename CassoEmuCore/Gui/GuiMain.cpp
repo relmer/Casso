@@ -21,6 +21,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "dbghelp.lib")
 
 
 
@@ -454,29 +455,85 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Trace crash handler
+//  Crash handler
 //
-//  When --trace is active, an unhandled exception (including the
-//  illegal-opcode __debugbreak with no debugger attached) dumps the CPU
-//  execution-trace ring to a file before the process dies. The filter
-//  runs on the faulting thread -- for a CPU fault that is the CPU thread
-//  that owns the ring, so the dump is race-free. s_pTraceShell is set
-//  once the shell exists; DumpTrace is one-shot and self-guards.
+//  An unhandled exception in any thread of the process writes a minidump to
+//  %LOCALAPPDATA%\Casso\CrashDumps, with the time in its file name, for
+//  debugging the crash afterward. When --trace is active it also dumps the CPU
+//  execution-trace ring (including for the illegal-opcode __debugbreak with
+//  no debugger attached). The filter runs on the faulting thread -- for a CPU
+//  fault that is the CPU thread that owns the ring, so the dump is
+//  race-free. s_pTraceShell is set once the shell exists; DumpTrace is
+//  one-shot and self-guards. The exception then goes on to Windows Error
+//  Reporting, which ends the process and logs it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static EmulatorShell * s_pTraceShell = nullptr;
 
-static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteCrashDump
+//
+//  The dump's path is built on the stack, since the heap may be what failed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void WriteCrashDump (EXCEPTION_POINTERS * info)
 {
-    UNREFERENCED_PARAMETER (info);
+    wchar_t                         folder[MAX_PATH] = {};
+    wchar_t                         path[MAX_PATH]   = {};
+    SYSTEMTIME                      now              = {};
+    HANDLE                          file             = INVALID_HANDLE_VALUE;
+    MINIDUMP_EXCEPTION_INFORMATION  exception        = { GetCurrentThreadId(), info, FALSE };
+    DWORD                           length           = GetEnvironmentVariableW (L"LOCALAPPDATA", folder, MAX_PATH);
+
+
+
+    if (length > 0 && length < MAX_PATH && swprintf_s (folder + length, MAX_PATH - length, L"\\Casso\\CrashDumps") > 0)
+    {
+        (void) CreateDirectoryW (folder, nullptr);
+        GetLocalTime (&now);
+
+        if (swprintf_s (path, MAX_PATH, L"%s\\Casso-%04u%02u%02u-%02u%02u%02u.dmp", folder, now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond) > 0)
+        {
+            file = CreateFileW (path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        }
+    }
+
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        (void) MiniDumpWriteDump (GetCurrentProcess(), GetCurrentProcessId(), file,
+                                  static_cast<MINIDUMP_TYPE> (MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithThreadInfo | MiniDumpWithUnloadedModules),
+                                  &exception, nullptr, nullptr);
+        CloseHandle (file);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CrashFilter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static LONG WINAPI CrashFilter (EXCEPTION_POINTERS * info)
+{
+    WriteCrashDump (info);
 
     if (s_pTraceShell != nullptr)
     {
         s_pTraceShell->DumpTrace (L"crash");
     }
 
-    return EXCEPTION_EXECUTE_HANDLER;
+    return EXCEPTION_CONTINUE_SEARCH;
 }
 
 
@@ -646,6 +703,7 @@ int WINAPI wWinMain (
 
 
     UNREFERENCED_PARAMETER (hPrevInstance);
+    SetUnhandledExceptionFilter (CrashFilter);
     shell->SetStartupShowCommand (nCmdShow);
 
     // Per-monitor DPI awareness v2. Without this Windows bitmap-scales
@@ -722,13 +780,12 @@ int WINAPI wWinMain (
     // removes the old files once the process that ran them has exited.
     shell->GetUpdater().SetUpdateLaunch (parsed.wasUpdated, (DWORD) parsed.cleanupOldPid);
 
-    // --trace: size the CPU ring and install the crash-time dump filter
-    // before the CPU thread starts, so an illegal-opcode/__debugbreak or
-    // any unhandled exception flushes the trace to a file on the way out.
+    // --trace: size the CPU ring before the CPU thread starts, so an
+    // illegal-opcode/__debugbreak or any unhandled exception flushes the
+    // trace to a file on the way out through CrashFilter.
     if (traceCapacity > 0)
     {
         shell->SetTraceCapacity (traceCapacity);
-        SetUnhandledExceptionFilter (TraceCrashFilter);
         s_pTraceShell = shell.get();
     }
 

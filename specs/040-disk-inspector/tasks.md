@@ -463,3 +463,6 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T205 Shade every visible part of an arc across the index in `PlatterOverlays::GetVisibleParts`, so the access overlays dim the whole view, per FR-031
 - [X] T206 Coast the platter to a stop when the motor stops, in `InspectorViewModel::StepCoast`, with a test, per FR-064
 - [X] T207 Hyphenate the sector-format chips and classes, as "16-sector", per FR-018
+- [X] T208 Put the head at 6 o'clock flat and tilted, and drop the half turn on a tilt, per FR-064, FR-152
+- [X] T209 Enlarge the window for a new zoom once a drag of the zoom slider ends, so the slider stays under the pointer, per FR-154
+- [X] T210 Write a minidump to `%LOCALAPPDATA%\Casso\CrashDumps` on any unhandled exception in `GuiMain.cpp`, for debugging a crash reported while zooming

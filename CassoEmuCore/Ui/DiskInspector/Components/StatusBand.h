@@ -36,6 +36,7 @@ public:
     int   GetHeightPx (const DxuiDpiScaler & scaler) const;
     void  SetHint     (const std::wstring & hint) { m_hint = hint; }
     void  SetZoom     (double zoom);
+    bool  IsZoomDragging () const { return m_zoomControl != nullptr && m_zoomControl->IsDragging(); }
 
 private:
     void          PaintChips       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float right, float & inOutX);

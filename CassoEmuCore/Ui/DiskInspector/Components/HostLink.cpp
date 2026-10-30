@@ -341,12 +341,9 @@ void HostLink::TickHead()
     m_session.context.head  = head;
     m_session.context.drive = isOnDisk ? m_session.headState.get() : nullptr;
 
-    //  While the drive turns, the platter turns under the head at 12
-    //  o'clock, or at the near edge when tilted, or between while the tilt's
-    //  half turn eases from one to the other (FR-152). Zoomed in, the
-    //  platter does not turn and the head moves around it (FR-064).
-    m_session.model.StepTiltTurn (InspectorMarquee::GetClockMs());
-
+    //  While the drive turns, the platter turns under the head at 6 o'clock
+    //  (FR-064, FR-152). Zoomed in, the platter does not turn and the head
+    //  moves around it.
     if (isOnDisk && m_session.headState->isTurning && m_session.model.IsAtFit() && !m_session.model.IsFlying())
     {
         m_session.model.SetRotation (m_session.model.GetHeadSide() - m_session.headState->angle);

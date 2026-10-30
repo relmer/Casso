@@ -984,10 +984,13 @@ void DiskInspectorWindow::SetZoom (double zoom)
     m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, most);
     m_statusBand->SetZoom (m_zoom);
 
-    //  The layout fits in the window's minimum size times the zoom; a smaller
-    //  window is enlarged to it, and the user cannot resize it smaller.
-    SetMinSizeDip ({ static_cast<LONG> (std::lround (kMinWidthDip * std::max (1.0, m_zoom))), static_cast<LONG> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))) });
-    GrowToMinSize();
+    //  A window smaller than its minimum size times the zoom is enlarged, once
+    //  a drag of the zoom slider ends, so the slider stays under the pointer.
+    if (!m_statusBand->IsZoomDragging())
+    {
+        SetMinSizeDip ({ static_cast<LONG> (std::lround (kMinWidthDip * std::max (1.0, m_zoom))), static_cast<LONG> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))) });
+        GrowToMinSize();
+    }
 
     Layout (m_boundsDip, m_session.hostScaler);
 }
