@@ -101,8 +101,10 @@ HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEff
         }
     }
 
-    hr = DoDragDrop (static_cast<IDataObject *> (source), static_cast<IDropSource *> (source),
-                     allowedEffects, &resultEffect);
+    //  The shell's drop source, as File Explorer's drags use: over a target
+    //  with no effect, its drag window draws the no-drop glyph itself, where
+    //  any cursor set here comes from the user's cursor scheme.
+    hr = SHDoDragDrop (nullptr, static_cast<IDataObject *> (source), nullptr, allowedEffects, &resultEffect);
 
     //  A cancel and a drop both end the drag normally; only a failure is
     //  reported as one.
