@@ -485,18 +485,19 @@ Error:
 
 std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 {
-    int                     complete    = 0;
-    int                     partial     = 0;
-    int                     unformatted = 0;
-    int                     empty       = 0;
-    int                     trackCount  = opened.report.GetTrackCount();
-    int                     track       = 0;
-    size_t                  i           = 0;
-    bool                    bitStream   = trackCount > 0;
-    bool                    trackZeroOk = true;
-    bool                    bootCode    = false;
+    int                     complete     = 0;
+    int                     partial      = 0;
+    int                     unformatted  = 0;
+    int                     empty        = 0;
+    int                     partialTrack = 0;
+    int                     trackCount   = opened.report.GetTrackCount();
+    int                     track        = 0;
+    size_t                  i            = 0;
+    bool                    bitStream    = trackCount > 0;
+    bool                    trackZeroOk  = true;
+    bool                    bootCode     = false;
     std::string             text;
-    char                    note[512]   = {};
+    char                    note[512]    = {};
     WozLoader::Description  woz;
 
 
@@ -522,7 +523,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         switch (opened.report.GetOutcome (track))
         {
             case TrackDecodeOutcome::Complete:    complete++;    break;
-            case TrackDecodeOutcome::Partial:     partial++;     break;
+            case TrackDecodeOutcome::Partial:     partial++;     partialTrack = track; break;
             case TrackDecodeOutcome::Unformatted: unformatted++; break;
             default:                                             break;
         }
@@ -555,8 +556,15 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         //  One count a line, each under the one before.
         if (partial > 0)
         {
-            snprintf (note, sizeof (note), "\n%d %s only some of them",
-                      partial, (partial == 1) ? "track has" : "tracks have");
+            if (partial == 1)
+            {
+                snprintf (note, sizeof (note), "\nTrack %d has only %d of its 16 sectors", partialTrack, std::popcount (opened.report.GetCoverage (partialTrack)));
+            }
+            else
+            {
+                snprintf (note, sizeof (note), "\n%d tracks have only some of their 16 sectors", partial);
+            }
+
             decoded += note;
         }
 
@@ -569,7 +577,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 
         if (empty > 0)
         {
-            snprintf (note, sizeof (note), "\nNothing is recorded on the %s%d whole %s", (empty < trackCount) ? "other " : "", empty, (empty == 1) ? "track" : "tracks");
+            snprintf (note, sizeof (note), "\n%d whole-track %s empty", empty, (empty == 1) ? "position is" : "positions are");
             decoded += note;
         }
 
@@ -579,8 +587,8 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         //  with none, an undecoded disk is only a possibility of it.
         if (woz.slotsOffWholeTracks > 0)
         {
-            snprintf (note, sizeof (note), "%d %s recorded between the whole tracks, at half or quarter positions, a common copy protection",
-                      woz.slotsOffWholeTracks, (woz.slotsOffWholeTracks == 1) ? "track is" : "tracks are");
+            snprintf (note, sizeof (note), "%d quarter-track %s data, a common copy protection",
+                      woz.positionsOffWholeTracks, (woz.positionsOffWholeTracks == 1) ? "position contains" : "positions contain");
             text += FormatDetailLine ("note", note);
         }
         else if (complete == 0)

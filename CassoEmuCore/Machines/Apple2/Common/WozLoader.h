@@ -115,8 +115,9 @@ public:
 
         //  Tracks on half or quarter positions alone, which a read of the whole
         //  tracks never visits, and whether each whole track has a track at all.
-        int                     slotsOffWholeTracks   = 0;
-        std::vector<bool>       wholeTrackHasData;
+        int                slotsOffWholeTracks     = 0;
+        int                positionsOffWholeTracks = 0;
+        std::vector<bool>  wholeTrackHasData;
     };
 
     // Blocks 0..2 hold the header and the INFO / TMAP / TRKS chunks; every

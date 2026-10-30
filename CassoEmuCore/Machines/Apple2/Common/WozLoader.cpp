@@ -1182,6 +1182,11 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
         {
             out.slotsOffWholeTracks += (offWhole[slot] && !onWhole[slot]) ? 1 : 0;
         }
+
+        for (size_t qt = 0; qt < kTmapChunkSize; qt++)
+        {
+            out.positionsOffWholeTracks += (positions[qt] != kTmapEmptyTrack && !onWhole[positions[qt]]) ? 1 : 0;
+        }
     }
 }
 

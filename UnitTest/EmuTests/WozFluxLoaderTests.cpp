@@ -100,6 +100,7 @@ public:
         WozLoader::Describe (image, woz);
 
         Assert::AreEqual (1, woz.slotsOffWholeTracks);
+        Assert::AreEqual (1, woz.positionsOffWholeTracks);
         Assert::IsTrue   (woz.wholeTrackHasData[0]);
         Assert::IsFalse  (woz.wholeTrackHasData[1]);
         Assert::IsFalse  (woz.wholeTrackHasData[2]);
