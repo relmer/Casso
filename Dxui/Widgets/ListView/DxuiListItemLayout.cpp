@@ -78,16 +78,19 @@ int DxuiListItemLayout::GetItemIconPx (DxuiListViewTypes::View view, UINT dpi)
 
 int DxuiListItemLayout::GetSizedIconPx (int iconDip, UINT dpi)
 {
-    int  base = (std::min) (MulDiv ((std::min) (iconDip, s_kSizedLargeDip), (int) dpi, (int) DxuiDpiScaler::kBaseDpi), s_kMaxItemIconPx);
+    int     base  = (std::min) (MulDiv ((std::min) (iconDip, s_kSizedLargeDip), (int) dpi, (int) DxuiDpiScaler::kBaseDpi), s_kMaxItemIconPx);
+    double  scale = (double) dpi / DxuiDpiScaler::kBaseDpi;
+    double  slope = ((double) s_kMaxItemIconPx / scale - s_kSizedLargeDip) / (s_kSizedMaxDip - s_kSizedLargeDip);
 
 
 
-    if (iconDip <= s_kSizedLargeDip)
+    if (iconDip <= s_kSizedLargeDip || base >= s_kMaxItemIconPx)
     {
         return base;
     }
 
-    return base + MulDiv (s_kMaxItemIconPx - base, (std::min) (iconDip, s_kSizedMaxDip) - s_kSizedLargeDip, s_kSizedMaxDip - s_kSizedLargeDip);
+    //  Past Large, a whole number of dips, scaled.
+    return (std::min) ((int) std::lround ((s_kSizedLargeDip + std::lround (((std::min) (iconDip, s_kSizedMaxDip) - s_kSizedLargeDip) * slope)) * scale), s_kMaxItemIconPx);
 }
 
 
@@ -431,7 +434,7 @@ int DxuiListItemLayout::GetSmallRowPx() const
 
     if (m_list.m_itemIconDip > 0 && m_list.m_view == DxuiListViewTypes::View::SmallIcons)
     {
-        row = (std::max) (row, GetViewIconPx() + (int) std::lround (m_list.m_scaler.ToPxf (s_kSizedSmallRowPadDip)));
+        row = (std::max) (row, GetViewIconPx() + s_kSizedSmallRowPadPx + MulDiv ((int) m_list.m_scaler.GetDpi() - (int) DxuiDpiScaler::kBaseDpi, 3, 16));
     }
 
     return row;
@@ -1093,16 +1096,9 @@ int DxuiListItemLayout::GetItemBoxPx() const
 {
     if (m_list.m_itemIconDip > 0)
     {
-        int  icon = GetViewIconPx();
-        int  pad  = icon / s_kSizedBoxPadDivisor;
+        int  box = (int) std::lround (s_kSizedBoxScale * GetViewIconPx() + m_list.m_scaler.ToPxf (s_kSizedBoxPadDip));
 
-        if (m_list.m_itemIconDip > s_kSizedLargeDip)
-        {
-            pad = GetSizedIconPx (s_kSizedLargeDip, m_list.m_scaler.GetDpi()) / s_kSizedBoxPadDivisor
-                + MulDiv (s_kSizedBoxPadExtraPx, m_list.m_itemIconDip - s_kSizedLargeDip, s_kSizedMaxDip - s_kSizedLargeDip);
-        }
-
-        return (std::max) ((int) std::floor (m_list.m_scaler.ToPxf (s_kMediumBoxDip)), icon + pad);
+        return (std::max) ((int) std::floor (m_list.m_scaler.ToPxf (s_kMediumBoxDip)), box);
     }
 
     if (m_list.m_view == DxuiListViewTypes::View::ExtraLargeIcons)

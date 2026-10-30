@@ -10,10 +10,11 @@
 //
 //  IconSizeSteps
 //
-//  What Ctrl with the wheel does to a list's view, as in File Explorer. The
-//  icon views are one run of sizes, measured from File Explorer at 150%, and
-//  each notch moves one size along it. Past the smallest size each notch
-//  moves on to the next view, List, Details, Tiles and Content, where it
+//  What Ctrl with the wheel does to a list's view, as in File Explorer. Its
+//  icon sizes are one ladder with small differences by scale, measured at 100,
+//  125 and 150%, and a notch moves two rungs from the rung at or below the
+//  current size, so the sizes up differ from the sizes down. Past the smallest
+//  size each notch moves on to the next view, List, Details, Tiles and Content, where it
 //  stops; the other way, it stops at Extra large.
 //
 //  A SIZE GOES WITH THE VIEW THAT HAS ITS LAYOUT. A name goes under an icon of
@@ -33,12 +34,18 @@ public:
         bool operator== (const Size &) const = default;
     };
 
-    static Size  Step (const Size & current, bool larger);
+    struct Rung
+    {
+        int  fromDip = 0;
+        int  upDip   = 0;
+        int  downDip = 0;
+    };
 
-    static constexpr int  kSizes[] = { 256, 239, 224, 207, 192, 175, 162, 151, 141, 130, 117, 107, 96, 89, 83, 77, 72, 67, 62, 58, 54, 50, 47, 44, 41, 38, 35, 33,
-                                       31, 29, 27, 25, 23, 22, 20, 19, 18, 17, 16 };
+    static Size  Step (const Size & current, bool larger, UINT dpi);
 
 private:
+    static constexpr int  s_kLargestDip    = 256;
+    static constexpr int  s_kSmallestDip   = 16;
     static constexpr int  s_kLargeFromDip  = 72;
     static constexpr int  s_kMediumFromDip = 33;
 

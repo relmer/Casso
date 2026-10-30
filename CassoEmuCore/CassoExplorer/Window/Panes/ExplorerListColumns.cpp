@@ -118,7 +118,7 @@ void ExplorerListColumns::SetView (DxuiListView::View view)
 bool ExplorerListColumns::StepIconSize (bool larger)
 {
     IconSizeSteps::Size  current { m_view, m_iconDip };
-    IconSizeSteps::Size  next    = IconSizeSteps::Step (current, larger);
+    IconSizeSteps::Size  next    = IconSizeSteps::Step (current, larger, GetDpiForWindow (m_context.window.GetHwnd()));
 
 
 

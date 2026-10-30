@@ -32,26 +32,36 @@ public:
 
 
 
-    TEST_METHOD (Smaller_WalksTheRunThroughTheViews)
+    //  File Explorer's sizes at 150%.
+    TEST_METHOD (Smaller_FollowsTheMeasuredSizes)
     {
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::ExtraLargeIcons), false) == Make (View::LargeIcons, 239));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 107), false) == Make (View::LargeIcons), L"96 is Large's default");
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons), false) == Make (View::LargeIcons, 89));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 72), false) == Make (View::MediumIcons, 67));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons), false) == Make (View::MediumIcons, 47), L"Medium's default is off the run");
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons, 33), false) == Make (View::SmallIcons, 31));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons, 17), false) == Make (View::SmallIcons), L"16 is Small's default");
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::ExtraLargeIcons), false, 144) == Make (View::LargeIcons, 239));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons), false, 144) == Make (View::LargeIcons, 89));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 72), false, 144) == Make (View::MediumIcons, 67));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons), false, 144) == Make (View::MediumIcons, 44), L"Medium's default is off the walk from 256");
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons, 33), false, 144) == Make (View::SmallIcons, 31));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons, 17), false, 144) == Make (View::SmallIcons), L"16 is Small's default");
     }
 
 
 
+    //  The sizes up differ from the sizes down, and by scale.
+    TEST_METHOD (Larger_FollowsTheMeasuredSizes_ForEachScale)
+    {
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons), true, 96) == Make (View::LargeIcons, 102));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 102), true, 96) == Make (View::LargeIcons, 110));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 102), true, 120) == Make (View::LargeIcons, 111));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 106), true, 144) == Make (View::LargeIcons, 113));
+    }
+
+
     TEST_METHOD (PastTheSmallest_MovesThroughTheOtherViews_AndStopsAtContent)
     {
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons), false) == Make (View::List));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::List), false) == Make (View::Details));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::Details), false) == Make (View::Tiles));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::Tiles), false) == Make (View::Content));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::Content), false) == Make (View::Content));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons), false, 144) == Make (View::List));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::List), false, 144) == Make (View::Details));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::Details), false, 144) == Make (View::Tiles));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::Tiles), false, 144) == Make (View::Content));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::Content), false, 144) == Make (View::Content));
     }
 
 
@@ -90,14 +100,14 @@ public:
 
     TEST_METHOD (Larger_ComesBackTheSameWay_AndStopsAtExtraLarge)
     {
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::Content), true) == Make (View::Tiles));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::Details), true) == Make (View::List));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::List), true) == Make (View::SmallIcons));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons), true) == Make (View::SmallIcons, 17));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons, 31), true) == Make (View::MediumIcons, 33));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons), true) == Make (View::MediumIcons, 50));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons, 67), true) == Make (View::LargeIcons, 72));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 239), true) == Make (View::ExtraLargeIcons));
-        Assert::IsTrue (IconSizeSteps::Step (Make (View::ExtraLargeIcons), true) == Make (View::ExtraLargeIcons));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::Content), true, 144) == Make (View::Tiles));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::Details), true, 144) == Make (View::List));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::List), true, 144) == Make (View::SmallIcons));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons), true, 144) == Make (View::SmallIcons, 18));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::SmallIcons, 31), true, 144) == Make (View::MediumIcons, 33));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons), true, 144) == Make (View::MediumIcons, 50));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::MediumIcons, 67), true, 144) == Make (View::LargeIcons, 72));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::LargeIcons, 239), true, 144) == Make (View::ExtraLargeIcons));
+        Assert::IsTrue (IconSizeSteps::Step (Make (View::ExtraLargeIcons), true, 144) == Make (View::ExtraLargeIcons));
     }
 };
