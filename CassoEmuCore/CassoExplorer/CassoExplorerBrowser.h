@@ -179,6 +179,9 @@ public:
     //  A folder's own sort and grouping, set together as it opens.
     void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
     std::vector<DxuiListView::Group>  GetListGroups   () const;
+    bool                              IsHomeLocation  () const;
+    int                               GetHomeTab      () const { return m_homeTab; }
+    void                              SetHomeTab      (int tab);
     void                              SetSelectedRows (const std::vector<int> & rows);
 
     //  The preview made again for the selection, as when a slow read arrives.
@@ -339,6 +342,9 @@ private:
 
     CassoExplorerShellListings  m_shellListings;
     void  SortRows               ();
+    std::vector<CatalogRow>  m_homeRows;            // all of Home's items; the rows are Quick access and one tab's
+    int                      m_homeTab         = 0;
+    int                      m_homeFirstTabRow = 0;
     void  GroupRows              ();
     void  FilterRows             ();
     void  ResortKeepingSelection ();

@@ -56,6 +56,8 @@ public:
     int   HitTestLine         (int xPx, int yPx) const;
 
     void  PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int group, float x, float rowX, float ry, float layoutW) const;
+    void  PaintHomeTabs    (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, float x, float ry, float layoutW) const;
+    mutable std::vector<RECT>  m_homeTabs;   // each Home tab's pill, relative to the list
 
     static constexpr int64_t  s_kGroupSlideMs = 250;
 

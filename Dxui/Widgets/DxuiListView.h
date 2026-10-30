@@ -345,6 +345,7 @@ public:
     //  Explorer, in place of the view's default; 0 is the default. Only
     //  Extra large, Large, Medium and Small icons have one.
     void                SetItemIconDip   (int iconDip)  { m_itemIconDip = iconDip; }
+    void                SetHomeHeader    (DxuiListViewTypes::HomeHeader header) { m_homeHeader = std::move (header); }
     int                 GetItemIconDip   () const       { return m_itemIconDip; }
     int                 GetViewIconPx    () const       { return m_items.GetViewIconPx(); }
 
@@ -361,9 +362,10 @@ public:
     static float        GetItemsLeftDip  (View view)  { return (view == View::Details) ? 0.0f : s_kItemsLeftDip; }
     int                 GetItemsLeftPx   () const     { return (int) std::lround (m_scaler.ToPxf (GetItemsLeftDip (m_view))); }
     int                 GetItemBoxPx     () const { return m_items.GetItemBoxPx(); }
-    static constexpr float  s_kItemsLeftDip      = 14.0f;
-    static constexpr float  s_kItemRowGapDip     = 1.0f;
-    static constexpr float  s_kBrokenBadgeMinDip = 10.0f;
+    static constexpr float         s_kItemsLeftDip      = 14.0f;
+    static constexpr float         s_kItemRowGapDip     = 1.0f;
+    DxuiListViewTypes::HomeHeader  m_homeHeader;
+    static constexpr float         s_kBrokenBadgeMinDip = 10.0f;
     bool                GetItemRectPx    (int item, RECT & outRect) const { return m_items.GetItemRectPx (item, outRect); }
 
     //  Where a visible row's text sits in a column, after its icon, relative

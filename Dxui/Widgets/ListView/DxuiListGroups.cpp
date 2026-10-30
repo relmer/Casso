@@ -732,6 +732,30 @@ bool DxuiListGroups::OnPress (int lx, int ly)
     m_lastHeaderGroup = twice ? -1 : group;
     m_lastHeaderMs    = nowMs;
 
+    //  Home's headers open and close, and the second has its tabs.
+    if (m_list.m_view == DxuiListViewTypes::View::Home)
+    {
+        for (size_t tab = 0; group == 1 && tab < m_homeTabs.size() && tab < m_list.m_homeHeader.tabs.size(); tab++)
+        {
+            POINT  point { lx, ly };
+
+            if (PtInRect (&m_homeTabs[tab], point) && m_list.m_homeHeader.onTab)
+            {
+                m_lastHeaderGroup = -1;
+                m_list.m_homeHeader.onTab ((int) tab);
+
+                return true;
+            }
+        }
+
+        if (HitTestGroupChevron (lx, group))
+        {
+            SetGroupCollapsed (group, !IsGroupCollapsed (group));
+        }
+
+        return true;
+    }
+
     if (!m_list.m_flow.HasListGroups() && (twice || HitTestGroupChevron (lx, group)))
     {
         SetGroupCollapsed (group, !IsGroupCollapsed (group));
@@ -800,7 +824,8 @@ void DxuiListGroups::SelectGroup (int group)
 void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int group, float x, float rowX, float ry, float layoutW) const
 {
     HRESULT      hr      = S_OK;
-    float        rowH    = (float) m_list.GetRowHeightPx();
+    bool         home    = m_list.m_view == DxuiListViewTypes::View::Home;
+    float        rowH    = home ? m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeHeaderDip) : (float) m_list.GetRowHeightPx();
     float        labelX  = x + m_list.m_scaler.ToPxf ((float) (m_list.m_flow.HasListGroups() ? s_kListGroupLabelDip : DxuiListView::s_kGroupLabelDip));
     float        armHalf = m_list.m_scaler.ToPxf (s_kGroupChevronArmDip);
     float        thick   = (std::max) (std::floor (m_list.m_scaler.ToPxf (1.0f)), 1.0f);
@@ -850,10 +875,90 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
         }
     }
 
+    if (home && group == 1)
+    {
+        PaintHomeTabs (painter, text, pal, x, ry, layoutW);
+        return;
+    }
+
     hr = text.DrawString (m_groups[(size_t) group].label.c_str(), labelX, ry, layoutW - (labelX - x), rowH,
                           pal.fg, m_list.m_scaler.ToPxf (m_list.m_fontDip), m_list.GetBodyFace(),
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListGroups::PaintHomeTabs
+//
+//  The tabs as pills, each with its glyph, the active one in the accent color,
+//  then the column titles under them. Each pill's place is kept for a press.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListGroups::PaintHomeTabs (IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, float x, float ry, float layoutW) const
+{
+    static constexpr const wchar_t *  s_kGlyphFace = L"Segoe MDL2 Assets";
+
+
+
+    const DxuiListViewTypes::HomeHeader  & header = m_list.m_homeHeader;
+    float                                  fontPx = m_list.m_scaler.ToPxf (m_list.m_fontDip);
+    float                                  pillH  = m_list.m_scaler.ToPxf (30.0f);
+    float                                  pad    = m_list.m_scaler.ToPxf (12.0f);
+    float                                  glyphW = m_list.m_scaler.ToPxf (22.0f);
+    float                                  left   = x + m_list.m_scaler.ToPxf (44.0f);
+    float                                  top    = ry + (m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeHeaderDip) - pillH) * 0.5f;
+    float                                  width  = layoutW - 2.0f * m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeTileLeftDip);
+    float                                  rowX   = x + m_list.m_scaler.ToPxf ((float) DxuiListItemLayout::s_kHomeTileLeftDip);
+    float                                  titleY = ry + m_list.m_scaler.ToPxf (72.0f);
+    float                                  titleH = m_list.m_scaler.ToPxf (24.0f);
+    HRESULT                                hr     = S_OK;
+
+
+
+    m_homeTabs.assign (header.tabs.size(), RECT {});
+
+    for (size_t tab = 0; tab < header.tabs.size(); tab++)
+    {
+        float     textW  = 0.0f;
+        float     textH  = 0.0f;
+        bool      active = (int) tab == header.active;
+        uint32_t  ink    = active ? m_list.m_theme->ContentBackground() : pal.fg;
+        float     pillW  = 0.0f;
+
+        hr = text.MeasureString (header.tabs[tab].c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        pillW = pad + glyphW + textW + pad;
+
+        painter.FillRoundedRect (left, top, pillW, pillH, pillH * 0.5f, active ? m_list.m_theme->Accent() : m_list.m_theme->ControlBackground());
+
+        if (tab < header.glyphs.size())
+        {
+            hr = text.DrawString (header.glyphs[tab].c_str(), left + pad, top, glyphW, pillH, ink, fontPx, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        hr = text.DrawString (header.tabs[tab].c_str(), left + pad + glyphW, top, textW + pad, pillH, ink, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_homeTabs[tab] = RECT { (LONG) left - m_list.m_boundsDip.left, (LONG) top - m_list.m_boundsDip.top, (LONG) (left + pillW) - m_list.m_boundsDip.left, (LONG) (top + pillH) - m_list.m_boundsDip.top };
+        left           += pillW + m_list.m_scaler.ToPxf (8.0f);
+    }
+
+    hr = text.DrawString (L"Name", rowX + m_list.m_scaler.ToPxf (60.0f), titleY, width, titleH, pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (size_t column = 0; column < header.columns.size() && column < header.columnAt.size(); column++)
+    {
+        hr = text.DrawString (header.columns[column].c_str(), rowX + width * header.columnAt[column], titleY, width, titleH, pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

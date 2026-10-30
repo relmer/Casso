@@ -417,6 +417,10 @@ hardware.
   PC did not start. Every other TCP transport, the ADTPro-compatible server
   included, dials out.
 
+### Session 2026-10-30
+
+- Q: What does Home show, and where does it read it? -> A: File Explorer's Home page: Quick access tiles, then Recent, Favorites and Shared tabs over two-line rows. Recent and Quick access come from the Home shell folder; Favorites are the pinned items of the MS Graph Recent File Folder and Shared is the MS Graph Shared File Folder, so no sign-in is needed. Those folder ids are undocumented, so a tab is empty if Windows drops them.
+
 ### Session 2026-10-26
 
 - Q: How is a sector Read disk to image could not read distinguished, in a

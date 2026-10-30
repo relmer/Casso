@@ -54,6 +54,10 @@ struct DxuiListViewTypes
         //  The icon drawn at half opacity, as Explorer draws a hidden item's.
         bool          iconGhosted = false;
 
+        //  Home: a pin under a tile's lines, and a cloud ahead of a row.
+        bool          homePinned  = false;
+        bool          homeCloud   = false;
+
         //  A red badge with a cross at the icon's lower left, for an item
         //  that cannot be opened.
         bool          iconBroken  = false;
@@ -168,7 +172,19 @@ struct DxuiListViewTypes
     //  lay the rows out as items with the first cell's icon and text, and
     //  Tiles and Content add the next cells on the lines below. Selection,
     //  keyboard movement, hit testing and the callbacks mean the same in each.
-    enum class View { Details, ExtraLargeIcons, LargeIcons, MediumIcons, SmallIcons, List, Tiles, Content };
+    enum class View { Details, ExtraLargeIcons, LargeIcons, MediumIcons, SmallIcons, List, Tiles, Content, Home };
+
+    //  File Explorer's Home: the first group's items are tiles, and the second
+    //  group's header has these tabs and column titles over two-line rows.
+    struct HomeHeader
+    {
+        std::vector<std::wstring>  tabs;
+        std::vector<std::wstring>  glyphs;
+        int                        active = 0;
+        std::vector<std::wstring>  columns;
+        std::vector<float>         columnAt;   // each column's left, as a share of the width
+        std::function<void (int)>  onTab;
+    };
 
     struct ItemMetrics
     {

@@ -82,6 +82,9 @@ public:
         int64_t       accessedUnix  = 0;
         int64_t       activityUnix  = 0;
         std::wstring  folderDisplay;           // System.ItemFolderPathDisplay
+        std::wstring  sharedBy;
+        std::wstring  activity;                // System.ActivityInfo
+        int64_t       sharedUnix    = 0;
     };
 
     //  What a paste did: each item it took and the item it made, in the same
@@ -196,6 +199,10 @@ public:
     //  The desktop namespace's own root, which has no parsing name; the shell
     //  shell desktop's class id is used as its id.
     static constexpr const wchar_t *  kDesktopNamespaceId = L"::{00021400-0000-0000-C000-000000000046}";
+    static constexpr const wchar_t *  kHomeId             = L"shell:::{679F85CB-0220-4080-B29B-5540CC05AAB6}";
+    static constexpr const wchar_t *  kHomeTreeId         = L"::{F874310E-B6B7-47DC-BC84-B9E6B38F5903}";
+    static constexpr const wchar_t *  kHomeRecentId       = L"shell:::{42254EE9-E625-4065-8F70-775090256F72}";
+    static constexpr const wchar_t *  kHomeSharedId       = L"shell:::{18F546F6-B34B-4B30-B4C6-5E88BED8BD84}";
 
     //  Pins a folder to Quick access, or unpins it, through the shell's own
     //  verbs, so File Explorer's list changes with it.

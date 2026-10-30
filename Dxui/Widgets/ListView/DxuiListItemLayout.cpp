@@ -47,6 +47,7 @@ DxuiListViewTypes::ItemMetrics DxuiListItemLayout::GetItemMetrics (DxuiListViewT
         case DxuiListViewTypes::View::List:            return DxuiListViewTypes::ItemMetrics { 240,  33,  16, true,  false, 1 };
         case DxuiListViewTypes::View::Tiles:           return DxuiListViewTypes::ItemMetrics { 254,  56,  48, false, false, 3, 17 };
         case DxuiListViewTypes::View::Content:         return DxuiListViewTypes::ItemMetrics {   0,  53,  32, false, false, 2 };
+        case DxuiListViewTypes::View::Home:            return DxuiListViewTypes::ItemMetrics {   0,  44,  48, false, false, 2 };
         default:                    return DxuiListViewTypes::ItemMetrics {   0,  30,  16, false, false, 1 };
     }
 }
@@ -134,6 +135,17 @@ DxuiListViewTypes::ItemGrid DxuiListItemLayout::GetItemGrid() const
     int                             rows    = m_list.GetRowCount();
 
 
+
+    if (m_list.m_view == DxuiListViewTypes::View::Home)
+    {
+        grid.cellW   = m_list.m_scaler.ToPx (s_kHomeTilePitchDip);
+        grid.boxW    = m_list.m_scaler.ToPx (s_kHomeTileWDip);
+        grid.cellH   = m_list.m_scaler.ToPx (s_kHomeTileHDip);
+        grid.perLine = (std::max) (1, (fullW - barW - m_list.m_scaler.ToPx (s_kHomeTileLeftDip)) / grid.cellW);
+        grid.visible = (std::max) (1, fullH / grid.cellH);
+
+        return grid;
+    }
 
     //  A big icon's row is its fixed part and one caption line, which is the
     //  font's height in GDI's measure, as Explorer's rows are.
@@ -679,21 +691,25 @@ DxuiListViewTypes::ItemLayout DxuiListItemLayout::BuildItemLayout (int openGroup
         int   end       = (grouped && g + 1 < m_list.GetGroups().size()) ? std::clamp (m_list.GetGroups()[g + 1].firstRow, start, rows) : rows;
         bool  collapsed = grouped && m_list.GetGroups()[g].collapsed && (int) g != openGroup;
 
+        bool  home   = m_list.m_view == DxuiListViewTypes::View::Home;
+        int   header = !home ? headerH : m_list.m_scaler.ToPx ((g == 0) ? s_kHomeHeaderDip : s_kHomeTabsHeaderDip);
+        int   each   = (home && g > 0) ? 1 : grid.perLine;
+
         if (grouped)
         {
-            layout.lines.push_back (DxuiListViewTypes::ItemLine { (int) g, start, 0, y, headerH });
-            y += headerH;
+            layout.lines.push_back (DxuiListViewTypes::ItemLine { (int) g, start, 0, y, header });
+            y += header;
         }
 
-        for (int first = start; first < end && !collapsed; first += grid.perLine)
+        for (int first = start; first < end && !collapsed; first += each)
         {
-            int  count  = (std::min) (grid.perLine, end - first);
-            int  height = grid.cellH;
+            int  count  = (std::min) (each, end - first);
+            int  height = (home && g > 0) ? m_list.m_scaler.ToPx (s_kHomeRowDip) : grid.cellH;
 
             for (int item = first; item < first + count; item++)
             {
                 layout.rowLine[(size_t) item] = (int) layout.lines.size();
-                height = (std::max) (height, grid.cellH + GetItemExtraPx (item));
+                height = home ? height : (std::max) (height, grid.cellH + GetItemExtraPx (item));
             }
 
             layout.lines.push_back (DxuiListViewTypes::ItemLine { -1, first, count, y, height });
@@ -1240,12 +1256,40 @@ bool DxuiListItemLayout::GetGroupedItemRectPx (const DxuiListViewTypes::ItemLayo
         return false;
     }
 
+    if (m_list.m_view == DxuiListViewTypes::View::Home)
+    {
+        bool  tile = IsHomeTile (item);
+        int   left = m_list.m_scaler.ToPx (s_kHomeTileLeftDip);
+
+        outRect.left   = left + (tile ? (item - layout.lines[(size_t) at].first) * grid.cellW : 0);
+        outRect.top    = layout.lines[(size_t) at].top - GetItemTopPx (layout);
+        outRect.right  = tile ? outRect.left + grid.boxW : (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - m_list.GetScrollbarWidthPx() - left;
+        outRect.bottom = outRect.top + layout.lines[(size_t) at].height - (tile ? m_list.m_scaler.ToPx (2) : 0);
+
+        return true;
+    }
+
     outRect.left   = m_list.GetItemsLeftPx() + (item - layout.lines[(size_t) at].first) * grid.cellW;
     outRect.top    = layout.lines[(size_t) at].top - GetItemTopPx (layout);
     outRect.right  = outRect.left + grid.boxW;
     outRect.bottom = outRect.top  + grid.cellH + GetItemExtraPx (item);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemLayout::IsHomeTile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListItemLayout::IsHomeTile (int item) const
+{
+    return m_list.GetGroups().size() < 2 || item < m_list.GetGroups()[1].firstRow;
 }
 
 
@@ -1340,6 +1384,23 @@ int DxuiListItemLayout::HitTestItem (int xPx, int yPx) const
     {
         const DxuiListViewTypes::ItemLayout  & items = GetItemLayout();
         int                                    at    = FindItemLine (items, yPx + m_list.GetShownScrollPx());
+
+        if (m_list.m_view == DxuiListViewTypes::View::Home)
+        {
+            for (int candidate = (at >= 0) ? items.lines[(size_t) at].first : 0; at >= 0 && items.lines[(size_t) at].group < 0 && candidate < items.lines[(size_t) at].first + items.lines[(size_t) at].count; candidate++)
+            {
+                RECT  place   = {};
+                bool  placed  = GetGroupedItemRectPx (items, candidate, place);
+
+                if (placed && xPx >= place.left && xPx < place.right)
+                {
+                    return candidate;
+                }
+            }
+
+            return -1;
+        }
+
         int                                    slot  = (xPx >= m_list.GetItemsLeftPx() && (xPx - m_list.GetItemsLeftPx()) % grid.cellW < grid.boxW) ? (xPx - m_list.GetItemsLeftPx()) / grid.cellW : -1;
 
         return (at >= 0 && slot >= 0 && items.lines[(size_t) at].group < 0 && slot < items.lines[(size_t) at].count) ? items.lines[(size_t) at].first + slot : -1;

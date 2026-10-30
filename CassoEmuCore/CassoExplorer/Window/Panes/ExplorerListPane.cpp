@@ -834,6 +834,28 @@ void ExplorerListPane::FillList()
     });
     m_list->SetGroups    (m_context.browser.GetListGroups());
 
+    if (m_context.browser.IsHomeLocation())
+    {
+        static constexpr int  s_kSharedTab = 2;
+
+        DxuiListViewTypes::HomeHeader  header;
+        bool                           shared = m_context.browser.GetHomeTab() == s_kSharedTab;
+
+        header.tabs     = { L"Recent", L"Favorites", L"Shared" };
+        header.glyphs   = { L"\xE823", L"\xE734", L"\xE716" };
+        header.active   = m_context.browser.GetHomeTab();
+        header.columns  = shared ? std::vector<std::wstring> { L"Date shared", L"Shared by", L"Activity" } : std::vector<std::wstring> { L"Date accessed", L"Activity" };
+        header.columnAt = shared ? std::vector<float> { 0.41f, 0.60f, 0.80f } : std::vector<float> { 0.49f, 0.74f };
+        header.onTab    = [this] (int tab)
+        {
+            m_context.browser.SetHomeTab (tab);
+            FillList();
+            m_context.window.Invalidate();
+        };
+
+        m_list->SetHomeHeader (std::move (header));
+    }
+
     //  A new location opens at its top-left corner, as Explorer's does, rather
     //  than wherever the list was scrolled for the last one. THE COLUMNS STAY AS
     //  THEY ARE: their widths belong to the view rather than to the folder, so
@@ -1134,7 +1156,7 @@ void ExplorerListPane::SizeListIcons()
                                                                                 : m_list->GetViewIconPx());
 
     //  File Explorer draws thumbnails where a name goes under the icon.
-    m_listIcons.SetThumbnails (DxuiListItemLayout::GetItemMetrics (m_columns.GetView()).labelBelow);
+    m_listIcons.SetThumbnails (DxuiListItemLayout::GetItemMetrics (m_columns.GetView()).labelBelow || m_columns.GetView() == DxuiListView::View::Home);
 
     m_context.dragDrop.SetIconDpi (dpi);
 }
@@ -1344,7 +1366,8 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
     }
     else if (key.starts_with (listKey))
     {
-        if (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && m_context.browser.GetLocation().path == key.substr (listKey.size()))
+        if ((m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && m_context.browser.GetLocation().path == key.substr (listKey.size()))
+            || (m_context.browser.IsHomeLocation() && key.substr (listKey.size()) == IShellItemVerbs::kHomeId))
         {
             hr = m_context.browser.Refresh();
             IGNORE_RETURN_VALUE (hr, S_OK);

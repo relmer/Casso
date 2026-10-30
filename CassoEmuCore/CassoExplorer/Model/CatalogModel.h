@@ -44,6 +44,9 @@ struct CatalogRow
     int64_t       accessedUnix  = 0;
     int64_t       activityUnix  = 0;
     std::wstring  folderDisplay;
+    std::wstring  sharedBy;
+    std::wstring  activity;
+    int64_t       sharedUnix    = 0;
     bool          locked        = false;
     bool          isDirectory   = false;
     bool          isDiskImage   = false;

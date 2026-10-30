@@ -39,7 +39,12 @@ public:
 
     //  An item's id, name, path, type, size, date and what kind of folder it
     //  is, as a listing shows it.
-    static void           ReadHomeProperties (IShellItem2 * item, IShellItemVerbs::ShellFolderItem & outEntry);
+    static void     ReadHomeProperties (IShellItem2 * item, IShellItemVerbs::ShellFolderItem & outEntry);
+    static HRESULT  ReadHomeFolder     (std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
+    static constexpr int  s_kHomeGroupQuickAccess = 1;
+    static constexpr int  s_kHomeGroupRecent      = 3;
+    static constexpr int  s_kHomeGroupFavorites   = 2;
+    static constexpr int  s_kHomeGroupShared      = 4;
     static HRESULT        DescribeShellItem  (IShellItem * item, IShellItemVerbs::ShellFolderItem & outEntry);
     static PITEMID_CHILD  GetChildId         (IShellItem * item);
     static std::wstring   GetJunctionId      (IShellItem * item);

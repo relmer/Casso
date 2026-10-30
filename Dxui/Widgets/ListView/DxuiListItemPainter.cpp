@@ -232,6 +232,12 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
             }
         }
 
+        if (m_list.m_view == DxuiListViewTypes::View::Home)
+        {
+            PaintHomeItem (text, pal, item, cell, cells);
+            continue;
+        }
+
         //  Content's rule between items, though not under a group's header.
         if (m_list.m_view == DxuiListViewTypes::View::Content && m_list.m_theme != nullptr && item > 0 && (!m_list.m_items.HasItemGroups() || !m_list.m_items.IsFirstOfGroup (item)))
         {
@@ -494,6 +500,93 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
     }
 
     m_list.m_band.Paint (painter, pal, x, y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemPainter::PaintHomeItem
+//
+//  A tile has its icon, then its name, location and pin. A row has a cloud
+//  when it is in the cloud, its icon, its name over its location, then its
+//  columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiListViewTypes::Palette & pal, int item, const RECT & cell, const std::vector<DxuiListViewTypes::Cell> & cells) const
+{
+    static constexpr const wchar_t *  s_kGlyphFace  = L"Segoe MDL2 Assets";
+    static constexpr const wchar_t *  s_kPinGlyph   = L"\xE840";
+    static constexpr const wchar_t *  s_kCloudGlyph = L"\xE753";
+
+
+
+    bool          tile    = m_list.m_items.IsHomeTile (item);
+    float         fontPx  = m_list.m_scaler.ToPxf (m_list.m_fontDip);
+    float         iconPx  = m_list.m_scaler.ToPxf (tile ? 48.0f : 32.0f);
+    float         iconX   = (float) cell.left + m_list.m_scaler.ToPxf (tile ? 62.0f : 60.0f);
+    float         iconY   = (float) cell.top + ((float) (cell.bottom - cell.top) - iconPx) * 0.5f;
+    float         textX   = (float) cell.left + m_list.m_scaler.ToPxf (tile ? 120.0f : 104.0f);
+    float         lineH   = m_list.m_scaler.ToPxf (16.0f);
+    int           lines   = 1 + (cells[0].tileLines.empty() ? 0 : 1) + ((tile && cells[0].homePinned) ? 1 : 0);
+    float         top     = (float) cell.top + ((float) (cell.bottom - cell.top) - (float) lines * lineH) * 0.5f;
+    float         width   = (float) (cell.right - cell.left);
+    float         nameEnd = (float) cell.right;
+    HRESULT       hr      = S_OK;
+    std::wstring  shown;
+
+
+
+    if (cells[0].icon && !cells[0].icon->bgraPremul.empty())
+    {
+        hr = text.DrawIconBitmap (cells[0].icon->bgraPremul.data(), cells[0].icon->width, cells[0].icon->height, iconX, iconY, iconPx, iconPx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (!tile && cells[0].homeCloud)
+    {
+        hr = text.DrawString (s_kCloudGlyph, (float) cell.left + m_list.m_scaler.ToPxf (30.0f), (float) cell.top, m_list.m_scaler.ToPxf (24.0f), (float) (cell.bottom - cell.top),
+                              m_list.m_theme->Accent(), fontPx * 1.2f, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    for (size_t at = 1; !tile && at < cells.size() && at - 1 < m_list.m_homeHeader.columnAt.size(); at++)
+    {
+        float  left = (float) cell.left + width * m_list.m_homeHeader.columnAt[at - 1];
+        float  end  = (at < m_list.m_homeHeader.columnAt.size()) ? (float) cell.left + width * m_list.m_homeHeader.columnAt[at] : (float) cell.right;
+
+        nameEnd = (at == 1) ? left - fontPx : nameEnd;
+
+        hr = text.DrawString (cells[at].text.c_str(), left, (float) cell.top, end - left, (float) (cell.bottom - cell.top), pal.fg, fontPx, DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    shown = DxuiTextElide::ToWidth (text, cells[0].text, fontPx, DxuiTheme::kBodyFace, nameEnd - textX, DxuiElide::Tail, 0, true);
+
+    hr = text.DrawString (shown.c_str(), textX, top, nameEnd - textX, lineH, pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    top += lineH;
+
+    if (!cells[0].tileLines.empty())
+    {
+        shown = DxuiTextElide::ToWidth (text, cells[0].tileLines[0].text, fontPx, DxuiTheme::kBodyFace, nameEnd - textX, DxuiElide::Tail, 0, true);
+
+        hr = text.DrawString (shown.c_str(), textX, top, nameEnd - textX, lineH, pal.fgDim, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        top += lineH;
+    }
+
+    if (tile && cells[0].homePinned)
+    {
+        hr = text.DrawString (s_kPinGlyph, textX, top, lineH, lineH, pal.fgDim, fontPx * 0.9f, s_kGlyphFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

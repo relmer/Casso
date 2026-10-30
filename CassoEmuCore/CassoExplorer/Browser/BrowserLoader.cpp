@@ -178,6 +178,23 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         }
     }
 
+    //  Home's folders come from the same read as the tree's, which finds them
+    //  on this thread where the listing's thread stops short of them.
+    if (id == IShellItemVerbs::kHomeId)
+    {
+        std::vector<IShellItemVerbs::ShellFolderItem>  folders;
+        HRESULT                                        hrFolders = m_browser.m_shellVerbs->ListPinnedFolders (folders);
+
+        std::erase_if (items, [] (const IShellItemVerbs::ShellFolderItem & item) { return item.homeGroup == 1; });
+
+        for (size_t at = 0; SUCCEEDED (hrFolders) && at < folders.size(); at++)
+        {
+            folders[at].homeGroup  = 1;
+            folders[at].homePinned = folders[at].isPinned;
+            items.push_back (folders[at]);
+        }
+    }
+
     for (size_t index = 0; index < items.size(); index++)
     {
         CatalogRow  row;
@@ -198,6 +215,9 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.accessedUnix  = items[index].accessedUnix;
         row.activityUnix  = items[index].activityUnix;
         row.folderDisplay = items[index].folderDisplay;
+        row.sharedBy      = items[index].sharedBy;
+        row.activity      = items[index].activity;
+        row.sharedUnix    = items[index].sharedUnix;
         row.folderPath   = items[index].folder;
         row.imagePath    = items[index].imagePath;
         row.imageCatalogIndex = items[index].catalogIndex;

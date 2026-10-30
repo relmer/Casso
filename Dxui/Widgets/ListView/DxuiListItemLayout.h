@@ -61,7 +61,18 @@ public:
     //  even steps to the 256 pixels of the shell's largest icon.
     static constexpr int  s_kSizedLargeDip = 96;
     static constexpr int  s_kSizedMaxDip   = 256;
-    static int          GetSizedIconPx   (int iconDip, UINT dpi);
+
+    //  File Explorer's Home, measured at 150%.
+    static constexpr int  s_kHomeTileLeftDip   = 16;
+    static constexpr int  s_kHomeTileWDip      = 263;
+    static constexpr int  s_kHomeTilePitchDip  = 284;
+    static constexpr int  s_kHomeTileHDip      = 60;
+    static constexpr int  s_kHomeRowDip        = 44;
+    static constexpr int  s_kHomeHeaderDip     = 52;
+    static constexpr int  s_kHomeTabsHeaderDip = 112;
+
+    bool        IsHomeTile     (int item) const;
+    static int  GetSizedIconPx (int iconDip, UINT dpi);
 
     //  The icon of the view on display, at the size set for it, if any.
     int                 GetViewIconPx    () const;

@@ -43,6 +43,58 @@ HRESULT Win32ShellNamespace::ListShellFolder (const std::wstring & id, std::vect
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellNamespace::ReadHomeFolder
+//
+//  Home's own items, Quick access and Recent, in its order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellNamespace::ReadHomeFolder (std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
+{
+    HRESULT                  hr = S_OK;
+    ComPtr<IShellItem>       folder;
+    ComPtr<IEnumShellItems>  items;
+
+
+
+    hr = CreateItem (IShellItemVerbs::kHomeId, &folder);
+    CHR (hr);
+
+    hr = folder->BindToHandler (nullptr, BHID_EnumItems, IID_PPV_ARGS (&items));
+    CHR (hr);
+
+    for (;;)
+    {
+        ComPtr<IShellItem>                item;
+        IShellItemVerbs::ShellFolderItem  entry;
+        HRESULT                           hrNext = items->Next (1, &item, nullptr);
+        HRESULT                           hrItem = S_OK;
+
+        if (hrNext != S_OK)
+        {
+            break;
+        }
+
+        hrItem = DescribeShellItem (item.Get(), entry);
+
+        //  Home's folders are Quick access, and its files Recent.
+        if (SUCCEEDED (hrItem))
+        {
+            entry.homeGroup = (entry.homeGroup != 0) ? entry.homeGroup : entry.isFolder ? s_kHomeGroupQuickAccess : s_kHomeGroupRecent;
+            outItems.push_back (std::move (entry));
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellNamespace::ReadShellFolder
 //
 //  Belongs to no object, so it runs on a reader thread that may outlive the
@@ -63,6 +115,38 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
 
 
     outItems.clear();
+
+    //  Home is its own folder and the cloud's two: the favorites are the
+    //  recent cloud files that are pinned.
+    if (_wcsicmp (id.c_str(), IShellItemVerbs::kHomeId) == 0)
+    {
+        std::vector<IShellItemVerbs::ShellFolderItem>  cloud;
+        HRESULT                                        hrCloud = S_OK;
+
+        hr = ReadHomeFolder (outItems);
+        CHR (hr);
+
+        hrCloud = ReadShellFolder (IShellItemVerbs::kHomeRecentId, cloud);
+
+        for (size_t at = 0; SUCCEEDED (hrCloud) && at < cloud.size(); at++)
+        {
+            if (cloud[at].homePinned)
+            {
+                cloud[at].homeGroup = s_kHomeGroupFavorites;
+                outItems.push_back (cloud[at]);
+            }
+        }
+
+        hrCloud = ReadShellFolder (IShellItemVerbs::kHomeSharedId, cloud);
+
+        for (size_t at = 0; SUCCEEDED (hrCloud) && at < cloud.size(); at++)
+        {
+            cloud[at].homeGroup = s_kHomeGroupShared;
+            outItems.push_back (cloud[at]);
+        }
+
+        return S_OK;
+    }
 
     //  A search's results are a folder of their own.
     if (SearchQuery::IsId (id))
@@ -247,15 +331,15 @@ void Win32ShellNamespace::ReadHomeProperties (IShellItem2 * item, IShellItemVerb
 
 
     hasGroup = Read (L"System.Home.Grouping", [&] (const PROPERTYKEY & key) { return item->GetUInt32 (key, &group); });
+    hasValue = Read (L"System.Home.SortOrder", [&] (const PROPERTYKEY & key) { return item->GetUInt32 (key, &order); });
 
-    if (!hasGroup)
+    //  An item of the cloud's folders has an order and no grouping.
+    if (!hasGroup && !hasValue)
     {
         return;
     }
 
-    outEntry.homeGroup = (int) group;
-
-    hasValue = Read (L"System.Home.SortOrder", [&] (const PROPERTYKEY & key) { return item->GetUInt32 (key, &order); });
+    outEntry.homeGroup = hasGroup ? (int) group : 0;
     outEntry.homeOrder = hasValue ? order : 0;
 
     hasValue = Read (L"System.Home.IsPinned", [&] (const PROPERTYKEY & key) { return item->GetBool (key, &flag); });
@@ -274,6 +358,35 @@ void Win32ShellNamespace::ReadHomeProperties (IShellItem2 * item, IShellItemVerb
         outEntry.folderDisplay = text;
         CoTaskMemFree (text);
     }
+
+    text     = nullptr;
+    hasValue = Read (L"System.Home.ItemFolderPathDisplay", [&] (const PROPERTYKEY & key) { return item->GetString (key, &text); });
+
+    if (hasValue && text != nullptr)
+    {
+        outEntry.folderDisplay = text;
+        CoTaskMemFree (text);
+    }
+
+    text     = nullptr;
+    hasValue = Read (L"System.ActivityInfo", [&] (const PROPERTYKEY & key) { return item->GetString (key, &text); });
+
+    if (hasValue && text != nullptr)
+    {
+        outEntry.activity = text;
+        CoTaskMemFree (text);
+    }
+
+    text     = nullptr;
+    hasValue = Read (L"System.MsGraph.SharedByName", [&] (const PROPERTYKEY & key) { return item->GetString (key, &text); });
+
+    if (hasValue && text != nullptr)
+    {
+        outEntry.sharedBy = text;
+        CoTaskMemFree (text);
+    }
+
+    outEntry.sharedUnix = ReadUnix (L"System.MsGraph.DateLastShared");
 }
 
 

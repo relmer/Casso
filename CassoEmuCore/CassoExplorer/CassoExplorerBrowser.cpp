@@ -215,7 +215,8 @@ HRESULT CassoExplorerBrowser::Refresh()
     switch (location.kind)
     {
         case Location::Kind::HostFolder:
-            hr = m_loader.LoadHostFolder (location.path);
+            //  A location with no path, as a new tab has, is Home.
+            hr = location.path.empty() ? m_loader.LoadShellFolder (IShellItemVerbs::kHomeId) : m_loader.LoadHostFolder (location.path);
             break;
 
         case Location::Kind::DiskImage:
@@ -232,18 +233,21 @@ HRESULT CassoExplorerBrowser::Refresh()
             break;
 
         case Location::Kind::ShellFolder:
-            hr = m_loader.LoadShellFolder (location.path);
+            hr = m_loader.LoadShellFolder (IsHomeLocation() ? std::wstring (IShellItemVerbs::kHomeId) : location.path);
             break;
 
         case Location::Kind::AppleDrive:
             hr = m_loader.LoadAppleDrive (location);
             break;
 
+        //  No location, as a new tab has, is Home.
         default:
+            hr = m_loader.LoadShellFolder (IShellItemVerbs::kHomeId);
             break;
     }
 
     m_rowsUnfiltered = true;
+    m_homeRows       = IsHomeLocation() ? m_rows : std::vector<CatalogRow>();
     SortRows();
     m_previewer.UpdatePreview();
     m_cells.UpdateStatus();
@@ -292,6 +296,35 @@ void CassoExplorerBrowser::SortRows()
 {
     if (!m_model.HasTabs())
     {
+        return;
+    }
+
+    //  Home keeps the shell's order: Quick access, then the tab's items.
+    if (IsHomeLocation())
+    {
+        static constexpr int  s_kTabGroups[] = { 3, 2, 4 };
+
+        m_rows.clear();
+        m_rowGroups.clear();
+
+        for (const CatalogRow & row : m_homeRows)
+        {
+            if (row.homeGroup == 1)
+            {
+                m_rows.push_back (row);
+            }
+        }
+
+        m_homeFirstTabRow = (int) m_rows.size();
+
+        for (const CatalogRow & row : m_homeRows)
+        {
+            if (row.homeGroup == s_kTabGroups[m_homeTab])
+            {
+                m_rows.push_back (row);
+            }
+        }
+
         return;
     }
 
@@ -564,6 +597,47 @@ void CassoExplorerBrowser::GroupRows()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::IsHomeLocation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsHomeLocation() const
+{
+    Location  location = GetLocation();
+
+
+
+    return location.kind == Location::Kind::None
+        || (location.kind == Location::Kind::HostFolder && location.path.empty())
+        || (location.kind == Location::Kind::ShellFolder && (_wcsicmp (location.path.c_str(), IShellItemVerbs::kHomeId) == 0 || _wcsicmp (location.path.c_str(), IShellItemVerbs::kHomeTreeId) == 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::SetHomeTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SetHomeTab (int tab)
+{
+    m_homeTab = tab;
+    m_selectedRows.clear();
+
+    SortRows();
+    m_previewer.UpdatePreview();
+    m_cells.UpdateStatus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::GetListGroups
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -573,6 +647,14 @@ std::vector<DxuiListView::Group> CassoExplorerBrowser::GetListGroups() const
     std::vector<DxuiListView::Group>  out;
 
 
+
+    if (IsHomeLocation())
+    {
+        out.push_back ({ L"Quick access", 0 });
+        out.push_back ({ L"Home tabs", m_homeFirstTabRow });
+
+        return out;
+    }
 
     for (size_t i = 0; i < m_rowGroups.size(); i++)
     {

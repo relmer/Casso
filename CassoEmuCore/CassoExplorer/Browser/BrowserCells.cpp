@@ -353,6 +353,30 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
         cells[0].tileLines = { DxuiListView::Cell { row.typeText, false }, DxuiListView::Cell { FormatSize (row.sizeBytes), false } };
     }
 
+    //  Home's items: the location under the name, then the tab's columns,
+    //  which Shared has more of.
+    if (row.homeGroup > 0)
+    {
+        static constexpr int  s_kHomeGroupShared = 4;
+
+        cells.resize (1);
+        cells[0].tileLines  = { DxuiListView::Cell { row.folderDisplay, false } };
+        cells[0].homePinned = row.homePinned;
+        cells[0].homeCloud  = row.hostPath.empty();
+
+        if (row.homeGroup == s_kHomeGroupShared)
+        {
+            cells.push_back (DxuiListView::Cell { row.sharedUnix > 0 ? FormatModified (row.sharedUnix, false) : std::wstring(), false });
+            cells.push_back (DxuiListView::Cell { row.sharedBy, false });
+        }
+        else
+        {
+            cells.push_back (DxuiListView::Cell { row.accessedUnix > 0 ? FormatModified (row.accessedUnix, false) : std::wstring(), false });
+        }
+
+        cells.push_back (DxuiListView::Cell { row.activity, false });
+    }
+
     return cells;
 }
 
@@ -867,7 +891,7 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
 
     //  A shell folder's item has the icon the shell draws for it: a desktop
     //  entry's own, else by its path when it has one.
-    if (at.kind == Location::Kind::ShellFolder && !row.shellId.empty())
+    if ((at.kind == Location::Kind::ShellFolder || row.homeGroup > 0) && !row.shellId.empty())
     {
         return icons.GetForPath (!row.iconId.empty() ? row.iconId : row.hostPath.empty() ? row.shellId : row.hostPath, row.isDirectory);
     }

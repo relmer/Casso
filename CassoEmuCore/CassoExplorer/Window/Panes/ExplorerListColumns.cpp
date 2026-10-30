@@ -96,6 +96,11 @@ void ExplorerListColumns::SetChosen (size_t column, bool chosen)
 
 void ExplorerListColumns::SetView (DxuiListView::View view)
 {
+    if (m_context.browser.IsHomeLocation())
+    {
+        return;
+    }
+
     m_view    = view;
     m_iconDip = 0;
     m_viewKey = GetFolderViewKey (nullptr);
@@ -117,6 +122,11 @@ void ExplorerListColumns::SetView (DxuiListView::View view)
 
 bool ExplorerListColumns::StepIconSize (int notches)
 {
+    if (m_view == DxuiListView::View::Home)
+    {
+        return false;
+    }
+
     IconSizeSteps::Size  current { m_view, m_iconDip };
     IconSizeSteps::Size  next    = current;
     UINT                 dpi     = GetDpiForWindow (m_context.window.GetHwnd());
@@ -347,12 +357,24 @@ void ExplorerListColumns::ApplyFolderView()
 
 
 
-    if (key == m_viewKey)
+    if (key == m_viewKey && (m_view == DxuiListView::View::Home) == m_context.browser.IsHomeLocation())
     {
         return;
     }
 
     GetFolderViewKey (&type);
+
+    if (m_context.browser.IsHomeLocation())
+    {
+        m_viewKey = key;
+        m_view    = DxuiListView::View::Home;
+        m_iconDip = 0;
+        m_pane.GetListView()->SetItemIconDip (0);
+        m_pane.GetListView()->SetView (m_view);
+        m_pane.SizeListIcons();
+
+        return;
+    }
 
     m_viewKey = key;
     m_view    = m_context.prefs.folderViews.GetView (key, type);
