@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Core/UnicodeSymbols.h"
 #include "CassoExplorer/Model/RowGrouping.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -116,26 +117,26 @@ public:
         static constexpr uint64_t  kMiB = 1024 * kKiB;
         static constexpr uint64_t  kGiB = 1024 * kMiB;
 
-        Assert::AreEqual (std::wstring (L"Unspecified"),           RowGrouping::GetSizeGroup (true,  123).label);
-        Assert::AreEqual (std::wstring (L"Empty (0 KB)"),          RowGrouping::GetSizeGroup (false, 0).label);
-        Assert::AreEqual (std::wstring (L"Tiny (0 - 16 KB)"),      RowGrouping::GetSizeGroup (false, 1).label);
-        Assert::AreEqual (std::wstring (L"Tiny (0 - 16 KB)"),      RowGrouping::GetSizeGroup (false, 16 * kKiB).label);
-        Assert::AreEqual (std::wstring (L"Small (16 KB - 1 MB)"),  RowGrouping::GetSizeGroup (false, 16 * kKiB + 1).label);
-        Assert::AreEqual (std::wstring (L"Small (16 KB - 1 MB)"),  RowGrouping::GetSizeGroup (false, kMiB).label);
-        Assert::AreEqual (std::wstring (L"Medium (1 - 128 MB)"),   RowGrouping::GetSizeGroup (false, kMiB + 1).label);
-        Assert::AreEqual (std::wstring (L"Large (128 MB - 1 GB)"), RowGrouping::GetSizeGroup (false, kGiB).label);
-        Assert::AreEqual (std::wstring (L"Huge (1 - 4 GB)"),       RowGrouping::GetSizeGroup (false, 4 * kGiB).label);
-        Assert::AreEqual (std::wstring (L"Gigantic (>4 GB)"),      RowGrouping::GetSizeGroup (false, 4 * kGiB + 1).label);
+        Assert::AreEqual (std::wstring (L"Unspecified"),                               RowGrouping::GetSizeGroup (true,  123).label);
+        Assert::AreEqual (std::wstring (L"Empty (0 KB)"),                              RowGrouping::GetSizeGroup (false, 0).label);
+        Assert::AreEqual (std::wstring (L"Tiny (0 ") + s_kpszEnDash + L" 16 KB)",      RowGrouping::GetSizeGroup (false, 1).label);
+        Assert::AreEqual (std::wstring (L"Tiny (0 ") + s_kpszEnDash + L" 16 KB)",      RowGrouping::GetSizeGroup (false, 16 * kKiB).label);
+        Assert::AreEqual (std::wstring (L"Small (16 KB ") + s_kpszEnDash + L" 1 MB)",  RowGrouping::GetSizeGroup (false, 16 * kKiB + 1).label);
+        Assert::AreEqual (std::wstring (L"Small (16 KB ") + s_kpszEnDash + L" 1 MB)",  RowGrouping::GetSizeGroup (false, kMiB).label);
+        Assert::AreEqual (std::wstring (L"Medium (1 ") + s_kpszEnDash + L" 128 MB)",   RowGrouping::GetSizeGroup (false, kMiB + 1).label);
+        Assert::AreEqual (std::wstring (L"Large (128 MB ") + s_kpszEnDash + L" 1 GB)", RowGrouping::GetSizeGroup (false, kGiB).label);
+        Assert::AreEqual (std::wstring (L"Huge (1 ") + s_kpszEnDash + L" 4 GB)",       RowGrouping::GetSizeGroup (false, 4 * kGiB).label);
+        Assert::AreEqual (std::wstring (L"Gigantic (>4 GB)"),                          RowGrouping::GetSizeGroup (false, 4 * kGiB + 1).label);
     }
 
 
 
     TEST_METHOD (Names_ByFirstCharacter)
     {
-        Assert::AreEqual (std::wstring (L"0 - 9"), RowGrouping::GetNameGroup (L"7up").label);
-        Assert::AreEqual (std::wstring (L"A - H"), RowGrouping::GetNameGroup (L"apple").label);
-        Assert::AreEqual (std::wstring (L"I - P"), RowGrouping::GetNameGroup (L"Iris").label);
-        Assert::AreEqual (std::wstring (L"Q - Z"), RowGrouping::GetNameGroup (L"zeta").label);
+        Assert::AreEqual (std::wstring (L"0 ") + s_kpszEnDash + L" 9", RowGrouping::GetNameGroup (L"7up").label);
+        Assert::AreEqual (std::wstring (L"A ") + s_kpszEnDash + L" H", RowGrouping::GetNameGroup (L"apple").label);
+        Assert::AreEqual (std::wstring (L"I ") + s_kpszEnDash + L" P", RowGrouping::GetNameGroup (L"Iris").label);
+        Assert::AreEqual (std::wstring (L"Q ") + s_kpszEnDash + L" Z", RowGrouping::GetNameGroup (L"zeta").label);
         Assert::AreEqual (std::wstring (L"Other"), RowGrouping::GetNameGroup (L"_hidden").label);
         Assert::AreEqual (std::wstring (L"Other"), RowGrouping::GetNameGroup (L"").label);
     }

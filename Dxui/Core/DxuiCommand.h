@@ -106,6 +106,10 @@ struct DxuiCommand
     //  choices do in File Explorer.
     bool                           keepsMenuOpen = false;
 
+    //  Drawn as a check box, empty or checked, rather than a check mark, as
+    //  File Explorer draws its filter choices.
+    bool                           checkBox      = false;
+
     //  Absent means the label is drawn at its full width.
     std::optional<DxuiLabelFit>    labelFit;
 

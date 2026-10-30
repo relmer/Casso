@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiPopupMenuPainter.h"
+#include "Widgets/DxuiCheckbox.h"
 #include "Core/DxuiIconImage.h"
 #include "Theme/DxuiColor.h"
 #include "Theme/DxuiTheme.h"
@@ -272,10 +273,23 @@ void DxuiPopupMenuPainter::PaintRow (
                           DxuiTheme::GetUiFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    //  Explorer's radio mark is a dot, not the bullet glyph: 7 px across at
-    //  150%, on the row's middle, in the secondary text color.
-    if (row.command->IsChecked() && row.command->radio)
+    //  A check box row draws its box in the gutter, checked or empty.
+    if (row.command->checkBox)
     {
+        const IDxuiTheme &  theme = *m_menu.m_theme;
+        float               size  = std::floor (m_menu.m_scaler.ToPxf (DxuiPopupMenu::s_kCheckBoxDip));
+        uint32_t            fill  = theme.Accent();
+
+        DxuiCheckbox::PaintBox (painter, text,
+                                std::round (left + (float) pad + ((float) gutter - size) * 0.5f),
+                                std::round (y + ((float) rowH - size) * 0.5f),
+                                size, std::ceil (m_menu.m_scaler.ToPxf (1.0f)), row.command->IsChecked(),
+                                pal.bg, (labelArgb & 0x00FFFFFFu) | 0x99000000u, fill, DxuiTheme::GetContrastingText (fill));
+    }
+    else if (row.command->IsChecked() && row.command->radio)
+    {
+        //  Explorer's radio mark is a dot, not the bullet glyph: 7 px across
+        //  at 150%, on the row's middle, in the secondary text color.
         painter.FillCircle (left + m_menu.m_scaler.ToPxf (DxuiPopupMenu::s_kRadioCenterXDip),
                             std::floor (y + (float) rowH * 0.5f),
                             m_menu.m_scaler.ToPxf (DxuiPopupMenu::s_kRadioRadiusDip),

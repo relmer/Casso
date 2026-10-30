@@ -391,10 +391,11 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
 
 
+    //  CassoLink first, at the top of the pane, then Casso.
     outNodes.clear();
-    outNodes.push_back (casso);
     outNodes.push_back (MakeRootNode (kCassoLinkRootId));
     outNodes.back().id = kLinkCopyTag + outNodes.back().id;
+    outNodes.push_back (casso);
 
     //  With the all-folders option on, Explorer's pane has the desktop alone, with
     //  everything else under it.

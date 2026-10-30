@@ -932,6 +932,8 @@ void ExplorerListMenus::ShowFilterMenu (size_t column, RECT chevron)
 
         command->label         = ExplorerAddressBar::EscapeMnemonics (label);
         command->keepsMenuOpen = true;
+        command->checkBox      = true;
+        command->menuImage     = m_context.shellIcons.GetForIconResource (s_kFilterGroupIcon);
         command->isChecked     = [this, field, label]() { return m_context.browser.IsFilterChecked (field, label); };
         command->dispatch      = [this, field, label]()
         {

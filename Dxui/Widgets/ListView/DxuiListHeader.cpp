@@ -241,17 +241,17 @@ void DxuiListHeader::PaintHeader (
         {
             shift = std::clamp ((float) (m_headerDragXPx - m_headerPressXPx), -(float) colXPx[c], layoutW - (float) (colXPx[c] + colWPx[c]) - colOff);
 
-            painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], headerH, pal.bgHover);
+            painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], titleH, pal.bgHover);
         }
         else
         {
             shift = GetHeaderSlidePx (c, m_list.GetClockMs());
 
             //  The header under the pointer, or pressed, is highlighted as
-            //  Explorer's is.
+            //  Explorer's is, over the title band alone.
             if ((int) c == m_hoverCol || (int) c == m_headerPressCol)
             {
-                painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], headerH, pal.bgHover);
+                painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], titleH, pal.bgHover);
             }
         }
 
@@ -272,18 +272,24 @@ void DxuiListHeader::PaintHeader (
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  File Explorer's filter chevron, at the cell's right end while the
-        //  header is hovered, and always while the column is filtered.
+        //  File Explorer's filter button, at the cell's right end while the
+        //  header is hovered, and always while the column is filtered: a
+        //  hairline at its left edge while hovered, and a small chevron.
         if (m_list.m_columns[c].filterable && ((int) c == m_hoverCol || m_list.m_columns[c].filtered) && !dragged)
         {
             float     chevronW = (float) m_list.m_scaler.ToPxf ((float) s_kChevronDip);
             float     left     = x + colOff + (float) (colXPx[c] + colWPx[c]) + shift - chevronW;
-            float     cx       = left + chevronW / 2.0f;
-            float     cy       = y + titleH / 2.0f;
-            float     halfW    = (float) m_list.m_scaler.ToPxf (4.0f);
-            float     halfH    = (float) m_list.m_scaler.ToPxf (2.0f);
-            float     thick    = (float) m_list.m_scaler.ToPxf (1.0f);
-            uint32_t  ink      = (m_list.m_columns[c].filtered && pal.edgeSel != 0) ? pal.edgeSel : pal.hdrFg;
+            float     cx       = std::round (left + chevronW / 2.0f);
+            float     cy       = std::round (y + titleH / 2.0f);
+            float     halfW    = (float) m_list.m_scaler.ToPxf (3.0f);
+            float     halfH    = (float) m_list.m_scaler.ToPxf (1.5f);
+            float     thick    = (float) m_list.m_scaler.ToPxf (0.75f);
+            uint32_t  ink      = (m_list.m_columns[c].filtered && pal.edgeSel != 0) ? pal.edgeSel : DxuiColor::ScaleAlpha (pal.hdrFg, 0.9f);
+
+            if ((int) c == m_hoverCol)
+            {
+                painter.FillRect (std::floor (left), y, 1.0f, titleH, DxuiColor::ScaleAlpha (pal.hdrFg, 0.1f));
+            }
 
             painter.DrawLine (cx - halfW, cy - halfH, cx, cy + halfH, thick, ink);
             painter.DrawLine (cx, cy + halfH, cx + halfW, cy - halfH, thick, ink);

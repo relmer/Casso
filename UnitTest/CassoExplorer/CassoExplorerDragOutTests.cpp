@@ -154,7 +154,7 @@ public:
         browser.GetTreeModel().SetDrives ({});
         browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
         browser.GetTreeRoots (roots);
-        AssertSucceeded (browser.SelectTreeNode (browser.GetTreeChildren (roots[0].id)[0].id));
+        AssertSucceeded (browser.SelectTreeNode (browser.GetTreeChildren (roots[1].id)[0].id));
         Assert::IsTrue (browser.OpenRow (0));
 
         for (size_t i = 0; i < browser.GetRows().size(); i++)
@@ -197,7 +197,7 @@ public:
         browser.GetTreeModel().SetDrives ({});
         browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
         browser.GetTreeRoots (roots);
-        AssertSucceeded (browser.SelectTreeNode (browser.GetTreeChildren (roots[0].id)[0].id));
+        AssertSucceeded (browser.SelectTreeNode (browser.GetTreeChildren (roots[1].id)[0].id));
         Assert::IsTrue (browser.OpenRow (0));
 
         for (size_t i = 0; i < browser.GetRows().size(); i++)

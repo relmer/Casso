@@ -473,7 +473,17 @@ void CassoExplorerBrowser::FilterRows()
             }
         }
 
-        std::stable_sort (choices.begin(), choices.end(), [] (const RowGrouping::Group & a, const RowGrouping::Group & b) { return RowGrouping::IsBefore (a, b, false); });
+        //  File Explorer's filter lists a group of rows with no value, such
+        //  as a folder's Unspecified size, after the others.
+        std::stable_sort (choices.begin(), choices.end(), [] (const RowGrouping::Group & a, const RowGrouping::Group & b)
+        {
+            if ((a.rank < 0) != (b.rank < 0))
+            {
+                return b.rank < 0;
+            }
+
+            return RowGrouping::IsBefore (a, b, false);
+        });
     }
 
     if (m_filters.empty())

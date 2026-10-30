@@ -38,6 +38,10 @@ public:
     std::vector<DxuiPopupMenuItem>  GetViewChoices      ();
 
 private:
+    //  The stack icon File Explorer draws beside each filter choice.
+    static constexpr const wchar_t *  s_kFilterGroupIcon = L"imageres.dll,-198";
+
+
     void  AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
     void  AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items);
     void  AddCopyAsMenu   (std::vector<DxuiPopupMenuItem> & items);

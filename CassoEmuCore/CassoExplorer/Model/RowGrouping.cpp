@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/RowGrouping.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -106,11 +107,11 @@ RowGrouping::Group RowGrouping::GetSizeGroup (bool isDirectory, uint64_t bytes)
 {
     if (isDirectory)                   { return { L"Unspecified",           -1 }; }
     if (bytes == 0)                    { return { L"Empty (0 KB)",           0 }; }
-    if (bytes <= 16 * s_kKiB)          { return { L"Tiny (0 - 16 KB)",       1 }; }
-    if (bytes <= s_kMiB)               { return { L"Small (16 KB - 1 MB)",   2 }; }
-    if (bytes <= 128 * s_kMiB)         { return { L"Medium (1 - 128 MB)",    3 }; }
-    if (bytes <= s_kGiB)               { return { L"Large (128 MB - 1 GB)",  4 }; }
-    if (bytes <= 4 * s_kGiB)           { return { L"Huge (1 - 4 GB)",        5 }; }
+    if (bytes <= 16 * s_kKiB)          { return { std::wstring (L"Tiny (0 ") + s_kpszEnDash + L" 16 KB)",       1 }; }
+    if (bytes <= s_kMiB)               { return { std::wstring (L"Small (16 KB ") + s_kpszEnDash + L" 1 MB)",   2 }; }
+    if (bytes <= 128 * s_kMiB)         { return { std::wstring (L"Medium (1 ") + s_kpszEnDash + L" 128 MB)",    3 }; }
+    if (bytes <= s_kGiB)               { return { std::wstring (L"Large (128 MB ") + s_kpszEnDash + L" 1 GB)",  4 }; }
+    if (bytes <= 4 * s_kGiB)           { return { std::wstring (L"Huge (1 ") + s_kpszEnDash + L" 4 GB)",        5 }; }
 
     return { L"Gigantic (>4 GB)", 6 };
 }
@@ -134,10 +135,10 @@ RowGrouping::Group RowGrouping::GetNameGroup (const std::wstring & name)
 
 
 
-    if (c >= L'0' && c <= L'9')        { return { L"0 - 9", 0 }; }
-    if (c >= L'A' && c <= L'H')        { return { L"A - H", 1 }; }
-    if (c >= L'I' && c <= L'P')        { return { L"I - P", 2 }; }
-    if (c >= L'Q' && c <= L'Z')        { return { L"Q - Z", 3 }; }
+    if (c >= L'0' && c <= L'9')        { return { std::wstring (L"0 ") + s_kpszEnDash + L" 9", 0 }; }
+    if (c >= L'A' && c <= L'H')        { return { std::wstring (L"A ") + s_kpszEnDash + L" H", 1 }; }
+    if (c >= L'I' && c <= L'P')        { return { std::wstring (L"I ") + s_kpszEnDash + L" P", 2 }; }
+    if (c >= L'Q' && c <= L'Z')        { return { std::wstring (L"Q ") + s_kpszEnDash + L" Z", 3 }; }
 
     return { L"Other", 4 };
 }

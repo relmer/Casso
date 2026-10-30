@@ -27,6 +27,7 @@ static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DAS
 static constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
 static constexpr wchar_t s_kchDegree         = L'\x00B0';       // U+00B0 DEGREE SIGN (°)
 static constexpr LPCWSTR s_kpszDegree        = L"\x00B0";       // U+00B0 DEGREE SIGN (°)
+static constexpr LPCWSTR s_kpszEnDash        = L"\x2013";       // U+2013 EN DASH, for ranges
 static constexpr LPCWSTR s_kpszBullet        = L"\x2022";       // U+2022 BULLET, the mark of a chosen radio row
 static constexpr LPCWSTR s_kpszChevronRight  = L"\x203A";       // U+203A SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
 static constexpr LPCWSTR s_kpszRightArrow    = L"\x2192";       // U+2192 RIGHTWARDS ARROW

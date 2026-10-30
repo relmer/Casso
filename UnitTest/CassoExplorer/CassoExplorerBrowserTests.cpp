@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Core/UnicodeSymbols.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "FakeRecycleBin.h"
@@ -77,7 +78,7 @@ public:
 
             browser.GetTreeRoots (roots);
 
-            std::vector<DxuiTreeNode>  folders = browser.GetTreeChildren (roots[0].id);
+            std::vector<DxuiTreeNode>  folders = browser.GetTreeChildren (roots[1].id);
 
             Assert::AreEqual ((size_t) 1, folders.size());
 
@@ -149,9 +150,9 @@ public:
 
         host.browser.GetTreeRoots (roots);
 
-        Assert::AreEqual ((size_t) 4, roots.size(), L"Casso, CassoLink, This PC and CassoLink again; the bin only with all folders on");
-        Assert::IsFalse  (roots[0].expanded);
-        Assert::IsFalse  (roots[0].childrenLoaded);
+        Assert::AreEqual ((size_t) 4, roots.size(), L"CassoLink, Casso, This PC and CassoLink again; the bin only with all folders on");
+        Assert::IsFalse  (roots[1].expanded);
+        Assert::IsFalse  (roots[1].childrenLoaded);
     }
 
 
@@ -424,7 +425,7 @@ public:
             labels.push_back (root.label);
         }
 
-        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"CassoLink", L"Home", L"OneDrive", L"Disks", L"This PC", L"CassoLink", L"Network" }),
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"CassoLink", L"Casso", L"Home", L"OneDrive", L"Disks", L"This PC", L"CassoLink", L"Network" }),
                         L"As File Explorer's pane: libraries hidden there, and the bin only with all folders shown");
         Assert::IsTrue (roots[4].dividerAbove, L"A line above the pinned folders");
         Assert::IsTrue (roots[5].dividerAbove, L"and one below them");
@@ -447,7 +448,7 @@ public:
             labels.push_back (root.label);
         }
 
-        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Casso", L"CassoLink", L"Home", L"OneDrive", L"Disks", L"Libraries" }));
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"CassoLink", L"Casso", L"Home", L"OneDrive", L"Disks", L"Libraries" }));
         Assert::IsTrue (roots[5].dividerAbove, L"The line moves to the first root left");
     }
 
@@ -961,8 +962,8 @@ public:
         groups = host.browser.GetListGroups();
 
         Assert::AreEqual ((size_t) 2, groups.size());
-        Assert::AreEqual (std::wstring (L"A - H"), groups[0].label);
-        Assert::AreEqual (std::wstring (L"I - P"), groups[1].label);
+        Assert::AreEqual (std::wstring (L"A ") + s_kpszEnDash + L" H", groups[0].label);
+        Assert::AreEqual (std::wstring (L"I ") + s_kpszEnDash + L" P", groups[1].label);
         Assert::AreEqual (0, groups[0].firstRow);
 
         for (int r = 0; r < groups[1].firstRow; r++)
@@ -994,7 +995,7 @@ public:
 
         Assert::AreEqual ((size_t) 2, host.browser.GetFilterChoices (RowGrouping::Field::Name).size());
 
-        host.browser.ToggleFilter (RowGrouping::Field::Name, L"A - H");
+        host.browser.ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
         AssertSucceeded (host.browser.Reload (true));
 
         Assert::IsTrue (host.browser.IsFiltering (RowGrouping::Field::Name));
@@ -1007,14 +1008,33 @@ public:
 
         Assert::AreEqual ((size_t) 2, host.browser.GetFilterChoices (RowGrouping::Field::Name).size(), L"The choices include the rows filtered out");
 
-        host.browser.ToggleFilter (RowGrouping::Field::Name, L"A - H");
+        host.browser.ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
         AssertSucceeded (host.browser.Reload (true));
         Assert::IsFalse  (host.browser.IsFiltering (RowGrouping::Field::Name), L"Unchecking the last group ends the filter");
         Assert::AreEqual (all, host.browser.GetRows().size());
 
-        host.browser.ToggleFilter (RowGrouping::Field::Name, L"A - H");
+        host.browser.ToggleFilter (RowGrouping::Field::Name, std::wstring (L"A ") + s_kpszEnDash + L" H");
         AssertSucceeded (host.browser.SelectTreeNode (folder));
         Assert::IsFalse (host.browser.IsFiltering (RowGrouping::Field::Name), L"Another folder starts unfiltered");
+    }
+
+
+    //  As File Explorer's filter does, a folder's Unspecified size is listed
+    //  after the sizes.
+    TEST_METHOD (ColumnFilter_ListsUnspecifiedLast)
+    {
+        Host          host;
+        std::wstring  folder;
+
+        AssertSucceeded (host.fs.MakeDirectory (L"C:\\Disks\\Sub"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\Sub\\note.txt", "hi"));
+        folder = host.OpenDisksFolder();
+        AssertSucceeded (host.browser.SelectTreeNode (folder));
+
+        const std::vector<RowGrouping::Group> &  choices = host.browser.GetFilterChoices (RowGrouping::Field::Size);
+
+        Assert::IsTrue (choices.size() >= 2);
+        Assert::AreEqual (std::wstring (L"Unspecified"), choices.back().label);
     }
 
 
@@ -1138,7 +1158,7 @@ public:
 
         host.browser.GetTreeRoots (roots);
 
-        Assert::AreEqual (std::wstring (L"Disks"), host.browser.GetTreeChildren (roots[0].id)[0].label);
+        Assert::AreEqual (std::wstring (L"Disks"), host.browser.GetTreeChildren (roots[1].id)[0].label);
     }
 
 
@@ -1150,7 +1170,7 @@ public:
 
         host.browser.GetTreeRoots (roots);
 
-        AssertSucceeded (host.browser.SelectTreeNode (roots[0].id));
+        AssertSucceeded (host.browser.SelectTreeNode (roots[1].id));
         Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
         Assert::IsTrue   (host.browser.GetRows()[0].isDirectory);
 
@@ -1334,15 +1354,15 @@ public:
         std::wstring               path;
 
         host.browser.GetTreeRoots (roots);
-        known = host.browser.GetTreeChildren (roots[0].id)[0].id;
+        known = host.browser.GetTreeChildren (roots[1].id)[0].id;
 
         Assert::IsTrue  (host.browser.CanRemoveFromCasso (known));
         Assert::IsFalse (host.browser.CanAddToCasso (known));
         Assert::IsTrue  (host.browser.TryGetNodePath (known, path));
         Assert::AreEqual (std::wstring (kDisks), path);
 
-        Assert::IsFalse (host.browser.CanRemoveFromCasso (roots[0].id));
-        Assert::IsFalse (host.browser.CanAddToCasso (roots[1].id));
+        Assert::IsFalse (host.browser.CanRemoveFromCasso (roots[1].id));
+        Assert::IsFalse (host.browser.CanAddToCasso (roots[0].id));
     }
 
 

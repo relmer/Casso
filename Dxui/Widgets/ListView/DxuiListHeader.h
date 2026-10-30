@@ -53,7 +53,7 @@ public:
     //  chevron's rect, in the list's pixels; -1 for none.
     int   HitTestFilterChevron (int xPx, int yPx, RECT & outChevron) const;
 
-    static constexpr int  s_kChevronDip = 22;
+    static constexpr int  s_kChevronDip = 16;
     void  SetColumnOrder      (const std::vector<size_t> & order);
 
     int   GetColumnDropPosition (int xPx) const;

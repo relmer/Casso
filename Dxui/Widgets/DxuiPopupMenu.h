@@ -360,6 +360,7 @@ private:
     static constexpr float     s_kRadioCenterXDip      = 22.0f;          // 33 px from the card edge at 150%
     static constexpr float     s_kRadioRadiusDip       = 7.0f / 3.0f;    // 3.5 px at 150%
     static constexpr uint32_t  s_kRadioAlpha           = 0xC5;           // Windows' secondary text fill
+    static constexpr float     s_kCheckBoxDip          = 14.0f;          // a check box row's box, as File Explorer's filter draws it
     static constexpr const wchar_t *  s_kIconFace      = L"Segoe Fluent Icons";
     //  The hover highlight is a rounded card inset from the menu's edges, not
     //  a full-bleed band: a square band running into the menu's own rounded

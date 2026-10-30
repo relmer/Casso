@@ -90,7 +90,7 @@ public:
         //  Explorer's pane shows the bin only with all folders shown.
         model.GetRoots (roots);
         Assert::AreEqual ((size_t) 4, roots.size());
-        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::CassoLinkRoot, L"CassoLink, with no machines yet");
+        Assert::IsTrue   (roots[0].kind == TreeNode::Kind::CassoLinkRoot, L"CassoLink at the top, with no machines yet");
         Assert::IsTrue   (roots[3].kind == TreeNode::Kind::CassoLinkRoot, L"and again after This PC");
 
         options.showAllFolders = true;
@@ -98,10 +98,10 @@ public:
         model.GetRoots (roots);
 
         Assert::AreEqual ((size_t) 5, roots.size());
-        Assert::IsTrue   (roots[0].kind == TreeNode::Kind::CassoRoot);
+        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::CassoRoot);
         Assert::IsTrue   (roots[2].kind == TreeNode::Kind::ThisPcRoot);
         Assert::IsTrue   (roots[4].kind == TreeNode::Kind::RecycleBinRoot);
-        Assert::AreEqual (std::wstring (TreeModel::kCassoRootId),  roots[0].id);
+        Assert::AreEqual (std::wstring (TreeModel::kCassoRootId),  roots[1].id);
         Assert::AreEqual (std::wstring (TreeModel::kThisPcRootId), roots[2].id);
         Assert::IsTrue   (roots[4].location == Location::MakeRecycleBin());
         Assert::IsFalse  (roots[4].canExpand, L"The Recycle Bin has no folders under it in the tree");
@@ -402,9 +402,9 @@ public:
         model.GetRoots (roots);
 
         Assert::AreEqual ((size_t) 4, roots.size());
-        Assert::IsTrue   (roots[1].kind == TreeNode::Kind::CassoLinkRoot);
-        Assert::AreEqual (std::wstring (L"top:cassolink:"), roots[1].id);
-        Assert::IsTrue   (roots[1].location == Location::MakeRoot (TreeModel::kCassoLinkRootId), L"both CassoLink nodes open the same list");
+        Assert::IsTrue   (roots[0].kind == TreeNode::Kind::CassoLinkRoot);
+        Assert::AreEqual (std::wstring (L"top:cassolink:"), roots[0].id);
+        Assert::IsTrue   (roots[0].location == Location::MakeRoot (TreeModel::kCassoLinkRootId), L"both CassoLink nodes open the same list");
         Assert::IsTrue   (roots[2].kind == TreeNode::Kind::ThisPcRoot);
         Assert::IsTrue   (roots[2].dividerAbove);
         Assert::IsTrue   (roots[3].kind == TreeNode::Kind::CassoLinkRoot);
