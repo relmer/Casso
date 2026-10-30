@@ -230,6 +230,15 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.shellOrder   = items[index].shellOrder;
         row.iconId       = items[index].iconId;
 
+        //  Home's folder reports no size for some files that have one.
+        if (row.homeGroup != 0 && !row.isDirectory && !row.hostPath.empty() && row.sizeBytes == 0)
+        {
+            std::error_code  ignored;
+            uintmax_t        bytes = std::filesystem::file_size (row.hostPath, ignored);
+
+            row.sizeBytes = ignored ? 0 : (uint64_t) bytes;
+        }
+
         m_browser.m_rows.push_back (std::move (row));
     }
 

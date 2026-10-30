@@ -1253,10 +1253,12 @@ bool DxuiListView::OnPress (const DxuiMouseEvent & ev, int lx, int ly, bool insi
         return true;
     }
 
-    //  A press on a Home row's button is the button's.
+    //  A press on a Home row's button is the button's, which acts on release,
+    //  so the release doesn't close the menu that the button opens.
     if (m_homeHeader.onRowAction && m_items.HitTestHomeAction (row, lx, ly) >= 0)
     {
-        m_homeHeader.onRowAction (row, m_items.HitTestHomeAction (row, lx, ly), POINT { lx, ly });
+        m_homePressRow    = row;
+        m_homePressAction = m_items.HitTestHomeAction (row, lx, ly);
         return true;
     }
 
@@ -1333,6 +1335,22 @@ bool DxuiListView::OnRelease (int lx, int ly, bool inside)
     bool  ranged = m_rows.EndPress();
 
 
+
+    if (m_homePressRow >= 0)
+    {
+        int  pressRow    = m_homePressRow;
+        int  pressAction = m_homePressAction;
+
+        m_homePressRow    = -1;
+        m_homePressAction = -1;
+
+        if (m_items.HitTestHomeAction (pressRow, lx, ly) == pressAction)
+        {
+            m_homeHeader.onRowAction (pressRow, pressAction, POINT { lx, ly });
+        }
+
+        return true;
+    }
 
     return m_band.OnRelease() || ranged || m_scrollbars.OnRelease() || m_header.OnRelease (lx, ly) || m_rows.OnRelease (row);
 }

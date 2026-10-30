@@ -385,6 +385,8 @@ public:
     static constexpr float         s_kItemsLeftDip      = 14.0f;
     static constexpr float         s_kItemRowGapDip     = 1.0f;
     DxuiListViewTypes::HomeHeader  m_homeHeader;
+    int                            m_homePressRow       = -1;
+    int                            m_homePressAction    = -1;
     static constexpr float         s_kBrokenBadgeMinDip = 10.0f;
     bool                GetItemRectPx    (int item, RECT & outRect) const { return m_items.GetItemRectPx (item, outRect); }
 
