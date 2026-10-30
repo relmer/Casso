@@ -180,7 +180,7 @@ bool Win32ShellIcons::IsFailureExpired (const std::wstring & key) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays)
+std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays, bool thumbnail)
 {
     bool  added = false;
 
@@ -193,7 +193,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring 
 
         if (added)
         {
-            m_requests.push_back (Request { key, path, isDirectory, m_sizePx, overlays });
+            m_requests.push_back (Request { key, path, isDirectory, m_sizePx, overlays, thumbnail });
         }
     }
 
@@ -202,7 +202,46 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Queue (const std::wstring 
         m_wake.notify_one();
     }
 
+    //  A thumbnail's file has its type's icon until the thumbnail is made.
+    if (thumbnail)
+    {
+        return GetForExtension (fs::path (path).extension().wstring());
+    }
+
     return GetForKind (isDirectory ? Kind::Folder : Kind::File);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::HasThumbnail
+//
+//  Whether the shell has a thumbnail provider for the type, as it has for
+//  pictures and videos; read once a type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellIcons::HasThumbnail (const std::wstring & extension)
+{
+    static constexpr const wchar_t *  s_kThumbnailProvider = L"{E357FCCD-A995-4576-B01F-234630154E96}";
+    auto                              found                = m_thumbnailTypes.find (extension);
+    wchar_t                           handler[64]          = {};
+    DWORD                             length               = (DWORD) std::size (handler);
+    HRESULT                           hr                   = S_OK;
+
+
+
+    if (found != m_thumbnailTypes.end())
+    {
+        return found->second;
+    }
+
+    hr = AssocQueryStringW (ASSOCF_NONE, ASSOCSTR_SHELLEXTENSION, extension.c_str(), s_kThumbnailProvider, handler, &length);
+
+    return m_thumbnailTypes[extension] = SUCCEEDED (hr);
 }
 
 
@@ -245,7 +284,16 @@ void Win32ShellIcons::RunLoader()
             m_requests.pop_back();
         }
 
-        image = Rasterize (LoadSized (request.path, request.isDirectory, request.sizePx, request.overlays, &overlay), request.sizePx, m_dpi);
+        if (request.thumbnail)
+        {
+            HICON  thumbnail = LoadThumbnail (request.path, request.sizePx);
+
+            image = Rasterize ((thumbnail != nullptr) ? thumbnail : LoadSized (request.path, false, request.sizePx, request.overlays, &overlay), request.sizePx, m_dpi);
+        }
+        else
+        {
+            image = Rasterize (LoadSized (request.path, request.isDirectory, request.sizePx, request.overlays, &overlay), request.sizePx, m_dpi);
+        }
 
         if (image != nullptr && overlay > 0)
         {
@@ -678,6 +726,16 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
         return found->second;
     }
 
+    //  A picture or a video in an icon view larger than the large icon has a
+    //  thumbnail, made in the background, as File Explorer draws it.
+    if (m_loader.joinable() && overlays && m_sizePx > s_kLargeIconPx && cacheKey.starts_with (L"*ext:") && HasThumbnail (cacheKey.substr (5)))
+    {
+        key   = GetSizedKey (L"*thumb:" + path);
+        found = m_cache.find (key);
+
+        return (found != m_cache.end()) ? found->second : Queue (key, path, false, overlays, true);
+    }
+
     //  A per-path icon is the slow kind; one by extension is quick, and the
     //  same for every file of its type.
     if (m_loader.joinable() && GetCacheKey (path, isDirectory).starts_with (L"*path:"))
@@ -873,6 +931,115 @@ Error:
     if (mask != nullptr)
     {
         DeleteObject (mask);
+    }
+
+    return icon;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::LoadThumbnail
+//
+//  The shell's thumbnail, fitted into the square and set on its bottom
+//  edge, centered, as File Explorer lays one out in its icon views. A
+//  picture's thumbnail usually has no alpha, and is then made opaque.
+//  Null when the shell fails to make a thumbnail of the item.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HICON Win32ShellIcons::LoadThumbnail (const std::wstring & path, int sizePx)
+{
+    HRESULT                         hr       = S_OK;
+    ComPtr<IShellItemImageFactory>  factory;
+    HBITMAP                         thumb    = nullptr;
+    HBITMAP                         color    = nullptr;
+    HBITMAP                         mask     = nullptr;
+    HDC                             screen   = nullptr;
+    BITMAP                          size     = {};
+    BITMAPINFO                      bmi      = {};
+    uint32_t                      * square   = nullptr;
+    std::vector<uint32_t>           pixels;
+    ICONINFO                        info     = {};
+    HICON                           icon     = nullptr;
+    bool                            hasAlpha = false;
+    int                             left     = 0;
+    int                             top      = 0;
+    int                             read     = 0;
+
+
+
+    hr = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&factory));
+    CHR (hr);
+
+    hr = factory->GetImage (SIZE { sizePx, sizePx }, SIIGBF_THUMBNAILONLY, &thumb);
+    CHR (hr);
+
+    read = GetObjectW (thumb, sizeof (size), &size);
+    CBR (read != 0);
+    CBR (size.bmWidth > 0 && size.bmHeight > 0 && size.bmWidth <= sizePx && size.bmHeight <= sizePx);
+
+    bmi.bmiHeader.biSize        = sizeof (bmi.bmiHeader);
+    bmi.bmiHeader.biWidth       = size.bmWidth;
+    bmi.bmiHeader.biHeight      = -size.bmHeight;
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    pixels.resize ((size_t) size.bmWidth * (size_t) size.bmHeight);
+    screen = GetDC (nullptr);
+    CWR (screen != nullptr);
+    read = GetDIBits (screen, thumb, 0, (UINT) size.bmHeight, pixels.data(), &bmi, DIB_RGB_COLORS);
+    CBR (read != 0);
+
+    bmi.bmiHeader.biWidth  = sizePx;
+    bmi.bmiHeader.biHeight = -sizePx;
+
+    color = CreateDIBSection (screen, &bmi, DIB_RGB_COLORS, (void **) &square, nullptr, 0);
+    CWR (color != nullptr && square != nullptr);
+
+    hasAlpha = std::any_of (pixels.begin(), pixels.end(), [] (uint32_t px) { return (px >> 24) != 0; });
+    left     = (sizePx - size.bmWidth) / 2;
+    top      = sizePx - size.bmHeight;
+
+    std::fill (square, square + (size_t) sizePx * (size_t) sizePx, 0u);
+
+    for (int y = 0; y < size.bmHeight; y++)
+    {
+        for (int x = 0; x < size.bmWidth; x++)
+        {
+            uint32_t  px = pixels[(size_t) y * (size_t) size.bmWidth + (size_t) x];
+
+            square[(size_t) (top + y) * (size_t) sizePx + (size_t) (left + x)] = hasAlpha ? px : (px | 0xFF000000u);
+        }
+    }
+
+    //  The bitmap's alpha does the masking; the mask only has to exist.
+    mask = CreateBitmap (sizePx, sizePx, 1, 1, nullptr);
+    CWR (mask != nullptr);
+
+    info.fIcon    = TRUE;
+    info.hbmColor = color;
+    info.hbmMask  = mask;
+
+    icon = CreateIconIndirect (&info);
+    CWR (icon != nullptr);
+
+Error:
+    if (screen != nullptr)
+    {
+        ReleaseDC (nullptr, screen);
+    }
+
+    for (HBITMAP bitmap : { thumb, color, mask })
+    {
+        if (bitmap != nullptr)
+        {
+            DeleteObject (bitmap);
+        }
     }
 
     return icon;

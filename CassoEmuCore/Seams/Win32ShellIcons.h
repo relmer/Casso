@@ -78,6 +78,7 @@ private:
         bool          isDirectory = false;
         int           sizePx      = kDefaultSizePx;
         bool          overlays    = true;
+        bool          thumbnail   = false;   // a picture's or a video's thumbnail, as File Explorer's icon views draw it
     };
 
     struct Loaded
@@ -89,7 +90,8 @@ private:
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon, int overlay = 0);
     std::wstring                          GetSizedKey (const std::wstring & key) const { return std::to_wstring (m_sizePx) + L"|" + key; }
     std::shared_ptr<const DxuiIconImage>  LoadPicture      (const std::wstring & key, const std::wstring & file);
-    std::shared_ptr<const DxuiIconImage>  Queue            (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays);
+    std::shared_ptr<const DxuiIconImage>  Queue            (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays, bool thumbnail = false);
+    bool                                  HasThumbnail     (const std::wstring & extension);
     std::shared_ptr<const DxuiIconImage>  GetIconForPath   (const std::wstring & path, bool isDirectory, bool overlays);
     void                                  StoreIcon        (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image);
     bool                                  IsFailureExpired (const std::wstring & key) const;
@@ -107,6 +109,7 @@ private:
     static HICON                           LoadByAttributes       (const std::wstring & path, bool isDirectory, int sizePx);
     static HICON                           LoadLargerByAttributes (bool isDirectory, int sizePx);
     static HICON                           LoadShellItemIcon      (const std::wstring & path, int sizePx, SIIGBF flags);
+    static HICON                           LoadThumbnail          (const std::wstring & path, int sizePx);
     static HICON                           LoadForShellName       (const std::wstring & name, bool overlays, int * outOverlay = nullptr);
     static std::shared_ptr<DxuiIconImage>  Rasterize              (HICON icon, int sizePx, UINT dpi = 0);
     static HICON                           LoadForKind            (Kind kind, UINT sizeFlag);
@@ -127,6 +130,7 @@ private:
     std::unordered_map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_cache;
     std::unordered_map<std::wstring, uint64_t>                              m_failedAt;   // GetTickCount64 of a per-path icon that failed to load
     std::unordered_map<std::wstring, std::wstring>                          m_typeNames;
+    std::unordered_map<std::wstring, bool>                                  m_thumbnailTypes;   // by extension, whether the shell makes thumbnails of it
 
     //  The background loader. Requests and results pass under the lock;
     //  m_pending holds the keys asked for and not yet taken.
