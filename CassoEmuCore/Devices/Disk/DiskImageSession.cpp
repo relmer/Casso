@@ -64,8 +64,8 @@ std::string DiskImageSession::SplitMetaValues (std::string value)
 //  DiskImageSession::DescribeImageDate
 //
 //  The WOZ spec's UTC date, as 2022-05-26T20:50:59.621Z, in the local time
-//  zone with the zone's name, then the file's text, in parentheses. A date in
-//  any other form is returned unchanged.
+//  zone and the user's date and time formats with the zone's name, then the
+//  file's text, in parentheses. A date in any other form is returned unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,13 +81,15 @@ std::string DiskImageSession::DescribeImageDate (const std::string & value)
     int                    minute  = 0;
     int                    second  = 0;
     int                    fields  = sscanf_s (value.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
-    BOOL      hasZone   = FALSE;
-    BOOL      hasTime   = FALSE;
-    FILETIME  utcFile   = {};
-    FILETIME  locFile   = {};
-    int64_t   offset    = 0;
-    char      note[160] = {};
-    bool      daylight  = false;
+    BOOL          hasZone  = FALSE;
+    BOOL          hasTime  = FALSE;
+    FILETIME      utcFile  = {};
+    FILETIME      locFile  = {};
+    int64_t       offset   = 0;
+    wchar_t       date[80] = {};
+    wchar_t       time[80] = {};
+    bool          daylight = false;
+    std::wstring  when;
 
 
 
@@ -115,11 +117,76 @@ std::string DiskImageSession::DescribeImageDate (const std::string & value)
     offset   = ((int64_t) ULARGE_INTEGER { utcFile.dwLowDateTime, utcFile.dwHighDateTime }.QuadPart - (int64_t) ULARGE_INTEGER { locFile.dwLowDateTime, locFile.dwHighDateTime }.QuadPart) / 600000000;
     daylight = zone.DaylightDate.wMonth != 0 && offset == (int64_t) zone.Bias + zone.DaylightBias;
 
-    snprintf (note, sizeof (note), "%d/%d/%d %d:%02d:%02d %s %s", local.wMonth, local.wDay, local.wYear,
-              (local.wHour % 12 == 0) ? 12 : local.wHour % 12, local.wMinute, local.wSecond, (local.wHour < 12) ? "AM" : "PM",
-              TextEncoding::WideToNarrow (daylight ? zone.DaylightName : zone.StandardName).c_str());
+    if (GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, date, (int) std::size (date), nullptr) == 0
+        || GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, 0, &local, nullptr, time, (int) std::size (time)) == 0)
+    {
+        return value;
+    }
 
-    return std::string (note) + "\n(" + value + ")";
+    //  The user's format may have a narrow no-break space before AM or PM,
+    //  which this text's code page lacks.
+    when = std::wstring (date) + L" " + time;
+    std::replace (when.begin(), when.end(), L'\x202F', L' ');
+
+    return TextEncoding::WideToNarrow (when) + " " + GetZoneName (zone, daylight) + "\n(" + value + ")";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::GetZoneName
+//
+//  Windows has only a zone's full name; ICU, part of Windows since 1903, has
+//  the short one for the user's locale. Where the locale has no short name,
+//  ICU returns an offset, as GMT+2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::GetZoneName (const TIME_ZONE_INFORMATION & zone, bool daylight)
+{
+    using OpenFn    = void * (__cdecl *) (const wchar_t *, int32_t, const char *, int, int *);
+    using CloseFn   = void   (__cdecl *) (void *);
+    using DisplayFn = int32_t (__cdecl *) (const void *, int, const char *, wchar_t *, int32_t, int *);
+
+    static constexpr int  s_kShortStandard = 1;
+    static constexpr int  s_kShortDaylight = 3;
+
+    HMODULE    icu        = LoadLibraryExW (L"icu.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    OpenFn     open       = (icu != nullptr) ? (OpenFn)    GetProcAddress (icu, "ucal_open")                    : nullptr;
+    CloseFn    close      = (icu != nullptr) ? (CloseFn)   GetProcAddress (icu, "ucal_close")                   : nullptr;
+    DisplayFn  display    = (icu != nullptr) ? (DisplayFn) GetProcAddress (icu, "ucal_getTimeZoneDisplayName")  : nullptr;
+    void     * calendar   = nullptr;
+    int        status     = 0;
+    int32_t    length     = 0;
+    wchar_t    name[64]   = {};
+
+
+
+    if (open != nullptr && close != nullptr && display != nullptr)
+    {
+        calendar = open (nullptr, 0, nullptr, 0, &status);
+
+        if (status <= 0 && calendar != nullptr)
+        {
+            length = display (calendar, daylight ? s_kShortDaylight : s_kShortStandard, nullptr, name, (int32_t) std::size (name), &status);
+        }
+
+        if (calendar != nullptr)
+        {
+            close (calendar);
+        }
+    }
+
+    if (icu != nullptr)
+    {
+        FreeLibrary (icu);
+    }
+
+    return TextEncoding::WideToNarrow ((status <= 0 && length > 0) ? std::wstring (name, (size_t) length)
+                                                                  : std::wstring (daylight ? zone.DaylightName : zone.StandardName));
 }
 
 
@@ -243,6 +310,21 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageSession::FormatDetailHeading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::FormatDetailHeading (const char * heading)
+{
+    return std::string (heading) + ":\n";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageSession::DescribeWozChunks
 //
 //  What a WOZ image records about itself: who imaged it, what it is, how much
@@ -279,6 +361,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     snprintf (note, sizeof (note), "WOZ %d, INFO chunk version %d",
               woz.wozVersion, woz.infoVersion);
 
+    text += FormatDetailHeading ("WOZ info");
     text += FormatDetailLine ("format",  note);
     text += FormatDetailLine ("creator", woz.creator);
 
@@ -304,23 +387,10 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         text += FormatDetailLine ("boots as", boot);
     }
 
-    snprintf (note, sizeof (note),
-              "%d tracks of bits, on %d of the 160 quarter-track positions",
-              woz.trackSlotsWithData, woz.quarterTracksWithData);
-
-    text += FormatDetailLine ("surface", note);
-
-    //  Flux timing came with WOZ 2.1; an earlier image stores bits alone.
-    if (woz.fluxSlotsWithData > 0)
+    if (!woz.meta.empty())
     {
-        snprintf (note, sizeof (note), "%d %s stored as flux timing", woz.fluxSlotsWithData, (woz.fluxSlotsWithData == 1) ? "track" : "tracks");
+        text += FormatDetailHeading ("WOZ metadata");
     }
-    else
-    {
-        snprintf (note, sizeof (note), "%s", (woz.wozVersion < 2) ? "none, as WOZ 1 has no flux tracks" : "none");
-    }
-
-    text += FormatDetailLine ("flux", note);
 
     // The named fields first, then whatever else the image chose to record.
     for (const auto & highlight : s_kppszMetaHighlights)
@@ -365,6 +435,26 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         }
     }
 
+    text += FormatDetailHeading ("Casso analysis");
+
+    snprintf (note, sizeof (note),
+              "%d tracks of bits, on %d of the 160 quarter-track positions",
+              woz.trackSlotsWithData, woz.quarterTracksWithData);
+
+    text += FormatDetailLine ("surface", note);
+
+    //  Flux timing came with WOZ 2.1; an earlier image stores bits alone.
+    if (woz.fluxSlotsWithData > 0)
+    {
+        snprintf (note, sizeof (note), "%d %s stored as flux timing", woz.fluxSlotsWithData, (woz.fluxSlotsWithData == 1) ? "track" : "tracks");
+    }
+    else
+    {
+        snprintf (note, sizeof (note), "%s", (woz.wozVersion < 2) ? "none, as WOZ 1 has no flux tracks" : "none");
+    }
+
+    text += FormatDetailLine ("flux", note);
+
 Error:
     return text;
 }
@@ -395,19 +485,23 @@ Error:
 
 std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 {
-    int          complete    = 0;
-    int          partial     = 0;
-    int          unformatted = 0;
-    int          trackCount  = opened.report.GetTrackCount();
-    int          track       = 0;
-    size_t       i           = 0;
-    bool         bitStream   = trackCount > 0;
-    bool         trackZeroOk = true;
-    bool         bootCode    = false;
-    std::string  text;
-    char         note[512]   = {};
+    int                     complete    = 0;
+    int                     partial     = 0;
+    int                     unformatted = 0;
+    int                     empty       = 0;
+    int                     trackCount  = opened.report.GetTrackCount();
+    int                     track       = 0;
+    size_t                  i           = 0;
+    bool                    bitStream   = trackCount > 0;
+    bool                    trackZeroOk = true;
+    bool                    bootCode    = false;
+    std::string             text;
+    char                    note[512]   = {};
+    WozLoader::Description  woz;
 
 
+
+    WozLoader::Describe (opened.fileBytes, woz);
 
     // Geometry belongs to a SECTOR-ORDER file and to nothing else. Printing it
     // for a bit-stream image would describe the buffer this tool decoded into
@@ -432,6 +526,14 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
             case TrackDecodeOutcome::Unformatted: unformatted++; break;
             default:                                             break;
         }
+
+        //  A whole track with no track on it has nothing to decode.
+        if (opened.report.GetOutcome (track) == TrackDecodeOutcome::Unformatted
+            && (size_t) track < woz.wholeTrackHasData.size() && !woz.wholeTrackHasData[(size_t) track])
+        {
+            unformatted--;
+            empty++;
+        }
     }
 
     if (bitStream)
@@ -447,7 +549,7 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         //  are missing or appear twice; an unformatted one has none at all.
         std::string  decoded;
 
-        snprintf (note, sizeof (note), "%d of %d tracks are standard 16-sector data", complete, trackCount);
+        snprintf (note, sizeof (note), "%d of %d whole tracks are standard 16-sector data", complete, trackCount);
         decoded = note;
 
         //  One count a line, each under the one before.
@@ -465,9 +567,23 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
             decoded += note;
         }
 
+        if (empty > 0)
+        {
+            snprintf (note, sizeof (note), "\n%d whole %s empty", empty, (empty == 1) ? "track is" : "tracks are");
+            decoded += note;
+        }
+
         text += FormatDetailLine ("decoded", decoded);
 
-        if (complete == 0)
+        //  Tracks between the whole ones are evidence of copy protection;
+        //  with none, an undecoded disk is only a possibility of it.
+        if (woz.slotsOffWholeTracks > 0)
+        {
+            snprintf (note, sizeof (note), "%d %s on half or quarter track positions, a common copy protection",
+                      woz.slotsOffWholeTracks, (woz.slotsOffWholeTracks == 1) ? "track is" : "tracks are");
+            text += FormatDetailLine ("note", note);
+        }
+        else if (complete == 0)
         {
             text += FormatDetailLine ("note", "copy-protected disks often use their own track format");
         }

@@ -86,6 +86,26 @@ public:
     }
 
 
+    //  A track between whole tracks is counted, and the whole track beside it
+    //  is empty; a track on a whole position with its neighbors is neither.
+    TEST_METHOD (Describe_CountsTracksOffTheWholePositions)
+    {
+        vector<Byte>            image;
+        WozLoader::Description  woz;
+        HRESULT                 hr = S_OK;
+
+        hr = WozLoader::BuildSyntheticV21 ({ MakeBitTrack ({ 0, 1 }), MakeFluxTrack ({ 6 }) }, image);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        WozLoader::Describe (image, woz);
+
+        Assert::AreEqual (1, woz.slotsOffWholeTracks);
+        Assert::IsTrue   (woz.wholeTrackHasData[0]);
+        Assert::IsFalse  (woz.wholeTrackHasData[1]);
+        Assert::IsFalse  (woz.wholeTrackHasData[2]);
+    }
+
+
     TEST_METHOD (FluxWinsOverTmapForTheSameQuarterTrack)
     {
         vector<Byte>  image;

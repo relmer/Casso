@@ -152,6 +152,9 @@ public:
     //  which ones this image answered.
     static std::string  FormatDetailLine (const char * label, const std::string & value);
 
+    //  A section's heading among those lines, at the left edge, ending in a colon.
+    static std::string  FormatDetailHeading (const char * heading);
+
     //  A WOZ requires_machine value, as 2|2e+, as the machines' names.
     static std::string  DescribeMachines (const std::string & codes);
 
@@ -159,6 +162,10 @@ public:
     //  its image_date in local time, then the file's text.
     static std::string  SplitMetaValues   (std::string value);
     static std::string  DescribeImageDate (const std::string & value);
+
+    //  The local time zone's short name, as PDT, or its full name when the
+    //  system has no ICU to supply one.
+    static std::string  GetZoneName (const TIME_ZONE_INFORMATION & zone, bool daylight);
 
     //  Names the image and the reason, sets the no-output status, and returns
     //  nothing -- so a refusal path cannot report one without the other.

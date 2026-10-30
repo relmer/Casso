@@ -112,6 +112,11 @@ public:
         //  WOZ 2.1 and later: the tracks the FLUX chunk maps to flux timing
         //  rather than bits, counted as TMAP's slots are.
         int                     fluxSlotsWithData     = 0;
+
+        //  Tracks on half or quarter positions alone, which a read of the whole
+        //  tracks never visits, and whether each whole track has a track at all.
+        int                     slotsOffWholeTracks   = 0;
+        std::vector<bool>       wholeTrackHasData;
     };
 
     // Blocks 0..2 hold the header and the INFO / TMAP / TRKS chunks; every

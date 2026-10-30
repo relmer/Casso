@@ -1044,8 +1044,11 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
     size_t  rawSize = raw.size();
     bool    sigV1   = false;
     bool    sigV2   = false;
+    Byte    positions[kTmapChunkSize];
 
 
+
+    memset (positions, kTmapEmptyTrack, sizeof (positions));
 
     out = Description();
 
@@ -1112,6 +1115,7 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
             {
                 if (tmap[qt] != kTmapEmptyTrack)
                 {
+                    positions[qt] = tmap[qt];
                     out.quarterTracksWithData++;
 
                     if (!seen[tmap[qt]])
@@ -1130,6 +1134,11 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
 
             for (qt = 0; qt < kTmapChunkSize; qt++)
             {
+                if (flux[qt] != kTmapEmptyTrack)
+                {
+                    positions[qt] = flux[qt];
+                }
+
                 if (flux[qt] != kTmapEmptyTrack && !seen[flux[qt]])
                 {
                     seen[flux[qt]] = true;
@@ -1143,6 +1152,36 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
         }
 
         pos = chunkPos + chunkSize;
+    }
+
+    {
+        bool  onWhole[256]  = {};
+        bool  offWhole[256] = {};
+
+        out.wholeTrackHasData.assign (kTmapChunkSize / 4, false);
+
+        for (size_t qt = 0; qt < kTmapChunkSize; qt++)
+        {
+            if (positions[qt] == kTmapEmptyTrack)
+            {
+                continue;
+            }
+
+            if (qt % 4 == 0)
+            {
+                onWhole[positions[qt]]     = true;
+                out.wholeTrackHasData[qt / 4] = true;
+            }
+            else
+            {
+                offWhole[positions[qt]] = true;
+            }
+        }
+
+        for (size_t slot = 0; slot < std::size (onWhole); slot++)
+        {
+            out.slotsOffWholeTracks += (offWhole[slot] && !onWhole[slot]) ? 1 : 0;
+        }
     }
 }
 

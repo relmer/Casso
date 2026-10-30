@@ -709,8 +709,9 @@ std::wstring PreviewDecoder::FormatProDosDate (const FileEntry & entry)
 //  A detail line is two spaces, a label, and its value from column 16, or
 //  after a two-space gap when the label fills the column. A line with no
 //  label, its text in the value column, is the next line of the value above,
-//  and is a detail with an empty label. Any other line, such as the headline
-//  with the image's path, is not a detail.
+//  and is a detail with an empty label. A line at the left edge ending in a
+//  colon is a section's heading, a detail with an empty value. Any other
+//  line, such as the headline with the image's path, is not a detail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -720,12 +721,13 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
 
 
 
-    size_t       start = 0;
-    size_t       end   = 0;
-    size_t       gap   = 0;
+    size_t       start      = 0;
+    size_t       end        = 0;
+    size_t       gap        = 0;
     std::string  line;
     std::string  label;
     std::string  value;
+    bool         hasHeading = false;
 
 
 
@@ -737,6 +739,13 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
         end   = (end == std::string::npos) ? message.size() : end;
         line  = message.substr (start, end - start);
         start = end + 1;
+
+        if (!line.empty() && line[0] != ' ' && line.back() == ':')
+        {
+            outDetails.emplace_back (TextEncoding::NarrowToWide (line.substr (0, line.size() - 1)), std::wstring());
+            hasHeading = true;
+            continue;
+        }
 
         if (!outDetails.empty() && line.size() > s_kValueColumn && line.find_first_not_of (' ') == s_kValueColumn)
         {
@@ -767,9 +776,18 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
         }
     }
 
+    //  The file system is analysis, so it starts the last section when there
+    //  are sections.
     if (!outDetails.empty())
     {
-        outDetails.insert (outDetails.begin(), std::make_pair (std::wstring (L"File system"), std::wstring (L"Not DOS 3.3 or ProDOS")));
+        auto  at = outDetails.begin();
+
+        for (auto entry = outDetails.begin(); hasHeading && entry != outDetails.end(); ++entry)
+        {
+            at = entry->second.empty() ? entry + 1 : at;
+        }
+
+        outDetails.insert (at, std::make_pair (std::wstring (L"File system"), std::wstring (L"Not DOS 3.3 or ProDOS")));
     }
 
     return !outDetails.empty();

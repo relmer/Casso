@@ -82,6 +82,19 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     {
         for (const std::pair<std::wstring, std::wstring> & field : preview.details)
         {
+            //  A section's heading is a row of one cell, under a blank row
+            //  unless it starts the text.
+            if (field.second.empty())
+            {
+                if (!rows.empty())
+                {
+                    rows.push_back (DxuiTextView::Row { { std::wstring() } });
+                }
+
+                rows.push_back (DxuiTextView::Row { { field.first } });
+                continue;
+            }
+
             rows.push_back (DxuiTextView::Row { { field.first, field.second } });
         }
     }

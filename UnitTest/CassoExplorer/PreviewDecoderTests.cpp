@@ -572,6 +572,30 @@ public:
 
 
 
+    //  Sections keep their order, and the file system starts the last one.
+    TEST_METHOD (Details_ReadSections)
+    {
+        std::vector<std::pair<std::wstring, std::wstring>>  details;
+        std::string                                         message;
+
+        message = "C:\\disks\\x.woz: does not have a DOS or ProDOS file system\n"
+                + DiskImageSession::FormatDetailHeading ("WOZ info")
+                + DiskImageSession::FormatDetailLine ("format", "WOZ 2")
+                + DiskImageSession::FormatDetailHeading ("Casso analysis")
+                + DiskImageSession::FormatDetailLine ("flux", "none");
+
+        Assert::IsTrue   (PreviewDecoder::ParseDetails (message, details));
+        Assert::AreEqual ((size_t) 5, details.size());
+        Assert::AreEqual (std::wstring (L"WOZ info"), details[0].first);
+        Assert::IsTrue   (details[0].second.empty());
+        Assert::AreEqual (std::wstring (L"Format"), details[1].first);
+        Assert::AreEqual (std::wstring (L"Casso analysis"), details[2].first);
+        Assert::AreEqual (std::wstring (L"File system"), details[3].first);
+        Assert::AreEqual (std::wstring (L"Flux"), details[4].first);
+    }
+
+
+
     //  The WOZ spec's machine codes, as names, one a line.
     TEST_METHOD (Details_SplitWozValues_AndKeepAnUnknownDateAsItIs)
     {
