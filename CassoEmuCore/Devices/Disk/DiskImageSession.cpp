@@ -41,6 +41,67 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageSession::DescribeMachines
+//
+//  The WOZ spec's requires_machine codes, separated by |, as the machines'
+//  names, one a line. A code the spec doesn't define is kept as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeMachines (const std::string & codes)
+{
+    static constexpr const char *  s_kppszMachines[][2] =
+    {
+        { "2",   "Apple ]["            },
+        { "2+",  "Apple ][+"           },
+        { "2e",  "Apple //e"           },
+        { "2c",  "Apple //c"           },
+        { "2e+", "Enhanced Apple //e"  },
+        { "2gs", "Apple IIgs"          },
+        { "2c+", "Apple //c Plus"      },
+        { "3",   "Apple ///"           },
+        { "3+",  "Apple /// Plus"      },
+    };
+    std::string  text;
+    std::string  code;
+    size_t       start = 0;
+    size_t       bar   = 0;
+
+
+
+    while (start <= codes.size())
+    {
+        bar   = codes.find ('|', start);
+        bar   = (bar == std::string::npos) ? codes.size() : bar;
+        code  = codes.substr (start, bar - start);
+        start = bar + 1;
+
+        if (code.empty())
+        {
+            continue;
+        }
+
+        for (const auto & machine : s_kppszMachines)
+        {
+            if (code == machine[0])
+            {
+                code = machine[1];
+                break;
+            }
+        }
+
+        text += (text.empty() ? "" : "\n") + code;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageSession::FormatDetailLine
 //
 //  A value nobody recorded produces NOTHING, rather than a label followed by
@@ -75,7 +136,15 @@ std::string DiskImageSession::FormatDetailLine (const char * label, const std::s
         text += "  ";
     }
 
-    text += value + "\n";
+    //  A value of several lines has each line after the first under the
+    //  first, in the value column.
+    for (size_t at = 0, next = 0; at <= value.size(); at = next + 1)
+    {
+        next = value.find ('\n', at);
+        next = (next == std::string::npos) ? value.size() : next;
+
+        text += (at > 0 ? std::string (kLabelColumn, ' ') : std::string()) + value.substr (at, next - at) + "\n";
+    }
 
 Error:
     return text;
@@ -130,9 +199,10 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
           : (woz.diskType == WozLoader::kDiskType35)  ? "3.5-inch"
                                                       : "size not recorded";
 
-    if (woz.writeProtected) { media += ", write-protected"; }
-    if (woz.synchronized)   { media += ", tracks synchronized"; }
-    if (woz.cleaned)        { media += ", drive noise cleaned"; }
+    //  One fact a line, each under the one before.
+    if (woz.writeProtected) { media += "\nwrite-protected"; }
+    if (woz.synchronized)   { media += "\ntracks synchronized"; }
+    if (woz.cleaned)        { media += "\ndrive noise cleaned"; }
 
     text += FormatDetailLine ("media", media);
 
@@ -153,6 +223,18 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
 
     text += FormatDetailLine ("surface", note);
 
+    //  Flux timing came with WOZ 2.1; an earlier image stores bits alone.
+    if (woz.fluxSlotsWithData > 0)
+    {
+        snprintf (note, sizeof (note), "%d %s stored as flux timing", woz.fluxSlotsWithData, (woz.fluxSlotsWithData == 1) ? "track" : "tracks");
+    }
+    else
+    {
+        snprintf (note, sizeof (note), "%s", (woz.wozVersion < 2) ? "none, as WOZ 1 has no flux tracks" : "none");
+    }
+
+    text += FormatDetailLine ("flux", note);
+
     // The named fields first, then whatever else the image chose to record.
     for (const auto & highlight : s_kppszMetaHighlights)
     {
@@ -160,7 +242,9 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
         {
             if (field.key == highlight[0])
             {
-                text += FormatDetailLine (highlight[1], TextEncoding::Utf8ToNarrow (field.value));
+                std::string  value = TextEncoding::Utf8ToNarrow (field.value);
+
+                text += FormatDetailLine (highlight[1], (field.key == "requires_machine") ? DescribeMachines (value) : value);
                 break;
             }
         }
@@ -277,23 +361,24 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
         snprintf (note, sizeof (note), "%d of %d tracks are standard 16-sector data", complete, trackCount);
         decoded = note;
 
+        //  One count a line, each under the one before.
         if (partial > 0)
         {
-            snprintf (note, sizeof (note), "; %d %s sectors that could not be read",
-                      partial, (partial == 1) ? "has" : "have");
+            snprintf (note, sizeof (note), "\n%d %s sectors that could not be read",
+                      partial, (partial == 1) ? "track has" : "tracks have");
             decoded += note;
         }
 
         if (unformatted > 0)
         {
-            snprintf (note, sizeof (note), "%s%d %s no sectors at all",
-                      (partial > 0) ? ", and " : "; ", unformatted, (unformatted == 1) ? "has" : "have");
+            snprintf (note, sizeof (note), "\n%d %s no sectors at all",
+                      unformatted, (unformatted == 1) ? "track has" : "tracks have");
             decoded += note;
         }
 
         if (complete == 0)
         {
-            decoded += "; copy-protected disks often use their own track format";
+            decoded += "\ncopy-protected disks often use their own track format";
         }
 
         text += FormatDetailLine ("decoded", decoded);

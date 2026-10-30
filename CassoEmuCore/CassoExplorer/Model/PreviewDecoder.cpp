@@ -707,8 +707,10 @@ std::wstring PreviewDecoder::FormatProDosDate (const FileEntry & entry)
 //  PreviewDecoder::ParseDetails
 //
 //  A detail line is two spaces, a label, and its value from column 16, or
-//  after a two-space gap when the label fills the column. Any other line, such
-//  as the headline naming the image, is not a detail.
+//  after a two-space gap when the label fills the column. A line with no
+//  label, its text in the value column, is the next line of the value above,
+//  and is a detail with an empty label. Any other line, such as the headline
+//  with the image's path, is not a detail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -735,6 +737,14 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
         end   = (end == std::string::npos) ? message.size() : end;
         line  = message.substr (start, end - start);
         start = end + 1;
+
+        if (!outDetails.empty() && line.size() > s_kValueColumn && line.find_first_not_of (' ') == s_kValueColumn)
+        {
+            value    = line.substr (s_kValueColumn);
+            value[0] = (char) toupper ((unsigned char) value[0]);
+            outDetails.emplace_back (std::wstring(), TextEncoding::NarrowToWide (value));
+            continue;
+        }
 
         if (line.size() <= s_kValueColumn || line.compare (0, 2, "  ") != 0 || line[2] == ' ')
         {

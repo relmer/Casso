@@ -108,6 +108,10 @@ public:
         //  copy protection, not a defect -- shows more positions than slots.
         int                     quarterTracksWithData = 0;
         int                     trackSlotsWithData    = 0;
+
+        //  WOZ 2.1 and later: the tracks the FLUX chunk maps to flux timing
+        //  rather than bits, counted as TMAP's slots are.
+        int                     fluxSlotsWithData     = 0;
     };
 
     // Blocks 0..2 hold the header and the INFO / TMAP / TRKS chunks; every

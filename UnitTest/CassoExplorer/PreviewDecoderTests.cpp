@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "Devices/Disk/DiskImageSession.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "CassoExplorer/CrtPictureRenderer.h"
 #include "CassoExplorer/Model/PicturePreview.h"
@@ -545,6 +546,36 @@ public:
         Assert::AreEqual (std::wstring (L"2+"), details[3].second);
 
         Assert::IsFalse  (PreviewDecoder::ParseDetails ("C:\\disks\\x.dsk: cannot be read\n", details), L"A plain failure has no details");
+    }
+
+
+
+    //  A value of several lines has each line after the first in the value
+    //  column, and each is a separate row with no label.
+    TEST_METHOD (Details_ReadAValueOfSeveralLines)
+    {
+        std::vector<std::pair<std::wstring, std::wstring>>  details;
+        std::string                                         message;
+
+        message = "C:\\disks\\x.woz: does not have a DOS or ProDOS file system\n"
+                + DiskImageSession::FormatDetailLine ("media", "5.25-inch\ntracks synchronized")
+                + DiskImageSession::FormatDetailLine ("flux", "none");
+
+        Assert::IsTrue   (PreviewDecoder::ParseDetails (message, details));
+        Assert::AreEqual ((size_t) 4, details.size());
+        Assert::AreEqual (std::wstring (L"Media"), details[1].first);
+        Assert::AreEqual (std::wstring (L"5.25-inch"), details[1].second);
+        Assert::AreEqual (std::wstring(), details[2].first);
+        Assert::AreEqual (std::wstring (L"Tracks synchronized"), details[2].second);
+        Assert::AreEqual (std::wstring (L"Flux"), details[3].first);
+    }
+
+
+
+    //  The WOZ spec's machine codes, as names, one a line.
+    TEST_METHOD (Details_ListTheWozMachines)
+    {
+        Assert::AreEqual (std::string ("Apple ][\nEnhanced Apple //e\nApple IIgs\n9z"), DiskImageSession::DescribeMachines ("2|2e+|2gs|9z"));
     }
 
 

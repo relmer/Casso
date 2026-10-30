@@ -402,5 +402,6 @@ public:
 
         Assert::AreEqual (static_cast<size_t> (1), woz.meta.size());
         Assert::AreEqual (std::string ("Bandits"), woz.meta[0].value);
+        Assert::AreEqual (1, woz.fluxSlotsWithData, L"The flux track is counted");
     }
 };

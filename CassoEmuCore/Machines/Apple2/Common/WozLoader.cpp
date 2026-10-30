@@ -1122,6 +1122,21 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
                 }
             }
         }
+        else if (MatchMagic (id, kFluxMagic) && chunkSize >= kTmapChunkSize)
+        {
+            const Byte *  flux      = raw.data() + chunkPos;
+            bool          seen[256] = {};
+            size_t        qt        = 0;
+
+            for (qt = 0; qt < kTmapChunkSize; qt++)
+            {
+                if (flux[qt] != kTmapEmptyTrack && !seen[flux[qt]])
+                {
+                    seen[flux[qt]] = true;
+                    out.fluxSlotsWithData++;
+                }
+            }
+        }
         else if (MatchMagic (id, kMetaMagic))
         {
             ParseMetaChunk (raw.data() + chunkPos, chunkSize, out.meta);
