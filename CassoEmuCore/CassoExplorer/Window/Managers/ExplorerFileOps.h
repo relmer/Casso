@@ -106,6 +106,7 @@ private:
     //  or -1, or the tree node.
     DxuiTextInput  * m_renameBox    = nullptr;
     int              m_renameRow    = -1;
+    std::wstring     m_renameHiddenExtension;   // a shortcut's .lnk, left out of the box
     std::wstring     m_renameTreeId;
     int              m_restoreTicks = 0;
 };

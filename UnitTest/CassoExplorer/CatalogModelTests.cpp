@@ -78,6 +78,25 @@ public:
 
 
 
+    //  A shortcut is listed without its extension, as Windows always lists
+    //  it; its name stays the file's whole name, for paths and renames.
+    TEST_METHOD (HostRow_HidesAShortcutsExtension)
+    {
+        FileSystemEntry  shortcut;
+        FileSystemEntry  text;
+
+        shortcut.name = L"Excel.lnk";
+        text.name     = L"notes.txt";
+
+        Assert::IsTrue  (CatalogModel::IsExtensionNeverShown (L".lnk"));
+        Assert::IsFalse (CatalogModel::IsExtensionNeverShown (L".txt"));
+        Assert::AreEqual (std::wstring (L"Excel"), CatalogModel::FromHostEntry (shortcut, false, 0).label);
+        Assert::AreEqual (std::wstring (L"Excel.lnk"), CatalogModel::FromHostEntry (shortcut, false, 0).name);
+        Assert::IsTrue  (CatalogModel::FromHostEntry (text, false, 0).label.empty());
+    }
+
+
+
     TEST_METHOD (Dos33Rows_LetterTypesSectorSizesAndBinaryAddress)
     {
         std::vector<CatalogRow>  rows;

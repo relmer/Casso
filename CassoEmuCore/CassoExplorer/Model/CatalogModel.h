@@ -139,6 +139,10 @@ public:
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);
 
+    //  Whether Windows hides an extension whatever the user's setting: its
+    //  file type has NeverShowExt, as a shortcut's does. Read once a type.
+    static bool        IsExtensionNeverShown (const std::wstring & extension);
+
     //  The Type column's text for a disk image by its extension, as
     //  ProDOS-order disk image, or empty for a name that is not one.
     static std::wstring  GetDiskImageTypeName (const std::wstring & name);

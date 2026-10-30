@@ -174,6 +174,56 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CatalogModel::IsExtensionNeverShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::IsExtensionNeverShown (const std::wstring & extension)
+{
+    static std::mutex                     s_lock;
+    static std::map<std::wstring, bool>   s_known;
+    std::wstring                          key       = extension;
+    wchar_t                               type[256] = {};
+    DWORD                                 bytes     = sizeof (type);
+    bool                                  hidden    = false;
+    LSTATUS                               status    = ERROR_SUCCESS;
+
+
+
+    std::transform (key.begin(), key.end(), key.begin(), towlower);
+
+    {
+        std::lock_guard<std::mutex>  guard (s_lock);
+        auto                         found = s_known.find (key);
+
+        if (found != s_known.end())
+        {
+            return found->second;
+        }
+    }
+
+    status = RegGetValueW (HKEY_CLASSES_ROOT, key.c_str(), nullptr, RRF_RT_REG_SZ, nullptr, type, &bytes);
+
+    if (status == ERROR_SUCCESS && type[0] != L'\0')
+    {
+        hidden = RegGetValueW (HKEY_CLASSES_ROOT, type, L"NeverShowExt", RRF_RT_ANY, nullptr, nullptr, nullptr) == ERROR_SUCCESS;
+    }
+
+    {
+        std::lock_guard<std::mutex>  guard (s_lock);
+
+        s_known[key] = hidden;
+    }
+
+    return hidden;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CatalogModel::FromHostEntry
 //
 //  A host file's type column is its extension, upper-cased, since that is
@@ -198,6 +248,13 @@ CatalogRow CatalogModel::FromHostEntry (const FileSystemEntry & entry, bool isDi
     row.isHidden     = entry.isHidden;
     row.isCompressed = entry.isCompressed;
     row.isEncrypted  = entry.isEncrypted;
+
+    //  A type whose extension Windows always hides, such as a shortcut, is
+    //  listed without it, as in File Explorer.
+    if (!entry.isFolder && dot != std::wstring::npos && dot > 0 && IsExtensionNeverShown (entry.name.substr (dot)))
+    {
+        row.label = entry.name.substr (0, dot);
+    }
 
     if (isDiskImage && !GetDiskImageTypeName (entry.name).empty())
     {

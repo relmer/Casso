@@ -759,6 +759,7 @@ bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, 
 //  menu rather than from the registry: for drives, BitLocker, Format and,
 //  for a removable drive, Eject; for files, Run as administrator and, for a
 //  shortcut, Open file location. Each is run by its verb as if picked there.
+//  A single program or shortcut also has Pin to Start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -767,6 +768,7 @@ void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items
     static const std::vector<std::string>   kDriveVerbs = { "encrypt-bde-elev", "encrypt-bde", "format", "eject" };
     static const std::vector<std::string>   kFileVerbs  = { "runas", "opencontaining" };
     std::vector<IShellItemVerbs::ItemVerb>  found;
+    Win32PackagedCommands::Entry            startPin;
     bool                                    drives      = false;
     bool                                    files       = false;
     HRESULT                                 hr          = S_OK;
@@ -819,6 +821,12 @@ void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items
 
         //  File Explorer's icons for them.
         m_menuCommands.back()->menuSvg = GetMenuSvg (GetShellVerbSvgName (verb));
+    }
+
+    //  A program or shortcut pins to Start, as a folder does.
+    if (files && paths.size() == 1 && m_packagedCommands.GetStartPinEntry (paths[0], startPin))
+    {
+        AddPackagedEntry (items, startPin, paths);
     }
 }
 

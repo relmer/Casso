@@ -177,6 +177,17 @@ void ExplorerFileOps::BeginRename()
 
     name = m_context.browser.GetRows()[(size_t) row].name;
 
+    //  A shortcut's hidden extension stays out of the box and goes back on
+    //  the new name, as in File Explorer.
+    m_renameHiddenExtension.clear();
+
+    if (host && !m_context.browser.GetRows()[(size_t) row].label.empty() && name.starts_with (m_context.browser.GetRows()[(size_t) row].label))
+    {
+        m_renameHiddenExtension = name.substr (m_context.browser.GetRows()[(size_t) row].label.size());
+        name                    = m_context.browser.GetRows()[(size_t) row].label;
+        host                    = false;   // the whole name is selected
+    }
+
     m_renameBox->SetMaxLength (host ? MAX_PATH : kMaxCatalogName);
     m_renameBox->SetText      (name);
     m_renameBox->Layout       (cell, m_context.scaler);
@@ -259,7 +270,7 @@ void ExplorerFileOps::EndRename (bool commit)
 {
     HRESULT       hr      = S_OK;
     int           row     = m_renameRow;
-    std::wstring  newName = m_renameBox->GetText();
+    std::wstring  newName = m_renameBox->GetText() + ((m_renameRow >= 0) ? m_renameHiddenExtension : std::wstring());
     std::wstring  oldName;
     std::wstring  path;
     std::wstring  treeId  = m_renameTreeId;
