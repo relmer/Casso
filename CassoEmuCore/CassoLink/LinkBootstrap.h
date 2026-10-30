@@ -31,10 +31,10 @@ class IByteStream;
 class LinkBootstrap
 {
 public:
-    //  64 bytes is a line of about 200 characters, inside the monitor's 255.
-    //  The pause after it covers the monitor storing the bytes.
-    static constexpr DWORD   kLinePauseMs  = 100;
-    static constexpr size_t  kBytesPerLine = 64;
+    //  8 bytes keep a line on one screen row. A longer line wraps, and a //c
+    //  drops characters that arrive while the monitor scrolls.
+    static constexpr DWORD   kLinePauseMs  = 250;
+    static constexpr size_t  kBytesPerLine = 8;
     static constexpr DWORD   kCharPauseUs  = 3000;
 
     //  Ctrl-X, which GETLN takes as cancel line, in Applesoft and the monitor.
