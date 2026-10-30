@@ -39,6 +39,12 @@ public:
     void         RememberFolderColumnWidths (int column, int widthDip);
     void         RememberFolderColumns      ();
 
+    //  The list's columns: the fixed ones, then the shell properties added
+    //  from Choose Details. LoadPropertyColumns sets them on the list.
+    const std::vector<DxuiListView::Column> &  GetListColumns      () const { return m_listColumns; }
+    void                                       LoadPropertyColumns ();
+    void                                       ChooseDetails       ();
+
     //  The column order for the folder on display: the folder's, or the latest.
     void                  SetFolderOrder     (std::vector<int> order) { m_folderOrder = std::move (order); }
     bool                  ReadFolderOptions  ();
@@ -50,10 +56,11 @@ public:
     void                  SetView            (DxuiListView::View view);
 
 private:
-    ExplorerListPane    & m_pane;
-    ExplorerContext     & m_context;
-    std::vector<bool>     m_chosen;   // the columns the user has chosen to show
-    std::vector<int>      m_folderOrder;   // the column order the folder on display uses
-    DxuiListView::View    m_view        = DxuiListView::View::Details;
-    std::wstring          m_viewKey;   // the folder the view was chosen for: a new folder opens in its view
+    ExplorerListPane                   & m_pane;
+    ExplorerContext                    & m_context;
+    std::vector<bool>                    m_chosen;   // the columns the user chose
+    std::vector<int>                     m_folderOrder;   // the column order the folder on display uses
+    DxuiListView::View                   m_view        = DxuiListView::View::Details;
+    std::wstring                         m_viewKey;   // the folder the view was chosen for: a new folder opens in its view
+    std::vector<DxuiListView::Column>    m_listColumns;
 };

@@ -380,6 +380,10 @@ public:
     void  SetOnHeaderFilter     (std::function<void (int, RECT)>  cb)  { m_header.m_onFilter = std::move (cb); }
     void  SetColumnFilter       (size_t column, bool filterable, bool filtered);
 
+    //  A press on a row's check box, or Space with the row selected; the host
+    //  changes the cell's check and the list redraws it.
+    void  SetOnCheckToggled     (std::function<void (int)>  cb)  { m_onCheckToggled = std::move (cb); }
+
     // Mouse activation policy. By default a click release over a row raises
     // onActivateRow; with double-click required, the release only activates
     // on the second click on the same row inside the system double-click
@@ -459,6 +463,9 @@ public:
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top })); }
     LPCWSTR                         GetCursorForPoint (POINT clientPx) const       override;
     bool                            OnKey             (const DxuiKeyEvent   & ev) override;
+
+    //  A dialog passes typed characters here rather than to OnKey.
+    bool                            OnChar            (wchar_t ch) override { return OnKey (DxuiKeyEvent { DxuiKeyEventKind::Char, (WPARAM) ch }); }
     bool                            QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                            InvokeCommand     (DxuiStandardCommand command) override;
     void                            OnFocusChanged    (bool focused) override;
@@ -478,6 +485,9 @@ private:
     int   GetHeaderGapPx      () const { return m_scaler.ToPx (m_explorerDetails ? s_kExplorerHeaderGapDip : s_kHeaderGapDip); }
     int   GetCellIconGapPx    () const { return m_explorerDetails ? (int) std::lround (m_scaler.ToPxf (s_kExplorerIconGapDip)) : m_scaler.ToPx (DxuiListColumns::s_kCellIconGapDip); }
     int   GetDetailsLeftPx    () const { return m_explorerDetails ? (int) std::lround (m_scaler.ToPxf (s_kItemsLeftDip)) : 0; }
+    int   GetCheckBoxSpanPx   () const { return m_scaler.ToPx (s_kCheckBoxDip + s_kCheckBoxGapDip); }
+    static constexpr int    s_kCheckBoxDip       = 16;
+    static constexpr int    s_kCheckBoxGapDip    = 8;
     static constexpr int    s_kGroupLabelDip     = 22;   // the header's label, from the list's left
     static constexpr int    s_kCellPadRightDip   = 16;
     static constexpr int    s_kSortGlyphWidthDip = 10;
@@ -605,6 +615,7 @@ private:
     std::function<void (int)>         m_onSelectionChanged;
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int, int)>    m_onColumnResized;
+    std::function<void (int)>         m_onCheckToggled;
 
     int64_t  GetClockMs        () const;
 

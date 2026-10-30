@@ -46,11 +46,11 @@ public:
     // Draw the label on one line, ellipsizing (…) instead of wrapping — for
     // fixed-height list rows. Default off keeps the wrapping behavior.
     void  SetSingleLineLabel (bool v) { m_singleLineLabel = v; }
-    void  SetChecked (bool checked) { m_checked = checked; }
-    void  SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
-    void  SetFocused (bool focused) { m_focused = focused; }
-    void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
-    void  SetDpi      (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetChecked         (bool checked) { m_checked = checked; }
+    void  SetEnabled         (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
+    void  SetFocused         (bool focused) { m_focused = focused; }
+    void  SetOnChange        (ChangeFn fn) { m_change = std::move (fn); }
+    void  SetDpi             (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     const RECT         & GetRect   () const { return m_boundsDip;     }
     const std::wstring & GetLabel  () const { return m_label;    }
@@ -65,6 +65,19 @@ public:
     bool  OnLButtonDown   (int x, int y);
     bool  OnLButtonUp     (int x, int y);
     bool  OnKey           (WPARAM vk);
+
+    //  The box alone, as a list row draws it before its text.
+    static void  PaintBox (IDxuiPainter      & painter,
+                           IDxuiTextRenderer & text,
+                           float               left,
+                           float               top,
+                           float               sizePx,
+                           float               onePx,
+                           bool                checked,
+                           uint32_t            emptyFill,
+                           uint32_t            outline,
+                           uint32_t            checkedFill,
+                           uint32_t            glyph);
 
     //
     //  IDxuiControl overrides — additive shims so DxuiCheckbox slots

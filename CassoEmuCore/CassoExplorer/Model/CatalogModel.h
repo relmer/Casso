@@ -151,6 +151,23 @@ public:
 
     static void  Sort (std::vector<CatalogRow> & rows, Column column, bool descending);
 
+    //  The count of fixed columns; a column after them is a shell property's.
+    static constexpr size_t  kColumnCount = (size_t) Column::Folder + 1;
+
+    //  A row's value of a shell property, as its column sorts by it: by number
+    //  when both have one, else by text. A row without one sorts first.
+    struct PropertyKey
+    {
+        bool          has     = false;
+        bool          numeric = false;
+        double        number  = 0.0;
+        std::wstring  text;
+    };
+
+    //  Sorts by a property, with a key for each row in the rows' order.
+    //  Folders first, and the name breaking ties, as Sort.
+    static void  SortByProperty (std::vector<CatalogRow> & rows, const std::vector<PropertyKey> & keys, bool descending);
+
     //  The DOS 3.3 letter or the ProDOS mnemonic for a type byte.
     static std::wstring  GetTypeText (Byte type, VolumeKind kind);
 
@@ -196,5 +213,6 @@ private:
         { 0xFF, L"SYS" },
     };
 
-    static bool  IsBefore (const CatalogRow & a, const CatalogRow & b, Column column);
+    static bool  IsBefore         (const CatalogRow & a, const CatalogRow & b, Column column);
+    static bool  IsPropertyBefore (const CatalogRow & a, const PropertyKey & keyA, const CatalogRow & b, const PropertyKey & keyB);
 };

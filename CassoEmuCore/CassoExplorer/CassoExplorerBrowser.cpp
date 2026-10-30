@@ -296,7 +296,23 @@ void CassoExplorerBrowser::SortRows()
     }
 
     FilterRows();
-    CatalogModel::Sort (m_rows, m_model.GetActiveTab().sortColumn, m_model.GetActiveTab().sortDescending);
+
+    if ((size_t) m_model.GetActiveTab().sortColumn >= CatalogModel::kColumnCount && m_propertyKey)
+    {
+        std::vector<CatalogModel::PropertyKey>  keys;
+
+        for (size_t row = 0; row < m_rows.size(); row++)
+        {
+            keys.push_back (m_propertyKey (row, (size_t) m_model.GetActiveTab().sortColumn - CatalogModel::kColumnCount));
+        }
+
+        CatalogModel::SortByProperty (m_rows, keys, m_model.GetActiveTab().sortDescending);
+    }
+    else
+    {
+        CatalogModel::Sort (m_rows, m_model.GetActiveTab().sortColumn, m_model.GetActiveTab().sortDescending);
+    }
+
     GroupRows();
 }
 
@@ -627,7 +643,7 @@ void CassoExplorerBrowser::SortByColumn (int column)
 
 
 
-    if (!m_model.HasTabs() || column < 0 || column > (int) CatalogModel::Column::DateDeleted)
+    if (!m_model.HasTabs() || column < 0 || (column > (int) CatalogModel::Column::DateDeleted && !IsPropertyColumn (column)))
     {
         return;
     }

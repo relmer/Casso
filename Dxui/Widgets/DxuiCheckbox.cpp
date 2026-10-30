@@ -146,6 +146,49 @@ void DxuiCheckbox::Toggle()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiCheckbox::PaintBox
+//
+//  A checked box is filled and has a check mark; an empty one is outlined.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCheckbox::PaintBox (IDxuiPainter      & painter,
+                             IDxuiTextRenderer & text,
+                             float               left,
+                             float               top,
+                             float               sizePx,
+                             float               onePx,
+                             bool                checked,
+                             uint32_t            emptyFill,
+                             uint32_t            outline,
+                             uint32_t            checkedFill,
+                             uint32_t            glyph)
+{
+    HRESULT  hr     = S_OK;
+    float    corner = onePx * DxuiTheme::kCornerRadiusDip;
+
+
+
+    if (!checked)
+    {
+        painter.FillRoundedRect    (left, top, sizePx, sizePx, corner, emptyFill);
+        painter.OutlineRoundedRect (left, top, sizePx, sizePx, corner, onePx, outline);
+        return;
+    }
+
+    painter.FillRoundedRect (left, top, sizePx, sizePx, corner, checkedFill);
+
+    hr = text.DrawString (s_kpszCheckMark, left, top, sizePx, sizePx, glyph, sizePx * 0.95f, L"Segoe UI Symbol",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Hard-coded neutral palette for now. Slice C / P4 wires real theme
@@ -197,30 +240,7 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         float  labelX = 0.0f;
         float  labelW = 0.0f;
 
-        if (m_checked)
-        {
-            painter.FillRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), checkedFill);
-        }
-        else
-        {
-            painter.FillRoundedRect    (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), boxColor);
-            painter.OutlineRoundedRect (boxLeft, boxTop, boxSize, boxSize, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), m_scaler.ToPxf (1.0f), outlineColor);
-        }
-
-        if (m_checked)
-        {
-            hr = text.DrawString (s_kpszCheckMark,
-                                  boxLeft,
-                                  boxTop,
-                                  boxSize,
-                                  boxSize,
-                                  glyphColor,
-                                  boxSize * 0.95f,
-                                  L"Segoe UI Symbol",
-                                  DxuiTextHAlign::Center,
-                                  DxuiTextVAlign::Center);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
+        PaintBox (painter, text, boxLeft, boxTop, boxSize, m_scaler.ToPxf (1.0f), m_checked, boxColor, outlineColor, checkedFill, glyphColor);
 
         labelX = boxLeft + boxSize + labelGap;
         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;

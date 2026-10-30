@@ -42,14 +42,14 @@ ExplorerListMenus::ExplorerListMenus (ExplorerListPane & pane, ExplorerContext &
 //
 //  Explorer's header menu: fit the column under the pointer, fit them all,
 //  then the columns that apply to the folder on display, with a check by the
-//  visible ones. Name is always visible.
+//  visible ones, and More... for Choose Details. Name is always visible.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 {
     std::vector<DxuiPopupMenuItem>     items;
-    std::vector<DxuiListView::Column>  columns   = BrowserCells::GetColumns();
+    std::vector<DxuiListView::Column>  columns   = m_pane.GetColumns().GetListColumns();
     Location                           location  = m_context.browser.GetLocation();
     bool                               searching = SearchQuery::IsId (location.path);
 
@@ -108,6 +108,9 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
         m_context.menus.GetMenuCommands().push_back (std::move (command));
     }
+
+    //  File Explorer's Choose Details, for the shell's other properties.
+    m_context.menus.AddMenuCommand (items, L"&More...", [this]() { m_pane.GetColumns().ChooseDetails(); });
 
     DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }
@@ -685,16 +688,31 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
 
 
 
-    for (column = 0; column < BrowserCells::GetColumns().size(); column++)
+    for (column = 0; column < (size_t) m_context.commandManager.GetSortColumnCount(); column++)
     {
-        bool  chosen = column >= m_pane.GetColumns().GetChosen().size() || m_pane.GetColumns().GetChosen()[column];
+        bool                          chosen  = column >= m_pane.GetColumns().GetChosen().size() || m_pane.GetColumns().GetChosen()[column];
+        int                           id      = CassoExplorerCommands::kSortByColumn + (int) column;
+        std::shared_ptr<DxuiCommand>  command;
 
         if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path)))
         {
             continue;
         }
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortByColumn + (int) column)));
+        if (column < CatalogModel::kColumnCount)
+        {
+            items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (id)));
+            continue;
+        }
+
+        //  A shell property's column has its command made here, by its title.
+        command            = std::make_shared<DxuiCommand>();
+        command->label     = m_pane.GetColumns().GetListColumns()[column].title;
+        command->radio     = true;
+        command->isChecked = [this, id]() { return m_context.commandManager.IsChecked (id); };
+        command->dispatch  = [this, id]() { m_context.commandManager.Dispatch (id); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
     }
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());

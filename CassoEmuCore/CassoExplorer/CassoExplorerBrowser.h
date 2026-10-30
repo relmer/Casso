@@ -154,6 +154,13 @@ public:
 
     void  SortByColumn     (int column);
 
+    //  The count of shell property columns after the fixed ones, and the
+    //  function that returns a row's key for sorting by one.
+    using PropertyKeyFn = std::function<CatalogModel::PropertyKey (size_t row, size_t property)>;
+
+    void  SetPropertyColumns (size_t count, PropertyKeyFn keyFn) { m_propertyCount = count; m_propertyKey = std::move (keyFn); }
+    bool  IsPropertyColumn   (int column) const { return column >= (int) CatalogModel::kColumnCount && (size_t) column < CatalogModel::kColumnCount + m_propertyCount; }
+
     //  Explorer's Group by: the rows ordered by group, then by the sort
     //  within each, and the groups for the list to draw headers for.
     void                              SetGroupBy    (RowGrouping::Field field, bool descending);
@@ -355,6 +362,8 @@ private:
     std::map<RowGrouping::Field, std::vector<RowGrouping::Group>>    m_filterChoices;    // each column's groups before filtering
     Location                                                          m_filterLocation;   // the folder the filters are for
     bool                                                              m_rowsUnfiltered = false;   // loaded since the last filter
+    size_t                                                            m_propertyCount  = 0;
+    PropertyKeyFn                                                     m_propertyKey;
     VolumeListing                       m_listing;
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;

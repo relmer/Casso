@@ -261,7 +261,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
         return model.HasTabs() && (int) model.GetActiveTab().groupBy == id - CassoExplorerCommands::kGroupByField;
     }
 
-    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) BrowserCells::GetColumns().size())
+    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + GetSortColumnCount())
     {
         return model.HasTabs() && (int) model.GetActiveTab().sortColumn == id - CassoExplorerCommands::kSortByColumn;
     }
@@ -361,7 +361,7 @@ void ExplorerCommandManager::Dispatch (int id)
         return;
     }
 
-    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) BrowserCells::GetColumns().size())
+    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + GetSortColumnCount())
     {
         //  A new column sorts ascending; the column already in use keeps its
         //  direction.
@@ -1456,4 +1456,19 @@ bool ExplorerCommandManager::IsRawTargetCurrent (const std::wstring & target)
 
     m_context.window.ShowMessage (CassoExplorerActions::GetLeafName (target) + L" is no longer selected, so nothing was read or written.", MB_ICONWARNING);
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::GetSortColumnCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerCommandManager::GetSortColumnCount() const
+{
+    return (std::min) ((int) m_context.listPane.GetColumns().GetListColumns().size(), CassoExplorerCommands::kViewFirst - CassoExplorerCommands::kSortByColumn);
 }

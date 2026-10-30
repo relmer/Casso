@@ -48,6 +48,9 @@ public:
     //  Selects the next row whose first column starts with what has been
     //  typed, as Explorer's list does. True when the character was taken.
     bool  HandleTypeAhead          (wchar_t ch);
+
+    //  Whether a type-ahead search is under way, so a space continues it.
+    bool  IsTypingAhead            () const { return !m_typeAhead.empty() && (m_clock ? m_clock() : (int64_t) GetTickCount64()) - m_typeAheadMs <= s_kTypeAheadResetMs; }
     bool  HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false, bool ctrl = false);
     bool  HandleKeyboardRowNav     (WPARAM vk, bool shift, bool ctrl);
 

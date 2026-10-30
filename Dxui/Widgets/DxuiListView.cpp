@@ -1248,6 +1248,11 @@ bool DxuiListView::OnPress (const DxuiMouseEvent & ev, int lx, int ly, bool insi
 
     row = HitTestRow (lx, ly);
 
+    if (m_rows.OnCheckPress (lx, row))
+    {
+        return true;
+    }
+
     if (m_grouping.OnPress (lx, ly) || m_rows.OnPress (ev, row))
     {
         // Taken.
@@ -1402,6 +1407,18 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
     bool  handled    = false;
 
 
+
+    //  In a list with check boxes, Space checks or clears the selected row's,
+    //  unless it is typed in a type-ahead search.
+    if (m_onCheckToggled && ev.vk == VK_SPACE && GetSelectedRow() >= 0 && !m_keyboard.IsTypingAhead())
+    {
+        if (ev.kind == DxuiKeyEventKind::Down)
+        {
+            m_onCheckToggled (GetSelectedRow());
+        }
+
+        return true;
+    }
 
     //  A printable character jumps to a row, as it does in Explorer. With Ctrl
     //  or Alt down it is a shortcut instead, and is left to the host.

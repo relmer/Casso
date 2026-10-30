@@ -38,6 +38,9 @@ public:
     bool  EndPress  ();
     bool  OnRelease (int row);
 
+    //  A press on a cell's check box, in a list with check boxes.
+    bool  OnCheckPress (int lx, int row);
+
     //  Ends a drag that is extending the selection, keeping what it selected.
     void  EndDragSelect            () { m_dragSelecting = false; }
     bool  IsDragSelecting          () const { return m_dragSelecting; }
@@ -58,6 +61,13 @@ private:
     //  Extends the selection from the row the drag began on to the row under
     //  the pointer.
     void  DragSelectTo (int ly);
+
+    void  PaintCheckBox (IDxuiPainter                     & painter,
+                         IDxuiTextRenderer                & text,
+                         DxuiListViewTypes::Cell::Check     check,
+                         float                              left,
+                         float                              rowTop,
+                         float                              rowH) const;
 
     DxuiListView  & m_list;
 

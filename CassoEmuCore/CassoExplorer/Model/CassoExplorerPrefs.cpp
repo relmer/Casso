@@ -400,6 +400,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
+    std::vector<JsonValue>                          propertyValues;
     std::vector<JsonValue>                          linkValues;
     std::vector<JsonValue>                          widthValues;
     std::vector<JsonValue>                          orderValues;
@@ -448,6 +449,11 @@ JsonValue CassoExplorerPrefs::ToJson() const
     for (const std::wstring & typed : typedPaths)
     {
         typedValues.push_back (JsonValue (TextEncoding::WideToNarrow (typed)));
+    }
+
+    for (const std::wstring & property : propertyColumns)
+    {
+        propertyValues.push_back (JsonValue (TextEncoding::WideToNarrow (property)));
     }
 
     for (const CassoLinkSettings & link : links)
@@ -521,6 +527,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
     root.emplace_back ("listHiddenColumns", MakeIntArray (hiddenColumns));
+    root.emplace_back ("listPropertyColumns", JsonValue (std::move (propertyValues)));
     root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
     root.emplace_back ("links",            JsonValue (std::move (linkValues)));
 
@@ -786,6 +793,21 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     if (root.HasArray ("listHiddenColumns", orderArray))
     {
         hiddenColumns = ReadIntArray (root, "listHiddenColumns");
+    }
+
+    if (root.HasArray ("listPropertyColumns", typedArray))
+    {
+        propertyColumns.clear();
+
+        for (i = 0; i < typedArray->GetArraySize(); i++)
+        {
+            const JsonValue &  value = typedArray->GetArrayElement (i);
+
+            if (value.GetType() == JsonType::String)
+            {
+                propertyColumns.push_back (TextEncoding::NarrowToWide (value.GetString()));
+            }
+        }
     }
 
     if (root.HasArray ("folderViews", viewArray))

@@ -7,6 +7,7 @@
 #include "CassoExplorer/Model/RefreshAnchor.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 #include "Seams/Win32ContentDetails.h"
+#include "Seams/Win32PropertyColumns.h"
 #include "Seams/Win32ShellIcons.h"
 
 struct ExplorerContext;
@@ -50,6 +51,12 @@ public:
     void                                     RefreshContentDetails   ();
     void                                     StartLoaders            ();
     bool                                     TryApplyContentDetails  (int row, DxuiListView::Cell & name);
+    void                                     ApplyPropertyCells      (int row, std::vector<DxuiListView::Cell> & cells);
+    void                                     RefreshPropertyCells    ();
+    Win32PropertyColumns                   & GetPropertyValues       () { return m_propertyValues; }
+
+    //  An item's date and size, so its properties are read again when it changes.
+    static std::wstring  GetPropertyStamp (const CatalogRow & row) { return std::to_wstring (row.modifiedUnix) + L"." + std::to_wstring (row.sizeBytes); }
     const std::vector<DxuiListView::Cell>  & GetListRowCells         (int row);
     static std::wstring                      GetEmptyLocationMessage (Location::Kind kind);
     void                                     UpdateTip               (const DxuiMouseEvent & ev, POINT point);
@@ -108,14 +115,16 @@ private:
         POINT  start   = {};
     };
 
-    ExplorerContext      & m_context;
-    DxuiListView         * m_list           = nullptr;
-    DxuiLabel            * m_listMessage    = nullptr;
-    bool                   m_listMessageTop = false;   // a search's message, at the list's top
-    Win32ShellIcons        m_listIcons;
-    Win32ContentDetails    m_contentDetails;
-    Location               m_listLocation;
-    size_t                 m_listTabCount   = 0;   // the tabs when FillList last saved the session
+    ExplorerContext       & m_context;
+    DxuiListView          * m_list            = nullptr;
+    DxuiLabel             * m_listMessage     = nullptr;
+    bool                    m_listMessageTop  = false;   // a search's message, at the list's top
+    Win32ShellIcons         m_listIcons;
+    Win32ContentDetails     m_contentDetails;
+    Win32PropertyColumns    m_propertyValues;
+    bool                    m_propertiesShown = false;   // a property column is visible for the folder on display
+    Location                m_listLocation;
+    size_t                  m_listTabCount    = 0;   // the tabs when FillList last saved the session
 
     //  The list's rows, built as it first asks for each; see GetListRowCells.
     std::vector<std::vector<DxuiListView::Cell>>  m_rowCells;

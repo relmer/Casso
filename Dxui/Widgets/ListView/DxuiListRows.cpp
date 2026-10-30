@@ -5,6 +5,7 @@
 #include "Theme/DxuiRowLook.h"
 #include "Widgets/DxuiListView.h"
 #include "Core/DxuiIconImage.h"
+#include "Widgets/DxuiCheckbox.h"
 
 
 
@@ -61,6 +62,90 @@ bool DxuiListRows::OnPress (const DxuiMouseEvent & ev, int row)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::OnCheckPress
+//
+//  A press on a cell's check box selects its row and toggles the box.
+//  Returns whether the press was on one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListRows::OnCheckPress (int lx, int row)
+{
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_list.m_hScrollEnabled ? (lx + m_list.m_leftPx) : lx;
+    int               boxPx   = m_list.m_scaler.ToPx (DxuiListView::s_kCheckBoxDip);
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (!m_list.m_onCheckToggled || row < 0 || m_list.IsItemsView())
+    {
+        return false;
+    }
+
+    const std::vector<DxuiListViewTypes::Cell> &  cells = m_list.GetRowCells (row);
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+
+    for (size_t c = 0; c < m_list.m_columns.size() && c < cells.size(); c++)
+    {
+        int  left = (c < colXPx.size()) ? colXPx[c] + m_list.m_columnSizing.GetCellPadLeftPx (c) : 0;
+
+        if (cells[c].check == DxuiListViewTypes::Cell::Check::None || !m_list.m_columns[c].visible || colWPx[c] <= 0)
+        {
+            continue;
+        }
+
+        if (xAdj >= left && xAdj < left + boxPx)
+        {
+            m_list.ClickRow (row, false, false);
+            m_list.m_onCheckToggled (row);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListRows::PaintCheckBox
+//
+//  A fixed box is drawn checked in the disabled color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListRows::PaintCheckBox (IDxuiPainter                     & painter,
+                                  IDxuiTextRenderer                & text,
+                                  DxuiListViewTypes::Cell::Check     check,
+                                  float                              left,
+                                  float                              rowTop,
+                                  float                              rowH) const
+{
+    const IDxuiTheme &  theme   = *m_list.m_theme;
+    float               sizePx  = m_list.m_scaler.ToPxf ((float) DxuiListView::s_kCheckBoxDip);
+    uint32_t            outline = (theme.Foreground() & 0x00FFFFFFu) | 0x99000000u;
+    uint32_t            fill    = (check == DxuiListViewTypes::Cell::Check::OnFixed) ? theme.ForegroundDisabled() : theme.Accent();
+
+
+
+    DxuiCheckbox::PaintBox (painter, text, left, rowTop + (rowH - sizePx) * 0.5f, sizePx, m_list.m_scaler.ToPxf (1.0f),
+                            check != DxuiListViewTypes::Cell::Check::Off, theme.ButtonIdle(), outline, fill, DxuiTheme::GetContrastingText (fill));
 }
 
 
@@ -363,6 +448,12 @@ void DxuiListRows::Paint (
             if (!m_list.m_columns[c].visible || colWPx[c] <= 0)
             {
                 continue;
+            }
+
+            if (cells[c].check != DxuiListViewTypes::Cell::Check::None)
+            {
+                PaintCheckBox (painter, text, cells[c].check, x + colOff + (float) colXPx[c] + padL, ry, rowH);
+                padL += (float) m_list.GetCheckBoxSpanPx();
             }
 
             if (cells[c].icon && !cells[c].icon->bgraPremul.empty())

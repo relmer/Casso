@@ -86,8 +86,8 @@ void ExplorerListPane::Configure()
     m_list->SetExplorerDetails (true);
     ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kProse);
     m_list->SetRowHeightPxFn (&ExplorerLayout::GetListRowHeightPx);
-    m_list->SetColumns (BrowserCells::GetColumns());
-    m_columns.ChooseAll (BrowserCells::GetColumns().size());
+    m_columns.LoadPropertyColumns();
+    m_columns.ChooseAll (m_columns.GetListColumns().size());
 
     //  A header dragged into a new place stays there for the next run.
     m_columns.ApplyColumnOrder();
@@ -802,6 +802,14 @@ void ExplorerListPane::FillList()
     //  view's size.
     m_columns.ApplyFolderView();
 
+    //  The shell's properties are read only when a property column is visible.
+    m_propertiesShown = false;
+
+    for (size_t column = CatalogModel::kColumnCount; column < m_columns.GetChosen().size(); column++)
+    {
+        m_propertiesShown |= ExplorerListColumns::IsListColumnShown (column, m_columns.GetChosen()[column], m_context.browser.GetLocation().kind);
+    }
+
     m_context.toolbars.UpdateCommandBar();
 
     //  A file's size or date may have changed with the listing.
@@ -846,6 +854,7 @@ void ExplorerListPane::FillList()
         }
 
         m_context.folderSync.UpdateWatchedFolders();
+        m_propertyValues.Clear();
         changed = true;
     }
 
@@ -936,6 +945,8 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
 
         cells         = BrowserCells::ToCells (rows[(size_t) row], m_rowLocation, &m_listIcons);
         cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_context.browser.GetFolderOptions(), m_rowDark);
+
+        ApplyPropertyCells (row, cells);
 
         //  Cut and not yet pasted, it draws dimmed, as Explorer's does.
         if (!m_cutPaths.empty() && m_context.browser.TryGetRowPath (row, path) &&
@@ -1459,6 +1470,7 @@ void ExplorerListPane::StartLoaders()
 {
     m_listIcons.LoadInBackground (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerIconsLoaded);
     m_contentDetails.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerContentDetails);
+    m_propertyValues.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerContentDetails);
 }
 
 
@@ -1495,4 +1507,74 @@ void ExplorerListPane::HandleContentDetailsArrived()
     {
         RefreshContentDetails();
     }
+
+    if (m_propertyValues.TakeArrived())
+    {
+        RefreshPropertyCells();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::ApplyPropertyCells
+//
+//  A row's cells for the shell property columns, once the values are read;
+//  until then, and for an item with no file, the cells are blank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::ApplyPropertyCells (int row, std::vector<DxuiListView::Cell> & cells)
+{
+    const std::vector<CatalogRow> &  rows  = m_context.browser.GetRows();
+    size_t                           count = m_context.prefs.propertyColumns.size();
+    Win32PropertyColumns::Values     values;
+    std::wstring                     path;
+
+
+
+    if (count == 0 || row < 0 || (size_t) row >= rows.size())
+    {
+        return;
+    }
+
+    cells.resize (CatalogModel::kColumnCount + count);
+
+    if (!m_propertiesShown || !m_context.browser.TryGetRowPath (row, path) || !m_propertyValues.TryGet (path, GetPropertyStamp (rows[(size_t) row]), values))
+    {
+        return;
+    }
+
+    for (size_t property = 0; property < count && property < values.size(); property++)
+    {
+        cells[CatalogModel::kColumnCount + property].text = values[property].text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::RefreshPropertyCells
+//
+//  The built rows' property cells again, now that more have been read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::RefreshPropertyCells()
+{
+    for (size_t at = 0; at < m_rowCells.size(); at++)
+    {
+        if (m_rowBuilt[at] && !m_rowCells[at].empty())
+        {
+            ApplyPropertyCells ((int) at, m_rowCells[at]);
+        }
+    }
+
+    m_context.window.Invalidate();
 }

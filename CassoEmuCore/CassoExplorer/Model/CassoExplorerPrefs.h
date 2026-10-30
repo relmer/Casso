@@ -115,6 +115,11 @@ struct CassoExplorerPrefs
     //  choice of its own follows. Stored as listHiddenColumns.
     std::vector<int>           hiddenColumns;
 
+    //  The shell properties added as columns from Choose Details, each by its
+    //  canonical name, as System.Author. Each is a column after the fixed
+    //  ones, in this order, so a column's index stays the same once added.
+    std::vector<std::wstring>  propertyColumns;
+
     //  The CassoLink connections, each under CassoLink in the tree, in the order they were
     //  added. Their names are unique; a later entry with a name already
     //  read is not read.

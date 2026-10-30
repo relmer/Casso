@@ -411,6 +411,98 @@ void CatalogModel::Sort (std::vector<CatalogRow> & rows, Column column, bool des
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CatalogModel::SortByProperty
+//
+//  The keys are in the rows' order, so the rows are sorted by index and then
+//  moved into it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CatalogModel::SortByProperty (std::vector<CatalogRow> & rows, const std::vector<PropertyKey> & keys, bool descending)
+{
+    std::vector<size_t>      order;
+    std::vector<CatalogRow>  sorted;
+
+
+
+    if (keys.size() != rows.size())
+    {
+        return;
+    }
+
+    for (size_t index = 0; index < rows.size(); index++)
+    {
+        order.push_back (index);
+    }
+
+    std::stable_sort (order.begin(), order.end(),
+                      [&rows, &keys, descending] (size_t a, size_t b)
+                      {
+                          if (rows[a].isDirectory != rows[b].isDirectory)
+                          {
+                              return rows[a].isDirectory;
+                          }
+
+                          return descending ? IsPropertyBefore (rows[b], keys[b], rows[a], keys[a]) : IsPropertyBefore (rows[a], keys[a], rows[b], keys[b]);
+                      });
+
+    sorted.reserve (rows.size());
+
+    for (size_t index : order)
+    {
+        sorted.push_back (std::move (rows[index]));
+    }
+
+    rows = std::move (sorted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::IsPropertyBefore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::IsPropertyBefore (const CatalogRow & a, const PropertyKey & keyA, const CatalogRow & b, const PropertyKey & keyB)
+{
+    int  byText = 0;
+
+
+
+    if (keyA.has != keyB.has)
+    {
+        return !keyA.has;
+    }
+
+    if (keyA.numeric && keyB.numeric)
+    {
+        if (keyA.number != keyB.number)
+        {
+            return keyA.number < keyB.number;
+        }
+    }
+    else
+    {
+        byText = StrCmpLogicalW (keyA.text.c_str(), keyB.text.c_str());
+
+        if (byText != 0)
+        {
+            return byText < 0;
+        }
+    }
+
+    return IsBefore (a, b, Column::Name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CatalogModel::GetDiskImageTypeName
 //
 ////////////////////////////////////////////////////////////////////////////////

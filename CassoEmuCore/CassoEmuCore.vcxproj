@@ -198,6 +198,9 @@
     <ClCompile Include="Core\TextEncoding.cpp" />
     <ClCompile Include="Core\ThreadName.cpp" />
     <ClCompile Include="Seams\Win32ContentDetails.cpp" />
+    <ClCompile Include="Seams\Win32PropertyColumns.cpp" />
+    <ClCompile Include="CassoExplorer\Model\ChooseDetailsModel.cpp" />
+    <ClCompile Include="CassoExplorer\ChooseDetailsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CrtPictureRenderer.cpp" />
     <ClCompile Include="Seams\Win32InfoTips.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
@@ -718,6 +721,9 @@
     <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\ThreadName.h" />
     <ClInclude Include="Seams\Win32ContentDetails.h" />
+    <ClInclude Include="Seams\Win32PropertyColumns.h" />
+    <ClInclude Include="CassoExplorer\Model\ChooseDetailsModel.h" />
+    <ClInclude Include="CassoExplorer\ChooseDetailsDialog.h" />
     <ClInclude Include="CassoExplorer\CrtPictureRenderer.h" />
     <ClInclude Include="Seams\Win32InfoTips.h" />
     <ClInclude Include="Core\IInterruptController.h" />

@@ -61,6 +61,13 @@ struct DxuiListViewTypes
         //  The text's color in place of the theme's; zero keeps the theme's.
         uint32_t      argb        = 0;
 
+        //  A check box ahead of the icon and text, as a Windows list with
+        //  check boxes draws one. A fixed box is drawn disabled and doesn't
+        //  toggle.
+        enum class Check { None, Off, On, OnFixed };
+
+        Check         check       = Check::None;
+
         //  A usage bar drawn in place of the text, filled to this fraction;
         //  negative draws none. Explorer's drive tiles have one.
         float         meter       = -1.0f;

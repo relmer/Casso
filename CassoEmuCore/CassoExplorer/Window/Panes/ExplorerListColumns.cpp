@@ -12,6 +12,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Model/FolderOptions.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/ChooseDetailsDialog.h"
 
 
 
@@ -129,6 +130,12 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
         return true;
     }
 
+    //  A shell property, for the items of a folder on the PC.
+    if (column >= CatalogModel::kColumnCount)
+    {
+        return chosen && (kind == Location::Kind::HostFolder || kind == Location::Kind::ShellFolder);
+    }
+
     if (recycled)
     {
         return inBin;
@@ -179,7 +186,7 @@ void ExplorerListColumns::ApplyColumnOrder()
     using Column = CatalogModel::Column;
 
     std::vector<size_t>  order;
-    size_t               count = BrowserCells::GetColumns().size();
+    size_t               count = m_listColumns.size();
 
 
 
@@ -199,13 +206,13 @@ void ExplorerListColumns::ApplyColumnOrder()
                 order.push_back ((size_t) column);
             }
         }
+    }
 
-        for (size_t column = 0; column < count; column++)
+    for (size_t column = 0; column < count; column++)
+    {
+        if (std::find (order.begin(), order.end(), column) == order.end())
         {
-            if (std::find (order.begin(), order.end(), column) == order.end())
-            {
-                order.push_back (column);
-            }
+            order.push_back (column);
         }
     }
 
@@ -315,7 +322,7 @@ void ExplorerListColumns::ApplyFolderView()
     //  never given either opens by name and ungrouped.
     entry = m_context.prefs.folderViews.GetEntry (key, type);
 
-    if (entry.sortColumn > (int) CatalogModel::Column::DateDeleted)
+    if (entry.sortColumn > (int) CatalogModel::Column::DateDeleted && !m_context.browser.IsPropertyColumn (entry.sortColumn))
     {
         entry.sortColumn = 0;
     }
@@ -332,7 +339,7 @@ void ExplorerListColumns::ApplyFolderView()
 
     //  Its own column order and choice of columns, or the latest ones.
     m_folderOrder = entry.columnOrder.empty() ? m_context.prefs.columnOrder : entry.columnOrder;
-    m_chosen.assign (BrowserCells::GetColumns().size(), true);
+    m_chosen.assign (m_listColumns.size(), true);
 
     for (int hidden : (entry.columnsChosen ? entry.hiddenColumns : m_context.prefs.hiddenColumns))
     {
@@ -545,4 +552,171 @@ void ExplorerListColumns::RememberFolderColumnWidths (int column, int widthDip)
     entry.columnWidthsDip[(size_t) column] = widthDip;
 
     m_context.prefs.folderViews.Remember (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::LoadPropertyColumns
+//
+//  A property missing from the shell's property system gets a column
+//  titled by its canonical name, so the indexes of the columns after it
+//  stay the same.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListColumns::LoadPropertyColumns()
+{
+    const std::vector<std::wstring> &  names = m_context.prefs.propertyColumns;
+
+
+
+    m_listColumns = BrowserCells::GetColumns();
+
+    for (const std::wstring & name : names)
+    {
+        Win32PropertyColumns::Property  property;
+        DxuiListView::Column            column;
+
+        if (!Win32PropertyColumns::TryDescribe (name, property))
+        {
+            property.title = name;
+        }
+
+        column.title    = property.title;
+        column.widthDip = property.widthDip;
+        column.align    = property.rightAligned ? DxuiTextHAlign::Right : DxuiTextHAlign::Left;
+
+        m_listColumns.push_back (std::move (column));
+    }
+
+    m_pane.GetListView()->SetColumns (m_listColumns);
+    m_chosen.resize (m_listColumns.size(), true);
+    m_pane.GetPropertyValues().SetProperties (names);
+
+    //  A sort by a property reads the values it lacks at once.
+    m_context.browser.SetPropertyColumns (names.size(), [this] (size_t row, size_t property)
+    {
+        const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
+        CatalogModel::PropertyKey        key;
+        std::wstring                     path;
+
+        if (row < rows.size() && m_context.browser.TryGetRowPath ((int) row, path))
+        {
+            Win32PropertyColumns::Values  values = m_pane.GetPropertyValues().ReadNow (path, ExplorerListPane::GetPropertyStamp (rows[row]));
+
+            if (property < values.size())
+            {
+                key = values[property];
+            }
+        }
+
+        return key;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::ChooseDetails
+//
+//  File Explorer's Choose Details, for the folder on display. A property
+//  added becomes a column after the last, hidden in every other folder with
+//  a saved choice of columns, as in File Explorer, where a folder's columns
+//  apply to it alone. The shell's properties for the fixed columns aren't
+//  listed a second time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListColumns::ChooseDetails()
+{
+    static constexpr const wchar_t *  s_kOwnColumns[] = { L"System.ItemNameDisplay", L"System.DateModified", L"System.ItemTypeText", L"System.Size",
+                                                          L"System.Recycle.DeletedFrom", L"System.Recycle.DateDeleted", L"System.ItemFolderPathDisplay" };
+    const Location &                         location  = m_context.browser.GetLocation();
+    bool                                     searching = SearchQuery::IsId (location.path);
+    std::vector<ChooseDetailsModel::Column>  columns;
+    std::vector<std::wstring>                names     = m_context.prefs.propertyColumns;
+    ChooseDetailsModel                       model;
+    ChooseDetailsModel::Result               result;
+    std::vector<FolderViewEntry>             entries;
+    size_t                                   first     = m_listColumns.size();
+
+
+
+    for (size_t c = 0; c < m_listColumns.size(); c++)
+    {
+        ChooseDetailsModel::Column  column;
+
+        column.title    = m_listColumns[c].title;
+        column.offered  = IsListColumnOffered (c, location.kind, searching);
+        column.chosen   = c < m_chosen.size() && m_chosen[c];
+        column.fixed    = c == (size_t) CatalogModel::Column::Name;
+        column.widthDip = MulDiv (m_pane.GetListView()->GetColumnEffectiveWidthPx (c), (int) DxuiDpiScaler::kBaseDpi, (int) m_pane.GetListView()->GetDpi());
+
+        columns.push_back (std::move (column));
+    }
+
+    names.insert (names.end(), std::begin (s_kOwnColumns), std::end (s_kOwnColumns));
+    model.Build (columns, m_pane.GetListView()->GetColumnOrder(), names, Win32PropertyColumns::ListViewable());
+
+    if (!ChooseDetailsDialog::Run (m_context.window.GetHwnd(), m_context.theme, model))
+    {
+        return;
+    }
+
+    result = model.GetResult();
+
+    if (!result.added.empty())
+    {
+        entries = m_context.prefs.folderViews.GetEntries();
+
+        for (FolderViewEntry & entry : entries)
+        {
+            for (size_t added = 0; entry.columnsChosen && entry.key != m_viewKey && added < result.added.size(); added++)
+            {
+                entry.hiddenColumns.push_back ((int) (first + added));
+            }
+        }
+
+        m_context.prefs.folderViews.SetEntries (std::move (entries));
+        m_context.prefs.propertyColumns.insert (m_context.prefs.propertyColumns.end(), result.added.begin(), result.added.end());
+        LoadPropertyColumns();
+    }
+
+    //  This folder's choice, and the default for folders without a saved one.
+    m_chosen      = result.chosen;
+    m_folderOrder = result.order;
+    m_context.prefs.columnOrder = result.order;
+    m_context.prefs.hiddenColumns.clear();
+
+    for (size_t column = 0; column < m_chosen.size(); column++)
+    {
+        if (!m_chosen[column])
+        {
+            m_context.prefs.hiddenColumns.push_back ((int) column);
+        }
+    }
+
+    RememberFolderColumns();
+
+    for (const auto & [column, widthDip] : result.widths)
+    {
+        if ((size_t) column >= m_context.prefs.columnWidthsDip.size())
+        {
+            m_context.prefs.columnWidthsDip.resize ((size_t) column + 1, 0);
+        }
+
+        m_context.prefs.columnWidthsDip[(size_t) column] = widthDip;
+        RememberFolderColumnWidths (column, widthDip);
+    }
+
+    //  The folder's view applied again, with its new columns.
+    m_viewKey.clear();
+    m_pane.FillList();
 }
