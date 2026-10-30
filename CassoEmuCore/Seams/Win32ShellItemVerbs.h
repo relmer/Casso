@@ -42,6 +42,7 @@ public:
     HRESULT      ShowShellMenu          (HWND owner, const std::vector<std::wstring> & paths, POINT screenPx, const std::function<void()> & rename) override { return m_menus.ShowShellMenu (owner, paths, screenPx, rename); }
     HRESULT      ShowBackgroundMenu     (HWND owner, const std::wstring & folder, POINT screenPx) override { return m_menus.ShowBackgroundMenu (owner, folder, screenPx); }
     HRESULT      RunItemVerb            (HWND owner, const std::vector<std::wstring> & paths, const char * verb) override { return m_menus.RunItemVerb (owner, paths, verb); }
+    HRESULT      ListItemVerbs          (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound) override { return m_menus.ListItemVerbs (paths, verbs, outFound); }
     bool         HasShellPreview        (const std::wstring & path) override { return Win32ShellPreview::HasPreview (path); }
     HRESULT      Recycle                (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.Recycle (owner, paths); }
     HRESULT      RestoreRecycled        (HWND owner, const std::vector<std::wstring> & paths) override { return m_recycleBin.RestoreRecycled (owner, paths); }

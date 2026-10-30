@@ -453,6 +453,22 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             items.push_back (DxuiPopupMenuItem::ForSeparator());
         }
 
+        //  Drives, from This PC or wherever they are listed, by each row's path.
+        {
+            std::vector<std::wstring>  rowPaths;
+            std::wstring               rowPath;
+
+            for (int row : m_context.browser.GetSelectedRows())
+            {
+                if (m_context.browser.TryGetRowPath (row, rowPath))
+                {
+                    rowPaths.push_back (rowPath);
+                }
+            }
+
+            m_context.menus.AddDriveCommands (items, rowPaths);
+        }
+
         m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.fileOps.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
 

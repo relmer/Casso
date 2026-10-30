@@ -910,6 +910,11 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             m_context.menus.AddWindowsCommands (items, { location.path }, Win32PackagedCommands::ItemKind::Folder);
         }
 
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            m_context.menus.AddDriveCommands (items, { location.path });
+        }
+
         m_context.menus.AddMenuCommand (items, L"Copy as &path", [this, location]()
         {
             DxuiClipboard::SetText (m_context.window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");

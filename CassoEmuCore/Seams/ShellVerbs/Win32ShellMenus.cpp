@@ -469,6 +469,90 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellMenus::ListItemVerbs
+//
+//  The menu is built as for showing it, and each command's canonical verb
+//  read back, since a handler adds its commands only to the built menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellMenus::ListItemVerbs (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<IShellItemVerbs::ItemVerb> & outFound)
+{
+    HRESULT                                  hr     = S_OK;
+    ComPtr<IContextMenu>                     menu;
+    HMENU                                    popup  = nullptr;
+    std::vector<IShellItemVerbs::ItemVerb>   found;
+
+
+
+    outFound.clear();
+
+    hr = CreateMenuHost (nullptr);
+    CHR (hr);
+
+    hr = GetItemsMenu (m_verbs.m_menuHost, paths, &menu);
+    CHR (hr);
+
+    popup = CreatePopupMenu();
+    CWR (popup != nullptr);
+
+    hr = menu->QueryContextMenu (popup, 0, Win32ShellItemVerbs::s_kFirstCommandId, Win32ShellItemVerbs::s_kLastCommandId, CMF_NORMAL);
+    CHR (hr);
+
+    //  QueryContextMenu's success is the number of commands it added.
+    hr = S_OK;
+
+    for (int i = 0; i < GetMenuItemCount (popup); i++)
+    {
+        wchar_t        label[256] = {};
+        char           verb[256]  = {};
+        MENUITEMINFOW  info       = { sizeof (info) };
+        HRESULT        named      = E_FAIL;
+
+        info.fMask      = MIIM_ID | MIIM_STRING;
+        info.dwTypeData = label;
+        info.cch        = (UINT) std::size (label) - 1;
+
+        if (!GetMenuItemInfoW (popup, (UINT) i, TRUE, &info) || info.wID < Win32ShellItemVerbs::s_kFirstCommandId || info.wID > Win32ShellItemVerbs::s_kLastCommandId)
+        {
+            continue;
+        }
+
+        named = menu->GetCommandString (info.wID - Win32ShellItemVerbs::s_kFirstCommandId, GCS_VERBA, nullptr, verb, (UINT) std::size (verb) - 1);
+
+        if (SUCCEEDED (named) && verb[0] != '\0')
+        {
+            found.push_back ({ verb, label });
+        }
+    }
+
+    for (const std::string & wanted : verbs)
+    {
+        for (const IShellItemVerbs::ItemVerb & each : found)
+        {
+            if (_stricmp (each.verb.c_str(), wanted.c_str()) == 0)
+            {
+                outFound.push_back (each);
+                break;
+            }
+        }
+    }
+
+Error:
+    if (popup != nullptr)
+    {
+        DestroyMenu (popup);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellMenus::RunItemVerb
 //
 //  The menu is built, as for showing it, so the handlers that own the verb

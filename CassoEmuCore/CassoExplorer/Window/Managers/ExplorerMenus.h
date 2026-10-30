@@ -65,6 +65,7 @@ public:
     void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
     void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
     bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    void                            AddDriveCommands       (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths);
     bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
     void                            ShowListHeaderMenu     (int x, int y, int column);
     void                            ShowListContextMenu    (int x, int y, int group = -1);

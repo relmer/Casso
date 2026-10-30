@@ -111,6 +111,24 @@ public:
     //  as if picked there: an archive's `extract` opens its Extract All.
     virtual HRESULT  RunItemVerb (HWND owner, const std::vector<std::wstring> & paths, const char * verb) = 0;
 
+    //  Which of the canonical verbs the items' shell menu has, in the order
+    //  given, with the menu's label for each: a drive's Format and Eject come
+    //  from its shell menu rather than from the registry.
+    struct ItemVerb
+    {
+        std::string   verb;
+        std::wstring  label;
+    };
+
+    virtual HRESULT  ListItemVerbs (const std::vector<std::wstring> & paths, const std::vector<std::string> & verbs, std::vector<ItemVerb> & outFound)
+    {
+        UNREFERENCED_PARAMETER (paths);
+        UNREFERENCED_PARAMETER (verbs);
+
+        outFound.clear();
+        return S_OK;
+    }
+
     //  Explorer's own file operations, with its progress, conflict and undo
     //  handling: deleting to the Recycle Bin, renaming, and cut, copy and
     //  paste through the clipboard other programs share.

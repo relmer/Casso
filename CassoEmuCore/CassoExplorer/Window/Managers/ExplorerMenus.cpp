@@ -753,6 +753,50 @@ bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerMenus::AddDriveCommands
+//
+//  For drives, the commands File Explorer lists from their shell menu:
+//  BitLocker, Format and, for a removable drive, Eject, each run by its verb
+//  as if picked there. These rows are added only for drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerMenus::AddDriveCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths)
+{
+    static const std::vector<std::string>   kVerbs = { "encrypt-bde-elev", "encrypt-bde", "format", "eject" };
+    std::vector<IShellItemVerbs::ItemVerb>  found;
+    HRESULT                                 hr     = S_OK;
+
+
+
+    if (paths.empty() || !std::all_of (paths.begin(), paths.end(), [] (const std::wstring & path) { return path.size() == 3 && path[1] == L':' && path[2] == L'\\'; }))
+    {
+        return;
+    }
+
+    hr = m_context.shellVerbs.ListItemVerbs (paths, kVerbs, found);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const IShellItemVerbs::ItemVerb & each : found)
+    {
+        std::string  verb = each.verb;
+
+        AddMenuCommand (items, each.label.c_str(), [this, paths, verb]()
+        {
+            HRESULT  ran = m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), paths, verb.c_str());
+
+            IGNORE_RETURN_VALUE (ran, S_OK);
+            m_context.folderSync.RefreshAfterHostChange();
+        });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerMenus::GetSelectionKind
 //
 //  The selection as one kind of item for the shell's commands: all files or
