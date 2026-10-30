@@ -1309,7 +1309,8 @@ std::wstring CassoLinkConnections::DescribeFailure (const LinkOperation & operat
         case HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND): why = L"the disk could not be read; it may be missing or unformatted.";              break;
         case HRESULT_FROM_WIN32 (ERROR_CRC):              why = L"a sector on the disk is damaged.";                                         break;
         case HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT):      why = L"a sector did not read back as written.";                                   break;
-        case HRESULT_FROM_WIN32 (ERROR_DISK_FULL):        why = L"the disk is full.";                                                        break;
+        case HRESULT_FROM_WIN32 (ERROR_DISK_FULL):        why = L"there isn't enough free space on the disk.";                                break;
+        case HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE):   why = L"the file is too large for this disk.";                                     break;
         case HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE):      why = L"the volume directory is full. ProDOS has room for 51 entries there.";      break;
         case HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS):
         case HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS):   why = L"an entry with that name is already there.";                                break;
@@ -1317,7 +1318,7 @@ std::wstring CassoLinkConnections::DescribeFailure (const LinkOperation & operat
         case HRESULT_FROM_WIN32 (ERROR_CANCELLED):        why = L"it was canceled.";                                                         break;
         case HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE):      why = L"the connection to the Apple closed.";                                      break;
         case HRESULT_FROM_WIN32 (ERROR_TIMEOUT):          why = L"the Apple stopped answering.";                                             break;
-        default:                                          why = L"the Apple did not complete it.";                                           break;
+        default:                                          why = std::format (L"the operation failed (error 0x{:08X}).", (uint32_t) operation.result); break;
     }
 
     return what + L": " + why;

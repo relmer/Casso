@@ -122,8 +122,8 @@ void BrowserCells::UpdateStatus()
     }
 
     //  As Explorer words a drive's: what is free of the whole. For the image
-    //  open, or for one image selected in a folder.
-    if (m_browser.m_isImage)
+    //  or linked drive open, or for one image selected in a folder.
+    if (m_browser.m_isImage || (m_browser.m_isAppleDrive && m_browser.m_listing.totalUnits > 0))
     {
         DescribeVolumeSpace (m_browser.GetLocation().path, m_browser.m_listing, m_browser.m_kind, m_browser.m_status);
     }
