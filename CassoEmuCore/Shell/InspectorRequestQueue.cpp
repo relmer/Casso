@@ -311,6 +311,7 @@ bool InspectorRequestQueue::TryApply (uint64_t id, const InspectorRequest & requ
     HRESULT                   hr        = S_OK;
     bool                      isDone    = true;
     bool                      isChanged = false;
+    bool                      isAtSafe  = false;
 
 
 
@@ -358,6 +359,8 @@ bool InspectorRequestQueue::TryApply (uint64_t id, const InspectorRequest & requ
     }
     else
     {
+        isAtSafe = true;
+
         for (const SectorWrite & write : request.writes)
         {
             slots.push_back (write.slot);
@@ -420,11 +423,14 @@ bool InspectorRequestQueue::TryApply (uint64_t id, const InspectorRequest & requ
             }
         }
 
-        //  In this mode the machine is paused afterward (FR-103).
-        if (request.applyMode == ApplyMode::RunToSafePointStayPaused)
-        {
-            source.SetMachinePaused (true);
-        }
+    }
+
+    //  In this mode the machine is paused afterward (FR-103), and a machine
+    //  run only until the safe point is paused again when the apply ends
+    //  without one, as after a cancel.
+    if (isDone && request.applyMode == ApplyMode::RunToSafePointStayPaused && (isAtSafe || inOutIsRunForced))
+    {
+        source.SetMachinePaused (true);
     }
 
     return isDone;

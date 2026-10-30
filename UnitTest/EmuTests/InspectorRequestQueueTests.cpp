@@ -160,15 +160,29 @@ public:
     class EditSource : public FakeSource
     {
     public:
-        InspectorDriveMotion  motion;
-        InspectorSaveResult   saveResult { S_OK, "fake.dsk", false, L"" };
-        int                   saves      = 0;
-        vector<bool>          pauses;
+        InspectorDriveMotion              motion;
+        InspectorSaveResult               saveResult   { S_OK, "fake.dsk", false, L"" };
+        int                               saves        = 0;
+        vector<bool>                      pauses;
+        size_t                            pausesAtSave = 0;
+        std::shared_ptr<const TrackCopy>  atSave;
 
         DiskImage *           GetImageForEdit  (int drive) override         { return (hasDisk && drive == 0) ? &image : nullptr; }
         InspectorDriveMotion  GetMotion        (int drive) override         { (void) drive; return motion; }
-        InspectorSaveResult   SaveDrive        (int drive) override         { (void) drive; saves++; return saveResult; }
         void                  SetMachinePaused (bool isPaused) override     { pauses.push_back (isPaused); }
+
+        //  The record as the save finds it, and how many times the machine was
+        //  run or paused before it.
+        InspectorSaveResult   SaveDrive        (int drive) override
+        {
+            (void) drive;
+
+            saves++;
+            pausesAtSave = pauses.size();
+            atSave       = TrackCopy::MakeFromImage (image, image.ResolveWholeTrack (3));
+
+            return saveResult;
+        }
     };
 
 
@@ -359,6 +373,35 @@ public:
 
 
 
+    TEST_METHOD (AGuestWriteEndingAWaitPausesAMachineRunUntilTheSafePoint)
+    {
+        EditSource             source;
+        InspectorRequestQueue  queue;
+        InspectorRequest       request;
+        int                    slot = 0;
+
+
+
+        MakeSource (source);
+        slot                    = source.image.ResolveWholeTrack (3);
+        request                 = MakeApply (source.image, ApplyMode::RunToSafePointStayPaused);
+        request.spans           = { { slot, 0.2, 0.3 } };
+        source.motion.isTurning = true;
+        source.motion.isPaused  = true;
+        source.motion.slot      = slot;
+        source.motion.angle     = 0.25;
+
+        queue.Post (request);
+        Assert::IsTrue (DrainOne (queue, source).applyOutcome == ApplyOutcome::Waiting);
+        Assert::IsTrue (source.pauses == vector<bool> { false }, L"run until the safe point");
+
+        source.image.CountGuestWrite (slot);
+        Assert::IsTrue (DrainOne (queue, source).applyOutcome == ApplyOutcome::WaitEnded);
+        Assert::IsTrue (source.pauses == (vector<bool> { false, true }), L"paused again, as after a cancel");
+    }
+
+
+
     TEST_METHOD (AGuestWriteEndsTheWaitAndCancelEndsItToo)
     {
         EditSource             source;
@@ -440,5 +483,269 @@ public:
         Assert::IsTrue    (TrackCopy::MakeFromImage (source.image, before->slot)->bits == before->bits, L"the drive's disk is unchanged");
         Assert::IsFalse   (source.image.IsDirty());
         Assert::AreEqual  (0, source.saves);
+    }
+
+
+
+    TEST_METHOD (AnApplyChangesAndSavesTheRecordInOnePassWithTheMachinePausedAfterward)
+    {
+        EditSource                        source;
+        InspectorRequestQueue             queue;
+        InspectorReply                    reply;
+        std::shared_ptr<const TrackCopy>  before;
+
+
+
+        MakeSource (source);
+        before                 = TrackCopy::MakeFromImage (source.image, source.image.ResolveWholeTrack (3));
+        source.motion.isPaused = true;
+
+        queue.Post (MakeApply (source.image, ApplyMode::RunToSafePointStayPaused));
+        reply = DrainOne (queue, source);
+
+        Assert::IsTrue    (reply.applyOutcome == ApplyOutcome::Applied, reply.reason.c_str());
+        Assert::AreEqual  (1, source.saves);
+        Assert::IsTrue    (source.atSave->bits != before->bits, L"the record has the edit when it is saved");
+        Assert::AreEqual  (static_cast<size_t> (0), source.pausesAtSave, L"the machine was not run or paused between the change and the save");
+        Assert::IsTrue    (source.pauses == vector<bool> { true }, L"and it is paused after the save");
+    }
+
+
+
+    TEST_METHOD (AFailedSaveRollsTheRecordBackAndPausesTheMachineAfterward)
+    {
+        EditSource                        source;
+        InspectorRequestQueue             queue;
+        InspectorRequest                  request;
+        InspectorReply                    reply;
+        std::shared_ptr<const TrackCopy>  before;
+        int                               slot = 0;
+
+
+
+        MakeSource (source);
+        slot                    = source.image.ResolveWholeTrack (3);
+        before                  = TrackCopy::MakeFromImage (source.image, slot);
+        request                 = MakeApply (source.image, ApplyMode::RunToSafePointStayPaused);
+        request.spans           = { { slot, 0.2, 0.3 } };
+        source.motion.isTurning = true;
+        source.motion.isPaused  = true;
+        source.motion.slot      = slot;
+        source.motion.angle     = 0.25;
+        source.saveResult       = { E_ACCESSDENIED, "fake.dsk", false, L"Access is denied." };
+
+        queue.Post (request);
+        Assert::IsTrue (DrainOne (queue, source).applyOutcome == ApplyOutcome::Waiting);
+
+        source.motion.isPaused = false;
+        source.motion.angle    = 0.9;
+        reply                  = DrainOne (queue, source);
+
+        Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::NotApplied);
+        Assert::IsTrue   (source.atSave->bits != before->bits, L"the record had the edit when the save was attempted");
+        Assert::IsTrue   (TrackCopy::MakeFromImage (source.image, slot)->bits == before->bits, L"the record is back as it was");
+        Assert::IsTrue   (source.pauses == (vector<bool> { false, true }), L"the machine is paused after the rollback");
+        Assert::AreEqual (static_cast<size_t> (1), source.pausesAtSave, L"the machine was not run or paused between the change and the save");
+    }
+
+
+
+    TEST_METHOD (AFailedSaveReportsTheReasonAndNoAppliedRecords)
+    {
+        EditSource             source;
+        InspectorRequestQueue  queue;
+        InspectorReply         reply;
+
+
+
+        MakeSource (source);
+        source.saveResult = { E_ACCESSDENIED, "fake.dsk", false, L"Access is denied." };
+
+        queue.Post (MakeApply (source.image, ApplyMode::WaitForStop));
+        reply = DrainOne (queue, source);
+
+        Assert::AreEqual (std::wstring (L"Not applied: the file could not be saved. Access is denied."), reply.reason);
+        Assert::IsTrue   (reply.after.empty(), L"no record is reported as applied");
+        Assert::IsTrue   (reply.countsAfter.empty());
+        Assert::IsTrue   (reply.savedPath.empty());
+        Assert::AreEqual (static_cast<size_t> (1), reply.before.size(), L"the reply has the record as it was");
+    }
+
+
+
+    TEST_METHOD (AWriteThatCannotBeMadeChangesNothingAndSavesNothing)
+    {
+        EditSource                        source;
+        InspectorRequestQueue             queue;
+        InspectorRequest                  request;
+        InspectorReply                    reply;
+        std::shared_ptr<const TrackCopy>  before;
+        constexpr Byte                    kNoSuchSector = 99;
+
+
+
+        MakeSource (source);
+        before                   = TrackCopy::MakeFromImage (source.image, source.image.ResolveWholeTrack (3));
+        request                  = MakeApply (source.image, ApplyMode::WaitForStop);
+        request.writes[0].sector = kNoSuchSector;
+
+        queue.Post (request);
+        reply = DrainOne (queue, source);
+
+        Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::NotApplied);
+        Assert::IsTrue   (reply.reason.starts_with (L"Not applied: "), reply.reason.c_str());
+        Assert::IsFalse  (reply.writeErrors.empty());
+        Assert::AreEqual (0, source.saves);
+        Assert::IsTrue   (TrackCopy::MakeFromImage (source.image, before->slot)->bits == before->bits, L"the record is as it was");
+    }
+
+
+
+    TEST_METHOD (ASaveToAPreservedCopyCountsAsAppliedToTheCopy)
+    {
+        EditSource             source;
+        InspectorRequestQueue  queue;
+        InspectorReply         reply;
+
+
+
+        MakeSource (source);
+        source.saveResult = { S_OK, "fake (preserved).dsk", true, L"" };
+
+        queue.Post (MakeApply (source.image, ApplyMode::WaitForStop));
+        reply = DrainOne (queue, source);
+
+        Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::AppliedToPreservedCopy, reply.reason.c_str());
+        Assert::AreEqual (std::string ("fake (preserved).dsk"), reply.savedPath);
+        Assert::AreEqual (static_cast<size_t> (1), reply.after.size());
+        Assert::AreEqual (static_cast<size_t> (1), reply.countsAfter.size(), L"the counts for the history are against the copy");
+        Assert::AreEqual (1, source.saves);
+    }
+
+
+
+    TEST_METHOD (RedoPutsTheAppliedRecordBackBitForBit)
+    {
+        EditSource                        source;
+        InspectorRequestQueue             queue;
+        InspectorReply                    applied;
+        InspectorReply                    undone;
+        InspectorReply                    redone;
+        InspectorRequest                  request;
+        std::shared_ptr<const TrackCopy>  before;
+        std::shared_ptr<const TrackCopy>  now;
+        int                               slot = 0;
+
+
+
+        MakeSource (source);
+        slot   = source.image.ResolveWholeTrack (3);
+        before = TrackCopy::MakeFromImage (source.image, slot);
+
+        queue.Post (MakeApply (source.image, ApplyMode::WaitForStop));
+        applied = DrainOne (queue, source);
+        Assert::IsTrue (applied.applyOutcome == ApplyOutcome::Applied, applied.reason.c_str());
+
+        request           = MakeApply (source.image, ApplyMode::WaitForStop);
+        request.applyKind = ApplyKind::Undo;
+        request.writes.clear();
+        request.restore   = applied.before;
+        queue.Post (request);
+        undone = DrainOne (queue, source);
+
+        now = TrackCopy::MakeFromImage (source.image, slot);
+        Assert::IsTrue (undone.applyOutcome == ApplyOutcome::Applied, undone.reason.c_str());
+        Assert::IsTrue (now->bits == before->bits && now->bitCount == before->bitCount, L"the undo restores every bit");
+
+        request                = MakeApply (source.image, ApplyMode::WaitForStop);
+        request.applyKind      = ApplyKind::Redo;
+        request.writes.clear();
+        request.restore        = applied.after;
+        request.expectedCounts = undone.countsAfter;
+        queue.Post (request);
+        redone = DrainOne (queue, source);
+
+        now = TrackCopy::MakeFromImage (source.image, slot);
+        Assert::IsTrue   (redone.applyOutcome == ApplyOutcome::Applied, redone.reason.c_str());
+        Assert::IsTrue   (now->bits == applied.after[0]->bits && now->bitCount == applied.after[0]->bitCount, L"the redo restores every bit of the applied record");
+        Assert::AreEqual (3, source.saves, L"each of the three saves the disk");
+    }
+
+
+
+    TEST_METHOD (AnUndoOrRedoAfterAGuestWriteIsNotAppliedWithTheReason)
+    {
+        EditSource                        source;
+        InspectorRequestQueue             queue;
+        InspectorReply                    applied;
+        InspectorReply                    reply;
+        InspectorRequest                  request;
+        std::shared_ptr<const TrackCopy>  atGuestWrite;
+        int                               slot = 0;
+
+
+
+        MakeSource (source);
+        slot = source.image.ResolveWholeTrack (3);
+
+        queue.Post (MakeApply (source.image, ApplyMode::WaitForStop));
+        applied = DrainOne (queue, source);
+        Assert::IsTrue (applied.applyOutcome == ApplyOutcome::Applied, applied.reason.c_str());
+
+        source.image.CountGuestWrite (slot);
+        atGuestWrite = TrackCopy::MakeFromImage (source.image, slot);
+
+        request                = MakeApply (source.image, ApplyMode::WaitForStop);
+        request.applyKind      = ApplyKind::Undo;
+        request.writes.clear();
+        request.restore        = applied.before;
+        request.expectedCounts = applied.countsAfter;
+        queue.Post (request);
+        reply = DrainOne (queue, source);
+
+        Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::NotApplied, L"an undo does not wait");
+        Assert::IsTrue   (reply.reason.starts_with (L"The guest wrote to a track"), reply.reason.c_str());
+
+        request.applyKind      = ApplyKind::Redo;
+        request.restore        = applied.after;
+        queue.Post (request);
+        reply = DrainOne (queue, source);
+
+        Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::NotApplied, L"a redo does not wait");
+        Assert::IsTrue   (reply.reason.starts_with (L"The guest wrote to a track"), reply.reason.c_str());
+        Assert::IsTrue   (TrackCopy::MakeFromImage (source.image, slot)->bits == atGuestWrite->bits, L"the record is as the guest left it");
+        Assert::AreEqual (1, source.saves, L"only the first apply is saved");
+    }
+
+
+
+    TEST_METHOD (AGuestWriteEndsTheWaitWithTheReasonAndChangesNothing)
+    {
+        EditSource                        source;
+        InspectorRequestQueue             queue;
+        InspectorReply                    reply;
+        std::shared_ptr<const TrackCopy>  atGuestWrite;
+        int                               slot = 0;
+
+
+
+        MakeSource (source);
+        slot                    = source.image.ResolveWholeTrack (3);
+        source.motion.isTurning = true;
+
+        queue.Post (MakeApply (source.image, ApplyMode::WaitForStop));
+        Assert::IsTrue (DrainOne (queue, source).applyOutcome == ApplyOutcome::Waiting);
+
+        source.image.CountGuestWrite (slot);
+
+        atGuestWrite            = TrackCopy::MakeFromImage (source.image, slot);
+        source.motion.isTurning = false;
+        reply                   = DrainOne (queue, source);
+
+        Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::WaitEnded, L"the drive stopped, but the guest wrote first");
+        Assert::IsTrue   (reply.reason.starts_with (L"The guest wrote to a track"), reply.reason.c_str());
+        Assert::IsTrue   (reply.after.empty());
+        Assert::AreEqual (0, source.saves);
+        Assert::IsTrue   (TrackCopy::MakeFromImage (source.image, slot)->bits == atGuestWrite->bits);
     }
 };

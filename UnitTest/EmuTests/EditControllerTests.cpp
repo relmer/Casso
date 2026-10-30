@@ -356,4 +356,115 @@ public:
         Assert::IsTrue  (discarded.empty());
         Assert::IsFalse (edits.GetEdit (edit).isOutOfDate, L"the record decodes to the same bytes");
     }
+
+
+
+    //  A guest write, an undo, a redo and a reload each produce a
+    //  new analysis of the record, and each is one Follow.
+    TEST_METHOD (AnEditFollowsItsFieldToAnotherPlaceOnTheRecord)
+    {
+        constexpr uint32_t   kShiftCells = 40;
+
+        DiskAnalysis         analysis;
+        EditController       edits;
+        std::wstring         reason;
+        vector<PendingEdit>  discarded;
+        int                  edit  = -1;
+        int                  slot  = 0;
+        int                  s     = 0;
+        uint32_t             start = 0;
+
+        std::shared_ptr<TrackAnalysis>  moved;
+
+
+
+        AnalyzePlanted (analysis);
+        slot  = analysis.entries[20].slot;
+        s     = GetSectorIndex (GetTrack (analysis), 2);
+        edit  = edits.Begin (GetTrack (analysis), 20, s, reason);
+        start = edits.GetEdit (edit).fieldStartCell;
+        Assert::IsTrue (edits.TypeHexDigit (edit, 0x10, true, L'9'));
+
+        moved = std::make_shared<TrackAnalysis> (GetTrack (analysis));
+
+        moved->fields[moved->sectors[s].dataField].startCell += kShiftCells;
+        analysis.tracks[slot] = moved;
+
+        edits.Follow (analysis, discarded);
+
+        Assert::IsTrue   (discarded.empty());
+        Assert::AreEqual (start + kShiftCells, edits.GetEdit (edit).fieldStartCell, L"the edit is on the field with the same sector number");
+        Assert::IsFalse  (edits.GetEdit (edit).isOutOfDate, L"the bytes are the same");
+        Assert::AreEqual (static_cast<Byte> (0x90 | (edits.GetEdit (edit).bytesAtStart[0x10] & 0x0F)), edits.GetEdit (edit).bytes[0x10], L"the typed digit stays");
+    }
+
+
+
+    TEST_METHOD (AnEditStaysOutOfDateAfterTheBytesComeBack)
+    {
+        DiskAnalysis                    analysis;
+        EditController                  edits;
+        std::wstring                    reason;
+        vector<PendingEdit>             discarded;
+        std::shared_ptr<TrackAnalysis>  guestWrote;
+        int                             edit = -1;
+        int                             slot = 0;
+        int                             s    = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        slot = analysis.entries[20].slot;
+        s    = GetSectorIndex (GetTrack (analysis), 2);
+        edit = edits.Begin (GetTrack (analysis), 20, s, reason);
+        Assert::IsTrue (edits.TypeHexDigit (edit, 0x10, true, L'9'));
+
+        guestWrote = std::make_shared<TrackAnalysis> (GetTrack (analysis));
+
+        guestWrote->fields[guestWrote->sectors[s].dataField].data.bytes[0x20] ^= 0xFF;
+        analysis.tracks[slot] = guestWrote;
+        edits.Follow (analysis, discarded);
+        Assert::IsTrue (edits.GetEdit (edit).isOutOfDate);
+
+        //  An undo of the guest's change is a new analysis too.
+        guestWrote->fields[guestWrote->sectors[s].dataField].data.bytes[0x20] ^= 0xFF;
+        edits.Follow (analysis, discarded);
+
+        Assert::IsTrue (discarded.empty());
+        Assert::IsTrue (edits.GetEdit (edit).isOutOfDate, L"applying it is confirmed by the user");
+    }
+
+
+
+    TEST_METHOD (DroppingAnEditOnAnotherAnalysisEndsThePendingUndoHistory)
+    {
+        DiskAnalysis                    analysis;
+        EditController                  edits;
+        std::wstring                    reason;
+        vector<PendingEdit>             discarded;
+        std::shared_ptr<TrackAnalysis>  noisy;
+        int                             edit = -1;
+        int                             slot = 0;
+        int                             s    = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        slot = analysis.entries[20].slot;
+        s    = GetSectorIndex (GetTrack (analysis), 2);
+        edit = edits.Begin (GetTrack (analysis), 20, s, reason);
+        Assert::IsTrue (edits.TypeHexDigit (edit, 0x10, true, L'9'));
+        Assert::IsTrue (edits.CanUndo());
+
+        noisy = std::make_shared<TrackAnalysis> (GetTrack (analysis));
+
+        noisy->fields[noisy->sectors[s].dataField].hasNoise = true;
+        analysis.tracks[slot] = noisy;
+        edits.Follow (analysis, discarded);
+
+        Assert::AreEqual (static_cast<size_t> (1), discarded.size(), L"the edit is listed as discarded");
+        Assert::AreEqual (static_cast<Byte> (2), discarded[0].sectorNumber);
+        Assert::IsFalse  (edits.CanUndo(), L"no pending change is left to undo");
+        Assert::IsFalse  (edits.CanRedo());
+    }
 };
