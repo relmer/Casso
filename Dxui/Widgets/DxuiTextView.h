@@ -35,6 +35,12 @@
 //  theme's fixed-width face, so layout and selection can be tested without a
 //  device.
 //
+//  PROPORTIONAL TEXT, such as an image's details, is drawn in the theme's
+//  body face, with every cell but a row's last in the muted color. Each
+//  character's place is measured once a paint has the renderer, and the
+//  columns, wrapping and selection are laid out by those places instead of
+//  by cells.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiTextView : public IDxuiControl
@@ -78,6 +84,7 @@ public:
 
     //  One character cell, in the same coordinates as the bounds.
     void  SetCellSize      (int widthPx, int heightPx);
+    void  SetProportional  (bool proportional);
     void  SetIconFace      (const wchar_t * face) { m_iconFace = face; }
     void  SetOwnerWindow   (HWND hwnd)            { m_hwnd = hwnd; }
     void  SetOnContextMenu (ContextMenuFn fn)     { m_onContextMenu = std::move (fn); }
@@ -144,24 +151,29 @@ private:
     static constexpr int  s_kPadDip             = 6;
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
-    void          Rebuild           ();
-    void          BuildLines        (int columns);
-    int           GetTextColumns    (bool scrollbar) const;
-    int           GetCellStart      (const Row & row, int cell) const;
-    int           GetCellBase       (const Row & row, int cell) const;
-    int           GetRowLength      (const Row & row) const;
-    std::wstring  GetRowText        (const Row & row) const;
-    void          SyncScrollbar     ();
-    void          EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void          SelectWordAt      (Position pos);
-    void          GetWordBounds     (Position pos, Position & outFirst, Position & outLast) const;
+    void          Rebuild                ();
+    void          BuildLines             (int columns);
+    void          BuildProportionalLines (float widthPx);
+    void          MeasureCharacters      (IDxuiTextRenderer & text, const DxuiFontHandle & font);
+    float         GetCellX               (const Row & row, int cell) const;
+    float         GetCharsPx             (int row, int cell, int from, int to) const;
+    int           GetNearestChar         (int row, int cell, int from, int to, float x) const;
+    int           GetTextColumns         (bool scrollbar) const;
+    int           GetCellStart           (const Row & row, int cell) const;
+    int           GetCellBase            (const Row & row, int cell) const;
+    int           GetRowLength           (const Row & row) const;
+    std::wstring  GetRowText             (const Row & row) const;
+    void          SyncScrollbar          ();
+    void          EnsureCellSize         (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void          SelectWordAt           (Position pos);
+    void          GetWordBounds          (Position pos, Position & outFirst, Position & outLast) const;
 
     //  Word characters, spaces and tabs are three kinds; a run of one kind is
     //  what a double-click selects.
     static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
-    void          FillSelectedRange (IDxuiPainter & painter, int y, int column, int flatStart, int count, int trailCells, int selFrom, int selTo, uint32_t argb) const;
-    void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int column,
+    void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
+    void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors) const;
     std::vector<uint32_t>  GetRowColors (const Row & row) const;
@@ -169,7 +181,14 @@ private:
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;
     std::vector<int>   m_columnCells;
-    int                m_cellWidthPx   = 0;
+
+    //  Proportional text: each row's cells' character places, the width of
+    //  the characters before each, and each column's widest cell, in pixels.
+    //  Empty until a paint measures them.
+    bool                                          m_proportional = false;
+    std::vector<std::vector<std::vector<float>>>  m_charX;
+    std::vector<float>                            m_columnPx;
+    int                                           m_cellWidthPx  = 0;
 
     //  The face's advance, which is rarely a whole number of pixels. Columns
     //  are placed by it rather than by the rounded cell width, so a line split

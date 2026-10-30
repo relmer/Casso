@@ -131,6 +131,32 @@ public:
     }
 
 
+    //  Proportional text is laid out once a paint has measured its
+    //  characters, and a point is hit-tested by those measured places.
+    TEST_METHOD (Proportional_LaysOutAndHitTestsByMeasuredPlaces)
+    {
+        DxuiTextView          view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        LayOut (view, 400, 400);
+        view.SetProportional (true);
+        view.SetRows ({ MakeRow ({ L"Format", L"WOZ 2" }), MakeRow ({ L"", L"second line" }) });
+
+        Assert::AreEqual (0, view.GetLineCount(), L"Nothing is laid out until a paint measures the characters");
+
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (0,  view.HitTest (POINT { 0, 6 + 4 }).offset, L"The row's left edge is its first character");
+        Assert::AreEqual (12, view.HitTest (POINT { 399, 6 + 4 }).offset, L"and past its end is the end of its text");
+
+        view.SelectAll();
+        Assert::AreEqual (std::wstring (L"Format\tWOZ 2\r\n\tsecond line"), view.GetSelectionText());
+    }
+
+
     //  A double-click selects a word, and a third click on the same spot
     //  selects everything.
     TEST_METHOD (TripleClick_SelectsEverything)
