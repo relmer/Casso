@@ -191,6 +191,13 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         //  A folder that is a file too has no folder on the disk to open as one.
         row.hostPath     = (items[index].isFolder && items[index].isFile) ? std::wstring() : items[index].path;
         row.shellId      = items[index].id;
+        row.homeGroup     = items[index].homeGroup;
+        row.homeOrder     = items[index].homeOrder;
+        row.homePinned    = items[index].homePinned;
+        row.isShared      = items[index].isShared;
+        row.accessedUnix  = items[index].accessedUnix;
+        row.activityUnix  = items[index].activityUnix;
+        row.folderDisplay = items[index].folderDisplay;
         row.folderPath   = items[index].folder;
         row.imagePath    = items[index].imagePath;
         row.imageCatalogIndex = items[index].catalogIndex;

@@ -35,9 +35,18 @@ struct CatalogRow
     //  converted with no zone; a host file's is a real instant. The first is
     //  shown as recorded, the second in local time.
     bool  modifiedIsWallClock = false;
-    bool  locked              = false;
-    bool  isDirectory         = false;
-    bool  isDiskImage         = false;
+
+    //  What the Home folder records of an item; homeGroup is 0 anywhere else.
+    int           homeGroup     = 0;
+    uint32_t      homeOrder     = 0;
+    bool          homePinned    = false;
+    bool          isShared      = false;
+    int64_t       accessedUnix  = 0;
+    int64_t       activityUnix  = 0;
+    std::wstring  folderDisplay;
+    bool          locked        = false;
+    bool          isDirectory   = false;
+    bool          isDiskImage   = false;
 
     //  A host item's attributes: a hidden one's icon is drawn faded, and a
     //  compressed or encrypted one's name in color, as Explorer draws them.

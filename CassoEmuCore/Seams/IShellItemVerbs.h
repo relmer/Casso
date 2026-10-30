@@ -73,6 +73,15 @@ public:
         size_t        catalogIndex  = 0;       // and where it is in that image's catalog
         std::string   imageDirectory;          // the directory inside the image that lists it, or empty for the volume's
         std::wstring  iconId;                  // the namespace entry whose icon it shows, as OneDrive's cloud
+
+        //  What the Home folder records of an item; homeGroup is 0 anywhere else.
+        int           homeGroup     = 0;       // System.Home.Grouping: 1 is Quick access, 3 is Recent
+        uint32_t      homeOrder     = 0;       // System.Home.SortOrder
+        bool          homePinned    = false;
+        bool          isShared      = false;
+        int64_t       accessedUnix  = 0;
+        int64_t       activityUnix  = 0;
+        std::wstring  folderDisplay;           // System.ItemFolderPathDisplay
     };
 
     //  What a paste did: each item it took and the item it made, in the same

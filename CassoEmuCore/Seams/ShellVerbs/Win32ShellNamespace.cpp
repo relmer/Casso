@@ -201,6 +201,79 @@ PITEMID_CHILD Win32ShellNamespace::GetChildId (IShellItem * item)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellNamespace::ReadHomeProperties
+//
+//  What the Home folder records of its items. An item of any other folder has
+//  no grouping, and nothing else is read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellNamespace::ReadHomeProperties (IShellItem2 * item, IShellItemVerbs::ShellFolderItem & outEntry)
+{
+    static constexpr int64_t  s_kTicksPerSecond   = 10000000;
+    static constexpr int64_t  s_kTicksToUnixEpoch = 116444736000000000;
+
+    PROPERTYKEY  key      = {};
+    ULONG        group    = 0;
+    ULONG        order    = 0;
+    BOOL         flag     = FALSE;
+    FILETIME     when     = {};
+    PWSTR        text     = nullptr;
+
+    auto  ToUnix = [] (const FILETIME & time) -> int64_t
+    {
+        int64_t  ticks = (int64_t) (((uint64_t) time.dwHighDateTime << 32) | time.dwLowDateTime);
+
+        return (ticks > s_kTicksToUnixEpoch) ? (ticks - s_kTicksToUnixEpoch) / s_kTicksPerSecond : 0;
+    };
+
+
+
+    if (FAILED (PSGetPropertyKeyFromName (L"System.Home.Grouping", &key)) || FAILED (item->GetUInt32 (key, &group)))
+    {
+        return;
+    }
+
+    outEntry.homeGroup = (int) group;
+
+    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.Home.SortOrder", &key)) && SUCCEEDED (item->GetUInt32 (key, &order)))
+    {
+        outEntry.homeOrder = order;
+    }
+
+    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.Home.IsPinned", &key)) && SUCCEEDED (item->GetBool (key, &flag)))
+    {
+        outEntry.homePinned = flag != FALSE;
+    }
+
+    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.IsShared", &key)) && SUCCEEDED (item->GetBool (key, &flag)))
+    {
+        outEntry.isShared = flag != FALSE;
+    }
+
+    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.DateAccessed", &key)) && SUCCEEDED (item->GetFileTime (key, &when)))
+    {
+        outEntry.accessedUnix = ToUnix (when);
+    }
+
+    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.ActivityDate", &key)) && SUCCEEDED (item->GetFileTime (key, &when)))
+    {
+        outEntry.activityUnix = ToUnix (when);
+    }
+
+    if (SUCCEEDED (PSGetPropertyKeyFromName (L"System.ItemFolderPathDisplay", &key)) && SUCCEEDED (item->GetString (key, &text)) && text != nullptr)
+    {
+        outEntry.folderDisplay = text;
+        CoTaskMemFree (text);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellNamespace::DescribeShellItem
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,6 +312,8 @@ HRESULT Win32ShellNamespace::DescribeShellItem (IShellItem * item, IShellItemVer
     }
 
     outEntry.path = Win32ShellTransfers::GetItemPath (item);
+
+    ReadHomeProperties (item2.Get(), outEntry);
 
     hrItem = item2->GetString (Win32ShellItemVerbs::s_kTypeText, &text);
 
