@@ -189,6 +189,23 @@ public:
         return std::any_of (listing.entries.begin(), listing.entries.end(), [&name] (const FileEntry & entry) { return entry.name == name; });
     }
 
+    static bool  FindEntry (const IVolume & volume, const std::string & name, FileEntry & outEntry)
+    {
+        VolumeListing  listing;
+
+        AssertSucceeded (volume.Enumerate (listing));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            if (entry.name == name)
+            {
+                outEntry = entry;
+                return true;
+            }
+        }
+
+        return false;
+    }
 
 
 
@@ -310,6 +327,38 @@ public:
         AssertSucceeded (rig.actions->DeleteSelected().hr);
         Assert::IsTrue (rig.Finish().empty());
         Assert::IsFalse (HasEntry (Dos33Volume (rig.Drive (1)), "GREETING"));
+    }
+
+
+
+
+    TEST_METHOD (LockAndConvert_ChangeTheDrive)
+    {
+        Rig          rig;
+        FilePayload  listing;
+        std::string  name;
+        FileEntry    hello;
+
+        rig.Open (1);
+        rig.Select (L"HELLO");
+        AssertSucceeded (rig.actions->SetLockedSelected (true).hr);
+        Assert::IsTrue (rig.Finish().empty());
+        Assert::IsTrue (FindEntry (Dos33Volume (rig.Drive (1)), "HELLO", hello) && hello.isLocked);
+
+        //  A listing put on the drive is tokenized into a program, which
+        //  converts to a text listing beside it.
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\In\\PROG.txt", "10 PRINT 1\r\n"));
+        AssertSucceeded (rig.actions->PutFiles ({ L"C:\\In\\PROG.txt" }).hr);
+        Assert::IsTrue (rig.Finish().empty());
+
+        rig.Reload();
+        rig.Select (L"PROG");
+        AssertSucceeded (rig.actions->ConvertSelected (name).hr);
+        Assert::IsTrue (rig.Finish().empty(), L"the read");
+        Assert::IsTrue (rig.Finish().empty(), L"the write it queues");
+        Assert::AreEqual (std::string ("PROG.LIST"), name);
+        AssertSucceeded (Dos33Volume (rig.Drive (1)).Read (FilePath::Parse (name), listing));
+        Assert::AreEqual<int> (Dos33Volume::kTypeText, listing.type);
     }
 
 

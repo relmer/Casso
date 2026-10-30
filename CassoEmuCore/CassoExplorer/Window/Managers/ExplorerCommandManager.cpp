@@ -1087,6 +1087,30 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             m_context.fileOps.BeginRename();
             break;
 
+        case CassoExplorerActions::Verb::Lock:
+        case CassoExplorerActions::Verb::Unlock:
+            ReportOutcome (m_context.actions.SetLockedSelected (verb == CassoExplorerActions::Verb::Lock), (verb == CassoExplorerActions::Verb::Lock) ? L"Lock" : L"Unlock");
+            m_context.listPane.FillList();
+            break;
+
+        case CassoExplorerActions::Verb::ConvertTo:
+        {
+            std::string  converted;
+
+            outcome = m_context.actions.ConvertSelected (converted);
+            ReportOutcome (outcome, L"Convert");
+            m_context.listPane.FillList();
+
+            //  On an image the new file is listed now, selected for renaming;
+            //  on a linked drive it is written once the read is done.
+            if (outcome.Succeeded() && !m_context.browser.IsAppleDriveLocation() && m_context.listPane.SelectRowNamed (TextEncoding::NarrowToWide (converted)))
+            {
+                m_context.fileOps.BeginRename();
+            }
+
+            break;
+        }
+
         case CassoExplorerActions::Verb::InsertDrive1:
         case CassoExplorerActions::Verb::InsertDrive2:
             m_context.fileOps.InsertIntoDrive (m_context.fileOps.GetSelectedImagePath(), verb == CassoExplorerActions::Verb::InsertDrive1 ? 1 : 2);

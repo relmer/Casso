@@ -543,6 +543,133 @@ ActionsTypes::Outcome ActionsAppleDrive::RenameOnAppleDrive (const std::string &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsAppleDrive::SetLockedOnAppleDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::SetLockedOnAppleDrive (bool locked)
+{
+    ActionsTypes::Outcome   outcome;
+    std::vector<FileEntry>  entries;
+    std::string             link;
+    std::string             directory;
+    int                     drive     = 0;
+
+
+
+    m_actions.m_browser.GetSelectedEntries (entries);
+
+    if (!TryGetAppleDrive (link, drive, directory) || entries.empty())
+    {
+        outcome.hr = E_INVALIDARG;
+        return outcome;
+    }
+
+    for (const FileEntry & entry : entries)
+    {
+        FilePath        path       = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
+        FileAttributes  attributes = CassoExplorerActions::MakeLockAttributes (entry, locked);
+
+        SubmitWrite (link, drive, [drive, path, attributes] (CassoLinkSession & session) { return session.SetAttributes (drive, path, attributes); }, outcome);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::ConvertOnAppleDrive
+//
+//  The file is read over the link, and the converted file written once the
+//  read is done; the new file's name is not one already in the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::ConvertOnAppleDrive (const FileEntry & entry, BasicConversion::Kind kind, std::string & outNewName)
+{
+    ActionsTypes::Outcome      outcome;
+    std::string                link;
+    std::string                directory;
+    int                        drive     = 0;
+    VolumeKind                 volume    = m_actions.m_browser.GetVolumeKind();
+    std::vector<std::string>   taken;
+    CassoLinkConnections     * links     = m_actions.m_browser.GetLinks();
+    HRESULT                    hr        = S_OK;
+
+
+
+    if (!TryGetAppleDrive (link, drive, directory) || links == nullptr)
+    {
+        outcome.hr = E_INVALIDARG;
+        return outcome;
+    }
+
+    for (const CatalogRow & row : m_actions.m_browser.GetRows())
+    {
+        taken.push_back (TextEncoding::WideToNarrow (row.name));
+    }
+
+    outNewName = BasicConversion::MakeName (entry.name, volume, kind, taken);
+
+    {
+        FilePath     source = FilePath::Parse (m_actions.m_browser.GetEntryPath (entry));
+        FilePath     target = FilePath::Parse (directory.empty() ? outNewName : directory + "/" + outNewName);
+        std::string  name   = entry.name;
+
+        hr = links->Submit (link, [drive, source] (CassoLinkSession & session) { return session.ReadFile (drive, source); },
+                            Guard ([links, link, drive, target, volume, kind, name] (const LinkOperation & operation) -> std::wstring
+        {
+            FilePayload   converted;
+            std::wstring  error;
+            HRESULT       converts = S_OK;
+            HRESULT       queued   = S_OK;
+
+            if (FAILED (operation.result))
+            {
+                return CassoLinkConnections::DescribeFailure (operation);
+            }
+
+            converts = BasicConversion::Convert (operation.file, volume, kind, converted, error);
+
+            if (FAILED (converts))
+            {
+                return std::format (L"{} wasn't converted. {}", TextEncoding::NarrowToWide (name), error);
+            }
+
+            queued = links->Submit (link, [drive, target, converted] (CassoLinkSession & session) { return session.WriteFile (drive, target, converted); },
+                                    [links, link, drive] (const LinkOperation & written) -> std::wstring
+            {
+                links->Invalidate (link, drive);
+
+                return FAILED (written.result) ? CassoLinkConnections::DescribeFailure (written) : std::wstring();
+            });
+
+            return FAILED (queued) ? std::wstring (L"CassoLink could not be started.") : std::wstring();
+        }));
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        outcome.written++;
+    }
+    else
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"CassoLink could not be started.");
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsAppleDrive::CreateFolderOnAppleDrive
 //
 ////////////////////////////////////////////////////////////////////////////////

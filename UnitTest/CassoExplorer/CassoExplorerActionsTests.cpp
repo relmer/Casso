@@ -461,6 +461,56 @@ public:
     }
 
 
+    TEST_METHOD (LockAndUnlock_ChangeTheEntry_AndTheVerbsOffered)
+    {
+        Host                                    host;
+        std::vector<CassoExplorerActions::Verb> verbs;
+        auto                                    has = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+        std::vector<FileEntry>                  entries;
+
+        host.OpenImage();
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::Lock));
+        Assert::IsFalse (has (CassoExplorerActions::Verb::Unlock));
+
+        Assert::IsTrue (host.actions.SetLockedSelected (true).Succeeded());
+
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelectedEntries (entries);
+        Assert::IsTrue (entries.size() == 1 && entries[0].isLocked);
+
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::Unlock));
+        Assert::IsFalse (has (CassoExplorerActions::Verb::Lock));
+
+        Assert::IsTrue (host.actions.SetLockedSelected (false).Succeeded());
+
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        host.browser.GetSelectedEntries (entries);
+        Assert::IsFalse (entries[0].isLocked);
+    }
+
+
+    TEST_METHOD (Convert_WritesTheListingBesideTheProgram)
+    {
+        Host                    host;
+        std::string             name;
+        std::vector<FileEntry>  entries;
+
+        host.OpenImage();
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+
+        Assert::IsTrue   (host.actions.ConvertSelected (name).Succeeded());
+        Assert::AreEqual (std::string ("HELLO.LIST"), name);
+        Assert::AreNotEqual (-1, host.Find (L"HELLO"), L"the program stays");
+
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO.LIST") });
+        host.browser.GetSelectedEntries (entries);
+        Assert::IsTrue (entries.size() == 1 && entries[0].type == BasicConversion::kDos33Text);
+    }
+
+
     TEST_METHOD (Get_WritesTheDescriptiveHostName)
     {
         Host  host;

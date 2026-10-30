@@ -332,6 +332,7 @@
     <ClCompile Include="Seams\Win32FolderWatcher.cpp" />
     <ClCompile Include="CassoExplorer\Model\CatalogModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
+    <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
     <ClCompile Include="CassoExplorer\Model\FolderOptions.cpp" />
     <ClCompile Include="CassoExplorer\Model\FolderViews.cpp" />
     <ClCompile Include="CassoExplorer\Model\ContentSniffer.cpp" />
@@ -820,6 +821,7 @@
     <ClInclude Include="Seams\Win32FolderWatcher.h" />
     <ClInclude Include="CassoExplorer\Model\CatalogModel.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
+    <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
     <ClInclude Include="CassoExplorer\Model\FolderOptions.h" />
     <ClInclude Include="CassoExplorer\Model\FolderViews.h" />
     <ClInclude Include="CassoExplorer\Model\ContentSniffer.h" />

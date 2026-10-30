@@ -381,6 +381,7 @@
     <ClCompile Include="CassoExplorer\AppleDriveActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileAssociationsTests.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesTests.cpp" />
+    <ClCompile Include="CassoExplorer\BasicConversionTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderViewsTests.cpp" />
     <ClCompile Include="CassoExplorer\RowGroupingTests.cpp" />

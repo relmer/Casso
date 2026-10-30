@@ -117,6 +117,21 @@ public:
     Outcome  BootSelected   ();
     Outcome  RenameSelected (const std::wstring & newName);
 
+    //  Locks or unlocks every selected entry.
+    Outcome  SetLockedSelected (bool locked);
+
+    //  The selected file converted, as BasicConversion converts it, into a
+    //  new file beside it; outNewName is the new file's name.
+    Outcome  ConvertSelected (std::string & outNewName);
+
+    //  The access an entry has locked or unlocked: ProDOS's destroy, rename
+    //  and write bits cleared or set, the rest as they are. On DOS 3.3 the
+    //  write bit is the lock.
+    static FileAttributes  MakeLockAttributes (const FileEntry & entry, bool locked);
+
+    //  What the selected files of a disk offer besides copy, delete and
+    //  rename.
+    void  AddFileVerbs (const std::vector<FileEntry> & entries, std::vector<Verb> & inOutVerbs) const;
     //  A new directory in the ProDOS location the list shows. The name is the
     //  volume's to accept, so an illegal one comes back as a refusal.
     Outcome  CreateFolder (const std::wstring & name);

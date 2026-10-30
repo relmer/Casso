@@ -117,6 +117,9 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::EmptyRecycleBin: return L"Empty Recycle &Bin";
         case CassoExplorerActions::Verb::ExtractAll:     return L"Extract A&ll...";
         case CassoExplorerActions::Verb::ExtractFiles:   return L"E&xtract all files";
+        case CassoExplorerActions::Verb::Lock:           return L"&Lock";
+        case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
+        case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";
         default:                                   return L"";
     }
 }
@@ -146,6 +149,8 @@ const wchar_t * ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb verb
         case CassoExplorerActions::Verb::Format:         return s_kpszMdl2HardDrive;
         case CassoExplorerActions::Verb::Refresh:        return s_kpszMdl2Refresh;
         case CassoExplorerActions::Verb::MoreOptions:    return s_kpszMdl2OpenInNewWindow;
+        case CassoExplorerActions::Verb::Lock:           return s_kpszMdl2Lock;
+        case CassoExplorerActions::Verb::Unlock:         return s_kpszMdl2Unlock;
         default:                                         return nullptr;
     }
 }

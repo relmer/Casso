@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
@@ -79,6 +80,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (!entries.empty() && writable)
         {
             verbs.push_back (Verb::Rename);
+            AddFileVerbs (entries, verbs);
         }
 
         if (entries.size() == 1 && writable)
@@ -115,6 +117,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::Copy);
             verbs.push_back (Verb::Delete);
             verbs.push_back (Verb::Rename);
+            AddFileVerbs (entries, verbs);
         }
 
         verbs.push_back (Verb::Put);
@@ -1274,6 +1277,169 @@ ActionsTypes::Outcome CassoExplorerActions::RenameSelected (const std::wstring &
 
     Append (outcome, m_browser.GetOperations().Rename (TextEncoding::WideToNarrow (imagePath), m_browser.GetEntryPath (entries[0]), target,
                                                        entries[0].catalogIndex));
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (imagePath);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::AddFileVerbs
+//
+//  Lock when an entry is unlocked, Unlock when one is locked, and Convert to
+//  for one BASIC program or text file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::AddFileVerbs (const std::vector<FileEntry> & entries, std::vector<Verb> & inOutVerbs) const
+{
+    if (std::any_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return !entry.isLocked; }))
+    {
+        inOutVerbs.push_back (Verb::Lock);
+    }
+
+    if (std::any_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return entry.isLocked; }))
+    {
+        inOutVerbs.push_back (Verb::Unlock);
+    }
+
+    if (entries.size() == 1 && !entries[0].isDirectory && BasicConversion::GetKind (m_browser.GetVolumeKind(), entries[0].type) != BasicConversion::Kind::None)
+    {
+        inOutVerbs.push_back (Verb::ConvertTo);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::MakeLockAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileAttributes CassoExplorerActions::MakeLockAttributes (const FileEntry & entry, bool locked)
+{
+    static constexpr Byte  kLockBits = 0x80 | 0x40 | FilePayload::kAccessWriteEnable;   // destroy, rename and write
+    FileAttributes         attributes;
+    Byte                   access    = entry.hasAccess ? entry.access : (entry.isLocked ? FilePayload::kAccessLocked : FilePayload::kAccessUnlocked);
+
+
+
+    attributes.access    = locked ? (Byte) (access & ~kLockBits) : (Byte) (access | FilePayload::kAccessUnlocked);
+    attributes.hasAccess = true;
+
+    return attributes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::SetLockedSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome CassoExplorerActions::SetLockedSelected (bool locked)
+{
+    Outcome                 outcome;
+    std::vector<FileEntry>  entries;
+    std::wstring            imagePath = m_browser.GetLocation().path;
+    std::string             image     = TextEncoding::WideToNarrow (imagePath);
+
+
+
+    if (m_browser.IsAppleDriveLocation())
+    {
+        return m_appleDrive.SetLockedOnAppleDrive (locked);
+    }
+
+    m_browser.GetSelectedEntries (entries);
+
+    for (const FileEntry & entry : entries)
+    {
+        Append (outcome, m_browser.GetOperations().SetAttributes (image, m_browser.GetEntryPath (entry), MakeLockAttributes (entry, locked), entry.catalogIndex));
+    }
+
+    if (outcome.written > 0)
+    {
+        FinishWrite (imagePath);
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ConvertSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome CassoExplorerActions::ConvertSelected (std::string & outNewName)
+{
+    Outcome                 outcome;
+    std::vector<FileEntry>  entries;
+    std::wstring            imagePath = m_browser.GetLocation().path;
+    std::string             image     = TextEncoding::WideToNarrow (imagePath);
+    std::string             directory = m_browser.GetLocation().innerPath;
+    VolumeKind              volume    = m_browser.GetVolumeKind();
+    BasicConversion::Kind   kind      = BasicConversion::Kind::None;
+    FilePayload             source;
+    FilePayload             converted;
+    std::wstring            error;
+    HRESULT                 hr        = S_OK;
+
+
+
+    outNewName.clear();
+    m_browser.GetSelectedEntries (entries);
+
+    kind = (entries.size() == 1) ? BasicConversion::GetKind (volume, entries[0].type) : BasicConversion::Kind::None;
+
+    if (kind == BasicConversion::Kind::None)
+    {
+        outcome.hr = E_INVALIDARG;
+        return outcome;
+    }
+
+    if (m_browser.IsAppleDriveLocation())
+    {
+        return m_appleDrive.ConvertOnAppleDrive (entries[0], kind, outNewName);
+    }
+
+    Append (outcome, m_browser.GetOperations().Read (image, m_browser.GetEntryPath (entries[0]), source, entries[0].catalogIndex));
+
+    if (!outcome.Succeeded())
+    {
+        return outcome;
+    }
+
+    hr = BasicConversion::Convert (source, volume, kind, converted, error);
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, std::format (L"{} wasn't converted. {}", TextEncoding::NarrowToWide (entries[0].name), error));
+        return outcome;
+    }
+
+    outNewName = BasicConversion::MakeName (entries[0].name, volume, kind, GetEntryNames (image, directory));
+
+    Append (outcome, m_browser.GetOperations().WritePayload (image, directory.empty() ? outNewName : directory + "/" + outNewName, converted));
 
     if (outcome.written > 0)
     {

@@ -1451,9 +1451,9 @@ The product-wide styles are GitHub issue #179.
   When an .as file is copied back to a disk, the name in its header is used
   if the PC name is the one CE would write for it, or if the header name was
   set in this dialog; otherwise the PC name is used.
-- [ ] T310 Add Lock and Unlock to the context menu for files in a disk image
+- [X] T310 Add Lock and Unlock to the context menu for files in a disk image
   or on a linked drive, over the whole selection.
-- [ ] T311 Add a Convert to submenu for files in a disk image or on a linked
+- [X] T311 Add a Convert to submenu for files in a disk image or on a linked
   drive: Text listing for an Applesoft or Integer BASIC file, and Applesoft
   BASIC for a text file. Each writes a new file beside the original, selects
   it for renaming, and never replaces the original.

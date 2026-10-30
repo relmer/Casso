@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
+#include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
@@ -81,6 +82,8 @@ public:
     ActionsTypes::Outcome  PutOnAppleDrive          (const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress);
     ActionsTypes::Outcome  DeleteOnAppleDrive       ();
     ActionsTypes::Outcome  RenameOnAppleDrive       (const std::string & newName);
+    ActionsTypes::Outcome  SetLockedOnAppleDrive    (bool locked);
+    ActionsTypes::Outcome  ConvertOnAppleDrive      (const FileEntry & entry, BasicConversion::Kind kind, std::string & outNewName);
     ActionsTypes::Outcome  CreateFolderOnAppleDrive (const std::string & name);
     void     PutItemsOnAppleDrive     (const std::string & link, int drive, const std::string & directory, std::vector<std::string> taken,
                                        const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress, ActionsTypes::Outcome & inOutOutcome);

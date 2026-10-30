@@ -37,6 +37,7 @@ private:
     void  AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
     void  AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items);
     void  AddCopyAsMenu   (std::vector<DxuiPopupMenuItem> & items);
+    void  AddConvertMenu  (std::vector<DxuiPopupMenuItem> & items);
 
     ExplorerListPane  & m_pane;
     ExplorerContext   & m_context;

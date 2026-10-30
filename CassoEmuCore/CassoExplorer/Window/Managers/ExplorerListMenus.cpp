@@ -323,6 +323,14 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             command->isEnabled = [this]() { return m_context.shellVerbs.ClipboardHasFiles(); };
         }
 
+        //  Convert to's one choice for the file, in a submenu as Explorer
+        //  groups its conversions.
+        if (verb == CassoExplorerActions::Verb::ConvertTo)
+        {
+            AddConvertMenu (items);
+            continue;
+        }
+
         //  Copying out of an image goes by the clipboard or a drag, as in
         //  Explorer, which has no Copy to folder: the Copy verb is the button
         //  row's, and this one stands for the forms Copy as offers.
@@ -790,6 +798,49 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
     parent->label = L"Cop&y as";
     parent->menuGlyph = s_kpszMdl2Copy;
     parent->menuSvg   = m_context.menus.GetMenuSvg (L"windows.copy");
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
+    m_context.menus.GetMenuCommands().push_back (std::move (parent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::AddConvertMenu
+//
+//  A BASIC program converts to its text listing, and a text file to an
+//  Applesoft BASIC program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
+{
+    std::vector<DxuiPopupMenuItem>  choices;
+    std::vector<FileEntry>          entries;
+    std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>    child  = std::make_shared<DxuiCommand>();
+    BasicConversion::Kind           kind   = BasicConversion::Kind::None;
+
+
+
+    m_context.browser.GetSelectedEntries (entries);
+
+    if (entries.size() != 1)
+    {
+        return;
+    }
+
+    kind = BasicConversion::GetKind (m_context.browser.GetVolumeKind(), entries[0].type);
+
+    child->label    = (kind == BasicConversion::Kind::ToListing) ? L"&Text listing" : L"&Applesoft BASIC";
+    child->dispatch = [this]() { m_context.commandManager.RunVerb (CassoExplorerActions::Verb::ConvertTo); };
+
+    choices.push_back (DxuiPopupMenuItem::ForCommand (child));
+    m_context.menus.GetMenuCommands().push_back (std::move (child));
+
+    parent->label = ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ConvertTo);
     items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
     m_context.menus.GetMenuCommands().push_back (std::move (parent));
 }
