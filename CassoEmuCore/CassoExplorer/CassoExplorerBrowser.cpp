@@ -830,8 +830,9 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
     {
         found = false;
     }
-    else if (!m_loader.m_rootChildren.empty() && m_rows[row].sourceIndex < m_loader.m_rootChildren.size())
+    else if (!IsVolumeLocation() && !m_loader.m_rootChildren.empty() && m_rows[row].sourceIndex < m_loader.m_rootChildren.size())
     {
+        //  Not for a disk's entries, whatever root was listed before.
         outLocation = m_loader.m_rootChildren[m_rows[row].sourceIndex].location;
     }
     else if ((location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory) && m_rows[row].isDirectory)
@@ -919,6 +920,12 @@ bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
         outPath = m_rows[row].hostPath;
         found   = m_rows[row].cassoLinkItem != CatalogRow::CassoLinkItem::AddMachine;
     }
+    else if (IsVolumeLocation())
+    {
+        //  A disk's entry, in an image or on a linked drive, goes by the
+        //  disk's address, whatever root was listed before.
+        outPath = JoinPath (BrowserModel::FormatAddress (location), m_rows[row].name);
+    }
     else if (!m_loader.m_rootChildren.empty() && m_rows[row].sourceIndex < m_loader.m_rootChildren.size())
     {
         outPath = BrowserModel::FormatAddress (m_loader.m_rootChildren[m_rows[row].sourceIndex].location);
@@ -930,10 +937,6 @@ bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
     else if (location.kind == Location::Kind::ShellFolder && !m_rows[row].hostPath.empty())
     {
         outPath = m_rows[row].hostPath;
-    }
-    else if (location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory)
-    {
-        outPath = JoinPath (BrowserModel::FormatAddress (location), m_rows[row].name);
     }
     else
     {

@@ -788,6 +788,9 @@ void ExplorerMenus::AddDriveCommands (std::vector<DxuiPopupMenuItem> & items, co
             IGNORE_RETURN_VALUE (ran, S_OK);
             m_context.folderSync.RefreshAfterHostChange();
         });
+
+        //  File Explorer's icons for them.
+        m_menuCommands.back()->menuSvg = GetMenuSvg (verb.starts_with ("encrypt-bde") ? L"encrypt-bde-elev" : (verb == "format") ? L"windows.diskformat" : L"windows.eject");
     }
 }
 

@@ -491,7 +491,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             std::wstring  path = selectedPaths[0];
 
             m_context.menus.AddMenuCommand (items, L"&Apple properties", [this, path]() { m_context.fileOps.ShowHostAppleProperties (path); });
-            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.properties");
+            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
         }
 
         if (m_context.browser.GetSelectedRows().size() > 1 && m_context.browser.IsVolumeLocation())

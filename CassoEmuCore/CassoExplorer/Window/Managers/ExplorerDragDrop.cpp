@@ -1263,6 +1263,7 @@ void ExplorerDragDrop::BeginDragOut()
     std::vector<std::string>                 paths;
     std::vector<std::wstring>                shellIds;
     bool                                     inImage  = m_context.browser.IsImageLocation();
+    bool                                     onDrive  = m_context.browser.IsAppleDriveLocation();
     std::string                              image    = TextEncoding::WideToNarrow (m_context.browser.GetLocation().path);
     CassoExplorerActions::Outcome            outcome;
     BOOL                                     got      = FALSE;
@@ -1314,7 +1315,7 @@ void ExplorerDragDrop::BeginDragOut()
     }
 
     //  What a move would take away, read now: the drag may change the list.
-    if (inImage)
+    if (inImage || onDrive)
     {
         m_context.browser.GetSelectedEntries (entries);
 
@@ -1338,10 +1339,16 @@ void ExplorerDragDrop::BeginDragOut()
     //  deleted only when the target read every file whole: not one skipped
     //  in its conflict dialog, one that failed to read, or one from a disk
     //  with sectors that could not be decoded.
-    if (effect == DROPEFFECT_MOVE && inImage && !paths.empty() && !log->IsWhole())
+    if (effect == DROPEFFECT_MOVE && (inImage || onDrive) && !paths.empty() && !log->IsWhole())
     {
         m_context.window.ShowMessage (L"The originals were not deleted, because the destination did not get every file whole: a file was "
                               L"skipped, could not be read, or came from sectors the disk could not decode.", MB_ICONWARNING);
+    }
+    else if (effect == DROPEFFECT_MOVE && onDrive && !entries.empty())
+    {
+        //  Deleted over the link, after the reads the drop made.
+        outcome = m_context.actions.DeleteDriveEntries (entries);
+        m_context.commandManager.ReportOutcome (outcome, L"Move");
     }
     else if (effect == DROPEFFECT_MOVE && inImage && !paths.empty())
     {

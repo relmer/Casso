@@ -114,8 +114,11 @@ public:
     //  Entries by catalog path, for the second half of a move. A path that
     //  lists is a directory, and goes with everything under it.
     Outcome  DeleteEntries  (const std::string & image, const std::vector<std::string> & catalogPaths);
-    Outcome  BootSelected   ();
-    Outcome  RenameSelected (const std::wstring & newName);
+
+    //  Entries on the open linked drive, for the second half of a move.
+    Outcome  DeleteDriveEntries (const std::vector<FileEntry> & entries) { return m_appleDrive.DeleteOnAppleDrive (entries); }
+    Outcome  BootSelected       ();
+    Outcome  RenameSelected     (const std::wstring & newName);
 
     //  Locks or unlocks every selected entry.
     Outcome  SetLockedSelected (bool locked);

@@ -332,6 +332,32 @@ public:
 
 
 
+    //  A drive's file has a path, so Properties opens for it, whatever root
+    //  was listed before the drive.
+    TEST_METHOD (ADrivesFile_HasARowPath)
+    {
+        Rig           rig;
+        std::wstring  path;
+
+        rig.browser->NavigateToLocation (Location::MakeRoot (TreeModel::kCassoLinkRootId));
+        rig.Open (1);
+
+        for (int row = 0; row < (int) rig.browser->GetRows().size(); row++)
+        {
+            if (rig.browser->GetRows()[(size_t) row].name == L"HELLO")
+            {
+                Assert::IsTrue (rig.browser->TryGetRowPath (row, path));
+                Assert::IsTrue (path.ends_with (L"HELLO"), path.c_str());
+                return;
+            }
+        }
+
+        Assert::Fail (L"HELLO is listed");
+    }
+
+
+
+
     TEST_METHOD (LockAndConvert_ChangeTheDrive)
     {
         Rig          rig;

@@ -777,6 +777,14 @@ void ExplorerFileOps::ShowRowProperties (int row)
 
 
 
+    //  An entry inside an image or on a linked drive: its Apple properties,
+    //  editable.
+    if (m_context.browser.IsVolumeLocation() && m_context.browser.TryGetRowEntry (row, entry))
+    {
+        ShowAppleProperties();
+        return;
+    }
+
     if (!m_context.browser.TryGetRowPath (row, path))
     {
         return;
@@ -796,14 +804,6 @@ void ExplorerFileOps::ShowRowProperties (int row)
                                             CassoExplorerProperties::DescribeEntry (match.entry, match.kind,
                                                 BrowserModel::FormatAddress (match.directory.empty() ? Location::MakeDiskImage (match.imagePath)
                                                                                                      : Location::MakeDiskDirectory (match.imagePath, match.directory))));
-        return;
-    }
-
-    //  An entry inside an image or on a linked drive: its Apple properties,
-    //  editable.
-    if (m_context.browser.TryGetRowEntry (row, entry))
-    {
-        ShowAppleProperties();
         return;
     }
 

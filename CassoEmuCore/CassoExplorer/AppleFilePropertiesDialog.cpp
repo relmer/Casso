@@ -197,7 +197,9 @@ void AppleFilePropertiesDialog::Show (HWND owner, const IDxuiTheme * theme, cons
     dialog.m_hasHost  = host != nullptr;
     dialog.m_host     = (host != nullptr) ? *host : HostOptions();
 
-    params.title                    = (entries.size() == 1) ? TextEncoding::NarrowToWide (entries[0].name) + L" Properties" : std::wstring (L"Properties");
+    //  A file on the PC is captioned with its name there, as Windows' sheet is.
+    params.title                    = (entries.size() != 1) ? std::wstring (L"Properties")
+                                    : ((host != nullptr) ? host->leafName : TextEncoding::NarrowToWide (entries[0].name)) + L" properties";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { s_kWidthDip, 480 };
@@ -265,7 +267,7 @@ void AppleFilePropertiesDialog::OnCreate()
         input->SetTheme        (m_theme);
         input->SetHwnd         (GetHwnd());
         input->SetTextRenderer (GetTextRenderer());
-        input->SetPlaceholder  (s_kMultiple);
+        input->SetPlaceholder  (single ? std::wstring() : std::wstring (s_kMultiple));
         input->SetEnabled      (!m_readOnly);
     }
 

@@ -81,7 +81,7 @@ public:
     //  completions run.
     ActionsTypes::Outcome  GetFromAppleDrive           (const std::wstring & hostFolder, HostFileNaming::Style style, const ActionsTypes::CollisionFn & collision);
     ActionsTypes::Outcome  PutOnAppleDrive             (const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress);
-    ActionsTypes::Outcome  DeleteOnAppleDrive          ();
+    ActionsTypes::Outcome  DeleteOnAppleDrive          (std::vector<FileEntry> entries = {});
     ActionsTypes::Outcome  RenameOnAppleDrive          (const std::string & newName);
     ActionsTypes::Outcome  SetLockedOnAppleDrive       (bool locked);
     ActionsTypes::Outcome  ApplyPropertiesOnAppleDrive (std::vector<FileEntry> entries, const AppleFileProperties::Edits & edits);

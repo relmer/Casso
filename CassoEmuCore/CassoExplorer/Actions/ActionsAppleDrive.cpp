@@ -443,10 +443,9 @@ void ActionsAppleDrive::PutItemsOnAppleDrive (const std::string & link, int driv
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::DeleteOnAppleDrive()
+ActionsTypes::Outcome ActionsAppleDrive::DeleteOnAppleDrive (std::vector<FileEntry> entries)
 {
     ActionsTypes::Outcome   outcome;
-    std::vector<FileEntry>  entries;
     std::string             link;
     std::string             directory;
     int                     drive     = 0;
@@ -459,7 +458,11 @@ ActionsTypes::Outcome ActionsAppleDrive::DeleteOnAppleDrive()
         return outcome;
     }
 
-    m_actions.m_browser.GetSelectedEntries (entries);
+    //  None given is the selection.
+    if (entries.empty())
+    {
+        m_actions.m_browser.GetSelectedEntries (entries);
+    }
 
     //  Each entry is removed from the drive's listing once it is deleted, before
     //  the drive is read again.
