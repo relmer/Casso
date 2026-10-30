@@ -753,28 +753,56 @@ bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerMenus::AddDriveCommands
+//  ExplorerMenus::AddShellMenuCommands
 //
-//  For drives, the commands File Explorer lists from their shell menu:
-//  BitLocker, Format and, for a removable drive, Eject, each run by its verb
-//  as if picked there. These rows are added only for drives.
+//  The commands File Explorer lists on its first level from the items' shell
+//  menu rather than from the registry: for drives, BitLocker, Format and,
+//  for a removable drive, Eject; for files, Run as administrator and, for a
+//  shortcut, Open file location. Each is run by its verb as if picked there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerMenus::AddDriveCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths)
+void ExplorerMenus::AddShellMenuCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths)
 {
-    static const std::vector<std::string>   kVerbs = { "encrypt-bde-elev", "encrypt-bde", "format", "eject" };
+    static const std::vector<std::string>   kDriveVerbs = { "encrypt-bde-elev", "encrypt-bde", "format", "eject" };
+    static const std::vector<std::string>   kFileVerbs  = { "runas", "opencontaining" };
     std::vector<IShellItemVerbs::ItemVerb>  found;
-    HRESULT                                 hr     = S_OK;
+    bool                                    drives      = false;
+    bool                                    files       = false;
+    HRESULT                                 hr          = S_OK;
 
 
 
-    if (paths.empty() || !std::all_of (paths.begin(), paths.end(), [] (const std::wstring & path) { return path.size() == 3 && path[1] == L':' && path[2] == L'\\'; }))
+    if (paths.empty())
     {
         return;
     }
 
-    hr = m_context.shellVerbs.ListItemVerbs (paths, kVerbs, found);
+    drives = std::all_of (paths.begin(), paths.end(), [] (const std::wstring & path) { return path.size() == 3 && path[1] == L':' && path[2] == L'\\'; });
+    //  The shell's menu loads every handler registered for the items, so it
+    //  is built only for the types these commands are on: programs, scripts,
+    //  installers and shortcuts.
+    files  = !drives && std::all_of (paths.begin(), paths.end(), [] (const std::wstring & path)
+    {
+        std::wstring  extension = std::filesystem::path (path).extension().wstring();
+
+        for (const wchar_t * runnable : { L".exe", L".com", L".bat", L".cmd", L".msi", L".lnk" })
+        {
+            if (_wcsicmp (extension.c_str(), runnable) == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    });
+
+    if (!drives && !files)
+    {
+        return;
+    }
+
+    hr = m_context.shellVerbs.ListItemVerbs (paths, drives ? kDriveVerbs : kFileVerbs, found);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     for (const IShellItemVerbs::ItemVerb & each : found)
@@ -790,8 +818,43 @@ void ExplorerMenus::AddDriveCommands (std::vector<DxuiPopupMenuItem> & items, co
         });
 
         //  File Explorer's icons for them.
-        m_menuCommands.back()->menuSvg = GetMenuSvg (verb.starts_with ("encrypt-bde") ? L"encrypt-bde-elev" : (verb == "format") ? L"windows.diskformat" : L"windows.eject");
+        m_menuCommands.back()->menuSvg = GetMenuSvg (GetShellVerbSvgName (verb));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::GetShellVerbSvgName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ExplorerMenus::GetShellVerbSvgName (const std::string & verb)
+{
+    if (verb.starts_with ("encrypt-bde"))
+    {
+        return L"encrypt-bde-elev";
+    }
+
+    if (verb == "format")
+    {
+        return L"windows.diskformat";
+    }
+
+    if (verb == "eject")
+    {
+        return L"windows.eject";
+    }
+
+    if (verb == "runas")
+    {
+        return L"RunAsAdmin";
+    }
+
+    return (verb == "opencontaining") ? L"windows.shortcut.opencontaining" : nullptr;
 }
 
 

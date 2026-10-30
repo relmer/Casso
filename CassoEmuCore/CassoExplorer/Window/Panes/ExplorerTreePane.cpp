@@ -912,7 +912,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
         if (location.kind == Location::Kind::HostFolder)
         {
-            m_context.menus.AddDriveCommands (items, { location.path });
+            m_context.menus.AddShellMenuCommands (items, { location.path });
         }
 
         m_context.menus.AddMenuCommand (items, L"Copy as &path", [this, location]()

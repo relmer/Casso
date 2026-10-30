@@ -466,7 +466,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                 }
             }
 
-            m_context.menus.AddDriveCommands (items, rowPaths);
+            m_context.menus.AddShellMenuCommands (items, rowPaths);
         }
 
         m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.fileOps.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
