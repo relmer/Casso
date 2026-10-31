@@ -182,7 +182,7 @@ void PlatterCells::BuildLevels (const vector<Byte> & cells, vector<vector<Byte>>
 //
 //  PlatterCells::IsEchoRing
 //
-//  Neighboring rings with one slot play one recording, which is centered on
+//  Neighboring rings with one slot have one recording, which is centered on
 //  the run's middle ring. Every other ring of the run is an echo of it.
 //
 ////////////////////////////////////////////////////////////////////////////////

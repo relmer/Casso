@@ -155,8 +155,8 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position, float
 
         color.rgb *= shade;
 
-        //  A ring that repeats its neighbor's recording is dimmed, which leaves
-        //  the ring at the recording's center brightest.
+        //  Dim a ring that repeats its neighbor's recording. The ring at the
+        //  recording's center is drawn at full brightness.
         if ((flags & kEchoFlag) != 0)
         {
             color.rgb = lerp (color.rgb, nothingColor.rgb, kEchoDim);

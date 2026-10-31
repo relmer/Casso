@@ -146,7 +146,7 @@ bool DiskInspectorWindow::FitsZoom (double zoom)
 //
 //  DiskInspectorWindow::OnRButtonUp
 //
-//  DxuiWindow dispatches no right-button release, so a right drag on the
+//  DxuiWindow doesn't dispatch a right-button release, so a right drag on the
 //  platter ends here.
 //
 ////////////////////////////////////////////////////////////////////////////////
