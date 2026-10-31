@@ -40,12 +40,12 @@ public:
     ShellAudio();
     ~ShellAudio();
 
-    WasapiAudio                                     & GetOutput            ()            { return m_wasapiAudio; }
-    DriveAudioMixer                                 & GetDriveMixer        ()        { return m_driveAudioMixer; }
-    DriveAudioMixer                                 & GetMockingboardMixer () { return m_mockingboardAudioMixer; }
-    std::vector<std::unique_ptr<Disk2AudioSource>>  & GetDiskSources       ()       { return m_diskAudioSources; }
-    PrinterAudioSource                              & GetPrinterAudio      ()      { return m_printerAudio; }
-    TapeAudioSource                                 & GetTapeSource        ()        { return m_tapeAudioSource; }
+    WasapiAudio                                      & GetOutput()            { return m_wasapiAudio; }
+    DriveAudioMixer                                  & GetDriveMixer()        { return m_driveAudioMixer; }
+    DriveAudioMixer                                  & GetMockingboardMixer() { return m_mockingboardAudioMixer; }
+    std::vector<std::unique_ptr<Disk2AudioSource>>   & GetDiskSources()       { return m_diskAudioSources; }
+    PrinterAudioSource                               & GetPrinterAudio()      { return m_printerAudio; }
+    TapeAudioSource                                  & GetTapeSource()        { return m_tapeAudioSource; }
 
     // Points the machine builder at the sources and mixers it registers the
     // new machine's devices with, and at the gains it seeds them from.
@@ -60,10 +60,10 @@ public:
 
     // CPU thread, once a frame: reopen a lost or changed endpoint, and
     // re-decode every sound when the device's rate moved.
-    void      ServiceEndpointChanges  ()       { m_wasapiAudio.ServiceEndpointChanges(); }
-    bool      IsOutputUp              () const { return m_wasapiAudio.IsInitialized(); }
-    uint32_t  GetSampleRate           () const { return m_wasapiAudio.GetSampleRate(); }
-    bool      HasDeviceRateChanged    () const { return m_wasapiAudio.GetSampleRate() != m_audioAssetSampleRate; }
+    void      ServiceEndpointChanges ()       { m_wasapiAudio.ServiceEndpointChanges(); }
+    bool      IsOutputUp             () const { return m_wasapiAudio.IsInitialized(); }
+    uint32_t  GetSampleRate          () const { return m_wasapiAudio.GetSampleRate(); }
+    bool      HasDeviceRateChanged   () const { return m_wasapiAudio.GetSampleRate() != m_audioAssetSampleRate; }
     void      LoadAssetsForDeviceRate (MockingboardCard * mockingboard);
 
     // CPU thread, once a slice: how many samples it owes, then the slice's

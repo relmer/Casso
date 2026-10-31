@@ -46,8 +46,8 @@ public:
 
     // Zero-page / stack probes ($0000-$01FF). Toggle ALTZP then
     // dispatch through the bus.
-    static Byte  ReadMainZp  (MachineHost & host, Word address);
-    static Byte  ReadAuxZp   (MachineHost & host, Word address);
+    static Byte  ReadMainZp (MachineHost & host, Word address);
+    static Byte  ReadAuxZp  (MachineHost & host, Word address);
     static void  WriteMainZp (MachineHost & host, Word address, Byte value);
     static void  WriteAuxZp  (MachineHost & host, Word address, Byte value);
 

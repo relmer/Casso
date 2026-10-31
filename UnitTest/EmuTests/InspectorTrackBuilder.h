@@ -36,8 +36,8 @@ public:
     void  AppendStandardTrack   (DiskFieldKind kind, Byte volume, Byte track, const SectorFill & fill);
     void  PadToCells            (size_t cells);
 
-    const vector<Byte>  & GetCells     () const { return m_cells; }
-    const vector<Byte>  & GetNibbles   () const { return m_nibbles; }
+    const vector<Byte> &  GetCells   () const { return m_cells; }
+    const vector<Byte> &  GetNibbles () const { return m_nibbles; }
     size_t                GetCellCount () const { return m_cells.size(); }
 
     std::shared_ptr<const TrackCopy>  MakeBitCopy     (int slot = 0) const;

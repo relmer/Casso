@@ -60,12 +60,12 @@ public:
     void  Rebuild               ();
 
     // Test / wiring accessors.
-    DxuiComboBox  & WriteModeDropdown        () { return m_writeMode; }
-    DxuiComboBox  & GetMechanismDropdown     () { return m_mechanism; }
-    DxuiToggle    & GetDriveAudioToggle      () { return m_driveAudio; }
-    DxuiToggle    & GetFastTapeToggle        () { return m_fastTape; }
-    DxuiCheckbox  & WriteProtect             (int drive) { return m_writeProtect[(size_t) drive]; }
-    DxuiButton    & GetRestoreDefaultsButton () { return m_reset; }
+    DxuiComboBox          & WriteModeDropdown    () { return m_writeMode; }
+    DxuiComboBox          & GetMechanismDropdown () { return m_mechanism; }
+    DxuiToggle            & GetDriveAudioToggle  () { return m_driveAudio; }
+    DxuiToggle            & GetFastTapeToggle    () { return m_fastTape; }
+    DxuiCheckbox          & WriteProtect         (int drive) { return m_writeProtect[(size_t) drive]; }
+    DxuiButton            & GetRestoreDefaultsButton () { return m_reset; }
 
     const DxuiToggle      & GetDriveAudioToggle  () const { return m_driveAudio; }
     const DxuiToggle      & GetFastTapeToggle    () const { return m_fastTape; }

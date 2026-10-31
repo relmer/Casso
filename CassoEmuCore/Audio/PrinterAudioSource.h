@@ -141,10 +141,10 @@ public:
     void    SetPageFeedForTest (int index, vector<float> && samples);
     void    SetTearForTest     (int index, vector<float> && samples);
 
-    bool     IsPrinting        () const { return m_printHoldSamples > 0; }
-    bool     IsFeedPlaying     () const { return m_lineFeedBuf != nullptr; }
-    bool     IsActionPlaying   () const { return m_actionBuf != nullptr; }
-    Quality  GetCurrentQuality () const { return m_quality; }
+    bool    IsPrinting     () const { return m_printHoldSamples > 0; }
+    bool    IsFeedPlaying  () const { return m_lineFeedBuf != nullptr; }
+    bool    IsActionPlaying () const { return m_actionBuf != nullptr; }
+    Quality GetCurrentQuality () const { return m_quality; }
 
 private:
     void  MixCarriage (float * out, uint32_t n);

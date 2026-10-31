@@ -26,8 +26,8 @@ class IVideoTiming
 public:
     virtual              ~IVideoTiming () = default;
 
-    virtual void      Tick            (uint32_t cpuCycles) = 0;
-    virtual bool      IsInVblank      () const = 0;
-    virtual uint32_t  GetCycleInFrame () const = 0;
-    virtual void      Reset           () = 0;
+    virtual void          Tick (uint32_t cpuCycles) = 0;
+    virtual bool          IsInVblank () const = 0;
+    virtual uint32_t      GetCycleInFrame () const = 0;
+    virtual void          Reset () = 0;
 };

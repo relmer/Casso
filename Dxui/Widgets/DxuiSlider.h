@@ -62,25 +62,25 @@ public:
     //  set a finer value so dragging feels smooth on a slider whose keyboard
     //  step is deliberately coarse (e.g. a 0-200 step-10 brightness slider that
     //  should nudge by 10 on arrow keys but glide by 1 under the cursor).
-    void  SetDragStep         (float step) { m_dragStep = step; }
-    void  SetValue            (float value);
-    void  SetSuffix           (const std::wstring & suffix) { m_suffix = suffix; m_explicitShowValue = true; m_showValue = true; }
-    void  SetShowValue        (bool show) { m_explicitShowValue = true; m_showValue = show; }
-    void  SetDecimalPlaces    (int places) { m_decimalPlaces = places; }
-    void  SetValueFormatter   (FormatFn fn) { m_formatter = std::move (fn); m_explicitShowValue = true; m_showValue = true; }
-    void  SetCenterOriginFill (bool centered) { m_centerOriginFill = centered; }
-    void  SetShowTicks        (bool show) { m_showTicks = show; }
+    void   SetDragStep (float step) { m_dragStep = step; }
+    void   SetValue   (float value);
+    void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; m_explicitShowValue = true; m_showValue = true; }
+    void   SetShowValue (bool show) { m_explicitShowValue = true; m_showValue = show; }
+    void   SetDecimalPlaces (int places) { m_decimalPlaces = places; }
+    void   SetValueFormatter (FormatFn fn) { m_formatter = std::move (fn); m_explicitShowValue = true; m_showValue = true; }
+    void   SetCenterOriginFill (bool centered) { m_centerOriginFill = centered; }
+    void   SetShowTicks (bool show) { m_showTicks = show; }
     //  Spacing between tick marks in value units. 0 (default) draws one tick
     //  per drag step; set a coarser interval when the step is fine (e.g. a
     //  0-100 step-1 volume slider) so the ticks don't become a solid picket.
-    void  SetTickInterval     (float interval) { m_tickInterval = interval; }
-    void  SetDpi              (UINT dpi) { m_scaler.SetDpi (dpi); }
-    void  SetEnabled          (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
-    void  SetFocused          (bool focused) { m_focused = focused; }
-    void  SetOnChange         (ChangeFn fn) { m_change = std::move (fn); }
-    void  SetOnDragStart      (InteractionFn fn) { m_onDragStart = std::move (fn); }
-    void  SetOnDragEnd        (InteractionFn fn) { m_onDragEnd   = std::move (fn); }
-    void  SetOnKeyboardChange (InteractionFn fn) { m_onKeyboard = std::move (fn); }
+    void   SetTickInterval (float interval) { m_tickInterval = interval; }
+    void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void   SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
+    void   SetFocused (bool focused) { m_focused = focused; }
+    void   SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
+    void   SetOnDragStart (InteractionFn fn) { m_onDragStart = std::move (fn); }
+    void   SetOnDragEnd   (InteractionFn fn) { m_onDragEnd   = std::move (fn); }
+    void   SetOnKeyboardChange (InteractionFn fn) { m_onKeyboard = std::move (fn); }
 
     const RECT & GetRect    () const { return m_boundsDip;     }
     float        GetMin     () const { return m_min;      }
@@ -117,11 +117,11 @@ private:
     void   PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void   ApplyValue            (float v);
     void   ApplyValueWithStep    (float v, float step);
-    float  DragStep              () const { return m_dragStep > 0.0f ? m_dragStep : m_step; }
-    float  ValueFromX            (int x) const;
-    float  ValueFromY            (int y) const;
-    float  ValueFromPoint        (int x, int y) const { return m_vertical ? ValueFromY (y) : ValueFromX (x); }
-    void   FormatValue           (wchar_t (&buf)[32]) const;
+    float  DragStep       () const { return m_dragStep > 0.0f ? m_dragStep : m_step; }
+    float  ValueFromX     (int x) const;
+    float  ValueFromY     (int y) const;
+    float  ValueFromPoint (int x, int y) const { return m_vertical ? ValueFromY (y) : ValueFromX (x); }
+    void   FormatValue    (wchar_t (&buf)[32]) const;
     ChangeFn       m_change;
     InteractionFn  m_onDragStart;
     InteractionFn  m_onDragEnd;

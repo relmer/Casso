@@ -53,11 +53,11 @@ public:
     DxuiToggle() { m_focusable = true; }
     ~DxuiToggle() override = default;
 
-    void  SetRect     (const RECT & rect)  { SetBounds (rect); }
-    void  SetLabel    (const std::wstring & label) { m_label = label; }
-    void  SetChecked  (bool checked) { m_checked = checked; }
-    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
-    void  SetFocused  (bool focused) { m_focused = focused; }
+    void  SetRect    (const RECT & rect)  { SetBounds (rect); }
+    void  SetLabel   (const std::wstring & label) { m_label = label; }
+    void  SetChecked (bool checked) { m_checked = checked; }
+    void  SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
+    void  SetFocused (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
     void  SetDpi      (UINT dpi) { m_scaler.SetDpi (dpi); }
 
@@ -105,7 +105,7 @@ private:
     static constexpr float     kPillHeightDip     = 18.0f;        // the pill's short side
 
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const;
-    void  Flip          ();
+    void  Flip ();
     std::wstring   m_label;
     ChangeFn       m_change;
     bool           m_checked        = false;

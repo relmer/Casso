@@ -102,10 +102,10 @@ public:
     // Paint (like DisplayPage) rather than relying on the base fan-out.
     void  Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    DxuiComboBox                    & GetThemeDropdown    ()       { return m_themeDropdown; }
-    const DxuiComboBox              & GetThemeDropdown    () const { return m_themeDropdown; }
-    const std::vector<std::string>  & GetThemes           () const { return m_themeIds; }
-    int                               GetActiveThemeIndex () const { return m_activeIndex; }
+    DxuiComboBox                       & GetThemeDropdown ()       { return m_themeDropdown; }
+    const DxuiComboBox                 & GetThemeDropdown () const { return m_themeDropdown; }
+    const std::vector<std::string> & GetThemes           () const { return m_themeIds; }
+    int                              GetActiveThemeIndex () const { return m_activeIndex; }
 
 private:
     // Row/preview geometry and the painting helpers that consume it. Every

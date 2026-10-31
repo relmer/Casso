@@ -174,7 +174,7 @@ public:
 
     using AxisOwners = std::array<AxisOwner, GamePortContribution::kAxisCount>;
 
-    static AxisOwners  GetAxisOwners            (const State & state);
+    static AxisOwners  GetAxisOwners           (const State & state);
     static State       AfterSelectingController (State state);
     static State       AfterSettingArrows       (State state, bool on);
     static State       AfterSettingMousePaddle  (State state, bool on);
@@ -198,12 +198,12 @@ private:
     static constexpr const wchar_t *  kpszInPaddleMode   = L" (paddle)";
     static constexpr const wchar_t *  kpszInTwoPaddles   = L" (two paddles)";
 
-    static const ControllerDeviceInfo           * FindDevice          (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit);
-    static std::wstring                           DescribeUnit        (const PickerSource & source, const ControllerUnitKey & unit);
-    static std::wstring                           DescribePlaying     (const PickerSource & source, size_t player);
-    static std::vector<PlayerChoice>              BuildChoices        (const PickerSource & source, size_t player);
-    static std::vector<PlayerModeChoice>          BuildModes          (const PickerSource & source, size_t player);
-    static std::optional<PlayerProfileSection>    BuildProfileSection (const PickerSource & source, size_t player);
-    static void                                   SetFace             (const PickerSource & source, Picker & picker);
-    static void                                   SetHeldFace         (const PickerSource & source, Picker & picker);
+    static const ControllerDeviceInfo *         FindDevice         (const std::vector<ControllerDeviceInfo> & devices, const ControllerUnitKey & unit);
+    static std::wstring                         DescribeUnit        (const PickerSource & source, const ControllerUnitKey & unit);
+    static std::wstring                         DescribePlaying     (const PickerSource & source, size_t player);
+    static std::vector<PlayerChoice>            BuildChoices        (const PickerSource & source, size_t player);
+    static std::vector<PlayerModeChoice>        BuildModes          (const PickerSource & source, size_t player);
+    static std::optional<PlayerProfileSection>  BuildProfileSection (const PickerSource & source, size_t player);
+    static void                                 SetFace             (const PickerSource & source, Picker & picker);
+    static void                                 SetHeldFace         (const PickerSource & source, Picker & picker);
 };

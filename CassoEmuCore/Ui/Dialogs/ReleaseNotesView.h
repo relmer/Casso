@@ -27,9 +27,9 @@ class ReleaseNotesView : public IDxuiControl
 public:
     using OpenLinkFn = std::function<void (const std::string & url)>;
 
-    void                      SetLines        (std::vector<FormattedLine> lines);
-    void                      SetOnOpenLink   (OpenLinkFn fn) { m_onOpenLink = std::move (fn); }
-    void                      SetImage        (const std::string & src, std::shared_ptr<const NotesImage> image);
+    void     SetLines             (std::vector<FormattedLine> lines);
+    void     SetOnOpenLink        (OpenLinkFn fn) { m_onOpenLink = std::move (fn); }
+    void     SetImage             (const std::string & src, std::shared_ptr<const NotesImage> image);
     std::vector<std::string>  GetImageSources () const;
 
     int      GetMeasuredHeightPx  () const { return m_measuredHeightPx; }

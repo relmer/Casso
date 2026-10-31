@@ -39,8 +39,8 @@ public:
     // in MACRAW) they are closed, since nothing would answer the SYN.
     void  Pump      (uint64_t now, bool guestReady);
 
-    bool                              IsActive  () const { return !m_listeners.empty(); }
-    const std::vector<std::string>  & GetErrors () const { return m_errors; }
+    bool  IsActive  () const { return !m_listeners.empty(); }
+    const std::vector<std::string> & GetErrors () const { return m_errors; }
 
 private:
 

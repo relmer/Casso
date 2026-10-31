@@ -21,6 +21,6 @@ class IInstallEnvironment
 public:
     virtual ~IInstallEnvironment() = default;
 
-    virtual bool     HasPackageIdentity () = 0;
-    virtual HRESULT  GetExecutablePath  (std::wstring & outPath) = 0;
+    virtual bool    HasPackageIdentity() = 0;
+    virtual HRESULT GetExecutablePath  (std::wstring & outPath) = 0;
 };

@@ -37,8 +37,8 @@ class TextEncoding
 public:
     //  The code page the console is currently rendering, and the one this
     //  process's narrow strings -- argv among them -- are written in.
-    static unsigned  GetConsoleCodePage ();
-    static unsigned  GetNarrowCodePage  ();
+    static unsigned  GetConsoleCodePage();
+    static unsigned  GetNarrowCodePage();
 
     //  A byte string re-encoded from one code page to another.
     //

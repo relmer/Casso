@@ -53,12 +53,12 @@ public:
     const Microcode &   GetMicrocode      (Byte opcode) const { return instructionSet[opcode]; }
     const Microcode *   GetInstructionSet () const            { return instructionSet.data (); }
 
-    void          StepOne                  ();
-    Byte          GetLastInstructionCycles () const                   { return m_lastCycles; }
-    Byte          PeekByte                 (Word address) const       { return memory[address]; }
-    void          PokeByte                 (Word address, Byte value) { memory[address] = value; }
-    Word          PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
-    const Byte  * GetMemory                () const                   { return memory.data (); }
+    void StepOne                  ();
+    Byte GetLastInstructionCycles () const                   { return m_lastCycles; }
+    Byte PeekByte                 (Word address) const       { return memory[address]; }
+    void PokeByte                 (Word address, Byte value) { memory[address] = value; }
+    Word PeekWord                 (Word address) const       { return memory[address] | (memory[(Word) (address + 1)] << 8); }
+    const Byte * GetMemory        () const                   { return memory.data (); }
 
     // Load a raw binary file into memory at the specified address.
     // E_INVALIDARG if the file cannot be opened, or if the image does not fit
@@ -79,23 +79,23 @@ protected:
         Word operand;
     };
 
-    void         PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
-    void         PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
-    void         PrintOperandBytes             (Word initialPC, Byte opcode);
-    static bool  ReadsTarget                   (const Microcode & microcode);
-    void         FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
-    void         FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
-    void         FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
+    void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
+    void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
+    void PrintOperandBytes             (Word initialPC, Byte opcode);
+    static bool ReadsTarget            (const Microcode & microcode);
+    void FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
+    void FetchOperandAbsoluteX       (Cpu::OperandInfo & operandInfo);
+    void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
+    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo);
+    void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
+    void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
+    void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
+    void FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
 
     // 65C02 addressing-mode fetches. Selected purely by the CMOS instruction
     // table; the NMOS table never references them, so NMOS decode is unchanged.
@@ -144,11 +144,11 @@ protected:
 
     void InitializeInstructionSet ();
 
-    void  InitializeGroup00      ();
-    void  InitializeGroup01      ();
-    void  InitializeGroup10      ();
-    void  InitializeMisc         ();
-    void  InitializeUndocumented ();
+    void InitializeGroup00 ();
+    void InitializeGroup01 ();
+    void InitializeGroup10 ();
+    void InitializeMisc ();
+    void InitializeUndocumented ();
 
     void CreateInstruction (uint32_t                        addressingModeMax, 
                             const char              * const instructionName[], 
@@ -190,8 +190,8 @@ protected:
 protected:
     // Heap-allocated for the same reason as `memory`: keeps the ~10 KB
     // instruction table off the stack of any function holding a Cpu.
-    std::vector<Microcode>  instructionSet {std::vector<Microcode> (256)};
-    Byte                    m_lastCycles   = 0;
+    std::vector<Microcode> instructionSet {std::vector<Microcode> (256)};
+    Byte                  m_lastCycles = 0;
 
     // Circular trace of recent instructions for post-mortem debugging.
     // Runtime-gated by m_traceEnabled and allocated only when tracing is
@@ -258,6 +258,6 @@ protected:
 
     // Side-effect-free read for the trace, routed through the same read-page
     // table the fetch uses so operands come from the bank that executed.
-    Byte  PeekForTrace         (Word address) const;
-    void  DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
+    Byte PeekForTrace (Word address) const;
+    void DumpInstructionTrace (Byte faultOpcode, Word faultPC) const;
 };

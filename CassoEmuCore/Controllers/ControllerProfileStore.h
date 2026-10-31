@@ -328,16 +328,16 @@ public:
 
 private:
 
-    void              ReadModels              (const JsonValue & modelsObj, std::vector<std::string> & outRejected);
-    void              ReadCalibrations        (const JsonValue & calibrationObj, std::vector<std::string> & outRejected);
-    static void       ReadActiveProfiles      (const JsonValue & activeObj, std::map<std::string, std::string> & outProfiles, std::vector<std::string> & outRejected);
-    void              MoveLegacyPaddleChoices ();
-    static void       ReadPlayers             (const JsonValue & playersArr, PlayerEntries & outEntries, std::vector<std::string> & outRejected);
-    static bool       TryReadPlayer           (const JsonValue & playerObj, size_t player, PlayerEntry & outEntry);
-    static bool       HasAnyPlayerMode        (const JsonValue & playersArr);
-    static void       ReadLastHolders         (const JsonValue & holdersArr, PlayerLastHolders & outHolders, std::vector<std::string> & outRejected);
-    static JsonValue  WritePlayers            (const PlayerEntries & entries);
-    static JsonValue  WriteLastHolders        (const PlayerLastHolders & holders);
+    void              ReadModels        (const JsonValue & modelsObj, std::vector<std::string> & outRejected);
+    void              ReadCalibrations  (const JsonValue & calibrationObj, std::vector<std::string> & outRejected);
+    static void       ReadActiveProfiles(const JsonValue & activeObj, std::map<std::string, std::string> & outProfiles, std::vector<std::string> & outRejected);
+    void              MoveLegacyPaddleChoices();
+    static void       ReadPlayers       (const JsonValue & playersArr, PlayerEntries & outEntries, std::vector<std::string> & outRejected);
+    static bool       TryReadPlayer     (const JsonValue & playerObj, size_t player, PlayerEntry & outEntry);
+    static bool       HasAnyPlayerMode  (const JsonValue & playersArr);
+    static void       ReadLastHolders   (const JsonValue & holdersArr, PlayerLastHolders & outHolders, std::vector<std::string> & outRejected);
+    static JsonValue  WritePlayers      (const PlayerEntries & entries);
+    static JsonValue  WriteLastHolders  (const PlayerLastHolders & holders);
 
     // A player's mode as the prefs save it.
     static const char *  PlayerModeToToken   (PlayerMode mode);
@@ -349,12 +349,12 @@ private:
     static bool       ReadButtonBindings(const JsonValue & mappingObj, const char * pszKey, std::vector<ButtonBinding> & outBindings);
     static bool       ReadCalibration   (const std::string & token, const JsonValue & entry, ControllerCalibration & outCalibration);
 
-    static JsonValue     WriteModel        (const ControllerModelSettings & settings);
-    static const char  * GetModeToken      (ProfileMode mode);
-    static JsonValue     WriteMapping      (const ControlMapping & mapping);
-    static JsonValue     WriteCalibration  (const ControllerCalibration & calibration);
-    static bool          HasAnythingToSave (const ControllerCalibration & calibration);
-    static bool          HasMember         (const JsonValue & obj, const char * pszKey);
+    static JsonValue  WriteModel        (const ControllerModelSettings & settings);
+    static const char * GetModeToken    (ProfileMode mode);
+    static JsonValue  WriteMapping      (const ControlMapping & mapping);
+    static JsonValue  WriteCalibration  (const ControllerCalibration & calibration);
+    static bool       HasAnythingToSave (const ControllerCalibration & calibration);
+    static bool       HasMember         (const JsonValue & obj, const char * pszKey);
 
     static void       ReplaceMember     (std::vector<std::pair<std::string, JsonValue>> & members,
                                          const char                                     * pszKey,

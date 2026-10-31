@@ -43,8 +43,8 @@ public:
     SettingsCompositor  () = default;
     ~SettingsCompositor ();
 
-    HRESULT  Initialize    (ID3D11Device * device, ID3D11DeviceContext * context);
-    void     Shutdown      ();
+    HRESULT  Initialize (ID3D11Device * device, ID3D11DeviceContext * context);
+    void     Shutdown   ();
     bool     IsInitialized () const { return m_initialized; }
 
     //  Per-frame preview state, driven from SettingsPreviewController. `active`

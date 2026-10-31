@@ -183,11 +183,11 @@ public:
     // tract position, exposed so tests can assert transitions directly.
     double   GetFormantCenter (int stage) const { return m_fCur[stage]; }
 
-    uint16_t  GetInflectionValue       () const;
-    double    GetFrameDurationSec      () const;
-    double    GetPhonemeDurationSec    () const;
-    double    GetFilterFrequencyHz     () const;
-    double    GetInflectionFrequencyHz () const;
+    uint16_t GetInflectionValue  () const;
+    double   GetFrameDurationSec () const;
+    double   GetPhonemeDurationSec () const;
+    double   GetFilterFrequencyHz () const;
+    double   GetInflectionFrequencyHz () const;
 
     static Byte  SelectRegister (Byte address);
 

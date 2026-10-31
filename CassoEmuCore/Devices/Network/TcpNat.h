@@ -39,9 +39,9 @@ public:
                              uint16_t                       guestPort,
                              uint64_t                       now);
 
-    void    Pump               (uint64_t now);
-    void    CloseAll           ();
-    bool    IsActive           () const { return !m_connections.empty(); }
+    void    Pump            (uint64_t now);
+    void    CloseAll        ();
+    bool    IsActive        () const { return !m_connections.empty(); }
     size_t  GetConnectionCount () const { return m_connections.size(); }
 
 private:

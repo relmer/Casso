@@ -45,27 +45,27 @@ public:
 
     // The width in pixels the closed box needs to show its longest item
     // whole beside the arrow, measured with `text`.
-    float         GetFitWidthPx        (IDxuiTextRenderer & text) const;
-    void          SetSelected          (int index);
-    void          SetEnabled           (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
-    void          SetFocused           (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
-    bool          IsFocused            () const { return m_focused; }
-    void          SetSelect            (SelectFn select) { m_select = std::move (select); }
-    void          SetOnHighlightChange (SelectFn fn) { m_highlightChange = std::move (fn); }
-    void          Open                 ();
-    void          Close                ();
-    bool          IsOpen               ()       const { return m_open; }
-    int           GetHighlightIndex    () const { return m_highlight; }
-    int           GetSelectedIndex     () const { return m_selected; }
-    const RECT  & GetRect              ()    const { return m_boundsDip; }
+    float      GetFitWidthPx (IDxuiTextRenderer & text) const;
+    void  SetSelected (int index);
+    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_armed = false; if (m_open) { Close(); } } }
+    void  SetFocused  (bool focused) { m_focused = focused; if (!focused && m_open) { Close(); } }
+    bool  IsFocused   () const { return m_focused; }
+    void  SetSelect   (SelectFn select) { m_select = std::move (select); }
+    void  SetOnHighlightChange (SelectFn fn) { m_highlightChange = std::move (fn); }
+    void  Open           ();
+    void  Close          ();
+    bool  IsOpen()       const { return m_open; }
+    int   GetHighlightIndex () const { return m_highlight; }
+    int   GetSelectedIndex  () const { return m_selected; }
+    const RECT & GetRect()    const { return m_boundsDip; }
 
     // What the open menu covers of THIS window, in GetRect()'s space. Empty
     // when closed, and empty when the menu is a real popup window too -- that
     // covers the desktop, not the frame underneath it. Callers that paint
     // over the window (a 3D pass after the panel tree) use this to stay out
     // from under the menu.
-    RECT                               GetInWindowMenuRect () const;
-    const std::vector<std::wstring>  & GetItems            () const { return m_items; }
+    RECT  GetInWindowMenuRect () const;
+    const std::vector<std::wstring> & GetItems () const { return m_items; }
 
     // Most rows the open list shows at once. A longer list scrolls, by the
     // wheel or by moving the highlight past an edge, so a device reporting
@@ -75,17 +75,17 @@ public:
     int   GetVisibleRowCount () const;
     int   GetScrollTop       () const { return m_scrollTop; }
     void  ScrollBy           (int rows);
-    bool  HitTest            (int x, int y) const;
-    int   HitTestItem        (int x, int y) const;
-    bool  IsEnabled          () const { return m_enabled; }
-    void  SetMouseHover      (int x, int y);
-    bool  OnLButtonDown      (int x, int y);
-    bool  OnLButtonUp        (int x, int y);
-    bool  HandleKey          (WPARAM vk);
-    void  Paint              (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  PaintBase          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  PaintMenu          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    void  SetDpi             (UINT dpi) { m_scaler.SetDpi (dpi); }
+    bool  HitTest       (int x, int y) const;
+    int   HitTestItem   (int x, int y) const;
+    bool  IsEnabled     () const { return m_enabled; }
+    void  SetMouseHover (int x, int y);
+    bool  OnLButtonDown (int x, int y);
+    bool  OnLButtonUp   (int x, int y);
+    bool  HandleKey     (WPARAM vk);
+    void  Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  PaintBase     (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  PaintMenu     (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    void  SetDpi        (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     //
     //  IDxuiControl overrides — additive shims for DxuiPanel trees.
@@ -128,8 +128,8 @@ public:
         m_popupHost = host;
     }
 
-    DxuiHwndSource  * GetPopupHost   () const { return m_popupHost; }
-    DxuiPopupHost   * GetActivePopup () const { return m_activePopup; }
+    DxuiHwndSource *  GetPopupHost () const { return m_popupHost; }
+    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
     //
     //  Supplies the active theme so every paint path derives its colors
@@ -158,12 +158,12 @@ private:
         uint32_t  focus;
     };
 
-    void   Commit                 (int index);
-    int    StepHighlight          (int from, int step) const;
-    void   EnsureHighlightVisible ();
-    void   RenderPopupMenu        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    float  GetGlyphIndent         (float fontPx) const;
-    void   PaintItemGlyph         (IDxuiTextRenderer & text, int index, float x, float top, float height, uint32_t color, float fontPx) const;
+    void            Commit          (int index);
+    int             StepHighlight   (int from, int step) const;
+    void            EnsureHighlightVisible ();
+    void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    float           GetGlyphIndent  (float fontPx) const;
+    void            PaintItemGlyph  (IDxuiTextRenderer & text, int index, float x, float top, float height, uint32_t color, float fontPx) const;
 
     //  An item's text, its tab-separated parts each starting where that part
     //  starts in every item, so the parts line up as columns.

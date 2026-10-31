@@ -54,18 +54,18 @@ public:
     DxuiRadioGroup() { m_focusable = true; }
     ~DxuiRadioGroup() override = default;
 
-    void  SetOptions  (std::vector<DxuiRadioOption> options) { m_options = std::move (options); }
+    void  SetOptions (std::vector<DxuiRadioOption> options) { m_options = std::move (options); }
     void  SetSelected (int index);
     void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused  (bool focused) { m_focused = focused; }
     void  SetOnChange (ChangeFn fn)  { m_change = std::move (fn); }
     void  SetDpi      (UINT dpi)     { m_scaler.SetDpi (dpi); }
 
-    const std::vector<DxuiRadioOption>  & GetOptions    () const { return m_options;  }
-    int                                   GetSelected   () const { return m_selected; }
-    bool                                  IsEnabled     () const { return m_enabled;  }
-    bool                                  IsFocused     () const { return m_focused;  }
-    int                                   GetHoverIndex () const { return m_hover;    }
+    const std::vector<DxuiRadioOption> & GetOptions    () const { return m_options;  }
+    int                              GetSelected   () const { return m_selected; }
+    bool                             IsEnabled     () const { return m_enabled;  }
+    bool                             IsFocused     () const { return m_focused;  }
+    int                              GetHoverIndex () const { return m_hover;    }
 
     int   HitTest        (int x, int y) const;
     void  SetMouseHover  (int x, int y);

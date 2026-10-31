@@ -82,7 +82,7 @@ public:
     static std::string  ValidatePortForward (const PortForward              & forward,
                                              const std::vector<PortForward> & existing);
 
-    static const char  * ProtocolToToken  (PortForwardProtocol protocol);
+    static const char *  ProtocolToToken (PortForwardProtocol protocol);
     static bool          TryParseProtocol (std::string_view token, PortForwardProtocol & outProtocol);
 
 private:

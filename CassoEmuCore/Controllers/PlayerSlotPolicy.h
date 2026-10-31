@@ -286,7 +286,7 @@ private:
     static bool  IsPickedUnit       (const Context & context, const ControllerUnitKey & unit);
     static bool  CountsAsPlaying    (const PlayerSlot & slot, const PlayerEntry & entry);
     static void  ResolvePicks       (Context & context);
-    static void  EvaluateBase       (const Context & context, size_t player, PlayerSlots & slots, std::array<bool, kPlayerCount> & isLeaving);
+    static void  EvaluateBase      (const Context & context, size_t player, PlayerSlots & slots, std::array<bool, kPlayerCount> & isLeaving);
     static void  ResolveDepartures  (const Context & context, const std::array<bool, kPlayerCount> & isLeaving, PlayerSlots & slots);
     static void  GiveWayProvisional (const Context & context, PlayerSlots & slots);
     static bool  ShouldStartOver    (const PlayerSlots & previous, const PlayerSlots & slots);

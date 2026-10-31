@@ -19,6 +19,6 @@
 class Win32InstallEnvironment : public IInstallEnvironment
 {
 public:
-    bool     HasPackageIdentity () override;
-    HRESULT  GetExecutablePath  (std::wstring & outPath) override;
+    bool    HasPackageIdentity() override;
+    HRESULT GetExecutablePath  (std::wstring & outPath) override;
 };

@@ -98,8 +98,8 @@ public:
     // The staging resources are created per call and released with the call.
     // A retained copy would mean a full back-buffer copy every frame, forever,
     // to serve an action taken at human frequency.
-    HRESULT  CaptureBackBufferRegion  (const RECT & regionPx, CapturedImage & outImage);
-    HRESULT  CaptureSceneTargetRegion (const RECT & regionPx, CapturedImage & outImage);
+    HRESULT CaptureBackBufferRegion (const RECT & regionPx, CapturedImage & outImage);
+    HRESULT CaptureSceneTargetRegion (const RECT & regionPx, CapturedImage & outImage);
 
     HRESULT ToggleFullscreen (HWND hwnd);
 
@@ -164,21 +164,21 @@ public:
     // EmulatorShell can populate `CrtParams::outputW/H` for the shader
     // constant buffer without piping the window size through a side
     // channel.
-    int   GetBackBufferWidth           () const { return m_backBufferW; }
-    int   GetBackBufferHeight          () const { return m_backBufferH; }
-    RECT  GetEmulatorContentScreenRect () const { return m_emulatorContentScreenRect; }
+    int  GetBackBufferWidth  () const { return m_backBufferW; }
+    int  GetBackBufferHeight () const { return m_backBufferH; }
+    RECT GetEmulatorContentScreenRect() const { return m_emulatorContentScreenRect; }
 
     void Shutdown();
 
     // Accessors for the underlying device. Both
     // return non-owning pointers whose lifetime is bounded by
     // Initialize -> Shutdown on this renderer.
-    ID3D11Device         * GetDevice  () const { return m_device.Get  (); }
-    ID3D11DeviceContext  * GetContext () const { return m_context.Get(); }
+    ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
+    ID3D11DeviceContext * GetContext() const { return m_context.Get(); }
 
 private:
-    HRESULT  InitializeShaders              ();
-    void     CacheEmulatorContentScreenRect (const RECT & fittedRect);
+    HRESULT InitializeShaders();
+    void    CacheEmulatorContentScreenRect (const RECT & fittedRect);
 
     // Post-device-adoption pipeline setup for Initialize: dynamic
     // upload texture, sampler, shader programs, vertex / index

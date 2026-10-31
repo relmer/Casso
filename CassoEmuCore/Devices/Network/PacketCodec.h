@@ -178,7 +178,7 @@ public:
                                              uint16_t                sourcePort,
                                              uint16_t                destinationPort,
                                              std::span<const Byte>   payload);
-    static std::vector<Byte>  BuildTcp           (const TcpSegment & segment);
+    static std::vector<Byte>  BuildTcp      (const TcpSegment & segment);
     static std::vector<Byte>  BuildIcmpEchoReply (std::span<const Byte> request);
 
     static uint16_t  ReadU16  (std::span<const Byte> bytes, size_t offset);

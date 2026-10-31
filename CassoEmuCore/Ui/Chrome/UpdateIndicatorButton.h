@@ -45,22 +45,22 @@ public:
 
     PointerResult         OnPointer         (bool isInside, int64_t nowMs);
 
-    bool                      ContainsDip          (POINT pointDip) const;
-    bool                      SetHovered           (bool isHovered);
-    bool                      SetPressed           (bool isPressed);
-    bool                      IsPressed            () const { return m_isPressed; }
-    void                      SetToolTipText       (const std::wstring & text) { m_toolTip = text; }
-    const std::wstring      & GetToolTipText       () const { return m_toolTip; }
-    void                      SetText              (const std::wstring & text) { m_text = text; }
-    const std::wstring      & GetText              () const { return m_text; }
-    void                      SetShowsText         (bool showsText) { m_showsText = showsText; }
-    void                      SetAnimationsEnabled (bool isEnabled) { m_isAnimated = isEnabled; }
-    void                      SetQuiet             (bool isQuiet) { m_isQuiet = isQuiet; }
-    void                      StartShimmerClock    (int64_t nowMs) { m_shownAtMs = nowMs; }
-    void                      SetRandomSource      (UpdateIndicatorModel::RandomIndexFn randomIndex) { m_random = std::move (randomIndex); }
-    const DxuiSweepGlints   & GetSweepGlints       () const { return m_sweepGlints; }
-    bool                      TickShimmer          (int64_t nowMs);
-    std::optional<int64_t>    GetMsUntilShimmer    (int64_t nowMs) const;
+    bool                  ContainsDip       (POINT pointDip) const;
+    bool                  SetHovered        (bool isHovered);
+    bool                  SetPressed        (bool isPressed);
+    bool                  IsPressed         () const { return m_isPressed; }
+    void                  SetToolTipText    (const std::wstring & text) { m_toolTip = text; }
+    const std::wstring  & GetToolTipText    () const { return m_toolTip; }
+    void                  SetText           (const std::wstring & text) { m_text = text; }
+    const std::wstring  & GetText           () const { return m_text; }
+    void                  SetShowsText      (bool showsText) { m_showsText = showsText; }
+    void                  SetAnimationsEnabled (bool isEnabled) { m_isAnimated = isEnabled; }
+    void                  SetQuiet          (bool isQuiet) { m_isQuiet = isQuiet; }
+    void                  StartShimmerClock (int64_t nowMs) { m_shownAtMs = nowMs; }
+    void                  SetRandomSource   (UpdateIndicatorModel::RandomIndexFn randomIndex) { m_random = std::move (randomIndex); }
+    const DxuiSweepGlints & GetSweepGlints  () const { return m_sweepGlints; }
+    bool                  TickShimmer       (int64_t nowMs);
+    std::optional<int64_t>  GetMsUntilShimmer (int64_t nowMs) const;
 
     void                  Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                  Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;

@@ -193,8 +193,8 @@ private:
     static const Digraph    s_kDigraphs[11];
     static const Monograph  s_kMonographs[16];
 
-    static const Digraph    * FindDigraph   (char lead, char follow);
-    static const Monograph  * FindMonograph (char lead);
+    static const Digraph *    FindDigraph   (char lead, char follow);
+    static const Monograph *  FindMonograph (char lead);
 
     // The token a dialect's own spelling stands for, or End when the character
     // is not one of them. End rather than Error because "not a dialect operator"

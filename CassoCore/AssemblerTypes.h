@@ -613,8 +613,8 @@ struct FileReadResult
 class FileReader
 {
 public:
-    virtual                 ~FileReader () = default;
-    virtual FileReadResult  ReadFile    (const std::string & filename, const std::string & baseDir) = 0;
+    virtual ~FileReader () = default;
+    virtual FileReadResult ReadFile (const std::string & filename, const std::string & baseDir) = 0;
 };
 
 class DefaultFileReader : public FileReader

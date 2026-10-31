@@ -58,8 +58,8 @@ public:
     void    FormFeed (vector<PrinterEvent> & outEvents);
 
     bool                 HasContent () const { return m_raster.GetRowsUsed () > 0; }
-    const PrintRaster  & GetRaster  () const { return m_raster; }
-    PrintRaster        & GetRaster  ()       { return m_raster; }
+    const PrintRaster &  GetRaster  () const { return m_raster; }
+    PrintRaster &        GetRaster  ()       { return m_raster; }
 
     // The print head's position for the FR-034 ink reveal: the raster's paper
     // row (top of the current pin band) plus the interpreter's dot column.

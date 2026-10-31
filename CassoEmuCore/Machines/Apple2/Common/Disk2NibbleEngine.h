@@ -79,33 +79,33 @@ public:
     Disk2NibbleEngine();
     ~Disk2NibbleEngine() override;
 
-    void  SetDiskImage     (DiskImage * disk);
-    void  SetMotorOn       (bool on);
-    void  SetWriteMode     (bool q7);
-    void  SetShiftLoadMode (bool q6);
-    void  SetCurrentTrack  (int track);
-    void  Reset            ();
+    void       SetDiskImage (DiskImage * disk);
+    void       SetMotorOn (bool on);
+    void       SetWriteMode (bool q7);
+    void       SetShiftLoadMode (bool q6);
+    void       SetCurrentTrack (int track);
+    void       Reset();
 
-    bool    IsMotorOn       () const { return m_motorOn; }
-    bool    IsWriteMode     () const { return m_writeMode; }
-    int     GetCurrentTrack () const { return m_currentTrack; }
-    size_t  GetBitPosition  () const { return m_bitPos; }
+    bool       IsMotorOn() const { return m_motorOn; }
+    bool       IsWriteMode() const { return m_writeMode; }
+    int        GetCurrentTrack() const { return m_currentTrack; }
+    size_t     GetBitPosition() const { return m_bitPos; }
 
     // Lifetime nibble I/O counters surfaced to the UI status-bar
     // tooltip. The read counter increments once per assembled nibble
     // (LSS "byte ready" rising edge); the write counter increments on
     // each CPU latch write while in write mode.
-    uint64_t  GetReadNibbles  () const { return m_readNibbles; }
-    uint64_t  GetWriteNibbles () const { return m_writeNibbles; }
+    uint64_t   GetReadNibbles() const { return m_readNibbles; }
+    uint64_t   GetWriteNibbles() const { return m_writeNibbles; }
 
     // Diagnostic / test peek at the current data latch contents. ReadLatch
     // is itself a pure sample (no side effect), so this is identical to
     // ReadLatch but const and counter-free.
     uint8_t    PeekReadLatch() const { return m_readLatch; }
 
-    void     Tick       (uint32_t cpuCycles);
-    uint8_t  ReadLatch  ();
-    void     WriteLatch (uint8_t value);
+    void       Tick (uint32_t cpuCycles);
+    uint8_t    ReadLatch();
+    void       WriteLatch (uint8_t value);
 
     // Passive-watcher hook: returns true exactly once per fully-
     // assembled MSB-set nibble. ReadLatch is a pure sample with no
@@ -127,10 +127,10 @@ public:
     void       CommitPendingWrite() override;
 
     // Diagnostic / test peek at the flux timeline, in 1/45-tick units.
-    uint64_t  GetFluxTime           () const { return m_fluxNow; }
-    uint64_t  GetLastFluxPulseClock () const { return m_fluxPulseClock; }
-    uint64_t  GetFluxPulseCount     () const { return m_fluxPulseCount; }
-    bool      IsOnFluxTrack         () const { return m_isFluxSlot; }
+    uint64_t   GetFluxTime() const { return m_fluxNow; }
+    uint64_t   GetLastFluxPulseClock() const { return m_fluxPulseClock; }
+    uint64_t   GetFluxPulseCount() const { return m_fluxPulseCount; }
+    bool       IsOnFluxTrack() const { return m_isFluxSlot; }
 
     // Flux time is kept in exact units of 1/45 of a 125 ns tick. The master
     // clock is 14.31818 MHz = 315/22 MHz, the CPU runs at 1/14 of it (45/44
@@ -202,17 +202,17 @@ private:
         0xDD, 0x4D, 0xE0, 0xE0, 0x0A, 0x0A, 0x0A, 0x0A, 0x88, 0x88, 0x08, 0x08, 0x88, 0x88, 0x08, 0x08  // F
     };
 
-    void     StepLss             ();
-    uint8_t  ApplyHeadWindow     (uint8_t inBit);
-    uint8_t  NextWeakBit         ();
-    size_t   GetCurrentTrackBits () const;
-    void     ResolveSlot         ();
-    void     RefreshSlot         ();
-    double   GetAngle            () const;
-    void     PlaceHead           (double angle);
-    void     SeekFlux            (double angle);
-    uint8_t  StepFluxPulse       ();
-    void     RecordFluxWriteBit  (uint8_t bit);
+    void       StepLss();
+    uint8_t    ApplyHeadWindow (uint8_t inBit);
+    uint8_t    NextWeakBit();
+    size_t     GetCurrentTrackBits() const;
+    void       ResolveSlot();
+    void       RefreshSlot();
+    double     GetAngle() const;
+    void       PlaceHead (double angle);
+    void       SeekFlux (double angle);
+    uint8_t    StepFluxPulse();
+    void       RecordFluxWriteBit (uint8_t bit);
 
     DiskImage *  m_disk          = nullptr;
     int          m_currentTrack  = 0;

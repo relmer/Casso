@@ -82,8 +82,8 @@ private:
     static constexpr uint32_t  kCassoNameSetId = 0x43534E4D;   // "CSNM", empty: the marker for nameSetByUser
     static constexpr uint32_t  kUnknownDate    = 0x80000000;
 
-    static uint32_t  ReadBigEndian32  (std::span<const Byte> bytes, size_t at);
-    static Word      ReadBigEndian16  (std::span<const Byte> bytes, size_t at);
+    static uint32_t  ReadBigEndian32 (std::span<const Byte> bytes, size_t at);
+    static Word      ReadBigEndian16 (std::span<const Byte> bytes, size_t at);
     static void      WriteBigEndian32 (std::vector<Byte> & bytes, uint32_t value);
     static void      WriteBigEndian16 (std::vector<Byte> & bytes, Word value);
 

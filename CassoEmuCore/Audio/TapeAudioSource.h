@@ -45,11 +45,11 @@ public:
     static constexpr float  kAmplitude = 0.12f;
 
 private:
-    const TapeDeck      * m_deck      = nullptr;
-    NowFn                 m_now;
-    uint64_t              m_lastCycle = 0;
-    bool                  m_hasLast   = false;
-    std::atomic<float>    m_volume    { 1.0f };
-    float                 m_panLeft   = kCenterPan;
-    float                 m_panRight  = kCenterPan;
+    const TapeDeck  * m_deck       = nullptr;
+    NowFn             m_now;
+    uint64_t          m_lastCycle  = 0;
+    bool              m_hasLast    = false;
+    std::atomic<float>  m_volume   { 1.0f };
+    float             m_panLeft    = kCenterPan;
+    float             m_panRight   = kCenterPan;
 };

@@ -46,10 +46,10 @@ public:
 
     // Strategy access — for callers that want to talk to the CPU directly
     // through one of the contracts.
-    ICpu           * GetCpu     () { return m_cpu.get (); }
-    const ICpu     * GetCpu     () const { return m_cpu.get (); }
-    Cpu6502        * GetCpu6502 () { return m_cpu6502; }
-    const Cpu6502  * GetCpu6502 () const { return m_cpu6502; }
+    ICpu *           GetCpu        () { return m_cpu.get (); }
+    const ICpu *     GetCpu        () const { return m_cpu.get (); }
+    Cpu6502 *        GetCpu6502    () { return m_cpu6502; }
+    const Cpu6502 *  GetCpu6502    () const { return m_cpu6502; }
 
     // ICpu surface
     HRESULT          Reset            ()                 { return m_cpu->Reset (); }

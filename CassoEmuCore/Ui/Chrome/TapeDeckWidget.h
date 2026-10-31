@@ -147,18 +147,18 @@ private:
 
     static constexpr uint32_t  kRecordRedArgb = 0xFFE04848;
 
-    static int      Scale         (int value, UINT dpi);
-    static bool     IsPointInRect (const RECT & rect, int x, int y);
-    static int64_t  GetNowMs      ();
+    static int   Scale          (int value, UINT dpi);
+    static bool     IsPointInRect  (const RECT & rect, int x, int y);
+    static int64_t  GetNowMs       ();
 
-    void      PaintRail           (IDxuiPainter & painter, const CassoTheme & theme);
-    void      PaintButtons        (IDxuiPainter & painter, const CassoTheme & theme, const ControlBox (& rects)[kButtonCount + 1]);
-    float     GetPresence         (int64_t nowMs) const;
+    void      PaintRail    (IDxuiPainter & painter, const CassoTheme & theme);
+    void      PaintButtons (IDxuiPainter & painter, const CassoTheme & theme, const ControlBox (& rects)[kButtonCount + 1]);
+    float     GetPresence  (int64_t nowMs) const;
     void      ComputeControlRects (int64_t nowMs, ControlBox (& rects)[kButtonCount + 1], float (& scales)[kButtonCount + 1]) const;
-    bool      IsNearControls      (int x, int y) const;
-    void      PaintMark           (IDxuiPainter & painter, TapeDeckRegion region, const ControlBox & box, uint32_t argb);
-    uint32_t  GetMarkColor        (TapeDeckRegion region, const CassoTheme & theme) const;
-    void      PaintName           (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
+    bool      IsNearControls (int x, int y) const;
+    void      PaintMark    (IDxuiPainter & painter, TapeDeckRegion region, const ControlBox & box, uint32_t argb);
+    uint32_t  GetMarkColor (TapeDeckRegion region, const CassoTheme & theme) const;
+    void      PaintName    (IDxuiTextRenderer & text, const std::wstring & name, uint32_t argb);
 
     TapeDeckView    m_view;
     RECT            m_captionRect           = {};

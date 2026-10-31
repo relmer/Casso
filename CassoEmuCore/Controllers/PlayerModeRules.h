@@ -42,20 +42,20 @@ public:
 
     using JackSet = std::bitset<JoyportJacks::kJackCount>;
 
-    static PlayerMode             ResolveMode           (const PlayerEntries & entries, size_t player, bool hasJoyport);
-    static bool                   IsJoyportMode         (PlayerMode mode);
-    static bool                   IsPaddleMode          (PlayerMode mode);
-    static std::optional<size_t>  GetJack               (PlayerMode mode);
-    static bool                   IsOnJoyport           (const PlayerEntries & entries, size_t player, bool hasJoyport);
-    static bool                   IsJoyportOn           (const PlayerEntries & entries, bool hasJoyport);
-    static bool                   AreButtonsCut         (const PlayerEntries & entries, size_t player, bool hasJoyport);
-    static bool                   ArePaddlesConnected   (const PlayerEntries & entries, bool hasJoyport);
-    static bool                   IsModeTaken           (const PlayerEntries & entries, size_t player, PlayerMode mode, bool hasJoyport);
-    static bool                   AreKeysOffered        (const PlayerEntries & entries, bool hasJoyport);
-    static bool                   IsMouseOffered        (const PlayerEntries & entries, bool hasJoyport);
-    static std::wstring           GetModeLabel          (PlayerMode mode);
+    static PlayerMode             ResolveMode         (const PlayerEntries & entries, size_t player, bool hasJoyport);
+    static bool                   IsJoyportMode       (PlayerMode mode);
+    static bool                   IsPaddleMode        (PlayerMode mode);
+    static std::optional<size_t>  GetJack             (PlayerMode mode);
+    static bool                   IsOnJoyport         (const PlayerEntries & entries, size_t player, bool hasJoyport);
+    static bool                   IsJoyportOn         (const PlayerEntries & entries, bool hasJoyport);
+    static bool                   AreButtonsCut       (const PlayerEntries & entries, size_t player, bool hasJoyport);
+    static bool                   ArePaddlesConnected (const PlayerEntries & entries, bool hasJoyport);
+    static bool                   IsModeTaken         (const PlayerEntries & entries, size_t player, PlayerMode mode, bool hasJoyport);
+    static bool                   AreKeysOffered      (const PlayerEntries & entries, bool hasJoyport);
+    static bool                   IsMouseOffered      (const PlayerEntries & entries, bool hasJoyport);
+    static std::wstring           GetModeLabel        (PlayerMode mode);
     static std::wstring           GetAutomaticModeLabel (PlayerMode resolved);
-    static std::wstring           GetPlayerLabel        (size_t player);
+    static std::wstring           GetPlayerLabel      (size_t player);
 
     static std::vector<InputModeRules::PlayerModeChoice>  BuildModeChoices (const PlayerEntries & entries, size_t player, bool hasJoyport);
 

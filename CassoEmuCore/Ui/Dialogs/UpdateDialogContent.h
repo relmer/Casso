@@ -36,23 +36,23 @@ public:
     UpdateDialogContent             (const UpdateDialogContent &) = delete;
     UpdateDialogContent & operator= (const UpdateDialogContent &) = delete;
 
-    void      SetOpener       (const std::wstring & opener);
-    void      SetHeader       (const std::wstring & header);
-    void      SetNotes        (const ReleaseNotes & notes);
-    void      SelectTab       (NotesTab tab);
-    NotesTab  GetSelectedTab  () const { return m_selected; }
-    bool      IsTabStripShown () const { return UpdateDialogModel::ShowsTabStrip (m_tabs); }
-    void      SetNotesMessage (const std::wstring & message);
-    void      SetStatus       (const std::wstring & status, bool isError);
-    void      SetPageUrl      (const std::wstring & url);
-    void      SetOnOpenUrl    (OpenUrlFn fn) { m_onOpenUrl = std::move (fn); }
+    void  SetOpener        (const std::wstring & opener);
+    void  SetHeader        (const std::wstring & header);
+    void  SetNotes         (const ReleaseNotes & notes);
+    void  SelectTab        (NotesTab tab);
+    NotesTab  GetSelectedTab () const { return m_selected; }
+    bool  IsTabStripShown  () const { return UpdateDialogModel::ShowsTabStrip (m_tabs); }
+    void  SetNotesMessage  (const std::wstring & message);
+    void  SetStatus        (const std::wstring & status, bool isError);
+    void  SetPageUrl       (const std::wstring & url);
+    void  SetOnOpenUrl     (OpenUrlFn fn) { m_onOpenUrl = std::move (fn); }
 
-    bool                      SyncNotesHeight ();
-    void                      SetNotesImage   (const std::string & src, std::shared_ptr<const NotesImage> image);
+    bool  SyncNotesHeight  ();
+    void  SetNotesImage    (const std::string & src, std::shared_ptr<const NotesImage> image);
     std::vector<std::string>  GetImageSources () const;
 
-    int   GetHeaderLines         () const { return m_headerLines; }
-    RECT  GetNotesViewport       () const { return m_notesViewportPx; }
+    int   GetHeaderLines   () const { return m_headerLines; }
+    RECT  GetNotesViewport () const { return m_notesViewportPx; }
     void  SetMeasuredHeaderLines (int lines) { m_measuredHeaderLines = lines; }
 
     void  Layout           (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;

@@ -79,9 +79,9 @@ private:
         DWORD         flags     = 0;
     };
 
-    static uint64_t       HashFNV1a64         (const std::wstring & text);
-    static bool           TryParseLong        (const std::wstring & text, LONG & outValue);
-    static BOOL CALLBACK  CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam);
+    static uint64_t      HashFNV1a64        (const std::wstring & text);
+    static bool          TryParseLong       (const std::wstring & text, LONG & outValue);
+    static BOOL CALLBACK CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam);
 
     GlobalUserPrefs  * m_prefs;
 };

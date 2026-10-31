@@ -38,7 +38,7 @@ public:
     //  the Apply button). The sheet installs the callback via
     //  SetOnDirtyChanged when the page is added.
     //
-    void  MarkDirty         (bool dirty = true);
+    void  MarkDirty        (bool dirty = true);
     void  SetOnDirtyChanged (std::function<void()> fn) { m_onDirtyChanged = std::move (fn); }
 
     //

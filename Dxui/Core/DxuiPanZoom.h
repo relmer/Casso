@@ -142,9 +142,9 @@ public:
     void   ResetZoom ();   // zoom target -> zoomMin
 
     // Eased current transform -- what the host renders this frame.
-    float  Zoom       () const { return (float) m_zoom.cur; }
-    float  GetPanX    () const { return (float) m_panX.cur; }
-    float  GetPanY    () const { return (float) m_panY.cur; }
+    float  Zoom    () const { return (float) m_zoom.cur; }
+    float  GetPanX () const { return (float) m_panX.cur; }
+    float  GetPanY () const { return (float) m_panY.cur; }
     float  GetPanYCam () const { return (float) m_panYCam.cur; }   // camera vertical framing
     float  ZoomTarget () const { return (float) m_zoom.target; }
 
@@ -168,8 +168,8 @@ private:
     // the view center.
     void  ApplyZoomFactor (double factor, bool anchored = false,
                            float anchorX = 0.0f, float anchorY = 0.0f);
-    void  NudgePanX    (double deltaContent);
-    void  NudgePanY    (double deltaContent, bool user);
+    void  NudgePanX (double deltaContent);
+    void  NudgePanY (double deltaContent, bool user);
     void  NudgePanYCam (double deltaContent);   // camera vertical framing (drag / zoom anchor)
     void  GetSpillPanY (double deltaContent);      // apply a delta, overflowing into overscroll
     void  ClampTargets ();
@@ -179,7 +179,7 @@ private:
     // three event kinds put together.
     bool  OnWheel (const DxuiMouseEvent & ev);
 
-    bool  EaseToward    (Eased & v, double dtSec, double tauSec);
+    bool  EaseToward (Eased & v, double dtSec, double tauSec);
     void  NotifyChanged ();
 
     Config  m_cfg;

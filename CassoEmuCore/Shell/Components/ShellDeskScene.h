@@ -133,12 +133,12 @@ public:
     // stays under it. Zooming about the viewport CENTER instead would push
     // the thing being inspected off toward an edge exactly as it got big
     // enough to look at.
-    void               ZoomSceneAt      (POINT clientPt, float factor);
-    DxuiMessageResult  PanSceneByNotch  (float notch, bool horizontal);
-    void               OrbitSceneBy     (float yawRad, float pitchRad);
-    void               BeginSceneOrbit  (int x, int y);
-    void               UpdateSceneOrbit (int x, int y);
-    float              OrbitRadPerPx    () const;
+    void    ZoomSceneAt          (POINT clientPt, float factor);
+    DxuiMessageResult  PanSceneByNotch (float notch, bool horizontal);
+    void    OrbitSceneBy         (float yawRad, float pitchRad);
+    void    BeginSceneOrbit      (int x, int y);
+    void    UpdateSceneOrbit     (int x, int y);
+    float   OrbitRadPerPx        () const;
 
     // Put the framing back to the fitted composition.
     void    ResetSceneView       ();
@@ -244,17 +244,17 @@ public:
         bool     isHeavy = false;
     };
 
-    void   SyncSceneDriveLabels   ();
-    bool   UpdateSceneLabelHover  (int x, int y, int64_t nowMs);
-    float  GetSceneLabelScrollPx  (int drive, int64_t nowMs);
-    bool   SyncRecorderKeys       (int64_t nowMs);
-    void   SyncSceneTapeLabel     ();
-    bool   GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3]);
+    void    SyncSceneDriveLabels ();
+    bool    UpdateSceneLabelHover (int x, int y, int64_t nowMs);
+    float   GetSceneLabelScrollPx (int drive, int64_t nowMs);
+    bool    SyncRecorderKeys      (int64_t nowMs);
+    void    SyncSceneTapeLabel    ();
+    bool    GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3]);
     void    SyncStripTapeLabels    (const DeskSceneComposition & comp, bool onStrip,
                                     const std::array<std::wstring, s_kSceneLabelCount> & names);
-    void  SetStripLabelMarquee     (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
-    int   GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
-    bool  TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+    void    SetStripLabelMarquee   (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
+    int     GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
+    bool    TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
 
     // Splits a drive's name strip between the name and the info icon after
     // it, with the 2D widget's rule: centered together when the name fits,

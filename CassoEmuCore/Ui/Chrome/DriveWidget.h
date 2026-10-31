@@ -135,8 +135,8 @@ public:
     // Write-protect breakdown of the mounted image, refreshed by
     // SyncFromState. The shell reads it to decide whether to surface the
     // hover tooltip and to compose the source-specific message.
-    const WriteProtectInfo  & WriteProtect     () const { return m_state.writeProtect; }
-    bool                      IsWriteProtected () const { return m_state.writeProtect.Any(); }
+    const WriteProtectInfo & WriteProtect () const { return m_state.writeProtect; }
+    bool               IsWriteProtected () const { return m_state.writeProtect.Any(); }
 
     // Whether what the mounted WOZ image declares about the machine it needs
     // conflicts with the running one, refreshed by SyncFromState.

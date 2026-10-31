@@ -101,11 +101,11 @@ public:
     void              Paint        (IDxuiPainter        & painter,
                                     IDxuiTextRenderer   & text,
                                     const IDxuiTheme    & theme) override;
-    bool     OnMouse           (const DxuiMouseEvent & ev) override;
-    LPCWSTR  GetCursorForPoint (POINT clientPx) const     override;
-    bool     OnKey             (const DxuiKeyEvent   & ev) override;
-    void     OnThemeChanged    ()                       override;
-    void     Tick              (int64_t nowMs)            override;
+    bool              OnMouse      (const DxuiMouseEvent & ev) override;
+    LPCWSTR           GetCursorForPoint (POINT clientPx) const     override;
+    bool              OnKey        (const DxuiKeyEvent   & ev) override;
+    void              OnThemeChanged()                       override;
+    void              Tick         (int64_t nowMs)            override;
 
     void              OnChildVisibilityChanged (IDxuiControl * child);
 
