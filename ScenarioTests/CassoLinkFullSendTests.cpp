@@ -314,6 +314,50 @@ public:
 
 
 
+    //  Each format, for a DOS and a ProDOS disk: read into an image, written over
+    //  a scratch disk in the other drive, and read back the same as the source.
+    TEST_METHOD (WholeDisks_InEachFormat_ReadAndWriteBackTheSource)
+    {
+        Rig    rig (115200);
+        Image  scratch (NibblizationLayer::kImageByteSize, 0xE5);
+
+        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
+
+        for (const auto & [format, source] : { std::pair<DiskFormat, const Image *> { DiskFormat::Dsk, &rig.dosFile }, std::pair<DiskFormat, const Image *> { DiskFormat::Po, &rig.prodosFile } })
+        {
+            Image  expected = Sectors (*source, format == DiskFormat::Dsk ? "source.dsk" : "source.po");
+
+            rig.Mount (1, format, *source);
+
+            for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib" })
+            {
+                std::wstring  what (name, name + strlen (name));
+
+                rig.Mount (2, DiskFormat::Dsk, scratch);
+
+                auto  read = rig.session->ReadDisk (1, name, false);
+
+                rig.RunUntil ([&] () { return rig.sink.IsDone (read); }, what.c_str());
+                AssertSucceeded (read->result);
+                Assert::IsTrue (Sectors (rig.fileIo.files[name], name) == expected, (what + L" has the source's sectors").c_str());
+
+                auto  write = rig.session->WriteDisk (2, name);
+
+                rig.RunUntil ([&] () { return rig.sink.IsDone (write); }, what.c_str());
+                AssertSucceeded (write->result);
+
+                auto  back = rig.session->ReadDisk (2, "back.dsk", false);
+
+                rig.RunUntil ([&] () { return rig.sink.IsDone (back); }, what.c_str());
+                AssertSucceeded (back->result);
+                Assert::IsTrue (Sectors (rig.fileIo.files["back.dsk"], "back.dsk") == expected, (what + L" wrote the source's sectors").c_str());
+            }
+        }
+    }
+
+
+
+
     //  Three disks with a swap during a transfer, at the //c's speed: no key and
     //  no PC interaction between them, each in about 30 seconds, and each image
     //  the same as its source.

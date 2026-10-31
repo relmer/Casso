@@ -583,7 +583,7 @@ public:
 
         rig.Start();
 
-        for (const char * name : { "out.dsk", "out.po", "out.woz", "out.nib" })
+        for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib" })
         {
             std::vector<Byte>   sectors;
             SectorDecodeReport  report;
