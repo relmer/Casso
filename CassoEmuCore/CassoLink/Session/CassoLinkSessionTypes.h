@@ -48,6 +48,7 @@ enum class LinkOperationKind
     CheckLinkDisk,
     Bootstrap,
     SaveLink,
+    FullSend,
 };
 
 enum class LinkOperationState
@@ -79,6 +80,7 @@ struct LinkOperation
     VolumeKind                       volumeKind = VolumeKind::Unknown;
     FilePayload                      file;
 
+    //  Full send: imagePath is the folder and newName the chosen extension.
     //  Read disk and Write disk: the image file, and for a read, whether an
     //  unreadable sector is written as zeros rather than failing the read.
     //  unreadable lists those sectors, as track and DOS 3.3 sector.

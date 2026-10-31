@@ -233,6 +233,10 @@
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkConnector.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
+    <ClCompile Include="CassoLink\FullSend\FullSendDisk.cpp" />
+    <ClCompile Include="CassoLink\FullSend\FullSendManifest.cpp" />
+    <ClCompile Include="CassoLink\FullSend\FullSendSession.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSettings.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
@@ -986,6 +990,10 @@
     <ClInclude Include="CassoLink\CassoLinkSession.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkConnector.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
+    <ClInclude Include="CassoLink\FullSend\FullSendDisk.h" />
+    <ClInclude Include="CassoLink\FullSend\FullSendManifest.h" />
+    <ClInclude Include="CassoLink\FullSend\FullSendSession.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkSessionTypes.h" />
     <ClInclude Include="CassoLink\CassoLinkSettings.h" />
     <ClInclude Include="CassoLink\CassoLinkSearch.h" />

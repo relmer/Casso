@@ -341,6 +341,7 @@
     <ClCompile Include="CassoLink\LinkProgramTests.cpp" />
     <ClCompile Include="CassoLink\UthernetLinkTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkClientTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSessionTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearchTests.cpp" />

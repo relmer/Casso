@@ -1078,6 +1078,7 @@ std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_p
         case LinkOperationKind::ReadDisk:        what = L"Reading the disk";  break;
         case LinkOperationKind::WriteDisk:       what = L"Writing the disk";  break;
         case LinkOperationKind::CheckLinkDisk:   what = L"Checking the disk"; break;
+        case LinkOperationKind::FullSend:        what = L"Full send";         break;
         default:                                 what = L"Working";           break;
     }
 

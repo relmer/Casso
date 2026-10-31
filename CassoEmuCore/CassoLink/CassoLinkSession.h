@@ -4,6 +4,7 @@
 
 #include "CassoLink/Session/CassoLinkConnector.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/CassoLinkFullSend.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Seams/ByteStreamSettings.h"
 #include "CassoLink/CassoLinkSettings.h"
@@ -109,6 +110,11 @@ public:
     //  is written.
     std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath, const std::string & formatted = std::string());
 
+    //  Disks into a folder, alternating between the drives, until Escape on
+    //  the Apple, Cancel or a failure ends it. The extension has its period;
+    //  empty is .po for ProDOS and .dsk for any other.
+    std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension);
+
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.
     std::shared_ptr<LinkOperation>  CheckLinkDisk (int drive);
@@ -169,8 +175,10 @@ private:
     //  The session's parts, each with the state it uses.
     friend class CassoLinkConnector;
     friend class CassoLinkDiskTransfer;
+    friend class CassoLinkFullSend;
     friend class CassoLinkSessionTypes::DriveSource;
     CassoLinkConnector     m_connector    { *this };
     CassoLinkDiskTransfer  m_diskTransfer { *this };
+    CassoLinkFullSend      m_fullSend     { *this };
 };
 

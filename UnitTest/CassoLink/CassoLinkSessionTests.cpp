@@ -735,6 +735,88 @@ public:
 
 
 
+    //  A full send through the link, ended by Escape at its pause: drive 1 and
+    //  then drive 2, the screens on the Apple, and the screen cleared at the end.
+    TEST_METHOD (FullSend_SendsBothDrives_AndEndsOnEscapeAtThePause)
+    {
+        Rig  rig;
+
+        rig.apple.keys.push_back (CassoLinkCodec::kKeyEscape);
+        rig.Start();
+
+        auto  send = rig.Finish (rig.session->FullSend ("C:\\Box", ""));
+
+        Assert::IsTrue (send->state == LinkOperationState::Canceled);
+        Assert::IsTrue (rig.fileIo.files["C:\\Box\\0001 HELLO.dsk"] == rig.Drive (1));
+        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0002 LINKED.po"));
+        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\full-send.csv"));
+        Assert::AreEqual (1, rig.apple.keyWaits.load());
+        Assert::IsTrue (send->message.find ("2 sent") != std::string::npos, L"the counts are in the result");
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+
+        std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+        Assert::IsFalse (rig.apple.screens.empty());
+        Assert::AreEqual<int> (0, rig.apple.screens.back()[0], L"the last screen clears the session");
+        Assert::AreEqual<int> (0, rig.apple.screens.back()[1]);
+    }
+
+
+
+
+    TEST_METHOD (FullSend_CancelDuringThePause_EndsTheSession)
+    {
+        Rig  rig;
+
+        rig.apple.drives[1].clear();
+        rig.Start();
+
+        auto  send = rig.session->FullSend ("C:\\Box", "");
+
+        for (int tries = 0; tries < 2000 && rig.apple.keyWaits == 0; tries++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        Assert::AreEqual (1, rig.apple.keyWaits.load(), L"an empty drive 2 and a sent drive 1 make a pause");
+
+        rig.session->Cancel();
+        rig.Finish (send);
+
+        Assert::IsTrue (send->state == LinkOperationState::Canceled);
+        Assert::AreEqual (1, rig.apple.cancels.load());
+        Assert::IsTrue (rig.session->GetState() == LinkState::Ready, L"the link goes on");
+    }
+
+
+
+
+    TEST_METHOD (FullSend_EscapeDuringARead_WritesNoImage)
+    {
+        Rig  rig;
+
+        rig.apple.sectorDelayMs = 1;
+        rig.Start();
+
+        auto  send = rig.session->FullSend ("C:\\Box", "");
+
+        for (int tries = 0; tries < 2000 && rig.apple.sectorsRead < 100; tries++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        rig.apple.escapePending = true;
+        rig.Finish (send);
+
+        Assert::IsTrue (send->state == LinkOperationState::Canceled);
+        Assert::IsTrue (rig.fileIo.files.empty(), L"no image, no manifest");
+        Assert::IsTrue (send->message.find ("Escape") != std::string::npos);
+    }
+
+
+
+
     TEST_METHOD (ReadDisk_Canceled_WritesNoFile)
     {
         Rig  rig;

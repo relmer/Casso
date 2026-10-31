@@ -127,6 +127,7 @@ void CassoLinkSession::Cancel()
 
     if (m_running && m_host)
     {
+        m_fullSend.RequestCancel();
         m_host->Cancel();
     }
 }
@@ -326,6 +327,28 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std
     operation->formatted = formatted;
 
     return Queue (LinkOperationKind::WriteDisk, drive, FilePath(), operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::FullSend
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & folder, const std::string & extension)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->imagePath = folder;
+    operation->newName   = extension;
+
+    return Queue (LinkOperationKind::FullSend, 1, FilePath(), operation);
 }
 
 
@@ -831,6 +854,7 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
                                                           ? std::format ("{} {} IN D{}", finished ? "FORMATTED" : "FORMATTING", operation.formatted, operation.drive)
                                                           : std::format ("{} IMAGE {} TO D{}", finished ? "WROTE" : "WRITING", image, operation.drive); break;
         case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} THE DISK IN {}", finished ? "CHECKED" : "CHECKING", drive);        break;
+        case LinkOperationKind::FullSend:        text = finished ? "FULL SEND DONE" : "FULL SEND TO PC";                                    break;
         default:                                 text = "WORKING";                                                                          break;
     }
 
@@ -892,7 +916,7 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
     hr = m_host->SendLabel (DescribeOperation (operation, m_listings[index]));
     CHR (hr);
 
-    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk)
+    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk && operation.kind != LinkOperationKind::FullSend)
     {
         hr = Revalidate (operation.drive);
         CHR (hr);
@@ -954,6 +978,10 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
         case LinkOperationKind::CheckLinkDisk:
             hr = m_diskTransfer.ReadBootSector (operation);
+            break;
+
+        case LinkOperationKind::FullSend:
+            hr = m_fullSend.Run (operation);
             break;
 
         default:
