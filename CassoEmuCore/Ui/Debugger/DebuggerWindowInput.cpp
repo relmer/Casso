@@ -798,6 +798,15 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The status bar and the menu bar take the events over them ahead of the
+    //  timeline, so the pointer leaving the timeline for either is handled
+    //  here, which closes the timeline's preview.
+    if (m_floating->GetRoutingPane().empty() && !m_timelineHost.IsFloating() && m_timelineBar != nullptr &&
+        !DxuiDockSite::Contains (m_timelineBar->GetBounds(), ev.positionDip))
+    {
+        m_timelineBar->OnToolbarMouseLeave();
+    }
+
     //  The status bar's zoom popup lies over everything while it is open, and
     //  the status bar owns its band.
     if (m_floating->GetRoutingPane().empty() && RouteStatusBarMouse (ev))
