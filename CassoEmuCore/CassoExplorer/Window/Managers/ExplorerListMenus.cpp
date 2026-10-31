@@ -657,6 +657,14 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         //  File Explorer; without them the group starts here.
         if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation()) && m_context.menus.GetSelectionKind (selectedPaths, kind))
         {
+            std::vector<std::wstring>  homeIds;
+
+            if (m_context.browser.IsHomeLocation() && m_context.browser.GetSelectedRows().size() == 1)
+            {
+                homeIds.push_back (m_context.browser.GetRows()[(size_t) m_context.browser.GetSelectedRows()[0]].shellId);
+            }
+
+            m_context.menus.SetCommandItemIds (homeIds);
             windows = m_context.menus.AddWindowsCommands (items, selectedPaths, kind);
         }
 
@@ -754,6 +762,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation()))
     {
         m_context.menus.AddPackagedCommands (items);
+        m_context.menus.SetCommandItemIds ({});
     }
 
     //  Last, as Explorer has it: everything else Windows and other programs

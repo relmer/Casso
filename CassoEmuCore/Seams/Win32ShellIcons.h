@@ -109,6 +109,7 @@ private:
 
     static constexpr int       s_kLargeIconPx      = 32;
     static constexpr int       s_kExtraLargeIconPx = 48;
+    static constexpr int  s_kLastWindowsOverlay = 3;
     static constexpr int       s_kSmallThumbnailPx = 128;
     static constexpr int       s_kLargeThumbnailPx = 256;
     static constexpr int       s_kLoaderCount      = 3;

@@ -1216,7 +1216,9 @@ HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDire
 
         //  The overlay sits where the full image's corner is, so it is added
         //  only to an image the crop left whole.
-        if (SUCCEEDED (hr) && overlay != 0 && !cropped)
+        //  A folder's image already has a sync client's mark, so only Windows' own
+        //  overlays are added to one: shared, shortcut and shield.
+        if (SUCCEEDED (hr) && overlay != 0 && !cropped && (!isDirectory || overlay <= s_kLastWindowsOverlay))
         {
             DestroyIcon (icon);
             icon = nullptr;

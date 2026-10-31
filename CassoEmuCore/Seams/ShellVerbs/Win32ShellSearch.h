@@ -35,11 +35,11 @@ public:
     static void     WalkForNames    (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths);
     static void     WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths);
 
-    static std::vector<std::wstring>  GetFixedDrives   ();
-    static std::wstring               GetRecentFolder  ();
-    static void                       AddNewPaths      (const std::vector<std::wstring> & found, std::vector<std::wstring> & ioPaths);
-    static void                       AddRecentLinkMatches (const std::wstring & link, const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths);
-    static void                       AddRecentMatches (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths);
+    static std::vector<std::wstring>      GetFixedDrives       ();
+    static std::wstring                   GetRecentFolder      ();
+    static void                           AddNewPaths          (const std::vector<std::wstring> & found, std::vector<std::wstring> & ioPaths);
+    static void                           AddRecentLinkMatches (const std::wstring & link, const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths);
+    static void                           AddRecentMatches     (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths);
 
 
     //  The disk images a search reads, at most, so a folder of thousands

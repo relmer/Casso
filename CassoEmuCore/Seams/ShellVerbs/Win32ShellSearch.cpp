@@ -526,6 +526,7 @@ void Win32ShellSearch::AddRecentLinkMatches (const std::wstring & link, const st
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Win32ShellSearch::GetFixedDrives

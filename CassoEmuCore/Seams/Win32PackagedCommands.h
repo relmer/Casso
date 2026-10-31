@@ -76,6 +76,9 @@ public:
     //  Returns Windows' own commands for the items, in File Explorer's order.
     std::vector<Entry>  GetWindowsEntries (const std::vector<std::wstring> & paths, ItemKind kind);
 
+    //  The shell items the commands are asked about in place of the paths: Home's rows, whose commands answer for them as they are listed there.
+    void                SetItemIds        (std::vector<std::wstring> ids) { m_itemIds = std::move (ids); }
+
     //  Returns Start's Pin or Unpin command for one item, with the title from
     //  the shell's handler; false when the handler has neither.
     bool  GetStartPinEntry (const std::wstring & path, Entry & outEntry);
@@ -90,6 +93,7 @@ public:
     HRESULT  Invoke (HWND owner, const Entry & entry, const std::vector<std::wstring> & paths);
 
 private:
+    std::vector<std::wstring>  m_itemIds;
     struct Registration
     {
         std::wstring  itemType;     // "*", ".png", "Directory", "Directory\Background" or "Drive"

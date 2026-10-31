@@ -816,7 +816,7 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
 
     BAIL_OUT_IF (paths.empty(), S_OK);
 
-    hr = MakeItems (paths, &items);
+    hr = MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
     CHR (hr);
 
     //  A package's registrations are read together, so each package's are a
@@ -1008,12 +1008,16 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetWindowsEntri
 
     BAIL_OUT_IF (paths.empty() || (kind != ItemKind::File && kind != ItemKind::Folder), S_OK);
 
-    hr = MakeItems (paths, &items);
+    hr = MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
     CHR (hr);
 
     if (isFile)
     {
-        AddStoreEntry  (s_kpszSendToPhone, L"windows.sendtomyphone", items.Get(), entries);
+        //  File Explorer leaves this off an item as Home lists it.
+        if (m_itemIds.empty())
+        {
+            AddStoreEntry (s_kpszSendToPhone, L"windows.sendtomyphone", items.Get(), entries);
+        }
 
         AddStaticVerbs (paths[0], items.Get(), entries);
     }

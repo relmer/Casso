@@ -138,6 +138,7 @@ bool CassoExplorerNewDiskChoices::GetChoicesForExtension (const std::wstring & n
         { L".do",  1, kFormatDos33  },
         { L".po",  2, kFormatProDos },
         { L".nib", 3, kFormatDos33  },
+        { L".nb2", 4, kFormatDos33  },
     };
 
     size_t  dot = name.rfind (L'.');

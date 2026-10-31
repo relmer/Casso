@@ -40,6 +40,7 @@ public:
         { L"DOS order (.dsk)",     "dsk" },
         { L"ProDOS order (.po)",   "po"  },
         { L"Nibble (.nib)",        "nib" },
+        { L"Nibble (.nb2)",        "nb2" },
     };
 
     static std::vector<std::wstring>  GetFormatLabels    ();
