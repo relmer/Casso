@@ -347,6 +347,8 @@ private:
     void  SortRows               ();
     std::vector<CatalogRow>  m_homeRows;            // all of Home's items; the rows are Quick access and one tab's
     int                      m_homeTab         = 0;
+    Location                 m_homeParent;
+    bool                     m_returningToTab  = false;
     int                      m_homeFirstTabRow = 0;
     void  GroupRows              ();
     void  FilterRows             ();

@@ -212,6 +212,19 @@ HRESULT CassoExplorerBrowser::Refresh()
 
     m_loader.RevisitLink (location);
 
+    //  Returning to a tab on Home lists what Home last read, without reading it
+    //  again.
+    if (m_returningToTab && IsHomeLocation() && !m_homeRows.empty())
+    {
+        m_loader.m_shellParent = m_homeParent;
+        m_rowsUnfiltered       = true;
+        SortRows();
+        m_previewer.UpdatePreview();
+        m_cells.UpdateStatus();
+
+        return S_OK;
+    }
+
     switch (location.kind)
     {
         case Location::Kind::HostFolder:
@@ -247,7 +260,13 @@ HRESULT CassoExplorerBrowser::Refresh()
     }
 
     m_rowsUnfiltered = true;
-    m_homeRows       = IsHomeLocation() ? m_rows : std::vector<CatalogRow>();
+
+    if (IsHomeLocation())
+    {
+        m_homeRows   = m_rows;
+        m_homeParent = m_loader.m_shellParent;
+    }
+
     SortRows();
     m_previewer.UpdatePreview();
     m_cells.UpdateStatus();
@@ -1726,7 +1745,9 @@ bool CassoExplorerBrowser::SwitchTab (size_t index)
     //  the drive again, reads its disks.
     names                 = m_model.GetActiveTab().selection;
     m_loader.m_linkVisit  = GetLocation();
+    m_returningToTab      = true;
     m_loader.ReloadAfterNavigation();
+    m_returningToTab      = false;
     SelectRowsByKeys (names);
 
     return true;
