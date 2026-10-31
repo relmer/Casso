@@ -400,6 +400,7 @@ public:
         InspectorViewModel  model;
         constexpr double    kCoast = InspectorViewModel::kCoastMs;
         constexpr double    kSpeed = InspectorViewModel::kTurnsPerMs;
+        constexpr double    kAngle = 0.125;
 
 
 
@@ -408,13 +409,61 @@ public:
         Assert::IsTrue (model.IsCoasting());
 
         model.StepCoast (kCoast / 2, false);
-        Assert::AreEqual (-kSpeed * (kCoast / 2 - kCoast / 8), model.GetRotation(), 1e-9, L"three quarters of full speed's distance by halfway");
+        Assert::AreEqual (kAngle + kSpeed * (kCoast / 2 - kCoast / 8), model.GetHeadTurn (kAngle), 1e-9, L"three quarters of full speed's distance by halfway");
 
         model.StepCoast (kCoast, false);
-        Assert::AreEqual (-kSpeed * kCoast / 2, model.GetRotation(), 1e-9, L"half of full speed's distance in all");
+        Assert::AreEqual (kAngle + kSpeed * kCoast / 2, model.GetHeadTurn (kAngle), 1e-9, L"half of full speed's distance in all");
         Assert::IsFalse  (model.IsCoasting());
 
         model.StepCoast (2 * kCoast, false);
-        Assert::AreEqual (-kSpeed * kCoast / 2, model.GetRotation(), 1e-9, L"stopped");
+        Assert::AreEqual (kAngle + kSpeed * kCoast / 2, model.GetHeadTurn (kAngle), 1e-9, L"stopped");
+
+        model.StepCoast (3 * kCoast, true);
+        Assert::AreEqual (kAngle, model.GetHeadTurn (kAngle), 1e-9, L"back at the drive's angle once it turns");
+    }
+
+
+    TEST_METHOD (TheHeadStaysAtSixOClockAtFitWhetherTheDiskTurnsCoastsOrIsStopped)
+    {
+        InspectorViewModel  model;
+        constexpr double    kCoast = InspectorViewModel::kCoastMs;
+        constexpr double    kAngle = 0.125;
+
+
+
+        //  Where the head is drawn: its turn on the disk plus the platter's.
+        auto  getSide = [&] () { return model.GetHeadTurn (kAngle) + model.GetRotation(); };
+
+        model.FollowDrive (kAngle);
+        Assert::AreEqual (InspectorViewModel::kHeadSide, getSide(), 1e-9, L"before the drive has turned");
+
+        model.StepCoast   (0.0, true);
+        model.FollowDrive (kAngle);
+        Assert::AreEqual  (InspectorViewModel::kHeadSide, getSide(), 1e-9, L"while the drive turns");
+
+        for (double now : { 0.0, kCoast / 4, kCoast / 2, kCoast, 2 * kCoast })
+        {
+            model.StepCoast   (now, false);
+            model.FollowDrive (kAngle);
+            Assert::AreEqual  (InspectorViewModel::kHeadSide, getSide(), 1e-9, L"through the coast and after it");
+        }
+    }
+
+
+    TEST_METHOD (APlatterTurnedByHandStaysThereUntilTheDriveTurns)
+    {
+        InspectorViewModel  model;
+        constexpr double    kAngle = 0.125;
+
+
+
+        model.FollowDrive (kAngle);
+        model.TurnByHand  (0.25);
+        model.FollowDrive (kAngle);
+        Assert::AreEqual  (InspectorViewModel::kHeadSide - kAngle + 0.25, model.GetRotation(), 1e-9);
+
+        model.StepCoast   (0.0, true);
+        model.FollowDrive (kAngle);
+        Assert::AreEqual  (InspectorViewModel::kHeadSide - kAngle, model.GetRotation(), 1e-9);
     }
 };

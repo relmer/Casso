@@ -815,7 +815,7 @@ void DiskInspectorWindow::BuildCommands()
     c.windowZoomIn           = make (L"Zoom &in", L"Ctrl++", [this] () { SetZoom (DxuiZoomControl::StepZoom (m_zoom, 1)); });
     c.windowZoomOut          = make (L"Zoom &out", L"Ctrl+-", [this] () { SetZoom (DxuiZoomControl::StepZoom (m_zoom, -1)); });
     c.actualSize             = make (L"&Actual size", L"Ctrl+0", [this] () { SetZoom (1.0); });
-    c.defaultSize            = make (L"&Default size", L"", [this] () { if (GetPopupHost() != nullptr) { (void) GetPopupHost()->RestoreInitialPlacement(); } });
+    c.defaultSize            = make (L"&Default size", L"", [this] () { (void) OnSysCommand (s_kDefaultSizeCommand); });
 
     //  Help
     c.walkthrough = make (L"&Walkthrough", L"", [this] () { m_tooltip.HideImmediate(); m_walkthrough->Open(); });
@@ -888,8 +888,8 @@ void DiskInspectorWindow::UpdateTitle()
 //
 //  DiskInspectorWindow::OnSysCommand
 //
-//  On "Default size", the window is returned to the size it opens at,
-//  about its center on the monitor it is on.
+//  On "Default size", the zoom returns to 100% and the window to the size it
+//  opens at, about its center on the monitor it is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -903,6 +903,7 @@ DxuiMessageResult DiskInspectorWindow::OnSysCommand (UINT command)
     BAIL_OUT_IF (command != s_kDefaultSizeCommand || GetPopupHost() == nullptr, S_OK);
 
     result = DxuiMessageResult::Handled;
+    SetZoom (1.0);
     hr     = GetPopupHost()->RestoreInitialPlacement();
     CHR (hr);
 
@@ -984,8 +985,7 @@ void DiskInspectorWindow::SetZoom (double zoom)
     m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, most);
     m_statusBand->SetZoom (m_zoom);
 
-    //  A window smaller than its minimum size times the zoom is enlarged, once
-    //  a drag of the zoom slider ends, so the slider stays under the pointer.
+    //  A smaller window grows to fit the zoom only once a slider drag ends.
     if (!m_statusBand->IsZoomDragging())
     {
         SetMinSizeDip ({ static_cast<LONG> (std::lround (kMinWidthDip * std::max (1.0, m_zoom))), static_cast<LONG> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))) });

@@ -1725,7 +1725,8 @@ legend, and tilt the platter and back.
   row, Differences among them, and not shrink below 960×720, all scaled for
   the display, and the platter MUST stay square. A "Default size" command on
   the window's system menu, opened by a right-click on its title bar or
-  Alt+Space, and in the Window menu, MUST return it to the size it opens at,
+  Alt+Space, and in the Window menu, MUST return the zoom to 100% and the
+  window to the size it opens at,
   scaled for the monitor it is on, about its center and inside that
   monitor's work area, without moving it to another monitor.
 
@@ -2319,12 +2320,14 @@ legend, and tilt the platter and back.
   while the guest can change it, and every change it makes to the disk in a
   drive MUST be made by Casso at a safe point (FR-103). Taking the copies
   counts toward the limits in SC-005.
-- **FR-064**: While the motor is on, the controller has this drive enabled
-  and a disk is inserted, the head marker MUST sit at 6 o'clock and the
-  platter MUST turn counterclockwise so that the drive's current position is
-  under the marker. When the motor stops, the platter MUST coast to a stop
-  from 300 RPM, slowing evenly over a second; otherwise the platter MUST
-  stay still. The head marker
+- **FR-064**: At fit, the head marker MUST sit at 6 o'clock whether the disk
+  is turning, coasting or stopped. While the motor is on, the controller has
+  this drive enabled and a disk is inserted, the platter MUST turn
+  counterclockwise so that the drive's current position is under the marker.
+  When the motor stops, the platter MUST coast to a stop under the marker from
+  300 RPM, slowing evenly over a second. Otherwise the platter MUST NOT turn,
+  unless the user turns it by right-dragging; the head marker then moves with
+  the disk until the drive next turns. The head marker
   MUST point at the head's quarter track and show idle, reading, writing and
   write blocked differently. While the platter is zoomed in it MUST stay
   still and the head marker MUST move around it instead. The head marker MUST
@@ -3128,11 +3131,11 @@ legend, and tilt the platter and back.
   "?" button in a circle in the status band, and Help > "Walkthrough", MUST
   reopen it at any time. Its text MUST be plain enough for someone new to
   disk internals.
-- **FR-154**: The window MUST zoom from 50% to 300%, every size and font in
+- **FR-154**: The window MUST zoom from 80% to 125%, every size and font in
   it except the status band along its bottom multiplied by the zoom. Ctrl and
   the mouse wheel anywhere but over the File map grid (FR-157), Ctrl with +
   or -, and the "-" and "+" buttons MUST step
-  through 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250 and 300%, and
+  through 80, 90, 100, 110 and 125%, and
   Ctrl+0 MUST return to 100%. The status band MUST show the zoom as a
   percentage at its right end; clicking it MUST show a slider between the
   "-" and "+" buttons, and clicking it again MUST hide them. The status band

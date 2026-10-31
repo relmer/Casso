@@ -29,8 +29,8 @@ public:
 
     //  The control's width with the slider visible, from its right edge.
     static constexpr int     kWidthDip  = 270;
-    static constexpr double  kMinZoom   = 0.5;
-    static constexpr double  kMaxZoom   = 3.0;
+    static constexpr double  kMinZoom   = 0.8;
+    static constexpr double  kMaxZoom   = 1.25;
 
     DxuiZoomControl();
 

@@ -220,7 +220,9 @@ void PlatterCorners::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 //  PlatterCorners::Place
 //
 //  Each group inset in its corner of the platter column. The tilt group
-//  grows downward to take the slider while the slider is out.
+//  grows downward to take the slider while the slider is out. The slider's
+//  ends are inset by the largest puck, so at either end of its travel the puck
+//  stays s_kPadDip from the group's edge and from the tilt button.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,6 +234,7 @@ void PlatterCorners::Place()
     int                  gap    = m_scaler.ToPx (s_kGapDip);
     int                  icon   = m_scaler.ToPx (s_kIconDip);
     int                  slider = m_isSliderOut ? m_scaler.ToPx (s_kSliderDip) : 0;
+    int                  puck   = m_scaler.ToPx (DxuiSlider::kTrackInsetDip);
     int                  left   = m_areaPx.left + inset;
     int                  top    = m_areaPx.top + inset;
     int                  right  = m_areaPx.right - inset;
@@ -249,7 +252,7 @@ void PlatterCorners::Place()
 
     m_tiltGroup->Layout  ({ right - group, top, right, top + group + slider }, m_scaler);
     m_tilt->Layout       ({ right - group + pad, top + pad, right - pad, top + group - pad }, m_scaler);
-    m_tiltSlider->Layout ({ right - group + pad, top + group, right - pad, top + group + slider - pad }, m_scaler);
+    m_tiltSlider->Layout ({ right - group + pad, top + group + puck, right - pad, top + group + slider - pad - puck }, m_scaler);
 
     m_chipsGroup->Layout ({ left, bottom - group, left + chipsW, bottom }, m_scaler);
     x = left + pad;

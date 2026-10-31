@@ -835,11 +835,11 @@ bool InspectorViewModel::StepFlight (double nowMs)
 //
 //  InspectorViewModel::StepCoast
 //
-//  While the drive turns, the platter's rotation follows the drive. When it
-//  stops, the platter turns on from kTurnsPerMs, slowing evenly to a stop
-//  over kCoastMs: by v (s - s^2 / 2T) after s of T. A turn of the drive
-//  ends the coast. Zoomed in or in a flight, the platter does not turn, but
-//  the coast's time runs on.
+//  When the drive stops, the disk turns on under the head from kTurnsPerMs,
+//  slowing evenly to a stop over kCoastMs: by v (s - s^2 / 2T) after s of T.
+//  A turn of the drive ends the coast and puts the disk back at the drive's
+//  angle. Zoomed in, in a flight or after a drag by the user, the disk does
+//  not turn, but the coast's time runs on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -852,7 +852,9 @@ void InspectorViewModel::StepCoast (double nowMs, bool isTurning)
 
     if (isTurning)
     {
-        m_isCoasting = false;
+        m_isCoasting     = false;
+        m_isHandTurned   = false;
+        m_coastTurns     = 0.0;
     }
     else if (m_wasTurning)
     {
@@ -867,13 +869,31 @@ void InspectorViewModel::StepCoast (double nowMs, bool isTurning)
         m_coastDoneMs = done;
         m_isCoasting  = done < kCoastMs;
 
-        if (IsAtFit() && !m_isFlying)
+        if (IsAtFit() && !m_isFlying && !m_isHandTurned)
         {
-            m_rotation -= move;
+            m_coastTurns += move;
         }
     }
 
     m_wasTurning = isTurning;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::FollowDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::FollowDrive (double angle)
+{
+    if (IsAtFit() && !m_isFlying && !m_isHandTurned)
+    {
+        m_rotation = kHeadSide - GetHeadTurn (angle);
+    }
 }
 
 

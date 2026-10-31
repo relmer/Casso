@@ -24,7 +24,7 @@ public:
     {
         Assert::AreEqual (1.1, DxuiZoomControl::StepZoom (1.0,  1), 1e-9);
         Assert::AreEqual (0.9, DxuiZoomControl::StepZoom (1.0, -1), 1e-9);
-        Assert::AreEqual (1.5, DxuiZoomControl::StepZoom (1.25, 1), 1e-9);
+        Assert::AreEqual (1.25, DxuiZoomControl::StepZoom (1.1, 1), 1e-9);
     }
 
 

@@ -466,3 +466,6 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T208 Put the head at 6 o'clock flat and tilted, and drop the half turn on a tilt, per FR-064, FR-152
 - [X] T209 Enlarge the window for a new zoom once a drag of the zoom slider ends, so the slider stays under the pointer, per FR-154
 - [X] T210 Write a minidump to `%LOCALAPPDATA%\Casso\CrashDumps` on any unhandled exception in `GuiMain.cpp`, for debugging a crash reported while zooming
+- [X] T211 Put the head at 6 o'clock at fit before the drive turns and through the coast, in `InspectorViewModel::StepCoast` and `FollowDrive`, with tests, per FR-064
+- [X] T212 Limit the window zoom to 80-125%, and return it to 100% on "Default size", per FR-007, FR-154
+- [X] T213 Inset the tilt slider's ends so the puck stays inside the tilt group at the margin of the tilt button, in `PlatterCorners::Place`, per FR-151

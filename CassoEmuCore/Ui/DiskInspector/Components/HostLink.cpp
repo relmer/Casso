@@ -328,30 +328,26 @@ void HostLink::TickHead()
 
     isOnDisk = m_session.headState != nullptr && m_session.headState->hasDisk && m_session.headState->mediaId == m_session.analysis.mediaId && m_session.IsWindowDiskA();
 
+    //  When the motor stops, the disk coasts to a stop rather than stopping
+    //  at once.
+    m_session.model.StepCoast (InspectorMarquee::GetClockMs(), isOnDisk && m_session.headState->isTurning);
+
     if (isOnDisk)
     {
         qt = m_followHead.Tick (m_session.headState->headQuarterTrack, static_cast<int64_t> (GetTickCount64()));
 
         head.isShown      = true;
         head.quarterTrack = m_session.headState->headQuarterTrack;
-        head.turn         = m_session.headState->angle;
+        head.turn         = m_session.model.GetHeadTurn (m_session.headState->angle);
         head.activity     = m_session.headState->activity;
+
+        //  The platter turns under the head at 6 o'clock (FR-064, FR-152).
+        //  Zoomed in, the platter does not turn and the head moves around it.
+        m_session.model.FollowDrive (m_session.headState->angle);
     }
 
     m_session.context.head  = head;
     m_session.context.drive = isOnDisk ? m_session.headState.get() : nullptr;
-
-    //  While the drive turns, the platter turns under the head at 6 o'clock
-    //  (FR-064, FR-152). Zoomed in, the platter does not turn and the head
-    //  moves around it.
-    if (isOnDisk && m_session.headState->isTurning && m_session.model.IsAtFit() && !m_session.model.IsFlying())
-    {
-        m_session.model.SetRotation (m_session.model.GetHeadSide() - m_session.headState->angle);
-    }
-
-    //  When the motor stops, the disk coasts to a stop rather than stopping
-    //  at once.
-    m_session.model.StepCoast (InspectorMarquee::GetClockMs(), isOnDisk && m_session.headState->isTurning);
 
     if (qt >= 0)
     {
