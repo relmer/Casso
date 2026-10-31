@@ -112,6 +112,7 @@ private:
 
     //  Overlays above this are a sync client's.
     static constexpr int  s_kLastWindowsOverlay = 3;
+
     static constexpr int       s_kSmallThumbnailPx = 128;
     static constexpr int       s_kLargeThumbnailPx = 256;
     static constexpr int       s_kLoaderCount      = 3;
