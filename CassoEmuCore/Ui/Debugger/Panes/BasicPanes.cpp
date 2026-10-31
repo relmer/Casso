@@ -334,15 +334,12 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
 
         AddSyntaxColors (line, row, style.syntax, rowCells[kListingColumn]);
 
-        //  The tokens run from past the link and the line number to the next
-        //  line's link; the last line's end is not known, so its first eight.
+        //  The tokens run from past the link and the line number, one piece a
+        //  byte. The zero that ends the line is left out: a GOTO to the next
+        //  line reads it, whether or not this line ever runs.
         if (heat != nullptr && palette != nullptr && row.isFirst)
         {
-            Word    first = (Word) (line.address + 4);
-            size_t  count = (row.lineIndex + 1 < basic.lines.size() && basic.lines[row.lineIndex + 1].address > first)
-                          ? (size_t) (basic.lines[row.lineIndex + 1].address - first) : 8;
-
-            rowCells[kHeatColumn] = HeatStrip::GetCell (*heat, first, count, *palette, true);
+            rowCells[kHeatColumn] = HeatStrip::GetCell (*heat, (Word) (line.address + 4), line.pieces.size(), *palette, true);
         }
 
         if (isCurrent)

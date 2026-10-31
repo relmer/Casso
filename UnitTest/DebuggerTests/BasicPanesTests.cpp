@@ -125,10 +125,38 @@ namespace DebuggerTests
 
             cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
 
-            Assert::AreEqual ((size_t) 4, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"four bytes of tokens, a fill each");
+            Assert::AreEqual ((size_t) 3, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"three bytes of tokens, a fill each");
             Assert::AreEqual (0xFF0000FFu, cells[0][BasicProgramPane::kHeatColumn].background, L"the token read is the line running");
-            Assert::AreEqual ((size_t) 4, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line: its first eight bytes in four fills");
+            Assert::AreEqual ((size_t) 3, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line has its own tokens, too");
             Assert::IsTrue   (BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style())[0][BasicProgramPane::kHeatColumn].text.empty(), L"no levels, no strip");
+        }
+
+        //  A GOTO to a line reads the zero ending the line before it, and the
+        //  variables follow the last line. Neither heats a line that never ran.
+        TEST_METHOD (TheHeatColumnLeavesOutTheLinesEndAndWhatFollowsTheProgram)
+        {
+            BasicLine                                  first  = MakeLine (0x0801, 10, { "A", "=", "1" });
+            BasicLine                                  second = MakeLine (0x0809, 20, { "B", "=", "2" });
+            DebuggerViewSnapshot::BasicState              state  = MakeState ({ first, second }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows   = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat;
+            HeatMapView::Palette                          palette;
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+
+
+
+            heat.execute.assign (0x10000, 0);
+            heat.read.assign    (0x10000, 0);
+            heat.write.assign   (0x10000, 0);
+            heat.read[0x0808]  = 255;
+            heat.read[0x0810]  = 255;
+            palette.cold       = 0xFF112233;
+            palette.execute    = 0xFF0000FF;
+
+            cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
+
+            Assert::AreEqual (0xFF112233u, cells[0][BasicProgramPane::kHeatColumn].background, L"the zero ending the line");
+            Assert::AreEqual (0xFF112233u, cells[1][BasicProgramPane::kHeatColumn].background, L"past the last line");
         }
 
 
