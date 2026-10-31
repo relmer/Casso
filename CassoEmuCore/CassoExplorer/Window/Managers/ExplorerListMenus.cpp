@@ -240,6 +240,8 @@ void ExplorerListMenus::AddHomeItemRows (std::vector<DxuiPopupMenuItem> & items,
         { L"Remove from Favorites", nullptr },
     };
 
+
+
     std::vector<std::wstring>       labels;
     std::vector<DxuiPopupMenuItem>  rows;
     HRESULT                         hr = m_context.shellVerbs.GetItemVerbLabels (m_context.window.GetHwnd(), { id }, labels);
