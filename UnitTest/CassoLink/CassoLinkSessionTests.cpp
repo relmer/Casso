@@ -786,7 +786,7 @@ public:
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::AreEqual (1, rig.apple.cancels.load());
-        Assert::IsTrue (rig.session->GetState() == LinkState::Ready, L"the link goes on");
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"the link goes on");
     }
 
 
