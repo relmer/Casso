@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "Seams/ShellVerbs/Win32ShellNamespace.h"
 #include "../EhmTestHelper.h"
@@ -1498,6 +1499,44 @@ public:
 
         Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
         Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::None);
+    }
+
+    TEST_METHOD (HomeRow_WithAFile_HasItsPath_AndACloudRowHasNone)
+    {
+        Host                              host;
+        FakeRecycleBin                    shell;
+        IShellItemVerbs::ShellFolderItem  local;
+        IShellItemVerbs::ShellFolderItem  cloud;
+        std::wstring                      path;
+
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Disks\\memo.txt", "memo"));
+
+        local.id        = L"local";
+        local.name      = L"memo.txt";
+        local.path      = L"C:\\Disks\\memo.txt";
+        local.homeGroup = Win32ShellNamespace::s_kHomeGroupRecent;
+        cloud.id        = L"shell-idlist:00\\plan.pdf";
+        cloud.name      = L"plan.pdf";
+        cloud.homeGroup = Win32ShellNamespace::s_kHomeGroupRecent;
+        shell.shellItems = { local, cloud };
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location());
+        AssertSucceeded (host.browser.Refresh());
+
+        Assert::IsTrue   (host.browser.IsHomeLocation());
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size(), host.browser.GetListError().c_str());
+        Assert::IsTrue   (host.browser.TryGetRowPath (FindRow (host.browser, L"memo.txt"), path));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\memo.txt"), path, L"not joined to any folder");
+        Assert::IsTrue   (host.browser.GetRows()[(size_t) FindRow (host.browser, L"plan.pdf")].hostPath.empty());
+        Assert::IsFalse  (host.browser.GetRows()[(size_t) FindRow (host.browser, L"plan.pdf")].shellId.empty());
+    }
+
+    TEST_METHOD (ShellRows_AreReachedOnHome_AndInShellFolders)
+    {
+        Assert::IsTrue  (ExplorerFileOps::HasShellRows (Location::Kind::None, true));
+        Assert::IsTrue  (ExplorerFileOps::HasShellRows (Location::Kind::ShellFolder, false));
+        Assert::IsFalse (ExplorerFileOps::HasShellRows (Location::Kind::HostFolder, false));
     }
 
     TEST_METHOD (HomeGroup_PinnedFile_IsAFavorite)

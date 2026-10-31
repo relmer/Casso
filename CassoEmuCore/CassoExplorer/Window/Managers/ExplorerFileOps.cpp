@@ -423,7 +423,7 @@ bool ExplorerFileOps::TryGetSelectedShellIds (std::vector<std::wstring> & outIds
         return true;
     }
 
-    if (m_context.browser.GetLocation().kind != Location::Kind::ShellFolder && !m_context.browser.IsHomeLocation())
+    if (!HasShellRows (m_context.browser.GetLocation().kind, m_context.browser.IsHomeLocation()))
     {
         return false;
     }

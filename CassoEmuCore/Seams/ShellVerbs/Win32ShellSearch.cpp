@@ -9,6 +9,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/ShellVerbs/Win32ShellNamespace.h"
 #include "Seams/Win32DiskFileIo.h"
 
 
@@ -69,6 +70,10 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
             WalkFixedDrives (SearchQuery::GetNameWords (query), found);
             hr = S_OK;
         }
+        else if (everywhere)
+        {
+            AddRecentMatches (SearchQuery::GetNameWords (query), found);
+        }
 
         //  A folder the index leaves out, or an index that cannot answer, is
         //  searched by walking it. Everywhere has no folder to walk.
@@ -103,7 +108,14 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     //  Files inside the disk images there match by name too.
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
-        if (folder != SearchQuery::kEverywhere && folder != SearchQuery::kThisPc)
+        if (folder == SearchQuery::kThisPc)
+        {
+            for (const std::wstring & root : GetFixedDrives())
+            {
+                SearchImages (root, SearchQuery::GetNameWords (query), outItems);
+            }
+        }
+        else if (folder != SearchQuery::kEverywhere)
         {
             SearchImages (folder, SearchQuery::GetNameWords (query), outItems);
         }
@@ -463,32 +475,169 @@ Error:
 
 void Win32ShellSearch::WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths)
 {
-    DWORD  drives = GetLogicalDrives();
-
-
-
-    for (wchar_t letter = L'A'; letter <= L'Z' && !words.empty(); letter++)
+    for (const std::wstring & root : GetFixedDrives())
     {
-        std::wstring               root = std::wstring (1, letter) + L":\\";
         std::vector<std::wstring>  found;
 
-        if ((drives & (1u << (letter - L'A'))) == 0 || GetDriveTypeW (root.c_str()) != DRIVE_FIXED)
+        if (words.empty())
         {
             continue;
         }
 
         WalkForNames (root, words, found);
+        AddNewPaths (found, ioPaths);
+    }
+}
 
-        for (const std::wstring & path : found)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::AddRecentLinkMatches
+//
+//  The matches in the Recent folder, named under a junction to it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::AddRecentLinkMatches (const std::wstring & link, const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths)
+{
+    std::wstring               recent = GetRecentFolder();
+    std::vector<std::wstring>  found;
+    std::error_code            error;
+    std::filesystem::path      target = std::filesystem::read_symlink (link, error);
+
+
+
+    if (recent.empty() || error || _wcsicmp (target.c_str(), recent.c_str()) != 0)
+    {
+        return;
+    }
+
+    WalkForNames (recent, words, found);
+
+    for (const std::wstring & path : found)
+    {
+        ioPaths.push_back (link + path.substr (recent.size()));
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::GetFixedDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> Win32ShellSearch::GetFixedDrives()
+{
+    std::vector<std::wstring>  roots;
+    DWORD                      drives = GetLogicalDrives();
+
+
+
+    for (wchar_t letter = L'A'; letter <= L'Z'; letter++)
+    {
+        std::wstring  root = std::wstring (1, letter) + L":\\";
+
+        if ((drives & (1u << (letter - L'A'))) != 0 && GetDriveTypeW (root.c_str()) == DRIVE_FIXED)
         {
-            bool  listed = std::any_of (ioPaths.begin(), ioPaths.end(), [&] (const std::wstring & have) { return _wcsicmp (have.c_str(), path.c_str()) == 0; });
-
-            if (!listed)
-            {
-                ioPaths.push_back (path);
-            }
+            roots.push_back (root);
         }
     }
+
+    return roots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::AddNewPaths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::AddNewPaths (const std::vector<std::wstring> & found, std::vector<std::wstring> & ioPaths)
+{
+    for (const std::wstring & path : found)
+    {
+        bool  listed = std::any_of (ioPaths.begin(), ioPaths.end(), [&] (const std::wstring & have) { return _wcsicmp (have.c_str(), path.c_str()) == 0; });
+
+        if (!listed)
+        {
+            ioPaths.push_back (path);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::GetRecentFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring Win32ShellSearch::GetRecentFolder()
+{
+    PWSTR         known  = nullptr;
+    std::wstring  folder;
+    HRESULT       hr     = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &known);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        folder = known;
+    }
+
+    CoTaskMemFree (known);
+
+    return folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::AddRecentMatches
+//
+//  Home's search also covers recent files, whose shortcuts' targets the index
+//  may leave out, as File Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::AddRecentMatches (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths)
+{
+    std::vector<IShellItemVerbs::ShellFolderItem>  items;
+    std::vector<std::wstring>                      found;
+    HRESULT                                        hr = Win32ShellNamespace::ReadHomeFolder (items);
+
+
+
+    if (FAILED (hr) || words.empty())
+    {
+        return;
+    }
+
+    for (const IShellItemVerbs::ShellFolderItem & item : items)
+    {
+        if (!item.path.empty() && SearchQuery::MatchesName (item.name, words))
+        {
+            found.push_back (item.path);
+        }
+    }
+
+    AddNewPaths (found, ioPaths);
 }
 
 
@@ -506,9 +655,16 @@ void Win32ShellSearch::WalkFixedDrives (const std::vector<std::wstring> & words,
 
 void Win32ShellSearch::WalkForNames (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths)
 {
-    std::vector<std::wstring>  pending = { scope };
+    std::vector<std::wstring>  pending                  = { scope };
+    wchar_t                    tempFolder[MAX_PATH + 1] = {};
 
 
+
+    //  An empty name matches no folder if this fails.
+    if (GetTempPathW (MAX_PATH + 1, tempFolder) == 0)
+    {
+        tempFolder[0] = L'\0';
+    }
 
     while (!pending.empty() && outPaths.size() < s_kMaxResults)
     {
@@ -546,9 +702,16 @@ void Win32ShellSearch::WalkForNames (const std::wstring & scope, const std::vect
                 outPaths.push_back (folder + L"\\" + name);
             }
 
-            if (isFolder && !isLink)
+            if (isFolder && !isLink && _wcsicmp ((folder + L"\\" + name + L"\\").c_str(), tempFolder) != 0)
             {
                 pending.push_back (folder + L"\\" + name);
+            }
+
+            //  The junction to Recent cannot be listed, but File Explorer lists
+            //  its files under it; it skips the temporary files' folder.
+            if (isFolder && isLink && _wcsicmp (name.c_str(), L"Recent") == 0)
+            {
+                AddRecentLinkMatches (folder + L"\\" + name, words, outPaths);
             }
         }
         while (FindNextFileW (find, &found) && outPaths.size() < s_kMaxResults);
