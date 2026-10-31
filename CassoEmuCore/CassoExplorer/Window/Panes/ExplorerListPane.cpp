@@ -877,6 +877,7 @@ void ExplorerListPane::FillList()
     //  Before the cells are built, since their icons are fetched at the
     //  view's size.
     m_columns.ApplyFolderView();
+    SizeListIcons();
 
     //  The shell's properties are read only when a property column is visible.
     m_propertiesShown = false;

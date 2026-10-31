@@ -46,6 +46,7 @@ public:
         bool                       groupDescending = false;
         int                        previewScroll   = 0;
         bool                       previewOpen     = false;
+        int                        listTopRow      = 0;
         bool                       disassemble     = false;
 
         //  The cached catalog and the image it belongs to.

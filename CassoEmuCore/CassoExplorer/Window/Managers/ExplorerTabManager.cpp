@@ -549,6 +549,7 @@ void ExplorerTabManager::SwitchToTab (size_t index)
     }
 
     m_context.preview.SaveTabState();
+    m_context.browser.SetTabTopRow (m_context.listPane.GetListView()->GetTopRow());
 
     //  A tab left on a folder deleted since moves up as it is shown.
     if (m_context.browser.SwitchTab (index))
@@ -556,6 +557,9 @@ void ExplorerTabManager::SwitchToTab (size_t index)
         m_context.browser.LeaveMissingLocation();
         m_context.preview.RestoreTabState();
         m_context.listPane.FillList();
+
+        //  A tab is as it was left, scrolled where it was.
+        m_context.listPane.GetListView()->SetTopRow (m_context.browser.GetTabTopRow());
     }
 }
 

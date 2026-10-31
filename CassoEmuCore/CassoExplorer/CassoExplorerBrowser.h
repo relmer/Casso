@@ -186,6 +186,8 @@ public:
     void                              RequestHomeRead ();
     void                              SetTabPreview   (bool open) { if (m_model.HasTabs()) { m_model.GetActiveTab().previewOpen = open; } }
     bool                              IsTabPreview    () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
+    void                              SetTabTopRow    (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
+    int                               GetTabTopRow    () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
     void                              SetSelectedRows (const std::vector<int> & rows);
 
     //  The preview made again for the selection, as when a slow read arrives.
