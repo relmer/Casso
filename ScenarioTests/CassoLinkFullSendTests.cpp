@@ -50,6 +50,7 @@ public:
     static constexpr Word      kRowDrive2   = 0x06A8;
     static constexpr Word      kRowImage    = 0x0728;
     static constexpr Word      kRowCounts   = 0x07A8;
+    static constexpr Word      kRowQuip     = 0x04D0;
     static constexpr Word      kRowStatus   = 0x0700;
     static constexpr Word      kRowHeading  = 0x05A8;
     static constexpr Word      kRowKeys     = 0x07D0;
@@ -497,6 +498,7 @@ public:
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING") && rig.Row (kRowStatus).find ("10%") != std::string::npos; }, L"drive 1 is sending, with progress");
 
         Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rig.Row (kRowDrive2));
+        Assert::IsFalse (rig.Row (kRowQuip).empty(), L"a prompt line shows while the other drive is on deck");
         Assert::IsTrue (rig.Row (kRowImage).starts_with ("IMAGE 0001"), TextEncoding::NarrowToWide (rig.Row (kRowImage)).c_str());
         Assert::AreEqual (std::string ("FULL SEND:"), rig.Row (kRowHeading));
         Assert::AreEqual (std::string ("          Q: BACK TO CASSOLINK"), rig.Row (kRowKeys));

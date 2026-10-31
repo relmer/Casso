@@ -166,10 +166,16 @@ HRESULT FullSendSession::Pause()
 
 
 
-    m_state = State::Paused;
+    m_state       = State::Paused;
+    m_screen.quip = PickQuip();
+
+    hr = m_link.ShowScreen (m_screen);
+    CHR (hr);
 
     hr = m_link.WaitForKey (key);
     CHR (hr);
+
+    m_screen.quip = 0;
 
     CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
 
@@ -381,6 +387,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     if (m_link.HasDrive (3 - drive))
     {
         SetDriveState (3 - drive, FullSendDriveState::OnDeck);
+        m_screen.quip = PickQuip();
     }
 
     hr = m_link.ShowScreen (m_screen);
@@ -400,7 +407,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     hr = FullSendDisk::ComputeFingerprint (after, afterFingerprint);
     CHR (hr);
 
-    same = imageFingerprint == fingerprint && hasDisk && afterFingerprint == fingerprint;
+    same          = imageFingerprint == fingerprint && hasDisk && afterFingerprint == fingerprint;
+    m_screen.quip = 0;
 
     if (!same)
     {

@@ -240,7 +240,7 @@ public:
     //  A full send's screen, in the Session screen packet: each drive's state,
     //  the counts, the tone and the image's name. The program draws it, sounds
     //  the tone and sends Ready.
-    HRESULT  SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, const std::string & name);
+    HRESULT  SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, Byte quip, const std::string & name);
 
     //  Space or Q on the Apple, with no drive running there: its code.
     //  Any Cancel ends the wait with ERROR_CANCELLED.

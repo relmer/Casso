@@ -478,6 +478,23 @@ public:
 
         Assert::IsTrue (sending != rig.link.screens.end());
         Assert::IsTrue (sending->drives[1] == FullSendDriveState::OnDeck);
+        Assert::AreNotEqual (0, (int) sending->quip);
+        Assert::AreNotEqual (0, (int) rig.link.screens.back().quip, L"the pause has a prompt line");
+    }
+
+    TEST_METHOD (Session_OneDrive_Sending_HasNoPromptLine)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        rig.Run();
+
+        for (const FullSendScreen & screen : rig.link.screens)
+        {
+            Assert::IsTrue (screen.drives[0] != FullSendDriveState::Sending || screen.quip == 0);
+        }
     }
 
     TEST_METHOD (Session_OneDrive_LeavesTheMissingDriveOff)

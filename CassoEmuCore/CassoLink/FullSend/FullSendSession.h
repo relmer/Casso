@@ -52,6 +52,7 @@ struct FullSendScreen
     int                                duplicates = 0;
     int                                bad        = 0;
     FullSendTone                       tone       = FullSendTone::None;
+    Byte                               quip       = 0;      // the prompt line: 0 none, else any value
     std::string                        name;
 };
 
@@ -186,6 +187,7 @@ private:
     HRESULT  WriteManifest   ();
     void     End             (HRESULT hr);
 
+    Byte         PickQuip      ()                                        { return (Byte) std::uniform_int_distribution<int> (1, 255) (m_random); }
     void         SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
     std::string  GetPath       (const std::string & file) const;
 
@@ -201,6 +203,7 @@ private:
     std::string              m_message;
     int                      m_lastRead   = 0;
     uint64_t                 m_commitTag  = 1;
+    std::mt19937             m_random     { std::random_device{}() };
     bool                     m_fileFailed = false;
     std::set<std::string>    m_changed;       // fingerprints of disks that changed during a read, sent only after Space
 };

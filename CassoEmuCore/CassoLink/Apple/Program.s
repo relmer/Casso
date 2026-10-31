@@ -3369,9 +3369,12 @@ FSDRIVE1 = 0                    ; history rows, by their index in logrowlo
 FSDRIVE2 = 1
 FSIMAGE  = 2
 FSCOUNTS = 3
-FSROWS   = 4
+FSQUIPROW = 5
+FSROWS   = 6
 FSTONE   = 8                    ; Session screen's tone, in PKTBUF
-FSNAME   = 9                    ; and its image name
+FSQUIP   = 9                    ; its prompt line: 0 none, else any value
+FSNAME   = 10                   ; and its image name
+QUIPCOUNT = 16                  ; the entries in fsquips
 
 ; sendkey: Key with the code in A. It is sent at the next wait for a byte, or
 ; for a W5100 by flush.
@@ -3482,7 +3485,22 @@ dscounts: ldx #FSCOUNTS
         sta ptr+1
         ldx #6
         jsr fscount
-        jsr fssound
+        ldx #FSQUIPROW
+        jsr fsrow
+        lda PKTBUF+FSQUIP
+        beq dssound
+dsqmod: cmp #QUIPCOUNT
+        bcc dsqdraw
+        sbc #QUIPCOUNT
+        bcs dsqmod
+dsqdraw: asl a
+        tax
+        lda fsquips,x
+        sta ptr
+        lda fsquips+1,x
+        sta ptr+1
+        jsr puttext
+dssound: jsr fssound
         jmp main
 
 ; fsleave: back to the standard screen: the session's rows cleared, and the
@@ -3688,4 +3706,39 @@ fsrepeat: .text "ALREADY SENT"
 fsdone: .text "SENT"
         .byte 0
 fsdeck: .text "ON DECK--INSERT A DISK TO SEND NEXT"
+        .byte 0
+
+; fsquips: the prompt lines, up to 40 characters.
+fsquips: .word fsq0, fsq1, fsq2, fsq3, fsq4, fsq5, fsq6, fsq7, fsq8, fsq9, fsq10, fsq11, fsq12, fsq13, fsq14, fsq15
+fsq0: .text "IS THAT ALL YOU'VE GOT?"
+        .byte 0
+fsq1: .text "ANOTHER!"
+        .byte 0
+fsq2: .text "I CAN HAZ DISK?"
+        .byte 0
+fsq3: .text "THANK YOU, SIR, MAY I HAVE ANOTHER?"
+        .byte 0
+fsq4: .text "MORE! MOOORE!!!"
+        .byte 0
+fsq5: .text "FEED ME, SEYMOUR!"
+        .byte 0
+fsq6: .text "INSERT COIN... ER, DISK"
+        .byte 0
+fsq7: .text "THIS DRIVE IS HUNGRY"
+        .byte 0
+fsq8: .text "NEXT VICTIM, PLEASE"
+        .byte 0
+fsq9: .text "PLEASE, SIR, I WANT SOME MORE"
+        .byte 0
+fsq10: .text "WE'RE GONNA NEED A BIGGER STACK"
+        .byte 0
+fsq11: .text "NEED INPUT!"
+        .byte 0
+fsq12: .text "ME WANT DISK! NOM NOM NOM"
+        .byte 0
+fsq13: .text "HIT ME AGAIN, DEALER"
+        .byte 0
+fsq14: .text "ONE DOES NOT SIMPLY STOP AT ONE DISK"
+        .byte 0
+fsq15: .text "JUST ONE MORE. YOU SAID THAT LAST TIME"
         .byte 0

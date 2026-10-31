@@ -61,7 +61,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     {
         m_session.m_host->SetProgress (0, 100);
 
-        cleared = m_session.m_host->SendSessionScreen (off, 0, 0, 0, (Byte) FullSendTone::None, std::string());
+        cleared = m_session.m_host->SendSessionScreen (off, 0, 0, 0, (Byte) FullSendTone::None, 0, std::string());
         IGNORE_RETURN_VALUE (cleared, S_OK);
     }
 
@@ -256,7 +256,7 @@ HRESULT CassoLinkFullSend::ShowScreen (const FullSendScreen & screen)
     hr = CheckStop();
     CHR (hr);
 
-    hr = m_session.m_host->SendSessionScreen (drives, (Word) screen.sent, (Word) screen.duplicates, (Word) screen.bad, (Byte) screen.tone, screen.name);
+    hr = m_session.m_host->SendSessionScreen (drives, (Word) screen.sent, (Word) screen.duplicates, (Word) screen.bad, (Byte) screen.tone, screen.quip, screen.name);
     CHR (hr);
 
 Error:

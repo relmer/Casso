@@ -724,14 +724,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, const std::string & name)
+HRESULT CassoLinkHost::SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, Byte quip, const std::string & name)
 {
     HRESULT            hr     = S_OK;
     std::vector<Byte>  screen = { drives[0], drives[1],
                                   (Byte) (sent & 0xFF),       (Byte) (sent >> 8),
                                   (Byte) (duplicates & 0xFF), (Byte) (duplicates >> 8),
                                   (Byte) (bad & 0xFF),        (Byte) (bad >> 8),
-                                  tone };
+                                  tone, quip };
 
 
 
