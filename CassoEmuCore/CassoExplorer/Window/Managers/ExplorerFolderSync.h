@@ -33,6 +33,7 @@ public:
     //  jump list of this application id, in the Recent folder's
     //  AutomaticDestinations.
     static constexpr const wchar_t *  kQuickAccessFile = L"f01b4d95cf55d32a.automaticDestinations-ms";
+    static constexpr const wchar_t *  kRecentItemsFile = L"5f7b5f1e01b83767.automaticDestinations-ms";
 
     void            StartWatch                  ();
     void            StartPolling                ();
@@ -47,6 +48,7 @@ public:
     void            ReloadKnownFoldersIfChanged ();
     void            RefreshQuickAccessIfChanged ();
     static int64_t  GetQuickAccessStamp         (const std::wstring & directory);
+    static int64_t  GetFileStamp                (const std::wstring & path);
     void            CheckDrives                 ();
     void            ChangeKnownFolder           (const std::wstring & folder, bool add);
 
@@ -60,5 +62,6 @@ private:
     DWORD                           m_driveMask        = 0;   // GetLogicalDrives at the last look
     std::wstring                    m_quickAccessDir;   // where File Explorer keeps Quick access
     int64_t                         m_quickAccessStamp = 0;   // its file's last write at the last look
+    int64_t                         m_recentStamp      = 0;
     std::string                     m_knownFoldersText;   // KnownFolders.json as last read
 };

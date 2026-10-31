@@ -1538,7 +1538,8 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
         if ((m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && m_context.browser.GetLocation().path == key.substr (listKey.size()))
             || (m_context.browser.IsHomeLocation() && key.substr (listKey.size()) == IShellItemVerbs::kHomeId))
         {
-            hr = m_context.browser.Refresh();
+            //  Home reads again while it is shown, so its selection stays.
+            hr = m_context.browser.IsHomeLocation() ? m_context.browser.Reload (true) : m_context.browser.Refresh();
             IGNORE_RETURN_VALUE (hr, S_OK);
             FillList();
         }

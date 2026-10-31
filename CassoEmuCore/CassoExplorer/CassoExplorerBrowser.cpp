@@ -672,6 +672,36 @@ void CassoExplorerBrowser::SetHomeTab (int tab)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::RequestHomeRead
+//
+//  Reads Home in the background, and the list takes the result when it arrives
+//  with the selection kept. A result that arrived while another tab was shown
+//  is out of date, so it is dropped for a new read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::RequestHomeRead()
+{
+    std::wstring                                   id  = IShellItemVerbs::kHomeId;
+    std::vector<IShellItemVerbs::ShellFolderItem>  items;
+    HRESULT                                        hr  = S_OK;
+
+
+
+    if (m_shellListings.TryTake (s_kListKey + id, id, items, hr))
+    {
+        bool  started = m_shellListings.TryTake (s_kListKey + id, id, items, hr);
+
+        IGNORE_RETURN_VALUE (started, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::RemoveHomeRow
 //
 //  Takes one item off Home without reading Home again.
@@ -1749,6 +1779,11 @@ bool CassoExplorerBrowser::SwitchTab (size_t index)
     m_loader.ReloadAfterNavigation();
     m_returningToTab      = false;
     SelectRowsByKeys (names);
+
+    if (IsHomeLocation())
+    {
+        RequestHomeRead();
+    }
 
     return true;
 }

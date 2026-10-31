@@ -185,7 +185,9 @@ void ExplorerFolderSync::ReloadKnownFoldersIfChanged()
 
 void ExplorerFolderSync::RefreshQuickAccessIfChanged()
 {
-    int64_t  stamp = 0;
+    int64_t  stamp   = 0;
+    int64_t  recent  = 0;
+    bool     changed = false;
 
 
 
@@ -201,6 +203,22 @@ void ExplorerFolderSync::RefreshQuickAccessIfChanged()
         m_quickAccessStamp = stamp;
         m_context.browser.RefreshShellRoots();
         m_context.treePane.RefreshTree();
+        changed = true;
+    }
+
+    //  Recent's folder changes as a file joins Home's list, and the recent
+    //  items' jump list as one leaves it.
+    recent = GetFileStamp (m_quickAccessDir.substr (0, m_quickAccessDir.find_last_of (L'\\'))) ^ GetFileStamp (m_quickAccessDir + L"\\" + kRecentItemsFile);
+
+    if (recent != m_recentStamp)
+    {
+        m_recentStamp = recent;
+        changed       = true;
+    }
+
+    if (changed && m_context.browser.IsHomeLocation())
+    {
+        m_context.browser.RequestHomeRead();
     }
 }
 
@@ -218,12 +236,27 @@ void ExplorerFolderSync::RefreshQuickAccessIfChanged()
 
 int64_t ExplorerFolderSync::GetQuickAccessStamp (const std::wstring & directory)
 {
+    return GetFileStamp (directory + L"\\" + kQuickAccessFile);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::GetFileStamp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t ExplorerFolderSync::GetFileStamp (const std::wstring & path)
+{
     WIN32_FILE_ATTRIBUTE_DATA  data  = {};
     ULARGE_INTEGER             when  = {};
 
 
 
-    if (!GetFileAttributesExW ((directory + L"\\" + kQuickAccessFile).c_str(), GetFileExInfoStandard, &data))
+    if (!GetFileAttributesExW (path.c_str(), GetFileExInfoStandard, &data))
     {
         return 0;
     }
@@ -611,6 +644,7 @@ void ExplorerFolderSync::StartPolling()
     {
         m_quickAccessDir   = std::wstring (recent) + L"\\AutomaticDestinations";
         m_quickAccessStamp = GetQuickAccessStamp (m_quickAccessDir);
+        m_recentStamp      = GetFileStamp (recent) ^ GetFileStamp (m_quickAccessDir + L"\\" + kRecentItemsFile);
     }
 
     CoTaskMemFree (recent);
