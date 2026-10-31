@@ -978,19 +978,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
 void DiskInspectorWindow::SetZoom (double zoom)
 {
-    double  most = std::clamp (GetMostZoom(), DxuiZoomControl::kMinZoom, DxuiZoomControl::kMaxZoom);
-
-
-
-    m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, most);
+    m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, DxuiZoomControl::kMaxZoom);
     m_statusBand->SetZoom (m_zoom);
-
-    //  A smaller window grows to fit only once a slider drag ends.
-    if (!m_statusBand->IsZoomDragging())
-    {
-        SetMinSizeDip ({ static_cast<LONG> (std::lround (kMinWidthDip * std::max (1.0, m_zoom))), static_cast<LONG> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))) });
-        GrowToMinSize();
-    }
 
     Layout (m_boundsDip, m_session.hostScaler);
 }
@@ -1001,79 +990,34 @@ void DiskInspectorWindow::SetZoom (double zoom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::GetMostZoom
+//  DiskInspectorWindow::OnKeyUp
 //
-//  The largest zoom whose layout fits the work area of the window's
-//  monitor: the window's minimum size times the zoom, in DIPs.
+//  A released key goes to the menus only. Alt released alone returns Handled,
+//  because DefWindowProc would otherwise enter the system's modal menu mode,
+//  which stops wheel input to the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double DiskInspectorWindow::GetMostZoom() const
+DxuiMessageResult DiskInspectorWindow::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
-    HRESULT      hr      = S_OK;
-    double       most    = DxuiZoomControl::kMaxZoom;
-    MONITORINFO  monitor = { sizeof (monitor) };
-    BOOL         isRead  = FALSE;
-    double       scale   = static_cast<double> (GetDpi()) / USER_DEFAULT_SCREEN_DPI;
+    DxuiKeyEvent       ev;
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
 
-    BAIL_OUT_IF (GetHwnd() == nullptr, S_OK);
+    UNREFERENCED_PARAMETER (lParam);
 
-    isRead = GetMonitorInfoW (MonitorFromWindow (GetHwnd(), MONITOR_DEFAULTTONEAREST), &monitor);
-    CWRA (isRead);
+    ev.kind = DxuiKeyEventKind::Up;
+    ev.vk   = vk;
+    ev.ctrl = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
 
-    most = std::min ((monitor.rcWork.right - monitor.rcWork.left) / scale / kMinWidthDip, (monitor.rcWork.bottom - monitor.rcWork.top) / scale / kMinHeightDip);
+    if (m_menus->OnKey (ev))
+    {
+        result = DxuiMessageResult::Handled;
+        Invalidate();
+    }
 
-Error:
-    return most;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GrowToMinSize
-//
-//  A window smaller than its minimum size grows to it, moved back onto the
-//  work area of its monitor where it would run off it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT DiskInspectorWindow::GrowToMinSize()
-{
-    HRESULT      hr       = S_OK;
-    MONITORINFO  monitor  = { sizeof (monitor) };
-    RECT         windowPx = {};
-    BOOL         isRead   = FALSE;
-    BOOL         isPlaced = FALSE;
-    int          widthPx  = 0;
-    int          heightPx = 0;
-    int          x        = 0;
-    int          y        = 0;
-
-
-
-    BAIL_OUT_IF (GetHwnd() == nullptr || ::IsZoomed (GetHwnd()), S_OK);
-
-    isRead = GetWindowRect (GetHwnd(), &windowPx) && GetMonitorInfoW (MonitorFromWindow (GetHwnd(), MONITOR_DEFAULTTONEAREST), &monitor);
-    CWRA (isRead);
-
-    widthPx  = std::max (static_cast<int> (windowPx.right - windowPx.left), MulDiv (static_cast<int> (std::lround (kMinWidthDip  * std::max (1.0, m_zoom))), static_cast<int> (GetDpi()), USER_DEFAULT_SCREEN_DPI));
-    heightPx = std::max (static_cast<int> (windowPx.bottom - windowPx.top), MulDiv (static_cast<int> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))), static_cast<int> (GetDpi()), USER_DEFAULT_SCREEN_DPI));
-
-    BAIL_OUT_IF (widthPx == windowPx.right - windowPx.left && heightPx == windowPx.bottom - windowPx.top, S_OK);
-
-    x = std::max (static_cast<int> (monitor.rcWork.left), std::min (static_cast<int> (windowPx.left), static_cast<int> (monitor.rcWork.right)  - widthPx));
-    y = std::max (static_cast<int> (monitor.rcWork.top),  std::min (static_cast<int> (windowPx.top),  static_cast<int> (monitor.rcWork.bottom) - heightPx));
-
-    isPlaced = SetWindowPos (GetHwnd(), nullptr, x, y, widthPx, heightPx, SWP_NOZORDER | SWP_NOACTIVATE);
-    CWRA (isPlaced);
-
-Error:
-    return hr;
+    return result;
 }
 
 

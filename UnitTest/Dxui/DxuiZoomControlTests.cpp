@@ -50,4 +50,21 @@ public:
         Assert::AreEqual (std::wstring (L"100%"), DxuiZoomControl::FormatZoom (1.0));
         Assert::AreEqual (std::wstring (L"67%"),  DxuiZoomControl::FormatZoom (2.0 / 3.0));
     }
+
+
+    TEST_METHOD (DoubleClickingThePercentageReturnsTo100AndLeavesTheSlider)
+    {
+        DxuiZoomControl  control;
+
+
+
+        control.SetZoom        (1.25);
+        control.OnPercentClick (1000);
+        Assert::AreEqual       (1.25, control.GetZoom(), 1e-9);
+        Assert::IsTrue         (control.IsSliderShown());
+
+        control.OnPercentClick (1001);
+        Assert::AreEqual       (1.0, control.GetZoom(), 1e-9);
+        Assert::IsFalse        (control.IsSliderShown());
+    }
 };

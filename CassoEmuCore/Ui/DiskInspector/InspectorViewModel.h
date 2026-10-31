@@ -115,7 +115,7 @@ public:
     static constexpr double  kMaxTilt = 1.0471975511965976;
 
     double  GetTilt         () const { return m_tilt; }
-    void    SetTilt         (double tilt) { m_tilt = std::clamp (tilt, 0.0, kMaxTilt); }
+    void    SetTilt         (double tilt);
     bool    IsTilted        () const { return m_tilt > 0.0; }
 
     //  Where the head's angle sits, as a fraction of a turn from 12 o'clock:

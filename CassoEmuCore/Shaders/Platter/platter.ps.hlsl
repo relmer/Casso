@@ -172,6 +172,9 @@ float4 main (float4 position : SV_Position) : SV_Target
     float   ringF      = (outerRadiusPx - radiusPx) / ringPx;
     uint    ring       = (uint) max (ringF, 0.0);
     float   turn       = frac (atan2 (d.x, -d.y) / kTwoPi - rotation + 1.0);
+    float   spacing    = 1.0 / max (length (float2 (ddx (ringF), ddy (ringF))), 1e-6);
+    float   footprint  = max (length (ddx (d)), length (ddy (d)));
+    float   coverage   = saturate (1.0 - frac (ringF) * spacing);
     float4  color;
 
 
@@ -181,20 +184,20 @@ float4 main (float4 position : SV_Position) : SV_Target
         discard;
     }
 
-    color = SampleRing (ring, turn, radiusPx, position.xy, scale);
+    color = SampleRing (ring, turn, radiusPx, position.xy, 1.0 / max (footprint, 1e-6));
 
-    //  A groove at each whole-track boundary, once whole tracks are far
-    //  enough apart for one to read as a line, and a dark seam at every other
-    //  ring's edge once rings are wide enough for one.
-    ringPx *= scale;
-
-    if (ring % 4 == 0 && frac (ringF) * ringPx < 1.0 && ringPx * 4.0 >= grooveMinPx)
+    //  A groove at each whole-track boundary and a dark seam at every other
+    //  ring's edge. Spacing is measured on the screen, so it includes the
+    //  tilt's foreshortening. Each line covers one pixel in proportion to how
+    //  much of it the line crosses, and fades out as its lines close up, so
+    //  it can't beat against the pixel grid.
+    if (ring % 4 == 0)
     {
-        color = grooveColor;
+        color = lerp (color, grooveColor, coverage * saturate (spacing * 4.0 / grooveMinPx - 1.0));
     }
-    else if (ringPx >= kSeamMinPx && frac (ringF) * ringPx < 1.0)
+    else
     {
-        color.rgb *= kSeamDark;
+        color.rgb *= lerp (1.0, kSeamDark, coverage * saturate (spacing / kSeamMinPx - 1.0));
     }
 
     //  The rim darkens toward the disk's edge.

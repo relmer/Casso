@@ -46,7 +46,37 @@ DxuiZoomControl::DxuiZoomControl()
 
     m_zoomOut->SetOnClick ([this] () { ChangeZoom (StepZoom (m_zoom, -1)); });
     m_zoomIn->SetOnClick  ([this] () { ChangeZoom (StepZoom (m_zoom,  1)); });
-    m_percent->SetOnClick ([this] () { m_isSliderShown = !m_isSliderShown; Layout (m_boundsDip, m_scaler); });
+    m_percent->SetOnClick ([this] () { OnPercentClick (GetTickCount64()); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::OnPercentClick
+//
+//  Each click toggles the slider. A second click within the double-click time
+//  also returns the zoom to 100%, and the two toggles cancel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomControl::OnPercentClick (uint64_t nowMs)
+{
+    bool  isDouble = m_lastPercentClickMs != 0 && nowMs - m_lastPercentClickMs <= GetDoubleClickTime();
+
+
+
+    m_isSliderShown      = !m_isSliderShown;
+    m_lastPercentClickMs = isDouble ? 0 : nowMs;
+
+    if (isDouble)
+    {
+        ChangeZoom (1.0);
+    }
+
+    Layout (m_boundsDip, m_scaler);
 }
 
 

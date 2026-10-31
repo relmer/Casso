@@ -554,6 +554,40 @@ void InspectorViewModel::Fit()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorViewModel::SetTilt
+//
+//  A zoomed-in platter is centered on the selection again at the new tilt,
+//  at the view a flight would end on. A platter at fit stays at fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::SetTilt (double tilt)
+{
+    double  previous = m_tilt;
+    double  end      = 0;
+    double  start    = GetSelectionTurn (end);
+    View    view;
+
+
+
+    m_tilt = std::clamp (tilt, 0.0, kMaxTilt);
+
+    if (m_tilt != previous && m_zoom > 1.0 && start >= 0)
+    {
+        end        = (end < start) ? end + 1.0 : end;
+        view       = GetChordView (GetFitPoint (m_quarterTrack, start + m_rotation), GetFitPoint (m_quarterTrack, end + m_rotation));
+        m_isFlying = false;
+        m_zoom     = view.zoom;
+        m_pan      = view.pan;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorViewModel::PanBy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1094,10 +1128,18 @@ void InspectorViewModel::ClampPan()
 
 double InspectorViewModel::GetSelectionTurn (double & outEnd) const
 {
+    static constexpr int  kDataPrologNibbles = 3;
+    static constexpr int  kLowBitNibbles16   = 86;
+    static constexpr int  kLowBitNibbles13   = 154;
+
+
+
     const TrackAnalysis *   track  = GetTrack();
     const AnalyzedSector *  sector = GetSector();
     double                  start  = -1;
     int                     last   = 0;
+    int                     first  = 0;
+    int                     count  = 0;
 
 
 
@@ -1110,6 +1152,15 @@ double InspectorViewModel::GetSelectionTurn (double & outEnd) const
         last   = (m_firstNibble + std::max (m_nibbleCount, 1)) % static_cast<int> (track->framed.nibbles.size());
         start  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[m_firstNibble].startCell);
         outEnd = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[last].startCell);
+    }
+    else if (track != nullptr && sector != nullptr && m_firstByte >= 0 && sector->dataField >= 0)
+    {
+        //  Each byte's main nibble: the data field has a prolog, then the
+        //  nibbles of the bytes' low bits, then one nibble per byte in order.
+        count  = static_cast<int> (track->framed.nibbles.size());
+        first  = track->fields[sector->dataField].firstNibble + kDataPrologNibbles + ((sector->kind == DiskFieldKind::Sixteen) ? kLowBitNibbles16 : kLowBitNibbles13) + m_firstByte;
+        start  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[first % count].startCell);
+        outEnd = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[(first + m_byteCount) % count].startCell);
     }
     else if (track != nullptr && sector != nullptr)
     {

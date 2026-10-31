@@ -3142,10 +3142,8 @@ legend, and tilt the platter and back.
   "Selected: HELLO, data sector 1 of 3 at track 19, sector $F" or "Selected:
   track 17, sector $3", with chips that would crowd it left out, and then
   the hint for the view under the pointer. The zoom MUST be saved
-  with the rest of the window's state (FR-080). The zoom MUST stop at the
-  largest value at which the window's minimum size times the zoom fits the
-  work area of its monitor; a zoom MUST grow a smaller window to that size,
-  and the window MUST NOT be resized below it, so no zoom overlaps controls.
+  with the rest of the window's state (FR-080). A zoom MUST NOT change the window's size or position. Double-clicking the
+  percentage MUST return to 100%.
 - **FR-158**: The menu bar MUST list every command of the window, each item
   with its shortcut, items not available at the moment disabled rather than
   hidden, and open from Alt, F10 and each menu's underlined letter, as

@@ -473,3 +473,8 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T215 Draw the platter's overlay toggles as check boxes with labels and no pill, in `OverlayChip`, per FR-031
 - [X] T216 Zoom the window with the wheel over the zoom control, per FR-154
 - [X] T217 Draw every nibble's value at the strip's hex zoom stop, per FR-025
+- [X] T218 Keep the window's size and position through a zoom, and return to 100% on a double-click of the percentage, per FR-154
+- [X] T219 Claim Alt released alone in `DiskInspectorWindow::OnKeyUp`, so the window stays out of the system's menu mode and gets wheel input, per FR-158
+- [X] T220 Center a zoomed-in platter on the selection when the tilt changes, in `InspectorViewModel::SetTilt`, per FR-151
+- [X] T221 Measure the platter's lines and levels on the screen and draw the lines by coverage, to remove the moire at a tilt, in `platter.ps.hlsl`, per FR-151
+- [X] T222 Show a sector-data byte selection on the platter and the strip, in `InspectorViewModel::GetSelectionTurn`

@@ -292,11 +292,15 @@ bool InspectorMenus::OnKey (const DxuiKeyEvent & ev)
     if (isAlt)
     {
         //  Alt released with no other key between turns the keys to the
-        //  menus.
+        //  menus, or back to the window if the menus have them.
         isHandled    = !isDown && m_isAltAlone && !m_menuBar->IsOpen();
         m_isAltAlone = isDown && (m_isAltAlone || !ev.ctrl);
 
-        if (isHandled)
+        if (isHandled && m_menuBar->HasFocus())
+        {
+            m_menuBar->ClearFocus();
+        }
+        else if (isHandled)
         {
             m_menuBar->SetFocusedMenu (0);
         }

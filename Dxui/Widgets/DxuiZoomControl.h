@@ -49,6 +49,9 @@ public:
     //  Whether a point is over the parts of the control now visible.
     bool    IsOverControls (POINT p) const;
 
+    //  A click on the percentage at a time in milliseconds.
+    void    OnPercentClick (uint64_t nowMs);
+
     //  The zoom a number of steps from `zoom` through the standard stops, as
     //  a browser zooms: -1 for the next stop down, 1 for the next one up.
     static double  StepZoom      (double zoom, int steps);
@@ -59,12 +62,13 @@ public:
 private:
     void  ChangeZoom (double zoom);
 
-    DxuiButton     * m_zoomOut       = nullptr;
-    DxuiSlider     * m_slider        = nullptr;
-    DxuiButton     * m_zoomIn        = nullptr;
-    DxuiButton     * m_percent       = nullptr;
+    DxuiButton     * m_zoomOut            = nullptr;
+    DxuiSlider     * m_slider             = nullptr;
+    DxuiButton     * m_zoomIn             = nullptr;
+    DxuiButton     * m_percent            = nullptr;
     DxuiDpiScaler    m_scaler;
-    double           m_zoom          = 1.0;
-    bool             m_isSliderShown = false;
+    double           m_zoom               = 1.0;
+    bool             m_isSliderShown      = false;
+    uint64_t         m_lastPercentClickMs = 0;
     ZoomFn           m_onZoom;
 };

@@ -466,4 +466,64 @@ public:
         model.FollowDrive (kAngle);
         Assert::AreEqual  (InspectorViewModel::kHeadSide - kAngle, model.GetRotation(), 1e-9);
     }
+
+
+    TEST_METHOD (TiltingAZoomedPlatterCentersTheSelectionAndAPlatterAtFitStaysAtFit)
+    {
+        InspectorViewModel         model;
+        DiskAnalysis               analysis;
+        double                     start = 0;
+        double                     end   = 0;
+        InspectorViewModel::Point  a;
+        InspectorViewModel::Point  b;
+
+
+
+        AnalyzeDsk (analysis);
+        model.SetDisk      (7);
+        model.SetAnalysis  (&analysis);
+        model.SelectSector (0, 2);
+
+        model.SetTilt     (0.5);
+        Assert::AreEqual  (1.0, model.GetView().zoom, 1e-9);
+
+        model.ZoomAbout   (4.0, {});
+        model.PanBy       ({ 0.5, 0.5 });
+        model.SetTilt     (0.75);
+
+        start = model.GetSelectionTurn (end);
+        a     = model.GetDiskPoint (0, start);
+        b     = model.GetDiskPoint (0, (end < start) ? end + 1.0 : end);
+
+        Assert::AreEqual (0.0, (a.x + b.x) / 2, 1e-9);
+        Assert::AreEqual (0.0, (a.y + b.y) / 2, 1e-9);
+    }
+
+
+    TEST_METHOD (SelectedBytesNarrowTheSelectionToTheirNibbles)
+    {
+        InspectorViewModel  model;
+        DiskAnalysis        analysis;
+        double              sectorStart = 0;
+        double              sectorEnd   = 0;
+        double              byteStart   = 0;
+        double              byteEnd     = 0;
+
+
+
+        AnalyzeDsk (analysis);
+        model.SetDisk      (7);
+        model.SetAnalysis  (&analysis);
+        model.SelectSector (0, 2);
+
+        sectorStart = model.GetSelectionTurn (sectorEnd);
+
+        model.SelectBytes (0x10, 4, false);
+
+        byteStart = model.GetSelectionTurn (byteEnd);
+
+        Assert::IsTrue (byteStart > sectorStart);
+        Assert::IsTrue (byteEnd > byteStart);
+        Assert::IsTrue (byteEnd < sectorEnd);
+    }
 };

@@ -109,6 +109,7 @@ protected:
     void  OnWindowClose () override;
 
     DxuiMessageResult  OnSysCommand (UINT command) override;
+    DxuiMessageResult  OnKeyUp      (WPARAM vk, LPARAM lParam) override;
 
 private:
     //  IInspectorComponentHost, through which the components call the window.
@@ -143,8 +144,6 @@ private:
     void  SetZoom              (double zoom);
     void  LayoutContent        (const RECT & boundsPx, const DxuiDpiScaler & scaler);
     static bool  IsZoomKey     (WPARAM vk);
-    double   GetMostZoom       () const;
-    HRESULT  GrowToMinSize     ();
     std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;
     void  ShowDiskTab      (int tab) override;
     void  UpdateTooltip    (POINT pointPx);
