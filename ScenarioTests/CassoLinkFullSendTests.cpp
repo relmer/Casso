@@ -329,7 +329,7 @@ public:
 
             rig.Mount (1, format, *source);
 
-            for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib" })
+            for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib", "out.nb2" })
             {
                 std::wstring  what (name, name + strlen (name));
 

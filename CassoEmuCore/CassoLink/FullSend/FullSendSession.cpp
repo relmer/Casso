@@ -542,7 +542,7 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
     hr = DiskImageStore::GetSourceFormatByExtension (extension, format);
     CHR (hr);
 
-    hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::kNibTrackSize, false, 0, image, bytes);
+    hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (extension), false, 0, image, bytes);
     CHR (hr);
 
     outFile = title + extension;

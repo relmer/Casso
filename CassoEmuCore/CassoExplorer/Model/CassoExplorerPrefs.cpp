@@ -703,7 +703,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         fullSendFolder = TextEncoding::Utf8ToWide (text);
     }
 
-    if (root.HasString ("fullSendExtension", text) && (text.empty() || text == ".dsk" || text == ".do" || text == ".po" || text == ".woz" || text == ".nib"))
+    if (root.HasString ("fullSendExtension", text) && (text.empty() || text == ".dsk" || text == ".do" || text == ".po" || text == ".woz" || text == ".nib" || text == ".nb2"))
     {
         fullSendExtension = text;
     }

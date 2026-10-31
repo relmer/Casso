@@ -583,7 +583,7 @@ public:
 
         rig.Start();
 
-        for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib" })
+        for (const char * name : { "out.dsk", "out.do", "out.po", "out.woz", "out.nib", "out.nb2" })
         {
             std::vector<Byte>   sectors;
             SectorDecodeReport  report;
@@ -595,6 +595,7 @@ public:
         }
 
         Assert::IsTrue (rig.fileIo.files["out.dsk"] == rig.Drive (2), L"a .dsk is the sectors in DOS 3.3 order");
+        Assert::AreEqual (NibbleImageCodec::kNb2ImageSize, rig.fileIo.files["out.nb2"].size(), L"a .nb2 has .nb2's tracks");
     }
 
 

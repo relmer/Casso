@@ -69,7 +69,7 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 
     CBREx (complete, HRESULT_FROM_WIN32 (ERROR_CRC));
 
-    hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::kNibTrackSize, false, 0, sectors, bytes);
+    hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (operation.imagePath), false, 0, sectors, bytes);
     CHR (hr);
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, bytes, m_commitTag++, CommitMode::Replace, progress);

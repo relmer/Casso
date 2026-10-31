@@ -1314,7 +1314,7 @@ int ExplorerCommandManager::ChooseFormatDefault (const std::wstring & image)
 
     //  A nibble or WOZ image is larger than the sectors it holds; its size
     //  says nothing about the disk.
-    if (size > kDos33ImageBytes && _wcsicmp (extension.c_str(), L".nib") != 0 && _wcsicmp (extension.c_str(), L".woz") != 0)
+    if (size > kDos33ImageBytes && _wcsicmp (extension.c_str(), L".nib") != 0 && _wcsicmp (extension.c_str(), L".nb2") != 0 && _wcsicmp (extension.c_str(), L".woz") != 0)
     {
         return CassoExplorerNewDiskChoices::kFormatProDos;
     }

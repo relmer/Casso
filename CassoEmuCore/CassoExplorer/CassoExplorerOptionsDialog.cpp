@@ -32,6 +32,7 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
     { L".po: ProDOS-order sectors",                       ".po"  },
     { L".woz: WOZ, built from the sectors read",          ".woz" },
     { L".nib: nibbles, built from the sectors read",      ".nib" },
+    { L".nb2: nibbles, built from the sectors read",      ".nb2" },
 };
 
 
