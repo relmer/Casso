@@ -1496,4 +1496,8 @@ The product-wide styles are GitHub issue #179.
 - [X] T323 Add the full send command, folder and format choice to Casso Explorer, and run a session through the operation queue in `CassoLinkManager`, per FR-107 and plan Full send (missing)
 - [X] T324 Reuse Read disk to image for each disk, flag disks with unreadable sectors, and discard partial images on Cancel, Escape, a dropped link or a disk changed in mid-transfer, per FR-116, US17/AC8 and the edge cases (missing)
 - [X] T325 Add scenario tests in an emulated //c with scripted disk swaps, per SC-038 and SC-039 (missing)
+- [X] T327 Start a full send with F on the Apple through an unprompted Key, end it with Q, ignore Esc in a session, and remove the PC's command, menu and toolbar button, per FR-107 and FR-116
+- [X] T328 Add the Full send page to Options, with the folder, default `Casso Full Send` under Downloads, and the format, per FR-107
+- [X] T329 Show WAITING FOR A DISK in the pause, `F: FULL SEND` on the CassoLink screen, and a Full send heading and `Q: BACK TO CASSOLINK` in a session, per FR-110, FR-115 and FR-116
+- [X] T330 Add a scenario test that presses F, runs a session, presses Q and reads a catalog, per US17/AC9
 - [ ] T326 Walk quickstart section 7c on a real //c with real floppies, per SC-038 and SC-039 (missing)

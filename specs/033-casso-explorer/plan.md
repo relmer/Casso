@@ -388,7 +388,7 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 
 ### Full send
 
-Story 17 and R34. `FullSendSession` is a pure class in the core: a state machine over injected drive reads, a clock and a file store, so every path runs in the unit tests with scripted disks. `CassoLinkManager` runs one session per Apple, through the queue FR-098 defines, and each whole-disk read reuses Read disk to image's path, its unreadable list included. The Apple-side program adds Session screen and Wait for key requests (contract), and bumps its version so a running shim loads the new program. Files are written to a temporary name and renamed when complete, so FR-087's rule for a partial image applies. `FullSendManifest` is a separate pure class for parsing and writing the manifest.
+Story 17 and R34. F on the Apple sends an unprompted Key, and the session's idle loop queues the full send with the folder and format from the Full send page in Options. `FullSendSession` is a pure class in the core: a state machine over injected drive reads, a clock and a file store, so every path runs in the unit tests with scripted disks. `CassoLinkManager` runs one session per Apple, through the queue FR-098 defines, and each whole-disk read reuses Read disk to image's path, its unreadable list included. The Apple-side program adds Session screen, Wait for key and Key (contract), and bumps its version so a running shim loads the new program. Files are written to a temporary name and renamed when complete, so FR-087's rule for a partial image applies. `FullSendManifest` is a separate pure class for parsing and writing the manifest.
 
 ### Component split
 

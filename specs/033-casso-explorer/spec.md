@@ -419,6 +419,7 @@ hardware.
 
 ### Session 2026-10-30
 
+- Q: How does a full send start and end? -> A: From the Apple. The folder and image format are set ahead of time on a Full send page in Casso Explorer's Options, with `Casso Full Send` under Downloads as the default folder. F on the Apple's CassoLink screen starts a session, and Q ends it, discards a partial image and returns to the CassoLink screen. Esc is ignored during a session, as a second press would end CassoLink. No menu or toolbar command on the PC starts one, and Cancel on the PC ends one. F pressed during another operation starts the session when that operation ends.
 - Q: How does Casso Explorer detect and install new versions? -> A: Casso and Casso Explorer share one implementation, ShellUpdater, behind a small host interface that each app supplies. Whichever app notices an update first shows it. The schedule, the skipped version and the check record are shared in Casso's prefs file, and only the update fields are written from Casso Explorer. Applying an update while the other app runs stops and asks the user to close the other app; the other app is never closed silently. Casso Explorer has the same title bar indicator and update dialog as Casso, in one open window, plus Help > Check for updates, an automatic check at startup, --updated and --cleanup-old, and the pending update applied at exit.
 
 - Q: What does Home show, and where does it read it? -> A: File Explorer's Home page: Quick access tiles, then Recent, Favorites and Shared tabs over two-line rows. Recent and Quick access come from the Home shell folder; Favorites are the pinned items of the MS Graph Recent File Folder and Shared is the MS Graph Shared File Folder, so no sign-in is needed. Those folder ids are undocumented, so a tab is empty if Windows drops them.
@@ -1104,7 +1105,7 @@ to Casso over TCP.
 ### User Story 17 - Full send a box of floppies (Priority: P2)
 
 A user sits at a //c with a box of floppies and archives them to the PC.
-They start a full send from Casso Explorer, then only feed disks: while one
+They press F on the Apple's CassoLink screen, then only feed disks: while one
 drive transfers, they put a new disk in the other. Each drive follows the
 other as fast as the Apple can read and the link can send.
 
@@ -1112,7 +1113,7 @@ other as fast as the Apple can read and the link can send.
 Apple to a PC, and starting each disk from the PC makes a user walk between
 two machines for every floppy.
 
-**Independent Test**: In an emulated //c, start a full send with a different
+**Independent Test**: In an emulated //c, press F with a different
 disk in each drive, swap in new disks during each transfer, and include one
 duplicate and one disk with an unreadable sector. Compare each image with its
 source and read the manifest. Repeat on a real //c with real floppies.
@@ -1120,8 +1121,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
 **Acceptance Scenarios**:
 
 1. **Given** a linked Apple with two drives and a disk in drive 1, **When**
-   the user starts a full send and chooses a folder, **Then** the disk's
-   image is written to that folder and drive 2 is checked next.
+   the user presses F on the Apple, **Then** the disk's image is written to the
+   folder set in Options and drive 2 is checked next.
 2. **Given** drive 1 is transferring, **When** the user swaps the disk in
    drive 2, **Then** drive 2's disk is sent as soon as drive 1 finishes.
 3. **Given** a transfer finishes, **When** the other drive's disk has a new
@@ -1142,6 +1143,11 @@ source and read the manifest. Repeat on a real //c with real floppies.
    **Then** its image and unreadable list are written as by Read disk to
    image, the manifest flags it as possibly copy-protected, and the bad
    sectors tone sounds.
+9. **Given** a session is running, **When** the user presses Q on the Apple,
+   **Then** any partial image is discarded and the CassoLink screen returns, and
+   standard operations work. Esc is ignored during a session.
+10. **Given** another operation is running, **When** the user presses F,
+   **Then** the session starts when that operation ends.
 
 ---
 ### Edge Cases
@@ -1972,9 +1978,14 @@ source and read the manifest. Repeat on a real //c with real floppies.
 
 **Full send**
 
-- **FR-107**: Casso Explorer MUST offer a full send on a linked Apple, with a
-  destination folder and the image format chosen when it starts: any format
-  Casso writes, defaulting to .po for a ProDOS disk and .dsk for any other.
+- **FR-107**: A full send MUST start from the Apple, with F (either case) on the
+  program's CassoLink screen, which MUST show `F: FULL SEND`. Casso Explorer's
+  Options MUST have a Full send page with the destination folder and the image
+  format: any format Casso writes, defaulting to .po for a ProDOS disk and .dsk
+  for any other. The default folder MUST be `Casso Full Send` under the user's
+  Downloads, made when a session needs it. No command on the PC starts a
+  session. F during another operation MUST start the session when that
+  operation ends.
 - **FR-108**: A full send MUST read one drive at a time, and when a disk
   finishes MUST check the other drive first and then the drive just read,
   alternating for as long as the session runs.
@@ -1984,7 +1995,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
   with no key press. A drive with no readable disk MUST count as having no
   new disk. A disk with no catalog track that Casso recognizes MUST use track 0 and the DOS 3.3 catalog track.
 - **FR-110**: With no new disk in either drive, the session MUST pause until
-  Space on the Apple, without spinning a drive while it waits. Space MUST
+  Space on the Apple, without spinning a drive while it waits. The status row MUST read WAITING FOR A DISK during the pause. Space MUST
   check both drives, and MUST send a present disk whose fingerprint matches
   an earlier one when no drive has a new disk. With a repeat disk in both drives, Space MUST send the drive not read last.
 - **FR-111**: An image whose whole-disk hash matches an earlier image in the
@@ -2007,9 +2018,12 @@ source and read the manifest. Repeat on a real //c with real floppies.
   Apple's screen MUST contain each drive's state, the current image's name and
   progress, and the session's counts of disks sent, duplicates and disks with
   bad sectors.
-- **FR-116**: A disk with unreadable sectors MUST NOT stop the session. Escape
-  on the Apple or Cancel on the PC MUST end the session after discarding any
-  partial image.
+- **FR-116**: A disk with unreadable sectors MUST NOT stop the session. Q
+  (either case) on the Apple or Cancel on the PC MUST end the session after
+  discarding any partial image, and return the Apple to the CassoLink screen.
+  Esc MUST be ignored during a session. The screen MUST show
+  `Q: BACK TO CASSOLINK`, and the session's rows MUST NOT be under the history's
+  heading.
 
 ### Key Entities
 

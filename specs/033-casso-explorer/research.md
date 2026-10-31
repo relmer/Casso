@@ -948,10 +948,12 @@ files as they are fails SC-037.
 
 **Decision**:
 
+- **Start and end**: F on the Apple starts a session and Q ends it, as the user is at the Apple feeding disks. The folder and format are set in Options. Esc is ignored in a session, as a second press would end CassoLink. F during another operation starts the session when that operation ends, which is simpler than a refusal and loses nothing.
 - **New disk**: a SHA-256 of track 0 and the catalog track (track 17 for DOS 3.3; ProDOS blocks 2 to 5, which are on track 0). A disk that matches on two reads and is absent from the manifest is new. A read with no address field is an empty drive.
 - **Other disks**: track 0 and the DOS 3.3 catalog track are the fingerprint for Pascal, CP/M and unknown disks. Space forces a send on a false match.
 - **Duplicate**: a SHA-256 of the whole image. Use a SHA-256 already in the core if one exists, and Windows CNG otherwise.
 - **Order**: the other drive, then the drive just read, then Wait for key. No drive spins during the wait.
+- **Reads**: each fingerprint track is read twice before the arm moves. Tracks read whole are not read again for the image, and the catalog track, or track 0 on ProDOS, is read again after the image to catch a swap.
 - **Manifest**: `full-send.csv` in the destination folder, in UTF-8, one row per disk, rewritten through a temporary file after each disk.
 - **Image files**: `NNNN NAME.ext`, with four digits and the title cleaned by the host file name rules. A DOS 3.3 name is the first program in the catalog, as the boot sector's startup name is not stored at a standard place across DOS versions.
 - **Sound**: the program clicks $C030 with fixed patterns between requests, never during a disk read.
