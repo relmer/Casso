@@ -1214,7 +1214,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
         return;
     }
 
-    if (m_context.browser.IsHomeLocation())
+    if (m_context.browser.IsHomeLocation() || (at.kind == Location::Kind::Root && at.path == TreeModel::kThisPcRootId))
     {
         scope = SearchQuery::kEverywhere;
     }
@@ -1237,7 +1237,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
 
     if (scope.empty())
     {
-        m_context.window.ShowMessage (L"Search covers folders on a disk; this location has none.", MB_ICONINFORMATION);
+        m_context.window.ShowMessage (L"Search isn't available here. Open a folder on a drive to search it.", MB_ICONINFORMATION);
         return;
     }
 
