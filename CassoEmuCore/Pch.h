@@ -41,6 +41,7 @@
 #include <mferror.h>
 #include <propvarutil.h>
 #include <shlobj.h>
+#include <cfapi.h>
 #include <shlwapi.h>
 #include <cfapi.h>
 #include <knownfolders.h>

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/AppTimerIds.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Model/PreviewText.h"
@@ -206,6 +207,14 @@ void ExplorerPreviewManager::FillPreview()
 
 
 
+    if (preview.kind != m_lastKind || picture || shell)
+    {
+        m_pictureZoom = CassoExplorerPrefs::kDefaultPreviewZoom;
+        m_picture.SetZoom (1.0f);
+    }
+
+    m_lastKind = preview.kind;
+
     m_shell.Update   (preview, m_content);
     m_picture.Fill   (preview, picture, shell && m_shell.IsPicture());
     m_listing.Fill   (preview, columns);
@@ -353,6 +362,14 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
     bool                      known    = false;
 
 
+
+    //  The pane closes after a click has finished, because closing moves the
+    //  list's rows out from under the pointer before the button is released.
+    if (m_context.prefs.autoPreview && m_context.prefs.previewVisible && !m_closeDue && !m_pinned && (selected.empty() || (key != m_autoKey && !IsKnownPreview (preview))))
+    {
+        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview, GetDoubleClickTime(), nullptr);
+        return false;
+    }
 
     //  Automatic preview closes the pane with nothing selected, however it opened.
     if (m_context.prefs.autoPreview && selected.empty() && m_context.prefs.previewVisible)
@@ -774,6 +791,38 @@ bool ExplorerPreviewManager::TryGetSelectionDetail (std::wstring & outDetail) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::HandleAutoPreviewTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::HandleAutoPreviewTimer()
+{
+    m_closeDue = true;
+    FillPreview();
+    m_closeDue = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::GetShownZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerPreviewManager::GetShownZoom() const
+{
+    return m_picture.IsVisible() ? m_pictureZoom : m_context.prefs.previewZoom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::SetPreviewZoom
 //
 //  The text, hex and picture previews share one zoom, kept within the range
@@ -788,11 +837,19 @@ void ExplorerPreviewManager::SetPreviewZoom (int percent)
 
 
 
-    m_context.prefs.previewZoom = clamped;
+    //  A picture's zoom is for that picture; text and hex keep theirs.
+    if (m_picture.IsVisible())
+    {
+        m_pictureZoom = clamped;
+        m_picture.SetZoom (zoom);
+    }
+    else
+    {
+        m_context.prefs.previewZoom = clamped;
 
-    m_text.SetZoom    (zoom);
-    m_hex.SetZoom     (zoom);
-    m_picture.SetZoom (zoom);
+        m_text.SetZoom (zoom);
+        m_hex.SetZoom  (zoom);
+    }
 
     m_context.statusBar.Fill();
     m_context.window.Invalidate();

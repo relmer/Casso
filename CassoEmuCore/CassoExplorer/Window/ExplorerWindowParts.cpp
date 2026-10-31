@@ -405,7 +405,7 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
     if (timerId == (UINT_PTR) AppTimerId::ExplorerAutoPreview)
     {
         KillTimer (hwnd, timerId);
-        preview.FillPreview();
+        preview.HandleAutoPreviewTimer();
         context.window.Invalidate();
         return true;
     }

@@ -9,6 +9,7 @@
 
 static constexpr const wchar_t *  s_kpszPackagesKey  = L"Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages";
 static constexpr const wchar_t *  s_kpszManifestName = L"AppxManifest.xml";
+static constexpr const wchar_t *  s_kpszCloudItemType = L"cloud";
 static constexpr const wchar_t *  s_kpszCommandStoreKey = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CommandStore\\shell";
 static constexpr const wchar_t *  s_kpszSendToPhone     = L"Windows.SendToMyPhone";
 static constexpr const wchar_t *  s_kpszCompressTo      = L"Windows.CompressTo";
@@ -389,6 +390,14 @@ HRESULT Win32PackagedCommands::ReadManifest (IStream * stream, const wchar_t * f
             continue;
         }
 
+        //  A sync client's commands for what is in its sync root, as OneDrive's.
+        if (wcscmp (local, L"CloudFilesContextMenus") == 0)
+        {
+            inMenus  = element;
+            itemType = s_kpszCloudItemType;
+            continue;
+        }
+
         if (!inMenus || !element)
         {
             continue;
@@ -623,6 +632,78 @@ void Win32PackagedCommands::AddRegistration (const Registration & registration, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32PackagedCommands::IsInSyncRootOf
+//
+//  Whether the path is under a sync root the package's provider registered.
+//  A root's key begins with its provider's name, as "OneDrive!...".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32PackagedCommands::IsInSyncRootOf (const std::wstring & package, const std::wstring & path)
+{
+    static constexpr const wchar_t *  s_kpszRootsKey = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SyncRootManager";
+
+
+
+    HKEY  roots = nullptr;
+    bool  found = false;
+
+
+
+    if (RegOpenKeyExW (HKEY_LOCAL_MACHINE, s_kpszRootsKey, 0, KEY_READ, &roots) != ERROR_SUCCESS)
+    {
+        return false;
+    }
+
+    for (DWORD index = 0; !found; index++)
+    {
+        wchar_t       name[256] = {};
+        DWORD         length    = (DWORD) std::size (name);
+        HKEY          users     = nullptr;
+        std::wstring  provider;
+
+        if (RegEnumKeyExW (roots, index, name, &length, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+        {
+            break;
+        }
+
+        provider = std::wstring (name).substr (0, std::wstring (name).find (L'!'));
+
+        if (StrStrIW (package.c_str(), provider.c_str()) == nullptr
+            || RegOpenKeyExW (roots, (std::wstring (name) + L"\\UserSyncRoots").c_str(), 0, KEY_READ, &users) != ERROR_SUCCESS)
+        {
+            continue;
+        }
+
+        for (DWORD value = 0; !found; value++)
+        {
+            wchar_t  user[256]        = {};
+            wchar_t  root[MAX_PATH]   = {};
+            DWORD    userLength       = (DWORD) std::size (user);
+            DWORD    rootBytes        = (DWORD) sizeof (root);
+
+            if (RegEnumValueW (users, value, user, &userLength, nullptr, nullptr, (BYTE *) root, &rootBytes) != ERROR_SUCCESS)
+            {
+                break;
+            }
+
+            found = root[0] != L'\0' && _wcsnicmp (path.c_str(), root, wcslen (root)) == 0;
+        }
+
+        RegCloseKey (users);
+    }
+
+    RegCloseKey (roots);
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32PackagedCommands::Applies
 //
 //  A file is matched by its extension or by "*"; a folder, the background of
@@ -635,6 +716,12 @@ bool Win32PackagedCommands::Applies (const Registration & registration, const st
     const wchar_t  * type = registration.itemType.c_str();
 
 
+
+    //  A sync client's commands are for what is in its own sync root.
+    if (registration.itemType == s_kpszCloudItemType)
+    {
+        return (kind == ItemKind::File || kind == ItemKind::Folder) && !paths.empty() && IsInSyncRootOf (registration.package, paths[0]);
+    }
 
     switch (kind)
     {
@@ -795,6 +882,7 @@ void Win32PackagedCommands::AddPackageEntries (const Registration & package, siz
         return;
     }
 
+    group.cloud    = package.itemType == s_kpszCloudItemType;
     group.title    = package.appName;
     group.icon     = package.logo.empty() ? own.front().icon : package.logo;
     group.children = std::move (own);

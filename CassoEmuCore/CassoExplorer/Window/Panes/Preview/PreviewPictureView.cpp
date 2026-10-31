@@ -67,7 +67,7 @@ void PreviewPictureView::Create()
 
 void PreviewPictureView::Configure()
 {
-    m_picture->SetZoom    ((float) m_context.prefs.previewZoom / 100.0f);
+    m_picture->SetZoom    (1.0f);
     m_picture->SetScaling (false, true);
 }
 

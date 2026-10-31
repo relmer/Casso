@@ -1306,8 +1306,8 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
     }
     else if (action == s_kAskCopilot)
     {
-        //  The item's own command passes the file to Copilot.
-        hr = m_context.shellVerbs.RunItemVerbByLabel (m_context.window.GetHwnd(), { item.hostPath.empty() ? item.shellId : item.hostPath }, L"Ask Copilot");
+        //  Copilot's own command has the file passed to it.
+        hr = m_context.menus.RunAskCopilot (item.hostPath.empty() ? item.shellId : item.hostPath);
 
         if (FAILED (hr))
         {

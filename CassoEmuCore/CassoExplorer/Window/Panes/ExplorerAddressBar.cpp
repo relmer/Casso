@@ -612,7 +612,12 @@ void ExplorerAddressBar::FillAddress()
 
 void ExplorerAddressBar::SubmitAddress (const std::wstring & text)
 {
-    if (m_context.browser.NavigateToAddress (text))
+    //  A path past MAX_PATH reaches the file system only with the long-path prefix.
+    bool  isLong = text.size() >= MAX_PATH && text.size() > 2 && text[1] == L':';
+
+
+
+    if (m_context.browser.NavigateToAddress (isLong ? L"\\\\?\\" + text : text))
     {
         m_context.input.SetFocusPane (ExplorerPane::List);
         m_context.listPane.FillList();

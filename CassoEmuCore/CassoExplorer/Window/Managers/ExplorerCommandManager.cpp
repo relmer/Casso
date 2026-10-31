@@ -520,8 +520,8 @@ void ExplorerCommandManager::Dispatch (int id)
 
             break;
 
-        case CassoExplorerCommands::kZoomIn:         m_context.preview.SetPreviewZoom (m_context.prefs.previewZoom + kPreviewZoomStep); break;
-        case CassoExplorerCommands::kZoomOut:        m_context.preview.SetPreviewZoom (m_context.prefs.previewZoom - kPreviewZoomStep); break;
+        case CassoExplorerCommands::kZoomIn:         m_context.preview.SetPreviewZoom (m_context.preview.GetShownZoom() + kPreviewZoomStep); break;
+        case CassoExplorerCommands::kZoomOut:        m_context.preview.SetPreviewZoom (m_context.preview.GetShownZoom() - kPreviewZoomStep); break;
         case CassoExplorerCommands::kZoomReset:      m_context.preview.SetPreviewZoom (CassoExplorerPrefs::kDefaultPreviewZoom);      break;
         case CassoExplorerCommands::kFindNext:       m_context.preview.GetFind().FindNext();                                      break;
         case CassoExplorerCommands::kNoData:         m_context.preview.GetHex().SetShowValues (!m_context.preview.GetHex().IsShowingValues()); break;

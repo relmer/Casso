@@ -45,6 +45,7 @@ public:
         std::wstring                                title;
         std::wstring                                icon;       // a "path,index" resource, or empty
         bool                                        enabled = true;
+        bool                                        cloud   = false;     // a sync client's group, which has a menu group of its own
         Microsoft::WRL::ComPtr<IExplorerCommand>    command;
         std::string                                 verb;           // a static verb, invoked by name, when there is no command
         std::wstring                                explorerIcon;   // File Explorer's own icon for one of Windows' commands
@@ -115,6 +116,7 @@ private:
     static HRESULT       ParseClsid         (const std::wstring & text, CLSID & outClsid);
     static void          AddRegistration    (const Registration & registration, std::vector<Registration> & outRegistrations);
     static bool          Applies            (const Registration & registration, const std::vector<std::wstring> & paths, ItemKind kind);
+    static bool          IsInSyncRootOf     (const std::wstring & package, const std::wstring & path);
     static HRESULT       MakeItems          (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
     static void     AddEntry         (IExplorerCommand * command, IShellItemArray * items, int depth, const std::wstring & fallbackTitle,
                                       const std::wstring & fallbackIcon, std::vector<Entry> & outEntries);

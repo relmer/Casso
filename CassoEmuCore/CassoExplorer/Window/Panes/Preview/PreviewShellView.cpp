@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 
 #include "CassoExplorer/Window/Panes/Preview/PreviewShellView.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -178,6 +179,7 @@ void PreviewShellView::HandleResult()
 
         case Win32ShellPreview::Outcome::Picture:
             m_manager.GetPicture().ShowFramebuffer (result.bgra, result.width, result.height);
+            m_context.statusBar.Fill();
             m_isPicture = true;
             break;
 

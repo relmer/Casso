@@ -732,6 +732,44 @@ void ExplorerMenus::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerMenus::RunAskCopilot
+//
+//  Copilot's command, which isn't offered for every type, is found through a
+//  type it is offered for when the file's isn't one, then run on the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ExplorerMenus::RunAskCopilot (const std::wstring & path)
+{
+    static constexpr const wchar_t *  s_kpszTitle = L"Ask Copilot";
+
+
+
+    wchar_t  windows[MAX_PATH] = {};
+    UINT     length            = GetWindowsDirectoryW (windows, MAX_PATH);
+
+
+
+    for (const std::wstring & probe : { path, std::wstring (windows, length) + L"\\win.ini" })
+    {
+        for (const Win32PackagedCommands::Entry & entry : m_packagedCommands.GetEntries ({ probe }, Win32PackagedCommands::ItemKind::File))
+        {
+            if (entry.command && entry.title == s_kpszTitle)
+            {
+                return m_packagedCommands.Invoke (m_context.window.GetHwnd(), entry, { path });
+            }
+        }
+    }
+
+    return HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerMenus::AddPackagedCommands
 //
 //  After a separator, each command an installed app adds for the selected
@@ -952,6 +990,18 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
     }
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    //  A sync client's group comes first, in a group of its own.
+    for (const Win32PackagedCommands::Entry & entry : entries)
+    {
+        if (entry.cloud)
+        {
+            AddPackagedEntry (items, entry, paths);
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+    }
+
+    std::erase_if (entries, [] (const Win32PackagedCommands::Entry & entry) { return entry.cloud; });
 
     for (const Win32PackagedCommands::Entry & entry : entries)
     {

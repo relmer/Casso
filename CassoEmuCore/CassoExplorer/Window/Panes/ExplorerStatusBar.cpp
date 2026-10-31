@@ -150,7 +150,7 @@ void ExplorerStatusBar::Fill()
     m_status->SetText (kStatusSelected, status.selected);
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
-    m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.prefs.previewZoom));
+    m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
 }
 

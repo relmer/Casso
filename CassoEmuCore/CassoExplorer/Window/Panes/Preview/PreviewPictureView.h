@@ -34,6 +34,7 @@ public:
     void                       ShowFramebuffer      (const std::vector<uint32_t> & bgra, int width, int height);
     void                       Clear                ();
     void                       SetVisible           (bool visible);
+    bool                       IsVisible            () const { return m_picture->IsVisible(); }
     void                       SetZoom              (float zoom);
     LPCWSTR                    GetCursorForPoint    (POINT clientPx) const;
     bool                       TryGetScrollbarMenu  (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;

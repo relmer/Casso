@@ -62,6 +62,7 @@ public:
     void                            AddViewMenus           (std::vector<DxuiPopupMenuItem> & items);
     bool                            ShowScrollbarMenu      (const DxuiMouseEvent & ev);
     void                            AddPackagedCommands    (std::vector<DxuiPopupMenuItem> & items);
+    HRESULT                         RunAskCopilot          (const std::wstring & path);
     void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
     void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
     bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
