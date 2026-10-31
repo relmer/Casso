@@ -1337,7 +1337,7 @@ HRESULT Win32ShellNamespace::OpenShellItem (HWND owner, const std::wstring & id)
 
 
 
-    hr = SHParseDisplayName (id.c_str(), nullptr, &pidl, 0, nullptr);
+    hr = ShellItemId::ToPidl (id, &pidl);
     CHR (hr);
 
     info.cbSize   = sizeof (info);

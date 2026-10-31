@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
@@ -550,6 +551,7 @@ void ExplorerTabManager::SwitchToTab (size_t index)
 
     m_context.preview.SaveTabState();
     m_context.browser.SetTabTopRow (m_context.listPane.GetListView()->GetTopRow());
+    m_context.browser.SetTabTreeRow (m_context.treePane.GetTopRow());
 
     //  A tab left on a folder deleted since moves up as it is shown.
     if (m_context.browser.SwitchTab (index))
@@ -560,6 +562,11 @@ void ExplorerTabManager::SwitchToTab (size_t index)
 
         //  A tab is as it was left, scrolled where it was.
         m_context.listPane.GetListView()->SetTopRow (m_context.browser.GetTabTopRow());
+
+        if (m_context.browser.GetTabTreeRow() >= 0)
+        {
+            m_context.treePane.SetTopRow (m_context.browser.GetTabTreeRow());
+        }
     }
 }
 

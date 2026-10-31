@@ -188,6 +188,8 @@ public:
     bool                              IsTabPreview    () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
     void                              SetTabTopRow    (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
     int                               GetTabTopRow    () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
+    void                              SetTabTreeRow   (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().treeTopRow = row; } }
+    int                               GetTabTreeRow   () { return m_model.HasTabs() ? m_model.GetActiveTab().treeTopRow : -1; }
     void                              SetSelectedRows (const std::vector<int> & rows);
 
     //  The preview made again for the selection, as when a slow read arrives.

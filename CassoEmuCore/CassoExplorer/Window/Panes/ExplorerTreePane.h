@@ -48,6 +48,8 @@ public:
     bool                              TryShortcutKey       (const DxuiKeyEvent & ev, bool & outHandled);
     IDxuiControl                    * GetControl           () const { return m_tree; }
     RECT                              GetBounds            () const { return m_tree->GetBounds(); }
+    int                               GetTopRow            () const { return m_tree->GetTopRow(); }
+    void                              SetTopRow            (int row) { m_tree->SetTopRow (row); }
     bool                              IsInteracting        () const { return m_tree->IsInteracting(); }
     void                              RevealLocationInTree ();
     void                              RefreshTree          ();

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Seams/ShellItemId.h"
 
 #include "Seams/Win32PackagedCommands.h"
 #include "Core/TextEncoding.h"
@@ -769,7 +770,7 @@ HRESULT Win32PackagedCommands::MakeItems (const std::vector<std::wstring> & path
     {
         PIDLIST_ABSOLUTE  id = nullptr;
 
-        hr = SHParseDisplayName (path.c_str(), nullptr, &id, 0, nullptr);
+        hr = ShellItemId::ToPidl (path, &id);
         CHR (hr);
 
         ids.push_back (id);
