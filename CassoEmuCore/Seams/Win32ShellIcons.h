@@ -109,6 +109,8 @@ private:
 
     static constexpr int       s_kLargeIconPx      = 32;
     static constexpr int       s_kExtraLargeIconPx = 48;
+
+    //  Overlays above this are a sync client's.
     static constexpr int  s_kLastWindowsOverlay = 3;
     static constexpr int       s_kSmallThumbnailPx = 128;
     static constexpr int       s_kLargeThumbnailPx = 256;
