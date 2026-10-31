@@ -216,6 +216,8 @@ run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
     Result: a message that the printer is not connected. Change the card's
     connector to a loopback plug. Result: no reboot.
 
+**Whole disks in every format, on a real //c over serial:** for each of .dsk, .do, .po, .woz and .nib, read a whole disk into an image, write that image to a scratch floppy, read the floppy back, and compare its sectors with the source disk.
+
 ## 7c. Full send (Story 17, FR-107 to FR-116)
 
 Prerequisites: the link running on an emulated //c with two drives, then on a real //c, and a set of disks that includes a duplicate and a disk with an unreadable sector.

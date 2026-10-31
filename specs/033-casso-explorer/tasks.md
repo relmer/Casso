@@ -1501,3 +1501,4 @@ The product-wide styles are GitHub issue #179.
 - [X] T329 Show WAITING FOR A DISK in the pause, `F: FULL SEND` on the CassoLink screen, and a Full send heading and `Q: BACK TO CASSOLINK` in a session, per FR-110, FR-115 and FR-116
 - [X] T330 Add a scenario test that presses F, runs a session, presses Q and reads a catalog, per US17/AC9
 - [ ] T326 Walk quickstart section 7c on a real //c with real floppies, per SC-038 and SC-039 (missing)
+- [ ] T331 Read a whole disk from a real //c over serial into each image format (.dsk, .do, .po, .woz, .nib), write each of those images back to a real floppy, and compare the sectors with the source disk, per quickstart section 7b
