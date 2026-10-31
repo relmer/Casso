@@ -653,6 +653,29 @@ void CassoExplorerBrowser::SetHomeTab (int tab)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::RemoveHomeRow
+//
+//  Takes one item off Home without reading Home again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::RemoveHomeRow (const std::wstring & shellId)
+{
+    std::erase_if (m_homeRows, [&shellId] (const CatalogRow & row) { return row.shellId == shellId || row.hostPath == shellId; });
+
+    m_selectedRows.clear();
+
+    SortRows();
+    m_previewer.UpdatePreview();
+    m_cells.UpdateStatus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::GetListGroups
 //
 ////////////////////////////////////////////////////////////////////////////////

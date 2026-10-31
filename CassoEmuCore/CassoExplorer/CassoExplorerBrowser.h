@@ -182,6 +182,7 @@ public:
     bool                              IsHomeLocation  () const;
     int                               GetHomeTab      () const { return m_homeTab; }
     void                              SetHomeTab      (int tab);
+    void                              RemoveHomeRow   (const std::wstring & shellId);
     void                              SetSelectedRows (const std::vector<int> & rows);
 
     //  The preview made again for the selection, as when a slow read arrives.

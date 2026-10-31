@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "Seams/ShellItemId.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
@@ -187,8 +188,18 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
 
             IGNORE_RETURN_VALUE (ran, S_OK);
 
+            //  The row goes by itself, as in File Explorer.
+            if (label == L"Remove from list" && SUCCEEDED (ran))
+            {
+                m_context.browser.RemoveHomeRow (id);
+                m_pane.FillList();
+                m_pane.GetListView()->SetSelectedRows ({}, -1);
+                m_context.preview.FillPreview();
+                m_context.window.Invalidate();
+            }
+
             //  Favorites and the list change with these.
-            if (label != L"Open" && label != L"Share" && label != L"Properties" && label != L"Copy as path")
+            else if (label != L"Open" && label != L"Share" && label != L"Properties" && label != L"Copy as path")
             {
                 ran = m_context.browser.Refresh();
                 IGNORE_RETURN_VALUE (ran, S_OK);
@@ -275,7 +286,16 @@ void ExplorerListMenus::AddHomeItemRows (std::vector<DxuiPopupMenuItem> & items,
 
             IGNORE_RETURN_VALUE (ran, S_OK);
 
-            if (name != L"Open file location")
+            //  The row goes by itself, as in File Explorer.
+            if (name == L"Remove from list" && SUCCEEDED (ran))
+            {
+                m_context.browser.RemoveHomeRow (id);
+                m_pane.FillList();
+                m_pane.GetListView()->SetSelectedRows ({}, -1);
+                m_context.preview.FillPreview();
+                m_context.window.Invalidate();
+            }
+            else if (name != L"Open file location")
             {
                 ran = m_context.browser.Refresh();
                 IGNORE_RETURN_VALUE (ran, S_OK);
