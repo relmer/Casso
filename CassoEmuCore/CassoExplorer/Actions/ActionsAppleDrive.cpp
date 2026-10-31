@@ -1060,6 +1060,40 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & li
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsAppleDrive::StartFullSend
+//
+//  A session ends only by Escape, Cancel or a failure, so its result is always
+//  shown: the counts and the reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::StartFullSend (const std::string & link, const std::wstring & folder, const std::wstring & extension)
+{
+    ActionsTypes::Outcome    outcome;
+    CassoLinkConnections   * links = m_actions.m_browser.GetLinks();
+    std::string              path  = TextEncoding::WideToNarrow (folder);
+    std::string              type  = TextEncoding::WideToNarrow (extension);
+    HRESULT                  hr    = S_OK;
+
+
+
+    hr = links->Submit (link, [path, type] (CassoLinkSession & session) { return session.FullSend (path, type); },
+                        Guard ([] (const LinkOperation & operation) -> std::wstring { return TextEncoding::NarrowToWide (operation.message); }));
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"CassoLink could not be started.");
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsAppleDrive::WriteImageToDisk
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -133,6 +133,11 @@ public:
         //  Help > Check for updates.
         kCheckForUpdates,
 
+        //  A linked Apple's disks sent to a folder until the session is ended,
+        //  in the default format; the drive's and connection's menus offer the
+        //  others.
+        kFullSend,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -351,6 +356,7 @@ private:
         { kRestoreItems,      Menu::Count, L"Restore all items",   nullptr,     false },
         { kReadDiskToImage,   Menu::Count, L"Create image...",     nullptr,     false },
         { kWriteImageToDisk,  Menu::Count, L"Write image...",      nullptr,     false },
+        { kFullSend,          Menu::Count, L"Full send...",        nullptr,     false },
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
         { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
         { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
@@ -426,6 +432,7 @@ private:
         { kRefresh,             DxuiToolbar::Kind::Command, 5, s_kpszMdl2Refresh,  L"Refresh",      L"Refresh (F5)"                       },
         { kReadDiskToImage,     DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Create image", L"Create an image file from the disk" },
         { kWriteImageToDisk,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save,     L"Write image",  L"Write an image file to the disk"    },
+        { kFullSend,            DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Full send",    L"Send disks from both drives to a folder until the session is ended" },
         { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",       L"Cancel the running operation"       },
     };
 

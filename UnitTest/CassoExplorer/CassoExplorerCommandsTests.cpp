@@ -151,7 +151,8 @@ public:
         Assert::AreEqual ((int) CassoExplorerCommands::kRefresh,             bar[9].command->id);
         Assert::AreEqual ((int) CassoExplorerCommands::kReadDiskToImage,     bar[10].command->id);
         Assert::AreEqual ((int) CassoExplorerCommands::kWriteImageToDisk,    bar[11].command->id);
-        Assert::AreEqual ((int) CassoExplorerCommands::kCancelLinkOperation, bar[12].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kFullSend,            bar[12].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kCancelLinkOperation, bar[13].command->id);
     }
 
 

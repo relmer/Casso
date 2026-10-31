@@ -178,6 +178,7 @@ public:
     //  goes to the drive the first one did, wherever the window is by then.
     Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (imagePath, blankUnreadable, onUnreadable); }
     Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, onUnreadable); }
+    Outcome  StartFullSend    (const std::string & link, const std::wstring & folder, const std::wstring & extension) { return m_appleDrive.StartFullSend (link, folder, extension); }
     Outcome  WriteImageToDisk (const std::wstring & imagePath) { return m_appleDrive.WriteImageToDisk (imagePath); }
 
     //  The same for any drive of any link, as a drop onto a drive's node

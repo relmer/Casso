@@ -486,6 +486,23 @@ public:
 
 
 
+    TEST_METHOD (StartFullSend_WritesTheImages_AndShowsTheResult)
+    {
+        Rig  rig;
+
+        rig.Open (1);
+        rig.apple.keys.push_back (CassoLinkCodec::kKeyEscape);
+
+        AssertSucceeded (rig.actions->StartFullSend ("Test", L"C:\\Box", L".dsk").hr);
+
+        std::vector<std::wstring>  messages = rig.Finish();
+
+        Assert::AreEqual ((size_t) 1, messages.size());
+        Assert::IsTrue (messages[0].find (L"Escape") != std::wstring::npos, messages[0].c_str());
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\full-send.csv"));
+    }
+
+
     TEST_METHOD (ReadDiskToImage_WritesTheDrivesDisk)
     {
         Rig   rig;

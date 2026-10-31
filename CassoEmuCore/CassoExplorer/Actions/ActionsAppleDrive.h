@@ -68,6 +68,7 @@ public:
 
     ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
     ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
+    ActionsTypes::Outcome  StartFullSend    (const std::string & link, const std::wstring & folder, const std::wstring & extension);
     ActionsTypes::Outcome  WriteImageToDisk (const std::wstring & imagePath);
 
     ActionsTypes::Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath);

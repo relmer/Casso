@@ -276,6 +276,114 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::StartFullSend
+//
+//  A full send of the Apple the drive is on: the one given, else the open
+//  drive, else the drive row selected on its machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::StartFullSend (const Location & drive, const std::wstring & extension)
+{
+    Location      target;
+    std::wstring  link;
+    int           number = 0;
+
+
+
+    if (TryGetTargetDrive (drive, target, link, number))
+    {
+        StartFullSendOn (TextEncoding::WideToNarrow (link), extension);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::StartFullSendOn
+//
+//  The folder is chosen here and the format on the menu; from then on the
+//  session runs from the Apple's keyboard, and its result is shown when it ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::StartFullSendOn (const std::string & link, const std::wstring & extension)
+{
+    HRESULT                        hr     = S_OK;
+    std::filesystem::path          folder;
+    bool                           chosen = false;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), folder, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    outcome = m_context.actions.StartFullSend (link, folder.wstring(), extension);
+
+    if (!outcome.Succeeded())
+    {
+        m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+    HandleConnectionChanged();
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::AddFullSendMenu
+//
+//  The format of a full send's images, on a submenu, as every format Casso
+//  writes is offered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::AddFullSendMenu (std::vector<DxuiPopupMenuItem> & items, const std::function<void (const std::wstring & extension)> & start)
+{
+    static constexpr std::pair<const wchar_t *, const wchar_t *>  s_kFormats[] =
+    {
+        { L"&Default: .po for ProDOS, .dsk for others...", L""     },
+        { L".ds&k...",                                     L".dsk" },
+        { L".d&o...",                                      L".do"  },
+        { L".&po...",                                      L".po"  },
+        { L".&woz...",                                     L".woz" },
+        { L".&nib...",                                     L".nib" },
+    };
+    std::vector<DxuiPopupMenuItem>  formats;
+    auto                            parent = std::make_shared<DxuiCommand>();
+
+
+
+    for (const auto & [label, extension] : s_kFormats)
+    {
+        std::wstring  type = extension;
+
+        m_context.menus.AddMenuCommand (formats, label, [start, type]() { start (type); });
+    }
+
+    parent->label = L"F&ull send";
+    m_context.menus.GetMenuCommands().push_back (parent);
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (formats)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::WriteImageToDisk
 //
 //  An image file onto the open Apple drive's disk, once the user confirms,
@@ -1430,6 +1538,8 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  when no DHCP reply comes.
         m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
 
+        AddFullSendMenu (items, [this, name] (const std::wstring & extension) { StartFullSendOn (name, extension); });
+
         if (saved)
         {
             m_context.menus.AddMenuCommand (items, L"Re&move connection", [this, name]() { RemoveConnection (name); });
@@ -1444,6 +1554,8 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { WriteImageToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { SaveLinkToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });
+
+        AddFullSendMenu (items, [this, location] (const std::wstring & extension) { StartFullSend (location, extension); });
     }
 
     if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)
