@@ -140,7 +140,9 @@ void BasicProgramController::Apply (const DebuggerViewSnapshot & snapshot)
 //  The pane comes forward at the line when the machine stops in the
 //  interpreter while a program runs, and at a BASIC line breakpoint's line
 //  when one is set. At a stop in machine code the program called, the code
-//  view stays in front.
+//  view stays in front. An instruction step or a run to the cursor doesn't
+//  change which pane is in front, wherever it stops, and a breakpoint on an
+//  address brings the code view forward over this pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,11 +158,17 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
 
 
     m_wasPaused = snapshot.isPaused;
-    m_isStop    = isStop && basic.has_value() && basic->line.has_value() && snapshot.pc >= kInterpreterFirst && snapshot.pc <= kInterpreterLast;
+    m_isStop    = isStop && !IsMachineStop (snapshot) && basic.has_value() && basic->line.has_value() &&
+                  snapshot.pc >= kInterpreterFirst && snapshot.pc <= kInterpreterLast;
 
     if (m_isStop)
     {
         line = basic->line;
+    }
+
+    if (isStop && snapshot.stopReason != StopReason::Step && snapshot.stopReason != StopReason::RunTo && IsMachineStop (snapshot) && m_list->IsVisible())
+    {
+        m_host.OpenPane (DebuggerLayout::GetCodePaneId (snapshot.followView));
     }
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
@@ -183,6 +191,46 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
     if (line.has_value())
     {
         ShowLine (*line);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::IsMachineStop
+//
+//  Whether the machine stopped for something at the instruction level, not
+//  for a BASIC step, a BASIC error, a BASIC line's breakpoint or a pause.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramController::IsMachineStop (const DebuggerViewSnapshot & snapshot)
+{
+    auto  isBasicLine = [&snapshot] (const DebuggerViewSnapshot::BreakpointLine & bp)
+    {
+        return bp.id == snapshot.stopBreakpoint && bp.info.kind == BreakpointKind::BasicLine;
+    };
+
+
+
+    switch (snapshot.stopReason)
+    {
+        case StopReason::Breakpoint:
+            return std::ranges::none_of (snapshot.breakpoints, isBasicLine);
+
+        case StopReason::Watchpoint:
+        case StopReason::Step:
+        case StopReason::RunTo:
+        case StopReason::Brk:
+        case StopReason::InvalidOpcode:
+        case StopReason::Disk:
+            return true;
+
+        default:
+            return false;
     }
 }
 

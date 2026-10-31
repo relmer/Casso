@@ -350,6 +350,11 @@ public:
     void   BeginAssembly         (Word address);
     bool   IsAssembling          () const { return m_assemblyAddress.has_value(); }
 
+    //  Why the machine last stopped, and at which breakpoint, if one.
+    StopReason          GetLastStopReason     () const { return m_lastStopReason; }
+    std::optional<int>  GetLastStopBreakpoint () const { return m_lastStopBreakpoint; }
+
+
     void   SetInstructionObserver (IInstructionObserver * observer) { m_instructionObserver = observer; }
 
     // RUN, LOAD and STARTUP run each script line through the runner when one
@@ -567,6 +572,10 @@ private:
     bool                                  m_beamBreakHit  = false;
     std::optional<BeamBreak>              m_frameBreak;                 // FRAME's, for one run beside BPBEAM's
     bool                                  m_frameBreakHit = false;
+
+    //  Why the machine last stopped.
+    StopReason                            m_lastStopReason = StopReason::Pause;
+    std::optional<int>                    m_lastStopBreakpoint;
 
     //  BRKUNINIT is on.
     bool                                  m_isUnwrittenBreak = false;

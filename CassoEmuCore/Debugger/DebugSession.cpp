@@ -2183,6 +2183,9 @@ void DebugSession::OnStopped (const StopEvent & stop)
     AttachCondition (event);
     TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
+    m_lastStopReason     = event.reason;
+    m_lastStopBreakpoint = event.breakpointId;
+
     if (m_videoBreakHit)
     {
         m_videoBreak.reset();

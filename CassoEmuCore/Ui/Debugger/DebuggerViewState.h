@@ -256,6 +256,10 @@ struct DebuggerViewSnapshot
     //  command, so that Return on an empty box ends it rather than acting as a key.
     bool                         isAssembling  = false;
     CommandMode                  mode          = CommandMode::AppleWin;
+
+    //  Why the machine last stopped, and at which breakpoint, if one.
+    StopReason                   stopReason    = StopReason::Pause;
+    std::optional<int>           stopBreakpoint;
     std::string                  machine;
 
     //  The cards' and ports' bus registers, for the operand tips.

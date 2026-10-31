@@ -129,6 +129,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     snapshot.isPaused       = isPaused;
     snapshot.isAssembling   = session.IsAssembling();
+    snapshot.stopReason     = session.GetLastStopReason();
+    snapshot.stopBreakpoint = session.GetLastStopBreakpoint();
     snapshot.mode           = session.GetMode();
     snapshot.goTo           = m_goTo;
     snapshot.showPane       = m_showPane;
