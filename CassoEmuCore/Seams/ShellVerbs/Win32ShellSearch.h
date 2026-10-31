@@ -33,6 +33,7 @@ public:
     static bool     IsIndexed     (const std::wstring & scope);
     static HRESULT  QueryIndex    (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths);
     static void     WalkForNames  (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths);
+    static void     WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths);
 
     //  The disk images a search reads, at most, so a folder of thousands
     //  cannot keep it running for minutes.

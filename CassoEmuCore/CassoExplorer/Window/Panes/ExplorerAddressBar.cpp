@@ -1214,9 +1214,13 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
         return;
     }
 
-    if (m_context.browser.IsHomeLocation() || (at.kind == Location::Kind::Root && at.path == TreeModel::kThisPcRootId))
+    if (m_context.browser.IsHomeLocation())
     {
         scope = SearchQuery::kEverywhere;
+    }
+    else if (at.kind == Location::Kind::Root && at.path == TreeModel::kThisPcRootId)
+    {
+        scope = SearchQuery::kThisPc;
     }
     else if (at.kind == Location::Kind::HostFolder)
     {

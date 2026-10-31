@@ -13,6 +13,17 @@ TEST_CLASS (SearchQueryTests)
 {
 public:
 
+    TEST_METHOD (ThisPc_HasALabel_AndItsIdRoundTrips)
+    {
+        std::wstring  scope;
+        std::wstring  query;
+
+        Assert::AreEqual (std::wstring (L"Search results in This PC"), SearchQuery::GetLabel (SearchQuery::kThisPc));
+        Assert::IsTrue   (SearchQuery::TryParseId (SearchQuery::MakeId (SearchQuery::kThisPc, L"Sixies"), scope, query));
+        Assert::AreEqual (std::wstring (SearchQuery::kThisPc), scope);
+        Assert::AreEqual (std::wstring (L"Sixies"), query);
+    }
+
     TEST_METHOD (Id_CarriesTheFolderAndTheQuery)
     {
         std::wstring  scope;

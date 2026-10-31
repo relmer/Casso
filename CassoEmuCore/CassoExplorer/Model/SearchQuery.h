@@ -37,6 +37,9 @@ public:
     //  Explorer's does, rather than a folder.
     static constexpr const wchar_t *  kEverywhere = L"everywhere:";
 
+    //  This PC: the whole index, and each fixed drive walked for what the index leaves out.
+    static constexpr const wchar_t *  kThisPc     = L"thispc:";
+
     static std::wstring  MakeId     (const std::wstring & scope, const std::wstring & query);
     static bool          TryParseId (const std::wstring & id, std::wstring & outScope, std::wstring & outQuery);
     static bool          IsId       (const std::wstring & id) { return id.starts_with (kPrefix); }

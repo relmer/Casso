@@ -58,10 +58,17 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     {
         std::vector<std::wstring>  found;
 
-        bool  everywhere = folder == SearchQuery::kEverywhere;
+        bool  thisPc     = folder == SearchQuery::kThisPc;
+        bool  everywhere = thisPc || folder == SearchQuery::kEverywhere;
 
         indexed = everywhere || (IsIndexed (folder) && !SearchQuery::HasWildcards (query));
-        hr      = indexed ? QueryIndex (folder, query, found) : S_OK;
+        hr      = indexed ? QueryIndex (everywhere ? SearchQuery::kEverywhere : folder, query, found) : S_OK;
+
+        if (thisPc)
+        {
+            WalkFixedDrives (SearchQuery::GetNameWords (query), found);
+            hr = S_OK;
+        }
 
         //  A folder the index leaves out, or an index that cannot answer, is
         //  searched by walking it. Everywhere has no folder to walk.
@@ -96,7 +103,7 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     //  Files inside the disk images there match by name too.
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
-        if (folder != SearchQuery::kEverywhere)
+        if (folder != SearchQuery::kEverywhere && folder != SearchQuery::kThisPc)
         {
             SearchImages (folder, SearchQuery::GetNameWords (query), outItems);
         }
@@ -440,6 +447,48 @@ Error:
 
     CoTaskMemFree (sql);
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::WalkFixedDrives
+//
+//  Each fixed drive's matches that the list does not have yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths)
+{
+    DWORD  drives = GetLogicalDrives();
+
+
+
+    for (wchar_t letter = L'A'; letter <= L'Z' && !words.empty(); letter++)
+    {
+        std::wstring               root = std::wstring (1, letter) + L":\\";
+        std::vector<std::wstring>  found;
+
+        if ((drives & (1u << (letter - L'A'))) == 0 || GetDriveTypeW (root.c_str()) != DRIVE_FIXED)
+        {
+            continue;
+        }
+
+        WalkForNames (root, words, found);
+
+        for (const std::wstring & path : found)
+        {
+            bool  listed = std::any_of (ioPaths.begin(), ioPaths.end(), [&] (const std::wstring & have) { return _wcsicmp (have.c_str(), path.c_str()) == 0; });
+
+            if (!listed)
+            {
+                ioPaths.push_back (path);
+            }
+        }
+    }
 }
 
 

@@ -66,6 +66,11 @@ std::wstring SearchQuery::GetLabel (const std::wstring & scope)
 
 
 
+    if (scope == kThisPc)
+    {
+        return L"Search results in This PC";
+    }
+
     //  Several folders are Casso's own, searched from its root.
     if (scope.find (kScopeSeparator) != std::wstring::npos)
     {
