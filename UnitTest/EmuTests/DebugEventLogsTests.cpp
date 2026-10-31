@@ -597,6 +597,45 @@ namespace DebugEventLogsTests
         }
 
 
+        //  After a power cycle a host input has the time history has for its
+        //  cycle: the journal's cycles and the keyframes' count the same.
+        TEST_METHOD (AnInputAfterAPowerCycleHasItsTime)
+        {
+            static constexpr Byte  kByte      = 'A';
+            TestMachine            machine    ("Apple2c");
+            ReverseController      controller (machine);
+            DebugEventLogs         logs       (machine);
+            InputLogDelta          delta;
+            const InputLogRow    * row        = nullptr;
+            HRESULT                hr         = S_OK;
+
+
+
+            machine.RunCycles (kSliceCycles * 4);
+            machine.PowerCycle();
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+            AssertSucceeded (hr, L"Start");
+
+            logs.Start   (&controller);
+            logs.SetOpen (DebugLogKind::Input, true);
+
+            machine.GetRefs().serialChips[1]->EnqueueReceivedBytes (&kByte, 1);
+            machine.RunCycles (kSliceCycles);
+
+            logs.TakeDelta (delta);
+            logs.Stop();
+
+            for (const InputLogRow & each : delta.newer)
+            {
+                row = (each.kind == DebugLogRowKind::Event && each.event.type == InputEventType::HostSerialByte) ? &each : row;
+            }
+
+            Assert::IsNotNull (row, L"the byte is a row");
+            Assert::AreNotEqual<uint64_t> (0, row->wallTime, L"with the time");
+        }
+
+
         //  A pane gets everything when it opens, then each new row once.
         TEST_METHOD (AnOpenPaneGetsEachRowOnce)
         {
