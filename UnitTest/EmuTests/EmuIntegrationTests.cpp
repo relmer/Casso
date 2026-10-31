@@ -35,8 +35,8 @@ public:
 
     struct TestEnv
     {
-        MemoryBus             bus;
-        RamDevice             ram {0x0000, 0xBFFF};
+        MemoryBus                      bus;
+        RamDevice                      ram     {0x0000, 0xBFFF};
         std::vector<Byte>              romData;
         std::unique_ptr<MemoryDevice>  rom;
 

@@ -58,15 +58,15 @@ public:
     MockDxuiPainter  () = default;
     ~MockDxuiPainter() override = default;
 
-    const std::vector<RecordedPaintCall> &  Calls() const { return m_calls; }
-    void  Reset() { m_calls.clear(); }
+    const std::vector<RecordedPaintCall>  & Calls () const { return m_calls; }
+    void                                    Reset () { m_calls.clear(); }
 
-    void  FillRect          (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbColor) override;
-    void  FillGradientRect  (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbTop, uint32_t argbBottom) override;
-    void  OutlineRect       (float xPx, float yPx, float widthPx, float heightPx, float thicknessPx, uint32_t argbColor) override;
+    void  FillRect           (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbColor) override;
+    void  FillGradientRect   (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbTop, uint32_t argbBottom) override;
+    void  OutlineRect        (float xPx, float yPx, float widthPx, float heightPx, float thicknessPx, uint32_t argbColor) override;
     void  OutlineRoundedRect (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, float thicknessPx, uint32_t argbColor) override;
-    void  FillRoundedRect   (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, uint32_t argbColor) override;
-    void  FillCircle        (float cxPx, float cyPx, float radiusPx, uint32_t argbColor) override;
+    void  FillRoundedRect    (float xPx, float yPx, float widthPx, float heightPx, float radiusPx, uint32_t argbColor) override;
+    void  FillCircle         (float cxPx, float cyPx, float radiusPx, uint32_t argbColor) override;
     void  FillConvexQuad    (float x0, float y0, float x1, float y1,
                              float x2, float y2, float x3, float y3, uint32_t argbColor) override;
     void  FillEllipse       (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor) override;

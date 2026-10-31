@@ -65,12 +65,12 @@ public:
     void  HandleTabDragEnd    (int index, POINT client, bool tornOff);
 
 private:
-    ExplorerContext    & m_context;
-    DxuiTabStrip       * m_tabs          = nullptr;
-    int                  m_spinnerFrame  = -1;
-    int                  m_spinnerPx     = 0;
-    uint32_t             m_spinnerRgb    = 0;
-    std::vector<std::shared_ptr<const DxuiIconImage>>  m_spinnerFrames;
-    DxuiTabDragVisual    m_tabDragVisual;
-    HWND                 m_tabDragTarget = nullptr;   // the other window whose strip a dragged tab is over
+    ExplorerContext                                    & m_context;
+    DxuiTabStrip                                       * m_tabs          = nullptr;
+    int                                                  m_spinnerFrame  = -1;
+    int                                                  m_spinnerPx     = 0;
+    uint32_t                                             m_spinnerRgb    = 0;
+    std::vector<std::shared_ptr<const DxuiIconImage>>    m_spinnerFrames;
+    DxuiTabDragVisual                                    m_tabDragVisual;
+    HWND                                                 m_tabDragTarget = nullptr;   // the other window whose strip a dragged tab is over
 };

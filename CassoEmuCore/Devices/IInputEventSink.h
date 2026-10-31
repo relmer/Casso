@@ -65,16 +65,16 @@ public:
     virtual ~IInputEventSink() = default;
 
     // CPU thread (SPSC ring).
-    virtual void OnKbdDataRead (Word address, Byte value, bool strobeSet) = 0;
-    virtual void OnKbdStrobe (Word address, Byte value, bool clearedStrobe) = 0;
-    virtual void OnButtonRead (Word address, Byte value) = 0;
-    virtual void OnPaddleTrigger (Word address) = 0;
-    virtual void OnPaddleRead (Word address, Byte value) = 0;
-    virtual void OnHostAutoRepeat (Byte asciiChar) = 0;
+    virtual void  OnKbdDataRead    (Word address, Byte value, bool strobeSet) = 0;
+    virtual void  OnKbdStrobe      (Word address, Byte value, bool clearedStrobe) = 0;
+    virtual void  OnButtonRead     (Word address, Byte value) = 0;
+    virtual void  OnPaddleTrigger  (Word address) = 0;
+    virtual void  OnPaddleRead     (Word address, Byte value) = 0;
+    virtual void  OnHostAutoRepeat (Byte asciiChar) = 0;
 
     // UI thread (staging buffer).
-    virtual void OnHostKeyDown (Byte asciiChar) = 0;
-    virtual void OnHostKeyUp (Byte asciiChar) = 0;
-    virtual void OnHostPaddle (int axis, Byte value) {}
-    virtual void OnHostButton (int index, bool down) {}
+    virtual void  OnHostKeyDown (Byte asciiChar) = 0;
+    virtual void  OnHostKeyUp   (Byte asciiChar) = 0;
+    virtual void  OnHostPaddle  (int axis, Byte value) {}
+    virtual void  OnHostButton  (int index, bool down) {}
 };

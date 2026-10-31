@@ -54,9 +54,9 @@ public:
     }
 
 
-    bool                  IsAvailable () const { return (m_device != nullptr); }
-    ID3D11Device *        GetDevice   () const { return (m_device.Get()); }
-    ID3D11DeviceContext * GetContext  () const { return (m_context.Get()); }
+    bool                   IsAvailable () const { return (m_device != nullptr); }
+    ID3D11Device         * GetDevice   () const { return (m_device.Get()); }
+    ID3D11DeviceContext  * GetContext  () const { return (m_context.Get()); }
 
 
     //

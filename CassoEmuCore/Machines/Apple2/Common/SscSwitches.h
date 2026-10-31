@@ -86,8 +86,8 @@ public:
     bool    operator== (const SscSwitches & other) const = default;
 
 private:
-    bool *        GetBank (SscBank bank);
-    const bool *  GetBank (SscBank bank) const;
+    bool        * GetBank (SscBank bank);
+    const bool  * GetBank (SscBank bank) const;
 
     bool    m_sw1[kSwitchesPerBank] = {};
     bool    m_sw2[kSwitchesPerBank] = {};

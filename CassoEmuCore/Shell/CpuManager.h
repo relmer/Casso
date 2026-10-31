@@ -87,17 +87,17 @@ public:
     std::string  & GetPasteBuffer  () noexcept { return m_pasteBuffer; }
 
 private:
-    void ThreadProc ();
-    void DrainCommandQueue ();
-    bool HasPendingCommands ();
+    void  ThreadProc         ();
+    void  DrainCommandQueue  ();
+    bool  HasPendingCommands ();
 
 
     std::thread                   m_thread;
 
-    std::atomic<bool>             m_running    { true };
-    std::atomic<bool>             m_paused     { false };
-    std::atomic<SpeedMode>        m_speedMode  { SpeedMode::Authentic };
-    std::atomic<bool>             m_maximumOverride { false };
+    std::atomic<bool>       m_running         { true };
+    std::atomic<bool>       m_paused          { false };
+    std::atomic<SpeedMode>  m_speedMode       { SpeedMode::Authentic };
+    std::atomic<bool>       m_maximumOverride { false };
 
     std::mutex                    m_pauseMutex;
     std::condition_variable       m_pauseCV;

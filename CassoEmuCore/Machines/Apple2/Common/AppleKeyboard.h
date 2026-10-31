@@ -72,12 +72,12 @@ class AppleKeyboard : public MemoryDevice
 public:
     AppleKeyboard ();
 
-    Byte Read     (Word address) override;
-    void Write    (Word address, Byte value) override;
-    Word GetStart () const override { return 0xC000; }
-    Word GetEnd   () const override { return 0xC01F; }
-    void Reset    () override;
-    void SoftReset () override;
+    Byte  Read      (Word address) override;
+    void  Write     (Word address, Byte value) override;
+    Word  GetStart  () const override { return 0xC000; }
+    Word  GetEnd    () const override { return 0xC01F; }
+    void  Reset     () override;
+    void  SoftReset () override;
 
     // Called from EmulatorShell when a key event arrives (UI thread)
     void PressKey (Byte asciiChar);
@@ -174,10 +174,10 @@ private:
     static constexpr Byte kKeyArmedBit  = 0x80;
     static constexpr Byte kKeyCodeMask  = 0x7F;
 
-    atomic<Byte>   m_repeatKey{0};
-    uint32_t       m_repeatAccumUs = 0;
-    bool           m_repeatStarted = false;
-    Byte           m_lastRepeatKey = 0;
+    atomic<Byte>  m_repeatKey     {0};
+    uint32_t      m_repeatAccumUs = 0;
+    bool          m_repeatStarted = false;
+    Byte          m_lastRepeatKey = 0;
 
 protected:
     // Input event sink (null when nothing is observing). Plain pointer

@@ -46,11 +46,11 @@ public:
     void  SetPlaceholder (const std::wstring & text)    { m_input.SetPlaceholder (text); }
     void  SetOnChange    (ChangeFn fn)                  { m_change = std::move (fn); }
 
-    const std::wstring & GetText   () const              { return m_input.GetText(); }
-    void                 SetText   (const std::wstring & text);
-    void                 Clear     ();
-    bool                 IsFocused () const              { return m_focused; }
-    void                 SetFocused (bool focused);
+    const std::wstring  & GetText    () const              { return m_input.GetText(); }
+    void                  SetText    (const std::wstring & text);
+    void                  Clear      ();
+    bool                  IsFocused  () const              { return m_focused; }
+    void                  SetFocused (bool focused);
 
     // Host-driven input. The bespoke (x, y) / WPARAM / wchar_t entry points
     // match a dialog custom-body channel; each returns true when consumed.

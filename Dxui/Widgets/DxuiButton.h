@@ -17,11 +17,11 @@ public:
     explicit DxuiButton  (const std::wstring & label) { m_focusable = true; SetLabel (label); }
     ~DxuiButton() override = default;
 
-    void  Layout            (const RECT & rect) { SetBounds (rect); }
-    void  SetLabel          (const std::wstring & label);
-    wchar_t  GetAccelerator () const { return m_accelerator; }
-    void  SetOnClick      (ClickFn click) { m_click = std::move (click); }
-    bool  HasClickHandler () const { return (bool) m_click; }
+    void     Layout          (const RECT & rect) { SetBounds (rect); }
+    void     SetLabel        (const std::wstring & label);
+    wchar_t  GetAccelerator  () const { return m_accelerator; }
+    void     SetOnClick      (ClickFn click) { m_click = std::move (click); }
+    bool     HasClickHandler () const { return (bool) m_click; }
 
     // Win32 command id (IDOK / IDCANCEL / IDYES / ...). A modal DxuiWindow
     // discovers its buttons by id: the default (Enter) button, the IDCANCEL

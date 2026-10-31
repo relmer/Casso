@@ -66,8 +66,8 @@ public:
 
     void  SetIntC8Rom    (bool v) { m_intC8Rom = v; }
 
-    Byte *       GetAuxBuffer ()       { return m_auxRam.data (); }
-    const Byte * GetAuxBuffer () const { return m_auxRam.data (); }
+    Byte        * GetAuxBuffer ()       { return m_auxRam.data (); }
+    const Byte  * GetAuxBuffer () const { return m_auxRam.data (); }
 
     // Cxxx-ROM routing (audit C8 carryover). Internal $C100-$CFFF ROM
     // bytes and slot ROM bytes are attached after Initialize; the MMU
@@ -82,14 +82,14 @@ public:
     void               SetLanguageCard       (LanguageCard * lc) { m_lc = lc; }
 
 private:
-    void   RebindPageTable       ();
-    void   RebindCxxxInternalRom ();
-    void   ResolveZeroPage     ();
-    void   ResolveMain02_BF    ();
-    void   ResolveText04_07    ();
-    void   ResolveHires20_3F   ();
-    Byte * SelectMainRead      (int page);
-    Byte * SelectMainWrite     (int page);
+    void    RebindPageTable       ();
+    void    RebindCxxxInternalRom ();
+    void    ResolveZeroPage       ();
+    void    ResolveMain02_BF      ();
+    void    ResolveText04_07      ();
+    void    ResolveHires20_3F     ();
+    Byte  * SelectMainRead        (int page);
+    Byte  * SelectMainWrite       (int page);
 
     MemoryBus            *   m_bus         = nullptr;
     Byte                 *   m_mainRamPtr  = nullptr;

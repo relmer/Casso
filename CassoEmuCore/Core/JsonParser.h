@@ -65,11 +65,11 @@ private:
     HRESULT ParseArray   (JsonValue & outValue);
     HRESULT ParseKeyword (const char * keyword, JsonValue & outValue);
 
-    void SkipWhitespace ();
-    char Peek     () const;
-    char Advance  ();
-    bool IsAtEnd  () const;
-    void SetError (const string & msg);
+    void  SkipWhitespace ();
+    char  Peek           () const;
+    char  Advance        ();
+    bool  IsAtEnd        () const;
+    void  SetError       (const string & msg);
 
     const string    & m_input;
     size_t            m_pos;

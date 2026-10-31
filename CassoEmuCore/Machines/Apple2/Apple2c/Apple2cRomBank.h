@@ -40,8 +40,8 @@ public:
     // bank0 / bank1 are each a full 16K ($C000-$FFFF) image. Applies bank 0.
     void SetBankImages (vector<Byte> bank0, vector<Byte> bank1);
 
-    void ToggleRomBank() override;
-    void ResetRomBank   () override;
+    void  ToggleRomBank () override;
+    void  ResetRomBank  () override;
 
     int  GetCurrentBank () const { return m_current; }
 

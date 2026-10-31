@@ -61,7 +61,7 @@ public:
     //  or an empty path when nothing is loading.
     std::string  GetLoadingPath  (int64_t & elapsedMs) const;
 
-    void     Execute           (TapeCommand command, TapeDeck & deck, uint64_t nowCycle);
+    void     Execute                (TapeCommand command, TapeDeck & deck, uint64_t nowCycle);
     HRESULT  CommitPendingRecording (TapeDeck & deck);
 
     //  Where a tape that could not be read, created or recorded onto is

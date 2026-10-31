@@ -48,18 +48,18 @@ public:
     TestCpu65C02() : TestCpu65C02Bus(), Cpu65C02 (m_testBus) {}
 
     // Flat-memory overrides: the whole 64K address space is Cpu::memory[].
-    Byte    ReadByteSlow (Word address) override          { return memory[address]; }
-    void    WriteByte (Word address, Byte value) override { memory[address] = value; }
-    Word    ReadWord  (Word address) override             { return (Word) (memory[address] | (memory[(Word) (address + 1)] << 8)); }
-    void    WriteWord (Word address, Word value) override { memory[address] = value & 0xFF; memory[(Word) (address + 1)] = (Byte) (value >> 8); }
+    Byte  ReadByteSlow (Word address) override          { return memory[address]; }
+    void  WriteByte    (Word address, Byte value) override { memory[address] = value; }
+    Word  ReadWord     (Word address) override             { return (Word) (memory[address] | (memory[(Word) (address + 1)] << 8)); }
+    void  WriteWord    (Word address, Word value) override { memory[address] = value & 0xFF; memory[(Word) (address + 1)] = (Byte) (value >> 8); }
 
     // Register / status access (mirrors TestCpu).
-    Byte &      RegA  () { return A; }
-    Byte &      RegX  () { return X; }
-    Byte &      RegY  () { return Y; }
-    Byte &      RegSP() { return SP; }
-    Word &      RegPC() { return PC; }
-    CpuStatus & Status() { return status; }
+    Byte       & RegA   () { return A; }
+    Byte       & RegX   () { return X; }
+    Byte       & RegY   () { return Y; }
+    Byte       & RegSP  () { return SP; }
+    Word       & RegPC  () { return PC; }
+    CpuStatus  & Status () { return status; }
 
     // Execute one instruction via the real dispatch (no async interrupts).
     void    Step  () { StepOne(); }

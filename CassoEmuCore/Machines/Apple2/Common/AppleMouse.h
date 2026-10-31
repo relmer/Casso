@@ -133,11 +133,11 @@ public:
     Byte    ReadMouX1            () const { return m_mouX1; }                   // $C066 bit 7
     Byte    ReadMouY1            () const { return m_mouY1; }                   // $C067 bit 7
 
-    void    AccessRstXY   ();                          // $C048 any access
-    void    AccessPtrig   ();                          // $C070 read side effect
-    void    WriteIouAccess (bool enabled) { m_iouAccessEnabled = enabled; }   // $C079/$C078
-    bool    IsIouAccessEnabled() const   { return m_iouAccessEnabled; }
-    void    AccessIouSwitch (Word address);            // $C058-$C05F while enabled
+    void  AccessRstXY        ();                          // $C048 any access
+    void  AccessPtrig        ();                          // $C070 read side effect
+    void  WriteIouAccess     (bool enabled) { m_iouAccessEnabled = enabled; }   // $C079/$C078
+    bool  IsIouAccessEnabled () const   { return m_iouAccessEnabled; }
+    void  AccessIouSwitch    (Word address);            // $C058-$C05F while enabled
 
     // Lifecycle
 
@@ -145,12 +145,12 @@ public:
 
     // Inspectors (tests)
 
-    bool    AreXyInterruptsEnabled  () const { return m_xyEnabled; }
-    bool    AreVblInterruptsEnabled() const { return m_vblEnabled; }
+    bool  AreXyInterruptsEnabled  () const { return m_xyEnabled; }
+    bool  AreVblInterruptsEnabled () const { return m_vblEnabled; }
 
 private:
-    void    UpdateIrqLines();
-    void    RetargetFromHoles();
+    void  UpdateIrqLines    ();
+    void  RetargetFromHoles ();
 
     // Firmware screen holes (slot 7): position, clamp min/max, per axis.
     static constexpr Word     kHoleXPosLo  = 0x047F, kHoleXPosHi  = 0x057F;
@@ -170,11 +170,11 @@ private:
     std::atomic<bool>         m_hostButton  { false };
 
     // Absolute target: packed fx<<16|fy viewport fractions + validity flag.
-    std::atomic<uint32_t>     m_hostTarget  { 0 };
-    std::atomic<bool>         m_hasTarget   { false };
-    uint32_t           m_retargetCountdown = 0;
-    class MemoryBus  * m_bus               = nullptr;
-    const Byte       * m_mainRam           = nullptr;
+    std::atomic<uint32_t>    m_hostTarget        { 0 };
+    std::atomic<bool>        m_hasTarget         { false };
+    uint32_t                 m_retargetCountdown = 0;
+    class MemoryBus        * m_bus               = nullptr;
+    const Byte             * m_mainRam           = nullptr;
 
     // CPU-side movement queue: signed units not yet latched.
     int                       m_pendingX    = 0;

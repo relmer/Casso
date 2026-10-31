@@ -23,12 +23,12 @@ class AppleSpeaker : public MemoryDevice
 public:
     AppleSpeaker ();
 
-    Byte Read     (Word address) override;
-    void Write    (Word address, Byte value) override;
-    Word GetStart () const override { return 0xC030; }
-    Word GetEnd   () const override { return 0xC03F; }
-    void Reset    () override;
-    void SoftReset () override;
+    Byte  Read      (Word address) override;
+    void  Write     (Word address, Byte value) override;
+    Word  GetStart  () const override { return 0xC030; }
+    Word  GetEnd    () const override { return 0xC03F; }
+    void  Reset     () override;
+    void  SoftReset () override;
 
     // Audio interface
     float GetSpeakerState () const { return m_speakerState; }

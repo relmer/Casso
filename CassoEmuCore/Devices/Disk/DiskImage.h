@@ -185,9 +185,9 @@ public:
     //  A slot the shared sector writer changed, apart from guest writes
     //  through the drive. A save clears both. A slot only the writer changed
     //  can be saved in place where a guest-written one is rebuilt.
-    void             MarkTrackChangedByWriter   (int slot);
-    bool             IsTrackChangedOnlyByWriter (int slot) const;
-    void             ResizeTrack         (int track, size_t bitCount);
+    void  MarkTrackChangedByWriter   (int slot);
+    bool  IsTrackChangedOnlyByWriter (int slot) const;
+    void  ResizeTrack                (int track, size_t bitCount);
 
     // Quarter-track addressing. The head physically steps in quarter-track
     // increments (0..159); ResolveQuarterTrack maps a head position to the
@@ -229,11 +229,11 @@ public:
 
     // A drive holding an unfinished write registers itself here, and clears
     // itself once the write is in. Flush and Eject finish it first.
-    void                SetPendingWriteOwner (IPendingWriteOwner * owner) { m_pendingWriteOwner = owner; }
-    void                CommitPendingWrite   ();
-    void             ClearQuarterTrackMap ();
-    void             SetQuarterTrackSlot (int quarterTrack, int slot);
-    void             EnsureTrackSlots    (int slotCount);
+    void  SetPendingWriteOwner (IPendingWriteOwner * owner) { m_pendingWriteOwner = owner; }
+    void  CommitPendingWrite   ();
+    void  ClearQuarterTrackMap ();
+    void  SetQuarterTrackSlot  (int quarterTrack, int slot);
+    void  EnsureTrackSlots     (int slotCount);
 
     // Direct bit-buffer access for bulk writers (NibblizationLayer, WozLoader).
     // ResizeTrack must be called first; the returned buffer length matches the
@@ -242,9 +242,9 @@ public:
 
     // Const counterpart for read-only serializers (WozLoader::Serialize).
     // Returns the packed MSB-first bit bytes backing a track slot.
-    const vector<Byte> & GetTrackBits (int track) const { return m_trackBits[track]; }
-    void             SetTrackBitCount    (int track, size_t bitCount);
-    void             LoadFromBytes       (DiskFormat fmt, const vector<Byte> & raw, const string & sourcePath);
+    const vector<Byte>  & GetTrackBits     (int track) const { return m_trackBits[track]; }
+    void                  SetTrackBitCount (int track, size_t bitCount);
+    void                  LoadFromBytes    (DiskFormat fmt, const vector<Byte> & raw, const string & sourcePath);
 
     // Test-only injection. Marks the image as loaded/dirty without touching
     // the host filesystem so reset-semantics tests don't need a real disk
@@ -252,7 +252,7 @@ public:
     void  SetLoadedForTest (bool loaded, bool dirty);
 
 private:
-    HRESULT  LoadDsk          (const vector<Byte> & raw);
+    HRESULT  LoadDsk           (const vector<Byte> & raw);
     void     InitWholeTrackMap ();
 
     // Splits a bit index into the byte offset and shift that address it

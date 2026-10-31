@@ -70,17 +70,17 @@ public:
 
     // IDriveAudioSource:
     void   GeneratePCM (float * outMono, uint32_t numSamples) override;
-    float  GetPanLeft() const override { return m_panLeft;  }
-    float  GetPanRight() const override { return m_panRight; }
-    void   SetPan (float panLeft, float panRight) override;
+    float  GetPanLeft  () const override { return m_panLeft;  }
+    float  GetPanRight () const override { return m_panRight; }
+    void   SetPan      (float panLeft, float panRight) override;
 
     // IDriveAudioSink:
-    void   OnMotorEngaged() override;
-    void   OnMotorDisengaged() override;
-    void   OnHeadStep (int newQt) override;
-    void   OnHeadBump() override;
-    void   OnDiskInserted() override;
-    void   OnDiskEjected() override;
+    void  OnMotorEngaged    () override;
+    void  OnMotorDisengaged () override;
+    void  OnHeadStep        (int newQt) override;
+    void  OnHeadBump        () override;
+    void  OnDiskInserted    () override;
+    void  OnDiskEjected     () override;
 
     //  A disk was replaced under the running machine: the door open sound then
     //  the close sound, back to back, with the disk present throughout. Not on
@@ -138,19 +138,19 @@ public:
         vector<float> &&      samples);
 
     // Test introspection.
-    bool   IsMotorRunning() const { return m_motorRunning; }
-    bool   IsDiskPresent() const { return m_diskPresent; }
-    bool   IsSeekMode() const { return m_seekMode; }
-    uint64_t GetLastStepCycle() const { return m_lastStepCycle; }
+    bool      IsMotorRunning   () const { return m_motorRunning; }
+    bool      IsDiskPresent    () const { return m_diskPresent; }
+    bool      IsSeekMode       () const { return m_seekMode; }
+    uint64_t  GetLastStepCycle () const { return m_lastStepCycle; }
 
     // Test introspection for the boot-recalibrate ratchet (see OnHeadBump).
     uint32_t GetRatchetSlot() const { return m_ratchetSlot; }
 
 private:
-    void   MixMotor (float * out, uint32_t n);
-    void   MixHead (float * out, uint32_t n);
-    void   MixDoor (float * out, uint32_t n);
-    void   MixTest (float * out, uint32_t n);
+    void  MixMotor (float * out, uint32_t n);
+    void  MixHead  (float * out, uint32_t n);
+    void  MixDoor  (float * out, uint32_t n);
+    void  MixTest  (float * out, uint32_t n);
 
     // Starts a head one-shot on `buf` and fires the matching audio-event
     // (Started / Restarted / Silent). Shared by the bump and ratchet paths.

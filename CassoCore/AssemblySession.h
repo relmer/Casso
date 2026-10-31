@@ -299,13 +299,13 @@ private:
     // Source order for the final diagnostic lists; recording order is not it.
     void     SortDiagnosticsByLine();
 
-    HRESULT ResolveEquConstants   ();
-    HRESULT ReportUnresolvedEqus  ();
-    HRESULT RebindMutableConstant (const LineInfo & info);
-    HRESULT EmitDirectiveBytes   (const LineInfo & info, Word & emitPC);
-    HRESULT EmitInstruction      (const LineInfo & info, Word & emitPC);
-    HRESULT BuildListingEntry    (const LineInfo & info, Word emitPCStart, Word emitPC, bool lineHasAddress);
-    HRESULT ExtractImage         ();
+    HRESULT  ResolveEquConstants   ();
+    HRESULT  ReportUnresolvedEqus  ();
+    HRESULT  RebindMutableConstant (const LineInfo & info);
+    HRESULT  EmitDirectiveBytes    (const LineInfo & info, Word & emitPC);
+    HRESULT  EmitInstruction       (const LineInfo & info, Word & emitPC);
+    HRESULT  BuildListingEntry     (const LineInfo & info, Word emitPCStart, Word emitPC, bool lineHasAddress);
+    HRESULT  ExtractImage          ();
 
     //  Records that a line placed bytes in the span being accumulated, so the
     //  span learns the address of its first one.
@@ -385,8 +385,8 @@ private:
     };
 
     // Both pure: read the line and the mode, change nothing.
-    Pass1Prelude ClassifyPrelude (const LineInfo & info, const std::string & operandUpper) const;
-    static Pass1Content ClassifyContent (const LineInfo & info);
+    Pass1Prelude         ClassifyPrelude (const LineInfo & info, const std::string & operandUpper) const;
+    static Pass1Content  ClassifyContent (const LineInfo & info);
 
     // Shared by each classifier and the handler it routes to, so the two
     // cannot drift apart about what a line is.
@@ -407,9 +407,9 @@ private:
     HRESULT RunContentStages       (const PendingLine & current, LineInfo & info);
 
     // The Instruction tail: stages that can only decide by trying.
-    HRESULT ResolveInstructionLine (const PendingLine & current, LineInfo & info);
-    HRESULT HandleMultiNop             (const PendingLine & current, LineInfo & info, bool & handled);
-    HRESULT CountExitmIfDepth          (const std::vector<std::string> & expandedLines, int & ifDepth);
+    HRESULT  ResolveInstructionLine (const PendingLine & current, LineInfo & info);
+    HRESULT  HandleMultiNop         (const PendingLine & current, LineInfo & info, bool & handled);
+    HRESULT  CountExitmIfDepth      (const std::vector<std::string> & expandedLines, int & ifDepth);
 
     // Phase 5 sub-helpers
     HRESULT CheckEndStruct            (const PendingLine & current, LineInfo & info, bool & isEnd);

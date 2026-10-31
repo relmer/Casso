@@ -32,8 +32,8 @@ public:
     WasapiAudio();
     ~WasapiAudio();
 
-    HRESULT Initialize();
-    void    Shutdown   ();
+    HRESULT  Initialize ();
+    void     Shutdown   ();
 
     // CPU thread, once per frame, even while IsInitialized() is false.
     void  ServiceEndpointChanges();
@@ -54,11 +54,11 @@ public:
         uint64_t                        currentCycleCount  = 0,
         DriveAudioMixer *               mockingboardMixer  = nullptr,
         DriveAudioMixer *               tapeMixer          = nullptr);
-    void    RecordDriveDoorSyncEvent (int drive, int64_t timestampMs);
-    int64_t GetLastDriveDoorSyncEventMs (int drive) const;
+    void     RecordDriveDoorSyncEvent    (int drive, int64_t timestampMs);
+    int64_t  GetLastDriveDoorSyncEventMs (int drive) const;
 
-    bool IsInitialized() const { return m_initialized; }
-    UINT32 GetSampleRate() const { return m_sampleRate; }
+    bool    IsInitialized () const { return m_initialized; }
+    UINT32  GetSampleRate () const { return m_sampleRate; }
 
     // Master output gain (0..1) applied to the completed mix, so every source
     // -- speaker, drives, printer, Mockingboard -- scales together (the chrome
@@ -77,8 +77,8 @@ private:
     // anyone reaches for the volume control.
     static constexpr int64_t  kReinitRetryMs = 1000;
 
-    void    RenderPump ();
-    void    DrainFrames (UINT32 toWrite, BYTE * buffer);
+    void  RenderPump  ();
+    void  DrainFrames (UINT32 toWrite, BYTE * buffer);
 
     // Tear the client down and arm the throttled reopen. Two ways in, one
     // recovery path.
@@ -128,11 +128,11 @@ private:
     // Render pump thread state: the WASAPI buffer-ready event, the stop
     // flag, and the last stereo frame written -- the seed for the fade-out
     // filler that replaces hard underrun silence.
-    std::thread         m_renderThread;
-    HANDLE              m_renderEvent = nullptr;
-    std::atomic<bool>   m_renderStop { false };
-    float               m_lastL = 0.0f;
-    float               m_lastR = 0.0f;
+    std::thread        m_renderThread;
+    HANDLE             m_renderEvent  = nullptr;
+    std::atomic<bool>  m_renderStop   { false };
+    float              m_lastL        = 0.0f;
+    float              m_lastR        = 0.0f;
 
     // Frames left in the filler-to-real resume crossfade (see DrainFrames).
     UINT32              m_resumeRamp = 0;
@@ -144,8 +144,8 @@ private:
     vector<float> m_driveScratch;
     vector<float> m_mixScratch;
 
-    std::atomic<float>  m_masterGain { 1.0f };   // see SetMasterGain
-    std::atomic<bool>   m_isSuppressed { false }; // see SetSuppressed
+    std::atomic<float>  m_masterGain   { 1.0f };   // see SetMasterGain
+    std::atomic<bool>   m_isSuppressed { false };   // see SetSuppressed
     bool                m_droppedSlice = false;   // a slice was dropped since the last one kept
 
     // How long the sound fades out and in around a dropped slice: about a
@@ -159,8 +159,8 @@ private:
     // teardown and the retry both run on the CPU thread, in
     // ServiceEndpointChanges.
     std::atomic<HRESULT>  m_endpointLossHr { S_OK };
-    bool                  m_deviceLost = false;
-    int64_t               m_reinitAtMs = 0;
+    bool                  m_deviceLost     = false;
+    int64_t               m_reinitAtMs     = 0;
 
     // Diagnostic tap: CASSO_AUDIO_DUMP_DEVICE records the far side of the
     // pending queue -- what actually reaches the endpoint, filler included --
@@ -172,9 +172,9 @@ private:
     // stereo sample is appended to it as raw float32 pairs -- the exact
     // stream handed to the device, captured before the device can touch
     // it. Opened lazily on first use; empty when the variable is unset.
-    FILE *  m_dumpFile    = nullptr;
-    bool    m_dumpChecked = false;
-    std::array<int64_t, 2> m_lastDriveDoorSyncMs { 0, 0 };
+    FILE                    * m_dumpFile            = nullptr;
+    bool                      m_dumpChecked         = false;
+    std::array<int64_t, 2>    m_lastDriveDoorSyncMs { 0, 0 };
 };
 
 

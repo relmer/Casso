@@ -38,13 +38,13 @@ private:
     // override existing entries rather than initialize from scratch; the
     // Initialize* naming matches the base table-builder family (InitializeMisc,
     // InitializeGroup00...).
-    void        InitializeCmos          ();
-    void        InitializeArithmetic    ();
-    void        RetimeIndexedShifts     ();
-    void        ReclaimUndocumented     ();
-    void        InitializeCmosLeftovers();
-    void        InstallBitOps           ();
-    void        InitializeNops          ();
+    void  InitializeCmos          ();
+    void  InitializeArithmetic    ();
+    void  RetimeIndexedShifts     ();
+    void  ReclaimUndocumented     ();
+    void  InitializeCmosLeftovers ();
+    void  InstallBitOps           ();
+    void  InitializeNops          ();
 
     void        SetOpcode (Byte                                  opcode,
                            const char                          * name,

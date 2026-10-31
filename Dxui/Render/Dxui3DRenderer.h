@@ -366,11 +366,11 @@ private:
                         bool                       useDepth,
                         ID3D11DepthStencilState  * depthState);
 
-    HRESULT  CreateShaders      ();
+    HRESULT  CreateShaders       ();
     HRESULT  CreatePipelineState ();
-    HRESULT  EnsureVertexBuffer (size_t requiredVerts);
-    HRESULT  EnsureShadowMap    (int slot, UINT texels);
-    void     IssueShadowDraw    (ID3D11Buffer * vertexBuffer, size_t vertexCount);
+    HRESULT  EnsureVertexBuffer  (size_t requiredVerts);
+    HRESULT  EnsureShadowMap     (int slot, UINT texels);
+    void     IssueShadowDraw     (ID3D11Buffer * vertexBuffer, size_t vertexCount);
 
     // One light's depth of the whole scene. Depth-only: no color target is
     // bound while it is being filled, and the SRV is what the color pass

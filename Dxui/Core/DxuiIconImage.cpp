@@ -238,14 +238,13 @@ DxuiIconImage DxuiIconImage::MakeSpinnerFrame (int frame, int frameCount, int si
     static constexpr float  s_kPi       = 3.14159265f;
     static constexpr float  s_kMinSweep = 30.0f;
     static constexpr float  s_kMaxSweep = 270.0f;
-
-    DxuiIconImage  out;
-    float          phase  = (float) frame / (float) frameCount;
-    float          start  = 720.0f * phase;
-    float          sweep  = s_kMinSweep + (s_kMaxSweep - s_kMinSweep) * (0.5f - 0.5f * std::cos (2.0f * s_kPi * phase));
-    float          center = (float) sizePx * 0.5f;
-    float          radius = (float) sizePx * 0.39f;
-    float          half   = (std::max) ((float) sizePx * 0.06f, 0.75f);
+    DxuiIconImage           out;
+    float                   phase       = (float) frame / (float) frameCount;
+    float                   start       = 720.0f * phase;
+    float                   sweep       = s_kMinSweep + (s_kMaxSweep - s_kMinSweep) * (0.5f - 0.5f * std::cos (2.0f * s_kPi * phase));
+    float                   center      = (float) sizePx * 0.5f;
+    float                   radius      = (float) sizePx * 0.39f;
+    float                   half        = (std::max) ((float) sizePx * 0.06f, 0.75f);
 
 
 

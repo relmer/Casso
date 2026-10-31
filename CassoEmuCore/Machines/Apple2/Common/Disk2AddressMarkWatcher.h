@@ -68,9 +68,9 @@ public:
     // successful address mark). Read by tests and by the data-mark
     // accept path so a data mark seen without a preceding address
     // mark still fires; the UI formats -1 as "?" (FR-008).
-    int    GetCachedSector() const noexcept                    { return m_cachedSector; }
-    int    GetCachedTrack() const noexcept                    { return m_cachedTrack;  }
-    int    GetCachedVolume() const noexcept                    { return m_cachedVolume; }
+    int  GetCachedSector () const noexcept                    { return m_cachedSector; }
+    int  GetCachedTrack  () const noexcept                    { return m_cachedTrack;  }
+    int  GetCachedVolume () const noexcept                    { return m_cachedVolume; }
 
 private:
     enum class AddrState : uint8_t

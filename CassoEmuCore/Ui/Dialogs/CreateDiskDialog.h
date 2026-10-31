@@ -65,17 +65,17 @@ protected:
     void  OnCreate () override;
 
 private:
-    void  RefreshFromModel     ();
-    void  RefreshListing       ();
-    void  OnCreateClicked      ();
-    void  OnFormatChanged      (int index);
-    void  OnImageTypeChanged   (int index);
-    void  OnDownloadClicked    ();
-    void  OnRowActivated       (int row);
+    void  RefreshFromModel        ();
+    void  RefreshListing          ();
+    void  OnCreateClicked         ();
+    void  OnFormatChanged         (int index);
+    void  OnImageTypeChanged      (int index);
+    void  OnDownloadClicked       ();
+    void  OnRowActivated          (int row);
     void  RebuildImageTypeChoices ();
     void  ApplyImageTypeExtension ();
-    void  UpdateBootableRow    ();
-    void  UpdateFluxCheck      ();
+    void  UpdateBootableRow       ();
+    void  UpdateFluxCheck         ();
 
     //  NO FORMAT OR CONTENTS LOOKUP LIVES HERE. Three of them did, each a
     //  switch ending in a default arm that answered with another entry's name,

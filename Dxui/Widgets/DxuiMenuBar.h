@@ -181,10 +181,10 @@ private:
     bool  ActivateMnemonicRow (wchar_t ch);
     void  ShowOpenMenu        ();
 
-    int   HitTitleIndex       (int x, int y) const;
-    int   GetVisibleRowCount  (int menuIndex) const;
-    int   ToRowIndex          (int itemIndex) const;
-    const DxuiPopupMenuItem *  GetEntryAt (int menuIndex, int rowIndex) const;
+    int                        HitTitleIndex      (int x, int y) const;
+    int                        GetVisibleRowCount (int menuIndex) const;
+    int                        ToRowIndex         (int itemIndex) const;
+    const DxuiPopupMenuItem  * GetEntryAt         (int menuIndex, int rowIndex) const;
 
     static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
 

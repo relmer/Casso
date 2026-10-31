@@ -61,17 +61,17 @@ public:
                               bool                    isPending,
                               Callbacks               callbacks);
 
-    void  ShowNotes          (const ReleaseNotes & notes);
-    void  ShowNotesMissing   ();
-    void  SetHeader          (const std::wstring & header);
-    void  ShowImage          (const std::string & src, std::shared_ptr<const NotesImage> image);
-    std::vector<std::string>  GetImageSources () const;
-    void  ShowProgress       (std::uint64_t bytesDone, std::uint64_t bytesTotal);
-    void  ShowInstalling     ();
-    void  ShowRestarting     ();
-    void  ShowFailure        (UpdateFailure failure);
-    void  ShowCanceled       ();
-    void  ShowPending        ();
+    void                      ShowNotes        (const ReleaseNotes & notes);
+    void                      ShowNotesMissing ();
+    void                      SetHeader        (const std::wstring & header);
+    void                      ShowImage        (const std::string & src, std::shared_ptr<const NotesImage> image);
+    std::vector<std::string>  GetImageSources  () const;
+    void                      ShowProgress     (std::uint64_t bytesDone, std::uint64_t bytesTotal);
+    void                      ShowInstalling   ();
+    void                      ShowRestarting   ();
+    void                      ShowFailure      (UpdateFailure failure);
+    void                      ShowCanceled     ();
+    void                      ShowPending      ();
 
     bool  IsBusy             () const { return m_isBusy; }
     int   GetDefaultCommandId() const;

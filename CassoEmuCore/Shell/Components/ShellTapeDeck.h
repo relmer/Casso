@@ -45,8 +45,8 @@ public:
     void     InsertStartupTape (const std::string & tapePath);
 
     // Null before Initialize.
-    TapeManager *     GetManager () const { return m_tapeManager.get(); }
-    TapeDeckWidget &  GetWidget  ()       { return m_tapeChrome; }
+    TapeManager     * GetManager () const { return m_tapeManager.get(); }
+    TapeDeckWidget  & GetWidget  ()       { return m_tapeChrome; }
 
     // ICpuTapeCommands: one tape-deck command, against the recorder the
     // machine host owns, timed at the current bus cycle. CPU thread.

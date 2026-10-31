@@ -74,15 +74,15 @@ public:
     void   PushScope        (IDxuiControl * scopeRoot);
     void   PopScope         ();
 
-    IDxuiControl *  GetFocusedControl() const                  { return m_focused; }
-    void            SetFocused (IDxuiControl * ctl);
-    bool            FocusAtPoint (POINT pointDip);
+    IDxuiControl  * GetFocusedControl () const                  { return m_focused; }
+    void            SetFocused        (IDxuiControl * ctl);
+    bool            FocusAtPoint      (POINT pointDip);
 
     float  GetRowEpsilonDip () const;
     void   SetRowEpsilonDip (float epsilonDip)        { m_rowEpsilonOverrideDip = epsilonDip; m_rowEpsilonOverridden = true; }
 
-    size_t GetTabOrderCount () const                  { return m_tabOrder.size(); }
-    IDxuiControl *  GetTabOrderAt (size_t index) const   { return (index < m_tabOrder.size()) ? m_tabOrder[index] : nullptr; }
+    size_t          GetTabOrderCount () const                  { return m_tabOrder.size(); }
+    IDxuiControl  * GetTabOrderAt    (size_t index) const   { return (index < m_tabOrder.size()) ? m_tabOrder[index] : nullptr; }
 
 private:
     struct Scope

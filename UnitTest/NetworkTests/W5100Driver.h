@@ -36,11 +36,11 @@ public:
     void               PokeBytes    (Word address, std::span<const Byte> bytes);
 
     // Socket register helpers.
-    static Word        SocketReg    (int socket, Word offset);
-    void               Command      (int socket, Byte command);
-    Byte               Status       (int socket);
-    Byte               Interrupts   (int socket);
-    void               ClearInterrupts (int socket, Byte bits);
+    static Word  SocketReg       (int socket, Word offset);
+    void         Command         (int socket, Byte command);
+    Byte         Status          (int socket);
+    Byte         Interrupts      (int socket);
+    void         ClearInterrupts (int socket, Byte bits);
 
     // Writes `bytes` into the socket's TX buffer at Sn_TX_WR, splitting at
     // the buffer end as the datasheet's procedure does, advances Sn_TX_WR

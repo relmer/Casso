@@ -162,5 +162,5 @@ public:
 
 private:
     static void  ConvertTracksToFlux (uint64_t fluxTrackMask, DiskImage & inOutImage);
-    static void  ReorderDosToPo (const vector<Byte> & dosOrdered, vector<Byte> & outPo);
+    static void  ReorderDosToPo      (const vector<Byte> & dosOrdered, vector<Byte> & outPo);
 };

@@ -41,10 +41,10 @@ public:
     DxuiHitTester  () = default;
     ~DxuiHitTester() = default;
 
-    void                              Clear         ();
-    void                              Register      (const DxuiHitRect & rect);
-    const DxuiHitRect               * Pick          (int xClient, int yClient) const;
-    const std::vector<DxuiHitRect>  & GetRegistrations() const { return m_rects; }
+    void                              Clear            ();
+    void                              Register         (const DxuiHitRect & rect);
+    const DxuiHitRect               * Pick             (int xClient, int yClient) const;
+    const std::vector<DxuiHitRect>  & GetRegistrations () const { return m_rects; }
 
 private:
     static bool  IsPointInRect (const RECT & r, int x, int y);

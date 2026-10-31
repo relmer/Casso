@@ -54,8 +54,8 @@ public:
     HRESULT  NavigateUp   ();
     HRESULT  Refresh      ();
 
-    const std::vector<FileBrowseEntry> &  GetEntries       () const { return m_entries; }
-    const std::wstring &                  GetCurrentFolder () const { return m_folder; }
+    const std::vector<FileBrowseEntry>  & GetEntries       () const { return m_entries; }
+    const std::wstring                  & GetCurrentFolder () const { return m_folder; }
 
     void  SetExtensionFilter (const std::wstring & ext);
 

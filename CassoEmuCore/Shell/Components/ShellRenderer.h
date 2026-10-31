@@ -98,8 +98,8 @@ public:
     // color mode. Cached because resolving the monitor re-reads and re-parses
     // the machine JSON, and the render path needs a key every frame.
     // Refreshed only when the machine changes, on the UI thread.
-    void          RefreshCrtOverrideKeys ();
-    CrtResolved   ResolveCrtForCurrentMode () const;
+    void         RefreshCrtOverrideKeys   ();
+    CrtResolved  ResolveCrtForCurrentMode () const;
 
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is

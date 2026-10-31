@@ -512,19 +512,19 @@ public:
     static constexpr float  kDoorProgressEps = 1.0f / 256.0f;
 
 private:
-    void     RebuildGlassUvs  (const CrtUvRect & displayUv, int displayW, int displayH);
-    void     RebuildLampVerts ();
+    void     RebuildGlassUvs      (const CrtUvRect & displayUv, int displayW, int displayH);
+    void     RebuildLampVerts     ();
     void     BuildDerivedGeometry ();
-    void     BuildGlassSheen  (const CurvedDisplaySurface & surface, float tiltRad);
-    HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
-    HRESULT  DrawRecorder     (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    void     BuildGlassSheen      (const CurvedDisplaySurface & surface, float tiltRad);
+    HRESULT  DrawDrives           (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawRecorder         (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
 
     // Appends `in` turned by `angleRad` about the model's left-right axis
     // through (pivotY, pivotZ), positive turning the front (low Y) down.
     // The chrome's reflection: the scene captured into a cube map around
     // the recorder's handle, and one face of it drawn.
-    HRESULT  RenderEnvironment   (const DeskSceneComposition & comp);
-    HRESULT  DrawEnvironmentFace (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  RenderEnvironment    (const DeskSceneComposition & comp);
+    HRESULT  DrawEnvironmentFace  (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     void     BuildEnvironmentRoom (const float center[3]);
 
     // Where the camera stands in the world, from its view matrix.

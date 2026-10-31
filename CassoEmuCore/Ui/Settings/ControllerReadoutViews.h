@@ -124,5 +124,5 @@ private:
     int64_t                m_messageEnd    = 0;
     float                  m_messageLevel  = 0.0f;
     std::optional<size_t>  m_lastMessage;
-    std::mt19937           m_random { std::random_device{}() };
+    std::mt19937           m_random        { std::random_device{}() };
 };

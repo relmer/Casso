@@ -116,6 +116,6 @@ private:
 
     //  4-and-4: the odd bits ride one nibble and the even bits the next, both
     //  with the gaps forced to 1 so every byte still reads as a valid nibble.
-    static Byte    ReadOddEvenAtBit (const vector<Byte> & bits, size_t bitAt);
-    static void    WriteOddEvenAtBit (vector<Byte> & bits, size_t bitAt, Byte value);
+    static Byte  ReadOddEvenAtBit  (const vector<Byte> & bits, size_t bitAt);
+    static void  WriteOddEvenAtBit (vector<Byte> & bits, size_t bitAt, Byte value);
 };

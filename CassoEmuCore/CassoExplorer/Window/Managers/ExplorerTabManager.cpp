@@ -567,10 +567,9 @@ bool ExplorerTabManager::TickSpinner (int64_t nowMs)
 {
     static constexpr int  s_kFrames  = 60;
     static constexpr int  s_kCycleMs = 2000;
-
-    int       sizePx = m_context.scaler.ToPx (16);
-    uint32_t  rgb    = (m_context.theme != nullptr) ? m_context.theme->Accent() : 0xFF4CC2FF;
-    int       frame  = (int) ((nowMs % s_kCycleMs) * s_kFrames / s_kCycleMs);
+    int                   sizePx     = m_context.scaler.ToPx (16);
+    uint32_t              rgb        = (m_context.theme != nullptr) ? m_context.theme->Accent() : 0xFF4CC2FF;
+    int                   frame      = (int) ((nowMs % s_kCycleMs) * s_kFrames / s_kCycleMs);
 
 
 

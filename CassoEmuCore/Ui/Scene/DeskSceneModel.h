@@ -173,24 +173,24 @@ public:
     // KeyBoxes holds each key's model-space box as lo xyz then hi xyz.
     static constexpr size_t  kRecorderKeyCount = 6;
 
-    const std::vector<Dxui3DRenderer::Vertex> &   KeyVerts     (size_t key) const { return m_keys[key]; }
-    const float *                                 KeyBoxes     () const { return &m_keyBoxes[0][0]; }
+    const std::vector<Dxui3DRenderer::Vertex>  & KeyVerts (size_t key) const { return m_keys[key]; }
+    const float                                * KeyBoxes () const { return &m_keyBoxes[0][0]; }
 
     // The recorder's cassette door (the smoked frame and what is printed on
     // it), which the scene swings open, and the cassette behind it, which it
     // leaves out with no tape in. LidBox is the door's box, lo xyz then hi xyz.
-    const std::vector<Dxui3DRenderer::Vertex> &   LidVerts      () const { return m_lid; }
-    const std::vector<Dxui3DRenderer::Vertex> &   CassetteVerts () const { return m_cassette; }
-    const std::vector<Dxui3DRenderer::Vertex> &   LidGlassVerts () const { return m_lidGlass; }
-    const std::vector<Dxui3DRenderer::Vertex> &   LidReliefVerts () const { return m_lidRelief; }   // molded up out of the pane
-    const std::vector<Dxui3DRenderer::Vertex> &   CassetteGlassVerts () const { return m_cassetteGlass; }   // its window, see-through
-    const float *                                 LidBox        () const { return m_lidBox.data(); }
+    const std::vector<Dxui3DRenderer::Vertex>  & LidVerts           () const { return m_lid; }
+    const std::vector<Dxui3DRenderer::Vertex>  & CassetteVerts      () const { return m_cassette; }
+    const std::vector<Dxui3DRenderer::Vertex>  & LidGlassVerts      () const { return m_lidGlass; }
+    const std::vector<Dxui3DRenderer::Vertex>  & LidReliefVerts     () const { return m_lidRelief; }   // molded up out of the pane
+    const std::vector<Dxui3DRenderer::Vertex>  & CassetteGlassVerts () const { return m_cassetteGlass; }   // its window, see-through
+    const float                                * LidBox             () const { return m_lidBox.data(); }
 
     // The recorder's volume thumbwheel, which the scene turns and the pointer
     // takes hold of. It lies flat, so it turns about the model's up axis
     // through the middle of its box, lo xyz then hi xyz.
-    const std::vector<Dxui3DRenderer::Vertex> &   VolumeWheelVerts () const { return m_volumeWheel; }
-    const float *                                 VolumeWheelBox   () const { return m_volumeWheelBox.data(); }
+    const std::vector<Dxui3DRenderer::Vertex>  & VolumeWheelVerts () const { return m_volumeWheel; }
+    const float                                * VolumeWheelBox   () const { return m_volumeWheelBox.data(); }
 
     // The recorder's two spindles, and the cassette hubs that sit on them,
     // which the scene turns while the tape moves: each about the model's up
@@ -198,9 +198,9 @@ public:
     // hubs go out with the cassette; the spindles are always there.
     static constexpr size_t  kRecorderReelCount = 2;
 
-    const std::vector<Dxui3DRenderer::Vertex> &   SpindleVerts (size_t reel) const { return m_spindles[reel]; }
-    const std::vector<Dxui3DRenderer::Vertex> &   HubVerts     (size_t reel) const { return m_hubs[reel]; }
-    const float *                                 SpindleBox   (size_t reel) const { return m_spindleBoxes[reel].data(); }
+    const std::vector<Dxui3DRenderer::Vertex>  & SpindleVerts (size_t reel) const { return m_spindles[reel]; }
+    const std::vector<Dxui3DRenderer::Vertex>  & HubVerts     (size_t reel) const { return m_hubs[reel]; }
+    const float                                * SpindleBox   (size_t reel) const { return m_spindleBoxes[reel].data(); }
 
     // Where a title is written on the cassette's label, lo xyz then hi xyz;
     // empty (lo above hi) on a model without one.
@@ -208,19 +208,19 @@ public:
 
     // Polished chrome (the recorder's handle), with its normals smoothed and
     // flagged for the shader to draw as a mirror.
-    const std::vector<Dxui3DRenderer::Vertex> &   ChromeVerts   () const { return m_chrome; }
-    const std::vector<Dxui3DRenderer::Vertex> &   PadlockVerts () const { return m_padlock; }
-    const std::vector<DeskLampAnchor> &           Lamps        () const { return m_lamps; }
-    const std::vector<DeskRegionBox> &            RegionBoxes  () const { return m_regions; }
+    const std::vector<Dxui3DRenderer::Vertex>  & ChromeVerts  () const { return m_chrome; }
+    const std::vector<Dxui3DRenderer::Vertex>  & PadlockVerts () const { return m_padlock; }
+    const std::vector<DeskLampAnchor>          & Lamps        () const { return m_lamps; }
+    const std::vector<DeskRegionBox>           & RegionBoxes  () const { return m_regions; }
 
     // THE TILTING ASSEMBLY: the bezel, its two tilt marks, and the tube
     // behind them. Its own batch because it moves as a body against a case
     // that does not, which is the same reason a drive's door has one.
-    const std::vector<Dxui3DRenderer::Vertex> &   TiltableVerts () const { return m_tiltable; }
-    const std::vector<DeskTiltGrip> &             TiltGrips     () const { return m_tiltGrips; }
-    bool                                          CanTilt       () const { return !m_tiltable.empty() && m_maxTiltRad > 0.0f; }
-    float                                         TiltPivotY    () const { return m_tiltPivotY; }
-    float                                         TiltPivotZ    () const { return m_tiltPivotZ; }
+    const std::vector<Dxui3DRenderer::Vertex>  & TiltableVerts () const { return m_tiltable; }
+    const std::vector<DeskTiltGrip>            & TiltGrips     () const { return m_tiltGrips; }
+    bool                                         CanTilt       () const { return !m_tiltable.empty() && m_maxTiltRad > 0.0f; }
+    float                                        TiltPivotY    () const { return m_tiltPivotY; }
+    float                                        TiltPivotZ    () const { return m_tiltPivotZ; }
 
     // HOW FAR IT GOES, and why it stops there: at the limit the leading edge
     // of the assembly has come back level with the frame around it. Derived
@@ -622,16 +622,16 @@ private:
     void     BuildInUseStamp    ();
 
     // The "disk ][" logotype, embossed low on the faceplate.
-    void     BuildWordmarkStamp ();
-    void     AddRegionBoxes     ();
-    void     ComputeBounds         ();
+    void  BuildWordmarkStamp ();
+    void  AddRegionBoxes     ();
+    void  ComputeBounds      ();
 
     // The tilting assembly's grips and its travel, both measured off the
     // loaded mesh rather than declared.
-    void     GrowTiltGrip          (int direction, size_t firstVert);
-    void     ComputeTiltTravel     ();
-    void     ComputeGroundFootprint ();
-    void     SmoothChromeNormals    ();
+    void  GrowTiltGrip           (int direction, size_t firstVert);
+    void  ComputeTiltTravel      ();
+    void  ComputeGroundFootprint ();
+    void  SmoothChromeNormals    ();
 
     DeskDeviceKind                                                      m_kind             = DeskDeviceKind::Monitor2c;
     std::vector<Dxui3DRenderer::Vertex>                                 m_opaque;

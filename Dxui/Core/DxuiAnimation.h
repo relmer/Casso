@@ -33,10 +33,10 @@ public:
     DxuiAnimation  ();
     ~DxuiAnimation() = default;
 
-    DxuiTweenHandle  StartTween     (float startValue, float endValue, float durationSec, DxuiTweenEase ease);
-    bool         SampleTween    (DxuiTweenHandle handle, float currentTimeSec, float & outValue) const;
-    void         AdvanceTime    (float currentTimeSec);
-    void         ClearTweens    ();
+    DxuiTweenHandle  StartTween  (float startValue, float endValue, float durationSec, DxuiTweenEase ease);
+    bool             SampleTween (DxuiTweenHandle handle, float currentTimeSec, float & outValue) const;
+    void             AdvanceTime (float currentTimeSec);
+    void             ClearTweens ();
 
     static float ApplyEase      (DxuiTweenEase ease, float t);
 

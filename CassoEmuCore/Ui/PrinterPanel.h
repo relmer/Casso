@@ -63,9 +63,9 @@ public:
                      ID3D11DeviceContext  * context,
                      const CassoTheme     * theme);
 
-    bool     IsOpen () const { return IsCreated (); }
+    bool     IsOpen      () const { return IsCreated (); }
     HRESULT  RenderFrame ();
-    void     SetTheme (const CassoTheme * theme);
+    void     SetTheme    (const CassoTheme * theme);
 
     // True while the panel needs a continuous animation cadence: the carriage
     // is still sweeping toward the guest's head position, or a pan/zoom is

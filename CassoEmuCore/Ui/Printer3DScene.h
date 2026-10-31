@@ -153,12 +153,12 @@ private:
     // front panel no longer pulses every lamp together.
     float GetRoleIntensity (LampRole role) const;
 
-    void  BuildBackdrop   (std::vector<Vertex> & out) const;
-    void  BuildBodyBack   (std::vector<Vertex> & out) const;
-    void  BuildPaper      (std::vector<Vertex> & out) const;
-    void  BuildBodyFront  (std::vector<Vertex> & out) const;
-    void  BuildControls   (std::vector<Vertex> & out) const;
-    void  BuildCassoLogo  (std::vector<Vertex> & out, float faceZ) const;
+    void  BuildBackdrop    (std::vector<Vertex> & out) const;
+    void  BuildBodyBack    (std::vector<Vertex> & out) const;
+    void  BuildPaper       (std::vector<Vertex> & out) const;
+    void  BuildBodyFront   (std::vector<Vertex> & out) const;
+    void  BuildControls    (std::vector<Vertex> & out) const;
+    void  BuildCassoLogo   (std::vector<Vertex> & out, float faceZ) const;
     void  BuildHeadOverlay (std::vector<Vertex> & out) const;
 
     Dxui3DRenderer  m_renderer;

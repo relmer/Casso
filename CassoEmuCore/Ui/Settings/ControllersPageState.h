@@ -145,12 +145,12 @@ public:
     using PlayerPickedFn = std::function<void (size_t player, const PlayerEntry & entry)>;
     using PlayerModeFn   = std::function<void (size_t player, PlayerMode mode)>;
 
-    void                   SetPlayers            (const PlayerEntries & entries, const PlayerSlots & slots, size_t axisCount);
-    void                   SetOnPlayerPicked     (PlayerPickedFn onPicked);
-    void                   SetOnPlayerModeSet    (PlayerModeFn onModeSet);
-    const PlayerEntries &  GetPlayerEntries      () const;
-    const PlayerSlots &    GetPlayerSlots        () const;
-    size_t                 GetAxisCount          () const;
+    void                   SetPlayers         (const PlayerEntries & entries, const PlayerSlots & slots, size_t axisCount);
+    void                   SetOnPlayerPicked  (PlayerPickedFn onPicked);
+    void                   SetOnPlayerModeSet (PlayerModeFn onModeSet);
+    const PlayerEntries  & GetPlayerEntries   () const;
+    const PlayerSlots    & GetPlayerSlots     () const;
+    size_t                 GetAxisCount       () const;
 
     // Whether two people are playing, which decides what the rest of the
     // page edits, and the controller each player plays, if any.
@@ -225,11 +225,11 @@ public:
 
     // The control on one row of a target, in place: the rest of the target's
     // controls keep their order.
-    bool                                  ReplaceAxisBinding   (PaddleTarget target, size_t index, const AxisBinding & binding);
-    bool                                  ReplaceButtonBinding (PaddleTarget target, size_t index, const ButtonBinding & binding);
-    bool                                  SetInverted        (PaddleTarget target, size_t index, bool inverted);
-    bool                                  SetResponse        (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
-    bool                                  SetThreshold       (PaddleTarget target, size_t index, float threshold);
+    bool  ReplaceAxisBinding   (PaddleTarget target, size_t index, const AxisBinding & binding);
+    bool  ReplaceButtonBinding (PaddleTarget target, size_t index, const ButtonBinding & binding);
+    bool  SetInverted          (PaddleTarget target, size_t index, bool inverted);
+    bool  SetResponse          (PaddleTarget target, size_t index, AxisResponse response, float maxSpeed);
+    bool  SetThreshold         (PaddleTarget target, size_t index, float threshold);
 
     // Whether an axis's options hold a paddle speed, which only a Paddle
     // profile's do, and whether they offer Position beside it, which only a
@@ -289,11 +289,11 @@ public:
     // token, for the page's mode or for either, which becomes the service's
     // on OK; whether any differs from when the page opened; and the edited
     // controller's, empty for the mode's built-in profile.
-    const std::map<std::string, std::string> &  GetActiveProfiles () const;
-    const std::map<std::string, std::string> &  GetActiveProfiles (ProfileMode mode) const;
-    bool                                  HasActiveProfileChanged  () const;
-    bool                                  HasActiveProfileChanged  (ProfileMode mode) const;
-    const std::string &                   GetActiveProfileName     () const;
+    const std::map<std::string, std::string>  & GetActiveProfiles       () const;
+    const std::map<std::string, std::string>  & GetActiveProfiles       (ProfileMode mode) const;
+    bool                                        HasActiveProfileChanged () const;
+    bool                                        HasActiveProfileChanged (ProfileMode mode) const;
+    const std::string                         & GetActiveProfileName    () const;
 
     // The two lines shown for a refused name; false when the result is not a
     // name error.
@@ -328,12 +328,12 @@ public:
 
     // The Calibrate action: Center, then Travel, then a pending user
     // calibration for the selected unit.
-    void                                  BeginCalibration   ();
-    void                                  FeedCalibration    (const ControllerSample & sample);
-    void                                  AdvanceCalibration ();
-    void                                  CancelCalibration  ();
-    CalibrationStep                       GetCalibrationStep () const;
-    void                                  UseAutomaticCalibration ();
+    void             BeginCalibration        ();
+    void             FeedCalibration         (const ControllerSample & sample);
+    void             AdvanceCalibration      ();
+    void             CancelCalibration       ();
+    CalibrationStep  GetCalibrationStep      () const;
+    void             UseAutomaticCalibration ();
 
     // What the game port would read from this reading under the edits: the
     // pending calibration, then the pending mapping and dead zone. A rate
@@ -345,28 +345,28 @@ public:
     void                                  Revert             ();
     void                                  MarkCommitted      ();
 
-    const std::map<std::string, ControllerModelSettings> &  GetModels       () const;
-    const std::map<std::string, ControllerCalibration> &    GetCalibrations () const;
+    const std::map<std::string, ControllerModelSettings>  & GetModels       () const;
+    const std::map<std::string, ControllerCalibration>    & GetCalibrations () const;
 
 private:
 
-    const ControllerEntry *          GetSelected          () const;
-    ControllerModelSettings *        EnsureSelectedModel  ();
-    const ControllerModelSettings *  FindSelectedModel    () const;
-    const ControllerProfile *        FindEditedProfile    () const;
-    ControllerProfile *              EnsureEditedProfile  ();
-    ControllerProfileKind            GetEditedBuiltInKind () const;
-    bool                             IsNameOfOtherMode    (const std::string & name) const;
-    bool                             FindCommittedMapping (ControlMapping & mapping) const;
-    MultiplayerSetup                 MakePlayView         () const;
-    void                             ApplyPlayerEntry     (size_t player, const PlayerEntry & entry);
-    void                             SyncPlayers          ();
-    void                             SyncProfileMode      ();
+    const ControllerEntry          * GetSelected                () const;
+    ControllerModelSettings        * EnsureSelectedModel        ();
+    const ControllerModelSettings  * FindSelectedModel          () const;
+    const ControllerProfile        * FindEditedProfile          () const;
+    ControllerProfile              * EnsureEditedProfile        ();
+    ControllerProfileKind            GetEditedBuiltInKind       () const;
+    bool                             IsNameOfOtherMode          (const std::string & name) const;
+    bool                             FindCommittedMapping       (ControlMapping & mapping) const;
+    MultiplayerSetup                 MakePlayView               () const;
+    void                             ApplyPlayerEntry           (size_t player, const PlayerEntry & entry);
+    void                             SyncPlayers                ();
+    void                             SyncProfileMode            ();
     ProfileMode                      GetEditedPlayerProfileMode () const;
-    std::optional<size_t>            FindHoldingPlayer    () const;
-    std::string                      GetCommittedName     (const std::string & token, const std::string & name) const;
-    AxisResponse                     GetAllowedResponse   (const AxisBinding & binding) const;
-    AxisResponse                     GetNewResponse       (const AxisBinding & binding) const;
+    std::optional<size_t>            FindHoldingPlayer          () const;
+    std::string                      GetCommittedName           (const std::string & token, const std::string & name) const;
+    AxisResponse                     GetAllowedResponse         (const AxisBinding & binding) const;
+    AxisResponse                     GetNewResponse             (const AxisBinding & binding) const;
 
     // Every control on every target of the edited mapping, a pair per row.
     std::vector<std::pair<ControlId, PaddleTarget>>  ListControlUses() const;
@@ -381,9 +381,9 @@ private:
     std::wstring                         GetPlayerHeading   (size_t player) const;
     static std::wstring                  GetJoyportJackNote (JoyportJack jack);
 
-    static std::vector<AxisBinding> *    FindAxisList    (ControlMapping & mapping, PaddleTarget target);
-    static std::vector<ButtonBinding> *  FindButtonList  (ControlMapping & mapping, PaddleTarget target);
-    static bool                          IsAxisTarget    (PaddleTarget target);
+    static std::vector<AxisBinding>    * FindAxisList   (ControlMapping & mapping, PaddleTarget target);
+    static std::vector<ButtonBinding>  * FindButtonList (ControlMapping & mapping, PaddleTarget target);
+    static bool                          IsAxisTarget   (PaddleTarget target);
 
     std::vector<ControllerEntry>                    m_controllers;
     std::vector<ControllerDeviceInfo>               m_devices;

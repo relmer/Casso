@@ -97,16 +97,16 @@ public:
     static const wchar_t *  GetAssemblerLabel (Assembler assembler);
 
 private:
-    static std::vector<Run>  GetFieldRuns   (const std::wstring & line, Assembler assembler);
-    static std::vector<Run>  GetMerlinRuns  (const std::wstring & line);
-    static void  AddOperandRuns (const std::wstring & line, size_t from, size_t to, Assembler assembler, std::vector<Run> & runs);
-    static bool  IsSymbolStart  (wchar_t ch, Assembler assembler);
-    static bool  IsSymbolChar   (wchar_t ch);
-    static bool  IsMerlinOnlyOpcode (const std::wstring & word);
-    static bool  IsCa65OnlyOpcode   (const std::wstring & word);
-    static bool  IsAs65OnlyOpcode   (const std::wstring & word);
-    static bool  IsMerlinListingRow (const std::wstring & line, bool & hasAddress);
-    static bool  IsCa65ListingRow   (const std::wstring & line);
-    static size_t  GetListingSourceColumn (Listing listing);
-    static std::string  ToNarrow (const std::wstring & text);
+    static std::vector<Run>  GetFieldRuns           (const std::wstring & line, Assembler assembler);
+    static std::vector<Run>  GetMerlinRuns          (const std::wstring & line);
+    static void              AddOperandRuns         (const std::wstring & line, size_t from, size_t to, Assembler assembler, std::vector<Run> & runs);
+    static bool              IsSymbolStart          (wchar_t ch, Assembler assembler);
+    static bool              IsSymbolChar           (wchar_t ch);
+    static bool              IsMerlinOnlyOpcode     (const std::wstring & word);
+    static bool              IsCa65OnlyOpcode       (const std::wstring & word);
+    static bool              IsAs65OnlyOpcode       (const std::wstring & word);
+    static bool              IsMerlinListingRow     (const std::wstring & line, bool & hasAddress);
+    static bool              IsCa65ListingRow       (const std::wstring & line);
+    static size_t            GetListingSourceColumn (Listing listing);
+    static std::string       ToNarrow               (const std::wstring & text);
 };

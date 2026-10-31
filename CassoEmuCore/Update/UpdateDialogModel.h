@@ -106,26 +106,26 @@ public:
                                                   const ReleaseVersion  & running,
                                                   std::optional<int>      ageDays,
                                                   const RandomIndexFn   & randomIndex);
-    static JudgementList    GetJudgements        ();
-    static std::wstring     PickJudgement        (const RandomIndexFn & randomIndex);
-    static std::vector<std::wstring>  GetOpeners ();
-    static std::wstring     PickOpener           (const RandomIndexFn & randomIndex);
-    static JudgementList    GetDeveloperNudges   ();
-    static std::wstring     PickDeveloperNudge   (const RandomIndexFn & randomIndex);
-    static size_t           GetAgeRemarkCount    ();
-    static std::wstring     MakeAgeRemark        (size_t index, int days, const ReleaseVersion & running);
-    static bool             TryGetDaysSince      (std::string_view date, std::int64_t nowUtc, int & outDays);
-    static std::wstring     MakeUpToDateText     (const ReleaseVersion & running);
-    static std::wstring     MakeUpdatedNotice    (const std::string & version);
-    static std::wstring     MakeProgressText     (std::uint64_t bytesDone, std::uint64_t bytesTotal);
-    static std::wstring     DescribeFailure      (UpdateFailure failure);
-    static std::wstring     MakeCheckFailedText  (UpdateFailure failure);
-    static std::wstring     MakeUpdateFailedText (UpdateFailure failure);
-    static void             FormatNotes          (const ReleaseNotes & notes, std::vector<FormattedLine> & outLines);
-    static void             FormatNotesTab       (const ReleaseNotes & notes, NotesTab tab, std::vector<FormattedLine> & outLines);
-    static std::vector<NotesTab>  GetNotesTabs   (const ReleaseNotes & notes);
-    static bool             ShowsTabStrip        (const std::vector<NotesTab> & tabs);
-    static LPCWSTR          GetTabLabel          (NotesTab tab);
+    static JudgementList              GetJudgements        ();
+    static std::wstring               PickJudgement        (const RandomIndexFn & randomIndex);
+    static std::vector<std::wstring>  GetOpeners           ();
+    static std::wstring               PickOpener           (const RandomIndexFn & randomIndex);
+    static JudgementList              GetDeveloperNudges   ();
+    static std::wstring               PickDeveloperNudge   (const RandomIndexFn & randomIndex);
+    static size_t                     GetAgeRemarkCount    ();
+    static std::wstring               MakeAgeRemark        (size_t index, int days, const ReleaseVersion & running);
+    static bool                       TryGetDaysSince      (std::string_view date, std::int64_t nowUtc, int & outDays);
+    static std::wstring               MakeUpToDateText     (const ReleaseVersion & running);
+    static std::wstring               MakeUpdatedNotice    (const std::string & version);
+    static std::wstring               MakeProgressText     (std::uint64_t bytesDone, std::uint64_t bytesTotal);
+    static std::wstring               DescribeFailure      (UpdateFailure failure);
+    static std::wstring               MakeCheckFailedText  (UpdateFailure failure);
+    static std::wstring               MakeUpdateFailedText (UpdateFailure failure);
+    static void                       FormatNotes          (const ReleaseNotes & notes, std::vector<FormattedLine> & outLines);
+    static void                       FormatNotesTab       (const ReleaseNotes & notes, NotesTab tab, std::vector<FormattedLine> & outLines);
+    static std::vector<NotesTab>      GetNotesTabs         (const ReleaseNotes & notes);
+    static bool                       ShowsTabStrip        (const std::vector<NotesTab> & tabs);
+    static LPCWSTR                    GetTabLabel          (NotesTab tab);
 
     using MeasureWidthFn = std::function<float (const std::wstring & text)>;
 

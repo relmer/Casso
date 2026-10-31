@@ -66,7 +66,7 @@ public:
     // take ownership.
     void  RegisterSource       (IDriveAudioSource * source);
     void  UnregisterSource     (IDriveAudioSource * source);
-    void  UnregisterAllSources();
+    void  UnregisterAllSources ();
 
     // Toggle gating used by the View -> Options... -> Drive audio
     // checkbox (FR-006). Default is enabled on construction.
@@ -83,9 +83,9 @@ public:
     // (default L"Shugart").
     void          SetSampleLoadContext (const wstring & devicesDir,
                                         uint32_t        sampleRate);
-    HRESULT       SetMechanism         (const wstring & mechanism);
-    const wstring & GetMechanism       () const { return m_mechanism; }
-    bool          IsValidMechanism     (const wstring & mechanism) const;
+    HRESULT          SetMechanism     (const wstring & mechanism);
+    const wstring  & GetMechanism     () const { return m_mechanism; }
+    bool             IsValidMechanism (const wstring & mechanism) const;
 
     // Fill `stereoOut` (length 2 * numSamples) with interleaved L/R
     // float PCM. Always clears the buffer first; emits silence if
