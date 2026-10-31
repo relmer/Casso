@@ -142,7 +142,10 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
             w = parts[k].x1 - parts[k].x0;
             painter.FillRect (parts[k].x0, top, std::max (w, 1.0f), height, color);
 
-            if (w >= digitsW + m_scaler.ToPxf (s_kValuePadDip))
+            //  A nibble's width varies by up to a pixel with where it falls, and
+            //  the hex zoom stop is exactly this width, so a pixel of slack
+            //  puts every nibble's value on screen at that stop.
+            if (w + 1.0f >= digitsW + m_scaler.ToPxf (s_kValuePadDip))
             {
                 label = GetNibbleKindLabel (track.nibbleKinds[i]) + std::format (L": {:02X}", framed.nibbles[i].value)
                       + (i < track.isFailedChecksum.size() && track.isFailedChecksum[i] != 0 ? L", checksum failed" : L"");

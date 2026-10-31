@@ -171,6 +171,29 @@ void DxuiZoomControl::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiZoomControl::IsOverControls
+//
+//  Over the percentage or, while they are visible, the slider and buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiZoomControl::IsOverControls (POINT p) const
+{
+    RECT  area = m_percent->GetBounds();
+
+
+
+    area.left = m_isSliderShown ? m_zoomOut->GetBounds().left : area.left;
+
+    return PtInRect (&area, p) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiZoomControl::ChangeZoom
 //
 //  A zoom from the control's own buttons or slider: set on the control, then

@@ -46,6 +46,9 @@ public:
     //  callback is called again with the zoom it ended on.
     bool    IsDragging    () const { return m_slider->IsDragging(); }
 
+    //  Whether a point is over the parts of the control now visible.
+    bool    IsOverControls (POINT p) const;
+
     //  The zoom a number of steps from `zoom` through the standard stops, as
     //  a browser zooms: -1 for the next stop down, 1 for the next one up.
     static double  StepZoom      (double zoom, int steps);

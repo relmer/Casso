@@ -3131,7 +3131,8 @@ legend, and tilt the platter and back.
   disk internals.
 - **FR-154**: The window MUST zoom from 80% to 125%, every size and font in
   it except the status band along its bottom multiplied by the zoom. Ctrl and
-  the mouse wheel anywhere but over the File map grid (FR-157), Ctrl with +
+  the mouse wheel anywhere but over the File map grid (FR-157), the mouse wheel
+  over the zoom percentage, slider or buttons, Ctrl with +
   or -, and the "-" and "+" buttons MUST step
   through 80, 90, 100, 110 and 125%, and
   Ctrl+0 MUST return to 100%. The status band MUST show the zoom as a

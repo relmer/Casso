@@ -1310,14 +1310,14 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
     //  The wheel zooms the File map grid over it, as it does the platter
-    //  and the strip, with Shift and Ctrl left to pan it (FR-157); Ctrl and
-    //  the wheel zoom the whole window everywhere else (FR-154).
+    //  and the strip, with Shift and Ctrl left to pan it (FR-157); Ctrl and the
+    //  wheel elsewhere, or the wheel over the zoom control, zoom the window (FR-154).
     if (ev.kind == DxuiMouseEventKind::Wheel && !ev.shift && !ev.ctrl && !ev.wheelHorizontal && m_files->IsOverGrid (p))
     {
         m_files->ZoomGrid (ZoomStops::GetWheelSteps (ev.wheelDelta), p);
         isHandled = true;
     }
-    else if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && !m_files->IsOverGrid (p))
+    else if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ((ev.ctrl && !m_files->IsOverGrid (p)) || m_statusBand->IsOverZoom (p)))
     {
         SetZoom (DxuiZoomControl::StepZoom (m_zoom, (ev.wheelDelta > 0) ? 1 : -1));
         isHandled = true;
