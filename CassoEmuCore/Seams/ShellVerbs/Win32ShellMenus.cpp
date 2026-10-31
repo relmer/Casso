@@ -647,7 +647,9 @@ HRESULT Win32ShellMenus::WalkItemVerbs (HWND owner, const std::vector<std::wstri
         {
             CMINVOKECOMMANDINFOEX  invoke = { sizeof (invoke) };
 
-            invoke.fMask  = CMIC_MASK_UNICODE;
+            //  The shell can report an error for a removal that it did make, and the
+            //  caller reads the list again after a failure.
+            invoke.fMask  = CMIC_MASK_UNICODE | ((label == L"Remove from list") ? CMIC_MASK_FLAG_NO_UI : 0);
             invoke.hwnd   = owner;
             invoke.lpVerb  = MAKEINTRESOURCEA (info.wID - Win32ShellItemVerbs::s_kFirstCommandId);
             invoke.lpVerbW = MAKEINTRESOURCEW (info.wID - Win32ShellItemVerbs::s_kFirstCommandId);
