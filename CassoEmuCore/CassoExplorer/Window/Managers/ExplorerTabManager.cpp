@@ -510,7 +510,7 @@ void ExplorerTabManager::FillTabs()
 
         switch (location.kind)
         {
-            case Location::Kind::None:          tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::ThisPc); break;
+            case Location::Kind::None:          tab.icon = m_context.shellIcons.GetForPath (IShellItemVerbs::kHomeTreeId, true); break;
             case Location::Kind::Root:          tab.icon = m_context.shellIcons.GetForKind ((location.path == TreeModel::kCassoRootId) ? IShellIcons::Kind::Casso : (location.path == TreeModel::kCassoLinkRootId || location.path.starts_with (TreeModel::kLinkRootTag)) ? IShellIcons::Kind::AppleMachine : IShellIcons::Kind::ThisPc); break;
             case Location::Kind::RecycleBin:    tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::RecycleBin); break;
             case Location::Kind::DiskDirectory: tab.icon = m_context.shellIcons.GetForKind (IShellIcons::Kind::Folder); break;
@@ -525,6 +525,76 @@ void ExplorerTabManager::FillTabs()
 
     m_tabs->SetTabs (std::move (tabs));
     m_tabs->SetSelected ((int) model.GetActiveIndex());
+
+    m_spinnerFrame = -1;
+
+    if (IsLoading())
+    {
+        TickSpinner ((int64_t) GetTickCount64());
+        m_context.window.ArmTick();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabManager::IsLoading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerTabManager::IsLoading() const
+{
+    return m_context.browser.IsListLoading();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabManager::TickSpinner
+//
+//  While the active tab's list loads, a spinner replaces its icon, as in
+//  Explorer. FillTabs restores the icon when the list arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerTabManager::TickSpinner (int64_t nowMs)
+{
+    static constexpr int  s_kFrames  = 60;
+    static constexpr int  s_kCycleMs = 2000;
+
+    int       sizePx = m_context.scaler.ToPx (16);
+    uint32_t  rgb    = (m_context.theme != nullptr) ? m_context.theme->Accent() : 0xFF4CC2FF;
+    int       frame  = (int) ((nowMs % s_kCycleMs) * s_kFrames / s_kCycleMs);
+
+
+
+    if (!IsLoading() || m_tabs->GetTabs().empty() || frame == m_spinnerFrame)
+    {
+        return false;
+    }
+
+    if (sizePx != m_spinnerPx || rgb != m_spinnerRgb || m_spinnerFrames.empty())
+    {
+        m_spinnerPx  = sizePx;
+        m_spinnerRgb = rgb;
+        m_spinnerFrames.clear();
+
+        for (int at = 0; at < s_kFrames; at++)
+        {
+            m_spinnerFrames.push_back (std::make_shared<const DxuiIconImage> (DxuiIconImage::MakeSpinnerFrame (at, s_kFrames, sizePx, rgb)));
+        }
+    }
+
+    m_spinnerFrame = frame;
+    m_tabs->SetTabIcon (m_context.browser.GetBrowserModel().GetActiveIndex(), m_spinnerFrames[(size_t) frame]);
+
+    return true;
 }
 
 

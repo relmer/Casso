@@ -113,6 +113,9 @@ public:
         Assert::IsFalse (W::IsListColumnShown ((size_t) C::Locked,   false, K::DiskImage),  L"unless unchosen");
         Assert::IsTrue  (W::IsListColumnShown ((size_t) C::DateDeleted, false, K::RecycleBin), L"the Recycle Bin shows when an item was deleted");
         Assert::IsFalse (W::IsListColumnShown ((size_t) C::OriginalLocation, true, K::HostFolder), L"and nowhere else");
+        Assert::IsTrue  (W::IsListColumnShown ((size_t) C::Folder, true,  K::ShellFolder, true), L"a search shows the folder");
+        Assert::IsFalse (W::IsListColumnShown ((size_t) C::Folder, false, K::ShellFolder, true), L"unless unchosen");
+        Assert::IsTrue  (W::IsListColumnOffered ((size_t) C::Folder, K::ShellFolder, true),      L"and the menu lists it");
     }
 
 

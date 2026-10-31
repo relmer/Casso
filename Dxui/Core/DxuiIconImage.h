@@ -34,6 +34,10 @@ struct DxuiIconImage
     //  icon's art down to a row's size.
     static DxuiIconImage  Resample (const DxuiIconImage & source, int sizePx);
 
+    //  A frame of a busy spinner: a ring's arc that turns while it grows and
+    //  shrinks. `frame` is out of `frameCount`, one full cycle.
+    static DxuiIconImage  MakeSpinnerFrame (int frame, int frameCount, int sizePx, uint32_t rgb);
+
 private:
     static HRESULT  ApplyMask (HDC dc, HICON icon, int sizePx, uint32_t * bits, DxuiIconImage & image);
 };

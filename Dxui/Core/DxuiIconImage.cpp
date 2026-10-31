@@ -219,3 +219,57 @@ DxuiIconImage DxuiIconImage::Resample (const DxuiIconImage & source, int sizePx)
 
     return out;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiIconImage::MakeSpinnerFrame
+//
+//  The arc makes two turns a cycle while its length goes from short to long and
+//  back. Its edges are antialiased by each pixel's distance from them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiIconImage DxuiIconImage::MakeSpinnerFrame (int frame, int frameCount, int sizePx, uint32_t rgb)
+{
+    static constexpr float  s_kPi       = 3.14159265f;
+    static constexpr float  s_kMinSweep = 30.0f;
+    static constexpr float  s_kMaxSweep = 270.0f;
+
+    DxuiIconImage  out;
+    float          phase  = (float) frame / (float) frameCount;
+    float          start  = 720.0f * phase;
+    float          sweep  = s_kMinSweep + (s_kMaxSweep - s_kMinSweep) * (0.5f - 0.5f * std::cos (2.0f * s_kPi * phase));
+    float          center = (float) sizePx * 0.5f;
+    float          radius = (float) sizePx * 0.39f;
+    float          half   = (std::max) ((float) sizePx * 0.06f, 0.75f);
+
+
+
+    out.width  = sizePx;
+    out.height = sizePx;
+    out.bgraPremul.resize ((size_t) sizePx * sizePx);
+
+    for (int y = 0; y < sizePx; y++)
+    {
+        for (int x = 0; x < sizePx; x++)
+        {
+            float  dx     = (float) x + 0.5f - center;
+            float  dy     = (float) y + 0.5f - center;
+            float  dist   = std::sqrt (dx * dx + dy * dy);
+            float  angle  = std::atan2 (dx, -dy) * 180.0f / s_kPi;
+            float  along  = std::fmod (angle - start + 720.0f + 720.0f, 360.0f);
+            float  ends   = (std::min) (along, sweep - along) * s_kPi / 180.0f * radius;
+            float  ring   = std::clamp (half + 0.5f - std::abs (dist - radius), 0.0f, 1.0f);
+            float  cover  = ring * std::clamp (ends + 0.5f, 0.0f, 1.0f);
+            auto   premul = [cover] (uint32_t channel) { return (uint32_t) std::lround ((float) channel * cover); };
+
+            out.bgraPremul[(size_t) y * sizePx + x] = (premul (255) << 24) | (premul ((rgb >> 16) & 0xFF) << 16) | (premul ((rgb >> 8) & 0xFF) << 8) | premul (rgb & 0xFF);
+        }
+    }
+
+    return out;
+}

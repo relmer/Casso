@@ -68,6 +68,7 @@ public:
     void                                       ShowAddressRootsMenu    (const RECT & anchor);
     void                                       SearchLocation          (const std::wstring & query);
     void                                       LeaveSearch             ();
+    void                                       CloseSearch             ();
     std::wstring                               GetCassoSearchScope     ();
     void                                       ShowAddressHistoryMenu  (const RECT & anchor);
     void                                       ShowAddressSuggestions  (const std::wstring & typed);

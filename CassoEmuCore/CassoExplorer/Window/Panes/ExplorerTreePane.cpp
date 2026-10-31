@@ -546,6 +546,20 @@ void ExplorerTreePane::RevealLocationInTree()
 
 
 
+    //  Home has a node of its own, however the location was reached.
+    if (m_context.browser.IsHomeLocation())
+    {
+        row = m_tree->FindRowById (std::wstring (TreeModel::kShellRootTag) + IShellItemVerbs::kHomeTreeId);
+
+        if (row >= 0)
+        {
+            m_tree->HighlightRow (row);
+            ScrollTreeToRow (row);
+        }
+
+        return;
+    }
+
     //  A root is a node of its own. A CassoLink connection or one of its
     //  drives is under CassoLink, which is opened down to it.
     if (location.kind == Location::Kind::Root)

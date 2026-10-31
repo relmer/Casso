@@ -97,6 +97,7 @@ public:
     ~DxuiTabStrip() override = default;
 
     void  SetTabs     (std::vector<Tab> tabs);
+    void  SetTabIcon  (size_t index, std::shared_ptr<const DxuiIconImage> icon) { m_tabs[index].icon = std::move (icon); }
     void  SetSelected (int index);
     void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
     void  SetFocused  (bool focused) { m_focused = focused; }

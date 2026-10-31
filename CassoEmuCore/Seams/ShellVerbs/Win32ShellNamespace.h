@@ -42,6 +42,7 @@ public:
     static void     ReadHomeProperties (IShellItem2 * item, IShellItemVerbs::ShellFolderItem & outEntry);
     static HRESULT  ReadHomeFolder     (std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
     static int      GetHomeGroup       (const IShellItemVerbs::ShellFolderItem & entry);
+    static void     AddCloudRecent     (const std::vector<IShellItemVerbs::ShellFolderItem> & cloud, std::vector<IShellItemVerbs::ShellFolderItem> & items);
     static constexpr int  s_kHomeGroupQuickAccess = 1;
     static constexpr int  s_kHomeGroupRecent      = 3;
     static constexpr int  s_kHomeGroupFavorites   = 2;

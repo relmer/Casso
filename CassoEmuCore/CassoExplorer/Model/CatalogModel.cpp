@@ -367,8 +367,13 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
             break;
 
         case Column::Folder:
-            if (_wcsicmp (a.folderPath.c_str(), b.folderPath.c_str()) != 0) { return _wcsicmp (a.folderPath.c_str(), b.folderPath.c_str()) < 0; }
+        {
+            std::wstring  folderA = GetFolderColumnText (a.folderPath);
+            std::wstring  folderB = GetFolderColumnText (b.folderPath);
+
+            if (_wcsicmp (folderA.c_str(), folderB.c_str()) != 0) { return _wcsicmp (folderA.c_str(), folderB.c_str()) < 0; }
             break;
+        }
 
         case Column::Name:
         default:
@@ -495,6 +500,44 @@ bool CatalogModel::IsPropertyBefore (const CatalogRow & a, const PropertyKey & k
     }
 
     return IsBefore (a, b, Column::Name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::GetFolderColumnText
+//
+//  The folder's leaf name and then its parent in parentheses, as Explorer's
+//  Folder column has them. A drive's root has no parent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::GetFolderColumnText (const std::wstring & path)
+{
+    std::wstring  trimmed = path;
+    size_t        slash   = 0;
+    std::wstring  parent;
+
+
+
+    while (trimmed.size() > 3 && trimmed.back() == L'\\')
+    {
+        trimmed.pop_back();
+    }
+
+    slash = trimmed.find_last_of (L'\\');
+
+    if (trimmed.size() <= 3 || slash == std::wstring::npos)
+    {
+        return trimmed;
+    }
+
+    parent = trimmed.substr (0, slash);
+
+    return trimmed.substr (slash + 1) + L" (" + parent + L")";
 }
 
 

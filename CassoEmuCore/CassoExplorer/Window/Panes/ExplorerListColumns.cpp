@@ -196,7 +196,7 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
     //  Search results show the folder each is in, as Explorer's do.
     if (column == (size_t) CatalogModel::Column::Folder)
     {
-        return searching;
+        return searching && chosen;
     }
 
     return chosen && (insideImage || !catalog);

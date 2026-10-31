@@ -41,6 +41,8 @@ public:
     bool                   IsOverTabStrip     (POINT screen) const;
     void                   AcceptTab          (BrowserModel::Tab tab);
     void                   FillTabs           ();
+    bool                   IsLoading          () const;
+    bool                   TickSpinner        (int64_t nowMs);
     void                   SwitchToTab        (size_t index);
     void                   CancelTabDrag      ();
     void                   ShowTabDragVisual  (int index, POINT screen);
@@ -65,6 +67,10 @@ public:
 private:
     ExplorerContext    & m_context;
     DxuiTabStrip       * m_tabs          = nullptr;
+    int                  m_spinnerFrame  = -1;
+    int                  m_spinnerPx     = 0;
+    uint32_t             m_spinnerRgb    = 0;
+    std::vector<std::shared_ptr<const DxuiIconImage>>  m_spinnerFrames;
     DxuiTabDragVisual    m_tabDragVisual;
     HWND                 m_tabDragTarget = nullptr;   // the other window whose strip a dragged tab is over
 };

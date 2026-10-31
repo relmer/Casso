@@ -220,6 +220,7 @@ public:
     bool                      TogglePictureColor    () { return m_previewer.TogglePictureColor(); }
     bool                      CanTogglePictureColor () const { return m_previewer.CanTogglePictureColor(); }
     const std::wstring      & GetListError          () const { return m_loader.m_listError; }
+    bool                      IsListLoading         () const { return m_loader.m_listError == s_kWorkingText; }
     const Status            & GetStatus             () const { return m_status;    }
     const std::vector<int>  & GetSelectedRows       () const { return m_selectedRows; }
     Location                  GetLocation           () const;

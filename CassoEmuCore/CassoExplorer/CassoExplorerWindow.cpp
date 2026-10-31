@@ -899,7 +899,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     m_parts->tips.Tick (GetNowMs());
 
-    if (m_parts->addressBar.Tick (GetNowMs()))
+    if (m_parts->addressBar.Tick (GetNowMs()) | m_parts->tabManager.TickSpinner (GetNowMs()))
     {
         Invalidate();
     }
@@ -989,7 +989,7 @@ void CassoExplorerWindow::ArmTick()
 
 bool CassoExplorerWindow::IsTickWanted() const
 {
-    return m_parts->tips.WantsTick() || m_parts->addressBar.WantsTick() || m_parts->tabManager.IsSliding()
+    return m_parts->tips.WantsTick() || m_parts->addressBar.WantsTick() || m_parts->tabManager.IsSliding() || m_parts->tabManager.IsLoading()
         || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
         || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()

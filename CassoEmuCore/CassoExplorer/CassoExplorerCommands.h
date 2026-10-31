@@ -133,6 +133,9 @@ public:
         //  Help > Check for updates.
         kCheckForUpdates,
 
+        //  A search's results closed, on the command bar only there.
+        kCloseSearch,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -166,7 +169,7 @@ public:
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
     //  The buttons a location adds to the command bar, after View.
-    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive };
+    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search };
 
     std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (CommandBarExtra extra = CommandBarExtra::None) const;
 
@@ -349,6 +352,7 @@ private:
         { kGroupDescending,   Menu::Count, L"D&escending",         nullptr,     true  },
         { kEmptyRecycleBin,   Menu::Count, L"Empty Recycle Bin",   nullptr,     false },
         { kRestoreItems,      Menu::Count, L"Restore all items",   nullptr,     false },
+        { kCloseSearch,       Menu::Count, L"Close search",        nullptr,     false },
         { kReadDiskToImage,   Menu::Count, L"Create image...",     nullptr,     false },
         { kWriteImageToDisk,  Menu::Count, L"Write image...",      nullptr,     false },
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
@@ -405,6 +409,11 @@ private:
     //  The Recycle Bin's buttons, after View while the bin is shown, as
     //  Explorer's. Restore's label says whether it restores the selection or
     //  everything, so it has no short label of its own.
+    static constexpr ToolbarRow  kSearchRows[] =
+    {
+        { kCloseSearch, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel, L"Close search", L"Close search" },
+    };
+
     static constexpr ToolbarRow  kRecycleBinRows[] =
     {
         { kEmptyRecycleBin, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Delete,  L"Empty Recycle Bin", L"Empty Recycle Bin" },

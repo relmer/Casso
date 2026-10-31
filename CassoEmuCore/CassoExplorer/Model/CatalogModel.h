@@ -158,6 +158,7 @@ public:
     //  The Type column's text for a disk image by its extension, as
     //  ProDOS-order disk image, or empty for a name that is not one.
     static std::wstring  GetDiskImageTypeName (const std::wstring & name);
+    static std::wstring  GetFolderColumnText  (const std::wstring & path);
 
     static void  FromListing (const VolumeListing & listing, VolumeKind kind, std::vector<CatalogRow> & outRows);
 

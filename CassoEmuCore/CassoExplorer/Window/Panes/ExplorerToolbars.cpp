@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
@@ -534,6 +535,10 @@ void ExplorerToolbars::UpdateCommandBar()
     if (m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
     {
         extra = Extra::RecycleBin;
+    }
+    else if (SearchQuery::IsId (m_context.browser.GetLocation().path))
+    {
+        extra = Extra::Search;
     }
     else if (m_context.browser.IsAppleDriveLocation() || m_context.cassoLinkManager.IsOnLinkedMachine())
     {

@@ -71,6 +71,43 @@ int Win32ShellNamespace::GetHomeGroup (const IShellItemVerbs::ShellFolderItem & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellNamespace::AddCloudRecent
+//
+//  Home's Recent is the local recent files and the cloud's merged, latest
+//  access first. A pinned cloud file is also a favorite.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellNamespace::AddCloudRecent (const std::vector<IShellItemVerbs::ShellFolderItem> & cloud, std::vector<IShellItemVerbs::ShellFolderItem> & items)
+{
+    for (const IShellItemVerbs::ShellFolderItem & item : cloud)
+    {
+        IShellItemVerbs::ShellFolderItem  recent = item;
+
+        recent.homeGroup = s_kHomeGroupRecent;
+        items.push_back (recent);
+
+        if (item.homePinned)
+        {
+            recent.homeGroup = s_kHomeGroupFavorites;
+            items.push_back (recent);
+        }
+    }
+
+    auto  firstRecent = std::stable_partition (items.begin(), items.end(), [] (const IShellItemVerbs::ShellFolderItem & item) { return item.homeGroup != s_kHomeGroupRecent; });
+
+    std::stable_sort (firstRecent, items.end(), [] (const IShellItemVerbs::ShellFolderItem & a, const IShellItemVerbs::ShellFolderItem & b)
+    {
+        return a.accessedUnix > b.accessedUnix;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellNamespace::ReadHomeFolder
 //
 //  Home's own items, Quick access and Recent, in its order.
@@ -169,13 +206,9 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
 
         hrCloud = ReadShellFolder (IShellItemVerbs::kHomeRecentId, cloud);
 
-        for (size_t at = 0; SUCCEEDED (hrCloud) && at < cloud.size(); at++)
+        if (SUCCEEDED (hrCloud))
         {
-            if (cloud[at].homePinned)
-            {
-                cloud[at].homeGroup = s_kHomeGroupFavorites;
-                outItems.push_back (cloud[at]);
-            }
+            AddCloudRecent (cloud, outItems);
         }
 
         hrCloud = ReadShellFolder (IShellItemVerbs::kHomeSharedId, cloud);

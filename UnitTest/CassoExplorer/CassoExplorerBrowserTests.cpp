@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "Seams/ShellVerbs/Win32ShellNamespace.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
 #include "../EhmTestHelper.h"
 #include "Core/UnicodeSymbols.h"
 #include "../EmuTests/FakeDiskFileIo.h"
@@ -1557,6 +1558,80 @@ public:
         entry.homePinned = true;
 
         Assert::AreEqual (Win32ShellNamespace::s_kHomeGroupQuickAccess, Win32ShellNamespace::GetHomeGroup (entry), L"a pinned folder is in Quick access");
+    }
+
+    //  Recent is the local and cloud files by latest access, and a pinned cloud
+    //  file is also a favorite.
+    TEST_METHOD (HomeRecent_MergesCloudFilesByDateAccessed)
+    {
+        std::vector<IShellItemVerbs::ShellFolderItem>  items (2);
+        std::vector<IShellItemVerbs::ShellFolderItem>  cloud (2);
+
+        items[0].name         = L"folder";
+        items[0].homeGroup    = Win32ShellNamespace::s_kHomeGroupQuickAccess;
+        items[1].name         = L"local";
+        items[1].homeGroup    = Win32ShellNamespace::s_kHomeGroupRecent;
+        items[1].accessedUnix = 200;
+        cloud[0].name         = L"pinned";
+        cloud[0].homePinned   = true;
+        cloud[0].accessedUnix = 100;
+        cloud[1].name         = L"newest";
+        cloud[1].accessedUnix = 300;
+
+        Win32ShellNamespace::AddCloudRecent (cloud, items);
+
+        std::vector<std::wstring>  recent;
+        size_t                     favorites = 0;
+
+        for (const IShellItemVerbs::ShellFolderItem & item : items)
+        {
+            if (item.homeGroup == Win32ShellNamespace::s_kHomeGroupRecent)
+            {
+                recent.push_back (item.name);
+            }
+
+            favorites += (item.homeGroup == Win32ShellNamespace::s_kHomeGroupFavorites) ? 1 : 0;
+        }
+
+        Assert::AreEqual (L"folder", items[0].name.c_str());
+        Assert::IsTrue   ((recent == std::vector<std::wstring> { L"newest", L"local", L"pinned" }));
+        Assert::AreEqual ((size_t) 1, favorites);
+    }
+
+    TEST_METHOD (FolderColumn_IsTheLeafThenItsParent)
+    {
+        Assert::AreEqual (L"relmer (C:\\Users)", CatalogModel::GetFolderColumnText (L"C:\\Users\\relmer").c_str());
+        Assert::AreEqual (L"Users (C:)",         CatalogModel::GetFolderColumnText (L"C:\\Users\\").c_str());
+        Assert::AreEqual (L"C:\\",               CatalogModel::GetFolderColumnText (L"C:\\").c_str());
+        Assert::AreEqual (L"",                   CatalogModel::GetFolderColumnText (L"").c_str());
+    }
+
+    TEST_METHOD (SpinnerFrame_ArcLengthGrowsAndShrinks)
+    {
+        auto  count = [] (int frame)
+        {
+            DxuiIconImage  image = DxuiIconImage::MakeSpinnerFrame (frame, 60, 24, 0x4CC2FF);
+
+            return std::count_if (image.bgraPremul.begin(), image.bgraPremul.end(), [] (uint32_t pixel) { return (pixel >> 24) > 128; });
+        };
+
+        Assert::IsTrue (count (0) > 0);
+        Assert::IsTrue (count (30) > count (0) * 3, L"the arc is longest mid-cycle");
+    }
+
+    TEST_METHOD (CommandBar_SearchHasCloseSearch)
+    {
+        CassoExplorerCommands  commands (CassoExplorerCommands::Handlers {});
+        auto                   hasClose = [] (const std::vector<DxuiToolbar::Entry> & entries)
+        {
+            return std::any_of (entries.begin(), entries.end(), [] (const DxuiToolbar::Entry & entry)
+            {
+                return entry.command != nullptr && entry.command->id == CassoExplorerCommands::kCloseSearch;
+            });
+        };
+
+        Assert::IsTrue  (hasClose (commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::Search)));
+        Assert::IsFalse (hasClose (commands.BuildCommandBarEntries()));
     }
 
     TEST_METHOD (HomeMenu_RemoveVerb_MarksAFavorite)

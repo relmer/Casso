@@ -229,6 +229,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
         case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
+        case CassoExplorerCommands::kCloseSearch:       return true;
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_context.browser.GetLocation().kind == Location::Kind::RecycleBin && !m_context.browser.GetRows().empty();
         case CassoExplorerCommands::kNew:               return !m_context.browser.IsVolumeLocation() ? m_context.browser.GetLocation().kind == Location::Kind::HostFolder
@@ -419,6 +420,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
         case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
+        case CassoExplorerCommands::kCloseSearch:     m_context.addressBar.CloseSearch(); break;
         case CassoExplorerCommands::kEmptyRecycleBin: RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
         case CassoExplorerCommands::kRestoreItems:    RunRecycleBinVerb (CassoExplorerActions::Verb::Restore); break;
         case CassoExplorerCommands::kNewFolder:    RunVerb (CassoExplorerActions::Verb::NewFolder); break;
