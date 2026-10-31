@@ -941,3 +941,24 @@ once.
 `EmulatorWindow.cpp` and `EmulatorWindowInput.cpp` are, faster and with
 less risk, but rejected by the owner (Session 2026-10-26). Leaving the
 files as they are fails SC-037.
+
+## R34. Full send
+
+**Finding**: the PC starts every link operation, and the Apple-side program runs one at a time, so one drive transfers while the other is idle and can be swapped. No DOS 3.3, ProDOS or Disk II signal reports a disk change.
+
+**Decision**:
+
+- **New disk**: a SHA-256 of track 0 and the catalog track (track 17 for DOS 3.3; ProDOS blocks 2 to 5, which are on track 0). A disk that matches on two reads and is absent from the manifest is new. A read with no address field is an empty drive.
+- **Other disks**: track 0 and the DOS 3.3 catalog track are the fingerprint for Pascal, CP/M and unknown disks. Space forces a send on a false match.
+- **Duplicate**: a SHA-256 of the whole image. Use a SHA-256 already in the core if one exists, and Windows CNG otherwise.
+- **Order**: the other drive, then the drive just read, then Wait for key. No drive spins during the wait.
+- **Manifest**: `full-send.csv` in the destination folder, in UTF-8, one row per disk, rewritten through a temporary file after each disk.
+- **Image files**: `NNNN NAME.ext`, with four digits and the title cleaned by the host file name rules. A DOS 3.3 name is the first program in the catalog, as the boot sector's startup name is not stored at a standard place across DOS versions.
+- **Sound**: the program clicks $C030 with fixed patterns between requests, never during a disk read.
+
+**Rationale**: fingerprints cost a fraction of a disk read, and rereading both tracks catches a disk that is not seated. The manifest is plain text so that a user can read it and it survives a crash.
+
+**Alternatives considered**:
+
+- **The write-protect line as a swap signal.** It changes as a disk slides past the sensor, but only a polled, selected drive reports it, and polling would spin a drive during a swap. It is a possible later refinement after a test on real drives.
+- **Labels typed on the Apple.** The keyboard has a one-character latch that cannot be polled during a disk read. The owner ruled this out.

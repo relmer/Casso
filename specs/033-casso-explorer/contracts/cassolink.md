@@ -121,6 +121,8 @@ client sends first; the host's reply is the next operation.
 | (progress) | | | the part of the user's whole operation a request covers, as its starting and ending percentage (0-100), for the program's status row |
 | Status | $D4 `'T'` | client | operation (1: 1 read, 2 write, 3 format), drive (1), track (1), sectors done (1), error (1); ends every Read, Write and Format |
 | Label | $DC `'\'` | host | up to 38 ASCII characters, the user's operation; the program prints it and sends Ready (R24) |
+| Session screen | $E1 | host | drive states (2), sent (2), duplicates (2), bad (2), tone (1: 0 none, 1 done, 2 duplicate, 3 bad sectors), name (up to 30 ASCII characters); the program redraws its full send screen, sounds the tone and sends Ready |
+| Wait for key | $E2 | host | none; the program polls the keyboard and replies Key ($E2) with the key's code on Space or Escape, with no drive running. Any byte from the host is taken as Cancel |
 | Cancel | $D1 `'Q'` | host | none; client stops, replies Ready (FR-098). During a read, any byte from the host is taken as Cancel, as the 6551 has room for only the first while the drive is busy |
 
 The host distinguishes clients by the first command it receives: Ready is

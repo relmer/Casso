@@ -425,6 +425,10 @@ hardware.
 
 - Q: How does a box of floppies get archived from a //c? -> A: Full send, a CassoLink session that alternates between the Apple's two drives with no interaction on the PC. Disk II hardware has no usable disk-change signal, so a new disk is recognized by a fingerprint of track 0 and the catalog track. With no new fingerprint in either drive, the session pauses until Space on the Apple, and Space also forces a send, since two freshly formatted disks can match. Each image's name comes from its catalog where the disk has one. Labels are not typed on the Apple, whose keyboard has a one-character latch that a disk read can't poll; the user renames images on the PC afterward. Raw capture of copy-protected disks is a follow-on; the manifest flags those disks.
 
+- Q: When a disk finishes and the other drive's disk is not new, is the drive just read checked before the pause for Space? -> A: Yes, the other drive and then the drive just read, so a swap during the transfer continues with no key press.
+
+- Q: Does a new full send recognize disks an earlier session sent to the same folder? -> A: Yes, from the folder's manifest, which also has each disk's fingerprint. Sequence numbers continue from it.
+
 ### Session 2026-10-26
 
 - Q: How is a sector Read disk to image could not read distinguished, in a
@@ -1972,31 +1976,32 @@ source and read the manifest. Repeat on a real //c with real floppies.
   destination folder and the image format chosen when it starts: any format
   Casso writes, defaulting to .po for a ProDOS disk and .dsk for any other.
 - **FR-108**: A full send MUST read one drive at a time, and when a disk
-  finishes MUST check the other drive first, alternating for as long as the
-  session runs.
+  finishes MUST check the other drive first and then the drive just read,
+  alternating for as long as the session runs.
 - **FR-109**: A disk's fingerprint MUST be a hash of track 0 and the catalog
   track, and MUST read the same on two reads before the disk is sent. A
-  disk whose fingerprint is not among those sent in the session MUST be sent
+  disk whose fingerprint is not among those sent to the folder MUST be sent
   with no key press. A drive with no readable disk MUST count as having no
-  new disk.
+  new disk. A disk with no catalog track that Casso recognizes MUST use track 0 and the DOS 3.3 catalog track.
 - **FR-110**: With no new disk in either drive, the session MUST pause until
   Space on the Apple, without spinning a drive while it waits. Space MUST
   check both drives, and MUST send a present disk whose fingerprint matches
-  an earlier one when no drive has a new disk.
+  an earlier one when no drive has a new disk. With a repeat disk in both drives, Space MUST send the drive not read last.
 - **FR-111**: An image whose whole-disk hash matches an earlier image in the
-  session MUST be discarded, and the manifest MUST list it as a duplicate of
-  that image.
+  folder's manifest MUST be discarded, and the manifest MUST list it as a duplicate of
+  that image. A duplicate MUST have a manifest row and a sequence number, so the numbers match the disks fed in.
 - **FR-112**: An image's file name MUST begin with the session's sequence
   number, followed by the volume name on ProDOS or Apple Pascal, or the
-  startup or first program's name on DOS 3.3. With no name in the catalog,
+  first program's name on DOS 3.3. With no name in the catalog,
   the sequence number MUST be the whole name. An existing file MUST NOT be
   overwritten.
 - **FR-113**: A full send MUST NOT accept a label typed on the Apple. Images
   MUST be renamed on the PC.
 - **FR-114**: The session MUST write a manifest to the destination folder,
-  updated after each disk: each image's file name, drive, hash, time,
+  updated after each disk: each image's file name, drive, fingerprint, hash, time,
   unreadable sector count, and whether it is a duplicate or possibly
-  copy-protected.
+  copy-protected. A session started on a folder with a manifest MUST treat
+  its disks as already sent and continue its sequence numbers.
 - **FR-115**: The session MUST sound one tone on the Apple's speaker for a finished disk,
   another for a duplicate and another for a disk with bad sectors. The
   Apple's screen MUST contain each drive's state, the current image's name and

@@ -216,6 +216,19 @@ run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
     Result: a message that the printer is not connected. Change the card's
     connector to a loopback plug. Result: no reboot.
 
+## 7c. Full send (Story 17, FR-107 to FR-116)
+
+Prerequisites: the link running on an emulated //c with two drives, then on a real //c, and a set of disks that includes a duplicate and a disk with an unreadable sector.
+
+1. Start a full send to an empty folder. Each image appears as `NNNN NAME.ext`, and `full-send.csv` has a row for it.
+2. Swap the idle drive during each transfer. The session continues with no key press, at under 30 seconds a disk at 115,200 baud (SC-038).
+3. Make no swap. A prompt appears on the Apple, and neither drive spins until Space.
+4. Press Space with a repeated disk present. It is sent, and its hash marks it as a duplicate, and no second image is on the PC (SC-039).
+5. Send the disk with an unreadable sector. Its unreadable list is beside its image, the row has `possibly-protected`, and the session continues.
+6. Press Escape during a transfer. No partial image remains.
+7. Start a second full send to the folder. Sequence numbers continue, and a disk from the first run is not sent without Space.
+8. Compare each image with one from Read disk to image on the same disk.
+
 ## 8. Headless tests
 
 ```powershell

@@ -218,3 +218,21 @@ never stored in `links`.
 - A host file from a failed Read disk to image or a failed copy is never
   committed; the atomic replace of `IDiskFileIo` only runs on success
   (FR-087).
+
+### Full send (Story 17, R34)
+
+`full-send.csv`, one row per disk:
+
+| Column | Contents |
+|---|---|
+| `sequence` | the image's sequence number |
+| `file` | the image's file name, empty for a duplicate |
+| `drive` | 1 or 2 |
+| `fingerprint` | SHA-256 of track 0 and the catalog track, in hex |
+| `hash` | SHA-256 of the whole image, in hex |
+| `time` | UTC, in ISO 8601 |
+| `unreadable` | the count of unreadable sectors |
+| `status` | `sent`, `duplicate` or `possibly-protected` |
+| `duplicateOf` | the earlier image's file name, for a duplicate |
+
+`FullSendSession` states: Checking (drive), Sending (drive), Paused, Ended (reason). A session reads an existing manifest once, at its start, for its fingerprints, hashes and the next sequence number. A manifest that cannot be parsed ends the session before any disk is read, and is never overwritten.

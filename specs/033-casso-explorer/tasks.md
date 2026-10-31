@@ -1485,3 +1485,15 @@ The product-wide styles are GitHub issue #179.
   - T189 alongside T194 to T196;
   - T199 and T200 alongside phase 19;
   - T203 and T204 alongside T201.
+
+## Phase 29: Convergence
+
+- [ ] T318 Add `FullSendSession` to the core: drive order, pause and end states over injected reads, a clock and a file store, with unit tests using scripted disks, per FR-108, FR-110, FR-116 and US17/AC1-5 (missing)
+- [ ] T319 Add fingerprints of track 0 and the catalog track, two matching reads, empty-drive detection and whole-image hashes, using a SHA-256 already in the core or Windows CNG, per FR-109 and FR-111 (missing)
+- [ ] T320 Add `FullSendManifest`: write `full-send.csv` after each disk, read it at a session start, continue sequence numbers, and end the session on a manifest that fails to parse, per FR-114 and data-model Full send (missing)
+- [ ] T321 Add image file titles from the sequence number and the catalog, never overwriting a file, per FR-112, FR-113 and US17/AC7 (missing)
+- [ ] T322 Add Session screen ($E1) and Wait for key ($E2) to `CassoLinkCodec` and `Program.s`, with the tones, the screen and no drive running during the wait, and bump the program version, per FR-110, FR-115 and contract cassolink (missing)
+- [ ] T323 Add the full send command, folder and format choice to Casso Explorer, and run a session through the operation queue in `CassoLinkManager`, per FR-107 and plan Full send (missing)
+- [ ] T324 Reuse Read disk to image for each disk, flag disks with unreadable sectors, and discard partial images on Cancel, Escape, a dropped link or a disk changed in mid-transfer, per FR-116, US17/AC8 and the edge cases (missing)
+- [ ] T325 Add scenario tests in an emulated //c with scripted disk swaps, per SC-038 and SC-039 (missing)
+- [ ] T326 Walk quickstart section 7c on a real //c with real floppies, per SC-038 and SC-039 (missing)
