@@ -3556,11 +3556,15 @@ fsrclr: sta (scr),y
 
 ; fsdrive: the row of drive X + 1, with the state in PKTBUF,x.
 fsdrive: jsr fsrow
+        lda PKTBUF,x
+        beq fsdnone
         lda #'D'
         jsr putch
         txa
         clc
         adc #'1'
+        jsr putch
+        lda #$3A
         jsr putch
         lda #' '
         jsr putch
@@ -3572,6 +3576,7 @@ fsdrive: jsr fsrow
         lda fsstates+1,x
         sta ptr+1
         jmp puttext
+fsdnone: rts
 
 ; fscount: the text at (ptr), then the count at PKTBUF,x.
 fscount: stx savex
@@ -3664,11 +3669,11 @@ fsimgtxt: .text "IMAGE "
         .byte 0
 fssent: .text "SENT "
         .byte 0
-fsdups: .text "DUPLICATES "
+fsdups: .text "DUPLICATE "
         .byte 0
 fsbad:  .text "BAD "
         .byte 0
-fsstates: .word fsoff, fsidle, fscheck, fssend, fsempty, fsrepeat, fsdone
+fsstates: .word fsoff, fsidle, fscheck, fssend, fsempty, fsrepeat, fsdone, fsdeck
 fsoff:  .byte 0
 fsidle: .text "IDLE"
         .byte 0
@@ -3681,4 +3686,6 @@ fsempty: .text "NO DISK"
 fsrepeat: .text "ALREADY SENT"
         .byte 0
 fsdone: .text "SENT"
+        .byte 0
+fsdeck: .text "ON DECK--INSERT A DISK TO SEND NEXT"
         .byte 0

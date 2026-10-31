@@ -466,6 +466,35 @@ public:
         Assert::AreEqual (tracksAtPause, (int) rig.link.trackDrives.size(), L"no track was read after the pause began");
     }
 
+    TEST_METHOD (Session_Sending_PutsTheOtherDriveOnDeck)
+    {
+        Rig  rig;
+
+        rig.link.drives[0] = Other (1);
+
+        rig.Run();
+
+        auto  sending = std::find_if (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.drives[0] == FullSendDriveState::Sending; });
+
+        Assert::IsTrue (sending != rig.link.screens.end());
+        Assert::IsTrue (sending->drives[1] == FullSendDriveState::OnDeck);
+    }
+
+    TEST_METHOD (Session_OneDrive_LeavesTheMissingDriveOff)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        rig.Run();
+
+        for (const FullSendScreen & screen : rig.link.screens)
+        {
+            Assert::IsTrue (screen.drives[1] == FullSendDriveState::Off);
+        }
+    }
+
     TEST_METHOD (Session_Space_SendsARepeatedDisk_WhenNoDriveHasANewOne)
     {
         Rig  rig;

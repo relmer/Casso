@@ -370,7 +370,7 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.SetSelected (selected);
 
     m_fullSendNote.SetText      (L"Full send archives a stack of floppies. Each disk you put in the Apple's drives is saved here as a disk image, "
-                                 L"with no steps on the PC between disks. A list of what was sent is kept beside the images.");
+                                 L"with no steps on the PC between disks. Just keep feeding the drives on the Apple. A list of what was sent is kept beside the images.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 

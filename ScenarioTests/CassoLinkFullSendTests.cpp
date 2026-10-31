@@ -329,7 +329,7 @@ public:
         begun = rig.spent;
         rig.RunUntil ([&] ()
         {
-            if (!swapped && rig.Row (kRowDrive2).starts_with ("D2 SENDING"))
+            if (!swapped && rig.Row (kRowDrive2).starts_with ("D2: SENDING"))
             {
                 rig.Mount (1, DiskFormat::Dsk, third);
                 swapped = true;
@@ -385,7 +385,7 @@ public:
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause, as drive 2's disk repeats drive 1's");
         pauses++;
 
-        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2 ALREADY SENT"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
+        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: ALREADY SENT"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
 
         //  Space sends the repeat, and its hash makes it a duplicate.
         rig.Press (' ');
@@ -393,7 +393,7 @@ public:
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the next pause");
         pauses++;
 
-        Assert::IsTrue (rig.Row (kRowCounts).find ("DUPLICATES 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
+        Assert::IsTrue (rig.Row (kRowCounts).find ("DUPLICATE 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
 
         //  The next disk has an unreadable sector.
         rig.Mount (1, DiskFormat::Nib, WithUnreadableSector (bad));
@@ -436,7 +436,7 @@ public:
         rig.send = rig.session->FullSend ("C:\\Box", "");
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause");
-        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2 NO DISK"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
+        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: NO DISK"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
 
         rig.machine.RunCycles (2ULL * kCyclesPerS);
         Assert::IsFalse (rig.machine.GetRefs().diskController->IsMotorOn(), L"no drive spins during the pause");
@@ -459,7 +459,7 @@ public:
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.send = rig.session->FullSend ("C:\\Box", "");
 
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1 SENDING"); }, L"the transfer starts");
+        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS / 2);
         rig.Press ('Q');
         rig.Finish();
@@ -494,8 +494,9 @@ public:
 
         rig.Press ('f');
 
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1 SENDING") && rig.Row (kRowStatus).find ("10%") != std::string::npos; }, L"drive 1 is sending, with progress");
+        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING") && rig.Row (kRowStatus).find ("10%") != std::string::npos; }, L"drive 1 is sending, with progress");
 
+        Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rig.Row (kRowDrive2));
         Assert::IsTrue (rig.Row (kRowImage).starts_with ("IMAGE 0001"), TextEncoding::NarrowToWide (rig.Row (kRowImage)).c_str());
         Assert::AreEqual (std::string ("FULL SEND:"), rig.Row (kRowHeading));
         Assert::AreEqual (std::string ("          Q: BACK TO CASSOLINK"), rig.Row (kRowKeys));
@@ -544,7 +545,7 @@ public:
         rig.machine.GetDiskStore().Eject (kSlot, 1);
         rig.send = rig.session->FullSend ("C:\\Box", "");
 
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1 SENDING"); }, L"the transfer starts");
+        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS);
         rig.Mount (1, DiskFormat::Dsk, other);
         swapped = true;

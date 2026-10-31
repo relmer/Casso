@@ -47,6 +47,14 @@ HRESULT FullSendSession::Run()
     hr = LoadManifest();
     CHR (hr);
 
+    for (int drive : { 1, 2 })
+    {
+        if (!m_link.HasDrive (drive))
+        {
+            SetDriveState (drive, FullSendDriveState::Off);
+        }
+    }
+
     for (;;)
     {
         hr = RunRound();
@@ -369,6 +377,11 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     m_lastRead    = drive;
     m_screen.name = title;
     SetDriveState (drive, FullSendDriveState::Sending);
+
+    if (m_link.HasDrive (3 - drive))
+    {
+        SetDriveState (3 - drive, FullSendDriveState::OnDeck);
+    }
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);

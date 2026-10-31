@@ -28,6 +28,7 @@ enum class FullSendDriveState : Byte
     Empty,
     Repeat,
     Sent,
+    OnDeck,
 };
 
 enum class FullSendTone : Byte
