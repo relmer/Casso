@@ -236,6 +236,18 @@ public:
             RunUntil ([&] () { return sink.IsDone (send); }, L"the session ends");
         }
 
+        //  The newest history line, from a session ended by Q, as success. It is
+        //  the first row under the heading, once the session's rows are cleared.
+        void  AssertSessionLoggedOk()
+        {
+            RunUntil ([&] () { return Row (kRowDrive1).find ("FULL SEND") != std::string::npos; }, L"the session has a history line");
+
+            std::string  line = Row (kRowDrive1);
+
+            Logger::WriteMessage (line.c_str());
+            Assert::IsTrue (line.find ("OK") != std::string::npos && line.find ("ERR") == std::string::npos, TextEncoding::NarrowToWide (line).c_str());
+        }
+
         std::vector<FullSendRow>  Rows()
         {
             FullSendManifest  manifest;
@@ -452,6 +464,8 @@ public:
         rig.Press ('Q');
         rig.Finish();
 
+        rig.AssertSessionLoggedOk();
+
         Assert::IsTrue (rig.send->state == LinkOperationState::Canceled);
         Assert::IsTrue (rig.fileIo.files.empty(), L"no image, no manifest");
 
@@ -505,7 +519,7 @@ public:
 
         rig.RunUntil ([&] () { return rig.Row (kRowHeading) == "HISTORY:" && rig.Row (kRowKeys).find ("F: FULL SEND") != std::string::npos; }, L"the standard screen returns");
 
-        Assert::IsTrue (rig.Row (kRowDrive1).empty() || !rig.Row (kRowDrive1).starts_with ("D1 "), L"the session's rows are gone");
+        rig.AssertSessionLoggedOk();
         Assert::AreEqual ((size_t) 2, rig.Rows().size());
 
         std::shared_ptr<LinkOperation>  list = rig.session->Enumerate (1, FilePath());

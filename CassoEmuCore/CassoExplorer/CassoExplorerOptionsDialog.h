@@ -90,20 +90,23 @@ class CassoExplorerFullSendPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folder, DxuiButton & browse, DxuiRadioGroup & format);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip   = 60;
     static constexpr int  kBrowseWidthDip  = 100;
+    static constexpr int  kLabelHeightDip  = 24;
     static constexpr int  kOptionHeightDip = 26;
     static constexpr int  kOptionCount     = 6;
 
 private:
-    DxuiLabel       * m_note   = nullptr;
-    DxuiLabel       * m_folder = nullptr;
-    DxuiButton      * m_browse = nullptr;
-    DxuiRadioGroup  * m_format = nullptr;
+    DxuiLabel       * m_note        = nullptr;
+    DxuiLabel       * m_folderLabel = nullptr;
+    DxuiLabel       * m_formatLabel = nullptr;
+    DxuiLabel       * m_folder      = nullptr;
+    DxuiButton      * m_browse      = nullptr;
+    DxuiRadioGroup  * m_format      = nullptr;
 };
 
 
@@ -205,6 +208,8 @@ private:
     DxuiCheckbox                  m_autoPreview;
     DxuiCheckbox                  m_register;
     DxuiLabel                     m_fullSendNote;
+    DxuiLabel                     m_fullSendFolderLabel;
+    DxuiLabel                     m_fullSendFormatLabel;
     DxuiLabel                     m_fullSendFolder;
     DxuiButton                    m_fullSendBrowse;
     DxuiRadioGroup                m_fullSendFormat;

@@ -26,12 +26,12 @@ struct FullSendFormat
 
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
-    { L"Default: .po for ProDOS, .dsk for other disks", ""     },
-    { L".dsk",                                          ".dsk" },
-    { L".do",                                           ".do"  },
-    { L".po",                                           ".po"  },
-    { L".woz",                                          ".woz" },
-    { L".nib",                                          ".nib" },
+    { L"Automatic: .po for ProDOS disks, .dsk for others", ""     },
+    { L".dsk: DOS-order sectors",                         ".dsk" },
+    { L".do: DOS-order sectors",                          ".do"  },
+    { L".po: ProDOS-order sectors",                       ".po"  },
+    { L".woz: WOZ, built from the sectors read",          ".woz" },
+    { L".nib: nibbles, built from the sectors read",      ".nib" },
 };
 
 
@@ -179,14 +179,18 @@ bool CassoExplorerHostNamesPage::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folder, DxuiButton & browse, DxuiRadioGroup & format)
+void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format)
 {
+    m_folderLabel = &folderLabel;
+    m_formatLabel = &formatLabel;
     m_note   = &note;
     m_folder = &folder;
     m_browse = &browse;
     m_format = &format;
 
     Adopt (note);
+    Adopt (folderLabel);
+    Adopt (formatLabel);
     Adopt (folder);
     Adopt (browse);
     Adopt (format);
@@ -204,14 +208,17 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folder, Dxui
 
 void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int                           noteEnd   = boundsDip.top + scaler.ToPx (kNoteHeightDip);
-    int                           folderTop = noteEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int                           folderEnd = folderTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int                           browseX   = boundsDip.right - scaler.ToPx (kBrowseWidthDip);
-    int                           formatTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int                           optionH   = scaler.ToPx (kOptionHeightDip);
-    int                           formatEnd = formatTop + optionH * kOptionCount;
-    std::vector<DxuiRadioOption>  options   = m_format->GetOptions();
+    int                           noteEnd        = boundsDip.top + scaler.ToPx (kNoteHeightDip);
+    int                           labelH         = scaler.ToPx (kLabelHeightDip);
+    int                           folderLabelTop = noteEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int                           folderTop      = folderLabelTop + labelH;
+    int                           folderEnd      = folderTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int                           browseX        = boundsDip.right - scaler.ToPx (kBrowseWidthDip);
+    int                           formatLabelTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int                           formatTop      = formatLabelTop + labelH;
+    int                           optionH        = scaler.ToPx (kOptionHeightDip);
+    int                           formatEnd      = formatTop + optionH * kOptionCount;
+    std::vector<DxuiRadioOption>  options        = m_format->GetOptions();
 
 
 
@@ -225,6 +232,8 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     m_format->SetOptions (std::move (options));
 
     m_note->Layout   (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteEnd }, scaler);
+    m_folderLabel->Layout (RECT { boundsDip.left, folderLabelTop, boundsDip.right, folderTop }, scaler);
+    m_formatLabel->Layout (RECT { boundsDip.left, formatLabelTop, boundsDip.right, formatTop }, scaler);
     m_folder->Layout (RECT { boundsDip.left, folderTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), folderEnd }, scaler);
     m_browse->SetDpi (scaler.GetDpi());
     m_browse->Layout (RECT { browseX, folderTop, boundsDip.right, folderEnd });
@@ -316,7 +325,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     WireFullSend();
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full send");
-    m_fullSend->Init (m_fullSendNote, m_fullSendFolder, m_fullSendBrowse, m_fullSendFormat);
+    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendFormatLabel, m_fullSendFormat);
 
     m_displayPage = CreatePage<DisplayPage> (L"Display");
     m_displayPage->SetPopupHost     (GetPopupHost());
@@ -360,10 +369,16 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.SetOptions  (options);
     m_fullSendFormat.SetSelected (selected);
 
-    m_fullSendNote.SetText      (L"Press F on the Apple's CassoLink screen to start a full send. Each disk fed to the Apple's drives is then "
-                                 L"saved as an image in this folder, and Q on the Apple returns to CassoLink.");
+    m_fullSendNote.SetText      (L"Full send archives a stack of floppies. Each disk you put in the Apple's drives is saved here as a disk image, "
+                                 L"with no steps on the PC between disks. A list of what was sent is kept beside the images.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+    m_fullSendFolderLabel.SetText (L"Save images to");
+    ExplorerTextStyles::Apply (m_fullSendFolderLabel, ExplorerTextStyles::kFormLabel);
+
+    m_fullSendFormatLabel.SetText (L"Image type");
+    ExplorerTextStyles::Apply (m_fullSendFormatLabel, ExplorerTextStyles::kFormLabel);
 
     m_fullSendFolder.SetText (m_choices.fullSendFolder);
 
