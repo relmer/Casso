@@ -81,13 +81,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing)
+void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing, bool isEcho)
 {
     if (ring >= 0 && ring < kRingCount)
     {
         m_ringData[ring].state  = state;
         m_ringData[ring].levels = std::move (levels);
         m_ringData[ring].timing = std::move (timing);
+        m_ringData[ring].isEcho = isEcho;
         m_isDirty               = true;
     }
 }
@@ -268,7 +269,7 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
         const Ring &  r    = m_ringData[ring];
         uint32_t *    row  = table.data() + ring * kRingStride;
 
-        row[1] = static_cast<uint32_t> (r.state) | ((r.timing != nullptr) ? kTimingFlag : 0);
+        row[1] = static_cast<uint32_t> (r.state) | ((r.timing != nullptr) ? kTimingFlag : 0) | (r.isEcho ? kEchoFlag : 0);
 
         if (r.state != PlatterRingState::Data || r.levels == nullptr || r.levels->empty())
         {

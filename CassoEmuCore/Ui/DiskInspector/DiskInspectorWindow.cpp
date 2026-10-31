@@ -711,10 +711,10 @@ void DiskInspectorWindow::BuildCommands()
     c.zoomOut->isEnabled        = [this] () { return m_session.context.hasDisk && !m_session.model.IsAtFit(); };
     c.fit                       = make (L"&Fit", L"0", [this] () { m_session.model.Fit(); });
     c.fit->isEnabled            = [this] () { return m_session.context.hasDisk && !m_session.model.IsAtFit(); };
-    c.flat                      = make (L"F&lat", L"", [this] () { m_session.model.SetTilt (0.0); });
+    c.flat                      = make (L"F&lat", L"", [this] () { m_session.model.SetTilt (0.0); m_session.model.RefitSelection(); });
     c.flat->isEnabled           = hasDisk;
     c.flat->isChecked           = [this] () { return !m_session.model.IsTilted(); };
-    c.tilted                    = make (L"Tilte&d", L"", [this] () { m_session.model.SetTilt (m_corners->GetLastTilt()); });
+    c.tilted                    = make (L"Tilte&d", L"", [this] () { m_session.model.SetTilt (m_corners->GetLastTilt()); m_session.model.RefitSelection(); });
     c.tilted->isEnabled         = hasDisk;
     c.tilted->isChecked         = [this] () { return m_session.model.IsTilted(); };
     c.legend                    = make (L"Le&gend", L"", [this] () { m_corners->ShowLegend (true); });
@@ -964,60 +964,6 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
     m_menus->Layout      ({ boundsDip.left, boundsDip.top, boundsDip.right, content.top }, scaler);
     m_statusBand->Layout ({ boundsDip.left, content.bottom, boundsDip.right, boundsDip.bottom }, scaler);
     LayoutContent (content, zoomed);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SetZoom
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SetZoom (double zoom)
-{
-    m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, DxuiZoomControl::kMaxZoom);
-    m_statusBand->SetZoom (m_zoom);
-
-    Layout (m_boundsDip, m_session.hostScaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::OnKeyUp
-//
-//  A released key goes to the menus only. Alt released alone returns Handled,
-//  because DefWindowProc would otherwise enter the system's modal menu mode,
-//  which stops wheel input to the window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult DiskInspectorWindow::OnKeyUp (WPARAM vk, LPARAM lParam)
-{
-    DxuiKeyEvent       ev;
-    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
-
-
-
-    UNREFERENCED_PARAMETER (lParam);
-
-    ev.kind = DxuiKeyEventKind::Up;
-    ev.vk   = vk;
-    ev.ctrl = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-
-    if (m_menus->OnKey (ev))
-    {
-        result = DxuiMessageResult::Handled;
-        Invalidate();
-    }
-
-    return result;
 }
 
 
@@ -1311,6 +1257,12 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (!isHandled && !(isComponent && ev.kind != DxuiMouseEventKind::Move))
     {
         isHandled = DxuiWindow::OnMouse (ev);
+    }
+
+    //  A right drag on the platter follows the pointer outside the window.
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && m_session.views.platter->IsDragging())
+    {
+        SetCapture (GetHwnd());
     }
 
     isHandled = isHandled || isComponent;

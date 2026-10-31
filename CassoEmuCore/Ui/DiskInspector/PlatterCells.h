@@ -32,5 +32,6 @@ public:
     static PlatterKind  Decode      (Byte value);
     static void         BuildCells  (const TrackAnalysis & analysis, vector<Byte> & outCells);
     static void         BuildLevels (const vector<Byte> & cells, vector<vector<Byte>> & outLevels);
+    static bool         IsEchoRing  (std::span<const int> slots, int ring);
     static PlatterKind  GetKindOf   (NibbleKind kind);
 };

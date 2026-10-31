@@ -589,7 +589,7 @@ void HostLink::UpdateRings()
                 }
             }
 
-            renderer.SetRing (qt, PlatterRingState::Data, m_session.levels[slot], m_session.timingLevels[slot]);
+            renderer.SetRing (qt, PlatterRingState::Data, m_session.levels[slot], m_session.timingLevels[slot], PlatterCells::IsEchoRing (copy->playedSlot, qt));
         }
     }
 

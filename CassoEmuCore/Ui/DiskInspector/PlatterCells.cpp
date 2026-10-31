@@ -173,3 +173,37 @@ void PlatterCells::BuildLevels (const vector<Byte> & cells, vector<vector<Byte>>
         outLevels.push_back (std::move (level));
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterCells::IsEchoRing
+//
+//  Neighboring rings with one slot play one recording, which is centered on
+//  the run's middle ring. Every other ring of the run is an echo of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterCells::IsEchoRing (std::span<const int> slots, int ring)
+{
+    int  count = static_cast<int> (slots.size());
+    int  first = ring;
+    int  last  = ring;
+
+
+
+    while (first > 0 && slots[first - 1] == slots[ring])
+    {
+        first--;
+    }
+
+    while (last + 1 < count && slots[last + 1] == slots[ring])
+    {
+        last++;
+    }
+
+    return slots[ring] >= 0 && ring != (first + last) / 2;
+}

@@ -110,7 +110,16 @@ void PlatterCorners::Create()
     m_tiltSlider->SetShowValue  (false);
     m_tiltSlider->SetShowTicks  (false);
     m_tiltSlider->SetVisible    (false);
-    m_tiltSlider->SetOnChange   ([this] (float degrees) { m_session.model.SetTilt (degrees * s_kRadiansPerDeg); });
+    m_tiltSlider->SetOnChange   ([this] (float degrees)
+    {
+        m_session.model.SetTilt (degrees * s_kRadiansPerDeg);
+
+        if (!m_tiltSlider->IsDragging())
+        {
+            m_session.model.RefitSelection();
+        }
+    });
+    m_tiltSlider->SetOnDragEnd  ([this] () { m_session.model.RefitSelection(); });
 
     m_filesChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Files,       isOn); });
     m_readsChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Reads,       isOn); });
@@ -545,6 +554,7 @@ void PlatterCorners::SetOverlay (PlatterOverlay overlay, bool isOn)
 void PlatterCorners::ToggleTilt()
 {
     m_session.model.SetTilt (m_session.model.IsTilted() ? 0.0 : m_lastTilt);
+    m_session.model.RefitSelection();
 }
 
 

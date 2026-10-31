@@ -317,4 +317,20 @@ public:
         Assert::IsTrue (times[times.size() / 2] <= kRefreshMs);
         Assert::IsTrue (times.back() <= 33.0);
     }
+
+
+    TEST_METHOD (OnlyTheMiddleRingOfARecordingIsNotAnEcho)
+    {
+        constexpr int  kSlots[] = { 0, 0, 0, -1, 1, 2, 2, 2, 2 };
+
+
+
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 0));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 1));
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 2));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 3));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 4));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 6));
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 8));
+    }
 };

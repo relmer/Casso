@@ -1352,6 +1352,7 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
             {
                 m_isTilting = true;
                 m_tiltAt    = p;
+                m_pressTilt = m_context.model->GetTilt();
                 isHandled   = true;
             }
 
@@ -1371,6 +1372,12 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Up:
             isHandled   = m_isTilting && ev.button == DxuiMouseButton::Right;
             m_isTilting = m_isTilting && ev.button != DxuiMouseButton::Right;
+
+            if (isHandled && m_context.model->GetTilt() != m_pressTilt)
+            {
+                m_context.model->RefitSelection();
+            }
+
             break;
 
         default:

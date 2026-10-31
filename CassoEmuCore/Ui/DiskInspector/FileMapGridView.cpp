@@ -821,8 +821,8 @@ bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
             isHandled = m_isPressed;
             break;
 
-        //  A click chooses a cell; a second click soon after it zooms the grid
-        //  a stop in about the point, or with Shift a stop out.
+        //  A click chooses a cell; a second click soon after it returns the
+        //  grid to fit.
         case DxuiMouseEventKind::Up:
             isHandled = m_isPressed;
 
@@ -830,10 +830,7 @@ bool FileMapGridView::OnMouse (const DxuiMouseEvent & ev)
             {
                 m_lastClickMs = 0;
 
-                if (m_onZoom)
-                {
-                    m_onZoom (ev.shift ? -1 : 1, p);
-                }
+                ResetZoom();
             }
             else if (m_isPressed && !m_isDragged && cell >= 0)
             {

@@ -2670,8 +2670,7 @@ legend, and tilt the platter and back.
   with a scrollbar along the right or bottom edge wherever the cells run
   past the view, its thumb placed and sized as the view is among the cells,
   and a drag on the thumb panning the grid. A
-  double-click MUST zoom the grid a stop in about the point, and Shift with a
-  double-click a stop out, and a new disk MUST start it at 1.
+  double-click MUST return the grid to fit, and a new disk MUST start it at 1.
   As a cell grows, its sector's bytes MUST appear under its label, 16, 32 or
   64 to a row, the count with the most room for a byte's hex in the cell's
   width and height: as squares while they are too small for text, $00
@@ -3142,7 +3141,7 @@ legend, and tilt the platter and back.
   "Selected: HELLO, data sector 1 of 3 at track 19, sector $F" or "Selected:
   track 17, sector $3", with chips that would crowd it left out, and then
   the hint for the view under the pointer. The zoom MUST be saved
-  with the rest of the window's state (FR-080). A zoom MUST NOT change the window's size or position. Double-clicking the
+  with the rest of the window's state (FR-080). A zoom MUST NOT change the window's size or position, and MUST stop above 100% where a sector's bytes no longer have their full size. Double-clicking the
   percentage MUST return to 100%.
 - **FR-158**: The menu bar MUST list every command of the window, each item
   with its shortcut, items not available at the moment disabled rather than

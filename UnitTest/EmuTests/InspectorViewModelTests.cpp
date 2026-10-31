@@ -468,7 +468,7 @@ public:
     }
 
 
-    TEST_METHOD (TiltingAZoomedPlatterCentersTheSelectionAndAPlatterAtFitStaysAtFit)
+    TEST_METHOD (RefitCentersTheSelectionOnAZoomedPlatterAndLeavesAPlatterAtFit)
     {
         InspectorViewModel         model;
         DiskAnalysis               analysis;
@@ -484,12 +484,14 @@ public:
         model.SetAnalysis  (&analysis);
         model.SelectSector (0, 2);
 
-        model.SetTilt     (0.5);
-        Assert::AreEqual  (1.0, model.GetView().zoom, 1e-9);
+        model.SetTilt        (0.5);
+        model.RefitSelection();
+        Assert::AreEqual     (1.0, model.GetView().zoom, 1e-9);
 
         model.ZoomAbout   (4.0, {});
         model.PanBy       ({ 0.5, 0.5 });
-        model.SetTilt     (0.75);
+        model.SetTilt        (0.75);
+        model.RefitSelection();
 
         start = model.GetSelectionTurn (end);
         a     = model.GetDiskPoint (0, start);

@@ -62,10 +62,11 @@ public:
     static constexpr UINT   kTextureWidth  = 4096;
     static constexpr int    kRingStride    = PlatterCells::kMaxLevels + 2;
     static constexpr UINT   kTimingFlag    = 0x100;
+    static constexpr UINT   kEchoFlag      = 0x200;
     static constexpr double kDefaultRange  = 0.05;
 
     HRESULT  Initialize (ID3D11Device * pDevice);
-    void     SetRing    (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing = nullptr);
+    void     SetRing    (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing = nullptr, bool isEcho = false);
     void     SetTiming  (bool isTimingMode, double range);
     void     SetPalette (const DiskInspectorPalette & palette);
     HRESULT  Render     (const DxuiCustomDrawArgs & args, const PlatterPlacement & view);
@@ -101,6 +102,7 @@ private:
         PlatterRingState               state  = PlatterRingState::Nothing;
         std::shared_ptr<const Levels>  levels;
         std::shared_ptr<const Levels>  timing;
+        bool                           isEcho = false;
     };
 
     HRESULT  Upload      (ID3D11DeviceContext * pContext);

@@ -535,6 +535,7 @@
     <ClCompile Include="Ui\DiskInspector\PlatterOverlays.cpp" />
     <ClCompile Include="Ui\DiskInspector\TiltButton.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
+    <ClCompile Include="Ui\DiskInspector\DiskInspectorWindowZoom.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\FilesView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\IssuesView.cpp" />
     <ClCompile Include="Ui\DiskInspector\FluxTiming.cpp" />

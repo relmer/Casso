@@ -478,3 +478,8 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T220 Center a zoomed-in platter on the selection when the tilt changes, in `InspectorViewModel::SetTilt`, per FR-151
 - [X] T221 Measure the platter's lines and levels on the screen and draw the lines by coverage, to remove the moire at a tilt, in `platter.ps.hlsl`, per FR-151
 - [X] T222 Show a sector-data byte selection on the platter and the strip, in `InspectorViewModel::GetSelectionTurn`
+- [X] T223 End a right drag on the platter on the button's release, in `DiskInspectorWindow::OnRButtonUp`, per FR-151
+- [X] T224 Center the selection only when a tilt ends, per FR-151
+- [X] T225 Stop the zoom where a trial layout leaves a sector's bytes less than their full size, in `DiskInspectorWindow::FitsZoom`, per FR-154
+- [X] T226 Dim rings that repeat a neighboring ring's recording, per FR-023
+- [X] T227 Return the File map grid to fit on a double-click, per FR-157

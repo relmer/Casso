@@ -36,6 +36,8 @@ static const uint  kStateDamaged = 3;
 static const float kTwoPi        = 6.28318530718;
 static const float kPatternPx    = 6.0;
 static const uint  kTimingFlag   = 0x100;
+static const uint  kEchoFlag     = 0x200;
+static const float kEchoDim      = 0.55;
 static const float kFullScale    = 0.25;
 static const float kDimShare     = 0.6;
 
@@ -152,6 +154,13 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position, float
         }
 
         color.rgb *= shade;
+
+        //  A ring that repeats its neighbor's recording is dimmed, which leaves
+        //  the ring at the recording's center brightest.
+        if ((flags & kEchoFlag) != 0)
+        {
+            color.rgb = lerp (color.rgb, nothingColor.rgb, kEchoDim);
+        }
     }
 
     return color;

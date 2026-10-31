@@ -554,25 +554,22 @@ void InspectorViewModel::Fit()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorViewModel::SetTilt
+//  InspectorViewModel::RefitSelection
 //
-//  A zoomed-in platter is centered on the selection again at the new tilt,
-//  at the view a flight would end on. A platter at fit stays at fit.
+//  A zoomed-in platter is centered on the selection, at the view a flight
+//  would end on. A platter at fit stays at fit. Called when a tilt ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorViewModel::SetTilt (double tilt)
+void InspectorViewModel::RefitSelection()
 {
-    double  previous = m_tilt;
-    double  end      = 0;
-    double  start    = GetSelectionTurn (end);
+    double  end   = 0;
+    double  start = GetSelectionTurn (end);
     View    view;
 
 
 
-    m_tilt = std::clamp (tilt, 0.0, kMaxTilt);
-
-    if (m_tilt != previous && m_zoom > 1.0 && start >= 0)
+    if (m_zoom > 1.0 && start >= 0)
     {
         end        = (end < start) ? end + 1.0 : end;
         view       = GetChordView (GetFitPoint (m_quarterTrack, start + m_rotation), GetFitPoint (m_quarterTrack, end + m_rotation));

@@ -105,11 +105,14 @@ public:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 protected:
+    bool  FitsZoom (double zoom);
+
     void  OnCreate      () override;
     void  OnWindowClose () override;
 
     DxuiMessageResult  OnSysCommand (UINT command) override;
     DxuiMessageResult  OnKeyUp      (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonUp  (WPARAM wParam, LPARAM lParam) override;
 
 private:
     //  IInspectorComponentHost, through which the components call the window.

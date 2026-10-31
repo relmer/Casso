@@ -52,7 +52,6 @@ public:
 
     //  Called when a double-click zooms the grid a stop in, or with Shift a
     //  stop out.
-    void  SetOnZoom      (ZoomFn zoom)            { m_onZoom = std::move (zoom); }
 
     //  Zoom by a factor about a point, between 1 and kMaxZoom; back to 1;
     //  and a pan shifted, as when the grid's bounds move under its content.
@@ -126,7 +125,6 @@ private:
     ChooseFn                                m_choose;
     std::array<std::wstring, kRoleCount>    m_roleLabels;
     std::array<float, kRoleCount>           m_roleSizesPx  = {};
-    ZoomFn                                  m_onZoom;
     double                                  m_zoom         = 1.0;
     float                                   m_baseCellW    = 1.0f;
     float                                   m_baseRowH     = 1.0f;

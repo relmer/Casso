@@ -64,7 +64,6 @@ void FilesView::Create()
     m_mapCopy      = parent.CreateChild<DxuiButton> (L"Copy map");
 
     m_mapGrid->SetOnChoose    ([this] (int cell) { SelectMapCell (cell); });
-    m_mapGrid->SetOnZoom      ([this] (int steps, POINT pointPx) { ZoomGrid (steps, pointPx); });
     m_fileList->SetOnSelect   ([this] (const TableRow & row) { ChooseFile (row.finding); });
     m_fileList->SetOnSort     ([this] (int column) { m_fileSortDescending = (column == m_fileSortColumn) && !m_fileSortDescending; m_fileSortColumn = column; RefreshFileList(); });
     m_mapVolumes->SetOnChange ([this] (int index) { m_session.mapIndex = index; m_session.mapFile = -1; RefreshFileList(); });
