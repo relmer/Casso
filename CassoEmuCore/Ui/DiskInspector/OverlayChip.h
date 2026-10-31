@@ -10,11 +10,8 @@
 //
 //  OverlayChip
 //
-//  A compact on/off toggle chip for one of the platter's overlays (FR-031):
-//  each chip is a separate pill with an outline, so a row of them does not
-//  read as a segmented control's single choice; while on, it has an accent
-//  tint and border and a check mark before its label. A click, Space or
-//  Enter turns it over.
+//  A compact check box and label for one of the platter's overlays (FR-031).
+//  A click, Space or Enter turns it over.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,9 +21,9 @@ public:
     using ChangeFn = std::function<void (bool isOn)>;
 
     static constexpr float  kTextDip     = 12.0f;
-    static constexpr float  kPadDip      = 10.0f;
-    static constexpr float  kCheckDip    = 10.0f;
-    static constexpr float  kCheckGapDip = 4.0f;
+    static constexpr float  kPadDip      = 5.0f;
+    static constexpr float  kCheckDip    = 13.0f;
+    static constexpr float  kCheckGapDip = 5.0f;
     static constexpr LPCWSTR  kpszCheck     = L"\xE73E";
     static constexpr LPCWSTR  kpszCheckFace = L"Segoe MDL2 Assets";
 

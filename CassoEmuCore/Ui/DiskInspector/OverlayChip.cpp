@@ -5,6 +5,12 @@
 
 
 
+//  The check mark's size, as a share of its box.
+static constexpr float  s_kCheckShare = 0.8f;
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -67,9 +73,9 @@ void OverlayChip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 //
 //  OverlayChip::Paint
 //
-//  A separate outlined pill. On, an accent tint and border and a check mark
-//  before the label in full ink; off, the label in muted ink, with a faint
-//  fill under the pointer.
+//  A check box and its label. On, a filled accent box with a check mark and
+//  the label in full ink; off, an outlined box and the label in muted ink, or
+//  in full ink under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +89,10 @@ void OverlayChip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     float  check  = m_scaler.ToPxf (kCheckDip);
     float  pad    = m_scaler.ToPxf (kPadDip);
     float  edge   = m_scaler.ToPxf (1.0f);
+    float  boxX   = x + pad;
+    float  boxY   = y + (h - check) / 2.0f;
+    float  textX  = boxX + check + m_scaler.ToPxf (kCheckGapDip);
+    float  corner = m_scaler.ToPxf (2.0f);
 
 
 
@@ -90,27 +100,21 @@ void OverlayChip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     {
         if (m_isOn)
         {
-            painter.FillRoundedRect    (x, y, w, h, h / 2.0f, (theme.Accent() & 0x00FFFFFFu) | 0x40000000u);
-            painter.OutlineRoundedRect (x, y, w, h, h / 2.0f, edge, theme.Accent());
-            text.DrawString (kpszCheck, x + pad, y, check, h, theme.Foreground(), check, kpszCheckFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center,
+            painter.FillRoundedRect (boxX, boxY, check, check, corner, theme.Accent());
+            text.DrawString (kpszCheck, boxX, boxY, check, check, 0xFFFFFFFFu, check * s_kCheckShare, kpszCheckFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
                              DxuiFontWeight::Normal, false);
         }
         else
         {
-            if (m_isHover && IsEnabled())
-            {
-                painter.FillRoundedRect (x, y, w, h, h / 2.0f, theme.HoverBackground());
-            }
-
-            painter.OutlineRoundedRect (x, y, w, h, h / 2.0f, edge, theme.Border());
+            painter.OutlineRoundedRect (boxX, boxY, check, check, corner, edge, theme.ForegroundMuted());
         }
 
-        text.DrawString (m_label.c_str(), x + check + m_scaler.ToPxf (kCheckGapDip), y, w - check - m_scaler.ToPxf (kCheckGapDip), h, !IsEnabled() ? theme.ForegroundDisabled() : m_isOn ? theme.Foreground() : theme.ForegroundMuted(),
-                         m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        text.DrawString (m_label.c_str(), textX, y, x + w - textX, h, !IsEnabled() ? theme.ForegroundDisabled() : (m_isOn || m_isHover) ? theme.Foreground() : theme.ForegroundMuted(),
+                         m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
 
         if (m_isFocused && m_focusCueVisible)
         {
-            painter.OutlineRoundedRect (x - ring, y - ring, w + 2 * ring, h + 2 * ring, h / 2.0f + ring, m_scaler.ToPxf (1.0f), theme.FocusRing());
+            painter.OutlineRoundedRect (x - ring, y - ring, w + 2 * ring, h + 2 * ring, corner + ring, m_scaler.ToPxf (1.0f), theme.FocusRing());
         }
     }
 }

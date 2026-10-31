@@ -985,7 +985,7 @@ void DiskInspectorWindow::SetZoom (double zoom)
     m_zoom = std::clamp (zoom, DxuiZoomControl::kMinZoom, most);
     m_statusBand->SetZoom (m_zoom);
 
-    //  A smaller window grows to fit the zoom only once a slider drag ends.
+    //  A smaller window grows to fit only once a slider drag ends.
     if (!m_statusBand->IsZoomDragging())
     {
         SetMinSizeDip ({ static_cast<LONG> (std::lround (kMinWidthDip * std::max (1.0, m_zoom))), static_cast<LONG> (std::lround (kMinHeightDip * std::max (1.0, m_zoom))) });
@@ -1102,8 +1102,7 @@ bool DiskInspectorWindow::IsZoomKey (WPARAM vk)
 //  The toolbar row across the top. Under it the platter column, the platter
 //  as large as the column allows with its controls in the corners; past
 //  the splitter the track column: header, sector row, the view selector,
-//  and the chosen view's content. Along the
-//  bottom, across both columns, the strip with its controls and hint.
+//  and the chosen view's content. Along the bottom, the strip and its controls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1127,6 +1126,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     int                        side      = std::max (0, std::min (column, areaH));
     int                        y         = 0;
     int                        minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), m_corners->GetMinWidthPx (scaler));
+    int                        fitted    = 0;
     RECT                       right     = {};
     RECT                       platter   = {};
 
@@ -1141,11 +1141,12 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
         side   = std::max (0, std::min (column, areaH));
     }
 
-    //  A platter its height limits leaves its column no wider than it and its
-    //  control row need, and the track column gains the rest.
-    if (column > std::max (areaH, minColumn))
+    //  The column is no wider than the platter and its control row, and leaves
+    //  a sector's bytes their full width, so their font follows the zoom.
+    fitted = std::max (minColumn, std::min (areaH, width - 4 * margin - scaler.ToPx (s_kSplitterDip) - SectorsView::GetFullWidthPx (scaler)));
+    if (column > fitted)
     {
-        column = std::max (areaH, minColumn);
+        column = fitted;
         splitX = boundsDip.left + 2 * margin + column;
         side   = std::min (column, areaH);
     }
@@ -1164,8 +1165,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     m_comparisonPart->Layout ({ boundsDip.left, top - bar - find, boundsDip.right, top - find }, scaler);
 
-    //  The platter as large as its column allows, with its controls floating
-    //  in the column's corners.
+    //  The platter as large as its column allows; its controls float in the corners.
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
     m_session.views.platter->Layout (platter, scaler);
 

@@ -187,6 +187,21 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SectorsView::GetFullWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SectorsView::GetFullWidthPx (const DxuiDpiScaler & scaler)
+{
+    return static_cast<int> (std::ceil (scaler.ToPxf (s_kOffsetCharsDip + kBytesPerRow * (s_kByteDip + s_kCharDip) + s_kTextGapDip)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SectorsView::PaintBytes
 //
 //  The sector's bytes; while comparing, B's paired sector below them, both
@@ -199,8 +214,7 @@ void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     const DataFieldDecode &  data    = track.fields[sector.dataField].data;
     std::span<const Byte>    bytesB  = GetPairedBytes (track);
     bool                     isB     = m_context.trackB != nullptr;
-    float                    needed  = s_kOffsetCharsDip + kBytesPerRow * (s_kByteDip + s_kCharDip) + s_kTextGapDip;
-    float                    fit     = std::min (1.0f, GetWidth() / m_scaler.ToPxf (needed));
+    float                    fit     = std::min (1.0f, GetWidth() / GetFullWidthPx (m_scaler));
     float                    rowH    = m_scaler.ToPxf (static_cast<float> (kRowDip)) * std::max (fit, 0.75f);
     float                    textPx  = 0;
     float                    left    = static_cast<float> (m_boundsDip.left);

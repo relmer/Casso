@@ -469,3 +469,5 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T211 Put the head at 6 o'clock at fit before the drive turns and through the coast, in `InspectorViewModel::StepCoast` and `FollowDrive`, with tests, per FR-064
 - [X] T212 Limit the window zoom to 80-125%, and return it to 100% on "Default size", per FR-007, FR-154
 - [X] T213 Inset the tilt slider's ends so the puck stays inside the tilt group at the margin of the tilt button, in `PlatterCorners::Place`, per FR-151
+- [X] T214 Narrow the platter column before a sector's bytes shrink, so their font follows the zoom, in `DiskInspectorWindow::LayoutContent`, per FR-154
+- [X] T215 Draw the platter's overlay toggles as check boxes with labels and no pill, in `OverlayChip`, per FR-031

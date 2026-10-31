@@ -165,8 +165,8 @@ comparing two quarter tracks of one disk.
   does not move: the head sits at 6 o'clock, flat or tilted (FR-064,
   FR-152). An earlier half turn on each tilt was dropped.
 - Q: The overlay chips look like a segmented control but act like
-  checkboxes. What should they look like? → A: Separate toggle chips, each
-  outlined, with a check mark and an accent tint while on (FR-031).
+  checkboxes. What should they look like? → A: Plain check boxes with labels,
+  with no outline around each pair (FR-031).
 - Q: Can a selection be returned to? → A: Back and Forward step through the
   user's selections, with Alt+Left and Alt+Right, the mouse's back and
   forward buttons, and the Go menu (FR-164).
@@ -1926,10 +1926,8 @@ legend, and tilt the platter and back.
   The popup MUST be as wide as its widest columns of entries, its first title
   "Platter structure" or "Platter timing".
   The legend MUST NOT take room from the platter.
-- **FR-031**: The platter's overlays MUST be compact on/off toggle chips,
-  each a separate outlined pill with a check mark and an accent tint while
-  on, so they do not read as a single-choice segmented control, in its
-  bottom left corner, in the order "Files", in Casso "Reads", "Writes" and
+- **FR-031**: The platter's overlays MUST be compact check boxes with labels,
+  in its bottom left corner, in the order "Files", in Casso "Reads", "Writes" and
   "Scans", "Track alignment", and while comparing "Differences", each also a checked
   item of the View menu. "Track alignment" MUST mark each track's sector 0
   address field and its longest sync run, so their angles can be compared

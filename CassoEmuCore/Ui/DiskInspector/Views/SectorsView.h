@@ -29,6 +29,9 @@ public:
 
     explicit SectorsView (InspectorViewContext & context) : InspectorView (context) {}
 
+    //  The width a sector's bytes take at full size.
+    static int  GetFullWidthPx (const DxuiDpiScaler & scaler);
+
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
     bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
