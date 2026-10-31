@@ -435,6 +435,15 @@ namespace DebuggerTests
             Assert::IsTrue (BasicWatches::MakeNameCell ("HI").dimRanges.empty());
         }
 
+        //  (BASIC) follows a variable's name only where another row has that
+        //  label, as the I flag and a variable I do.
+        TEST_METHOD (ANameIsMarkedBasicOnlyWhereItIsADuplicate)
+        {
+            Assert::AreEqual (std::wstring (L"I (BASIC)"), BasicWatches::MakeNameCell ("I", { "I", "Z" }).text);
+            Assert::AreEqual (std::wstring (L"J"),         BasicWatches::MakeNameCell ("J", { "I", "Z" }).text);
+            Assert::AreEqual (std::wstring (L"I"),         BasicWatches::MakeNameCell ("I").text);
+        }
+
         //  The GOSUB and FOR frames come first in the call stack, each on its
         //  line, and activating one goes to the line.
         TEST_METHOD (BasicFramesAreCallStackRows)

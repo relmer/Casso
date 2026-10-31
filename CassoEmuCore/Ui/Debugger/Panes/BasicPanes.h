@@ -152,8 +152,9 @@ public:
     //  fastest.
     static std::string  GetElementName (const BasicArray & array, size_t index);
 
-    //  A name's cell, the letters past the second dimmed.
-    static DxuiListView::Cell  MakeNameCell (const std::string & name);
+    //  A name's cell, the letters past the second dimmed. Where another row's
+    //  label is the same name, (BASIC) follows it.
+    static DxuiListView::Cell  MakeNameCell (const std::string & name, const std::set<std::string> & otherLabels = {});
 
 private:
     static std::string  Quote (BasicType type, const std::string & value);

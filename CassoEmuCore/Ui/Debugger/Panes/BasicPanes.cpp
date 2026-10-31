@@ -681,7 +681,7 @@ std::string BasicWatches::GetElementName (const BasicArray & array, size_t index
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiListView::Cell BasicWatches::MakeNameCell (const std::string & name)
+DxuiListView::Cell BasicWatches::MakeNameCell (const std::string & name, const std::set<std::string> & otherLabels)
 {
     static constexpr int  kReadLength = 2;
     DxuiListView::Cell    cell        = { TextEncoding::NarrowToWide (name) };
@@ -694,6 +694,11 @@ DxuiListView::Cell BasicWatches::MakeNameCell (const std::string & name)
     if ((int) letters > kReadLength)
     {
         cell.dimRanges.push_back ({ kReadLength, (int) letters });
+    }
+
+    if (otherLabels.contains (name))
+    {
+        cell.text += L" (BASIC)";
     }
 
     return cell;

@@ -210,10 +210,25 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
     std::vector<DxuiEditableGrid::GridRow>          rows;
     bool                                            isInProgram = BasicWatches::IsStoppedInProgram (snapshot.basic);
     std::vector<BasicAutoWatches::Row>              basicAutos  = isInProgram ? m_basicAutos.Update (*snapshot.basic, snapshot.cycles) : std::vector<BasicAutoWatches::Row>();
+    std::set<std::string>                           otherLabels;
 
 
 
     m_rows.clear();
+
+    //  The labels a BASIC variable's name can be mistaken for.
+    for (const DebuggerViewSnapshot::AutoWatchLine & line : snapshot.autoWatches)
+    {
+        otherLabels.insert (line.label);
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
+    {
+        if (watch.basicName.empty())
+        {
+            otherLabels.insert (watch.expression);
+        }
+    }
 
     if (!snapshot.autoWatches.empty() || !basicAutos.empty())
     {
@@ -253,7 +268,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         //  instruction touched is.
         for (const BasicAutoWatches::Row & basicAuto : basicAutos)
         {
-            DxuiListView::Cell  name  = BasicWatches::MakeNameCell (basicAuto.item.name);
+            DxuiListView::Cell  name  = BasicWatches::MakeNameCell (basicAuto.item.name, otherLabels);
             DxuiListView::Cell  value = { TextEncoding::NarrowToWide (basicAuto.item.value) };
 
             name.weight  = basicAuto.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
@@ -274,7 +289,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
     for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
     {
         DxuiListView::Cell  id    = MakeIdCell (std::to_wstring (watch.id));
-        DxuiListView::Cell  name  = !watch.basicName.empty()  ? BasicWatches::MakeNameCell (watch.basicName)
+        DxuiListView::Cell  name  = !watch.basicName.empty()  ? BasicWatches::MakeNameCell (watch.basicName, otherLabels)
                                   : !watch.expression.empty() ? DxuiListView::Cell { TextEncoding::NarrowToWide (watch.expression) }
                                   :                             DxuiListView::Cell { std::format (L"${:04X}", watch.address) };
         DxuiListView::Cell  value = { TextEncoding::NarrowToWide (watch.value) };
@@ -351,7 +366,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*snapshot.basic) : std::vector<BasicWatches::Item>())
         {
-            rows.push_back ({ { DxuiListView::Cell { L"" }, BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
+            rows.push_back ({ { DxuiListView::Cell { L"" }, BasicWatches::MakeNameCell (item.name, otherLabels), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
             m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
     }
