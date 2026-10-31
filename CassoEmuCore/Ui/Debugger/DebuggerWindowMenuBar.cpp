@@ -596,7 +596,8 @@ DxuiMessageResult DebuggerWindow::OnKeyUp (WPARAM vk, LPARAM lParam)
 //  DebuggerWindow::ResetPaneLayout
 //
 //  Puts every pane back where the window first had it, reopening the ones
-//  closed from their close buttons, and saves that.
+//  closed from their close buttons, returns the columns to fitting their
+//  text, and saves that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -612,6 +613,23 @@ void DebuggerWindow::ResetPaneLayout()
     m_floating->MarkSyncNeeded();
     m_dockSite->Relayout();
     SaveLayout();
+
+    m_columnWidths.clear();
+
+    for (DxuiListView * list : GetLists())
+    {
+        if (!HasOwnColumnWidths (list))
+        {
+            for (size_t c = 0; c < list->GetColumnCount(); c++)
+            {
+                list->SetColumnOverrideWidthPx (c, -1);
+            }
+
+            list->ResetAutoFit();
+        }
+    }
+
+    SaveColumnWidths();
 
     //  The command bar and the history timeline go back to their default
     //  places too: the top band under the menu bar, the bar at its start

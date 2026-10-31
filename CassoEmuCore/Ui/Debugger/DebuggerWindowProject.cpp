@@ -353,7 +353,8 @@ void DebuggerWindow::SaveUndoHistories()
 //  DebuggerWindow::SaveColumnWidths
 //
 //  A list the user sized, or one a project brought widths back for, is saved
-//  with each column's width as it is now, in dips.
+//  with the width of each column that was sized, in dips, and zero for the
+//  others, which go on fitting their text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,7 +378,8 @@ void DebuggerWindow::SaveColumnWidths()
 
         for (size_t c = 0; c < list->GetColumnCount(); c++)
         {
-            int  dip = MulDiv (list->GetColumnEffectiveWidthPx (c), DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi());
+            int  sizedPx = list->GetColumnOverrideWidthPx (c);
+            int  dip     = (sizedPx > 0) ? MulDiv (sizedPx, DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()) : 0;
 
             m_columnWidths[pane].push_back (dip);
             text += std::format ("{}{}", (c == 0) ? "" : ",", dip);
