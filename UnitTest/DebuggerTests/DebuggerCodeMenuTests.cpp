@@ -362,5 +362,42 @@ namespace DebuggerCodeMenuTests
 
             Assert::IsTrue (window.GetCodeEdits().GetSelection (0, 0) == std::pair<Word, Word> (0x0300, 0x0301), L"the clicked row alone");
         }
+
+
+        //  With Show heat on, a line's heat cell has its color, on the PC's row
+        //  as on the others; the row's other cells have the row's fill.
+        TEST_METHOD (TheHeatCellKeepsItsColorOnEveryRow)
+        {
+            CassoTheme          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            MenuWindow          window   (theme, host);
+            DxuiDpiScaler       scaler;
+            auto                snapshot = MakeSnapshot();
+            auto                levels   = std::make_shared<DebuggerViewSnapshot::HeatColumnLevels>();
+            DisassemblyOptions  options;
+            DxuiListView      * list     = nullptr;
+
+
+
+            levels->execute.assign (0x10000, 200);
+            levels->read.assign    (0x10000, 0);
+            levels->write.assign   (0x10000, 0);
+            snapshot->heatColumns = levels;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            options.Set (DisassemblyOptions::Option::Heat, true);
+            window.GetCodeGroup().SetOptions (options);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            list = window.GetCodeList (0);
+
+            for (int row = 0; row < 3; row++)
+            {
+                Assert::AreNotEqual (0u, list->GetCellsOfRow (row)[DisassemblyCells::kHeatColumn].background, L"the heat color");
+            }
+        }
     };
 }

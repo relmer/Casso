@@ -992,9 +992,10 @@ void DisassemblyGroup::ApplyView (int view)
         cells[DisassemblyCells::kOperandColumn].tip     = rowTip;
         cells[DisassemblyCells::kBytesColumn].tip       = ColorLegend::JoinLines ({ cells[DisassemblyCells::kBytesColumn].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
 
+        //  The heat cell's color is drawn over the row's.
         for (DxuiListView::Cell & cell : cells)
         {
-            cell.background = fill;
+            cell.background = (cell.background != 0) ? cell.background : fill;
         }
 
         rows.push_back (std::move (cells));

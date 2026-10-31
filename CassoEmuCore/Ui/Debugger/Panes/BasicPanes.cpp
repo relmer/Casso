@@ -347,9 +347,10 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
 
         if (isCurrent)
         {
+            //  The heat cell's color is drawn over the row's.
             for (DxuiListView::Cell & cell : rowCells)
             {
-                cell.background = style.pcRowArgb;
+                cell.background = (cell.background != 0) ? cell.background : style.pcRowArgb;
             }
 
             for (size_t at = 0; at < row.pieces.size() && isInLine; at++)
