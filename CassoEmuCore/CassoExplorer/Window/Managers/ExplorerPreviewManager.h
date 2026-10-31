@@ -98,6 +98,7 @@ private:
     PreviewContent::Kind            m_lastKind    = PreviewContent::Kind::Text;
     bool                            m_pinned      = false;   // turned on manually, so automatic preview doesn't close it
     std::wstring                    m_autoKey;   // the file automatic preview last checked
+    std::wstring                    m_autoAddress;
 
     std::wstring  GetAutoKey        () const;
     bool          UpdateAutoPreview ();

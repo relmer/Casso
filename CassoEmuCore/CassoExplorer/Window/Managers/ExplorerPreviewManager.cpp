@@ -360,12 +360,28 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
     const PreviewContent    & preview  = m_context.browser.GetPreview();
     std::wstring              key      = GetAutoKey();
     bool                      known    = false;
+    std::wstring              address  = BrowserModel::FormatAddress (m_context.browser.GetLocation());
 
 
 
     if (!m_context.prefs.autoPreview || m_pinned)
     {
         return false;
+    }
+
+    //  A pane automatic preview opened closes on going to another folder.
+    if (address != m_autoAddress)
+    {
+        bool  wasOpen = m_context.prefs.previewVisible && !m_autoAddress.empty();
+
+        m_autoAddress = address;
+        m_autoKey     = key;
+
+        if (wasOpen)
+        {
+            m_context.prefs.previewVisible = false;
+            return true;
+        }
     }
 
     //  A linked drive's file is checked once it arrives.
