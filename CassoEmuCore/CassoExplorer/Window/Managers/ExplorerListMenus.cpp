@@ -244,7 +244,7 @@ void ExplorerListMenus::AddHomeItemRows (std::vector<DxuiPopupMenuItem> & items,
 
     std::vector<std::wstring>       labels;
     std::vector<DxuiPopupMenuItem>  rows;
-    HRESULT                         hr = m_context.shellVerbs.GetItemVerbLabels (m_context.window.GetHwnd(), { id }, labels);
+    HRESULT                         hr           = m_context.shellVerbs.GetItemVerbLabels (m_context.window.GetHwnd(), { id }, labels);
     size_t                          place        = items.size();
     bool                            hasFavorites = false;
 
