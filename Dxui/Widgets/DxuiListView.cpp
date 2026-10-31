@@ -3439,6 +3439,15 @@ void DxuiListView::PaintDataRows (
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }
 
+        //  The last column drawn is filled to the row's end, so a filled row
+        //  runs to the list's edge whatever its columns add up to.
+        size_t  lastColumn = 0;
+
+        for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
+        {
+            lastColumn = (m_columns[c].visible && colWPx[c] > 0) ? c : lastColumn;
+        }
+
         for (size_t c = 0; c < m_columns.size() && c < cells.size() && !spans; ++c)
         {
             uint32_t  argb      = (cells[c].argb != 0) ? cells[c].argb : (cells[c].dim ? pal.fgDim : pal.fg);
@@ -3466,8 +3475,14 @@ void DxuiListView::PaintDataRows (
             if (cells[c].background != 0)
             {
                 float  fillX = (colXPx[c] == lead) ? 0.0f : (float) colXPx[c];
+                float  fillW = cellW + (float) colXPx[c] - fillX;
 
-                painter.FillRect (x + colOff + fillX, ry, cellW + (float) colXPx[c] - fillX, rowH, cells[c].background);
+                if (c == lastColumn)
+                {
+                    fillW = (std::max) (fillW, layoutW - colOff - fillX);
+                }
+
+                painter.FillRect (x + colOff + fillX, ry, fillW, rowH, cells[c].background);
             }
 
             if (cells[c].check.has_value())
