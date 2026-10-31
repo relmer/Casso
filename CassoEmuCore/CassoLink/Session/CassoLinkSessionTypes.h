@@ -124,6 +124,13 @@ public:
 
     //  An operation finished, for the log with the time it started.
     virtual void  OnFinished     (const LinkOperation & operation, const std::string & text) { UNREFERENCED_PARAMETER (operation); OnActivity (text); }
+
+    //  The folder and extension of a full send started from the Apple, with
+    //  the folder ready to use; false when there is no folder to send to.
+    virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); return false; }
+
+    //  An operation the Apple started, so the window can track and cancel it.
+    virtual void  OnOperationQueued (const std::shared_ptr<LinkOperation> & operation) { UNREFERENCED_PARAMETER (operation); }
 };
 
 

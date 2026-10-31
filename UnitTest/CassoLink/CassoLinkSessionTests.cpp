@@ -43,6 +43,23 @@ public:
         std::vector<LinkState>                        states;
         std::vector<std::shared_ptr<LinkOperation>>   done;
         std::vector<std::string>                      activities;
+        std::vector<std::shared_ptr<LinkOperation>>   queued;
+        std::string                                   fullSendFolder;
+
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
+        {
+            outFolder    = fullSendFolder;
+            outExtension = ".do";
+
+            return !fullSendFolder.empty();
+        }
+
+        void  OnOperationQueued (const std::shared_ptr<LinkOperation> & operation) override
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            queued.push_back (operation);
+        }
 
         void  OnActivity (const std::string & text) override
         {
@@ -735,13 +752,13 @@ public:
 
 
 
-    //  A full send through the link, ended by Escape at its pause: drive 1 and
+    //  A full send through the link, ended by Q at its pause: drive 1 and
     //  then drive 2, the screens on the Apple, and the screen cleared at the end.
-    TEST_METHOD (FullSend_SendsBothDrives_AndEndsOnEscapeAtThePause)
+    TEST_METHOD (FullSend_SendsBothDrives_AndEndsOnQAtThePause)
     {
         Rig  rig;
 
-        rig.apple.keys.push_back (CassoLinkCodec::kKeyEscape);
+        rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
         rig.Start();
 
         auto  send = rig.Finish (rig.session->FullSend ("C:\\Box", ""));
@@ -760,6 +777,60 @@ public:
         Assert::IsFalse (rig.apple.screens.empty());
         Assert::AreEqual<int> (0, rig.apple.screens.back()[0], L"the last screen clears the session");
         Assert::AreEqual<int> (0, rig.apple.screens.back()[1]);
+    }
+
+
+
+
+    TEST_METHOD (FullSend_FromTheAppleKeyboard_UsesTheSinksTarget)
+    {
+        Rig  rig;
+
+        rig.sink.fullSendFolder = "C:\\Box";
+        rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
+        rig.Start();
+
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+        rig.apple.fullSendPending = true;
+
+        for (int tries = 0; tries < 2000 && rig.apple.keyWaits == 0; tries++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        std::shared_ptr<LinkOperation>  send;
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.sink.lock);
+
+            Assert::AreEqual ((size_t) 1, rig.sink.queued.size());
+            send = rig.sink.queued[0];
+        }
+
+        rig.Finish (send);
+
+        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0001 HELLO.do"));
+    }
+
+
+
+
+    TEST_METHOD (FullSend_FromTheAppleKeyboard_WithNoFolder_StartsNothing)
+    {
+        Rig  rig;
+
+        rig.Start();
+
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+        rig.apple.fullSendPending = true;
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+        std::this_thread::sleep_for (std::chrono::milliseconds (50));
+
+        std::lock_guard<std::mutex>  guard (rig.sink.lock);
+
+        Assert::IsTrue (rig.sink.queued.empty());
+        Assert::AreEqual (0, rig.apple.keyWaits.load());
     }
 
 
@@ -792,7 +863,7 @@ public:
 
 
 
-    TEST_METHOD (FullSend_EscapeDuringARead_WritesNoImage)
+    TEST_METHOD (FullSend_QDuringARead_WritesNoImage)
     {
         Rig  rig;
 
@@ -806,12 +877,12 @@ public:
             std::this_thread::sleep_for (std::chrono::milliseconds (5));
         }
 
-        rig.apple.escapePending = true;
+        rig.apple.quitPending = true;
         rig.Finish (send);
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::IsTrue (rig.fileIo.files.empty(), L"no image, no manifest");
-        Assert::IsTrue (send->message.find ("Escape") != std::string::npos);
+        Assert::IsTrue (send->message.find ("Q was") != std::string::npos);
     }
 
 

@@ -664,6 +664,11 @@ void CassoLinkSession::Run (std::stop_token stop)
         {
             hr = m_host->ServeOne (kIdlePollMs);
 
+            if (m_host->TakeFullSendRequest())
+            {
+                StartFullSendFromApple();
+            }
+
             m_connector.m_lostReason = FAILED (hr)                          ? DescribeLineFailure (hr)
                          : (m_host->GetSilenceMs() > kSilenceMs) ? std::format ("no packet in {} seconds", kSilenceMs / 1000)
                          : m_connector.IsPeerGone()                          ? std::string ("DSR went off, the Apple's DTR on most cables")
@@ -710,7 +715,7 @@ void CassoLinkSession::Run (std::stop_token stop)
 
         if (!lost && operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
-            logged = m_connector.LogOnApple (std::format ("{} {}", SUCCEEDED (hr) ? "OK " : "ERR", DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr))));
+            logged = m_connector.LogOnApple (std::format ("{} {}", (SUCCEEDED (hr) || (operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))) ? "OK " : "ERR", DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 
@@ -742,6 +747,37 @@ void CassoLinkSession::Run (std::stop_token stop)
 
     Disconnect();
     SetState (LinkState::Closed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::StartFullSendFromApple
+//
+//  With no folder to send to, the reason is a line in the Apple's history.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkSession::StartFullSendFromApple()
+{
+    HRESULT      logged = S_OK;
+    std::string  folder;
+    std::string  extension;
+
+
+
+    if (m_sink.TryGetFullSendTarget (folder, extension))
+    {
+        m_sink.OnOperationQueued (FullSend (folder, extension));
+    }
+    else
+    {
+        logged = m_connector.LogOnApple ("ERR FULL SEND: NO FOLDER ON THE PC");
+        IGNORE_RETURN_VALUE (logged, S_OK);
+    }
 }
 
 

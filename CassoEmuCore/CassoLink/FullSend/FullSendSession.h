@@ -14,7 +14,7 @@ class IDiskFileIo;
 //
 //  FullSendScreen
 //
-//  The Apple's full send screen. Off in both drives clears it, and Escape on
+//  The Apple's full send screen. Off in both drives clears it, and Q on
 //  the Apple ends CassoLink again rather than the session.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +41,7 @@ enum class FullSendTone : Byte
 enum class FullSendKey
 {
     Space,
-    Escape,
+    Quit,
 };
 
 struct FullSendScreen
@@ -63,7 +63,7 @@ struct FullSendScreen
 //  IFullSendLink
 //
 //  The Apple, as a full send uses it. An image is DOS logical sectors in an
-//  image-sized buffer. kEscaped from any call is Escape on the Apple;
+//  image-sized buffer. kQuit from any call is Q on the Apple;
 //  ERROR_CANCELLED is Cancel on the PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +72,7 @@ class IFullSendLink
 {
 public:
     //  HRESULT_FROM_WIN32 (ERROR_OPERATION_ABORTED).
-    static constexpr HRESULT  kEscaped = (HRESULT) 0x800703E3;
+    static constexpr HRESULT  kQuit = (HRESULT) 0x800703E3;
 
     virtual ~IFullSendLink () = default;
 
@@ -103,7 +103,7 @@ public:
 //  FullSendSession
 //
 //  One full send: disks read from a linked Apple's drives into a folder, one
-//  at a time, alternating between the drives, until Escape, Cancel or a
+//  at a time, alternating between the drives, until Q, Cancel or a
 //  failure ends it. Pure: the Apple, the clock and the files are injected.
 //
 //  After each disk the other drive is checked and then the drive just read.
@@ -129,7 +129,7 @@ public:
     enum class EndReason
     {
         None,
-        Escape,
+        Quit,
         Canceled,
         LinkFailed,
         ManifestDamaged,
@@ -142,7 +142,7 @@ public:
     //  .dsk for any other.
     FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension);
 
-    //  Returns when the session ends. Escape returns kEscaped and Cancel
+    //  Returns when the session ends. Q returns kQuit and Cancel
     //  ERROR_CANCELLED; no session ends in S_OK.
     HRESULT  Run ();
 

@@ -43,6 +43,13 @@ public:
     CassoLinkConnections (IByteStreamFactory & factory, ICassoLinkFolder & folder, IDiskFileIo & fileIo);
     ~CassoLinkConnections ();
 
+    //  Where a full send started from an Apple writes: the folder, made by
+    //  makeFolder when the session starts, and the extension with its period,
+    //  empty for .po on ProDOS and .dsk otherwise.
+    using MakeFolderFn = std::function<HRESULT (const std::string & folder)>;
+
+    void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
+
     //  Where a finished operation or a change of state is posted.
     void  SetTarget (HWND hwnd, UINT message) { m_hwnd = hwnd; m_message = message; }
 
@@ -246,11 +253,13 @@ private:
     public:
         Sink (CassoLinkConnections & owner, std::string name) : m_owner (owner), m_name (std::move (name)) {}
 
-        void  OnStateChanged (LinkState state) override;
-        void  OnProgress     (const std::shared_ptr<LinkOperation> & operation) override;
-        void  OnDone         (const std::shared_ptr<LinkOperation> & operation) override;
-        void  OnActivity     (const std::string & text) override;
-        void  OnFinished     (const LinkOperation & operation, const std::string & text) override;
+        void  OnStateChanged       (LinkState state) override;
+        void  OnProgress           (const std::shared_ptr<LinkOperation> & operation) override;
+        void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
+        void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
+        void  OnActivity           (const std::string & text) override;
+        void  OnFinished           (const LinkOperation & operation, const std::string & text) override;
 
     private:
         void  Log (Activity entry, const std::string & text);
@@ -303,10 +312,13 @@ private:
         Completion                      completion;
     };
 
-    std::vector<Job>                     m_jobs;
-    std::deque<Activity>                 m_activity;
-    mutable std::mutex                   m_lock;
-    std::atomic<bool>                    m_changed { false };
-    HWND                                 m_hwnd    = nullptr;
-    UINT                                 m_message = 0;
+    std::string           m_fullSendFolder;
+    std::string           m_fullSendExtension;
+    MakeFolderFn          m_makeFullSendFolder;
+    std::vector<Job>      m_jobs;
+    std::deque<Activity>  m_activity;
+    mutable std::mutex    m_lock;
+    std::atomic<bool>     m_changed            { false };
+    HWND                  m_hwnd               = nullptr;
+    UINT                  m_message            = 0;
 };

@@ -28,11 +28,13 @@
 ;                   drawn over the history's first rows, the tone sounded, and
 ;                   Ready again; both states 0 clears them and ends the session
 ;   Wait for key    a full send's pause: the prompt drawn and the motor off,
-;                   Key with its code on Space or Escape, Key with 0 each
+;                   Key with its code on Space or Q, Key with 0 each
 ;                   second until then; any byte from the host is taken as Cancel
 ;
-; During a full send Escape on the Apple does not end CassoLink: Key with its
-; code goes to the host ahead of the next Ready.
+; F on the standard screen sends Key with its code ahead of the next Ready,
+; and the host starts a full send. During a full send Q does the same, and the
+; session ends and returns to the standard screen; Escape is ignored, so that a
+; second press cannot end CassoLink.
 ;
 ; Read sectors, Write sectors, Format track and Write track end with two
 ; percentages, the part of the user's whole operation the request covers, so
@@ -168,6 +170,7 @@ OPREAD   = 1
 OPWRITE  = 2
 OPFORMAT = 3
 OPSPEED  = 4
+OPDISK   = 5                    ; a full send's pause, on the status row alone
 
 ; Errors.
 ERRNONE    = $00
@@ -327,13 +330,31 @@ slotok:
 
 main:   lda $C000               ; Escape on the Apple ends CassoLink
         cmp #$9B
+        beq mnesc
+        cmp #$C6                ; F or f asks for a full send
+        beq mnfull
+        cmp #$E6
+        beq mnfull
+        cmp #$D1                ; Q or q ends a full send
+        beq mnquit
+        cmp #$F1
+        bne mnokey
+mnquit: ldx fsmode
+        beq mnokey
+        sta $C010
+        lda #$D1
+        jsr sendkey
+        jmp mnokey
+mnfull: ldx fsmode
         bne mnokey
         sta $C010
-        ldx fsmode
-        beq mnexit
-        jsr sendkey             ; the session's to end, not CassoLink's
+        lda #$C6
+        jsr sendkey
         jmp mnokey
-mnexit: jmp exitlink
+mnesc:  sta $C010
+        ldx fsmode
+        bne mnokey
+        jmp exitlink
 mnokey: lda #OPIDLE
         sta op
         jsr showop
@@ -2550,7 +2571,9 @@ ROWLB = $0780                   ; row 7: the label of the user's operation
 ROWER = $04A8                   ; row 9: the last error, when there is one
 ROWHIST = $05A8                 ; row 11: the history's title, its lines below
 LOGROWS = 11                    ; the history's lines, rows 12 to 22
-ROWESC = $07D0 + 11             ; row 23, centered: how to leave CassoLink
+ROWKEYS = $07D0                 ; row 23: the keys
+KEYSCOL = 4                     ; centered on the standard screen
+FSKEYSCOL = 10                  ; and in a full send
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
@@ -2596,7 +2619,8 @@ dstext: lda labels,x
         bne dstext
 dsnext: inx
         jmp dsline
-dsdone: jsr showconn
+dsdone: jsr fschrome
+        jsr showconn
         jsr showaddr
         ldx pcrow
         lda pcrow+1
@@ -2615,12 +2639,6 @@ labels: .byte <ROW0, >ROW0
         .byte <ROW2, >ROW2
         .text "CONNECTION"
         .byte $3A, 0
-        .byte <ROWHIST, >ROWHIST
-        .text "HISTORY"
-        .byte $3A, 0
-        .byte <ROWESC, >ROWESC
-        .text "PRESS ESC TO EXIT"
-        .byte 0
         .byte 0
         .byte 0, 0
 
@@ -2986,6 +3004,8 @@ stput:  jsr puttext
         lda op
         beq stdone
         cmp #OPSPEED
+        beq stdone
+        cmp #OPDISK
         bne strun
 stdone: rts
 strun:  lda #<stdrive
@@ -3039,9 +3059,11 @@ stsector: .byte $2C
           .text " S"
           .byte 0
 
-optext: .word oidle, oread, owrite, oformat, ospeed
+optext: .word oidle, oread, owrite, oformat, ospeed, odisk
 
 oidle:   .text "WAITING FOR A COMMAND"
+         .byte 0
+odisk:   .text "WAITING FOR A DISK"
          .byte 0
 onopc:   .text "WAITING FOR CONNECTION"
          .byte 0
@@ -3166,6 +3188,9 @@ nopc:   lda pcflag
         sta pcflag
         sta silent
         jsr clrlabel
+        lda fsmode              ; a session with no PC is over
+        beq npdraw
+        jsr fsleave
 npdraw: jmp showpc
 
 pcwait: .text "WAITING"
@@ -3368,6 +3393,9 @@ keyend:
 ; dowaitkey: a full send's pause. The motor is off and a key pressed during the
 ; transfer is dropped, so Space means the disks in the drives now.
 dowaitkey: jsr motoroff
+        lda #OPDISK
+        sta op
+        jsr showop
         sta $C010
         jsr clrlabel
 wkprompt: lda wktext,y
@@ -3383,8 +3411,12 @@ wkpoll: lda $C000
         sta $C010
         cmp #$A0
         beq wkkey
-        cmp #$9B
-        beq wkkey
+        cmp #$F1
+        beq wkquit
+        cmp #$D1
+        bne wkhost
+wkquit: lda #$D1
+        bne wkkey
 wkhost: jsr pollcancel
         lda #10
         jsr delayms
@@ -3409,12 +3441,10 @@ doscreen: lda PKTBUF
         ora PKTBUF+1
         sta fsmode
         bne dsdraw
-        ldx #FSROWS-1
-dsoff:  jsr fsrow
-        dex
-        bpl dsoff
+        jsr fsleave
         jmp main
-dsdraw: ldx #FSDRIVE1
+dsdraw: jsr fschrome
+        ldx #FSDRIVE1
         jsr fsdrive
         ldx #FSDRIVE2
         jsr fsdrive
@@ -3454,6 +3484,62 @@ dscounts: ldx #FSCOUNTS
         jsr fscount
         jsr fssound
         jmp main
+
+; fsleave: back to the standard screen: the session's rows cleared, and the
+; heading and keys drawn.
+fsleave: lda #0
+        sta fsmode
+        ldx #FSROWS-1
+flclear: jsr fsrow
+        dex
+        bpl flclear
+        ; falls through
+
+; fschrome: the heading over the history's rows and the keys on the last row,
+; for the standard screen or a full send.
+fschrome: ldx #<ROWHIST
+        lda #>ROWHIST
+        jsr fullrow
+        lda #<histtxt
+        sta ptr
+        lda #>histtxt
+        sta ptr+1
+        lda fsmode
+        beq fchead
+        lda #<fsheadtxt
+        sta ptr
+        lda #>fsheadtxt
+        sta ptr+1
+fchead: jsr puttext
+        ldx #<ROWKEYS
+        lda #>ROWKEYS
+        jsr fullrow
+        lda #<keystxt
+        sta ptr
+        lda #>keystxt
+        sta ptr+1
+        ldy #KEYSCOL
+        lda fsmode
+        beq fckeys
+        lda #<fskeystxt
+        sta ptr
+        lda #>fskeystxt
+        sta ptr+1
+        ldy #FSKEYSCOL
+fckeys: jmp puttext
+
+histtxt: .text "HISTORY"
+        .byte $3A, 0
+fsheadtxt: .text "FULL SEND"
+        .byte $3A, 0
+keystxt: .text "F"
+        .byte $3A
+        .text " FULL SEND   PRESS ESC TO EXIT"
+        .byte 0
+fskeystxt: .text "Q"
+        .byte $3A
+        .text " BACK TO CASSOLINK"
+        .byte 0
 
 ; fsrow: scr at the history row of index X, and the row cleared. Y is 0.
 fsrow:  lda logrowlo,x

@@ -961,7 +961,10 @@ HRESULT CassoLinkHost::AwaitReady()
 
         CHR (hr);
 
-        m_escape = m_escape || IsEscapeKey (packet);
+        if (IsKeyReport (packet))
+        {
+            NoteKey (packet);
+        }
 
         if (packet.command != CassoLinkCodec::kReady)
         {
@@ -1002,7 +1005,7 @@ HRESULT CassoLinkHost::ReadReply (CassoLinkPacket & outPacket)
 {
     HRESULT  hr      = S_OK;
     int      readies = 0;
-    bool     escape  = false;
+    bool     report  = false;
 
 
 
@@ -1021,9 +1024,13 @@ HRESULT CassoLinkHost::ReadReply (CassoLinkPacket & outPacket)
         //  reply ran out; a second is the client idle, the request lost.
         readies += (outPacket.command == CassoLinkCodec::kReady) ? 1 : 0;
 
-        //  Escape, ahead of a Ready that crossed the request.
-        escape   = !m_awaitingKey && IsEscapeKey (outPacket);
-        m_escape = m_escape || escape;
+        //  A key, ahead of a Ready that crossed the request.
+        report = !m_awaitingKey && IsKeyReport (outPacket);
+
+        if (report)
+        {
+            NoteKey (outPacket);
+        }
 
         if (readies > 1)
         {
@@ -1031,7 +1038,7 @@ HRESULT CassoLinkHost::ReadReply (CassoLinkPacket & outPacket)
             CBREx (false, kLostRequest);
         }
     }
-    while (outPacket.command == CassoLinkCodec::kReady || escape);
+    while (outPacket.command == CassoLinkCodec::kReady || report);
 
 Error:
     return hr;

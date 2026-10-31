@@ -48,6 +48,12 @@ struct CassoExplorerPrefs
     bool                   autoPreview     = true;
     std::string            hostNaming      = kNamingDescriptive;
 
+    //  Where a full send started on an Apple writes: the folder, empty for the
+    //  default under Downloads, and the extension with its period, empty for
+    //  .po on ProDOS and .dsk otherwise.
+    std::wstring           fullSendFolder;
+    std::string            fullSendExtension;
+
 
     //  Each folder's view as last chosen, most recent first. A folder with
     //  none opens in its type's view, as Explorer's do; the single listView

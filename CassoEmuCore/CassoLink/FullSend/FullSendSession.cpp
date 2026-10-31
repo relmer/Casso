@@ -163,7 +163,7 @@ HRESULT FullSendSession::Pause()
     hr = m_link.WaitForKey (key);
     CHR (hr);
 
-    CBREx (key != FullSendKey::Escape, IFullSendLink::kEscaped);
+    CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
 
     for (int drive : order)
     {
@@ -550,7 +550,7 @@ void FullSendSession::End (HRESULT hr)
 
     if (m_endReason == EndReason::None)
     {
-        m_endReason = hr == IFullSendLink::kEscaped              ? EndReason::Escape
+        m_endReason = hr == IFullSendLink::kQuit              ? EndReason::Quit
                     : hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED) ? EndReason::Canceled
                     : m_fileFailed                               ? EndReason::FileFailed
                                                                  : EndReason::LinkFailed;
@@ -560,7 +560,7 @@ void FullSendSession::End (HRESULT hr)
 
     switch (m_endReason)
     {
-        case EndReason::Escape:          why = "Escape was pressed on the Apple.";                                                                                            break;
+        case EndReason::Quit:          why = "Q was pressed on the Apple.";                                                                                            break;
         case EndReason::Canceled:        why = "It was canceled.";                                                                                                            break;
         case EndReason::ManifestDamaged: why = std::format ("{} could not be read, so no disk was read. Repair or move it, then start again.", FullSendManifest::kFileName); break;
         case EndReason::FileFailed:      why = "A file could not be written to the folder.";                                                                                  break;

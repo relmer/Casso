@@ -72,12 +72,13 @@ public:
     std::atomic<bool>                 typedLoader    { false };
     std::vector<Byte>                 loadedShim;
     //  A full send: each Session screen's payload, the keys to answer Wait for
-    //  key with, the Waits for key received, and Escape to press before the next
+    //  key with, the Waits for key received, and Q to press before the next
     //  Ready. With no key left, a wait goes on until the host sends a byte.
-    std::vector<std::vector<Byte>>    screens;
-    std::deque<Byte>                  keys;
-    std::atomic<int>                  keyWaits       { 0 };
-    std::atomic<bool>                 escapePending  { false };
+    std::vector<std::vector<Byte>>  screens;
+    std::deque<Byte>                keys;
+    std::atomic<int>                keyWaits        { 0 };
+    std::atomic<bool>               quitPending     { false };
+    std::atomic<bool>               fullSendPending { false };
     //  Each Label's text, in the order received.
     std::vector<std::string>          labels;
     std::mutex                        lock;
@@ -251,9 +252,14 @@ private:
         }
         while (!stop.stop_requested() && !stream.IsClosed())
         {
-            if (escapePending.exchange (false))
+            if (quitPending.exchange (false))
             {
-                SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyEscape });
+                SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyQuit });
+            }
+
+            if (fullSendPending.exchange (false))
+            {
+                SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyFullSend });
             }
 
             if (!silent)

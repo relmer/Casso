@@ -110,9 +110,10 @@ public:
     //  is written.
     std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath, const std::string & formatted = std::string());
 
-    //  Disks into a folder, alternating between the drives, until Escape on
+    //  Disks into a folder, alternating between the drives, until Q on
     //  the Apple, Cancel or a failure ends it. The extension has its period;
-    //  empty is .po for ProDOS and .dsk for any other.
+    //  empty is .po for ProDOS and .dsk for any other. F on the Apple queues
+    //  this with the sink's folder and extension, after what is queued already.
     std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension);
 
     //  Whether the drive has the link's boot disk, by its boot sector: a write
@@ -148,8 +149,9 @@ private:
 
     void     Run           (std::stop_token stop);
 
-    void     Disconnect    ();
-    void     SetState      (LinkState state);
+    void  Disconnect             ();
+    void  StartFullSendFromApple ();
+    void  SetState               (LinkState state);
 
     HRESULT  Execute       (LinkOperation & operation);
     HRESULT  Revalidate    (int drive);

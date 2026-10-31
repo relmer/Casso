@@ -27,7 +27,7 @@ CassoLinkFullSend::CassoLinkFullSend (CassoLinkSession & session)
 //
 //  CassoLinkFullSend::Run
 //
-//  Escape ends the session as Cancel does. The Apple's screen is cleared on
+//  Q ends the session as Cancel does. The Apple's screen is cleared on
 //  the way out unless the line is gone, and the drives' sectors and listings
 //  are dropped, as the disks in them have changed.
 //
@@ -48,6 +48,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     hr = session.Run();
 
     operation.message = session.GetMessage();
+    m_session.m_sink.OnActivity (operation.message);
     m_operation       = nullptr;
 
     for (size_t i = 0; i < CassoLinkSessionTypes::kDriveCount; i++)
@@ -64,7 +65,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
         IGNORE_RETURN_VALUE (cleared, S_OK);
     }
 
-    if (hr == kEscaped)
+    if (hr == kQuit)
     {
         hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED);
     }
@@ -85,11 +86,11 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 HRESULT CassoLinkFullSend::CheckStop()
 {
     HRESULT  hr      = S_OK;
-    bool     escaped = m_session.m_host->TakeEscape();
+    bool     quit    = m_session.m_host->TakeQuit();
 
 
 
-    CBREx (!escaped,    kEscaped);
+    CBREx (!quit,       kQuit);
     CBREx (!m_canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
 Error:
@@ -203,7 +204,7 @@ Error:
 //  CassoLinkFullSend::ReadDisk
 //
 //  Read disk to image's track reads, with an unreadable sector listed and left
-//  as zeros, and the check for Escape and Cancel between tracks. The session
+//  as zeros, and the check for Q and Cancel between tracks. The session
 //  writes the file only when every track has been read.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -285,7 +286,7 @@ HRESULT CassoLinkFullSend::WaitForKey (FullSendKey & outKey)
     hr = m_session.m_host->WaitForKey (code);
     CHR (hr);
 
-    outKey = (code == CassoLinkCodec::kKeyEscape) ? FullSendKey::Escape : FullSendKey::Space;
+    outKey = (code == CassoLinkCodec::kKeyQuit) ? FullSendKey::Quit : FullSendKey::Space;
 
 Error:
     return hr;

@@ -50,6 +50,9 @@ public:
     static constexpr Word      kRowDrive2   = 0x06A8;
     static constexpr Word      kRowImage    = 0x0728;
     static constexpr Word      kRowCounts   = 0x07A8;
+    static constexpr Word      kRowStatus   = 0x0700;
+    static constexpr Word      kRowHeading  = 0x05A8;
+    static constexpr Word      kRowKeys     = 0x07D0;
     static constexpr int       kSlot        = 6;
 
     //  The target is 30; a read to image alone takes 27 here.
@@ -87,6 +90,22 @@ public:
     {
         std::mutex                                    lock;
         std::vector<std::shared_ptr<LinkOperation>>   done;
+        std::vector<std::shared_ptr<LinkOperation>>   queued;
+
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
+        {
+            outFolder = "C:\\Box";
+            outExtension.clear();
+
+            return true;
+        }
+
+        void  OnOperationQueued (const std::shared_ptr<LinkOperation> & operation) override
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            queued.push_back (operation);
+        }
 
         void  OnStateChanged (LinkState) override {}
         void  OnProgress     (const std::shared_ptr<LinkOperation> &) override {}
@@ -313,7 +332,7 @@ public:
 
         Logger::WriteMessage (std::format ("Full send: {:.1f} seconds a disk", (double) perDisk / kCyclesPerS).c_str());
 
-        rig.Press (0x1B);
+        rig.Press ('Q');
         rig.Finish();
 
         Assert::IsTrue (swapped);
@@ -372,7 +391,7 @@ public:
 
         Assert::IsTrue (rig.Row (kRowCounts).find ("BAD 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
 
-        rig.Press (0x1B);
+        rig.Press ('Q');
         rig.Finish();
 
         std::vector<FullSendRow>  rows = rig.Rows();
@@ -420,8 +439,8 @@ public:
 
 
 
-    //  Escape during a transfer: no partial image, and CassoLink goes on.
-    TEST_METHOD (EscapeDuringATransfer_LeavesNoImage_AndTheLinkRunning)
+    //  Q during a transfer: no partial image, and CassoLink goes on.
+    TEST_METHOD (QDuringATransfer_LeavesNoImage_AndTheLinkRunning)
     {
         Rig  rig;
 
@@ -430,7 +449,7 @@ public:
 
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1 SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS / 2);
-        rig.Press (0x1B);
+        rig.Press ('Q');
         rig.Finish();
 
         Assert::IsTrue (rig.send->state == LinkOperationState::Canceled);
@@ -440,6 +459,60 @@ public:
 
         rig.RunUntil ([&] () { return rig.sink.IsDone (list); }, L"the link goes on");
         AssertSucceeded (list->result);
+    }
+
+
+
+
+    //  The owner's flow: F on the standard screen starts a session, a sending
+    //  disk shows its image name and progress, the pause shows the wait for a
+    //  disk, and Q returns to the standard screen with the link working.
+    TEST_METHOD (FOnTheApple_RunsASession_AndQReturnsToCassoLink)
+    {
+        Rig  rig;
+
+        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
+        rig.machine.RunCycles (kCyclesPerS / 2);
+
+        Assert::AreEqual (std::string ("    F: FULL SEND   PRESS ESC TO EXIT"), rig.Row (kRowKeys));
+        Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRowHeading));
+        Assert::IsTrue (rig.Row (kRowStatus).find ("WAITING FOR A COMMAND") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowStatus)).c_str());
+
+        rig.Press ('f');
+
+        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1 SENDING") && rig.Row (kRowStatus).find ("10%") != std::string::npos; }, L"drive 1 is sending, with progress");
+
+        Assert::IsTrue (rig.Row (kRowImage).starts_with ("IMAGE 0001"), TextEncoding::NarrowToWide (rig.Row (kRowImage)).c_str());
+        Assert::AreEqual (std::string ("FULL SEND:"), rig.Row (kRowHeading));
+        Assert::AreEqual (std::string ("          Q: BACK TO CASSOLINK"), rig.Row (kRowKeys));
+
+        rig.Press (0x1B);
+        rig.machine.RunCycles (kCyclesPerS);
+
+        Assert::AreEqual (std::string ("FULL SEND:"), rig.Row (kRowHeading), L"Esc is ignored during a transfer");
+
+        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
+
+        rig.Press (0x1B);
+        rig.machine.RunCycles (kCyclesPerS);
+
+        Assert::IsTrue (rig.IsPrompting(), L"Esc is ignored during the pause");
+
+        Assert::IsTrue (rig.Row (kRowStatus).find ("WAITING FOR A DISK") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowStatus)).c_str());
+        Assert::IsTrue (rig.Row (kRowStatus).find ("COMMAND") == std::string::npos);
+
+        rig.Press ('Q');
+
+        rig.RunUntil ([&] () { return rig.Row (kRowHeading) == "HISTORY:" && rig.Row (kRowKeys).find ("F: FULL SEND") != std::string::npos; }, L"the standard screen returns");
+
+        Assert::IsTrue (rig.Row (kRowDrive1).empty() || !rig.Row (kRowDrive1).starts_with ("D1 "), L"the session's rows are gone");
+        Assert::AreEqual ((size_t) 2, rig.Rows().size());
+
+        std::shared_ptr<LinkOperation>  list = rig.session->Enumerate (1, FilePath());
+
+        rig.RunUntil ([&] () { return rig.sink.IsDone (list); }, L"the link goes on");
+        AssertSucceeded (list->result);
+        Assert::IsFalse (list->listing.entries.empty());
     }
 
 
@@ -463,7 +536,7 @@ public:
         swapped = true;
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
-        rig.Press (0x1B);
+        rig.Press ('Q');
         rig.Finish();
 
         std::vector<FullSendRow>  rows = rig.Rows();

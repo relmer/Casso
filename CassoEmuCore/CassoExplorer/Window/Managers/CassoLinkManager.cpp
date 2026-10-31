@@ -276,25 +276,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkManager::StartFullSend
-//
-//  A full send of the Apple the drive is on: the one given, else the open
-//  drive, else the drive row selected on its machine.
+//  CassoLinkManager::GetDefaultFullSendFolder
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::StartFullSend (const Location & drive, const std::wstring & extension)
+std::wstring CassoLinkManager::GetDefaultFullSendFolder()
 {
-    Location      target;
-    std::wstring  link;
-    int           number = 0;
+    wchar_t      * downloads = nullptr;
+    std::wstring   folder;
+    HRESULT        hr        = SHGetKnownFolderPath (FOLDERID_Downloads, 0, nullptr, &downloads);
 
 
 
-    if (TryGetTargetDrive (drive, target, link, number))
+    if (SUCCEEDED (hr))
     {
-        StartFullSendOn (TextEncoding::WideToNarrow (link), extension);
+        folder = (std::filesystem::path (downloads) / L"Casso Full Send").wstring();
     }
+
+    CoTaskMemFree (downloads);
+
+    return folder;
 }
 
 
@@ -303,79 +304,30 @@ void CassoLinkManager::StartFullSend (const Location & drive, const std::wstring
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkManager::StartFullSendOn
+//  CassoLinkManager::ApplyFullSendPrefs
 //
-//  The folder is chosen here and the format on the menu; from then on the
-//  session runs from the Apple's keyboard, and its result is shown when it ends.
+//  The folder is made when a session starts, not here, so one never used is
+//  never made.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::StartFullSendOn (const std::string & link, const std::wstring & extension)
+void CassoLinkManager::ApplyFullSendPrefs()
 {
-    HRESULT                        hr     = S_OK;
-    std::filesystem::path          folder;
-    bool                           chosen = false;
-    CassoExplorerActions::Outcome  outcome;
+    std::wstring  folder = m_context.prefs.fullSendFolder.empty() ? GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
 
 
 
-    hr = m_context.dialogs.PickFolder (m_context.window.GetHwnd(), folder, chosen);
-    CHR (hr);
-    BAIL_OUT_IF (!chosen, S_OK);
-
-    outcome = m_context.actions.StartFullSend (link, folder.wstring(), extension);
-
-    if (!outcome.Succeeded())
+    if (m_context.app.links != nullptr)
     {
-        m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
+        m_context.app.links->SetFullSendTarget (TextEncoding::WideToNarrow (folder), m_context.prefs.fullSendExtension, [] (const std::string & path)
+        {
+            std::error_code  error;
+
+            std::filesystem::create_directories (TextEncoding::NarrowToWide (path), error);
+
+            return error ? HRESULT_FROM_WIN32 (error.value()) : S_OK;
+        });
     }
-
-    HandleConnectionChanged();
-
-Error:
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkManager::AddFullSendMenu
-//
-//  The format of a full send's images, on a submenu, as every format Casso
-//  writes is offered.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkManager::AddFullSendMenu (std::vector<DxuiPopupMenuItem> & items, const std::function<void (const std::wstring & extension)> & start)
-{
-    static constexpr std::pair<const wchar_t *, const wchar_t *>  s_kFormats[] =
-    {
-        { L"&Default: .po for ProDOS, .dsk for others...", L""     },
-        { L".ds&k...",                                     L".dsk" },
-        { L".d&o...",                                      L".do"  },
-        { L".&po...",                                      L".po"  },
-        { L".&woz...",                                     L".woz" },
-        { L".&nib...",                                     L".nib" },
-    };
-    std::vector<DxuiPopupMenuItem>  formats;
-    auto                            parent = std::make_shared<DxuiCommand>();
-
-
-
-    for (const auto & [label, extension] : s_kFormats)
-    {
-        std::wstring  type = extension;
-
-        m_context.menus.AddMenuCommand (formats, label, [start, type]() { start (type); });
-    }
-
-    parent->label = L"F&ull send";
-    m_context.menus.GetMenuCommands().push_back (parent);
-
-    items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (formats)));
 }
 
 
@@ -1538,8 +1490,6 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  when no DHCP reply comes.
         m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
 
-        AddFullSendMenu (items, [this, name] (const std::wstring & extension) { StartFullSendOn (name, extension); });
-
         if (saved)
         {
             m_context.menus.AddMenuCommand (items, L"Re&move connection", [this, name]() { RemoveConnection (name); });
@@ -1554,8 +1504,6 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { WriteImageToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { SaveLinkToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });
-
-        AddFullSendMenu (items, [this, location] (const std::wstring & extension) { StartFullSend (location, extension); });
     }
 
     if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)

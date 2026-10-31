@@ -226,7 +226,6 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kShareItems:        return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Share);
         case CassoExplorerCommands::kExtractAll:        return !m_context.browser.GetExtractTarget().empty();
         case CassoExplorerCommands::kReadDiskToImage:
-        case CassoExplorerCommands::kFullSend:
         case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
         case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
@@ -418,7 +417,6 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kExtractAll:   ExtractAll();                                  break;
         case CassoExplorerCommands::kReadDiskToImage:     m_context.cassoLinkManager.ReadDiskToImage();                   break;
         case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
-        case CassoExplorerCommands::kFullSend:            m_context.cassoLinkManager.StartFullSend();                     break;
         case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kEmptyRecycleBin: RunRecycleBinVerb (CassoExplorerActions::Verb::EmptyRecycleBin); break;
@@ -672,6 +670,8 @@ void ExplorerCommandManager::ShowOptions()
     choices.registered   = wasRegistered;
     choices.packaged     = packaged;
     choices.autoPreview  = m_context.prefs.autoPreview;
+    choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
+    choices.fullSendExtension = m_context.prefs.fullSendExtension;
 
     choices.monitor      = (int) m_context.preview.GetPicture().GetMonitor();
     choices.customArgb   = m_context.prefs.previewCustomArgb;
@@ -679,6 +679,17 @@ void ExplorerCommandManager::ShowOptions()
 
     //  The Display page's changes are drawn in the preview as they are made,
     //  and Cancel draws the preview as it was.
+    display.pickFolder    = [this] (HWND owner, std::wstring & ioFolder)
+    {
+        std::filesystem::path  picked;
+        bool                   chosen = false;
+        HRESULT                result = m_context.dialogs.PickFolder (owner, picked, chosen);
+
+        if (SUCCEEDED (result) && chosen)
+        {
+            ioFolder = picked.wstring();
+        }
+    };
     display.themeDefaults = m_context.preview.GetPicture().GetCrtDefaults();
     display.preview       = [this] (const CassoExplorerOptionsDialog::Choices & shown)
     {
@@ -699,7 +710,10 @@ void ExplorerCommandManager::ShowOptions()
         m_context.prefs.hostNaming = kNamings[choices.hostNaming];
     }
 
-    m_context.prefs.autoPreview = choices.autoPreview;
+    m_context.prefs.autoPreview       = choices.autoPreview;
+    m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
+    m_context.prefs.fullSendExtension = choices.fullSendExtension;
+    m_context.cassoLinkManager.ApplyFullSendPrefs();
 
 
     //  The user's file types change only when the box was changed.

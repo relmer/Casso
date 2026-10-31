@@ -109,6 +109,7 @@ void ExplorerLayout::ConfigureWidgets()
     if (m_context.app.links != nullptr)
     {
         m_context.app.links->SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCassoLink);
+        m_context.cassoLinkManager.ApplyFullSendPrefs();
         m_context.app.links->SetLinks (m_context.prefs.links);
         m_context.browser.SetLinks (m_context.app.links);
         m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());

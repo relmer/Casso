@@ -73,7 +73,11 @@ HRESULT CassoLinkAdtProServer::ServeOne (DWORD timeoutMs)
     {
         hr = m_host.ReadPacket (m_replyTimeoutMs, packet);
 
-        if (hr == S_OK)
+        if (hr == S_OK && CassoLinkHost::IsKeyReport (packet))
+        {
+            m_host.NoteKey (packet);
+        }
+        else if (hr == S_OK)
         {
             hr           = ServePacket (packet);
             m_lastResult = hr;

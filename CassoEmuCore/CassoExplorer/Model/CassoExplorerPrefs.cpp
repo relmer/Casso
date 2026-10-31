@@ -496,6 +496,8 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("autoPreview",    JsonValue (autoPreview));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
+    root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
+    root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
@@ -694,6 +696,16 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     if (root.HasString ("hexFormat", text) && (text == kHexFormatHex || text == kHexFormatSigned || text == kHexFormatUnsigned))
     {
         hexFormat = text;
+    }
+
+    if (root.HasString ("fullSendFolder", text))
+    {
+        fullSendFolder = TextEncoding::Utf8ToWide (text);
+    }
+
+    if (root.HasString ("fullSendExtension", text) && (text.empty() || text == ".dsk" || text == ".do" || text == ".po" || text == ".woz" || text == ".nib"))
+    {
+        fullSendExtension = text;
     }
 
     if (root.HasString ("hostNaming", text) && (text == kNamingDescriptive || text == kNamingCiderPress || text == kNamingAppleSingle))

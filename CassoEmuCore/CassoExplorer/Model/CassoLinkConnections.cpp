@@ -1589,6 +1589,81 @@ void CassoLinkConnections::Sink::OnProgress (const std::shared_ptr<LinkOperation
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::SetFullSendTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder)
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    m_fullSendFolder     = folder;
+    m_fullSendExtension  = extension;
+    m_makeFullSendFolder = std::move (makeFolder);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::TryGetFullSendTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, std::string & outExtension)
+{
+    std::lock_guard<std::mutex>  lock (m_owner.m_lock);
+    bool                         ready = !m_owner.m_fullSendFolder.empty();
+    HRESULT                      made  = S_OK;
+
+
+
+    if (ready && m_owner.m_makeFullSendFolder)
+    {
+        made  = m_owner.m_makeFullSendFolder (m_owner.m_fullSendFolder);
+        ready = SUCCEEDED (made);
+    }
+
+    outFolder    = m_owner.m_fullSendFolder;
+    outExtension = m_owner.m_fullSendExtension;
+
+    return ready;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::OnOperationQueued
+//
+//  A job with no completion: the session's result is in the activity log, as
+//  the user is at the Apple.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::Sink::OnOperationQueued (const std::shared_ptr<LinkOperation> & operation)
+{
+    {
+        std::lock_guard<std::mutex>  lock (m_owner.m_lock);
+
+        m_owner.m_jobs.push_back (Job { m_name, operation, nullptr });
+    }
+
+    m_owner.Notify();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::Sink::OnDone
 //
 ////////////////////////////////////////////////////////////////////////////////

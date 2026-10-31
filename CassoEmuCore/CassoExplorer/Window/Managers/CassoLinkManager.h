@@ -42,9 +42,6 @@ public:
     void          RefreshCassoLinkViews   ();
     void          ReadDiskToImage         (const Location & drive = Location());
     void          StartImageWrite         (const Location & drive, const std::wstring & imagePath);
-    void          StartFullSend           (const Location & drive = Location(), const std::wstring & extension = std::wstring());
-    void          StartFullSendOn         (const std::string & link, const std::wstring & extension);
-    void          AddFullSendMenu         (std::vector<DxuiPopupMenuItem> & items, const std::function<void (const std::wstring & extension)> & start);
     bool          TryGetSelectedLinkDrive (Location & outDrive) const;
     bool          TryGetTargetDrive       (const Location & drive, Location & outDrive, std::wstring & outLink, int & outNumber) const;
     bool          IsOnLinkedMachine       () const;
@@ -73,6 +70,10 @@ public:
     bool          IsWifiModemConnection   (const std::string & name) const;
     void          ReleaseIdleConnections  ();
     void          ApplyConnections        ();
+    void          ApplyFullSendPrefs      ();
+
+    static std::wstring  GetDefaultFullSendFolder ();
+
     void          CreateListActions       ();
     void          LayoutListActions       ();
     bool          IsFirewallMessage       () const { return m_listActionFirewall; }

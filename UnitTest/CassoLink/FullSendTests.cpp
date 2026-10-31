@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/FullSend/FullSendSession.h"
@@ -560,20 +561,20 @@ public:
         Assert::IsTrue (rig.link.trackDrives.size() >= 2, L"track 0 twice before the read");
     }
 
-    TEST_METHOD (Session_EndsOnEscapeAtThePause)
+    TEST_METHOD (Session_EndsOnQAtThePause)
     {
         Rig  rig;
 
-        rig.link.keys = { FullSendKey::Escape };
+        rig.link.keys = { FullSendKey::Quit };
 
-        auto  session = rig.Run (IFullSendLink::kEscaped);
+        auto  session = rig.Run (IFullSendLink::kQuit);
 
-        Assert::IsTrue (session->GetEndReason() == FullSendSession::EndReason::Escape);
+        Assert::IsTrue (session->GetEndReason() == FullSendSession::EndReason::Quit);
     }
 
-    TEST_METHOD (Session_EscapeOrCancelDuringARead_WritesNoFile)
+    TEST_METHOD (Session_QOrCancelDuringARead_WritesNoFile)
     {
-        for (HRESULT end : { IFullSendLink::kEscaped, HRESULT_FROM_WIN32 (ERROR_CANCELLED) })
+        for (HRESULT end : { IFullSendLink::kQuit, HRESULT_FROM_WIN32 (ERROR_CANCELLED) })
         {
             Rig  rig;
 
@@ -583,7 +584,7 @@ public:
             auto  session = rig.Run (end);
 
             Assert::IsTrue (rig.io.files.empty(), L"no image, no manifest");
-            Assert::IsTrue (session->GetEndReason() == (end == IFullSendLink::kEscaped ? FullSendSession::EndReason::Escape : FullSendSession::EndReason::Canceled));
+            Assert::IsTrue (session->GetEndReason() == (end == IFullSendLink::kQuit ? FullSendSession::EndReason::Quit : FullSendSession::EndReason::Canceled));
         }
     }
 
@@ -701,6 +702,27 @@ public:
         damaged.Run();
 
         Assert::AreEqual ((size_t) 35, damaged.link.tracksRead.size());
+    }
+
+
+
+
+    TEST_METHOD (Prefs_RoundTripTheFolderAndFormat_AndDropAnUnknownFormat)
+    {
+        CassoExplorerPrefs  written;
+        CassoExplorerPrefs  read;
+        CassoExplorerPrefs  bad;
+
+        written.fullSendFolder    = L"D:\\Box";
+        written.fullSendExtension = ".woz";
+        AssertSucceeded (read.FromJson (written.ToJson()));
+
+        Assert::AreEqual (std::wstring (L"D:\\Box"), read.fullSendFolder);
+        Assert::AreEqual (std::string (".woz"), read.fullSendExtension);
+
+        written.fullSendExtension = ".exe";
+        AssertSucceeded (bad.FromJson (written.ToJson()));
+        Assert::IsTrue (bad.fullSendExtension.empty());
     }
 
 

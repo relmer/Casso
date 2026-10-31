@@ -78,6 +78,40 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerFullSendPage
+//
+//  A full send's folder, with its Browse button, and its image format. A full
+//  send starts from the Apple's keyboard, so these are set here ahead of time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerFullSendPage : public DxuiPropertyPage
+{
+public:
+    explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (DxuiLabel & note, DxuiLabel & folder, DxuiButton & browse, DxuiRadioGroup & format);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kNoteHeightDip   = 60;
+    static constexpr int  kBrowseWidthDip  = 100;
+    static constexpr int  kOptionHeightDip = 26;
+    static constexpr int  kOptionCount     = 6;
+
+private:
+    DxuiLabel       * m_note   = nullptr;
+    DxuiLabel       * m_folder = nullptr;
+    DxuiButton      * m_browse = nullptr;
+    DxuiRadioGroup  * m_format = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerOptionsDialog
 //
 //  CassoExplorer's settings: the form a copy out of an image takes on the
@@ -105,6 +139,10 @@ public:
         //  Whether the preview pane opens and closes for the selected file.
         bool  autoPreview = true;
 
+        //  A full send's folder, and its extension: empty for the default.
+        std::wstring  fullSendFolder;
+        std::string   fullSendExtension;
+
 
         //  The preview's monitor, as a PicturePreview::Monitor, the custom
         //  monitor's color, and the effects changed on each monitor, by its
@@ -120,6 +158,9 @@ public:
     {
         const ThemeCrtDefaults *                themeDefaults = nullptr;
         std::function<void (const Choices &)>  preview;
+
+        //  The folder picker over the dialog; ioFolder changes when one is picked.
+        std::function<void (HWND owner, std::wstring & ioFolder)>  pickFolder;
     };
 
     //  The host file name forms, in the order the setting stores them.
@@ -149,6 +190,7 @@ private:
     void            SeedDisplay     ();
     void            WireDisplay     ();
     void            WireColorPicker ();
+    void            WireFullSend    ();
     void            SetCustomColor  (uint32_t argb);
     void            PreviewChoices  ();
 
@@ -162,6 +204,11 @@ private:
     DxuiLabel                     m_previewNote;
     DxuiCheckbox                  m_autoPreview;
     DxuiCheckbox                  m_register;
+    DxuiLabel                     m_fullSendNote;
+    DxuiLabel                     m_fullSendFolder;
+    DxuiButton                    m_fullSendBrowse;
+    DxuiRadioGroup                m_fullSendFormat;
+    CassoExplorerFullSendPage   * m_fullSend      = nullptr;
     ColorPickerOverlay            m_colorPicker;
     CassoExplorerGeneralPage    * m_general       = nullptr;
     CassoExplorerHostNamesPage  * m_hostNames     = nullptr;
