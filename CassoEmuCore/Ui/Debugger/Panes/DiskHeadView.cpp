@@ -267,7 +267,7 @@ bool DiskHeadView::IsLabelBelow (float widthPx, const DxuiDpiScaler & scaler) co
     static constexpr int    kPhases        = 4;
     static constexpr int    kCaptions      = 2;     // "Phases" and the motor's lamp
     static constexpr size_t kWidestLabel   = std::size (L"Drive 2  track 39.75") - 1;
-    float                   lamps          = scaler.ToPxf ((float) kLampStepDip) * kPhases + scaler.ToPxf ((float) kCaptionDip) * kCaptions;
+    float                   lamps          = scaler.ToPxf ((float) kLampStepDip) * kPhases + scaler.ToPxf ((float) kCaptionDip) * kCaptions + scaler.ToPxf ((float) kLabelGapDip);
     float                   label          = scaler.ToPxf (m_fontDip) * kAdvancePerDip * (float) kWidestLabel;
 
 
@@ -504,6 +504,10 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
     {
         x    = (float) m_boundsDip.left;
         top += row;
+    }
+    else
+    {
+        x += m_scaler.ToPxf ((float) kLabelGapDip);
     }
 
     size = m_scaler.ToPxf (font.sizeDip);

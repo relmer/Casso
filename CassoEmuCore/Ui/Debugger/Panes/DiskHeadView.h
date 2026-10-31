@@ -30,6 +30,7 @@ public:
     static constexpr int      kLampDip      = 12;
     static constexpr int      kLampStepDip  = 34;
     static constexpr int      kCaptionDip   = 56;
+    static constexpr int      kLabelGapDip  = 12;
     static constexpr int      kQuarters     = 4;
     static constexpr int      kMajorTrack   = 5;
 

@@ -158,5 +158,37 @@ namespace DebuggerTests
                                              [&] (const RecordedTextCall & call) { return call.text == label; }), label);
             }
         }
+
+
+        //  The label beside the lamps starts clear of the Motor caption's box.
+        TEST_METHOD (TheLabelBesideTheLampsIsClearOfMotor)
+        {
+            DiskHeadView          view;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            float                 motorEnd = 0.0f;
+            float                 labelX   = 0.0f;
+
+
+
+            view.SetHead ({ 0, 139, 0x01, true, 0 });
+            view.Layout  (RECT { 0, 0, 900, 60 }, Scaler96());
+            view.Paint   (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.text == L"Motor")
+                {
+                    motorEnd = call.x + call.width;
+                }
+                else if (call.text.starts_with (L"Drive"))
+                {
+                    labelX = call.x;
+                }
+            }
+
+            Assert::IsTrue (motorEnd > 0.0f && labelX >= motorEnd + (float) DiskHeadView::kLabelGapDip, L"a gap between Motor and the label");
+        }
     };
 }
