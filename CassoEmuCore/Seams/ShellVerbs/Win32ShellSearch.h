@@ -32,7 +32,7 @@ public:
     static HRESULT  RunSearch     (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
     static bool     IsIndexed     (const std::wstring & scope);
     static HRESULT  QueryIndex    (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths);
-    static void     WalkForNames  (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths);
+    static void     WalkForNames    (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths);
     static void     WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths);
 
     //  The disk images a search reads, at most, so a folder of thousands
@@ -41,7 +41,7 @@ public:
     static constexpr size_t  s_kMaxImageDirectories = 256;   // in one image, so a looping catalog cannot run on
 
     static void     SearchImages  (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
-    static void     WalkForImages (const std::wstring & scope, std::vector<std::wstring> & outImages);
+    static void     WalkForImages   (const std::wstring & scope, std::vector<std::wstring> & outImages);
 
 private:
     friend class Win32ShellItemVerbs;
