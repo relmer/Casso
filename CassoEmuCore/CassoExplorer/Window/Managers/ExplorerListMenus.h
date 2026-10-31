@@ -38,11 +38,11 @@ public:
     //  Windows' row is Add to Favorites even for a favorite; its verbs tell them apart.
     static bool                     IsFavorite          (const std::vector<std::wstring> & labels) { return std::find (labels.begin(), labels.end(), L"Remove from Favorites") != labels.end(); }
 
-    bool                            IsListVerbOffered   (CassoExplorerActions::Verb verb) const;
-    std::vector<DxuiPopupMenuItem>  GetSortChoices      ();
-    std::vector<DxuiPopupMenuItem>  GetGroupChoices     ();
+    bool                            IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
+    std::vector<DxuiPopupMenuItem>  GetSortChoices         ();
+    std::vector<DxuiPopupMenuItem>  GetGroupChoices        ();
     std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
-    std::vector<DxuiPopupMenuItem>  GetViewChoices      ();
+    std::vector<DxuiPopupMenuItem>  GetViewChoices         ();
 
 private:
     //  The stack icon File Explorer draws beside each filter choice.
