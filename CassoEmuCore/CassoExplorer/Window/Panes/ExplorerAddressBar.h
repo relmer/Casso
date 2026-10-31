@@ -54,40 +54,40 @@ public:
     bool  Tick         (int64_t nowMs);
 
     //  Editing the address from a command, and the typed address dropped.
-    void                                       BeginEdit               () { m_address->BeginEdit(); }
-    bool                                       EndEdit                 ();
-    void                                       ShowHistoryDropDown     () { ShowAddressHistoryMenu (m_address->GetBounds()); }
-    void                                       GoToLocation            (const Location & location);
-    void                                       FillAddress             ();
-    void                                       FillNavTips             ();
-    std::wstring                               GetNavLabel             (const Location & location);
-    std::vector<BrowserModel::AddressSegment>  GetAddressSegmentsFor   (const Location & location);
-    void                                       SubmitAddress           (const std::wstring & text);
-    void                                       AddTypedPath            (const std::wstring & text);
-    void                                       ShowAddressMenu         (int index, const RECT & anchor);
-    void                                       ShowAddressOverflowMenu (const RECT & anchor);
-    void                                       ShowAddressRootsMenu    (const RECT & anchor);
-    void                                       SearchLocation          (const std::wstring & query);
-    void                                       LeaveSearch             ();
-    void                                       CloseSearch             ();
-    std::wstring                               GetSearchQuery          () const;
-    SearchQuery::Options                       GetSearchOptions        () const;
+    void                                       BeginEdit                  () { m_address->BeginEdit(); }
+    bool                                       EndEdit                    ();
+    void                                       ShowHistoryDropDown        () { ShowAddressHistoryMenu (m_address->GetBounds()); }
+    void                                       GoToLocation               (const Location & location);
+    void                                       FillAddress                ();
+    void                                       FillNavTips                ();
+    std::wstring                               GetNavLabel                (const Location & location);
+    std::vector<BrowserModel::AddressSegment>  GetAddressSegmentsFor      (const Location & location);
+    void                                       SubmitAddress              (const std::wstring & text);
+    void                                       AddTypedPath               (const std::wstring & text);
+    void                                       ShowAddressMenu            (int index, const RECT & anchor);
+    void                                       ShowAddressOverflowMenu    (const RECT & anchor);
+    void                                       ShowAddressRootsMenu       (const RECT & anchor);
+    void                                       SearchLocation             (const std::wstring & query);
+    void                                       LeaveSearch                ();
+    void                                       CloseSearch                ();
+    std::wstring                               GetSearchQuery             () const;
+    SearchQuery::Options                       GetSearchOptions           () const;
     bool                                       CanSearchCurrentFolderOnly () const;
-    void                                       SetSearchQuery          (const std::wstring & query);
-    void                                       RunSearchWith           (const SearchQuery::Options & options);
-    void                                       SetSearchFolderOnly     (bool currentFolder);
-    void                                       ApplySearchPrefs        ();
-    std::wstring                               GetCassoSearchScope     ();
-    void                                       ShowAddressHistoryMenu  (const RECT & anchor);
-    void                                       ShowAddressSuggestions  (const std::wstring & typed);
-    std::vector<std::wstring>                  GetAddressHistory       () const;
-    static std::vector<std::wstring>           GetCompletions          (const std::wstring & typed);
-    void                                       ShowAddressContextMenu  (int x, int y);
-    static std::vector<std::wstring>           ReadExplorerTypedPaths  ();
-    static void                                WriteExplorerTypedPath  (const std::wstring & path);
-    void                                       ShowHistoryMenu         (bool forward, const RECT & anchor);
-    static std::wstring                        EscapeMnemonics         (const std::wstring & text);
-    static BrowserModel::AddressRoot           GetProfileRoot          ();
+    void                                       SetSearchQuery             (const std::wstring & query);
+    void                                       RunSearchWith              (const SearchQuery::Options & options);
+    void                                       SetSearchFolderOnly        (bool currentFolder);
+    void                                       ApplySearchPrefs           ();
+    std::wstring                               GetCassoSearchScope        ();
+    void                                       ShowAddressHistoryMenu     (const RECT & anchor);
+    void                                       ShowAddressSuggestions     (const std::wstring & typed);
+    std::vector<std::wstring>                  GetAddressHistory          () const;
+    static std::vector<std::wstring>           GetCompletions             (const std::wstring & typed);
+    void                                       ShowAddressContextMenu     (int x, int y);
+    static std::vector<std::wstring>           ReadExplorerTypedPaths     ();
+    static void                                WriteExplorerTypedPath     (const std::wstring & path);
+    void                                       ShowHistoryMenu            (bool forward, const RECT & anchor);
+    static std::wstring                        EscapeMnemonics            (const std::wstring & text);
+    static BrowserModel::AddressRoot           GetProfileRoot             ();
 
     void  HandleLocationChanged (const Location & location);
     bool  HandleMouse           (const DxuiMouseEvent & ev);

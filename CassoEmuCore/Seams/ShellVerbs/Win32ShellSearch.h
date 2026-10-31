@@ -63,10 +63,10 @@ public:
     static void     SearchImages    (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder = false);
     static void     WalkForImages   (const std::wstring & scope, std::vector<std::wstring> & outImages, bool currentFolder = false);
 
-    static bool     FileContainsWords (const std::wstring & path, uint64_t sizeBytes, const std::vector<std::wstring> & words);
-    static void     WalkZip           (IShellItem * zip, const std::wstring & path, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, int depth);
-    static bool     IsSystemItem      (const std::wstring & path);
-    static SearchQuery::ItemFacts  GetItemFacts (IShellItem2 * item, const IShellItemVerbs::ShellFolderItem & entry);
+    static bool                    FileContainsWords (const std::wstring & path, uint64_t sizeBytes, const std::vector<std::wstring> & words);
+    static void                    WalkZip           (IShellItem * zip, const std::wstring & path, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, int depth);
+    static bool                    IsSystemItem      (const std::wstring & path);
+    static SearchQuery::ItemFacts  GetItemFacts      (IShellItem2 * item, const IShellItemVerbs::ShellFolderItem & entry);
 
 private:
     friend class Win32ShellItemVerbs;
