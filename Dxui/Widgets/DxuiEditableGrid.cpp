@@ -78,6 +78,7 @@ void DxuiEditableGrid::SetGridRows (std::vector<GridRow> rows)
 
     m_rows = std::move (rows);
     RebuildRows();
+    ShowAddedRow();
 
     if (isAddEdit)
     {
@@ -352,6 +353,28 @@ bool DxuiEditableGrid::TryGetEditorRect (int row, int column, RECT & outRect) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiEditableGrid::ShowAddedRow
+//
+//  An add's row is listed during the add or by a later SetGridRows. Once it
+//  is, the hint row under it comes into view, and the new row with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::ShowAddedRow()
+{
+    if (m_addFromCount.has_value() && GetDataRowCount() > *m_addFromCount)
+    {
+        m_addFromCount.reset();
+        EnsureVisible (GetDataRowCount());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiEditableGrid::BeginEdit
 //
 //  In the list's own face and size, so the text does not move when the box
@@ -523,6 +546,8 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next, bool i
         }
     }
 
+    m_addFromCount = GetDataRowCount();
+
     if (isComplete && m_add && m_add (m_pending, error))
     {
         m_pending.assign (m_columns.size(), std::wstring());
@@ -532,9 +557,11 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next, bool i
         m_editor.SetFocused (false);
         ReportError (L"");
         RebuildRows();
+        ShowAddedRow();
         return true;
     }
 
+    m_addFromCount.reset();
     RebuildRows();
 
     if (isComplete)

@@ -147,6 +147,7 @@ private:
     void  RebuildRows      ();
     bool  CommitEdit       ();
     bool  CommitAddRow     (const std::wstring & text, int next, bool isMove = false);
+    void  ShowAddedRow     ();
     bool  MoveEdit         (int step);
     bool  MoveEditRow      (int step);
     void  FindNextCell     (int row, int column, int step, int & outRow, int & outColumn) const;
@@ -181,6 +182,7 @@ private:
     DeleteFn                   m_delete;
     ErrorFn                    m_error;
     BeginFn                    m_begin;
+    std::optional<int>         m_addFromCount;              // the data rows when an add was made, until the row it adds is listed
     int                        m_editRow      = -1;
     int                        m_editColumn   = -1;
     int                        m_pressRow     = -1;

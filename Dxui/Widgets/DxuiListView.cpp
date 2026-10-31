@@ -739,6 +739,36 @@ bool DxuiListView::TrySkipMonoMeasure (size_t column, const Cell & cell) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShowNewRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ShowNewRow (const std::vector<std::wstring> & keys)
+{
+    auto  found = keys.end();
+
+
+
+    if (m_rowKeys.has_value())
+    {
+        found = std::ranges::find_if (keys, [this] (const std::wstring & key) { return !std::ranges::binary_search (*m_rowKeys, key); });
+
+        if (found != keys.end())
+        {
+            EnsureVisible ((int) (found - keys.begin()));
+        }
+    }
+
+    m_rowKeys = keys;
+    std::ranges::sort (*m_rowKeys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResetAutoFit
 //
 ////////////////////////////////////////////////////////////////////////////////

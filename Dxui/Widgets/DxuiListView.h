@@ -342,6 +342,9 @@ public:
     // Scroll just enough to bring `row` into the visible window, without
     // changing selection (SetSelectedRow does the same but also selects).
     void  EnsureVisible         (int row);
+    // Scrolls to the first row whose key the last call did not have, as when
+    // a row was added. The first call only takes note of the keys.
+    void  ShowNewRow            (const std::vector<std::wstring> & keys);
     // Scroll so `row` sits as close to the middle of the visible window as
     // the ends of the list allow, without changing selection.
     void  CenterOnRow           (int row);
@@ -799,6 +802,9 @@ private:
     bool                      m_preciseAutoFit = false;
     bool                      m_refitOnSetRows = false;
     mutable bool              m_measureDirty   = false;
+
+    std::optional<std::vector<std::wstring>>  m_rowKeys;   // sorted
+
     DxuiDpiScaler             m_scaler;
     // Virtual (provider) row model — see SetRowProvider. When m_virtual is
     // true, m_rows is empty and rows are pulled on demand into m_providerScratch.

@@ -47,6 +47,9 @@ protected:
     //  One muted cell across the row.
     static std::vector<DxuiListView::Cell>  MakeNote (const std::wstring & text);
 
+    //  Scrolls to a row added since the last call.
+    void                         ShowNewListRow ();
+
     std::wstring                         m_id;
     std::wstring                         m_title;
     DxuiListView                       * m_list = nullptr;

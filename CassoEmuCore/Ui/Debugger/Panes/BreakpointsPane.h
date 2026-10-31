@@ -108,6 +108,7 @@ private:
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
     int                              GetIdOfRow     (int row) const;
     int                              GetRowOfId     (int id) const;
+    std::vector<std::wstring>        GetRowKeys     () const;
 
     PaneBarSlot                              m_bar;
     DxuiListView                           * m_list       = nullptr;

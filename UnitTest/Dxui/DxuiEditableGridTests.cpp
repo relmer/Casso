@@ -342,6 +342,40 @@ public:
 
 
 
+    //  A row added past the visible rows is scrolled into view, whether the
+    //  host lists it during the add or in a later refresh.
+    TEST_METHOD (AnAddedRowIsScrolledIntoView)
+    {
+        Host           host;
+        DxuiDpiScaler  scaler;
+        int            rows  = 0;
+        RECT           cell  = {};
+
+
+
+        scaler.SetDpi (96);
+
+        for (int i = 0; i < 40; i++)
+        {
+            host.rows.push_back ({ L"Row", L"$0", L"$1" });
+            host.readOnly.push_back (false);
+        }
+
+        host.Refresh();
+        host.grid.Layout (RECT { 0, 0, 400, 200 }, scaler);
+        host.grid.EnsureVisible (host.grid.GetDataRowCount());
+
+        host.Click (host.grid.GetDataRowCount(), 1);
+        host.grid.GetEditor().SetText (L"$6000");
+        host.Key (VK_RETURN);
+
+        rows = host.grid.GetRowCount();
+        Assert::AreEqual ((size_t) 1, host.adds.size());
+        Assert::IsTrue (host.grid.GetCellTextRectPx (rows - 1, 1, cell) && cell.bottom <= 200, L"the hint row, under the new row, is in view");
+    }
+
+
+
     TEST_METHOD (ARowTheHostRefusesGoesOnToItsNextEmptyColumn)
     {
         Host  host;

@@ -252,6 +252,34 @@ void SymbolsPane::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ToolListPane::ShowNewListRow
+//
+//  A row's key is the text of its first two cells.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ToolListPane::ShowNewListRow()
+{
+    std::vector<std::wstring>  keys;
+
+
+
+    for (int row = 0; row < m_list->GetRowCount(); row++)
+    {
+        const std::vector<DxuiListView::Cell>  & cells = m_list->GetCellsOfRow (row);
+
+        keys.push_back (std::format (L"{}\t{}", cells.empty() ? L"" : cells[0].text, cells.size() < 2 ? L"" : cells[1].text));
+    }
+
+    m_list->ShowNewRow (keys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolsPane::Apply
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,6 +294,7 @@ void SymbolsPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_symbols = snapshot.symbols;
     m_rows    = GetRows (*m_symbols);
     m_list->SetRows (GetCells (*m_symbols, m_rows));
+    ShowNewListRow();
 }
 
 
@@ -489,6 +518,7 @@ void BookmarksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     m_bookmarks = snapshot.bookmarks;
     m_list->SetRows (GetCells (m_bookmarks, snapshot.symbols.get()));
+    ShowNewListRow();
 }
 
 
@@ -677,6 +707,7 @@ void DataBlocksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     m_blocks = snapshot.dataBlocks;
     m_list->SetRows (GetCells (m_blocks));
+    ShowNewListRow();
 }
 
 
