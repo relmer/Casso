@@ -45,6 +45,7 @@ public:
         RowGrouping::Field         groupBy         = RowGrouping::Field::None;
         bool                       groupDescending = false;
         int                        previewScroll   = 0;
+        bool                       previewOpen     = false;
         bool                       disassemble     = false;
 
         //  The cached catalog and the image it belongs to.

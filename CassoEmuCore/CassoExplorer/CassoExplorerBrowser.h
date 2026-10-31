@@ -183,6 +183,8 @@ public:
     int                               GetHomeTab      () const { return m_homeTab; }
     void                              SetHomeTab      (int tab);
     void                              RemoveHomeRow   (const std::wstring & shellId);
+    void                              SetTabPreview   (bool open) { if (m_model.HasTabs()) { m_model.GetActiveTab().previewOpen = open; } }
+    bool                              IsTabPreview    () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
     void                              SetSelectedRows (const std::vector<int> & rows);
 
     //  The preview made again for the selection, as when a slow read arrives.

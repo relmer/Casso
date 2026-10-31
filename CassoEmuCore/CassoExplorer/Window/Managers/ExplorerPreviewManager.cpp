@@ -792,6 +792,55 @@ bool ExplorerPreviewManager::TryGetSelectionDetail (std::wstring & outDetail) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::SaveTabState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SaveTabState()
+{
+    m_context.browser.SetTabPreview (m_context.prefs.previewVisible);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::RestoreTabState
+//
+//  An automatic pane is as the tab left it. A pane turned on manually stays
+//  open in every tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::RestoreTabState()
+{
+    bool  open = m_context.browser.IsTabPreview();
+
+
+
+    if (!m_context.prefs.autoPreview || m_pinned)
+    {
+        return;
+    }
+
+    m_autoAddress = BrowserModel::FormatAddress (m_context.browser.GetLocation());
+    m_autoKey     = GetAutoKey();
+
+    if (open != m_context.prefs.previewVisible)
+    {
+        m_context.prefs.previewVisible = open;
+        m_context.layout.RecomputeLayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::HandleAutoPreviewTimer
 //
 ////////////////////////////////////////////////////////////////////////////////

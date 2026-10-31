@@ -54,8 +54,6 @@ public:
     IDxuiControl                    * GetFocusedControl      () const;
     bool                              TryGetSelectionDetail  (std::wstring & outDetail) const;
     void                              SetPreviewZoom         (int percent);
-    void                              HandleAutoPreviewTimer ();
-    int                               GetShownZoom           () const;
     bool                              IsArchiveLocation      () const;
     int                               GetPreviewStopIndex    (int commandId) const;
     const RECT                      & GetRect                () const      { return m_rect; }
@@ -70,6 +68,11 @@ public:
     PreviewPictureView              & GetPicture             ()            { return m_picture; }
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
+
+    void  HandleAutoPreviewTimer ();
+    void  SaveTabState           ();
+    void  RestoreTabState        ();
+    int   GetShownZoom           () const;
 
     bool                            HandleMessageMouse    (const DxuiMouseEvent & ev);
     bool                            HandleMouse           (const DxuiMouseEvent & ev);

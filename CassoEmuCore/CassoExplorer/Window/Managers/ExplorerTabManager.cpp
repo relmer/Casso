@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -547,10 +548,13 @@ void ExplorerTabManager::SwitchToTab (size_t index)
         }
     }
 
+    m_context.preview.SaveTabState();
+
     //  A tab left on a folder deleted since moves up as it is shown.
     if (m_context.browser.SwitchTab (index))
     {
         m_context.browser.LeaveMissingLocation();
+        m_context.preview.RestoreTabState();
         m_context.listPane.FillList();
     }
 }
