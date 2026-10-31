@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/FullSend/FullSendSession.h"
+#include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -480,6 +481,54 @@ public:
         Assert::IsTrue (sending->drives[1] == FullSendDriveState::OnDeck);
         Assert::AreNotEqual (0, (int) sending->quip);
         Assert::AreNotEqual (0, (int) rig.link.screens.back().quip, L"the pause has a prompt line");
+    }
+
+    TEST_METHOD (Session_PromptLines_ShowEveryLineBeforeAnyRepeats)
+    {
+        Rig                                   rig;
+        std::vector<int>                      shown;
+        const size_t                          count = LinkProgram::kQuipCount;
+
+        rig.link.keys.assign (count * 4, FullSendKey::Space);
+
+        rig.Run();
+
+        for (const FullSendScreen & screen : rig.link.screens)
+        {
+            if (screen.quip != 0)
+            {
+                shown.push_back (screen.quip);
+            }
+        }
+
+        Assert::IsTrue (shown.size() > count * 3);
+
+        for (size_t start = 0; start + count <= shown.size(); start += count)
+        {
+            std::set<int>  set (shown.begin() + (ptrdiff_t) start, shown.begin() + (ptrdiff_t) (start + count));
+
+            Assert::AreEqual (count, set.size());
+            Assert::AreEqual (1, *set.begin());
+            Assert::AreEqual ((int) count, *set.rbegin());
+        }
+
+        for (size_t i = 1; i < shown.size(); i++)
+        {
+            Assert::AreNotEqual (shown[i - 1], shown[i]);
+        }
+    }
+
+    TEST_METHOD (Program_PromptLineTable_MatchesTheHostsCount)
+    {
+        std::string  source = LinkProgram::GetProgramSource();
+        int          lines  = 0;
+
+        for (size_t at = source.find ("\nfsq"); at != std::string::npos; at = source.find ("\nfsq", at + 1))
+        {
+            lines += source.compare (at, 7, "\nfsquip") == 0 ? 0 : 1;
+        }
+
+        Assert::AreEqual ((int) LinkProgram::kQuipCount, lines);
     }
 
     TEST_METHOD (Session_OneDrive_Sending_HasNoPromptLine)

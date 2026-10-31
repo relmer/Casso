@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendSession.h"
+
+#include "CassoLink/LinkProgram.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -206,6 +208,42 @@ HRESULT FullSendSession::Pause()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::PickQuip
+//
+//  Every line once in a random order, then again in a new order that does not
+//  begin with the line just shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte FullSendSession::PickQuip()
+{
+    if (m_quips.empty())
+    {
+        for (int line = 1; line <= LinkProgram::kQuipCount; line++)
+        {
+            m_quips.push_back ((Byte) line);
+        }
+
+        std::shuffle (m_quips.begin(), m_quips.end(), m_random);
+
+        if (m_quips.back() == m_lastQuip)
+        {
+            std::swap (m_quips.front(), m_quips.back());
+        }
+    }
+
+    m_lastQuip = m_quips.back();
+    m_quips.pop_back();
+
+    return m_lastQuip;
 }
 
 

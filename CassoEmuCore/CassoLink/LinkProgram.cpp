@@ -501,7 +501,7 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     static const Cpu s_cpu;
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
     std::string      chipLine = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
-    std::string      text     = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + source;
+    std::string      text     = std::format ("PROGVER = {}\nSHIMVER = {}\nQUIPCOUNT = {}\n", kProgramVersion, kShimVersion, kQuipCount) + chipLine + source;
     AssemblyResult   result   = assembler.Assemble (text);
     bool             placed   = false;
 
@@ -512,7 +512,7 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
 
     for (const AssemblyError & error : result.errors)
     {
-        outErrors += std::format ("line {}: {}\n", error.lineNumber - 3, error.message);
+        outErrors += std::format ("line {}: {}\n", error.lineNumber - 4, error.message);
     }
 
     CBREx (result.success, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));

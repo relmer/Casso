@@ -3374,7 +3374,9 @@ FSROWS   = 6
 FSTONE   = 8                    ; Session screen's tone, in PKTBUF
 FSQUIP   = 9                    ; its prompt line: 0 none, else any value
 FSNAME   = 10                   ; and its image name
-QUIPCOUNT = 16                  ; the entries in fsquips
+        ifndef QUIPCOUNT
+QUIPCOUNT = 16                  ; the entries in fsquips, set by the host's build
+        endif
 
 ; sendkey: Key with the code in A. It is sent at the next wait for a byte, or
 ; for a W5100 by flush.
