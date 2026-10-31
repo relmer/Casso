@@ -363,23 +363,6 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
 
 
 
-    //  The pane closes after a click has finished, because closing moves the
-    //  list's rows out from under the pointer before the button is released.
-    if (m_context.prefs.autoPreview && m_context.prefs.previewVisible && !m_closeDue && !m_pinned && (selected.empty() || (key != m_autoKey && !IsKnownPreview (preview))))
-    {
-        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview, GetDoubleClickTime(), nullptr);
-        return false;
-    }
-
-    //  Automatic preview closes the pane with nothing selected, however it opened.
-    if (m_context.prefs.autoPreview && selected.empty() && m_context.prefs.previewVisible)
-    {
-        m_pinned                       = false;
-        m_context.prefs.previewVisible = false;
-        m_autoKey                      = key;
-        return true;
-    }
-
     if (!m_context.prefs.autoPreview || m_pinned)
     {
         return false;
@@ -394,12 +377,14 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
     m_autoKey = key;
     known     = !selected.empty() && IsKnownPreview (preview);
 
-    if (known == m_context.prefs.previewVisible)
+    //  Automatic preview only opens the pane, so the list doesn't move under
+    //  the pointer as the selection changes.
+    if (!known || m_context.prefs.previewVisible)
     {
         return false;
     }
 
-    m_context.prefs.previewVisible = known;
+    m_context.prefs.previewVisible = true;
     return true;
 }
 
@@ -797,9 +782,7 @@ bool ExplorerPreviewManager::TryGetSelectionDetail (std::wstring & outDetail) co
 
 void ExplorerPreviewManager::HandleAutoPreviewTimer()
 {
-    m_closeDue = true;
     FillPreview();
-    m_closeDue = false;
 }
 
 

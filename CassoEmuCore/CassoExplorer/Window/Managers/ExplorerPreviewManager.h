@@ -94,7 +94,6 @@ private:
     int                             m_barFocus    = 0;   // the toolbar's focused button
     RECT                            m_rect        = {};   // the pane, its toolbar included
     RECT                            m_content     = {};   // below the toolbar
-    bool                            m_closeDue    = false;
     int                             m_pictureZoom = 100;
     PreviewContent::Kind            m_lastKind    = PreviewContent::Kind::Text;
     bool                            m_pinned      = false;   // turned on manually, so automatic preview doesn't close it
