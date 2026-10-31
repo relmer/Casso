@@ -273,6 +273,12 @@ void ExplorerListMenus::AddHomeItemRows (std::vector<DxuiPopupMenuItem> & items,
         }
     }
 
+    if (hasFavorites && IsFavorite (labels))
+    {
+        items.erase (items.begin() + (std::ptrdiff_t) place);
+        hasFavorites = false;
+    }
+
     for (const auto & [label, svg] : s_kRows)
     {
         if (std::find (labels.begin(), labels.end(), label) == labels.end() || (hasFavorites && svg == nullptr))
@@ -690,6 +696,17 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             {
                 if (!m_context.browser.GetSelectedRows().empty())
                 {
+                    const CatalogRow &  row = m_context.browser.GetRows()[(size_t) m_context.browser.GetSelectedRows()[0]];
+
+                    //  A cloud item on Home has no path, only its place in the shell.
+                    if (row.homeGroup > 0 && row.hostPath.empty())
+                    {
+                        HRESULT  ran = m_context.shellVerbs.RunItemVerbByLabel (m_context.window.GetHwnd(), { row.shellId }, L"Properties");
+
+                        IGNORE_RETURN_VALUE (ran, S_OK);
+                        return;
+                    }
+
                     m_context.fileOps.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
                 }
             }, L"Alt+Enter");

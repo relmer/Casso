@@ -1,4 +1,7 @@
 #include "Pch.h"
+
+#include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
+#include "Seams/ShellVerbs/Win32ShellNamespace.h"
 #include "../EhmTestHelper.h"
 #include "Core/UnicodeSymbols.h"
 #include "../EmuTests/FakeDiskFileIo.h"
@@ -1495,6 +1498,32 @@ public:
 
         Assert::AreEqual ((size_t) 1, host.browser.GetBrowserModel().GetTabCount());
         Assert::IsTrue   (host.browser.GetLocation().kind == Location::Kind::None);
+    }
+
+    TEST_METHOD (HomeGroup_PinnedFile_IsAFavorite)
+    {
+        IShellItemVerbs::ShellFolderItem  entry;
+
+        entry.homePinned = true;
+        entry.homeGroup  = Win32ShellNamespace::s_kHomeGroupRecent;
+
+        Assert::AreEqual (Win32ShellNamespace::s_kHomeGroupFavorites, Win32ShellNamespace::GetHomeGroup (entry));
+
+        entry.homePinned = false;
+
+        Assert::AreEqual (Win32ShellNamespace::s_kHomeGroupRecent, Win32ShellNamespace::GetHomeGroup (entry));
+
+        entry.homeGroup  = 0;
+        entry.isFolder   = true;
+        entry.homePinned = true;
+
+        Assert::AreEqual (Win32ShellNamespace::s_kHomeGroupQuickAccess, Win32ShellNamespace::GetHomeGroup (entry), L"a pinned folder is in Quick access");
+    }
+
+    TEST_METHOD (HomeMenu_RemoveVerb_MarksAFavorite)
+    {
+        Assert::IsTrue  (ExplorerListMenus::IsFavorite ({ L"Open", L"Remove from Favorites" }));
+        Assert::IsFalse (ExplorerListMenus::IsFavorite ({ L"Open", L"Add to Favorites" }));
     }
 
     TEST_METHOD (RestoreTabs_NothingSaved_OpensOneHomeTab)

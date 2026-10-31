@@ -44,6 +44,33 @@ HRESULT Win32ShellNamespace::ListShellFolder (const std::wstring & id, std::vect
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellNamespace::GetHomeGroup
+//
+//  A pinned file is a favorite, listed apart from its recent entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Win32ShellNamespace::GetHomeGroup (const IShellItemVerbs::ShellFolderItem & entry)
+{
+    if (!entry.isFolder && entry.homePinned)
+    {
+        return s_kHomeGroupFavorites;
+    }
+
+    if (entry.homeGroup != 0)
+    {
+        return entry.homeGroup;
+    }
+
+    return entry.isFolder ? s_kHomeGroupQuickAccess : s_kHomeGroupRecent;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellNamespace::ReadHomeFolder
 //
 //  Home's own items, Quick access and Recent, in its order.
@@ -94,7 +121,7 @@ HRESULT Win32ShellNamespace::ReadHomeFolder (std::vector<IShellItemVerbs::ShellF
 
         if (SUCCEEDED (hrItem))
         {
-            entry.homeGroup = (entry.homeGroup != 0) ? entry.homeGroup : entry.isFolder ? s_kHomeGroupQuickAccess : s_kHomeGroupRecent;
+            entry.homeGroup = GetHomeGroup (entry);
             outItems.push_back (std::move (entry));
         }
     }

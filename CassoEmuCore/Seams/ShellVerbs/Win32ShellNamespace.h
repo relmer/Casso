@@ -41,6 +41,7 @@ public:
     //  is, as a listing shows it.
     static void     ReadHomeProperties (IShellItem2 * item, IShellItemVerbs::ShellFolderItem & outEntry);
     static HRESULT  ReadHomeFolder     (std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
+    static int      GetHomeGroup       (const IShellItemVerbs::ShellFolderItem & entry);
     static constexpr int  s_kHomeGroupQuickAccess = 1;
     static constexpr int  s_kHomeGroupRecent      = 3;
     static constexpr int  s_kHomeGroupFavorites   = 2;
