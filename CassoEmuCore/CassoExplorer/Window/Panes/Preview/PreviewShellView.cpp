@@ -121,12 +121,19 @@ void PreviewShellView::Update (const PreviewContent & preview, const RECT & cont
         return;
     }
 
-    if (preview.hostPath == m_path)
+    //  A pane just opening has no size yet, and a thumbnail is made at its size.
+    if (content.right <= content.left || content.bottom <= content.top)
     {
         return;
     }
 
-    m_path      = preview.hostPath;
+    if (preview.hostPath == m_path && (!m_isPicture || EqualRect (&content, &m_pictureRect)))
+    {
+        return;
+    }
+
+    m_pictureRect = content;
+    m_path        = preview.hostPath;
     m_isPicture = false;
     m_manager.GetPicture().Clear();
 

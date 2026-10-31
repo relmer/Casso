@@ -181,10 +181,32 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         verbs.push_back (Verb::MoreOptions);
     }
 
+    //  A file or folder on Home with a place on the disk, with File Explorer's
+    //  Copy and Share along the menu's edge rather than the rest of a folder's.
+    if (m_browser.IsHomeLocation() && selected == 1 && !m_browser.GetRows()[(size_t) m_browser.GetSelectedRows()[0]].hostPath.empty())
+    {
+        const CatalogRow &  row = m_browser.GetRows()[(size_t) m_browser.GetSelectedRows()[0]];
+
+        if (!row.isDirectory && !row.isDiskImage)
+        {
+            verbs.push_back (Verb::Open);
+            verbs.push_back (Verb::OpenWith);
+        }
+
+        verbs.push_back (Verb::Copy);
+
+        if (!row.isDirectory)
+        {
+            verbs.push_back (Verb::Share);
+        }
+
+        verbs.push_back (Verb::MoreOptions);
+    }
+
     //  What the shell lists, such as the files inside a zip, copies, cuts and
     //  deletes through the shell, and has the shell's own menu; a match inside
     //  a disk image is the image's to act on.
-    if (location.kind == Location::Kind::ShellFolder && selected > 0 && !m_browser.AreSelectedRowsSearchMatches())
+    else if (location.kind == Location::Kind::ShellFolder && selected > 0 && !m_browser.AreSelectedRowsSearchMatches())
     {
         verbs.push_back (Verb::Cut);
         verbs.push_back (Verb::Copy);

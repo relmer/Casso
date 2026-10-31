@@ -940,6 +940,7 @@ void ExplorerListPane::FillList()
 
         header.actionSvgs[0] = m_context.menus.GetMenuSvg (L"windows.shortcut.opencontaining");
         header.actionSvgs[1] = m_context.menus.GetMenuSvg (L"windows.askchat");
+        header.actionHotSvgs[1] = m_context.menus.GetMenuSvg (L"windows.askchat.colored");
 
         header.onRowAction = [this] (int row, int action, POINT)
         {
@@ -1305,7 +1306,13 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
     }
     else if (action == s_kAskCopilot)
     {
-        ShellExecuteW (m_context.window.GetHwnd(), L"open", L"ms-copilot:", nullptr, nullptr, SW_SHOWNORMAL);
+        //  The item's own command passes the file to Copilot.
+        hr = m_context.shellVerbs.RunItemVerbByLabel (m_context.window.GetHwnd(), { item.hostPath.empty() ? item.shellId : item.hostPath }, L"Ask Copilot");
+
+        if (FAILED (hr))
+        {
+            ShellExecuteW (m_context.window.GetHwnd(), L"open", L"ms-copilot:", nullptr, nullptr, SW_SHOWNORMAL);
+        }
     }
     else
     {
@@ -1316,7 +1323,10 @@ void ExplorerListPane::HandleHomeRowAction (int row, int action)
         got = ScreenToClient (m_context.window.GetHwnd(), &screen);
         IGNORE_RETURN_VALUE (got, TRUE);
 
-        m_menus.ShowHomeItemMenu (screen.x, screen.y, row);
+        m_list->SetSelectedRow (row);
+        m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
+        m_context.preview.FillPreview();
+        m_menus.ShowListContextMenu (screen.x, screen.y, -1);
     }
 }
 

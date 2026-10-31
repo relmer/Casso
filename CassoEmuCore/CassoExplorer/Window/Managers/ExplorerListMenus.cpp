@@ -224,6 +224,76 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListMenus::AddHomeItemRows
+//
+//  The commands an item has only on Home, each run by its label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListMenus::AddHomeItemRows (std::vector<DxuiPopupMenuItem> & items, const std::wstring & id)
+{
+    static constexpr std::pair<const wchar_t *, const wchar_t *>  s_kRows[] =
+    {
+        { L"Open file location",    L"windows.shortcut.opencontaining" },
+        { L"Remove from list",      L"windows.close" },
+        { L"Add to Favorites",      nullptr },
+        { L"Remove from Favorites", nullptr },
+    };
+
+    std::vector<std::wstring>       labels;
+    std::vector<DxuiPopupMenuItem>  rows;
+    HRESULT                         hr = m_context.shellVerbs.GetItemVerbLabels (m_context.window.GetHwnd(), { id }, labels);
+    size_t                          place        = items.size();
+    bool                            hasFavorites = false;
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  Windows' commands may have Favorites already, which these rows go above.
+    for (size_t index = 0; index < items.size() && !hasFavorites; index++)
+    {
+        if (items[index].command != nullptr && items[index].command->label.find (L"Favorites") != std::wstring::npos)
+        {
+            place        = index;
+            hasFavorites = true;
+        }
+    }
+
+    for (const auto & [label, svg] : s_kRows)
+    {
+        if (std::find (labels.begin(), labels.end(), label) == labels.end() || (hasFavorites && svg == nullptr))
+        {
+            continue;
+        }
+
+        m_context.menus.AddMenuCommand (rows, label, [this, id, name = std::wstring (label)]()
+        {
+            HRESULT  ran = m_context.shellVerbs.RunItemVerbByLabel (m_context.window.GetHwnd(), { id }, name);
+
+            IGNORE_RETURN_VALUE (ran, S_OK);
+
+            if (name != L"Open file location")
+            {
+                ran = m_context.browser.Refresh();
+                IGNORE_RETURN_VALUE (ran, S_OK);
+                m_pane.FillList();
+                m_context.window.Invalidate();
+            }
+        });
+        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (svg);
+        m_context.menus.GetMenuCommands().back()->menuGlyph = (svg == nullptr) ? L"\xE734" : nullptr;
+    }
+
+    items.insert (items.begin() + (std::ptrdiff_t) place, std::make_move_iterator (rows.begin()), std::make_move_iterator (rows.end()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListMenus::ShowListContextMenu
 //
 //  The rows come from the actions' verb list; each command runs its verb.
@@ -251,7 +321,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
     //  Home's items have the shell's own menu: Add to Favorites, Remove from
     //  list and the rest are its commands.
-    if (m_context.browser.IsHomeLocation() && group < 0 && m_context.browser.GetSelectedRows().size() == 1)
+    if (m_context.browser.IsHomeLocation() && group < 0 && m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.GetRows()[(size_t) m_context.browser.GetSelectedRows()[0]].hostPath.empty())
     {
         ShowHomeItemMenu (x, y, m_context.browser.GetSelectedRows()[0]);
         return;
@@ -557,7 +627,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  Windows' own commands lead into Copy as path in one group, as in
         //  File Explorer; without them the group starts here.
-        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.menus.GetSelectionKind (selectedPaths, kind))
+        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation()) && m_context.menus.GetSelectionKind (selectedPaths, kind))
         {
             windows = m_context.menus.AddWindowsCommands (items, selectedPaths, kind);
         }
@@ -565,6 +635,12 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         if (!windows)
         {
             items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        //  Home's commands for a file, which its place in Home gives it.
+        if (m_context.browser.IsHomeLocation() && m_context.browser.GetSelectedRows().size() == 1)
+        {
+            AddHomeItemRows (items, m_context.browser.GetRows()[(size_t) m_context.browser.GetSelectedRows()[0]].shellId);
         }
 
         //  Drives, from This PC or wherever they are listed, by each row's path.
@@ -636,7 +712,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
     //  The commands installed apps add for these items, as Explorer lists
     //  them, above the shell's own menu.
-    if (moreOptions && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation()))
     {
         m_context.menus.AddPackagedCommands (items);
     }

@@ -387,6 +387,7 @@ public:
     DxuiListViewTypes::HomeHeader  m_homeHeader;
     int                            m_homePressRow       = -1;
     int                            m_homePressAction    = -1;
+    int                            m_homeHoverAction    = -1;
     static constexpr float         s_kBrokenBadgeMinDip = 10.0f;
     bool                GetItemRectPx    (int item, RECT & outRect) const { return m_items.GetItemRectPx (item, outRect); }
 

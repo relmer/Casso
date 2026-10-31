@@ -33,6 +33,7 @@ public:
     void                            ShowFilterMenu      (size_t column, RECT chevron);
     void                            ShowListContextMenu (int x, int y, int group = -1);
     void                            ShowHomeItemMenu    (int x, int y, int row);
+    void                            AddHomeItemRows     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & id);
     bool                            IsListVerbOffered   (CassoExplorerActions::Verb verb) const;
     std::vector<DxuiPopupMenuItem>  GetSortChoices      ();
     std::vector<DxuiPopupMenuItem>  GetGroupChoices     ();

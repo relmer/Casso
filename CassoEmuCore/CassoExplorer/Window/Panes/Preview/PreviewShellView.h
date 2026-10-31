@@ -43,5 +43,6 @@ private:
 
     Win32ShellPreview  m_shellPreview;
     std::wstring       m_path;
-    bool               m_isPicture = false;   // the shell's preview is a thumbnail in the picture view
+    RECT               m_pictureRect  = {};
+    bool               m_isPicture    = false;   // the shell's preview is a thumbnail in the picture view
 };

@@ -256,6 +256,7 @@ std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetOpenMenuImage (bool brows
 {
     int                                   sizePx  = m_context.scaler.ToPx (kMenuIconDip);
     std::wstring                          program;
+    std::wstring                          packaged;
     std::wstring                          key;
     HICON                                 icon    = nullptr;
     HRESULT                               hr      = S_OK;
@@ -272,12 +273,23 @@ std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetOpenMenuImage (bool brows
         HRESULT       hrAssoc       = extension.empty() ? E_FAIL
                                                         : AssocQueryStringW (ASSOCF_NOTRUNCATE | ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_EXECUTABLE, extension.c_str(), L"open", exe, &length);
 
+        //  A packaged app has no program file, and its icon is its Apps folder item's.
         if (FAILED (hrAssoc))
         {
-            return nullptr;
+            wchar_t  appId[256] = {};
+
+            length  = (DWORD) std::size (appId);
+            hrAssoc = extension.empty() ? E_FAIL : AssocQueryStringW (ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_APPID, extension.c_str(), nullptr, appId, &length);
+
+            if (FAILED (hrAssoc))
+            {
+                return nullptr;
+            }
+
+            packaged = std::wstring (L"shell:AppsFolder\\") + appId;
         }
 
-        program = exe;
+        program = packaged.empty() ? std::wstring (exe) : packaged;
     }
 
     key = std::to_wstring (sizePx) + L":" + program;
@@ -290,6 +302,21 @@ std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetOpenMenuImage (bool brows
     if (browsable)
     {
         icon = (HICON) LoadImageW (GetModuleHandleW (nullptr), MAKEINTRESOURCEW (IDI_CASSO_EXPLORER), IMAGE_ICON, sizePx, sizePx, LR_DEFAULTCOLOR);
+    }
+    else if (!packaged.empty())
+    {
+        PIDLIST_ABSOLUTE  pidl = nullptr;
+        SHFILEINFOW       info = {};
+
+        hr = SHParseDisplayName (packaged.c_str(), nullptr, &pidl, 0, nullptr);
+
+        if (SUCCEEDED (hr))
+        {
+            DWORD_PTR  got = SHGetFileInfoW ((LPCWSTR) pidl, 0, &info, sizeof (info), SHGFI_PIDL | SHGFI_ICON | SHGFI_SMALLICON);
+
+            icon = (got != 0) ? info.hIcon : nullptr;
+            CoTaskMemFree (pidl);
+        }
     }
     else
     {
@@ -408,6 +435,13 @@ const std::string * ExplorerMenus::GetMenuSvg (const wchar_t * name)
         if (!file)
         {
             file.open (std::wstring (windows, length) + kExplorerIconFolder + name + L".svg", std::ios::binary);
+        }
+
+        //  A color icon is in the folder above the contrast themes.
+        if (!file)
+        {
+            file.clear();
+            file.open (std::wstring (windows, length) + kExplorerIconFolder + L"..\\" + name + L".svg", std::ios::binary);
         }
 
         if (file)

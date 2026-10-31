@@ -1472,6 +1472,20 @@ void CassoExplorerBrowser::GetSelectedHostPaths (std::vector<std::wstring> & out
 
     outPaths.clear();
 
+    //  Home's items are anywhere on the disk, and a cloud item isn't on it.
+    if (IsHomeLocation())
+    {
+        for (int row : m_selectedRows)
+        {
+            if (!m_rows[row].hostPath.empty())
+            {
+                outPaths.push_back (m_rows[row].hostPath);
+            }
+        }
+
+        return;
+    }
+
     if (m_isImage || location.kind != Location::Kind::HostFolder)
     {
         return;

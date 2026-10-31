@@ -278,6 +278,12 @@ void BrowserPreviewer::UpdatePreview()
     {
         folder = m_browser.m_rows[m_browser.m_selectedRows[0]].folderPath;
     }
+
+    //  A file on Home with a file on the disk previews as it does in its folder.
+    else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && !m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
+    {
+        folder = CassoExplorerBrowser::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
+    }
     else if (!m_browser.m_isImage && m_browser.IsHomeLocation() && m_browser.m_selectedRows.size() == 1 && m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
     {
         //  A cloud item has no file here, and its stream is a web page.

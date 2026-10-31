@@ -229,16 +229,28 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
 
                 //  A hovered row's box is short of its pitch, in a neutral gray.
                 float     inset = m_list.m_items.IsHomeTile (item) ? 0.0f : m_list.m_scaler.ToPxf (2.5f);
-                uint32_t  fill  = (item == m_list.m_hovered && !isSel) ? DxuiColor::Mix (m_list.m_theme->ContentBackground(), m_list.m_theme->Foreground(), 0.07f) : look.fill;
+                uint32_t  fill  = (item == m_list.m_hovered && !isSel) ? DxuiColor::Mix (m_list.m_theme->ContentBackground(), m_list.m_theme->Foreground(), 0.07f) : isSel ? DxuiColor::Mix (m_list.m_theme->ContentBackground(), m_list.m_theme->Foreground(), 0.03f) : look.fill;
 
                 if (fill != 0)
                 {
                     painter.FillRoundedRect ((float) cell.left, (float) cell.top + inset, fillW, (float) (cell.bottom - cell.top) - 2.0f * inset, radius, fill);
                 }
 
-                if (look.edge != 0)
+                if (isSel)
                 {
-                    painter.OutlineRoundedRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), radius, DxuiRowLook::GetOutlinePx (m_list.m_scaler.ToPxf (1.0f)), m_list.m_theme->Accent());
+                    painter.OutlineRoundedRect ((float) cell.left, (float) cell.top, fillW, (float) (cell.bottom - cell.top), radius, (std::round) (m_list.m_scaler.ToPxf (1.34f)), m_list.m_theme->Accent());
+                }
+
+                //  The button under the pointer has a box.
+                if (item == m_list.m_hovered && m_list.m_homeHoverAction >= 0)
+                {
+                    RECT  button = {};
+                    bool  found  = m_list.m_items.GetHomeActionRect (cell, m_list.m_homeHoverAction, button);
+
+                    if (found)
+                    {
+                        painter.FillRoundedRect ((float) button.left, (float) button.top, (float) (button.right - button.left), (float) (button.bottom - button.top), radius, DxuiColor::Mix (m_list.m_theme->ContentBackground(), m_list.m_theme->Foreground(), 0.14f));
+                    }
                 }
 
                 PaintHomeItem (text, pal, item, cell, cells);
@@ -612,7 +624,7 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
             {
                 nameEnd = (action == 0) ? (float) place.left - fontPx : nameEnd;
 
-                const std::string *  svg  = m_list.m_homeHeader.actionSvgs[action];
+                const std::string *  svg  = (action == m_list.m_homeHoverAction && m_list.m_homeHeader.actionHotSvgs[action] != nullptr) ? m_list.m_homeHeader.actionHotSvgs[action] : m_list.m_homeHeader.actionSvgs[action];
                 float                side = m_list.m_scaler.ToPxf (16.0f);
 
                 hr = (svg != nullptr)

@@ -253,6 +253,9 @@ void ExplorerPreviewManager::FillPreview()
     if (toggled)
     {
         m_context.layout.RecomputeLayout();
+
+        //  A view sized to the pane has the pane's size only now.
+        FillPreview();
     }
 
     m_context.window.Invalidate();
