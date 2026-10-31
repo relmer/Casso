@@ -95,6 +95,18 @@ public:
     //  Apple fills in.
     static constexpr Byte  kSectorBlank   = 0xE0;
 
+    //  A full send's screen, and its pause for Space or Escape. Key has the same
+    //  command byte as Wait for key, and one byte: the key's code, kKeyEscape also
+    //  unprompted during a full send, and kKeyNone once a second in a pause.
+    static constexpr Byte  kSessionScreen = 0xE1;
+    static constexpr Byte  kWaitForKey    = 0xE2;
+    static constexpr Byte  kKeySpace      = 0xA0;
+    static constexpr Byte  kKeyEscape     = 0x9B;
+    static constexpr Byte  kKeyNone       = 0x00;
+
+    //  The longest image name on the Session screen.
+    static constexpr size_t  kSessionNameLength = 30;
+
     //  Time drive's marker, one a revolution, outside any packet.
     static constexpr Byte  kTimeMark     = 0xA5;
 

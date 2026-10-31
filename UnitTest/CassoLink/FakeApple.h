@@ -71,6 +71,13 @@ public:
     //  the shim running.
     std::atomic<bool>                 typedLoader    { false };
     std::vector<Byte>                 loadedShim;
+    //  A full send: each Session screen's payload, the keys to answer Wait for
+    //  key with, the Waits for key received, and Escape to press before the next
+    //  Ready. With no key left, a wait goes on until the host sends a byte.
+    std::vector<std::vector<Byte>>    screens;
+    std::deque<Byte>                  keys;
+    std::atomic<int>                  keyWaits       { 0 };
+    std::atomic<bool>                 escapePending  { false };
     //  Each Label's text, in the order received.
     std::vector<std::string>          labels;
     std::mutex                        lock;
@@ -244,6 +251,11 @@ private:
         }
         while (!stop.stop_requested() && !stream.IsClosed())
         {
+            if (escapePending.exchange (false))
+            {
+                SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyEscape });
+            }
+
             if (!silent)
             {
                 SendPacket (line, CassoLinkCodec::kReady, { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
@@ -323,9 +335,52 @@ private:
                     break;
                 }
 
+                case CassoLinkCodec::kSessionScreen:
+                {
+                    std::lock_guard<std::mutex>  guard (lock);
+
+                    screens.push_back (packet.payload);
+                    break;
+                }
+
+                case CassoLinkCodec::kWaitForKey:
+                    WaitForKey (stop, line);
+                    break;
+
                 default:
                     break;
             }
+        }
+    }
+
+    void  WaitForKey (std::stop_token stop, Line & line)
+    {
+        CassoLinkPacket  ignored;
+
+        keyWaits++;
+
+        while (!stop.stop_requested() && !line.stream.IsClosed())
+        {
+            {
+                std::lock_guard<std::mutex>  guard (lock);
+
+                if (!keys.empty())
+                {
+                    SendPacket (line, CassoLinkCodec::kWaitForKey, { keys.front() });
+                    keys.pop_front();
+                    return;
+                }
+            }
+
+            if (line.stream.GetReadableCount() > 0 || !line.buffer.empty())
+            {
+                Receive (stop, line, ignored, 100);
+                cancels++;
+                return;
+            }
+
+            SendPacket (line, CassoLinkCodec::kWaitForKey, { CassoLinkCodec::kKeyNone });
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
         }
     }
 

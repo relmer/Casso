@@ -720,6 +720,105 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::SendSessionScreen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, const std::string & name)
+{
+    HRESULT            hr     = S_OK;
+    std::vector<Byte>  screen = { drives[0], drives[1],
+                                  (Byte) (sent & 0xFF),       (Byte) (sent >> 8),
+                                  (Byte) (duplicates & 0xFF), (Byte) (duplicates >> 8),
+                                  (Byte) (bad & 0xFF),        (Byte) (bad >> 8),
+                                  tone };
+
+
+
+    for (size_t i = 0; i < name.size() && i < CassoLinkCodec::kSessionNameLength; i++)
+    {
+        screen.push_back ((name[i] >= ' ' && name[i] <= '~') ? (Byte) toupper ((unsigned char) name[i]) : (Byte) '?');
+    }
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kSessionScreen, screen);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::WaitForKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WaitForKey (Byte & outKey)
+{
+    return Resend ([&] () { return WaitForKeyOnce (outKey); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::WaitForKeyOnce
+//
+//  The program sends Key with no code once a second while no key is pressed,
+//  so an Apple that was reset or unplugged times out as in any operation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WaitForKeyOnce (Byte & outKey)
+{
+    HRESULT          hr    = S_OK;
+    CassoLinkPacket  packet;
+    bool             isKey = false;
+
+
+
+    outKey = CassoLinkCodec::kKeyNone;
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kWaitForKey, {});
+    CHR (hr);
+
+    m_awaitingKey = true;
+
+    while (outKey == CassoLinkCodec::kKeyNone)
+    {
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        isKey = packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1;
+        CBREx (isKey, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outKey = packet.payload[0];
+    }
+
+Error:
+    m_awaitingKey = false;
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::Cancel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -862,6 +961,8 @@ HRESULT CassoLinkHost::AwaitReady()
 
         CHR (hr);
 
+        m_escape = m_escape || IsEscapeKey (packet);
+
         if (packet.command != CassoLinkCodec::kReady)
         {
             continue;
@@ -901,6 +1002,7 @@ HRESULT CassoLinkHost::ReadReply (CassoLinkPacket & outPacket)
 {
     HRESULT  hr      = S_OK;
     int      readies = 0;
+    bool     escape  = false;
 
 
 
@@ -919,13 +1021,17 @@ HRESULT CassoLinkHost::ReadReply (CassoLinkPacket & outPacket)
         //  reply ran out; a second is the client idle, the request lost.
         readies += (outPacket.command == CassoLinkCodec::kReady) ? 1 : 0;
 
+        //  Escape, ahead of a Ready that crossed the request.
+        escape   = !m_awaitingKey && IsEscapeKey (outPacket);
+        m_escape = m_escape || escape;
+
         if (readies > 1)
         {
             m_readyPending = true;
             CBREx (false, kLostRequest);
         }
     }
-    while (outPacket.command == CassoLinkCodec::kReady);
+    while (outPacket.command == CassoLinkCodec::kReady || escape);
 
 Error:
     return hr;

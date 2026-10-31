@@ -237,6 +237,18 @@ public:
     //  Ready is sent again.
     HRESULT  PromptReady  () { return SendPacket (CassoLinkCodec::kIdle, {}); }
 
+    //  A full send's screen, in the Session screen packet: each drive's state,
+    //  the counts, the tone and the image's name. The program draws it, sounds
+    //  the tone and sends Ready.
+    HRESULT  SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, const std::string & name);
+
+    //  Space or Escape on the Apple, with no drive running there: its code.
+    //  Any Cancel ends the wait with ERROR_CANCELLED.
+    HRESULT  WaitForKey   (Byte & outKey);
+
+    //  Whether Escape was pressed during a full send, since the last call.
+    bool     TakeEscape   () { bool  escape = m_escape; m_escape = false; return escape; }
+
     //  Ends CassoLink on the Apple, and control returns to BASIC or the
     //  monitor there; nothing follows on the line.
     HRESULT  Exit         ();
@@ -257,13 +269,15 @@ private:
 
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
+    HRESULT  WaitForKeyOnce    (Byte & outKey);
     HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);
 
-    static bool  IsBlank (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
+    static bool  IsEscapeKey (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && packet.payload[0] == CassoLinkCodec::kKeyEscape; }
+    static bool  IsBlank     (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
 
     //  An operation sent again while its request is lost, up to
     //  kMaxResends times.
@@ -307,6 +321,8 @@ private:
     std::atomic<bool>               m_writing         { false };
     std::mutex                      m_sendLock;
     bool                            m_readyPending    = false;
+    bool                            m_escape          = false;
+    bool                            m_awaitingKey     = false;
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 100;

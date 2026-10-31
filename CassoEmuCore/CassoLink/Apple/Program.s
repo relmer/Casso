@@ -24,6 +24,15 @@
 ;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
 ;   Exit            CassoLink ends, and control returns to BASIC
+;   Session screen  a full send's drive states, counts, tone and image name:
+;                   drawn over the history's first rows, the tone sounded, and
+;                   Ready again; both states 0 clears them and ends the session
+;   Wait for key    a full send's pause: the prompt drawn and the motor off,
+;                   Key with its code on Space or Escape, Key with 0 each
+;                   second until then; any byte from the host is taken as Cancel
+;
+; During a full send Escape on the Apple does not end CassoLink: Key with its
+; code goes to the host ahead of the next Ready.
 ;
 ; Read sectors, Write sectors, Format track and Write track end with two
 ; percentages, the part of the user's whole operation the request covers, so
@@ -139,6 +148,8 @@ CMDLOG    = $DD
 CMDTIME   = $DE
 CMDEXIT   = $DF
 CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
+CMDSCREEN = $E1                 ; a full send's screen
+CMDKEY    = $E2                 ; Wait for key, and the key in reply
 SHIM      = $3B00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
@@ -209,6 +220,7 @@ revs     = $0B                  ; Time drive: passes left to report
 fgap     = $0C                  ; the gap after each sector, in self-sync bytes
 idles    = $0D                  ; Idle replies since the last operation
 vflag    = $0E                  ; nonzero while a written track is read back
+fsmode   = $0F                  ; nonzero during a full send
 diskx    = $E0
 drive    = $E1                  ; 1 or 2
 track    = $E2
@@ -299,6 +311,7 @@ slotok:
         sta spinning
         sta fdata
         sta vflag
+        sta fsmode
         lda #3
         sta tmolen
         lda #<exitlink          ; Control-Reset ends CassoLink cleanly
@@ -316,7 +329,11 @@ main:   lda $C000               ; Escape on the Apple ends CassoLink
         cmp #$9B
         bne mnokey
         sta $C010
-        jmp exitlink
+        ldx fsmode
+        beq mnexit
+        jsr sendkey             ; the session's to end, not CassoLink's
+        jmp mnokey
+mnexit: jmp exitlink
 mnokey: lda #OPIDLE
         sta op
         jsr showop
@@ -374,8 +391,14 @@ nottime: cmp #CMDLOAD
         bne notload
         jmp doload
 notload: cmp #CMDEXIT
-        bne tomain
+        bne notexit
         jmp exitlink
+notexit: cmp #CMDSCREEN
+        bne notscreen
+        jmp doscreen
+notscreen: cmp #CMDKEY
+        bne tomain
+        jmp dowaitkey
 tomain: jmp main
 
 ; exitlink: CassoLink ends, by Control-Reset, Escape or the PC's Exit, and
@@ -3312,3 +3335,264 @@ p2ones: sta tmp2
 ; The history's lines, rows 12 to 22 of the text page.
 logrowlo: .byte $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50
 logrowhi: .byte $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07
+
+; ---------------------------------------------------------------------------
+; A full send
+; ---------------------------------------------------------------------------
+
+FSDRIVE1 = 0                    ; history rows, by their index in logrowlo
+FSDRIVE2 = 1
+FSIMAGE  = 2
+FSCOUNTS = 3
+FSROWS   = 4
+FSTONE   = 8                    ; Session screen's tone, in PKTBUF
+FSNAME   = 9                    ; and its image name
+
+; sendkey: Key with the code in A. It is sent at the next wait for a byte, or
+; for a W5100 by flush.
+sendkey: sta tmp
+        ldx #0
+skloop: lda keyhdr,x
+        jsr putb
+        inx
+        cpx #keyend-keyhdr
+        bne skloop
+        lda tmp
+        jsr putb
+        lda tmp
+        jmp putb
+
+keyhdr: .byte $C1, $01, $00, CMDKEY, $C1 ^ $01 ^ $00 ^ CMDKEY
+keyend:
+
+; dowaitkey: a full send's pause. The motor is off and a key pressed during the
+; transfer is dropped, so Space means the disks in the drives now.
+dowaitkey: jsr motoroff
+        sta $C010
+        jsr clrlabel
+wkprompt: lda wktext,y
+        beq wksec
+        ora #$80
+        sta ROWLB,y
+        iny
+        bne wkprompt
+wksec:  lda #100
+        sta tries
+wkpoll: lda $C000
+        bpl wkhost
+        sta $C010
+        cmp #$A0
+        beq wkkey
+        cmp #$9B
+        beq wkkey
+wkhost: jsr pollcancel
+        lda #10
+        jsr delayms
+        dec tries
+        bne wkpoll
+        lda #0
+        jsr sendkey
+        ifdef W5100
+        jsr flush
+        endif
+        jmp wksec
+wkkey:  jsr sendkey
+        jsr clrlabel
+        jmp main
+
+wktext: .text "PUT IN A NEW DISK AND PRESS SPACE"
+        .byte 0
+
+; doscreen: the Session screen on the history's first rows, its tone, and
+; Ready again.
+doscreen: lda PKTBUF
+        ora PKTBUF+1
+        sta fsmode
+        bne dsdraw
+        ldx #FSROWS-1
+dsoff:  jsr fsrow
+        dex
+        bpl dsoff
+        jmp main
+dsdraw: ldx #FSDRIVE1
+        jsr fsdrive
+        ldx #FSDRIVE2
+        jsr fsdrive
+        ldx #FSIMAGE
+        jsr fsrow
+        lda #<fsimgtxt
+        sta ptr
+        lda #>fsimgtxt
+        sta ptr+1
+        jsr puttext
+        ldx #FSNAME
+dsname: cpx lenlo
+        bcs dscounts
+        lda PKTBUF,x
+        jsr putch
+        inx
+        bne dsname
+dscounts: ldx #FSCOUNTS
+        jsr fsrow
+        lda #<fssent
+        sta ptr
+        lda #>fssent
+        sta ptr+1
+        ldx #2
+        jsr fscount
+        lda #<fsdups
+        sta ptr
+        lda #>fsdups
+        sta ptr+1
+        ldx #4
+        jsr fscount
+        lda #<fsbad
+        sta ptr
+        lda #>fsbad
+        sta ptr+1
+        ldx #6
+        jsr fscount
+        jsr fssound
+        jmp main
+
+; fsrow: scr at the history row of index X, and the row cleared. Y is 0.
+fsrow:  lda logrowlo,x
+        sta scr
+        lda logrowhi,x
+        sta scr+1
+        ldy #39
+        lda #$A0
+fsrclr: sta (scr),y
+        dey
+        bpl fsrclr
+        iny
+        rts
+
+; fsdrive: the row of drive X + 1, with the state in PKTBUF,x.
+fsdrive: jsr fsrow
+        lda #'D'
+        jsr putch
+        txa
+        clc
+        adc #'1'
+        jsr putch
+        lda #' '
+        jsr putch
+        lda PKTBUF,x
+        asl a
+        tax
+        lda fsstates,x
+        sta ptr
+        lda fsstates+1,x
+        sta ptr+1
+        jmp puttext
+
+; fscount: the text at (ptr), then the count at PKTBUF,x.
+fscount: stx savex
+        jsr puttext
+        ldx savex
+        ; falls through
+
+; putnum: the 16-bit value at PKTBUF,x in decimal into the field at Y, with no
+; leading zeros.
+putnum: lda PKTBUF,x
+        sta crclo
+        lda PKTBUF+1,x
+        sta crchi
+        lda #0
+        sta tmp
+        ldx #4
+pnpow:  lda #0
+        sta tmp2
+pnsub:  lda crclo
+        sec
+        sbc pow10lo,x
+        pha
+        lda crchi
+        sbc pow10hi,x
+        bcc pnshow
+        sta crchi
+        pla
+        sta crclo
+        inc tmp2
+        bne pnsub
+pnshow: pla
+        lda tmp2
+        ora tmp
+        bne pndraw
+        cpx #0
+        bne pnnext
+pndraw: lda tmp2
+        ora #'0'
+        jsr putch
+        lda #1
+        sta tmp
+pnnext: dex
+        bpl pnpow
+        lda #' '
+        jsr putch
+        jmp putch
+
+pow10lo: .byte <1, <10, <100, <1000, <10000
+pow10hi: .byte >1, >10, >100, >1000, >10000
+
+; fssound: the tone, by $C030, with the request's byte: one note for a finished
+; disk, two for a duplicate and a low pair for bad sectors. Nothing else is
+; happening: the drive is not being read and the host is waiting for Ready.
+fssound: lda PKTBUF+FSTONE
+        beq fsndone
+        cmp #2
+        beq fsndup
+        bcs fsnbad
+        lda #40
+        ldx #255
+        jmp beep
+fsndup: lda #40
+        ldx #120
+        jsr beep
+        lda #27
+        ldx #180
+        jmp beep
+fsnbad: lda #140
+        ldx #80
+        jsr beep
+        lda #200
+        ldx #60
+        jmp beep
+fsndone: rts
+
+; beep: X half-cycles of about 9 times A CPU cycles each.
+beep:   stx tmp
+        sta tmp2
+bpcycle: lda $C030
+        ldy tmp2
+bpwait: nop
+        nop
+        dey
+        bne bpwait
+        dec tmp
+        bne bpcycle
+        rts
+
+fsimgtxt: .text "IMAGE "
+        .byte 0
+fssent: .text "SENT "
+        .byte 0
+fsdups: .text "DUPLICATES "
+        .byte 0
+fsbad:  .text "BAD "
+        .byte 0
+fsstates: .word fsoff, fsidle, fscheck, fssend, fsempty, fsrepeat, fsdone
+fsoff:  .byte 0
+fsidle: .text "IDLE"
+        .byte 0
+fscheck: .text "CHECKING"
+        .byte 0
+fssend: .text "SENDING"
+        .byte 0
+fsempty: .text "NO DISK"
+        .byte 0
+fsrepeat: .text "ALREADY SENT"
+        .byte 0
+fsdone: .text "SENT"
+        .byte 0
