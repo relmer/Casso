@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/GroupChoices.h"
+
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
 
@@ -49,6 +51,8 @@ public:
     void                  SetFolderOrder     (std::vector<int> order) { m_folderOrder = std::move (order); }
     bool                  ReadFolderOptions  ();
     std::wstring          GetFolderViewKey   (FolderViews::FolderType * outType) const;
+    RowGrouping::Field    GetPropertyField   (const std::wstring & canonicalName);
+    GroupChoices::Folder  GetGroupFolder     () const;
     void                  ApplyFolderView    ();
     void                  RememberFolderSort ();
     DxuiListView::View    GetView            () const { return m_view; }

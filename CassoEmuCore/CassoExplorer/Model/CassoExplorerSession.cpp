@@ -313,7 +313,7 @@ bool CassoExplorerSession::TryTabFromJson (const JsonValue & value, BrowserModel
         && value.HasInt  ("previewScroll",   tab.previewScroll)
         && value.HasBool ("disassemble",     tab.disassemble);
 
-    read = read && column >= 0 && column <= (int) CatalogModel::Column::Folder && group >= 0 && group <= (int) RowGrouping::Field::Size;
+    read = read && column >= 0 && column <= (int) CatalogModel::Column::Folder && group >= 0;
 
     for (i = 0; read && i < selection->GetArraySize(); i++)
     {

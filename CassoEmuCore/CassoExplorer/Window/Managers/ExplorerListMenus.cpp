@@ -3,6 +3,7 @@
 #include "Seams/ShellItemId.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
@@ -969,18 +970,162 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
 
 std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
 {
-    std::vector<DxuiPopupMenuItem>  items;
-
-
-
-    for (int field : { 1, 2, 3, 4, 0 })
+    std::vector<DxuiPopupMenuItem>     items;
+    std::vector<GroupChoices::Choice>  choices = GroupChoices::GetChoices (m_pane.GetColumns().GetGroupFolder());
+    std::vector<std::wstring>          listed;
+    std::shared_ptr<DxuiCommand>       more    = std::make_shared<DxuiCommand>();
+    auto                               isGroup = [this] (RowGrouping::Field field)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupByField + field)));
+        return m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetBrowserModel().GetActiveTab().groupBy == field;
+    };
+    auto                               add     = [&items] (const std::wstring & label, std::function<bool()> isChecked, std::function<void()> dispatch)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->label     = label;
+        command->radio     = true;
+        command->isChecked = std::move (isChecked);
+        command->dispatch  = std::move (dispatch);
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+    };
+
+
+
+    for (const GroupChoices::Choice & choice : choices)
+    {
+        std::wstring        property = (choice.property != nullptr) ? choice.property : L"";
+        RowGrouping::Field  field    = choice.field;
+
+        listed.push_back (property);
+
+        //  A property the list has no column for gets one only when chosen.
+        add (choice.label,
+             [this, isGroup, property, field]()
+             {
+                 const std::vector<std::wstring> &  names = m_context.prefs.propertyColumns;
+                 auto                               found = std::find (names.begin(), names.end(), property);
+
+                 return property.empty() ? isGroup (field) : (found != names.end() && isGroup (RowGrouping::MakePropertyField ((size_t) (found - names.begin()))));
+             },
+             [this, property, field]()
+             {
+                 m_context.commandManager.Dispatch (CassoExplorerCommands::kGroupByField + (int) (property.empty() ? field : m_pane.GetColumns().GetPropertyField (property)));
+             });
     }
+
+    //  A column on display can be grouped by too, as Explorer's Path can.
+    for (size_t index = 0; index < m_context.prefs.propertyColumns.size(); index++)
+    {
+        size_t              column = CatalogModel::kColumnCount + index;
+        bool                shown  = column < m_pane.GetColumns().GetChosen().size() && m_pane.GetColumns().GetChosen()[column];
+        RowGrouping::Field  field  = RowGrouping::MakePropertyField (index);
+
+        if (shown && std::find (listed.begin(), listed.end(), m_context.prefs.propertyColumns[index]) == listed.end())
+        {
+            add (m_pane.GetColumns().GetListColumns()[column].title,
+                 [isGroup, field]() { return isGroup (field); },
+                 [this, field]() { m_context.commandManager.Dispatch (CassoExplorerCommands::kGroupByField + (int) field); });
+        }
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupByField)));
+
+    more->label    = L"More";
+    more->dispatch = [this]() { m_pane.GetColumns().ChooseDetails(); };
+    items.push_back (DxuiPopupMenuItem::ForCommand (std::move (more)));
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupAscending)));
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupDescending)));
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::GetSearchOptionChoices
+//
+//  File Explorer's Search options. A date, a kind or a size goes in the query
+//  as a word of the box's syntax, and choosing it again takes it out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
+{
+    struct Value { const wchar_t * label; const wchar_t * value; };
+
+    static constexpr Value  s_kDates[] = { { L"Today", L"today" }, { L"Yesterday", L"yesterday" }, { L"This week", L"this week" }, { L"Last week", L"last week" },
+                                           { L"This month", L"this month" }, { L"Last month", L"last month" }, { L"This year", L"this year" }, { L"Last year", L"last year" } };
+    static constexpr Value  s_kKinds[] = { { L"Calendar", L"calendar" }, { L"Communication", L"communication" }, { L"Contact", L"contact" }, { L"Document", L"document" },
+                                           { L"E-mail", L"email" }, { L"Feed", L"feed" }, { L"Folder", L"folder" }, { L"Game", L"game" }, { L"Instant Message", L"instantmessage" },
+                                           { L"Journal", L"journal" }, { L"Link", L"link" }, { L"Movie", L"movie" }, { L"Music", L"music" }, { L"Note", L"note" }, { L"Picture", L"picture" },
+                                           { L"Playlist", L"playlist" }, { L"Program", L"program" }, { L"Recorded TV", L"recordedtv" }, { L"Saved Search", L"searchfolder" }, { L"Task", L"task" },
+                                           { L"Video", L"video" }, { L"Web History", L"webhistory" }, { L"Unknown", L"unknown" } };
+    static constexpr Value  s_kSizes[] = { { L"Empty (0 KB)", L"empty" }, { L"Tiny (0 - 16 KB)", L"tiny" }, { L"Small (16 KB - 1 MB)", L"small" }, { L"Medium (1 - 128 MB)", L"medium" },
+                                           { L"Large (128 MB - 1 GB)", L"large" }, { L"Huge (1 - 4 GB)", L"huge" }, { L"Gigantic (>4 GB)", L"gigantic" } };
+
+    std::vector<DxuiPopupMenuItem>  items;
+    ExplorerAddressBar *            bar    = &m_context.addressBar;
+    auto                            option = [] (const wchar_t * label, bool radio, std::function<bool()> checked, std::function<void()> dispatch)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->label     = label;
+        command->radio     = radio;
+        command->isChecked = std::move (checked);
+        command->dispatch  = std::move (dispatch);
+
+        return command;
+    };
+    auto                            submenu = [&] (const wchar_t * label, const wchar_t * prefix, const Value * values, size_t count)
+    {
+        std::vector<DxuiPopupMenuItem>  rows;
+        std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+
+        for (size_t at = 0; at < count; at++)
+        {
+            std::wstring  value = values[at].value;
+
+            rows.push_back (DxuiPopupMenuItem::ForCommand (option (values[at].label, true,
+                [bar, prefix, value]() { return SearchQuery::HasToken (bar->GetSearchQuery(), prefix, value); },
+                [bar, prefix, value]() { bar->SetSearchQuery (SearchQuery::ToggleToken (bar->GetSearchQuery(), prefix, value)); })));
+        }
+
+        parent->label = label;
+        items.push_back (DxuiPopupMenuItem::ForSubmenu (std::move (parent), std::move (rows)));
+    };
+    std::shared_ptr<DxuiCommand>    current = option (L"Current folder", true, [bar]() { return bar->GetSearchOptions().currentFolder; },
+                                                      [bar]() { bar->SetSearchFolderOnly (true); });
+
+
+
+    current->isEnabled = [bar]() { return bar->CanSearchCurrentFolderOnly(); };
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"All subfolders", true, [bar]() { return !bar->GetSearchOptions().currentFolder; }, [bar]() { bar->SetSearchFolderOnly (false); })));
+    items.push_back (DxuiPopupMenuItem::ForCommand (std::move (current)));
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    submenu (L"Date modified", SearchQuery::kDateToken, s_kDates, std::size (s_kDates));
+    submenu (L"Kind",          SearchQuery::kKindToken, s_kKinds, std::size (s_kKinds));
+    submenu (L"Size",          SearchQuery::kSizeToken, s_kSizes, std::size (s_kSizes));
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"System files", false, [this]() { return m_context.prefs.searchSystemFiles; },
+        [this, bar]() { m_context.prefs.searchSystemFiles = !m_context.prefs.searchSystemFiles; bar->ApplySearchPrefs(); })));
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Zipped (compressed) folders", false, [this]() { return m_context.prefs.searchZipped; },
+        [this, bar]() { m_context.prefs.searchZipped = !m_context.prefs.searchZipped; bar->ApplySearchPrefs(); })));
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"File contents", false, [this]() { return m_context.prefs.searchContents; },
+        [this, bar]() { m_context.prefs.searchContents = !m_context.prefs.searchContents; bar->ApplySearchPrefs(); })));
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Change indexed locations", false, nullptr, []()
+    {
+        ShellExecuteW (nullptr, L"open", L"control.exe", L"srchadmin.dll", nullptr, SW_SHOWNORMAL);
+    })));
 
     return items;
 }

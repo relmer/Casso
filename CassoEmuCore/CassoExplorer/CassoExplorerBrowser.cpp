@@ -599,7 +599,7 @@ void CassoExplorerBrowser::GroupRows()
 
     m_rowGroups.clear();
 
-    if (field == RowGrouping::Field::None)
+    if (field == RowGrouping::Field::None || (RowGrouping::IsPropertyField (field) && (RowGrouping::GetPropertyIndex (field) >= m_propertyCount || !m_propertyKey)))
     {
         return;
     }
@@ -607,7 +607,8 @@ void CassoExplorerBrowser::GroupRows()
     for (size_t i = 0; i < m_rows.size(); i++)
     {
         order.push_back (i);
-        groups.push_back (RowGrouping::GetGroup (m_rows[i], field, today));
+        groups.push_back (RowGrouping::IsPropertyField (field) ? RowGrouping::GetPropertyGroup (m_propertyKey (i, RowGrouping::GetPropertyIndex (field)), today)
+                                                                : RowGrouping::GetGroup (m_rows[i], field, today));
     }
 
     std::stable_sort (order.begin(), order.end(), [&] (size_t a, size_t b)

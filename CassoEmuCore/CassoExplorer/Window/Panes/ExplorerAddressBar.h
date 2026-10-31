@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "CassoExplorer/Model/SearchQuery.h"
 
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
@@ -69,6 +70,13 @@ public:
     void                                       SearchLocation          (const std::wstring & query);
     void                                       LeaveSearch             ();
     void                                       CloseSearch             ();
+    std::wstring                               GetSearchQuery          () const;
+    SearchQuery::Options                       GetSearchOptions        () const;
+    bool                                       CanSearchCurrentFolderOnly () const;
+    void                                       SetSearchQuery          (const std::wstring & query);
+    void                                       RunSearchWith           (const SearchQuery::Options & options);
+    void                                       SetSearchFolderOnly     (bool currentFolder);
+    void                                       ApplySearchPrefs        ();
     std::wstring                               GetCassoSearchScope     ();
     void                                       ShowAddressHistoryMenu  (const RECT & anchor);
     void                                       ShowAddressSuggestions  (const std::wstring & typed);

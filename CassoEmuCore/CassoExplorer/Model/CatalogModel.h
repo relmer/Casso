@@ -90,6 +90,7 @@ struct CatalogRow
     //  A search result's folder, and for a file inside a disk image, the
     //  image it is in.
     std::wstring  folderPath;
+    std::wstring  folderShown;
     std::wstring  imagePath;
     size_t        imageCatalogIndex = 0;
     std::string   imageDirectory;
@@ -175,6 +176,7 @@ public:
         bool          numeric = false;
         double        number  = 0.0;
         std::wstring  text;
+        bool          isDate  = false;
     };
 
     //  Sorts by a property, with a key for each row in the rows' order.

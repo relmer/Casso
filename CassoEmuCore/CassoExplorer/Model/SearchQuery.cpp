@@ -25,6 +25,320 @@ std::wstring SearchQuery::MakeId (const std::wstring & scope, const std::wstring
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SearchQuery::MakeId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SearchQuery::MakeId (const std::wstring & scope, const std::wstring & query, const Options & options)
+{
+    std::wstring  flags;
+
+
+
+    flags += options.currentFolder ? L"c" : L"";
+    flags += options.systemFiles   ? L""  : L"x";
+    flags += options.zipped        ? L"z" : L"";
+    flags += options.contents      ? L"t" : L"";
+
+    return MakeId (scope, query) + (flags.empty() ? std::wstring() : s_kOptionsSeparator + flags);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::GetOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SearchQuery::Options SearchQuery::GetOptions (const std::wstring & id)
+{
+    Options       options;
+    size_t        at    = id.find (s_kOptionsSeparator);
+    std::wstring  flags = (at == std::wstring::npos) ? std::wstring() : id.substr (at + 1);
+
+
+
+    options.currentFolder = flags.find (L'c') != std::wstring::npos;
+    options.systemFiles   = flags.find (L'x') == std::wstring::npos;
+    options.zipped        = flags.find (L'z') != std::wstring::npos;
+    options.contents      = flags.find (L't') != std::wstring::npos;
+
+    return options;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::SplitWords
+//
+//  The query's words as typed, a quoted phrase within one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> SearchQuery::SplitWords (const std::wstring & query)
+{
+    std::vector<std::wstring>  words;
+    std::wstring               word;
+    bool                       quoted = false;
+
+
+
+    for (wchar_t c : query)
+    {
+        if (c == L'"')
+        {
+            quoted = !quoted;
+        }
+
+        if (c == L' ' && !quoted)
+        {
+            if (!word.empty())
+            {
+                words.push_back (word);
+                word.clear();
+            }
+
+            continue;
+        }
+
+        word += c;
+    }
+
+    if (!word.empty())
+    {
+        words.push_back (word);
+    }
+
+    return words;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::GetUnquoted
+//
+//  Lowercased, without its quotes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SearchQuery::GetUnquoted (const std::wstring & word)
+{
+    std::wstring  plain;
+
+
+
+    for (wchar_t c : word)
+    {
+        if (c != L'"')
+        {
+            plain += (wchar_t) towlower (c);
+        }
+    }
+
+    return plain;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::HasToken
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchQuery::HasToken (const std::wstring & query, const wchar_t * prefix, const std::wstring & value)
+{
+    std::wstring  wanted = prefix + value;
+
+
+
+    for (const std::wstring & word : SplitWords (query))
+    {
+        if (GetUnquoted (word) == wanted)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::ToggleToken
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SearchQuery::ToggleToken (const std::wstring & query, const wchar_t * prefix, const std::wstring & value)
+{
+    std::wstring  result;
+    bool          chosen = HasToken (query, prefix, value);
+    auto          append = [&result] (const std::wstring & word)
+    {
+        result += (result.empty() ? L"" : L" ") + word;
+    };
+
+
+
+    for (const std::wstring & word : SplitWords (query))
+    {
+        if (!GetUnquoted (word).starts_with (prefix))
+        {
+            append (word);
+        }
+    }
+
+    if (!chosen)
+    {
+        append (prefix + ((value.find (L' ') != std::wstring::npos) ? L"\"" + value + L"\"" : value));
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::HasFilters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchQuery::HasFilters (const std::wstring & query)
+{
+    for (const std::wstring & word : SplitWords (query))
+    {
+        std::wstring  plain = GetUnquoted (word);
+
+        if (plain.starts_with (kDateToken) || plain.starts_with (kKindToken) || plain.starts_with (kSizeToken))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::MatchesDate
+//
+//  Weeks start on the locale's first day, as the date groups' do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchQuery::MatchesDate (const std::wstring & value, const ItemFacts & facts, const RowGrouping::Today & today)
+{
+    int64_t  d         = 0;
+    int64_t  t         = RowGrouping::ToDayNumber (today.year, today.month, today.day);
+    int64_t  dow       = ((t % 7) + 7 + 4) % 7;       // 1970-01-01 was a Thursday
+    int64_t  weekStart = t - ((dow - today.firstDayOfWeek + 7) % 7);
+    int      lastYear  = (today.month == 1) ? today.year - 1 : today.year;
+    int      lastMonth = (today.month == 1) ? 12 : today.month - 1;
+
+
+
+    if (!facts.hasDate)
+    {
+        return false;
+    }
+
+    d = RowGrouping::ToDayNumber (facts.year, facts.month, facts.day);
+
+    if (value == L"today")      { return d == t; }
+    if (value == L"yesterday")  { return d == t - 1; }
+    if (value == L"this week")  { return d >= weekStart && d < weekStart + 7; }
+    if (value == L"last week")  { return d >= weekStart - 7 && d < weekStart; }
+    if (value == L"this month") { return facts.year == today.year && facts.month == today.month; }
+    if (value == L"last month") { return facts.year == lastYear && facts.month == lastMonth; }
+    if (value == L"this year")  { return facts.year == today.year; }
+    if (value == L"last year")  { return facts.year == today.year - 1; }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchQuery::MatchesFilters
+//
+//  Every filter word must hold. Another property's word is left to the index.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchQuery::MatchesFilters (const std::wstring & query, const ItemFacts & facts, const RowGrouping::Today & today)
+{
+    static constexpr const wchar_t *  s_kSizes[] = { L"empty", L"tiny", L"small", L"medium", L"large", L"huge", L"gigantic" };
+
+
+
+    for (const std::wstring & word : SplitWords (query))
+    {
+        std::wstring  plain = GetUnquoted (word);
+
+        if (plain.starts_with (kDateToken) && !MatchesDate (plain.substr (wcslen (kDateToken)), facts, today))
+        {
+            return false;
+        }
+
+        if (plain.starts_with (kSizeToken))
+        {
+            int  rank = RowGrouping::GetSizeGroup (facts.isFolder, facts.sizeBytes).rank;
+
+            for (size_t at = 0; at < std::size (s_kSizes); at++)
+            {
+                if (plain.substr (wcslen (kSizeToken)) == s_kSizes[at] && rank != (int) at)
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (plain.starts_with (kKindToken))
+        {
+            std::wstring  kind = plain.substr (wcslen (kKindToken));
+            bool          any  = std::find (facts.kinds.begin(), facts.kinds.end(), kind) != facts.kinds.end();
+
+            if (kind == L"unknown" ? !facts.kinds.empty() : !any)
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SearchQuery::TryParseId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +358,7 @@ bool SearchQuery::TryParseId (const std::wstring & id, std::wstring & outScope, 
     }
 
     outScope = id.substr (wcslen (kPrefix), bar - wcslen (kPrefix));
-    outQuery = id.substr (bar + 1);
+    outQuery = id.substr (bar + 1, id.find (s_kOptionsSeparator, bar) - bar - 1);
 
     return !outScope.empty();
 }

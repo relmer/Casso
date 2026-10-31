@@ -336,6 +336,7 @@ Win32PropertyColumns::Values Win32PropertyColumns::Read (const std::wstring & pa
                 case VT_FILETIME:
                     hrValue      = PropVariantToFileTime (raw, PSTF_UTC, &when);
                     value.number = (double) (((uint64_t) when.dwHighDateTime << 32) | when.dwLowDateTime);
+                    value.isDate = SUCCEEDED (hrValue);
                     break;
 
                 case VT_I1: case VT_UI1: case VT_I2: case VT_UI2: case VT_I4: case VT_UI4:

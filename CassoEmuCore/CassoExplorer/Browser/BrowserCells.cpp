@@ -292,7 +292,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
     cells.push_back (DxuiListView::Cell { row.originalFolder, false });
     cells.push_back (DxuiListView::Cell { row.hasDeleted ? FormatModified (row.deletedUnix, false) : std::wstring(), false });
-    cells.push_back (DxuiListView::Cell { CatalogModel::GetFolderColumnText (row.folderPath), false });
+    cells.push_back (DxuiListView::Cell { CatalogModel::GetFolderColumnText (row.folderShown.empty() ? row.folderPath : row.folderShown), false });
 
     if (icons != nullptr && !cells.empty())
     {

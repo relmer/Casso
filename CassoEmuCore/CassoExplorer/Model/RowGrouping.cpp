@@ -173,12 +173,6 @@ RowGrouping::Group RowGrouping::GetTypeGroup (const std::wstring & typeText)
 
 RowGrouping::Group RowGrouping::GetGroup (const CatalogRow & row, Field field, const Today & today)
 {
-    __time64_t  when    = (__time64_t) row.modifiedUnix;
-    tm          parts   = {};
-    errno_t     err     = 0;
-
-
-
     switch (field)
     {
         case Field::Name:
@@ -191,18 +185,73 @@ RowGrouping::Group RowGrouping::GetGroup (const CatalogRow & row, Field field, c
             return GetSizeGroup (row.isDirectory, row.sizeBytes);
 
         case Field::DateModified:
-            if (!row.hasModified)
-            {
-                return GetDateGroup (false, 0, 0, 0, today);
-            }
+            return row.hasModified ? GetUnixDateGroup (row.modifiedUnix, row.modifiedIsWallClock, today) : GetDateGroup (false, 0, 0, 0, today);
 
-            err = row.modifiedIsWallClock ? _gmtime64_s (&parts, &when) : _localtime64_s (&parts, &when);
+        case Field::Folder:
+            return GetTypeGroup (CatalogModel::GetFolderColumnText (row.folderShown.empty() ? row.folderPath : row.folderShown));
 
-            return GetDateGroup (err == 0, parts.tm_year + 1900, parts.tm_mon + 1, parts.tm_mday, today);
+        case Field::OriginalLocation:
+            return GetTypeGroup (row.originalFolder);
+
+        case Field::DateDeleted:
+            return row.hasDeleted ? GetUnixDateGroup (row.deletedUnix, false, today) : GetDateGroup (false, 0, 0, 0, today);
 
         default:
             return {};
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RowGrouping::GetUnixDateGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RowGrouping::Group RowGrouping::GetUnixDateGroup (int64_t unixSeconds, bool wallClock, const Today & today)
+{
+    __time64_t  when  = (__time64_t) unixSeconds;
+    tm          parts = {};
+    errno_t     err   = wallClock ? _gmtime64_s (&parts, &when) : _localtime64_s (&parts, &when);
+
+
+
+    return GetDateGroup (err == 0, parts.tm_year + 1900, parts.tm_mon + 1, parts.tm_mday, today);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RowGrouping::GetPropertyGroup
+//
+//  A date property's number is its FILETIME.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RowGrouping::Group RowGrouping::GetPropertyGroup (const CatalogModel::PropertyKey & key, const Today & today)
+{
+    static constexpr int64_t  s_kFileTimeTicksPerSecond = 10000000;
+    static constexpr int64_t  s_kUnixEpochInSeconds     = 11644473600;
+
+
+
+    if (!key.has)
+    {
+        return { L"Unspecified", -1 };
+    }
+
+    if (key.isDate)
+    {
+        return GetUnixDateGroup ((int64_t) key.number / s_kFileTimeTicksPerSecond - s_kUnixEpochInSeconds, false, today);
+    }
+
+    return { key.text, 0 };
 }
 
 

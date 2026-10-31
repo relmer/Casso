@@ -1108,9 +1108,18 @@ void ExplorerAddressBar::LeaveSearch()
         return;
     }
 
-    if (!m_context.browser.GoBack() && m_context.browser.TryGetUpTarget (searched))
+    //  Changing an option adds a search to the history, and all of them close.
+    while (SearchQuery::IsId (m_context.browser.GetLocation().path))
     {
-        m_context.browser.NavigateToLocation (searched);
+        if (!m_context.browser.GoBack())
+        {
+            if (m_context.browser.TryGetUpTarget (searched))
+            {
+                m_context.browser.NavigateToLocation (searched);
+            }
+
+            break;
+        }
     }
 
     m_context.listPane.FillList();
@@ -1175,6 +1184,149 @@ bool ExplorerAddressBar::HandleFindBoxKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerAddressBar::GetSearchQuery
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerAddressBar::GetSearchQuery() const
+{
+    std::wstring  scope;
+    std::wstring  query;
+
+
+
+    SearchQuery::TryParseId (m_context.browser.GetLocation().path, scope, query);
+
+    return query;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::GetSearchOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SearchQuery::Options ExplorerAddressBar::GetSearchOptions() const
+{
+    return SearchQuery::GetOptions (m_context.browser.GetLocation().path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::CanSearchCurrentFolderOnly
+//
+//  This PC and Home have no folder to stop at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerAddressBar::CanSearchCurrentFolderOnly() const
+{
+    std::wstring  scope;
+    std::wstring  query;
+
+
+
+    SearchQuery::TryParseId (m_context.browser.GetLocation().path, scope, query);
+
+    return scope != SearchQuery::kThisPc && scope != SearchQuery::kEverywhere;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::SetSearchQuery
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::SetSearchQuery (const std::wstring & query)
+{
+    m_findBox->SetText (query);
+    SearchLocation (query);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::RunSearchWith
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::RunSearchWith (const SearchQuery::Options & options)
+{
+    std::wstring  scope;
+    std::wstring  query;
+
+
+
+    if (SearchQuery::TryParseId (m_context.browser.GetLocation().path, scope, query))
+    {
+        m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query, options), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
+        m_context.listPane.FillList();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::SetSearchFolderOnly
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::SetSearchFolderOnly (bool currentFolder)
+{
+    SearchQuery::Options  options = GetSearchOptions();
+
+
+
+    options.currentFolder = currentFolder;
+    RunSearchWith (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::ApplySearchPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::ApplySearchPrefs()
+{
+    SearchQuery::Options  options = GetSearchOptions();
+
+
+
+    options.systemFiles = m_context.prefs.searchSystemFiles;
+    options.zipped      = m_context.prefs.searchZipped;
+    options.contents    = m_context.prefs.searchContents;
+    RunSearchWith (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerAddressBar::GetCassoSearchScope
 //
 //  A search from Casso's root covers each of Casso's own folders on the host.
@@ -1217,11 +1369,16 @@ std::wstring ExplorerAddressBar::GetCassoSearchScope()
 
 void ExplorerAddressBar::SearchLocation (const std::wstring & query)
 {
-    Location      at    = m_context.browser.GetLocation();
-    std::wstring  scope;
-    std::wstring  previous;
+    Location              at    = m_context.browser.GetLocation();
+    std::wstring          scope;
+    std::wstring          previous;
+    SearchQuery::Options  options;
 
 
+
+    options.systemFiles = m_context.prefs.searchSystemFiles;
+    options.zipped      = m_context.prefs.searchZipped;
+    options.contents    = m_context.prefs.searchContents;
 
     //  Enter in an empty box goes back to the list, as File Explorer's does.
     if (query.empty())
@@ -1245,6 +1402,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
     else if (SearchQuery::IsId (at.path))
     {
         SearchQuery::TryParseId (at.path, scope, previous);
+        options.currentFolder = SearchQuery::GetOptions (at.path).currentFolder;
     }
     else if (at.kind == Location::Kind::ShellFolder && !at.path.empty() && !Location::IsShellName (at.path))
     {
@@ -1261,7 +1419,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
         return;
     }
 
-    m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
+    m_context.browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query, options), (scope == SearchQuery::kEverywhere) ? query : SearchQuery::GetLabel (scope)));
     m_context.listPane.FillList();
     m_context.input.SetFocusPane (ExplorerPane::List);
 }

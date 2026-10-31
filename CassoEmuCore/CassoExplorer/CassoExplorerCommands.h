@@ -136,6 +136,9 @@ public:
         //  A search's results closed, on the command bar only there.
         kCloseSearch,
 
+        //  The search's options, on the command bar only there.
+        kSearchOptions,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -144,6 +147,7 @@ public:
 
         //  kGroupByField + a RowGrouping::Field, None included.
         kGroupByField = 600,
+        kGroupByLast  = 699,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -353,6 +357,7 @@ private:
         { kEmptyRecycleBin,   Menu::Count, L"Empty Recycle Bin",   nullptr,     false },
         { kRestoreItems,      Menu::Count, L"Restore all items",   nullptr,     false },
         { kCloseSearch,       Menu::Count, L"Close search",        nullptr,     false },
+        { kSearchOptions,     Menu::Count, L"Search options",      nullptr,     false },
         { kReadDiskToImage,   Menu::Count, L"Create image...",     nullptr,     false },
         { kWriteImageToDisk,  Menu::Count, L"Write image...",      nullptr,     false },
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
@@ -411,7 +416,8 @@ private:
     //  everything, so it has no short label of its own.
     static constexpr ToolbarRow  kSearchRows[] =
     {
-        { kCloseSearch, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel, L"Close search", L"Close search" },
+        { kSearchOptions, DxuiToolbar::Kind::DropDown, 5, s_kpszMdl2Setting, L"Search options", L"Search options" },
+        { kCloseSearch,   DxuiToolbar::Kind::Command,  5, s_kpszMdl2Cancel,  L"Close search",   L"Close search"   },
     };
 
     static constexpr ToolbarRow  kRecycleBinRows[] =

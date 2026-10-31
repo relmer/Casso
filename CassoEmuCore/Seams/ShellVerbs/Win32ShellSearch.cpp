@@ -49,10 +49,16 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     std::vector<std::wstring>  paths;
     bool                       indexed = false;
     bool                       parsed  = SearchQuery::TryParseId (id, scope, query);
+    bool                       filters = SearchQuery::HasFilters (query);
+    RowGrouping::Today         today   = RowGrouping::GetToday();
+    WalkOptions                walk;
 
 
 
     CBREx (parsed, E_INVALIDARG);
+
+    walk.search   = SearchQuery::GetOptions (id);
+    walk.matchAll = filters && SearchQuery::GetNameWords (query).empty();
 
     //  A search from Casso's root covers each of its folders.
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
@@ -62,12 +68,14 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         bool  thisPc     = folder == SearchQuery::kThisPc;
         bool  everywhere = thisPc || folder == SearchQuery::kEverywhere;
 
-        indexed = everywhere || (IsIndexed (folder) && !SearchQuery::HasWildcards (query));
-        hr      = indexed ? QueryIndex (everywhere ? SearchQuery::kEverywhere : folder, query, found) : S_OK;
+        //  The index holds no zip's files and no unindexed file's text, so those
+        //  options walk the folder.
+        indexed = everywhere || (IsIndexed (folder) && !SearchQuery::HasWildcards (query) && !walk.search.zipped);
+        hr      = indexed ? QueryIndex (everywhere ? SearchQuery::kEverywhere : folder, query, found, walk.search.currentFolder) : S_OK;
 
         if (thisPc)
         {
-            WalkFixedDrives (SearchQuery::GetNameWords (query), found);
+            WalkFixedDrives (SearchQuery::GetNameWords (query), found, walk);
             hr = S_OK;
         }
         else if (everywhere)
@@ -80,7 +88,7 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         if (!everywhere && (!indexed || FAILED (hr)))
         {
             found.clear();
-            WalkForNames (folder, SearchQuery::GetNameWords (query), found);
+            WalkForNames (folder, SearchQuery::GetNameWords (query), found, walk);
             hr = S_OK;
         }
 
@@ -98,11 +106,39 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
             hrItem = Win32ShellNamespace::DescribeShellItem (item.Get(), entry);
         }
 
-        if (SUCCEEDED (hrItem))
+        if (SUCCEEDED (hrItem) && (walk.search.systemFiles || !IsSystemItem (path)))
         {
+            ComPtr<IShellItem2>  item2;
+            PWSTR                shown    = nullptr;
+            PROPERTYKEY          shownKey = {};
+            HRESULT              hrShown  = item.As (&item2);
+
+            if (SUCCEEDED (hrShown) && filters && !SearchQuery::MatchesFilters (query, GetItemFacts (item2.Get(), entry), today))
+            {
+                continue;
+            }
+
+            //  Explorer displays a known folder by its display name, as Recent
+            //  Items for Recent.
+            hrShown = SUCCEEDED (hrShown) ? PSGetPropertyKeyFromName (L"System.ItemFolderPathDisplay", &shownKey) : hrShown;
+            hrShown = SUCCEEDED (hrShown) ? item2->GetString (shownKey, &shown) : hrShown;
+
+            if (SUCCEEDED (hrShown) && shown != nullptr)
+            {
+                entry.folderShown = shown;
+            }
+
+            CoTaskMemFree (shown);
+
             entry.folder = std::filesystem::path (path).parent_path().wstring();
             outItems.push_back (std::move (entry));
         }
+    }
+
+    //  A filter on anything but size has nothing to test in a disk image.
+    if (filters && (query.find (SearchQuery::kDateToken) != std::wstring::npos || query.find (SearchQuery::kKindToken) != std::wstring::npos))
+    {
+        BAIL_OUT_IF (true, hr);
     }
 
     //  Files inside the disk images there match by name too.
@@ -117,12 +153,212 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         }
         else if (folder != SearchQuery::kEverywhere)
         {
-            SearchImages (folder, SearchQuery::GetNameWords (query), outItems);
+            SearchImages (folder, SearchQuery::GetNameWords (query), outItems, walk.search.currentFolder);
         }
+    }
+
+    //  An image's file has only a size to test.
+    if (filters)
+    {
+        std::erase_if (outItems, [&query, &today] (const IShellItemVerbs::ShellFolderItem & entry)
+        {
+            SearchQuery::ItemFacts  facts;
+
+            facts.isFolder  = entry.isFolder;
+            facts.sizeBytes = entry.sizeBytes;
+
+            return !entry.imagePath.empty() && !SearchQuery::MatchesFilters (query, facts, today);
+        });
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::GetItemFacts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SearchQuery::ItemFacts Win32ShellSearch::GetItemFacts (IShellItem2 * item, const IShellItemVerbs::ShellFolderItem & entry)
+{
+    SearchQuery::ItemFacts  facts;
+    __time64_t              when    = (__time64_t) entry.modifiedUnix;
+    tm                      parts   = {};
+    PROPVARIANT             kinds   = {};
+    PROPERTYKEY             kindKey = {};
+    HRESULT                 hrKinds = PSGetPropertyKeyFromName (L"System.Kind", &kindKey);
+
+
+
+    facts.isFolder  = entry.isFolder && !entry.isFile;
+    facts.sizeBytes = entry.sizeBytes;
+    facts.hasDate   = entry.hasModified && _localtime64_s (&parts, &when) == 0;
+    facts.year      = parts.tm_year + 1900;
+    facts.month     = parts.tm_mon + 1;
+    facts.day       = parts.tm_mday;
+
+    if (SUCCEEDED (hrKinds))
+    {
+        for (ULONG at = 0; at < PropVariantGetElementCount (kinds); at++)
+        {
+            PWSTR    kind   = nullptr;
+            HRESULT  hrKind = PropVariantGetStringElem (kinds, at, &kind);
+
+            if (SUCCEEDED (hrKind) && kind != nullptr)
+            {
+                std::wstring  lower = kind;
+
+                std::transform (lower.begin(), lower.end(), lower.begin(), towlower);
+                facts.kinds.push_back (std::move (lower));
+            }
+
+            CoTaskMemFree (kind);
+        }
+    }
+
+    PropVariantClear (&kinds);
+
+    return facts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::IsSystemItem
+//
+//  A file with the system attribute, or anything in the Windows folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellSearch::IsSystemItem (const std::wstring & path)
+{
+    wchar_t  windows[MAX_PATH] = {};
+    DWORD    attributes        = GetFileAttributesW (path.c_str());
+    UINT     length            = GetWindowsDirectoryW (windows, MAX_PATH);
+
+
+
+    if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_SYSTEM) != 0)
+    {
+        return true;
+    }
+
+    return length != 0 && _wcsnicmp (path.c_str(), windows, length) == 0 && path.size() > length && path[length] == L'\\';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::FileContainsWords
+//
+//  Every word somewhere in the file's bytes, as ANSI or as UTF-16. A file too
+//  large or unreadable doesn't match.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellSearch::FileContainsWords (const std::wstring & path, uint64_t sizeBytes, const std::vector<std::wstring> & words)
+{
+    std::string  bytes;
+
+
+
+    if (words.empty() || sizeBytes == 0 || sizeBytes > s_kMaxContentBytes)
+    {
+        return false;
+    }
+
+    std::ifstream  file (std::filesystem::path (path), std::ios::binary);
+
+    bytes.resize ((size_t) sizeBytes);
+
+    if (!file.read (bytes.data(), (std::streamsize) bytes.size()))
+    {
+        return false;
+    }
+
+    std::transform (bytes.begin(), bytes.end(), bytes.begin(), [] (char c) { return (char) tolower ((unsigned char) c); });
+
+    return std::all_of (words.begin(), words.end(), [&bytes] (const std::wstring & word)
+    {
+        std::string  ansi;
+        std::string  wide;
+
+        for (wchar_t c : word)
+        {
+            ansi += (char) c;
+            wide += (char) c;
+            wide += (char) (c >> 8);
+        }
+
+        return bytes.find (ansi) != std::string::npos || bytes.find (wide) != std::string::npos;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::WalkZip
+//
+//  A zip's items through the shell, which opens one as a folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::WalkZip (IShellItem * zip, const std::wstring & path, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, int depth)
+{
+    HRESULT                 hr = S_OK;
+    ComPtr<IEnumShellItems> items;
+    ComPtr<IShellItem>      item;
+
+
+
+    BAIL_OUT_IF (depth >= s_kMaxZipDepth, S_OK);
+
+    hr = zip->BindToHandler (nullptr, BHID_EnumItems, IID_PPV_ARGS (&items));
+    CHR (hr);
+
+    while (outPaths.size() < s_kMaxResults && items->Next (1, item.ReleaseAndGetAddressOf(), nullptr) == S_OK)
+    {
+        PWSTR         text       = nullptr;
+        SFGAOF        attributes = 0;
+        HRESULT       hrName     = item->GetDisplayName (SIGDN_PARENTRELATIVEPARSING, &text);
+        std::wstring  name       = (SUCCEEDED (hrName) && text != nullptr) ? text : L"";
+        HRESULT       hrAttr     = item->GetAttributes (SFGAO_FOLDER, &attributes);
+
+        CoTaskMemFree (text);
+
+        if (name.empty())
+        {
+            continue;
+        }
+
+        if (SearchQuery::MatchesName (name, words) && !words.empty())
+        {
+            outPaths.push_back (path + L"\\" + name);
+        }
+
+        if (SUCCEEDED (hrAttr) && (attributes & SFGAO_FOLDER) != 0)
+        {
+            WalkZip (item.Get(), path + L"\\" + name, words, outPaths, depth + 1);
+        }
+    }
+
+Error:
+    return;
 }
 
 
@@ -140,7 +376,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellSearch::SearchImages (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
+void Win32ShellSearch::SearchImages (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder)
 {
     std::vector<std::wstring>  images;
     Win32DiskFileIo            fileIo;
@@ -153,7 +389,7 @@ void Win32ShellSearch::SearchImages (const std::wstring & scope, const std::vect
         return;
     }
 
-    WalkForImages (scope, images);
+    WalkForImages (scope, images, currentFolder);
 
     for (const std::wstring & image : images)
     {
@@ -224,7 +460,7 @@ void Win32ShellSearch::SearchImages (const std::wstring & scope, const std::vect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellSearch::WalkForImages (const std::wstring & scope, std::vector<std::wstring> & outImages)
+void Win32ShellSearch::WalkForImages (const std::wstring & scope, std::vector<std::wstring> & outImages, bool currentFolder)
 {
     std::vector<std::wstring>  pending = { scope };
 
@@ -263,7 +499,10 @@ void Win32ShellSearch::WalkForImages (const std::wstring & scope, std::vector<st
 
             if (isFolder && !isLink)
             {
-                pending.push_back (folder + L"\\" + name);
+                if (!currentFolder)
+                {
+                    pending.push_back (folder + L"\\" + name);
+                }
             }
             else if (!isFolder && TreeModel::IsSupportedImage (name))
             {
@@ -326,7 +565,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths)
+HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths, bool currentFolder)
 {
     static constexpr CLSID  s_kCollatorDataSource = { 0x9E175B8B, 0xF52A, 0x11D8, { 0xB9, 0xA5, 0x50, 0x50, 0x54, 0x50, 0x30, 0x30 } };
     static constexpr GUID   s_kDbGuidDefault      = { 0xC8B521FB, 0x5CF3, 0x11CE, { 0xAD, 0xE5, 0x00, 0xAA, 0x00, 0x44, 0x77, 0x3D } };
@@ -372,7 +611,7 @@ HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wst
     CHR (hr);
 
     //  The whole index has no scope to restrict it.
-    hr = helper->put_QueryWhereRestrictions ((L"AND SCOPE='file:" + ((scope == SearchQuery::kEverywhere) ? std::wstring() : scope) + L"'").c_str());
+    hr = helper->put_QueryWhereRestrictions (((currentFolder ? L"AND DIRECTORY='file:" : L"AND SCOPE='file:") + ((scope == SearchQuery::kEverywhere) ? std::wstring() : scope) + L"'").c_str());
     CHR (hr);
 
     hr = helper->put_QueryMaxResults ((LONG) s_kMaxResults);
@@ -473,18 +712,18 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellSearch::WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths)
+void Win32ShellSearch::WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths, const WalkOptions & options)
 {
     for (const std::wstring & root : GetFixedDrives())
     {
         std::vector<std::wstring>  found;
 
-        if (words.empty())
+        if (words.empty() && !options.matchAll)
         {
             continue;
         }
 
-        WalkForNames (root, words, found);
+        WalkForNames (root, words, found, options);
         AddNewPaths (found, ioPaths);
     }
 }
@@ -654,7 +893,7 @@ void Win32ShellSearch::AddRecentMatches (const std::vector<std::wstring> & words
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellSearch::WalkForNames (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths)
+void Win32ShellSearch::WalkForNames (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, const WalkOptions & options)
 {
     std::vector<std::wstring>  pending                  = { scope };
     wchar_t                    tempFolder[MAX_PATH + 1] = {};
@@ -698,12 +937,24 @@ void Win32ShellSearch::WalkForNames (const std::wstring & scope, const std::vect
                 continue;
             }
 
-            if (SearchQuery::MatchesName (name, words) && !words.empty())
+            if ((SearchQuery::MatchesName (name, words) && !words.empty()) || options.matchAll
+                || (options.search.contents && !isFolder && FileContainsWords (folder + L"\\" + name, ((uint64_t) found.nFileSizeHigh << 32) | found.nFileSizeLow, words)))
             {
                 outPaths.push_back (folder + L"\\" + name);
             }
 
-            if (isFolder && !isLink && _wcsicmp ((folder + L"\\" + name + L"\\").c_str(), tempFolder) != 0)
+            if (options.search.zipped && !isFolder && name.size() > 4 && _wcsicmp (name.c_str() + name.size() - 4, L".zip") == 0)
+            {
+                ComPtr<IShellItem>  zip;
+                HRESULT             hrZip = SHCreateItemFromParsingName ((folder + L"\\" + name).c_str(), nullptr, IID_PPV_ARGS (&zip));
+
+                if (SUCCEEDED (hrZip))
+                {
+                    WalkZip (zip.Get(), folder + L"\\" + name, words, outPaths, 0);
+                }
+            }
+
+            if (isFolder && !isLink && !options.search.currentFolder && _wcsicmp ((folder + L"\\" + name + L"\\").c_str(), tempFolder) != 0)
             {
                 pending.push_back (folder + L"\\" + name);
             }

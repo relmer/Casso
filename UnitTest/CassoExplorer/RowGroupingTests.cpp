@@ -1,7 +1,9 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Core/UnicodeSymbols.h"
+#include "CassoExplorer/Model/GroupChoices.h"
 #include "CassoExplorer/Model/RowGrouping.h"
+#include "Seams/Win32PropertyColumns.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -30,6 +32,37 @@ public:
         today.firstDayOfWeek = firstDayOfWeek;
 
         return today;
+    }
+
+    TEST_METHOD (GroupChoices_NamePropertiesTheShellHas)
+    {
+        using Folder = GroupChoices::Folder;
+
+        for (Folder folder : { Folder::Generic, Folder::Documents, Folder::OneDrive, Folder::Search, Folder::Drives, Folder::Pictures, Folder::Music, Folder::Videos, Folder::RecycleBin })
+        {
+            for (const GroupChoices::Choice & choice : GroupChoices::GetChoices (folder))
+            {
+                Win32PropertyColumns::Property  property;
+
+                Assert::IsTrue (choice.property == nullptr || Win32PropertyColumns::TryDescribe (choice.property, property), choice.label);
+            }
+        }
+    }
+
+    TEST_METHOD (PropertyGroup_ByTextDateOrUnspecified)
+    {
+        CatalogModel::PropertyKey  key;
+        RowGrouping::Today         today = Tuesday();
+
+        Assert::AreEqual (std::wstring (L"Unspecified"), RowGrouping::GetPropertyGroup (key, today).label);
+
+        key.has  = true;
+        key.text = L"Rob";
+        Assert::AreEqual (std::wstring (L"Rob"), RowGrouping::GetPropertyGroup (key, today).label);
+
+        key.isDate = true;
+        key.number = 116444736000000000.0;    // 1970, as a FILETIME
+        Assert::AreEqual (std::wstring (L"A long time ago"), RowGrouping::GetPropertyGroup (key, today).label);
     }
 
     static std::wstring  DateLabel (int year, int month, int day, const RowGrouping::Today & today)

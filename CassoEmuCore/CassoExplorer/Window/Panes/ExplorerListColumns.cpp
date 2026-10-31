@@ -401,7 +401,7 @@ void ExplorerListColumns::ApplyFolderView()
         entry.sortColumn = 0;
     }
 
-    if (entry.groupBy > (int) RowGrouping::Field::Size)
+    if (entry.groupBy >= RowGrouping::kFirstPropertyField + (int) m_context.prefs.propertyColumns.size())
     {
         entry.groupBy = 0;
     }
@@ -690,6 +690,117 @@ void ExplorerListColumns::LoadPropertyColumns()
 
         return key;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::GetPropertyField
+//
+//  A property grouped by needn't be a column on display, so one the list has
+//  no column for gets a column hidden in every folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RowGrouping::Field ExplorerListColumns::GetPropertyField (const std::wstring & canonicalName)
+{
+    std::vector<std::wstring> &   names  = m_context.prefs.propertyColumns;
+    auto                          found  = std::find (names.begin(), names.end(), canonicalName);
+    size_t                        column = m_listColumns.size();
+    std::vector<FolderViewEntry>  entries;
+
+
+
+    if (found != names.end())
+    {
+        return RowGrouping::MakePropertyField ((size_t) (found - names.begin()));
+    }
+
+    entries = m_context.prefs.folderViews.GetEntries();
+
+    for (FolderViewEntry & entry : entries)
+    {
+        if (entry.columnsChosen)
+        {
+            entry.hiddenColumns.push_back ((int) column);
+        }
+    }
+
+    m_context.prefs.folderViews.SetEntries (std::move (entries));
+    m_context.prefs.hiddenColumns.push_back ((int) column);
+
+    names.push_back (canonicalName);
+    LoadPropertyColumns();
+    SetChosen (column, false);
+
+    return RowGrouping::MakePropertyField (names.size() - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::GetGroupFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+GroupChoices::Folder ExplorerListColumns::GetGroupFolder() const
+{
+    const Location &         location           = m_context.browser.GetLocation();
+    FolderViews::FolderType  type               = FolderViews::FolderType::Generic;
+    PWSTR                    known              = nullptr;
+    wchar_t                  oneDrive[MAX_PATH] = {};
+    bool                     downloads          = false;
+    HRESULT                  hrKnown            = SHGetKnownFolderPath (FOLDERID_Downloads, 0, nullptr, &known);
+
+
+
+    if (location.kind == Location::Kind::RecycleBin)
+    {
+        return GroupChoices::Folder::RecycleBin;
+    }
+
+    GetFolderViewKey (&type);
+
+    switch (type)
+    {
+        case FolderViews::FolderType::Drives:        return GroupChoices::Folder::Drives;
+        case FolderViews::FolderType::SearchResults: return GroupChoices::Folder::Search;
+        case FolderViews::FolderType::Documents:     return GroupChoices::Folder::Documents;
+        case FolderViews::FolderType::Pictures:      return GroupChoices::Folder::Pictures;
+        case FolderViews::FolderType::Music:         return GroupChoices::Folder::Music;
+        case FolderViews::FolderType::Videos:        return GroupChoices::Folder::Videos;
+        default:                                     break;
+    }
+
+    if (location.kind != Location::Kind::HostFolder)
+    {
+        return GroupChoices::Folder::Generic;
+    }
+
+    if (SUCCEEDED (hrKnown))
+    {
+        downloads = _wcsicmp (known, location.path.c_str()) == 0;
+    }
+
+    CoTaskMemFree (known);
+
+    if (downloads)
+    {
+        return GroupChoices::Folder::Documents;
+    }
+
+    if (GetEnvironmentVariableW (L"OneDrive", oneDrive, MAX_PATH) != 0 && _wcsnicmp (location.path.c_str(), oneDrive, wcslen (oneDrive)) == 0)
+    {
+        return GroupChoices::Folder::OneDrive;
+    }
+
+    return GroupChoices::Folder::Generic;
 }
 
 

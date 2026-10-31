@@ -25,7 +25,15 @@
 class RowGrouping
 {
 public:
-    enum class Field { None, Name, DateModified, Type, Size };
+    enum class Field { None, Name, DateModified, Type, Size, Folder, OriginalLocation, DateDeleted };
+
+    //  A field from here up groups by the shell property at that distance in
+    //  the list's property columns.
+    static constexpr int  kFirstPropertyField = (int) Field::DateDeleted + 1;
+
+    static Field   MakePropertyField (size_t property) { return (Field) (kFirstPropertyField + (int) property); }
+    static bool    IsPropertyField   (Field field)     { return (int) field >= kFirstPropertyField; }
+    static size_t  GetPropertyIndex  (Field field)     { return (size_t) ((int) field - kFirstPropertyField); }
 
     struct Group
     {
@@ -54,14 +62,20 @@ public:
     static Group  GetNameGroup  (const std::wstring & name);
     static Group  GetTypeGroup  (const std::wstring & typeText);
 
+    //  A date property groups as a date, and any other by its text; an item
+    //  without a value is Unspecified.
+    static Group  GetPropertyGroup (const CatalogModel::PropertyKey & key, const Today & today);
+
     //  Whether group `a` comes before group `b` in a list sorted up (or down).
     static bool   IsBefore      (const Group & a, const Group & b, bool descending);
 
     //  Today in local time, with the user's first day of the week.
     static Today  GetToday      ();
 
-private:
     static int64_t  ToDayNumber (int year, int month, int day);
+
+private:
+    static Group  GetUnixDateGroup (int64_t unixSeconds, bool wallClock, const Today & today);
 
     static constexpr uint64_t  s_kKiB = 1024;
     static constexpr uint64_t  s_kMiB = 1024 * s_kKiB;

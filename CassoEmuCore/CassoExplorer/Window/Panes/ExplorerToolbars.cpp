@@ -604,6 +604,7 @@ void ExplorerToolbars::SetCommandBarDropDowns()
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kSort,  std::move (sortItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kView,  std::move (viewItems));
     m_commandBar->SetDropDownItems (CassoExplorerCommands::kTheme, std::move (themeItems));
+    m_commandBar->SetDropDownItems (CassoExplorerCommands::kSearchOptions, m_context.listPane.GetMenus().GetSearchOptionChoices());
 
     //  Each theme is shown as the pointer passes over its row; leaving the
     //  menu without a choice puts back the one it opened on.

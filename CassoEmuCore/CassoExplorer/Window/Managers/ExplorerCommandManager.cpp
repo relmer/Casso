@@ -229,7 +229,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
         case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
-        case CassoExplorerCommands::kCloseSearch:       return true;
+        case CassoExplorerCommands::kCloseSearch:
+        case CassoExplorerCommands::kSearchOptions:     return true;
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_context.browser.GetLocation().kind == Location::Kind::RecycleBin && !m_context.browser.GetRows().empty();
         case CassoExplorerCommands::kNew:               return !m_context.browser.IsVolumeLocation() ? m_context.browser.GetLocation().kind == Location::Kind::HostFolder
@@ -257,7 +258,7 @@ bool ExplorerCommandManager::IsChecked (int id) const
 
 
 
-    if (id >= CassoExplorerCommands::kGroupByField && id <= CassoExplorerCommands::kGroupByField + (int) RowGrouping::Field::Size)
+    if (id >= CassoExplorerCommands::kGroupByField && id <= CassoExplorerCommands::kGroupByLast)
     {
         return model.HasTabs() && (int) model.GetActiveTab().groupBy == id - CassoExplorerCommands::kGroupByField;
     }
@@ -348,13 +349,13 @@ void ExplorerCommandManager::Dispatch (int id)
 
     //  A field groups dates newest first, as Explorer does, and the others
     //  from the start of the alphabet or the smallest.
-    if (id >= CassoExplorerCommands::kGroupByField && id <= CassoExplorerCommands::kGroupByField + (int) RowGrouping::Field::Size)
+    if (id >= CassoExplorerCommands::kGroupByField && id <= CassoExplorerCommands::kGroupByLast)
     {
         RowGrouping::Field  field = (RowGrouping::Field) (id - CassoExplorerCommands::kGroupByField);
 
         if (!IsChecked (id))
         {
-            m_context.browser.SetGroupBy (field, field == RowGrouping::Field::DateModified);
+            m_context.browser.SetGroupBy (field, field == RowGrouping::Field::DateModified || field == RowGrouping::Field::DateDeleted);
             m_context.listPane.GetColumns().RememberFolderSort();
             m_context.listPane.FillList();
         }
