@@ -66,7 +66,7 @@ static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
 static constexpr UINT     s_kDefaultSizeCommand = 0x0010;
 
 static constexpr LPCWSTR  s_kpszHint        = L"Scroll to zoom, drag to pan, double-click to fit";
-static constexpr LPCWSTR  s_kpszStripHint   = L"Scroll to zoom, drag to select, Shift+drag to pan, double-click for the whole track";
+static constexpr LPCWSTR  s_kpszStripHint   = L"Scroll to zoom, drag to select, Shift+drag to pan, double-click to select a field";
 static constexpr LPCWSTR  s_kpszNoDisk      = L"No disk";
 static constexpr LPCWSTR  s_kpszAnalyzing   = L"Analyzing";
 
@@ -1278,7 +1278,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
         m_statusBand->SetHint (!m_session.context.hasDisk ? m_session.statusNote : (IsInside (m_session.layout.platterArea, p) && !m_corners->Contains (p)) ? s_kpszHint
                                : IsInside (m_session.layout.stripArea, p) ? s_kpszStripHint : m_session.statusNote);
     }
-    else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
+    else if (ev.kind == DxuiMouseEventKind::Down || (ev.kind == DxuiMouseEventKind::Wheel && !ev.ctrl && !m_statusBand->IsOverZoom (p)) || ev.kind == DxuiMouseEventKind::Leave)
     {
         m_tooltip.RequestHide (static_cast<int64_t> (GetTickCount64()));
         m_tooltipText.clear();

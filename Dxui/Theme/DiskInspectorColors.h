@@ -85,7 +85,7 @@ struct DiskInspectorColors
         c.other            = 0xFF808890;
         c.noise            = 0xFFE070C0;
         c.randomBits       = 0xFF8A6A40;
-        c.nothingRecorded  = 0xFF202326;
+        c.nothingRecorded  = 0xFF2B2D31;
 
         c.sectorGood       = 0xFF5FD35F;
         c.sectorBad        = 0xFFFF7070;

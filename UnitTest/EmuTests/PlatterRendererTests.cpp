@@ -319,18 +319,21 @@ public:
     }
 
 
-    TEST_METHOD (OnlyTheMiddleRingOfARecordingIsNotAnEcho)
+    TEST_METHOD (TheWholeTrackOfARecordingIsNotAnEcho)
     {
-        constexpr int  kSlots[] = { 0, 0, 0, -1, 1, 2, 2, 2, 2 };
+        constexpr int  kSlots[] = { 0, 0, 0, 0, 1, 1, 1, 1, -1, 2, 2, 2, -1, -1, 3, -1 };
 
 
 
-        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 0));
-        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 1));
-        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 2));
-        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 3));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 0));
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 1));
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 3));
         Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 4));
-        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 6));
-        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 8));
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 5));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 8));
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 9));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 10));
+        Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 11));
+        Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 14));
     }
 };

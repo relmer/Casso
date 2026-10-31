@@ -483,3 +483,11 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T225 Stop the zoom where a trial layout leaves a sector's bytes less than their full size, in `DiskInspectorWindow::FitsZoom`, per FR-154
 - [X] T226 Dim rings that repeat a neighboring ring's recording, per FR-023
 - [X] T227 Return the File map grid to fit on a double-click, per FR-157
+- [X] T228 Turn the platter with the pointer on either side of its center in a right drag, per FR-151
+- [X] T229 Draw a tooltip with swatches line by line without wrapping, and size it with the host DPI, per FR-148
+- [X] T230 Add Fast or Slow to the timing line of a tooltip, per FR-148
+- [X] T231 Treat a whole track as the center of its recording, and average the rings under each pixel of the platter, per FR-023
+- [X] T232 Select nibbles with a drag on the Flux plot, and pan with Shift and a drag, per FR-045
+- [X] T233 Select the field under a double-click on the track strip, per FR-033
+- [X] T234 Show a message when the window size limits the zoom, per FR-154
+- [X] T235 Compute every nibble of a selected byte for 6-and-2 and 5-and-3, and mark them on the platter and strip, per FR-043

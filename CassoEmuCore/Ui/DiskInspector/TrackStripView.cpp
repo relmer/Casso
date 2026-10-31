@@ -898,7 +898,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
 
             if (m_isPressed && !m_isShiftPress && !isMoved && now - m_lastClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
             {
-                ShowWholeTrack();
+                SelectFieldAt (*track, static_cast<float> (p.x));
                 m_lastClickMs = 0;
             }
             else if (m_isPressed && !m_isShiftPress && !isMoved)
@@ -1323,6 +1323,33 @@ void TrackStripView::PanBy (double fractionOfView)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrackStripView::SelectFieldAt
+//
+//  Selects the field around the nibble at x, as a double-click selects a word.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::SelectFieldAt (const TrackAnalysis & track, float x)
+{
+    int  nibble = GetNibbleAtX (track, x);
+
+
+
+    for (const auto & field : track.fields)
+    {
+        if (nibble >= field.firstNibble && nibble < field.firstNibble + field.nibbleCount)
+        {
+            m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), field.firstNibble, field.nibbleCount);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrackStripView::ShowWholeTrack
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1530,6 +1557,19 @@ void TrackStripView::PaintShimmer (IDxuiPainter & painter, const StripGeometry &
     {
         end   = (end <= start) ? end + 1.0 : end;
         count = g.GetSegments (start, end - start, parts);
+    }
+
+    //  A selection of bytes also lights the rest of the nibbles they occupy.
+    for (const auto & run : m_context.model->GetByteRuns())
+    {
+        std::array<StripSegment, 2>  runParts = {};
+        int                          runCount = g.GetSegments (run.first, ((run.second <= run.first) ? run.second + 1.0 : run.second) - run.first, runParts);
+
+        for (int k = 0; k < runCount; k++)
+        {
+            InspectorMarquee::PaintShimmer (painter, runParts[k].x0, static_cast<float> (bar.top), runParts[k].x1 - runParts[k].x0, height, now,
+                                            { static_cast<LONG> (runParts[k].x0), bar.top, static_cast<LONG> (runParts[k].x1), bar.bottom });
+        }
     }
 
     //  The band crosses the selection's part in view, however wide the zoom

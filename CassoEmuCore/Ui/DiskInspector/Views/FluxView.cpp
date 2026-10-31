@@ -6,6 +6,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/PlatterGeometry.h"
 
 
 
@@ -164,6 +165,11 @@ void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     }
 
     PaintMarks (painter, text, theme, track, g);
+
+    text.DrawString (L"Each dot is a flux transition, placed by the time since the one before it. On a line is on time, above is late and below is early.\n"
+                     L"1 cell is a 1 bit after a 1 bit; 2 and 3 cells have one and two 0 bits between. Highlighted dots are selected; larger colored dots are too close to read.",
+                     static_cast<float> (plot.left) + m_scaler.ToPxf (s_kGapDip), static_cast<float> (plot.bottom) - 3 * textPx,
+                     static_cast<float> (w) - 2 * m_scaler.ToPxf (s_kGapDip), 3 * textPx, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace);
 
     m_occupied.assign (static_cast<size_t> (w) * static_cast<size_t> (h), 0);
 
@@ -400,8 +406,8 @@ void FluxView::PaintScope (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 //
 //  FluxView::OnMouse
 //
-//  A click on a scope switches the histogram. Over the plot the wheel and
-//  a drag zoom and pan as they do on the strip, which follows.
+//  A click on a scope switches the histogram. Over the plot the wheel zooms,
+//  a drag selects nibbles and Shift and a drag pans, as on the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -415,6 +421,7 @@ bool FluxView::OnMouse (const DxuiMouseEvent & ev)
     double                 span      = m_context.model->GetStripSpan();
     double                 width     = std::max (static_cast<double> (plot.right - plot.left), 1.0);
     double                 newSpan   = 0;
+    int                    nibble    = -1;
     RECT                   whole     = GetScopeOption (HistogramScope::WholeTrack);
     RECT                   selection = GetScopeOption (HistogramScope::Selection);
 
@@ -447,17 +454,31 @@ bool FluxView::OnMouse (const DxuiMouseEvent & ev)
             {
                 m_isPressed = true;
                 m_isPanning = false;
+                m_isShift   = ev.shift;
                 m_pressAt   = p;
                 m_lastAt    = p;
                 isHandled   = true;
+                nibble      = ev.shift ? -1 : GetNibbleAtX (*track, p.x);
+
+                if (nibble >= 0)
+                {
+                    m_context.model->SelectNibbles (m_context.model->GetQuarterTrack(), nibble, 1);
+                }
             }
 
             break;
 
         case DxuiMouseEventKind::Move:
-            if (m_isPressed && !m_isPanning && std::abs (p.x - m_pressAt.x) >= s_kDragThresholdPx)
+            if (m_isPressed && !m_isPanning && m_isShift && std::abs (p.x - m_pressAt.x) >= s_kDragThresholdPx)
             {
                 m_isPanning = true;
+            }
+
+            nibble = (m_isPressed && !m_isShift && std::abs (p.x - m_pressAt.x) >= s_kDragThresholdPx) ? GetNibbleAtX (*track, std::clamp (p.x, plot.left, plot.right - 1)) : -1;
+
+            if (nibble >= 0)
+            {
+                m_context.model->ExtendNibbles (nibble);
             }
 
             if (m_isPanning)
@@ -668,6 +689,26 @@ StripGeometry FluxView::MakeGeometry() const
 
 
     return StripGeometry (m_context.model->GetStripStart(), m_context.model->GetStripSpan(), static_cast<float> (plot.left), static_cast<float> (plot.right - plot.left));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetNibbleAtX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::GetNibbleAtX (const TrackAnalysis & track, LONG x) const
+{
+    RECT    plot = GetPlotRect();
+    double  turn = m_context.model->GetStripStart() + m_context.model->GetStripSpan() * (x - plot.left) / std::max (static_cast<double> (plot.right - plot.left), 1.0);
+
+
+
+    return PlatterGeometry::GetNibbleAt (track, PlatterGeometry::GetCellAtTurn (track, turn - std::floor (turn)));
 }
 
 

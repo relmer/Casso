@@ -44,7 +44,8 @@ public:
     void          ZoomAboutCenter (double factor);
     void          StepZoom        (int steps);
     void          PanBy           (double fractionOfView);
-    void          ShowWholeTrack  ();
+    void  SelectFieldAt  (const TrackAnalysis & track, float x);
+    void  ShowWholeTrack  ();
     std::wstring  GetReadout      () const;
 
     //  Which side of a comparison the strip shows: 0 for A, 1 for B.

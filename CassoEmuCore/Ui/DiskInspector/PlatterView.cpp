@@ -1353,6 +1353,7 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
                 m_isTilting = true;
                 m_tiltAt    = p;
                 m_pressTilt = m_context.model->GetTilt();
+                m_turnSign  = (p.y > MakeView().centerYPx) ? -1.0 : 1.0;
                 isHandled   = true;
             }
 
@@ -1362,7 +1363,7 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
             if (m_isTilting)
             {
                 m_context.model->SetTilt     (m_context.model->GetTilt() + (p.y - m_tiltAt.y) / half);
-                m_context.model->TurnByHand  ((p.x - m_tiltAt.x) / (s_kTwoPi * radius));
+                m_context.model->TurnByHand  (m_turnSign * (p.x - m_tiltAt.x) / (s_kTwoPi * radius));
                 m_tiltAt  = p;
                 isHandled = true;
             }

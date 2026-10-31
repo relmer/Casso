@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorViewModel.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 
@@ -1116,6 +1117,70 @@ void InspectorViewModel::ClampPan()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorViewModel::GetByteRuns
+//
+//  Each run of neighboring nibbles with the selected bytes' bits, as fractions
+//  of the turn: the high bits' runs first, then the low bits'. The selected
+//  bytes are not always neighbors on the disk (DiskFieldFormat::GetByteNibbles).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<std::pair<double, double>> InspectorViewModel::GetByteRuns() const
+{
+    static constexpr int  kDataPrologNibbles = 3;
+
+
+
+    const TrackAnalysis *              track  = GetTrack();
+    const AnalyzedSector *             sector = GetSector();
+    vector<std::pair<double, double>>  runs;
+    vector<int>                        high;
+    vector<int>                        low;
+    vector<int>                        bits;
+    int                                count  = 0;
+    int                                base   = 0;
+    int                                at     = 0;
+
+
+
+    if (track != nullptr && sector != nullptr && m_firstByte >= 0 && m_firstNibble < 0 && sector->dataField >= 0)
+    {
+        count = static_cast<int> (track->framed.nibbles.size());
+        base  = track->fields[sector->dataField].firstNibble + kDataPrologNibbles;
+
+        for (int b = m_firstByte; b < m_firstByte + m_byteCount; b++)
+        {
+            DiskFieldFormat::GetByteNibbles (sector->kind, b, at, bits);
+            high.push_back (at);
+            low.insert (low.end(), bits.begin(), bits.end());
+        }
+
+        for (vector<int> * group : { &high, &low })
+        {
+            std::sort (group->begin(), group->end());
+            group->erase (std::unique (group->begin(), group->end()), group->end());
+
+            for (size_t i = 0, j = 0; i < group->size(); i = j)
+            {
+                for (j = i + 1; j < group->size() && (*group)[j] == (*group)[j - 1] + 1; j++)
+                {
+                }
+
+                runs.emplace_back (TrackAnalyzer::GetAngle (*track, track->framed.nibbles[(base + (*group)[i]) % count].startCell),
+                                   TrackAnalyzer::GetAngle (*track, track->framed.nibbles[(base + (*group)[j - 1] + 1) % count].startCell));
+            }
+        }
+    }
+
+    return runs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorViewModel::GetSelectionTurn
 //
 //  Where the selection starts and ends as fractions of the turn, or -1 with
@@ -1125,18 +1190,11 @@ void InspectorViewModel::ClampPan()
 
 double InspectorViewModel::GetSelectionTurn (double & outEnd) const
 {
-    static constexpr int  kDataPrologNibbles = 3;
-    static constexpr int  kLowBitNibbles16   = 86;
-    static constexpr int  kLowBitNibbles13   = 154;
-
-
-
-    const TrackAnalysis *   track  = GetTrack();
-    const AnalyzedSector *  sector = GetSector();
-    double                  start  = -1;
-    int                     last   = 0;
-    int                     first  = 0;
-    int                     count  = 0;
+    const TrackAnalysis                * track  = GetTrack();
+    const AnalyzedSector               * sector = GetSector();
+    double                               start  = -1;
+    int                                  last   = 0;
+    vector<std::pair<double, double>>    runs;
 
 
 
@@ -1152,12 +1210,14 @@ double InspectorViewModel::GetSelectionTurn (double & outEnd) const
     }
     else if (track != nullptr && sector != nullptr && m_firstByte >= 0 && sector->dataField >= 0)
     {
-        //  Each byte's main nibble: the data field has a prolog, then the
-        //  nibbles of the bytes' low bits, then one nibble per byte in order.
-        count  = static_cast<int> (track->framed.nibbles.size());
-        first  = track->fields[sector->dataField].firstNibble + kDataPrologNibbles + ((sector->kind == DiskFieldKind::Sixteen) ? kLowBitNibbles16 : kLowBitNibbles13) + m_firstByte;
-        start  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[first % count].startCell);
-        outEnd = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[(first + m_byteCount) % count].startCell);
+        //  The first run of the nibbles with the selected bytes' high bits.
+        runs = GetByteRuns();
+
+        if (!runs.empty())
+        {
+            start  = runs[0].first;
+            outEnd = runs[0].second;
+        }
     }
     else if (track != nullptr && sector != nullptr)
     {

@@ -101,6 +101,7 @@ private:
     bool                              m_isPanning        = false;
     bool                              m_isTilting        = false;
     double                            m_pressTilt        = 0.0;
+    double                            m_turnSign         = 1.0;
     POINT                             m_tiltAt           = {};
     POINT                             m_pressAt          = {};
     POINT                             m_lastAt           = {};

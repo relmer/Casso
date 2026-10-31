@@ -206,6 +206,6 @@ public:
         Assert::AreEqual (std::wstring (L"No standard sectors on this track. The Nibbles tab shows what is recorded on it."), InspectorText::FormatNoSectorData (empty, &noSectors));
         Assert::IsTrue   (InspectorText::FormatNoSectorData (damaged, nullptr).starts_with (L"This quarter track is damaged: its data lies outside the file"));
         Assert::AreEqual (std::wstring (L"No track"),                  InspectorText::FormatNoSectors (QuarterTrackEntry()));
-        Assert::AreEqual (std::wstring (L"None in a standard format"), InspectorText::FormatNoSectors (empty));
+        Assert::AreEqual (std::wstring (L"No sectors in the standard format"), InspectorText::FormatNoSectors (empty));
     }
 };

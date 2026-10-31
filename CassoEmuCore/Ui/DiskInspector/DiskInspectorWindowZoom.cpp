@@ -70,12 +70,15 @@
 
 void DiskInspectorWindow::SetZoom (double zoom)
 {
-    static constexpr double  kStep = 0.01;
+    static constexpr double  kStep         = 0.01;
+    static constexpr int     kNoteMs       = 4000;
+    static constexpr int     kNoteWidthDip = 300;
 
 
 
     double  scale  = static_cast<double> (GetDpi()) / USER_DEFAULT_SCREEN_DPI;
     RECT    window = {};
+    LONG    status = 0;
 
 
 
@@ -84,6 +87,17 @@ void DiskInspectorWindow::SetZoom (double zoom)
     while (m_zoom > 1.0 && !FitsZoom (m_zoom))
     {
         m_zoom = std::max (1.0, m_zoom - kStep);
+    }
+
+    if (m_zoom < std::min (zoom, DxuiZoomControl::kMaxZoom) - kStep / 2)
+    {
+        status = m_boundsDip.bottom - m_statusBand->GetHeightPx (m_session.hostScaler);
+
+        m_tooltip.SetSwatches   ({});
+        m_tooltip.SetLineColors ({});
+        m_tooltip.ShowTimed     ({ m_boundsDip.right - m_session.hostScaler.ToPx (kNoteWidthDip), status, m_boundsDip.right, status },
+                                 std::format (L"Zoom is limited to {:.0f}% at this window size. Enlarge the window to zoom further.", m_zoom * 100.0),
+                                 static_cast<int64_t> (GetTickCount64()), kNoteMs);
     }
 
     m_statusBand->SetZoom (m_zoom);

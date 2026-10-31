@@ -736,7 +736,7 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
     POINT    topLeft  = { anchor.left,  anchor.top };
     POINT    botRight = { anchor.right, anchor.bottom };
     HWND     owner    = m_popupHost->GetHwnd();
-    UINT     dpi      = m_scaler.GetDpi();
+    UINT     dpi      = m_popupHost->GetScaler().GetDpi();
     float    fontPx   = m_scaler.ToPxf (m_fontDip);
     float    maxWPx   = m_scaler.ToPxf ((m_swatches.empty() && m_lineArgbs.empty()) ? s_kMaxTextWidthDip : s_kMaxSwatchTextWidthDip);
     float    padXPx   = m_scaler.ToPxf (s_kPadXDip);
@@ -1059,15 +1059,16 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT  hr       = S_OK;
-    RECT     placed   = {};
-    float    width    = 0.0f;
-    float    height   = 0.0f;
-    float    padX     = m_scaler.ToPxf (s_kPadXDip);
-    float    padY     = m_scaler.ToPxf (s_kPadYDip);
-    float    borderPx = m_scaler.ToPxf (s_kBorderDip);
-    float    fontPx   = m_scaler.ToPxf (m_fontDip);
-    float    swatch   = m_scaler.ToPxf (m_fontDip * s_kSwatchEm);
+    HRESULT  hr        = S_OK;
+    RECT     placed    = {};
+    float    width     = 0.0f;
+    float    height    = 0.0f;
+    float    padX      = m_scaler.ToPxf (s_kPadXDip);
+    float    padY      = m_scaler.ToPxf (s_kPadYDip);
+    float    borderPx  = m_scaler.ToPxf (s_kBorderDip);
+    float    fontPx    = m_scaler.ToPxf (m_fontDip);
+    float    swatch    = m_scaler.ToPxf (m_fontDip * s_kSwatchEm);
+    bool     isWrapped = m_swatches.empty() && m_lineArgbs.empty();
 
 
 
@@ -1090,7 +1091,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         painter.OutlineRect (padX, padY + s.line * m_lineHeightPx + (m_lineHeightPx - swatch) / 2.0f, swatch, swatch, borderPx, m_borderArgb);
     }
 
-    if (m_lineArgbs.empty())
+    if (isWrapped)
     {
         hr = text.DrawString (m_text.c_str(),
                               padX + GetSwatchColumnPx(),
@@ -1103,9 +1104,9 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    //  With line colors, each line is drawn alone, at the line height the
-    //  swatches use.
-    for (size_t start = 0, line = 0; !m_lineArgbs.empty() && start <= m_text.size(); line++)
+    //  With swatches or line colors, each line is drawn alone and unwrapped,
+    //  at the line height the swatches use.
+    for (size_t start = 0, line = 0; !isWrapped && start <= m_text.size(); line++)
     {
         size_t        end  = std::min (m_text.find (L'\n', start), m_text.size());
         std::wstring  part = m_text.substr (start, end - start);
@@ -1118,7 +1119,11 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                               m_lineHeightPx,
                               argb,
                               fontPx,
-                              GetFace());
+                              GetFace(),
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Top,
+                              DxuiFontWeight::Normal,
+                              false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         start = end + 1;

@@ -260,7 +260,7 @@ std::wstring InspectorText::FormatTrackLine (const TrackAnalysis * track)
 //
 //  InspectorText::FormatMeasureLine
 //
-//  "Turn 199.6 ms (300.6 RPM) · mean cell 3.93µs (+0.5%) · longest sync 40
+//  "One revolution 199.6 ms (300.6 RPM) · mean cell 3.93µs (+0.5%) · longest sync 40
 //  nibbles at cell 12,400", the turn and cell items on flux tracks only.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,7 +279,7 @@ std::wstring InspectorText::FormatMeasureLine (const TrackAnalysis & track)
 
     if (track.framed.isFlux && m.turnTicks > 0)
     {
-        items.push_back (std::format (L"Turn {:.1f} ms ({:.1f} RPM)", m.turnTicks / kTicksPerMs, m.rpm));
+        items.push_back (std::format (L"One revolution {:.1f} ms ({:.1f} RPM)", m.turnTicks / kTicksPerMs, m.rpm));
         items.push_back (L"mean cell " + InspectorFormat::FormatMicroseconds (m.meanCellTicks) + L" (" + InspectorFormat::FormatPercent (m.deviation) + L")");
     }
 
@@ -425,7 +425,7 @@ std::wstring InspectorText::FormatSelection (const TrackAnalysis * track, int qu
 
 std::wstring InspectorText::FormatNoSectors (const QuarterTrackEntry & entry)
 {
-    return (entry.content == QuarterTrackContent::Nothing) ? L"No track" : L"None in a standard format";
+    return (entry.content == QuarterTrackContent::Nothing) ? L"No track" : L"No sectors in the standard format";
 }
 
 

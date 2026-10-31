@@ -48,6 +48,7 @@ static const float kSeamMinPx    = 3.0;
 static const float kRimPx        = 6.0;
 static const float kRimDark      = 0.55;
 static const float kEyeDistance  = 3.0;
+static const float kMaxRingSamples = 8.0;
 
 cbuffer Platter : register (b0)
 {
@@ -184,7 +185,14 @@ float4 main (float4 position : SV_Position) : SV_Target
     float   spacing    = 1.0 / max (length (float2 (ddx (ringF), ddy (ringF))), 1e-6);
     float   footprint  = max (length (ddx (d)), length (ddy (d)));
     float   coverage   = saturate (1.0 - frac (ringF) * spacing);
-    float4  color;
+    float   across     = 1.0 / spacing;
+    float   from       = max (ringF - across / 2.0, 0.0);
+    float   to         = min (ringF + across / 2.0, ringCount);
+    float   stride     = max (ceil ((floor (to) - floor (from) + 1.0) / kMaxRingSamples), 1.0);
+    float   weight     = 0.0;
+    float   total      = 0.0;
+    float   at         = 0.0;
+    float4  color      = float4 (0.0, 0.0, 0.0, 0.0);
 
 
 
@@ -193,7 +201,16 @@ float4 main (float4 position : SV_Position) : SV_Target
         discard;
     }
 
-    color = SampleRing (ring, turn, radiusPx, position.xy, 1.0 / max (footprint, 1e-6));
+    //  Every ring under the pixel in proportion to how much of the pixel it
+    //  covers, so rings narrower than a pixel can't beat against the pixel grid.
+    for (at = floor (from); at < to && at < ringCount; at += stride)
+    {
+        weight = max (min (at + stride, to) - max (at, from), 1e-4);
+        color += weight * SampleRing ((uint) at, turn, radiusPx, position.xy, 1.0 / max (footprint, 1e-6));
+        total += weight;
+    }
+
+    color /= max (total, 1e-6);
 
     //  A groove at each whole-track boundary and a dark seam at every other
     //  ring's edge. Spacing is measured on the screen, so it includes the

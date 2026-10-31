@@ -404,6 +404,11 @@ void PlatterOverlays::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme
         PaintArcMark (painter, view, m_view.m_context.model->GetQuarterTrack(), start, end, true);
     }
 
+    for (const auto & run : m_view.m_context.model->GetByteRuns())
+    {
+        PaintArcMark (painter, view, m_view.m_context.model->GetQuarterTrack(), run.first, run.second, true);
+    }
+
     if (track != nullptr && track->framed.cellCount > 0)
     {
         sector = PlatterGeometry::GetSectorAt (*track, PlatterGeometry::GetCellAtTurn (*track, hit.turn));

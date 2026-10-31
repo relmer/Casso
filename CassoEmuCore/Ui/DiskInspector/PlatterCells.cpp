@@ -183,15 +183,21 @@ void PlatterCells::BuildLevels (const vector<Byte> & cells, vector<vector<Byte>>
 //  PlatterCells::IsEchoRing
 //
 //  Neighboring rings with one slot have one recording, which is centered on
-//  the run's middle ring. Every other ring of the run is an echo of it.
+//  its whole track, or on the run's middle ring when the run has no whole
+//  track. Every other ring of the run is an echo of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PlatterCells::IsEchoRing (std::span<const int> slots, int ring)
 {
+    static constexpr int  kPerTrack = DiskImage::kQuarterTracksPerWholeTrack;
+
+
+
     int  count = static_cast<int> (slots.size());
     int  first = ring;
     int  last  = ring;
+    int  whole = 0;
 
 
 
@@ -205,5 +211,7 @@ bool PlatterCells::IsEchoRing (std::span<const int> slots, int ring)
         last++;
     }
 
-    return slots[ring] >= 0 && ring != (first + last) / 2;
+    whole = (first + kPerTrack - 1) / kPerTrack * kPerTrack;
+
+    return slots[ring] >= 0 && ring != ((whole <= last) ? ring - ring % kPerTrack : (first + last) / 2);
 }

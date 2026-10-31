@@ -418,7 +418,8 @@ void InspectorTip::AddTiming (const InspectorViewContext & context, const TrackA
     }
 
     mean = ticks / cellCount;
-    line = InspectorFormat::FormatMicroseconds (mean) + L" cells (" + InspectorFormat::FormatPercent (mean / TrackAnalyzer::kNominalCellTicks - 1.0) + L")";
+    line = std::wstring ((mean < TrackAnalyzer::kNominalCellTicks) ? L"Fast " : L"Slow ") + InspectorFormat::FormatMicroseconds (mean) + L" per cell (" +
+           InspectorFormat::FormatPercent (mean / TrackAnalyzer::kNominalCellTicks - 1.0) + L")";
 
     if (isColored)
     {

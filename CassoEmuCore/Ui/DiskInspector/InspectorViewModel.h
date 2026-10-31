@@ -179,6 +179,9 @@ public:
     //  with nothing selected.
     double  GetSelectionTurn (double & outEnd) const;
 
+    //  Every run of nibbles the selected bytes occupy, as start and end turns.
+    vector<std::pair<double, double>>  GetByteRuns () const;
+
 private:
     void    SelectFirstSector      ();
     void    FitStripToTrack        ();
