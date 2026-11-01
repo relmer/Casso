@@ -468,6 +468,8 @@ bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, Go
     std::wstring           plain;
     int                    value    = -1;
     int                    nibble   = -1;
+    int                    low      = 0;
+    int                    high     = 0;
     uint32_t               best     = UINT32_MAX;
     uint32_t               cells    = 0;
     bool                   isRead   = false;
@@ -496,7 +498,7 @@ bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, Go
 
     if (!isRead || value < 0)
     {
-        outError = (kind == GoToKind::Track) ? L"Enter a track from 0 to 39.75, such as 17.25." : L"Enter a number in the base the inspector shows it in.";
+        outError = GetEntryError (analysis, quarterTrack, kind);
     }
     else if (kind == GoToKind::File)
     {
@@ -505,6 +507,10 @@ bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, Go
     else if (kind == GoToKind::Track)
     {
         outTarget.quarterTrack = value;
+    }
+    else if (kind == GoToKind::ProDosBlock && (!GetBlockRange (analysis, low, high) || value < low || value > high))
+    {
+        outError = GetEntryError (analysis, quarterTrack, kind);
     }
     else
     {
@@ -518,7 +524,7 @@ bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, Go
         else if (kind == GoToKind::NibbleOffset)
         {
             outTarget.firstNibble = (value < static_cast<int> (track->framed.nibbles.size())) ? value : -1;
-            outError              = (outTarget.firstNibble < 0) ? std::format (L"This track has {} nibbles.", InspectorFormat::FormatCount (track->framed.nibbles.size())) : L"";
+            outError              = (outTarget.firstNibble < 0) ? GetEntryError (analysis, quarterTrack, kind) : L"";
         }
         else if (kind == GoToKind::Cell)
         {
@@ -538,18 +544,131 @@ bool InspectorGoTo::Resolve (const DiskAnalysis & analysis, int quarterTrack, Go
             }
 
             outTarget.firstNibble = nibble;
-            outError              = (nibble < 0) ? std::format (L"This track has {} cells.", InspectorFormat::FormatCount (cells)) : L"";
+            outError              = (nibble < 0) ? GetEntryError (analysis, quarterTrack, kind) : L"";
         }
         else
         {
             outTarget.sectorIndex = FindSector (*track, kind, value);
             outError              = (outTarget.sectorIndex >= 0) ? L""
                                   : (kind == GoToKind::ProDosBlock) ? std::format (L"Block {} is not on track {}.", value, InspectorFormat::FormatQuarterTrack (outTarget.quarterTrack))
-                                  : std::format (L"No {} {} on this track.", (kind == GoToKind::Dos33Sector) ? L"DOS 3.3 sector" : L"sector", InspectorFormat::FormatSector (value));
+                                  : GetEntryError (analysis, quarterTrack, kind);
         }
     }
 
     return outError.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorGoTo::IsPartial
+//
+//  Whether an entry that can't be read yet could be the start of one that can,
+//  so it isn't an error while it is being typed: "17." or "17.2" for a track and
+//  "$" for a number in hex.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorGoTo::IsPartial (GoToKind kind, const std::wstring & text)
+{
+    bool  isPartial = false;
+    int   value     = 0;
+
+
+
+    if (kind == GoToKind::Track)
+    {
+        isPartial = text.find (L'.') != std::wstring::npos && (InspectorFormat::TryParseQuarterTrack (text + L"0", value) || InspectorFormat::TryParseQuarterTrack (text + L"5", value));
+    }
+    else if (kind == GoToKind::PhysicalSector || kind == GoToKind::Dos33Sector || kind == GoToKind::NibbleOffset)
+    {
+        isPartial = text == L"$";
+    }
+
+    return isPartial;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorGoTo::GetEntryError
+//
+//  An entry that isn't valid, as what to enter: the range hint as an instruction,
+//  or the hint alone when there is no range to enter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorGoTo::GetEntryError (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind)
+{
+    std::wstring  hint = GetRangeHint (analysis, quarterTrack, kind);
+
+
+
+    if (hint.starts_with (L"A "))
+    {
+        hint = L"Enter a " + hint.substr (2);
+    }
+    else if (hint.starts_with (L"An "))
+    {
+        hint = L"Enter an " + hint.substr (3);
+    }
+
+    return hint + L".";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorGoTo::GetBlockRange
+//
+//  The ProDOS blocks on the disk: those of the whole tracks with all 16 sectors
+//  in the standard format. False with no such track, as a block has no meaning
+//  on a disk laid out any other way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorGoTo::GetBlockRange (const DiskAnalysis & analysis, int & outLow, int & outHigh)
+{
+    static constexpr int  kSectorsPerFullTrack = s_kBlocksPerTrack * 2;
+
+
+
+    bool  isFound = false;
+
+
+
+    for (int t = 0; t * DiskImage::kQuarterTracksPerWholeTrack < DiskImage::kQuarterTrackCount; t++)
+    {
+        const TrackAnalysis *  track = GetTrack (analysis, t * DiskImage::kQuarterTracksPerWholeTrack);
+        int                    count = 0;
+        int                    low   = INT_MAX;
+        int                    high  = -1;
+
+        for (const AnalyzedSector & sector : (track != nullptr) ? track->sectors : vector<AnalyzedSector>())
+        {
+            count += (sector.prodosBlock >= 0) ? 1 : 0;
+            low    = (sector.prodosBlock >= 0) ? std::min (low, sector.prodosBlock) : low;
+            high   = std::max (high, sector.prodosBlock);
+        }
+
+        if (count >= kSectorsPerFullTrack)
+        {
+            outLow  = isFound ? std::min (outLow, low) : low;
+            outHigh = isFound ? std::max (outHigh, high) : high;
+            isFound = true;
+        }
+    }
+
+    return isFound;
 }
 
 
@@ -616,16 +735,12 @@ std::wstring InspectorGoTo::GetRangeHint (const DiskAnalysis & analysis, int qua
     const TrackAnalysis *  track  = GetTrack (analysis, quarterTrack);
     std::wstring           where  = L" on track " + InspectorFormat::FormatQuarterTrack (quarterTrack);
     std::wstring           hint;
-    int                    tracks = 0;
+    int                    first  = 0;
+    int                    last   = 0;
     int                    low    = INT_MAX;
     int                    high   = -1;
 
 
-
-    for (int t = 0; t * DiskImage::kQuarterTracksPerWholeTrack < DiskImage::kQuarterTrackCount; t++)
-    {
-        tracks = (GetTrack (analysis, t * DiskImage::kQuarterTracksPerWholeTrack) != nullptr) ? t + 1 : tracks;
-    }
 
     for (const AnalyzedSector & sector : (track != nullptr) ? track->sectors : vector<AnalyzedSector>())
     {
@@ -648,7 +763,7 @@ std::wstring InspectorGoTo::GetRangeHint (const DiskAnalysis & analysis, int qua
             break;
 
         case GoToKind::ProDosBlock:
-            hint = (tracks > 0) ? std::format (L"A block from 0 to {}", tracks * s_kBlocksPerTrack - 1) : std::wstring (L"No tracks with data");
+            hint = GetBlockRange (analysis, first, last) ? std::format (L"A block from {} to {}", first, last) : std::wstring (L"No ProDOS blocks, as this disk has no 16-sector tracks");
             break;
 
         case GoToKind::NibbleOffset:

@@ -406,6 +406,11 @@ public:
         Assert::IsFalse (FindBar::IsSame (a, b));
 
         Assert::IsTrue (FindBar::GetHint (SearchKind::Nibbles).find (L"D5 AA 96") != std::wstring::npos);
+        Assert::IsTrue  (FindBar::GetPatternError (SearchKind::Nibbles, L"").empty());
+        Assert::IsTrue  (FindBar::GetPatternError (SearchKind::Nibbles, L"D").empty(), L"an incomplete pair isn't an error");
+        Assert::IsTrue  (FindBar::GetPatternError (SearchKind::Nibbles, L"D5 A").empty());
+        Assert::IsFalse (FindBar::GetPatternError (SearchKind::Nibbles, L"Z").empty());
+        Assert::IsFalse (FindBar::GetPatternError (SearchKind::SectorText, L"\x263A").empty());
         Assert::IsTrue (FindBar::GetHint (SearchKind::SectorText).find (L"high bit") != std::wstring::npos);
     }
 

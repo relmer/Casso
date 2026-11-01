@@ -83,6 +83,8 @@ public:
     const RECT         & GetRect           () const { return m_boundsDip;    }
     bool                 IsFocused         () const { return m_focused; }
     bool                 IsEnabled         () const { return m_enabled; }
+    void                 SelectAll         () { m_anchor = 0; m_caret = m_text.size(); }
+    void                 ClearSelection    () { m_anchor = m_caret; }
     size_t               GetCaret          () const { return m_caret; }
     size_t               GetSelectionStart () const { return std::min (m_caret, m_anchor); }
     size_t               GetSelectionEnd   () const { return std::max (m_caret, m_anchor); }

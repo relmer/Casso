@@ -57,8 +57,8 @@ FindBar::FindBar()
     m_input->SetMaxLength (s_kMaxPatternChars);
     m_input->SetPlaceholder (L"Find");
 
-    m_input->SetOnChange      ([this] (const std::wstring &) { SetError (L""); });
-    m_kind->SetSelect         ([this] (int) { m_anyBit->SetEnabled (GetQuery().kind == SearchKind::Nibbles); ShowHint(); Submit (0); });
+    m_input->SetOnChange      ([this] (const std::wstring & text) { SetError (GetPatternError (GetQuery().kind, text)); });
+    m_kind->SetSelect         ([this] (int) { m_anyBit->SetEnabled (GetQuery().kind == SearchKind::Nibbles); ShowHint(); SetError (GetPatternError (GetQuery().kind, m_input->GetText())); Submit (0); });
     m_wholeDisk->SetOnChange  ([this] (bool) { Submit (0); });
     m_anyBit->SetOnChange     ([this] (bool) { Submit (0); });
     m_prev->SetOnClick        ([this] () { Submit (-1); });
@@ -244,6 +244,44 @@ std::wstring FindBar::GetHint (SearchKind kind)
     }
 
     return hint;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindBar::GetBadPatternMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FindBar::GetBadPatternMessage (SearchKind kind)
+{
+    return (kind == SearchKind::SectorText) ? L"Enter the text to find, in plain ASCII." : L"Enter pairs of hex digits, such as D5 AA 96.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindBar::GetPatternError
+//
+//  What is wrong with a pattern now; nothing for one that can be read,
+//  or one that can be once the pair being typed has its second digit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FindBar::GetPatternError (SearchKind kind, const std::wstring & text)
+{
+    vector<SearchItem>  items;
+    bool                isOk = text.empty() || InspectorSearch::ParsePattern (text, kind, items) || InspectorSearch::ParsePattern (text + L"0", kind, items);
+
+
+
+    return isOk ? std::wstring() : GetBadPatternMessage (kind);
 }
 
 

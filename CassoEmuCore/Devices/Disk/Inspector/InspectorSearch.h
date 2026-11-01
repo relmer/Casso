@@ -162,8 +162,13 @@ public:
     //  offset or a cell, entered with its track.
     static bool  IsOnTrack (GoToKind kind);
 
+    //  Whether an entry that can't be read could be the start of one that can.
+    static bool  IsPartial (GoToKind kind, const std::wstring & text);
+
 private:
     static const TrackAnalysis *  GetTrack (const DiskAnalysis & analysis, int quarterTrack);
+    static std::wstring  GetEntryError (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
+    static bool  GetBlockRange (const DiskAnalysis & analysis, int & outLow, int & outHigh);
     static int   FindSector (const TrackAnalysis & track, GoToKind kind, int value);
     static bool  FindFile   (const DiskAnalysis & analysis, const std::wstring & path, GoToTarget & outTarget);
 };

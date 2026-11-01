@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Pch.h"
+
+#include "Window/DxuiPopupHost.h"
 #include "Core/IDxuiControl.h"
 #include "Theme/DxuiTheme.h"
 #include "Theme/IDxuiTheme.h"
@@ -137,7 +139,7 @@ public:
     // For transient notices where no pointer-leave will arrive to dismiss
     // it -- e.g. entering paddle mode captures the mouse, so the hover that
     // would normally hide the tooltip never fires.
-    void  ShowTimed       (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs);
+    void  ShowTimed       (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs, DxuiPopupPlacement placement = DxuiPopupPlacement::Below);
     void  Tick            (int64_t nowMs) override;
 
     //
@@ -224,6 +226,7 @@ private:
     std::wstring                      m_text;
     std::wstring                      m_pendingText;
     RECT                              m_pendingAnchor     = {};
+    DxuiPopupPlacement                m_placement         = DxuiPopupPlacement::Below;
     int64_t                           m_showAtMs          = 0;
     int64_t                           m_hideAtMs          = 0;
     int                               m_dwellOpenMs       = 500;

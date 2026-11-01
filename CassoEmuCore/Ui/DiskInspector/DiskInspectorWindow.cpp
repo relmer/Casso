@@ -693,8 +693,9 @@ void DiskInspectorWindow::BuildCommands()
     c.applyEdits->isEnabled     = [this] () { return m_editing->GetState().canApply && m_session.edits.GetCounts().sectors > 0; };
     c.discardEdits              = make (L"&Discard edits", L"", [this] () { m_session.edits.DiscardAll(); });
     c.discardEdits->isEnabled   = [this] () { return m_session.edits.GetCounts().sectors > 0; };
-    c.find                      = make (L"&Find...", L"Ctrl+F", [this] () { m_findPart->OpenFindBar(); });
+    c.find                      = make (L"&Find...", L"Ctrl+F", [this] () { m_session.isFindOpen ? m_findPart->CloseFindBar() : m_findPart->OpenFindBar(); });
     c.find->isEnabled           = hasDisk;
+    c.find->isChecked           = [this] () { return m_session.isFindOpen; };
     c.findNext                  = make (L"Find &next", L"F3", [this] () { m_findPart->StepFind (1); });
     c.findNext->isEnabled       = [this] () { return !m_session.find.IsEmpty(); };
     c.findPrevious              = make (L"Find pre&vious", L"Shift+F3", [this] () { m_findPart->StepFind (-1); });

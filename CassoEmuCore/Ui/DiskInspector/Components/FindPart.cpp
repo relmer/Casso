@@ -12,13 +12,6 @@
 
 
 
-static constexpr LPCWSTR  s_kpszFindBadHex  = L"Enter pairs of hex digits, such as D5 AA 96.";
-static constexpr LPCWSTR  s_kpszFindBadText = L"Enter the text to find, in plain ASCII.";
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindPart::FindPart
@@ -319,7 +312,7 @@ void FindPart::RunFind (const SearchQuery & query)
     }
 
     m_findBar->SetSearched (query);
-    m_findBar->SetError (isRead ? std::wstring() : (query.kind == SearchKind::SectorText ? std::wstring (s_kpszFindBadText) : std::wstring (s_kpszFindBadHex)));
+    m_findBar->SetError (isRead ? std::wstring() : FindBar::GetBadPatternMessage (query.kind));
 
     RefreshFindResults();
     StepFind (1);

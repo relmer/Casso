@@ -25,6 +25,7 @@ static constexpr int      s_kInsetDip       = 4;
 static constexpr int64_t  s_kLegendReopenMs = 300;
 static constexpr int      s_kLegendWidthDip = 480;
 static constexpr double   s_kRadiansPerDeg  = 0.017453292519943295;
+static constexpr double   s_kMinLastTilt    = 0.3490658503988659;
 static constexpr LPCWSTR  s_kpszGlyphLegend = L"\xE790";
 static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
 static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
@@ -352,8 +353,9 @@ void PlatterCorners::Update()
         m_tiltSlider->SetValue (static_cast<float> (m_session.model.GetTilt() / s_kRadiansPerDeg));
     }
 
-    //  The last tilt the user set, for the tilt button and View > "Tilted".
-    m_lastTilt = m_session.model.IsTilted() ? m_session.model.GetTilt() : m_lastTilt;
+    //  The last clear tilt the user set, for the tilt button and View > "Tilted".
+    //  A drag toward flat passes through small tilts that aren't worth returning to.
+    m_lastTilt = (m_session.model.GetTilt() >= s_kMinLastTilt) ? m_session.model.GetTilt() : m_lastTilt;
 
     if (isSliderOut != m_isSliderOut)
     {

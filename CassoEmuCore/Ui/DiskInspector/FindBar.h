@@ -54,6 +54,10 @@ public:
     //  The format of each kind of pattern, for the info tip.
     static std::wstring  GetHint (SearchKind kind);
 
+    //  Why a pattern can't be read, as it is typed, and in general for a kind.
+    static std::wstring  GetPatternError      (SearchKind kind, const std::wstring & text);
+    static std::wstring  GetBadPatternMessage (SearchKind kind);
+
     //  Whether two queries find the same hits.
     static bool  IsSame (const SearchQuery & a, const SearchQuery & b);
 

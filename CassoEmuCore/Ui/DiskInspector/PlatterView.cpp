@@ -18,12 +18,13 @@
 static constexpr float  s_kIndexMarkDip     = 10.0f;
 static constexpr float  s_kIndexLabelDip    = 36.0f;
 static constexpr float  s_kIndexStepDip     = 6.0f;
-static constexpr float  s_kIndexGapDip      = 3.0f;
-static constexpr float  s_kIndexLineDip     = 10.0f;
+static constexpr float  s_kIndexGapDip      = 6.0f;
+static constexpr float  s_kIndexLineDip     = 14.0f;
+static constexpr int64_t s_kIndexStillMs    = 250;
 static constexpr float  s_kIndexMaxCos      = 0.866f;
 static constexpr float  s_kIndexAboveEm     = 0.29f;
 static constexpr float  s_kIndexBelowEm     = 0.41f;
-static constexpr float  s_kIndexButtonDip   = 64.0f;
+static constexpr float  s_kIndexButtonDip   = 44.0f;
 static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
 static constexpr float  s_kHubLightDip     = 2.0f;
@@ -119,8 +120,13 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         PaintDisk    (painter, theme, view);
         PaintNibbles (painter, text, theme, view);
         PaintHead    (painter, theme, view);
-        PaintIndexLabel (painter, text, theme, view);
-            painter.SetClipRect (hadClip ? &oldClip : nullptr);
+
+        if (IsIndexStill (view))
+        {
+            PaintIndexLabel (painter, text, theme, view);
+        }
+
+        painter.SetClipRect (hadClip ? &oldClip : nullptr);
     }
 }
 
@@ -1103,17 +1109,17 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintIndexLabel
 //
-//  The index mark's label off the disk: the nearest place along the rim's
-//  tangent, past the mark, where the label is in the view, clear of the corner
-//  buttons and off the disk, and where a line to it is at least
-//  30 degrees from the mark. The line runs toward the label's center and
-//  stops one gap short of the mark and of the letters.
+//  The index mark's label off the disk: the nearest place to the mark, at
+//  30 degrees or more from it, where the label is in the view, clear of the corner
+//  buttons and off the disk. The line runs toward the label's center and stops
+//  one gap short of the mark and of the letters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const
 {
-    static constexpr int  kTries = 60;
+    static constexpr int                   kTries  = 40;
+    static constexpr std::array<float, 6>  kAngles = { 0.5236f, 0.7854f, 1.0472f, 1.309f, 1.5708f, 1.8326f };
 
 
 
@@ -1152,36 +1158,73 @@ void PlatterView::PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & t
 
     text.MeasureString (L"Index", textPx, DxuiTheme::kBodyFace, textW, textH);
 
-    for (int k = 0; k < kTries && !isDone && tipX >= m_boundsDip.left && tipX <= m_boundsDip.right && tipY >= m_boundsDip.top && tipY <= m_boundsDip.bottom; k++)
+    if (tipX < m_boundsDip.left || tipX > m_boundsDip.right || tipY < m_boundsDip.top || tipY > m_boundsDip.bottom)
     {
-        for (float side : { 1.0f, -1.0f })
+        return;
+    }
+
+    for (int k = 0; k < kTries && !isDone; k++)
+    {
+        for (float angle : kAngles)
         {
-            cx = tipX + outX * away + side * nextX * step * k;
-            cy = tipY + outY * away + side * nextY * step * k;
-
-            float  dx     = cx - tipX;
-            float  dy     = cy - tipY;
-            float  dist   = std::max (std::hypot (dx, dy), 1e-3f);
-            bool   isWide = (dx * outX + dy * outY) / dist <= s_kIndexMaxCos;
-
-            if (!isDone && isWide && IsIndexLabelClear (view, cx, cy, w, h))
+            for (float side : { 1.0f, -1.0f })
             {
-                float  letters = (dy > 0.0f) ? textPx * s_kIndexAboveEm : textPx * s_kIndexBelowEm;
-                float  scale   = std::min ((std::abs (dx) > 1e-3f) ? (textW / 2 + gap) / std::abs (dx) : FLT_MAX,
-                                           (std::abs (dy) > 1e-3f) ? (letters + gap) / std::abs (dy) : FLT_MAX);
+                float  ux    = outX * std::cos (angle) + side * nextX * std::sin (angle);
+                float  uy    = outY * std::cos (angle) + side * nextY * std::sin (angle);
+                float  dist  = away + step * k;
+                float  dx    = ux * dist;
+                float  dy    = uy * dist;
+                bool   isOff = (dx * outX + dy * outY) / dist <= s_kIndexMaxCos;
 
-                isDone = true;
+                cx = tipX + dx;
+                cy = tipY + dy;
 
-                if (dist * (1.0f - scale) > gap)
+                if (!isDone && isOff && IsIndexLabelClear (view, cx, cy, w, h))
                 {
-                    painter.DrawLine (tipX + dx / dist * gap, tipY + dy / dist * gap, cx - dx * scale, cy - dy * scale, 1.0f, theme.ForegroundMuted());
-                }
+                    float  letters = (dy > 0.0f) ? textPx * s_kIndexAboveEm : textPx * s_kIndexBelowEm;
+                    float  scale   = std::min ((std::abs (dx) > 1e-3f) ? (textW / 2 + gap) / std::abs (dx) : FLT_MAX,
+                                               (std::abs (dy) > 1e-3f) ? (letters + gap) / std::abs (dy) : FLT_MAX);
 
-                text.DrawString (L"Index", cx - w / 2, cy - h / 2, w, h, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
-                                 DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                    isDone = true;
+
+                    if (dist * (1.0f - scale) > gap)
+                    {
+                        painter.DrawLine (tipX + ux * gap, tipY + uy * gap, cx - dx * scale, cy - dy * scale, 1.0f, theme.ForegroundMuted());
+                    }
+
+                    text.DrawString (L"Index", cx - w / 2, cy - h / 2, w, h, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
+                                     DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                }
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::IsIndexStill
+//
+//  Whether the disk has been in one place on screen for s_kIndexStillMs, as a
+//  label that hops around a turning disk can't be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::IsIndexStill (const PlatterPlacement & view)
+{
+    int64_t  now     = static_cast<int64_t> (GetTickCount64());
+    bool     isMoved = view.centerXPx != m_indexView.centerXPx || view.centerYPx != m_indexView.centerYPx || view.outerRadiusPx != m_indexView.outerRadiusPx ||
+                       view.rotation != m_indexView.rotation || view.tilt != m_indexView.tilt;
+
+
+
+    m_indexMovedMs = isMoved ? now : m_indexMovedMs;
+    m_indexView    = view;
+
+    return now - m_indexMovedMs >= s_kIndexStillMs;
 }
 
 

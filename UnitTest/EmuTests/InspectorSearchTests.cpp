@@ -197,6 +197,37 @@ public:
 
 
 
+    TEST_METHOD (GoToErrorsGiveTheRangeInTheHintsBase)
+    {
+        DiskAnalysis  analysis;
+        DiskAnalysis  none;
+        GoToTarget    target;
+        std::wstring  error;
+
+
+
+        AnalyzeDisk (analysis);
+
+        Assert::IsFalse (InspectorGoTo::Resolve (analysis, 0, GoToKind::NibbleOffset, L"FFFF", target, error));
+        Assert::AreEqual (L"Enter a" + InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::NibbleOffset).substr (1) + L".", error);
+
+        Assert::IsFalse (InspectorGoTo::Resolve (analysis, 0, GoToKind::Cell, L"999999", target, error));
+        Assert::IsTrue  (error.starts_with (L"Enter a cell from 0 to "));
+
+        Assert::IsFalse (InspectorGoTo::Resolve (analysis, 0, GoToKind::ProDosBlock, L"280", target, error));
+        Assert::AreEqual (std::wstring (L"Enter a block from 0 to 279."), error);
+
+        Assert::IsFalse (InspectorGoTo::GetRangeHint (none, 0, GoToKind::ProDosBlock).starts_with (L"A "), L"no 16-sector tracks, no block range");
+
+        Assert::IsTrue  (InspectorGoTo::IsPartial (GoToKind::Track, L"17."));
+        Assert::IsTrue  (InspectorGoTo::IsPartial (GoToKind::Track, L"17.2"));
+        Assert::IsFalse (InspectorGoTo::IsPartial (GoToKind::Track, L"41."));
+        Assert::IsFalse (InspectorGoTo::IsPartial (GoToKind::Track, L"17.3"));
+        Assert::IsTrue  (InspectorGoTo::IsPartial (GoToKind::NibbleOffset, L"$"));
+    }
+
+
+
     TEST_METHOD (GoToFindsASectorOnTheGivenTrack)
     {
         DiskAnalysis  analysis;

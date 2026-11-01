@@ -8,7 +8,8 @@
 
 
 
-static constexpr int  s_kMaxPathChars = 64;
+static constexpr int      s_kMaxPathChars = 64;
+static constexpr LPCWSTR  s_kpszSectorTip = L"Physical sector: the number in a sector's address field on the disk.\nDOS 3.3 sector: the sector's place in DOS 3.3's order, which is also its place in a .dsk image.\nDOS 3.3 numbers its sectors out of order on the disk, so one sector has both numbers.";
 
 
 
@@ -20,7 +21,8 @@ static constexpr int  s_kMaxPathChars = 64;
 //
 //  The kinds of target in two columns, then the entry row, a line on what
 //  the entry may be for the kind chosen, and the error line. A sector, an
-//  offset or a cell is entered with its track: "Track [17] Sector [F]".
+//  offset or a cell is entered with its track: "Track [17] Sector [F]". A track
+//  is entered in the same Track field, so it stays through a change of kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +32,7 @@ public:
     struct Parts
     {
         DxuiRadioGroup  * kinds      = nullptr;
+        DxuiInfoTip     * sectorTip  = nullptr;
         DxuiLabel       * trackLabel = nullptr;
         DxuiTextInput   * track      = nullptr;
         DxuiLabel       * entryLabel = nullptr;
@@ -46,6 +49,7 @@ public:
         m_onPress = std::move (onPress);
 
         Adopt (*parts.kinds);
+        Adopt (*parts.sectorTip);
         Adopt (*parts.trackLabel);
         Adopt (*parts.track);
         Adopt (*parts.entryLabel);
@@ -68,6 +72,7 @@ public:
         int                           sel     = (m_parts.kinds->GetSelected() >= 0) ? m_parts.kinds->GetSelected() : m_initial;
         bool                          isOn    = InspectorGoTo::IsOnTrack (static_cast<GoToKind> (sel));
         bool                          isFile  = static_cast<GoToKind> (sel) == GoToKind::File;
+        bool                          isTrack = static_cast<GoToKind> (sel) == GoToKind::Track;
         int                           fieldW  = (boundsPx.right - boundsPx.left - 3 * pad - 2 * labelW) / 2;
         std::vector<DxuiRadioOption>  options;
 
@@ -86,14 +91,16 @@ public:
         m_parts.kinds->SetOptions  (std::move (options));
         m_parts.kinds->SetSelected (sel);
         m_parts.kinds->Layout (RECT { x, y, boundsPx.right - pad, y + rows * rowH }, scaler);
+        m_parts.sectorTip->Layout (RECT { x + scaler.ToPx (kTipXDip), y + static_cast<int> (GoToKind::Dos33Sector) * rowH, x + scaler.ToPx (kTipXDip + kTipDip), y + (static_cast<int> (GoToKind::Dos33Sector) + 1) * rowH - 4 }, scaler);
         y += rows * rowH + pad;
 
-        m_parts.trackLabel->SetVisible (isOn);
-        m_parts.track->SetVisible      (isOn);
-        m_parts.input->SetVisible      (!isFile);
+        m_parts.trackLabel->SetVisible (isOn || isTrack);
+        m_parts.track->SetVisible      (isOn || isTrack);
+        m_parts.entryLabel->SetVisible (!isTrack);
+        m_parts.input->SetVisible      (!isFile && !isTrack);
         m_parts.files->SetVisible      (isFile);
 
-        if (isOn)
+        if (isOn || isTrack)
         {
             m_parts.trackLabel->Layout (RECT { x, y, x + labelW, y + rowH - 4 }, scaler);
             m_parts.track->Layout      (RECT { x + labelW, y, x + labelW + fieldW, y + rowH - 4 }, scaler);
@@ -107,7 +114,6 @@ public:
         y += rowH;
 
         m_parts.hint->Layout (RECT { x, y, boundsPx.right - pad, y + scaler.ToPx (kHintDip) }, scaler);
-        y += scaler.ToPx (kHintDip) + pad / 2;
 
         m_parts.error->Layout (RECT { x, y, boundsPx.right - pad, y + 2 * rowH }, scaler);
     }
@@ -119,7 +125,18 @@ public:
 
     bool  OnMouse (const DxuiMouseEvent & ev) override
     {
-        bool  isHandled = m_parts.kinds->OnMouse (ev);
+        RECT  tip       = m_parts.sectorTip->GetBounds();
+        bool  isHandled = m_parts.sectorTip->OnMouse (ev);
+
+
+
+        //  The tip sits within the row of the radio beside it.
+        if (PtInRect (&tip, ev.positionDip) && ev.kind != DxuiMouseEventKind::Leave)
+        {
+            return true;
+        }
+
+        isHandled = isHandled || m_parts.kinds->OnMouse (ev);
 
 
 
@@ -143,6 +160,8 @@ private:
     static constexpr int  kRowDip   = 32;
     static constexpr int  kHintDip  = 20;
     static constexpr int  kLabelDip = 56;
+    static constexpr int  kTipXDip  = 136;
+    static constexpr int  kTipDip   = 24;
 
     Parts          m_parts;
     int            m_initial  = 0;
@@ -182,7 +201,6 @@ void GoToDialog::Configure (const IDxuiTheme * theme, const DiskAnalysis & analy
 void GoToDialog::OnCreate()
 {
     GoToBody::Parts  parts;
-    DxuiButton *     ok   = nullptr;
 
 
 
@@ -199,6 +217,10 @@ void GoToDialog::OnCreate()
 
     m_track.SetText     (InspectorFormat::FormatQuarterTrack (m_quarterTrack));
     m_track.SetOnChange ([this] (const std::wstring &) { ShowHint (GetChosenKind()); });
+    m_input.SetOnChange ([this] (const std::wstring &) { Validate(); });
+
+    m_sectorTip.SetText      (s_kpszSectorTip);
+    m_sectorTip.SetPopupHost (GetPopupHost());
 
     m_trackLabel.SetText      (L"Track");
     m_trackLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -212,24 +234,111 @@ void GoToDialog::OnCreate()
 
     FillFiles();
 
-    parts      = { &m_kinds, &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_files, &m_hint, &m_error };
+    parts      = { &m_kinds, &m_sectorTip, &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_files, &m_hint, &m_error };
     m_body     = CreateDialogContent<GoToBody>();
     m_body->Init (parts, static_cast<int> (m_kind), [this] (IDxuiControl * control) { FocusControl (control); });
 
     m_kinds.SetOnChange ([this] (int index)
     {
+        //  An entry for one kind means nothing for another, but a track does.
+        m_input.SetText (L"");
         m_body->Relayout();
         ShowHint (static_cast<GoToKind> (index));
-        FocusControl ((static_cast<GoToKind> (index) == GoToKind::File) ? static_cast<IDxuiControl *> (&m_files) : &m_input);
+        (static_cast<GoToKind> (index) == GoToKind::Track) ? m_track.SelectAll() : m_track.ClearSelection();
+        FocusControl (GetEntryControl (static_cast<GoToKind> (index)));
     });
-    ShowHint (m_kind);
 
-    ok = AddDialogButton (L"OK", IDOK);
+    m_ok = AddDialogButton (L"OK", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
 
-    ok->SetOnClick ([this] () { OnOkClicked(); });
+    m_ok->SetOnClick ([this] () { OnOkClicked(); });
 
-    SetInitialFocus ((m_kind == GoToKind::File) ? static_cast<IDxuiControl *> (&m_files) : &m_input);
+    ShowHint (m_kind);
+
+    if (m_kind == GoToKind::Track)
+    {
+        m_track.SelectAll();
+    }
+
+    SetInitialFocus (GetEntryControl (m_kind));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GoToDialog::GetEntryControl
+//
+//  The control a kind's entry starts in. With no files to choose from, that is
+//  the kinds, as a disabled list can't take the focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * GoToDialog::GetEntryControl (GoToKind kind)
+{
+    IDxuiControl *  control = &m_input;
+
+
+
+    if (kind == GoToKind::Track)
+    {
+        control = &m_track;
+    }
+    else if (kind == GoToKind::File)
+    {
+        control = m_paths.empty() ? static_cast<IDxuiControl *> (&m_kinds) : &m_files;
+    }
+
+    return control;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GoToDialog::Validate
+//
+//  Checks the entries on each change, so an invalid one has its error as it is
+//  typed and OK is enabled only for a target that exists. An empty entry, or one
+//  on its way to being valid, has no error yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool GoToDialog::Validate()
+{
+    GoToKind      kind         = GetChosenKind();
+    bool          usesTrack    = kind == GoToKind::Track || InspectorGoTo::IsOnTrack (kind);
+    int           file         = m_files.GetSelectedIndex();
+    int           quarterTrack = GetEnteredTrack();
+    bool          isReady      = false;
+    std::wstring  text         = (kind == GoToKind::Track) ? m_track.GetText()
+                               : (kind != GoToKind::File)  ? m_input.GetText()
+                               : (file >= 0 && file < static_cast<int> (m_paths.size())) ? m_paths[static_cast<size_t> (file)] : std::wstring();
+    std::wstring  error;
+
+
+
+    if (usesTrack && quarterTrack < 0 && !m_track.GetText().empty() && !InspectorGoTo::IsPartial (GoToKind::Track, m_track.GetText()))
+    {
+        error = L"Enter a track from 0 to 39.75, such as 17.25.";
+    }
+    else if ((!usesTrack || quarterTrack >= 0) && !text.empty() && m_analysis != nullptr)
+    {
+        isReady = InspectorGoTo::Resolve (*m_analysis, usesTrack ? quarterTrack : m_quarterTrack, kind, text, m_target, error);
+        error   = InspectorGoTo::IsPartial (kind, text) ? std::wstring() : error;
+    }
+
+    //  The error replaces the hint, as both have the same range.
+    m_error.SetText  (error);
+    m_hint.SetVisible (error.empty());
+    m_ok->SetEnabled (isReady);
+    Invalidate();
+
+    return isReady;
 }
 
 
@@ -267,6 +376,7 @@ void GoToDialog::FillFiles()
     m_files.SetItems     (paths);
     m_files.SetSelected  (paths.empty() ? -1 : 0);
     m_files.SetEnabled   (!paths.empty());
+    m_files.SetSelect    ([this] (int) { Validate(); });
     m_paths = std::move (paths);
 }
 
@@ -282,7 +392,7 @@ void GoToDialog::FillFiles()
 
 GoToKind GoToDialog::GetChosenKind() const
 {
-    return static_cast<GoToKind> (std::clamp (m_kinds.GetSelected(), 0, kKindCount - 1));
+    return (m_kinds.GetSelected() >= 0) ? static_cast<GoToKind> (std::clamp (m_kinds.GetSelected(), 0, kKindCount - 1)) : m_kind;
 }
 
 
@@ -315,7 +425,7 @@ int GoToDialog::GetEnteredTrack() const
 //  GoToDialog::ShowHint
 //
 //  The entry's label and the line under the entry for a kind, on the entered
-//  track, and the last error cleared, since it was about another entry.
+//  track, and the entries checked again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,8 +441,7 @@ void GoToDialog::ShowHint (GoToKind kind)
                     : (m_analysis == nullptr)                                       ? std::wstring()
                     : (InspectorGoTo::IsOnTrack (kind) && quarterTrack < 0)        ? std::wstring (L"Enter a track from 0 to 39.75, such as 17.25")
                     : InspectorGoTo::GetRangeHint (*m_analysis, (quarterTrack >= 0) ? quarterTrack : m_quarterTrack, kind));
-    m_error.SetText (L"");
-    Invalidate();
+    Validate();
 }
 
 
@@ -377,36 +486,11 @@ LPCWSTR GoToDialog::GetEntryLabel (GoToKind kind)
 
 void GoToDialog::OnOkClicked()
 {
-    std::wstring  error;
-    int           file         = m_files.GetSelectedIndex();
-    int           quarterTrack = GetEnteredTrack();
-    bool          isFound      = false;
-
-
-
     m_kind = GetChosenKind();
 
-    if (InspectorGoTo::IsOnTrack (m_kind) && quarterTrack < 0)
-    {
-        error = L"Enter a track from 0 to 39.75, such as 17.25.";
-    }
-    else if (m_kind == GoToKind::File && (file < 0 || file >= static_cast<int> (m_paths.size())))
-    {
-        error = L"This disk has no files.";
-    }
-    else if (m_analysis != nullptr)
-    {
-        isFound = InspectorGoTo::Resolve (*m_analysis, (quarterTrack >= 0) ? quarterTrack : m_quarterTrack, m_kind, (m_kind == GoToKind::File) ? m_paths[static_cast<size_t> (file)] : m_input.GetText(), m_target, error);
-    }
-
-    if (isFound)
+    if (Validate())
     {
         m_isChosen = true;
         EndDialog (IDOK);
-    }
-    else
-    {
-        m_error.SetText (error);
-        Invalidate();
     }
 }

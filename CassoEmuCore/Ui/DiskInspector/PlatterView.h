@@ -82,6 +82,7 @@ private:
     static void  GetHeadPlace   (const PlatterPlacement & view, double radius, float drop, float along, float across, float & outX, float & outY);
     void         PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     static void  PaintHeadShape (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float tip, float hole, float reach, uint32_t argb, float line, uint32_t edge);
+    bool         IsIndexStill (const PlatterPlacement & view);
     bool         IsIndexLabelClear (const PlatterPlacement & view, float cx, float cy, float w, float h) const;
     static std::array<float, 4>  GetPlaneMap (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY);
     bool           OnTiltMouse    (const DxuiMouseEvent & ev);
@@ -103,6 +104,8 @@ private:
     bool                              m_isAlignmentShown = false;
     bool                              m_isPressed        = false;
     bool                              m_isPanning        = false;
+    PlatterPlacement                  m_indexView;
+    int64_t                           m_indexMovedMs     = 0;
     bool                              m_isTilting        = false;
     bool                              m_isTiltOn         = false;
     double                            m_tiltDx           = 0.0;

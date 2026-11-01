@@ -980,7 +980,7 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                          (float) chevronX + (float) chevronW * 0.5f, (float) (chevronY + chevronH),
                          (std::max) (1.0f, m_scaler.ToPxf (1.0f)), textColor);
 
-    if (m_focused && m_focusCueVisible)
+    if (m_enabled && m_focused && m_focusCueVisible)
     {
         float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);

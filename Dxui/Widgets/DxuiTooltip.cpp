@@ -293,6 +293,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 {
     m_isInstant    = false;
     m_isPointerTip = true;
+    m_placement    = DxuiPopupPlacement::Below;
 
     if (m_visible)
     {
@@ -359,6 +360,7 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
     m_fadingOut = false;
     m_isInstant    = true;
     m_isPointerTip = true;
+    m_placement    = DxuiPopupPlacement::Below;
     m_hideAtMs     = GetHideAtMs (nowMs);
 
     UpdatePopup();
@@ -377,12 +379,13 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs)
+void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs, DxuiPopupPlacement placement)
 {
     bool  changed = !m_visible || text != m_text;
 
 
 
+    m_placement = placement;
     m_anchor    = anchor;
     m_text      = text;
     m_pending   = false;
@@ -582,7 +585,7 @@ void DxuiTooltip::ShowPopup()
         MeasureBox (showParams.anchorRectScreen, showParams.sizeDip);
 
         showParams.ownerHwnd        = m_popupHost->GetHwnd();
-        showParams.placement        = DxuiPopupPlacement::Below;
+        showParams.placement        = m_placement;
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;

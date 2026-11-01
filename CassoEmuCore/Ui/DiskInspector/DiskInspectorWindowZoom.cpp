@@ -97,7 +97,7 @@ void DiskInspectorWindow::SetZoom (double zoom)
         m_tooltip.SetLineColors ({});
         m_tooltip.ShowTimed     ({ m_boundsDip.right - m_session.hostScaler.ToPx (kNoteWidthDip), status, m_boundsDip.right, status },
                                  std::format (L"Zoom is limited to {:.0f}% at this window size. Enlarge the window to zoom further.", m_zoom * 100.0),
-                                 static_cast<int64_t> (GetTickCount64()), kNoteMs);
+                                 static_cast<int64_t> (GetTickCount64()), kNoteMs, DxuiPopupPlacement::Above);
     }
 
     m_statusBand->SetZoom (m_zoom);
