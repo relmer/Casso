@@ -252,16 +252,16 @@ public:
         }
     };
 
-    static constexpr Word  kRow2  = 0x0500;
-    static constexpr Word  kRow3  = 0x0580;
-    static constexpr Word  kRow4  = 0x0600;
-    static constexpr Word  kRow1  = 0x0480;
-    static constexpr Word  kRowDrive1 = 0x0780;
-    static constexpr Word  kRowError  = 0x06A8;
+    static constexpr Word  kRow2            = 0x0500;
+    static constexpr Word  kRow3            = 0x0580;
+    static constexpr Word  kRow4            = 0x0600;
+    static constexpr Word  kRow1            = 0x0480;
+    static constexpr Word  kRowDrive1       = 0x0780;
+    static constexpr Word  kRowError        = 0x06A8;
     static constexpr Word  kRowHistoryTitle = 0x0728;
     static constexpr Word  kRowHistory1     = 0x07A8;
     static constexpr Word  kRowHistory2     = 0x0450;
-    static constexpr int   kField = 12;
+    static constexpr int   kField           = 12;
 
     static std::vector<std::string>  Names (const VolumeListing & listing)
     {
