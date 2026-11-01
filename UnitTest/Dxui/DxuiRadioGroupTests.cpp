@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "MockDxuiTextRenderer.h"
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -224,6 +226,23 @@ public:
 
         Assert::IsTrue (name.find (L"A") != std::wstring::npos);
         Assert::IsTrue (name.find (L"Desk, monitor and drives") != std::wstring::npos);
+    }
+
+
+    TEST_METHOD (GetLabelRight_IsPastTheCircleTheGapAndTheText)
+    {
+        DxuiRadioGroup        g;
+        MockDxuiTextRenderer  text;
+
+
+
+        g.SetDpi (96);
+        g.SetOptions ({ MakeOpt (10, 0, 200, 20, L"A"), MakeOpt (10, 20, 200, 40, L"Longer") });
+        text.SetCannedMetrics (L"A", SIZE { 8, 16 });
+        text.SetCannedMetrics (L"Longer", SIZE { 40, 16 });
+
+        Assert::AreEqual (10 + 16 + 6 + 8,  g.GetLabelRight (0, text));
+        Assert::AreEqual (10 + 16 + 6 + 40, g.GetLabelRight (1, text));
     }
 
 

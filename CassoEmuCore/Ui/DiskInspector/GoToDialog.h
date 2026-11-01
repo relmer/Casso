@@ -26,6 +26,7 @@ class GoToDialog : public DxuiDialogWindow
 {
 public:
     static constexpr int  kKindCount = 7;
+    static constexpr int  kTipCount  = 3;
 
     void  Configure (const IDxuiTheme * theme, const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
 
@@ -36,7 +37,8 @@ public:
     static constexpr SIZE  kSizeDip = { 420, 400 };
 
 protected:
-    void  OnCreate () override;
+    void  OnCreate     () override;
+    void  OnDialogTick () override;
 
 private:
     void      OnOkClicked     ();
@@ -58,7 +60,7 @@ private:
 
     GoToBody *            m_body         = nullptr;   // non-owning
     DxuiRadioGroup        m_kinds;
-    DxuiInfoTip           m_sectorTip;
+    DxuiInfoTip           m_tips[kTipCount];
     DxuiButton *          m_ok           = nullptr;   // non-owning
     DxuiLabel             m_trackLabel;
     DxuiTextInput         m_track;

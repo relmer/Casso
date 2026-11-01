@@ -120,6 +120,31 @@ public:
 
 
 
+    TEST_METHOD (TheTiltButtonReturnsToSixtyPercentUntilAnotherTiltIsSet)
+    {
+        InspectorSession    session;
+        FakeInspectorHost   host;
+        PlatterView       * platter = host.panel.CreateChild<PlatterView> (session.context);
+        PlatterCorners      corners (session, host, *platter);
+
+
+
+        corners.Create();
+
+        corners.Update();
+        Assert::AreEqual (InspectorViewModel::kMaxTilt * 0.6, corners.GetLastTilt(), 1e-9, L"flat, so the default");
+
+        session.model.SetTilt (0.1);
+        corners.Update();
+        Assert::AreEqual (0.1, corners.GetLastTilt(), 1e-9, L"any tilt set is the one to return to");
+
+        session.model.SetTilt (0.0);
+        corners.Update();
+        Assert::AreEqual (0.1, corners.GetLastTilt(), 1e-9, L"flat is not a tilt to return to");
+    }
+
+
+
     TEST_METHOD (BackAndForwardHeadTheGoMenu)
     {
         InspectorSession   session;

@@ -8,8 +8,19 @@
 
 
 
-static constexpr int      s_kMaxPathChars = 64;
-static constexpr LPCWSTR  s_kpszSectorTip = L"Physical sector: the number in a sector's address field on the disk.\nDOS 3.3 sector: the sector's place in DOS 3.3's order, which is also its place in a .dsk image.\nDOS 3.3 numbers its sectors out of order on the disk, so one sector has both numbers.";
+struct GoToKindTip
+{
+    GoToKind  kind;
+    LPCWSTR   pszText;
+};
+
+static constexpr int          s_kMaxPathChars = 64;
+static constexpr GoToKindTip  s_kKindTips[GoToDialog::kTipCount] =
+{
+    { GoToKind::PhysicalSector, L"The number in a sector's address field on the disk.\nDOS 3.3 numbers the same sector differently." },
+    { GoToKind::Dos33Sector,    L"The number DOS 3.3 uses for a sector, which is also the sector's position in a .dsk image.\nThe number in its address field on the disk is its physical sector." },
+    { GoToKind::ProDosBlock,    L"A 512-byte block of two 256-byte sectors, at 8 blocks per track.\nThe numbering is the one ProDOS uses, but these blocks exist on any disk with 16-sector tracks, with or without ProDOS on it." },
+};
 
 
 
@@ -31,15 +42,16 @@ class GoToBody : public DxuiPanel
 public:
     struct Parts
     {
-        DxuiRadioGroup  * kinds      = nullptr;
-        DxuiInfoTip     * sectorTip  = nullptr;
-        DxuiLabel       * trackLabel = nullptr;
-        DxuiTextInput   * track      = nullptr;
-        DxuiLabel       * entryLabel = nullptr;
-        DxuiTextInput   * input      = nullptr;
-        DxuiComboBox    * files      = nullptr;
-        DxuiLabel       * hint       = nullptr;
-        DxuiLabel       * error      = nullptr;
+        DxuiRadioGroup    * kinds      = nullptr;
+        DxuiInfoTip       * tips       = nullptr;
+        IDxuiTextRenderer * text       = nullptr;
+        DxuiLabel         * trackLabel = nullptr;
+        DxuiTextInput     * track      = nullptr;
+        DxuiLabel         * entryLabel = nullptr;
+        DxuiTextInput     * input      = nullptr;
+        DxuiComboBox      * files      = nullptr;
+        DxuiLabel         * hint       = nullptr;
+        DxuiLabel         * error      = nullptr;
     };
 
     void  Init (const Parts & parts, int initial, std::function<void (IDxuiControl *)> onPress)
@@ -49,7 +61,12 @@ public:
         m_onPress = std::move (onPress);
 
         Adopt (*parts.kinds);
-        Adopt (*parts.sectorTip);
+
+        for (int i = 0; i < GoToDialog::kTipCount; i++)
+        {
+            Adopt (parts.tips[i]);
+        }
+
         Adopt (*parts.trackLabel);
         Adopt (*parts.track);
         Adopt (*parts.entryLabel);
@@ -91,7 +108,7 @@ public:
         m_parts.kinds->SetOptions  (std::move (options));
         m_parts.kinds->SetSelected (sel);
         m_parts.kinds->Layout (RECT { x, y, boundsPx.right - pad, y + rows * rowH }, scaler);
-        m_parts.sectorTip->Layout (RECT { x + scaler.ToPx (kTipXDip), y + static_cast<int> (GoToKind::Dos33Sector) * rowH, x + scaler.ToPx (kTipXDip + kTipDip), y + (static_cast<int> (GoToKind::Dos33Sector) + 1) * rowH - 4 }, scaler);
+        LayoutTips (scaler);
         y += rows * rowH + pad;
 
         m_parts.trackLabel->SetVisible (isOn || isTrack);
@@ -113,6 +130,9 @@ public:
         x  = boundsPx.left + pad;
         y += rowH;
 
+        //  A file's lines start under the list.
+        x += isFile ? labelW : 0;
+
         m_parts.hint->Layout (RECT { x, y, boundsPx.right - pad, y + scaler.ToPx (kHintDip) }, scaler);
 
         m_parts.error->Layout (RECT { x, y, boundsPx.right - pad, y + 2 * rowH }, scaler);
@@ -125,13 +145,21 @@ public:
 
     bool  OnMouse (const DxuiMouseEvent & ev) override
     {
-        RECT  tip       = m_parts.sectorTip->GetBounds();
-        bool  isHandled = m_parts.sectorTip->OnMouse (ev);
+        bool  isHandled = false;
+        bool  isOverTip = false;
 
 
 
-        //  The tip sits within the row of the radio beside it.
-        if (PtInRect (&tip, ev.positionDip) && ev.kind != DxuiMouseEventKind::Leave)
+        for (int i = 0; i < GoToDialog::kTipCount; i++)
+        {
+            RECT  tip = m_parts.tips[i].GetBounds();
+
+            isHandled = m_parts.tips[i].OnMouse (ev) || isHandled;
+            isOverTip = isOverTip || (PtInRect (&tip, ev.positionDip) && ev.kind != DxuiMouseEventKind::Leave);
+        }
+
+        //  A tip sits within the row of the radio beside it.
+        if (isOverTip)
         {
             return true;
         }
@@ -156,12 +184,24 @@ public:
     }
 
 private:
-    static constexpr int  kPadDip   = 12;
-    static constexpr int  kRowDip   = 32;
-    static constexpr int  kHintDip  = 20;
-    static constexpr int  kLabelDip = 56;
-    static constexpr int  kTipXDip  = 136;
-    static constexpr int  kTipDip   = 24;
+    void  LayoutTips (const DxuiDpiScaler & scaler)
+    {
+        for (int i = 0; i < GoToDialog::kTipCount; i++)
+        {
+            int           kind  = static_cast<int> (s_kKindTips[i].kind);
+            const RECT &  row   = m_parts.kinds->GetOptions()[static_cast<size_t> (kind)].rect;
+            int           right = (m_parts.text != nullptr) ? m_parts.kinds->GetLabelRight (kind, *m_parts.text) : row.right - scaler.ToPx (kTipDip);
+
+            m_parts.tips[i].Layout (RECT { right + scaler.ToPx (kTipGapDip), row.top, right + scaler.ToPx (kTipGapDip + kTipDip), row.bottom }, scaler);
+        }
+    }
+
+    static constexpr int  kPadDip    = 12;
+    static constexpr int  kRowDip    = 32;
+    static constexpr int  kHintDip   = 20;
+    static constexpr int  kLabelDip  = 56;
+    static constexpr int  kTipGapDip = 2;
+    static constexpr int  kTipDip    = 18;
 
     Parts          m_parts;
     int            m_initial  = 0;
@@ -219,8 +259,11 @@ void GoToDialog::OnCreate()
     m_track.SetOnChange ([this] (const std::wstring &) { ShowHint (GetChosenKind()); });
     m_input.SetOnChange ([this] (const std::wstring &) { Validate(); });
 
-    m_sectorTip.SetText      (s_kpszSectorTip);
-    m_sectorTip.SetPopupHost (GetPopupHost());
+    for (int i = 0; i < kTipCount; i++)
+    {
+        m_tips[i].SetText      (s_kKindTips[i].pszText);
+        m_tips[i].SetPopupHost (GetPopupHost());
+    }
 
     m_trackLabel.SetText      (L"Track");
     m_trackLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -234,7 +277,7 @@ void GoToDialog::OnCreate()
 
     FillFiles();
 
-    parts      = { &m_kinds, &m_sectorTip, &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_files, &m_hint, &m_error };
+    parts      = { &m_kinds, m_tips, GetTextRenderer(), &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_files, &m_hint, &m_error };
     m_body     = CreateDialogContent<GoToBody>();
     m_body->Init (parts, static_cast<int> (m_kind), [this] (IDxuiControl * control) { FocusControl (control); });
 
@@ -261,6 +304,24 @@ void GoToDialog::OnCreate()
     }
 
     SetInitialFocus (GetEntryControl (m_kind));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GoToDialog::OnDialogTick
+//
+//  An info tip's tooltip opens once its dwell has passed, which only a tick
+//  can advance.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GoToDialog::OnDialogTick()
+{
+    DxuiPanel::Tick (static_cast<int64_t> (GetTickCount64()));
 }
 
 

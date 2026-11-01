@@ -66,6 +66,32 @@ int DxuiRadioGroup::HitTest (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetLabelRight
+//
+//  Where an option's label ends, for a control placed just past it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiRadioGroup::GetLabelRight (int index, IDxuiTextRenderer & text) const
+{
+    const RECT &  rect     = m_options[(size_t) index].rect;
+    float         widthPx  = 0.0f;
+    float         heightPx = 0.0f;
+    HRESULT       hr       = text.MeasureString (m_options[(size_t) index].label.c_str(), m_scaler.ToPxf (kFontDip), DxuiTheme::kBodyFace, widthPx, heightPx);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return rect.left + (int) std::ceil (m_scaler.ToPxf (kBoxSizeDip + kLabelGapDip) + widthPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetMouseHover
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,10 +271,7 @@ void DxuiRadioGroup::Commit (int newIndex)
 
 void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr float  s_kBoxSizeDip    = 16.0f;
     constexpr float  s_kDotInsetDip   = 4.0f;
-    constexpr float  s_kLabelGapDip   = 6.0f;
-    constexpr float  s_kFontDip       = 13.0f;
     // The first line of a described option. The label sits in this band, the
     // BUTTON CENTERS ON IT, and the description gets whatever the caller's
     // rect has left over. Centering the button on the whole box instead would
@@ -260,10 +283,10 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     HRESULT  hr         = S_OK;
     int      i          = 0;
     size_t   n          = m_options.size();
-    float    boxSize    = m_scaler.ToPxf (s_kBoxSizeDip);
+    float    boxSize    = m_scaler.ToPxf (kBoxSizeDip);
     float    dotInset   = m_scaler.ToPxf (s_kDotInsetDip);
-    float    labelGap   = m_scaler.ToPxf (s_kLabelGapDip);
-    float    fontDip    = m_scaler.ToPxf (s_kFontDip);
+    float    labelGap   = m_scaler.ToPxf (kLabelGapDip);
+    float    fontDip    = m_scaler.ToPxf (kFontDip);
     uint32_t textColor  = m_enabled ? theme.Foreground() : theme.ForegroundDisabled();
     uint32_t dotColor   = m_enabled ? theme.ButtonText() : theme.ForegroundDisabled();
 

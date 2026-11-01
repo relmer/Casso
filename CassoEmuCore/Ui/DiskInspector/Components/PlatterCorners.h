@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Components/IInspectorComponent.h"
+#include "Ui/DiskInspector/InspectorViewModel.h"
 
 class FloatingGroup;
 class IInspectorComponentHost;
@@ -102,5 +103,5 @@ private:
     bool                       m_isAlignment      = false;
     bool                       m_isFilesDefaulted = false;
     bool                       m_isFilesSaved     = false;
-    double                     m_lastTilt         = 0.5235987755982988;
+    double                     m_lastTilt         = InspectorViewModel::kMaxTilt * 0.6;
 };

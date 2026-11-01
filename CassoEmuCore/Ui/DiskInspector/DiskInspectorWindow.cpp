@@ -193,6 +193,7 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
 
     SetTheme (m_session.theme);
     m_tooltip.SetTheme (*m_session.theme);
+    m_zoomNote.SetTheme (*m_session.theme);
     Show (activate);
 
 Error:
@@ -468,6 +469,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     m_session.context.palette = DiskInspectorPalette::Resolve (*m_session.theme);
     m_tooltip.SetTheme (*m_session.theme);
+    m_zoomNote.SetTheme (*m_session.theme);
 
     m_hostLink->TakeReplies();
     m_hostLink->TakeResults();
@@ -498,6 +500,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     }
 
     m_tooltip.Tick     (static_cast<int64_t> (GetTickCount64()));
+    m_zoomNote.Tick    (static_cast<int64_t> (GetTickCount64()));
 
     //  The window's own context menu opens with an animation each frame
     //  advances, as the main window's does.
@@ -589,7 +592,8 @@ void DiskInspectorWindow::OnCreate()
 
     m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_stripControls.get(), m_dialogs.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
 
-    m_tooltip.SetPopupHost (GetPopupHost());
+    m_tooltip.SetPopupHost  (GetPopupHost());
+    m_zoomNote.SetPopupHost (GetPopupHost());
 
     //  The find bar's layer, as its fill has to cover the views' text, which
     //  is drawn after every fill in the window's pass.
@@ -935,6 +939,7 @@ void DiskInspectorWindow::OnWindowClose()
     if (ConfirmDiscardEdits (L"Closing the disk inspector"))
     {
         m_tooltip.HideImmediate();
+        m_zoomNote.HideImmediate();
         m_corners->HideLegend();
         m_session.host->SetHeadStateWanted (false);
         Hide();
@@ -1051,6 +1056,8 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_session.scaler = scaler;
     m_tooltip.SetDpi (scaler.GetDpi());
     m_tooltip.SetViewportSize (width, boundsDip.bottom - boundsDip.top);
+    m_zoomNote.SetDpi (scaler.GetDpi());
+    m_zoomNote.SetViewportSize (width, boundsDip.bottom - boundsDip.top);
     m_session.context.scenePx = boundsDip;
 
     //  The walkthrough's toolbar step covers the menu bar too.

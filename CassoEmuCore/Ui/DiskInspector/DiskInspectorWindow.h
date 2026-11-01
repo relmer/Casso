@@ -173,6 +173,7 @@ private:
     InspectorCommands                  m_commands;
     std::wstring                       m_title;
     DxuiTooltip                        m_tooltip;
+    DxuiTooltip                        m_zoomNote;
     bool                               m_isSplitting      = false;
     double                             m_splitFraction    = 0.5;
     RECT                               m_splitterPx       = {};

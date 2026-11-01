@@ -381,10 +381,11 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
 
 void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs, DxuiPopupPlacement placement)
 {
-    bool  changed = !m_visible || text != m_text;
+    bool  changed = !m_visible || m_fadingOut || text != m_text;
 
 
 
+    m_fadingOut = false;
     m_placement = placement;
     m_anchor    = anchor;
     m_text      = text;

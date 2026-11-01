@@ -73,6 +73,7 @@ void DiskInspectorWindow::SetZoom (double zoom)
     static constexpr double  kStep         = 0.01;
     static constexpr int     kNoteMs       = 4000;
     static constexpr int     kNoteWidthDip = 300;
+    static constexpr int     kNoteGapDip   = 8;
 
 
 
@@ -91,13 +92,14 @@ void DiskInspectorWindow::SetZoom (double zoom)
 
     if (m_zoom < std::min (zoom, DxuiZoomControl::kMaxZoom) - kStep / 2)
     {
-        status = m_boundsDip.bottom - m_statusBand->GetHeightPx (m_session.hostScaler);
+        status = m_boundsDip.bottom - m_statusBand->GetHeightPx (m_session.hostScaler) - m_session.hostScaler.ToPx (kNoteGapDip);
 
-        m_tooltip.SetSwatches   ({});
-        m_tooltip.SetLineColors ({});
-        m_tooltip.ShowTimed     ({ m_boundsDip.right - m_session.hostScaler.ToPx (kNoteWidthDip), status, m_boundsDip.right, status },
-                                 std::format (L"Zoom is limited to {:.0f}% at this window size. Enlarge the window to zoom further.", m_zoom * 100.0),
-                                 static_cast<int64_t> (GetTickCount64()), kNoteMs, DxuiPopupPlacement::Above);
+        //  It has a tooltip apart from the hover tips, as any pointer move
+        //  would otherwise dismiss or replace it.
+        m_tooltip.HideImmediate();
+        m_zoomNote.ShowTimed ({ m_boundsDip.right - m_session.hostScaler.ToPx (kNoteWidthDip), status, m_boundsDip.right, status },
+                              std::format (L"Zoom is limited to {:.0f}% at this window size. Enlarge the window to zoom further.", m_zoom * 100.0),
+                              static_cast<int64_t> (GetTickCount64()), kNoteMs, DxuiPopupPlacement::Above);
     }
 
     m_statusBand->SetZoom (m_zoom);
