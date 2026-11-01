@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/CassetteDiagnostics.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
+#include "Machines/Apple2/Common/Ssi263AudioSource.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
@@ -369,8 +370,9 @@ namespace DebuggerTests
 
             Assert::IsTrue   (Contains (titles, "6522 #1") && Contains (titles, "6522 #2"));
             Assert::IsTrue   (Contains (titles, "AY #1")   && Contains (titles, "AY #2"));
-            Assert::IsTrue   (std::holds_alternative<DiagnosticsMeters> (snapshot.visual));
-            Assert::AreEqual ((size_t) 10, std::get<DiagnosticsMeters> (snapshot.visual).levels.size());
+            Assert::IsTrue   (std::holds_alternative<DiagnosticsSoundBoard> (snapshot.visual));
+            Assert::AreEqual ((size_t) 2, std::get<DiagnosticsSoundBoard> (snapshot.visual).halves.size());
+            Assert::IsFalse  (std::get<DiagnosticsSoundBoard> (snapshot.visual).voice.has_value(), L"a Mockingboard A has no voice");
             Assert::IsFalse  (Contains (titles, "SSI-263"), L"a Mockingboard A has no speech chip");
             (void) FindRow (snapshot, "IFR");
             (void) FindRow (snapshot, "T1 count");
@@ -378,10 +380,8 @@ namespace DebuggerTests
         }
 
 
-        //  The speech chip's meter follows the AY channels, ahead of the timers.
         TEST_METHOD (AMockingboardCPublishesItsSpeechChip)
         {
-            constexpr size_t      kSpeechMeter = 6;
             MockingboardCard      card (4, MockingboardVariant::SoundSpeech);
             DiagnosticsSnapshot   snapshot     = Snapshot (card);
             bool                  hasGroup     = false;
@@ -394,9 +394,319 @@ namespace DebuggerTests
             }
 
             Assert::IsTrue   (hasGroup);
-            Assert::AreEqual ((size_t) 11, std::get<DiagnosticsMeters> (snapshot.visual).levels.size());
-            Assert::AreEqual (std::string ("SSI-263"), std::get<DiagnosticsMeters> (snapshot.visual).levels[kSpeechMeter].name);
+            Assert::IsTrue   (std::get<DiagnosticsSoundBoard> (snapshot.visual).voice.has_value());
             Assert::AreEqual (std::string ("Down"), FindRow (snapshot, "Power").value, L"power down is the chip's state after a reset");
+        }
+
+
+        //  The clock and period make a round frequency, and the envelope a round
+        //  ramp: 1000000 / (16 * 100) and 256 * 500 / 1000000.
+        TEST_METHOD (TheAyPublishesItsChannelsForTheSoundBoard)
+        {
+            Ay8910               ay (1000000.0);
+            DiagnosticsSoundPsg  psg;
+
+
+
+            ay.WriteRegister (Ay8910::kRegToneAFine,  100);
+            ay.WriteRegister (Ay8910::kRegMixer,      0x36);     // tone A and noise A on, the rest off
+            ay.WriteRegister (Ay8910::kRegAmpA,       0x0C);
+            ay.WriteRegister (Ay8910::kRegAmpB,       0x10);     // B from the envelope
+            ay.WriteRegister (Ay8910::kRegEnvFine,    0xF4);
+            ay.WriteRegister (Ay8910::kRegEnvCoarse,  0x01);
+            ay.WriteRegister (Ay8910::kRegNoisePeriod, 10);
+            ay.AppendSoundBoard (psg);
+
+            Assert::AreEqual (625.0,  psg.channels[0].frequencyHz, 0.001);
+            Assert::AreEqual (12,     psg.channels[0].level);
+            Assert::IsTrue   (psg.channels[0].isToneOn);
+            Assert::IsTrue   (psg.channels[0].isNoiseOn);
+            Assert::IsFalse  (psg.channels[1].isToneOn);
+            Assert::IsFalse  (psg.channels[1].isNoiseOn);
+            Assert::IsTrue   (psg.channels[1].usesEnvelope);
+            Assert::AreEqual (psg.envelopeLevel, psg.channels[1].level);
+            Assert::AreEqual (128.0,  psg.envelopeRampMs, 0.001);
+            Assert::AreEqual (6250.0, psg.noiseHz, 0.001);
+        }
+
+
+        //  A write by the bus counts; one by the direct path tests use does not.
+        TEST_METHOD (TheAyCountsItsBusWritesAndHasTheLast)
+        {
+            Ay8910               ay;
+            DiagnosticsSoundPsg  before;
+            DiagnosticsSoundPsg  after;
+
+
+
+            ay.WriteRegister (Ay8910::kRegAmpA, 1);
+            ay.AppendSoundBoard (before);
+
+            ay.LatchAddress (9);
+            ay.WriteData    (0x04);
+            ay.LatchAddress (10);
+            ay.WriteData    (0x05);
+            ay.AppendSoundBoard (after);
+
+            Assert::IsFalse  (before.hasLastWrite);
+            Assert::AreEqual ((uint32_t) 2, after.writeCount);
+            Assert::IsTrue   (after.hasLastWrite);
+            Assert::AreEqual ((int) 10,   (int) after.lastWriteReg);
+            Assert::AreEqual ((int) 0x05, (int) after.lastWriteValue);
+        }
+
+
+        //  With every source off a channel's output is its level, so the scope and
+        //  the mix are exact: A at full, 1.0, and B at level 11, 0.25.
+        TEST_METHOD (AMuteLeavesTheMixAndTheScopeHasTheSignal)
+        {
+            constexpr uint32_t   kSampleRate = 44100;
+            Ay8910               ay;
+            DiagnosticsSoundPsg  psg;
+            float                both        = 0.0f;
+            float                muted       = 0.0f;
+
+
+
+            ay.SetSampleRate (kSampleRate);
+            ay.WriteRegister (Ay8910::kRegMixer, 0x3F);
+            ay.WriteRegister (Ay8910::kRegAmpA,  0x0F);
+            ay.WriteRegister (Ay8910::kRegAmpB,  0x0B);
+
+            both = ay.GenerateSample();
+
+            ay.AppendSoundBoard (psg);
+            ay.SetChannelMuted  (0, true);
+            muted = ay.GenerateSample();
+            ay.AppendSoundBoard (psg);
+
+            Assert::AreEqual (1.25f, both,  0.0001f);
+            Assert::AreEqual (0.25f, muted, 0.0001f);
+            Assert::IsTrue   (psg.channels[0].isMuted);
+            Assert::AreEqual (Ay8910::kScopeSamples, psg.channels[0].scope.size());
+            Assert::AreEqual (1.0f,  psg.channels[0].scope.back(), 0.0001f, L"the muted channel's signal, newest last");
+            Assert::AreEqual (0.25f, psg.channels[1].scope.back(), 0.0001f);
+            Assert::AreEqual (0.0f,  psg.channels[2].scope.back(), 0.0001f);
+        }
+
+
+        TEST_METHOD (AnAyResetByTheGuestLeavesTheMute)
+        {
+            Ay8910  ay;
+
+
+
+            ay.SetChannelMuted (1, true);
+            ay.Reset();
+
+            Assert::IsTrue (ay.IsChannelMuted (1));
+        }
+
+
+        //  The panel calls this once a frame, and not once closed, so capture
+        //  stops after its time runs out.
+        TEST_METHOD (ScopeCaptureRunsOnlyWhileThePanelAsks)
+        {
+            constexpr uint32_t   kSampleRate = 1000;
+            Ay8910               ay;
+            DiagnosticsSoundPsg  psg;
+            uint32_t             i           = 0;
+
+
+
+            ay.SetSampleRate (kSampleRate);
+            Assert::IsFalse  (ay.IsScopeCapturing(), L"no call yet");
+
+            ay.AppendSoundBoard (psg);
+            Assert::IsTrue   (ay.IsScopeCapturing());
+
+            for (i = 0; i < kSampleRate * Ay8910::kScopeCaptureSeconds; i++)
+            {
+                (void) ay.GenerateSample();
+            }
+
+            Assert::IsFalse  (ay.IsScopeCapturing(), L"the capture time has run out");
+        }
+
+
+        TEST_METHOD (TheSpeechChipPublishesItsVoiceForTheSoundBoard)
+        {
+            constexpr uint32_t     kSampleRate = 1000;
+            Ssi263                 chip;
+            DiagnosticsSoundVoice  voice;
+            uint32_t               i           = 0;
+
+
+
+            chip.SetSampleRate (kSampleRate);
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,       0x80);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC0);
+            chip.WriteRegister (Ssi263::kRegRateInflection,  0xA8);
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,       0x5C);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC1);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC2);
+            chip.AppendSoundBoard (voice);
+
+            Assert::AreEqual (std::string ("E1 (bent)"),            voice.phoneme);
+            Assert::AreEqual (std::string ("Phoneme transitioned"), voice.mode);
+            Assert::IsTrue   (voice.isSounding);
+            Assert::IsFalse  (voice.isPoweredDown);
+            Assert::AreEqual ((size_t) 3, voice.recent.size(), L"the one leaving power down starts, then the two");
+            Assert::AreEqual (std::string ("PA (pause)"), voice.recent[0].name);
+            Assert::AreEqual (std::string ("E (meet)"),   voice.recent[1].name);
+            Assert::AreEqual (std::string ("E1 (bent)"),  voice.recent[2].name);
+            Assert::AreEqual (0.0137f, voice.recent[2].seconds, 0.0001f);
+
+            Assert::IsTrue   (chip.IsScopeCapturing());
+
+            for (i = 0; i < kSampleRate * Ssi263::kScopeCaptureSeconds; i++)
+            {
+                (void) chip.GenerateSample();
+            }
+
+            Assert::IsFalse  (chip.IsScopeCapturing());
+            chip.AppendSoundBoard (voice);
+            Assert::AreEqual (Ssi263::kScopeSamples, voice.scope.size());
+        }
+
+
+        TEST_METHOD (TheRecentPhonemesKeepTheNewest)
+        {
+            Ssi263                 chip;
+            DiagnosticsSoundVoice  voice;
+            int                    i = 0;
+
+
+
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x5C);
+
+            for (i = 0; i < Ssi263::kRecentCount + 3; i++)
+            {
+                chip.WriteRegister (Ssi263::kRegDurationPhoneme, (Byte) (i & Ssi263::kPhonemeMask));
+            }
+
+            chip.AppendSoundBoard (voice);
+
+            Assert::AreEqual ((size_t) Ssi263::kRecentCount, voice.recent.size());
+            Assert::AreEqual (std::string (Ssi263::GetPhonemeName (3)), voice.recent.front().name);
+            Assert::AreEqual (std::string (Ssi263::GetPhonemeName ((Byte) (Ssi263::kRecentCount + 2))), voice.recent.back().name);
+        }
+
+
+        //  A muted source is silent and the chip renders as it would otherwise.
+        TEST_METHOD (AMutedSpeechSourceIsSilentAndTheChipRendersOn)
+        {
+            constexpr uint32_t  kSampleRate = 44100;
+            constexpr uint32_t  kSamples    = 4096;
+            Ssi263              audible;
+            Ssi263              muted;
+            Ssi263AudioSource   audibleSource;
+            Ssi263AudioSource   mutedSource;
+            std::vector<float>  audibleOut (kSamples);
+            std::vector<float>  mutedOut (kSamples);
+            float               peak        = 0.0f;
+            uint32_t            i           = 0;
+
+
+
+            for (Ssi263 * chip : { &audible, &muted })
+            {
+                chip->SetSampleRate (kSampleRate);
+                chip->WriteRegister (Ssi263::kRegCtlArtAmp,       0x80);
+                chip->WriteRegister (Ssi263::kRegDurationPhoneme, 0xC0);
+                chip->WriteRegister (Ssi263::kRegCtlArtAmp,       0x0F);
+                chip->WriteRegister (Ssi263::kRegDurationPhoneme, 0xC1);
+            }
+
+            audibleSource.SetSpeech (&audible);
+            mutedSource.SetSpeech (&muted);
+            mutedSource.SetMuted  (true);
+
+            audibleSource.GeneratePCM (audibleOut.data(), kSamples);
+            mutedSource.GeneratePCM (mutedOut.data(), kSamples);
+
+            for (i = 0; i < kSamples; i++)
+            {
+                Assert::AreEqual (0.0f, mutedOut[i]);
+                peak = std::max (peak, std::abs (audibleOut[i]));
+            }
+
+            Assert::IsTrue   (peak > 0.0f, L"the chip was sounding");
+            Assert::AreEqual (audible.GenerateSample(), muted.GenerateSample(), L"the same state after the same samples");
+        }
+
+
+        //  1000000 / (0x00FE + 2) for T1, free running, with its IFR and IER bits.
+        TEST_METHOD (TheViaPublishesItsRateAndLampsForTheSoundBoard)
+        {
+            constexpr double     kClockHz = 1024000.0;
+            Via6522              via;
+            DiagnosticsSoundVia  idle;
+            DiagnosticsSoundVia  running;
+
+
+
+            via.AppendSoundBoard (kClockHz, idle);
+
+            via.WriteRegister (Via6522::kRegAcr,  Via6522::kAcrT1Continuous);
+            via.WriteRegister (Via6522::kRegT1LL, 0xFE);
+            via.WriteRegister (Via6522::kRegT1CH, 0x00);
+            via.WriteRegister (Via6522::kRegIer,  Via6522::kIerSetClear | Via6522::kIrqTimer1);
+            via.Tick (0x0200);
+            via.AppendSoundBoard (kClockHz, running);
+
+            Assert::AreEqual (0.0,  idle.t1RateHz);
+            Assert::IsFalse  (idle.isRunning);
+            Assert::IsFalse  (idle.isFired);
+            Assert::AreEqual (4000.0, running.t1RateHz, 0.001);
+            Assert::IsTrue   (running.isRunning);
+            Assert::IsTrue   (running.isFired);
+            Assert::IsTrue   (running.isT1Irq);
+            Assert::IsTrue   (running.isIrq);
+            Assert::AreEqual ((int) (uint16_t) 0x00FE, (int) running.t1Latch);
+        }
+
+
+        //  The bus state of each half, from port B's lines, and the half's address.
+        TEST_METHOD (TheBoardPublishesEachHalfsBusStateAndAddress)
+        {
+            MockingboardCard       card (4);
+            DiagnosticsSnapshot    snapshot;
+            DiagnosticsSoundBoard  board;
+
+
+
+            card.Write (0xC402, 0x07);      // DDRB
+            card.Write (0xC400, 0x06);      // reset high, write
+            snapshot = Snapshot (card);
+            board    = std::get<DiagnosticsSoundBoard> (snapshot.visual);
+
+            Assert::AreEqual (4, board.slot);
+            Assert::AreEqual ((Word) 0xC400, board.halves[0].baseAddress);
+            Assert::AreEqual ((Word) 0xC480, board.halves[1].baseAddress);
+            Assert::AreEqual (std::string ("Write"), board.halves[0].busState);
+            Assert::AreEqual (std::string ("Reset"), board.halves[1].busState);
+        }
+
+
+        TEST_METHOD (TheCardSetsEachMute)
+        {
+            MockingboardCard       card (4, MockingboardVariant::SoundSpeech);
+            DiagnosticsSoundBoard  board;
+            DiagnosticsSnapshot    snapshot;
+
+
+
+            card.SetSoundMuted (0, true);
+            card.SetSoundMuted (5, true);
+            card.SetSoundMuted (MockingboardCard::kSpeechMuteChannel, true);
+            snapshot = Snapshot (card);
+            board    = std::get<DiagnosticsSoundBoard> (snapshot.visual);
+
+            Assert::IsTrue  (board.halves[0].psg.channels[0].isMuted);
+            Assert::IsFalse (board.halves[0].psg.channels[1].isMuted);
+            Assert::IsTrue  (board.halves[1].psg.channels[2].isMuted);
+            Assert::IsTrue  (board.voice->isMuted);
         }
 
 
@@ -466,7 +776,7 @@ namespace DebuggerTests
             Ssi263               chip (kXckHz);
             DiagnosticsSnapshot  cold;
             DiagnosticsSnapshot  sounding;
-            DiagnosticsMeters    meters;
+            DiagnosticsSoundVoice  voice;
 
 
 
@@ -486,13 +796,13 @@ namespace DebuggerTests
             }
 
             chip.AppendDiagnostics ("SSI-263", sounding);
-            chip.AppendLevel ("SSI-263", meters);
+            chip.AppendSoundBoard (voice);
 
             Assert::AreEqual (std::format ("{:.0f}, {:.0f}, {:.0f} Hz", chip.GetFormantCenter (0), chip.GetFormantCenter (1), chip.GetFormantCenter (2)),
                               FindRow (sounding, "Formants").value);
             Assert::AreEqual (314.0, chip.GetFormantCenter (0), 1.0, L"the glide is at E's first formant");
-            Assert::AreEqual ((size_t) 1, meters.levels.size());
-            Assert::IsTrue   (meters.levels[0].level > 0.5f, L"a sounding phoneme at full amplitude");
+            Assert::AreEqual (chip.GetFormantCenter (0), voice.formantsHz[0], 0.001, L"at a scale of 1");
+            Assert::IsTrue   (voice.level > 0.5f, L"a sounding phoneme at full amplitude");
         }
 
 

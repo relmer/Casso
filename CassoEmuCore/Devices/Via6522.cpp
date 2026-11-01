@@ -690,6 +690,46 @@ void Via6522::AppendTimerLevels (const std::string & title, DiagnosticsMeters & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Via6522::AppendSoundBoard
+//
+//  T1 runs free at clock / (latch + 2) with ACR's continuous bit set, the only
+//  case with a rate. It is running then or while armed. It fired if its IFR bit
+//  is set, which is an interrupt only with its IER bit set too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Via6522::AppendSoundBoard (double clockHz, DiagnosticsSoundVia & out) const
+{
+    constexpr int     kByteBits       = 8;
+    constexpr double  kFreeRunPeriod  = 2.0;
+    bool              isFreeRunning   = (m_acr & kAcrT1Continuous) != 0;
+
+
+
+    out.ora       = GetOra();
+    out.orb       = GetOrb();
+    out.ddra      = GetDdra();
+    out.ddrb      = GetDdrb();
+    out.acr       = m_acr;
+    out.pcr       = m_pcr;
+    out.ifr       = GetIfr();
+    out.ier       = (Byte) (m_ier & ~kIerSetClear);
+    out.t1Count   = GetTimer1();
+    out.t1Latch   = (uint16_t) ((m_t1LatchHi << kByteBits) | m_t1LatchLo);
+    out.t2Count   = GetTimer2();
+    out.t1RateHz  = isFreeRunning ? clockHz / (out.t1Latch + kFreeRunPeriod) : 0.0;
+    out.isRunning = isFreeRunning || m_t1Armed;
+    out.isFired   = (out.ifr & kIrqTimer1) != 0;
+    out.isT1Irq   = (out.ifr & out.ier & kIrqTimer1) != 0;
+    out.isIrq     = (out.ifr & kIrqAny) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SaveState
 //
 ////////////////////////////////////////////////////////////////////////////////

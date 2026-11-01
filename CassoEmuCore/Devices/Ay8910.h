@@ -5,6 +5,7 @@
 
 struct DiagnosticsMeters;
 struct DiagnosticsSnapshot;
+struct DiagnosticsSoundPsg;
 
 
 
@@ -117,18 +118,35 @@ public:
     void     AppendDiagnostics     (const std::string & title, DiagnosticsSnapshot & snapshot) const;
     void     AppendChannelLevels   (const std::string & title, DiagnosticsMeters & meters) const;
 
+    // A sound board's view of this chip. Each call starts the scopes' capture
+    // again for kScopeCaptureSeconds, so it stops after the panel closes.
+    void     AppendSoundBoard      (DiagnosticsSoundPsg & out) const;
+    bool     IsScopeCapturing      () const { return m_scopeSamplesLeft > 0; }
+
+    // A mute takes a channel out of the output and nothing else: its generators
+    // run and its scope has its signal. It is not part of the machine's state,
+    // so it is not saved, and a reset of the chip by the guest does not clear it.
+    void     SetChannelMuted       (int channel, bool isMuted);
+    bool     IsChannelMuted        (int channel) const { return (m_muted >> channel) & 1; }
+
+    static constexpr size_t  kScopeSamples     = 1024;
+    static constexpr int     kScopeCaptureSeconds = 2;
+
     static float GetVolumeForLevel (int level);
 
-    // IMachineState: the registers, the address latch, the tick accumulator and
-    // the tone, noise and envelope generators. The clock and host sample rate
-    // are configuration the machine builder sets, so they are not saved.
+    // IMachineState: the registers, the address latch, the tick accumulator,
+    // the tone, noise and envelope generators, and the count and last of the
+    // bus's writes. The clock and host sample rate are configuration the machine
+    // builder sets, so they are not saved.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('P', 'S', 'G', ' ');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
 private:
+    float   GetChannelOutput (int channel) const;
+    void    CaptureScope     ();
     void    AdvanceBaseTick  ();
     void    StepLfsr         ();
     void    StepEnvelope     ();
@@ -152,9 +170,21 @@ private:
         0.35355339f, 0.50000000f, 0.70710678f, 1.00000000f
     };
 
+    // The scopes, a ring of kScopeSamples per channel, made on first use since
+    // only an open panel has a use for it.
+    mutable std::vector<float>  m_scope;
+    mutable int64_t             m_scopeSamplesLeft = 0;
+    size_t                      m_scopeAt          = 0;
+    Byte                        m_muted            = 0;
+
 protected:
     Byte  m_regs[kRegCount] = {};
     Byte  m_latched         = 0;
+
+    uint32_t m_writeCount     = 0;
+    bool     m_hasLastWrite   = false;
+    Byte     m_lastWriteReg   = 0;
+    Byte     m_lastWriteValue = 0;
 
     double   m_clockHz        = kDefaultClockHz;
     uint32_t m_sampleRate     = 0;

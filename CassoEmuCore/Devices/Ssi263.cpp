@@ -494,6 +494,8 @@ void Ssi263::Reset()
     m_request       = false;
     m_phonemeCycles = 0.0;
     m_sounding      = false;
+    m_recentAt      = 0;
+    m_recentCount   = 0;
 
     for (i = 0; i < 3; i++)
     {
@@ -784,13 +786,105 @@ void Ssi263::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppendLevel
+//  AppendSoundBoard
+//
+//  The formants are the centers the resonators filter at, as the rows have them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ssi263::AppendLevel (const std::string & title, DiagnosticsMeters & meters) const
+void Ssi263::AppendSoundBoard (DiagnosticsSoundVoice & out) const
 {
-    meters.levels.push_back ({ title, std::clamp (m_envLevel, 0.0f, 1.0f) });
+    static constexpr const char * kModes[]     = { "A/R disabled", "Frame immediate", "Phoneme immediate", "Phoneme transitioned" };
+    constexpr double              kMsPerSecond = 1000.0;
+    double                        scale        = GetFormantScale();
+    int                           i            = 0;
+
+
+
+    out.phoneme        = GetPhonemeName (GetPhoneme());
+    out.phonemeCode    = GetPhoneme();
+    out.pitchHz        = GetInflectionFrequencyHz();
+    out.level          = std::clamp (m_envLevel, 0.0f, 1.0f);
+    out.durationSelect = GetDurationSel();
+    out.durationMs     = GetPhonemeDurationSec() * kMsPerSecond;
+    out.rateSelect     = GetRateSel();
+    out.frameMs        = GetFrameDurationSec() * kMsPerSecond;
+    out.articulation   = GetArticulation();
+    out.amplitude      = GetAmplitude();
+    out.filterRegister = m_reg[kRegFilterFreq];
+    out.filterHz       = GetFilterFrequencyHz();
+    out.inflection     = GetInflectionValue();
+    out.mode           = kModes[m_mode];
+    out.isPoweredDown  = IsPoweredDown();
+    out.isSounding     = m_sounding;
+    out.isRequesting   = m_request;
+
+    for (i = 0; i < DiagnosticsSoundVoice::kFormantCount; i++)
+    {
+        out.formantsHz[i] = m_fCur[i] * scale;
+    }
+
+    out.recent.clear();
+
+    for (i = 0; i < m_recentCount; i++)
+    {
+        const RecentPhoneme  & entry = m_recent[(m_recentAt + kRecentCount - m_recentCount + i) % kRecentCount];
+
+        out.recent.push_back ({ GetPhonemeName (entry.code), entry.seconds });
+    }
+
+    out.scope.clear();
+
+    for (size_t at = 0; at < kScopeSamples && !m_scope.empty(); at++)
+    {
+        out.scope.push_back (m_scope[(m_scopeAt + at) % kScopeSamples]);
+    }
+
+    if (m_scope.empty())
+    {
+        m_scope.assign (kScopeSamples, 0.0f);
+    }
+
+    m_scopeSamplesLeft = (int64_t) m_sampleRate * kScopeCaptureSeconds;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureScope
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::CaptureScope (float sample)
+{
+    m_scope[m_scopeAt] = sample;
+    m_scopeAt          = (m_scopeAt + 1) % kScopeSamples;
+    m_scopeSamplesLeft--;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureSilence
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::CaptureSilence (uint32_t samples)
+{
+    uint32_t  i = 0;
+
+
+
+    for (i = 0; i < samples && m_scopeSamplesLeft > 0; i++)
+    {
+        CaptureScope (0.0f);
+    }
 }
 
 
@@ -826,6 +920,7 @@ float Ssi263::GenerateSample()
 
     if (IsSilent() || m_sampleRate == 0)
     {
+        CaptureSilence (1);
         return 0.0f;
     }
 
@@ -892,8 +987,14 @@ float Ssi263::GenerateSample()
     m_envLevel += static_cast<float> (coef) * (target - m_envLevel);
 
     sample *= m_envLevel * s_kfOutputGain;
+    sample  = std::clamp (sample, -1.0f, 1.0f);
 
-    return std::clamp (sample, -1.0f, 1.0f);
+    if (m_scopeSamplesLeft > 0)
+    {
+        CaptureScope (sample);
+    }
+
+    return sample;
 }
 
 
@@ -1273,6 +1374,10 @@ void Ssi263::BeginPhoneme()
     m_phonemeCycles = seconds * GetTickClockHz();
     m_sounding      = (m_phonemeCycles > 0.0);
     m_request       = false;
+
+    m_recent[m_recentAt] = { GetPhoneme(), static_cast<float> (seconds) };
+    m_recentAt           = (m_recentAt + 1) % kRecentCount;
+    m_recentCount        = std::min (m_recentCount + 1, kRecentCount);
 }
 
 
@@ -1342,6 +1447,15 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
     StateFloat::Write  (writer, m_outLp);
     StateFloat::Write  (writer, m_outLp2);
 
+    writer.WriteUInt32 (static_cast<uint32_t> (m_recentAt));
+    writer.WriteUInt32 (static_cast<uint32_t> (m_recentCount));
+
+    for (const RecentPhoneme & entry : m_recent)
+    {
+        writer.WriteByte  (entry.code);
+        StateFloat::Write (writer, entry.seconds);
+    }
+
     return writer.EndSection();
 }
 
@@ -1360,9 +1474,12 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
 
 HRESULT Ssi263::LoadState (StateReader & reader)
 {
-    HRESULT   hr      = S_OK;
-    uint16_t  version = 0;
-    int       i       = 0;
+    constexpr uint16_t  kFirstWithRecent = 2;
+    HRESULT   hr          = S_OK;
+    uint16_t  version     = 0;
+    int       i           = 0;
+    uint32_t  recentAt    = 0;
+    uint32_t  recentCount = 0;
 
 
 
@@ -1400,10 +1517,26 @@ HRESULT Ssi263::LoadState (StateReader & reader)
     StateFloat::Read  (reader, m_outLp);
     StateFloat::Read  (reader, m_outLp2);
 
+    if (version >= kFirstWithRecent)
+    {
+        reader.ReadUInt32 (recentAt);
+        reader.ReadUInt32 (recentCount);
+
+        for (RecentPhoneme & entry : m_recent)
+        {
+            reader.ReadByte  (entry.code);
+            StateFloat::Read (reader, entry.seconds);
+        }
+    }
+
     hr = reader.EndSection();
     CHR (hr);
 
     CBREx (m_mode <= kModePhonemeTransitioned, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (recentAt < (uint32_t) kRecentCount && recentCount <= (uint32_t) kRecentCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_recentAt    = (int) recentAt;
+    m_recentCount = (int) recentCount;
 
 Error:
     return hr;

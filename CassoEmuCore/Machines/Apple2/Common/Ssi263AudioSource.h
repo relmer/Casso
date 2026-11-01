@@ -46,6 +46,11 @@ public:
 
     void   SetSpeech (Ssi263 * speech) { m_speech = speech; }
 
+    // A mute takes the speech out of the output and nothing else: the chip
+    // renders on, so its state and scope are the same either way.
+    void   SetMuted  (bool isMuted) { m_isMuted = isMuted; }
+    bool   IsMuted   () const       { return m_isMuted; }
+
     // IDriveAudioSource
     void   GeneratePCM (float * outMono, uint32_t numSamples) override;
     float  GetPanLeft  () const override { return m_panLeft;  }
@@ -68,4 +73,5 @@ private:
 
     float      m_dcPrevIn  = 0.0f;
     float      m_dcPrevOut = 0.0f;
+    bool       m_isMuted   = false;
 };

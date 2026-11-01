@@ -4,8 +4,8 @@
 
 #include "Core/IMachineState.h"
 
-struct DiagnosticsMeters;
 struct DiagnosticsSnapshot;
+struct DiagnosticsSoundVoice;
 
 
 
@@ -199,26 +199,37 @@ public:
     // The phoneme's datasheet name and example word, as in "IU (you)".
     static const char *  GetPhonemeName (Byte phoneme);
 
-    // The debugger panel's contents: the registers decoded, and the output
-    // envelope as a meter.
+    // The debugger panel's rows: the registers decoded.
     void    AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const;
-    void    AppendLevel       (const std::string & title, DiagnosticsMeters & meters) const;
+
+    // A sound board's view of this chip. Each call starts the scope's capture
+    // again for kScopeCaptureSeconds, so it stops after the panel closes.
+    void    AppendSoundBoard  (DiagnosticsSoundVoice & out) const;
+    bool    IsScopeCapturing  () const { return m_scopeSamplesLeft > 0; }
+
+    // The audio source's silent samples, which skip GenerateSample.
+    void    CaptureSilence    (uint32_t samples);
+
+    static constexpr size_t  kScopeSamples     = 1024;
+    static constexpr int     kScopeCaptureSeconds = 2;
+    static constexpr int     kRecentCount      = 32;
 
     // Nominal vocal-tract filter clock; the filter register scales formants
     // relative to it, changing "voice type" as the datasheet describes.
     static constexpr double  kNominalFilterHz = 20000.0;
 
-    // IMachineState: the registers, the latched mode, A/R, the phoneme countdown
-    // and the synthesis state, floats at their exact bits so replay renders the
-    // same samples. XCK, the tick clock, the host sample rate and the formant
-    // table are configuration and are not saved.
+    // IMachineState: the registers, the latched mode, A/R, the phoneme countdown,
+    // the synthesis state, floats at their exact bits so replay renders the same
+    // samples, and the recent phonemes. XCK, the tick clock, the host sample rate
+    // and the formant table are configuration and are not saved.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'I', ' ');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
 private:
+    void    CaptureScope        (float sample);
     double  GetTickClockHz      () const { return (m_tickClockHz > 0.0) ? m_tickClockHz : m_xckHz; }
     double  GetFormantScale     () const;
 
@@ -247,7 +258,24 @@ private:
     // device rate (see s_kSourceBreakHz). Set by SetSampleRate.
     float      m_sourcePole   = 0.0065f;
 
+    // The scope, a ring of kScopeSamples, made on first use since only an open
+    // panel has a use for it.
+    mutable std::vector<float>  m_scope;
+    mutable int64_t             m_scopeSamplesLeft = 0;
+    size_t                      m_scopeAt          = 0;
+
 protected:
+    // The phonemes started, a ring.
+    struct RecentPhoneme
+    {
+        Byte   code    = 0;
+        float  seconds = 0.0f;
+    };
+
+    std::array<RecentPhoneme, kRecentCount>  m_recent = {};
+    int        m_recentAt    = 0;
+    int        m_recentCount = 0;
+
     Byte       m_reg[kRegCount] = {};
 
     // Mode latched on the CTL one-to-zero transition, from the DR bits as they

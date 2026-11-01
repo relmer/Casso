@@ -135,8 +135,13 @@ public:
     static unique_ptr<MemoryDevice> Create       (const DeviceConfig & config, MemoryBus & bus);
     static unique_ptr<MemoryDevice> CreateSpeech (const DeviceConfig & config, MemoryBus & bus);
 
-    // The Mockingboard panel: each 6522, each AY and the speech chip, and meters
-    // for the AY channels, the speech chip and the 6522 timers.
+    // The channel a mute applies to: 0 to 5 for the AYs' channels, in order, and
+    // kSpeechMuteChannel for the speech chip. Nothing for one the card lacks.
+    static constexpr int  kSpeechMuteChannel = 6;
+    void    SetSoundMuted (int channel, bool isMuted);
+
+    // The Mockingboard panel: each 6522, each AY and the speech chip as rows,
+    // and the sound board its graphic draws.
     std::string  GetDiagnosticsId    () const override { return "mockingboard"; }
     std::string  GetDiagnosticsTitle () const override { return "Mockingboard"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
@@ -154,6 +159,8 @@ public:
 private:
     void    SyncPsg            (int index);
     void    SyncSpeechRequest  ();
+
+    static std::string  GetBusState (Byte portB);
 
     int                   m_slot    = 0;
     Word                  m_base    = 0;

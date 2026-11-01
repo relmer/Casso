@@ -101,6 +101,11 @@ void Ay8910::WriteData (Byte value)
     if (m_latched < kRegCount)
     {
         WriteRegister (m_latched, value);
+
+        m_writeCount++;
+        m_hasLastWrite   = true;
+        m_lastWriteReg   = m_latched;
+        m_lastWriteValue = value;
     }
 }
 
@@ -232,8 +237,12 @@ void Ay8910::Reset()
         m_regs[c] = 0;
     }
 
-    m_latched   = 0;
-    m_tickAccum = 0.0;
+    m_latched        = 0;
+    m_tickAccum      = 0.0;
+    m_writeCount     = 0;
+    m_hasLastWrite   = false;
+    m_lastWriteReg   = 0;
+    m_lastWriteValue = 0;
 
     for (c = 0; c < s_kChannelCount; c++)
     {
@@ -304,6 +313,11 @@ float Ay8910::GenerateSample()
     result = GetCurrentOutput();
 
 Error:
+    if (m_scopeSamplesLeft > 0)
+    {
+        CaptureScope();
+    }
+
     return result;
 }
 
@@ -494,29 +508,90 @@ void Ay8910::RestartEnvelope (Byte shape)
 
 float Ay8910::GetCurrentOutput() const
 {
-    Byte    mixer = m_regs[kRegMixer];
-    float   out   = 0.0f;
-    int     c     = 0;
+    float   out = 0.0f;
+    int     c   = 0;
 
 
 
     for (c = 0; c < s_kChannelCount; c++)
     {
-        int    toneDisabled  = (mixer >> c) & 1;
-        int    noiseDisabled = (mixer >> (c + s_kChannelCount)) & 1;
-        int    toneTerm      = toneDisabled  | m_toneState[c];
-        int    noiseTerm     = noiseDisabled | static_cast<int> (m_lfsr & 1u);
-        int    active        = toneTerm & noiseTerm;
-        Byte   amp           = m_regs[kRegAmpA + c];
-        int    level         = (amp & kAmpUseEnvelope) ? m_envLevel : (amp & kAmpLevelMask);
-
-        if (active != 0)
+        if (!IsChannelMuted (c))
         {
-            out += GetVolumeForLevel (level);
+            out += GetChannelOutput (c);
         }
     }
 
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetChannelOutput
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Ay8910::GetChannelOutput (int channel) const
+{
+    Byte   mixer         = m_regs[kRegMixer];
+    int    toneDisabled  = (mixer >> channel) & 1;
+    int    noiseDisabled = (mixer >> (channel + s_kChannelCount)) & 1;
+    int    toneTerm      = toneDisabled  | m_toneState[channel];
+    int    noiseTerm     = noiseDisabled | static_cast<int> (m_lfsr & 1u);
+    int    active        = toneTerm & noiseTerm;
+    Byte   amp           = m_regs[kRegAmpA + channel];
+    int    level         = (amp & kAmpUseEnvelope) ? m_envLevel : (amp & kAmpLevelMask);
+
+
+
+    return (active != 0) ? GetVolumeForLevel (level) : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureScope
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ay8910::CaptureScope()
+{
+    int   c = 0;
+
+
+
+    for (c = 0; c < s_kChannelCount; c++)
+    {
+        m_scope[(size_t) c * kScopeSamples + m_scopeAt] = GetChannelOutput (c);
+    }
+
+    m_scopeAt = (m_scopeAt + 1) % kScopeSamples;
+    m_scopeSamplesLeft--;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetChannelMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ay8910::SetChannelMuted (int channel, bool isMuted)
+{
+    Byte  bit = (Byte) (1 << channel);
+
+
+
+    m_muted = (Byte) (isMuted ? (m_muted | bit) : (m_muted & ~bit));
 }
 
 
@@ -671,6 +746,70 @@ void Ay8910::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Ay8910::AppendSoundBoard
+//
+//  The frequencies are the datasheet's: clock / (16 * period) for a tone and for
+//  noise, and 256 * period / clock for one ramp of the envelope.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ay8910::AppendSoundBoard (DiagnosticsSoundPsg & out) const
+{
+    constexpr double  kToneDivisor     = 16.0;
+    constexpr double  kEnvelopeDivisor = 256.0;
+    constexpr double  kMsPerSecond     = 1000.0;
+    int               c                = 0;
+
+
+
+    for (c = 0; c < DiagnosticsSoundPsg::kChannelCount; c++)
+    {
+        DiagnosticsSoundChannel  & channel = out.channels[c];
+        Byte                       amp     = m_regs[kRegAmpA + c];
+        size_t                     first   = (size_t) c * kScopeSamples;
+
+        channel.period       = GetTonePeriod (c);
+        channel.frequencyHz  = m_clockHz / (kToneDivisor * channel.period);
+        channel.isToneOn     = ((m_regs[kRegMixer] >> c) & 1) == 0;
+        channel.isNoiseOn    = ((m_regs[kRegMixer] >> (c + s_kChannelCount)) & 1) == 0;
+        channel.usesEnvelope = (amp & kAmpUseEnvelope) != 0;
+        channel.level        = channel.usesEnvelope ? m_envLevel : (amp & kAmpLevelMask);
+        channel.isMuted      = IsChannelMuted (c);
+
+        channel.scope.clear();
+
+        for (size_t i = 0; i < kScopeSamples && !m_scope.empty(); i++)
+        {
+            channel.scope.push_back (m_scope[first + (m_scopeAt + i) % kScopeSamples]);
+        }
+    }
+
+    out.envelopeRegister = m_regs[kRegEnvShape];
+    out.envelopePeriod   = GetEnvPeriod();
+    out.envelopeLevel    = m_envLevel;
+    out.envelopeRampMs   = kEnvelopeDivisor * out.envelopePeriod / m_clockHz * kMsPerSecond;
+    out.noisePeriod      = GetNoisePeriod();
+    out.noiseHz          = m_clockHz / (kToneDivisor * out.noisePeriod);
+    out.mixer            = m_regs[kRegMixer];
+    out.writeCount       = m_writeCount;
+    out.hasLastWrite     = m_hasLastWrite;
+    out.lastWriteReg     = m_lastWriteReg;
+    out.lastWriteValue   = m_lastWriteValue;
+
+    if (m_scope.empty())
+    {
+        m_scope.assign ((size_t) DiagnosticsSoundPsg::kChannelCount * kScopeSamples, 0.0f);
+    }
+
+    m_scopeSamplesLeft = (int64_t) m_sampleRate * kScopeCaptureSeconds;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Ay8910::AppendChannelLevels
 //
 //  A channel's amplitude register, or the envelope's level where the register
@@ -738,6 +877,11 @@ HRESULT Ay8910::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_envAlt);
     writer.WriteBool   (m_envHold);
 
+    writer.WriteUInt32 (m_writeCount);
+    writer.WriteBool   (m_hasLastWrite);
+    writer.WriteByte   (m_lastWriteReg);
+    writer.WriteByte   (m_lastWriteValue);
+
     return writer.EndSection();
 }
 
@@ -756,6 +900,7 @@ HRESULT Ay8910::SaveState (StateWriter & writer) const
 
 HRESULT Ay8910::LoadState (StateReader & reader)
 {
+    constexpr uint16_t  kFirstWithWrites = 2;
     HRESULT   hr             = S_OK;
     uint16_t  version        = 0;
     uint32_t  toneCounter[3] = {};
@@ -791,6 +936,19 @@ HRESULT Ay8910::LoadState (StateReader & reader)
     reader.ReadBool   (m_envAttack);
     reader.ReadBool   (m_envAlt);
     reader.ReadBool   (m_envHold);
+
+    m_writeCount     = 0;
+    m_hasLastWrite   = false;
+    m_lastWriteReg   = 0;
+    m_lastWriteValue = 0;
+
+    if (version >= kFirstWithWrites)
+    {
+        reader.ReadUInt32 (m_writeCount);
+        reader.ReadBool   (m_hasLastWrite);
+        reader.ReadByte   (m_lastWriteReg);
+        reader.ReadByte   (m_lastWriteValue);
+    }
 
     hr = reader.EndSection();
     CHR (hr);
