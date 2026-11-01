@@ -1661,7 +1661,7 @@ Found 2026-10-14.
 - [X] T892 Add the heat strip to the source view over its line's ranges from the LineTable (Panes/SourcePane.cpp) and to the BASIC program pane over each line's tokens (Panes/BasicPanes.cpp), FR-247; tested in HeatColumnTests.cpp **Done 2026-10-17** (9efb56779)
 - [X] T893 Add Heat to the memory window's bar and a per-byte background to DxuiHexView (Dxui/Widgets/DxuiHexView.cpp, CassoEmuCore/Ui/Debugger/MemoryBarCommands.cpp, Panes/MemoryPane.cpp), FR-248; tested in HeatColumnTests.cpp **Done 2026-10-17** (daf335502); checked on screen
 - [X] T894 Describe the routine profile, the Profiler pane's views and the heat columns in docs/Debugger.md and PROFILE LIST ROUTINES and TREE in docs/Debugger-Commands.md **Done 2026-10-17**
-- [ ] T895 Launch a build for the owner to try the routine views, the flame graph, the timeline and the heat columns
+- [X] T895 Launch a build for the owner to try the routine views, the flame graph, the timeline and the heat columns **Owner 2026-11-01:** all four passed. Notes are T1203 to T1216.
 
 ## Phase 43: The debugger window refactored into panes (FR-249 to FR-254, SC-060 to SC-062)
 
@@ -2040,3 +2040,8 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [ ] T1209 Profiler: add `SymbolDescriptions::Find`'s line and the address to a routine's tip on a flame graph bar, on a list row of the Routines and Call tree views, and on a timeline tip. A row or bar with only an address gets the address's symbol if one is found.
 - [ ] T1210 Add symbols to `CassoEmuCore/Debugger/RomSymbols.cpp` for the Applesoft and Monitor routines that the Profiler lists by address alone, such as $D828, $DB5C, $DE60 and $EA39. Each addition has a description in `SymbolDescriptions`, from the reference texts, and nothing is guessed.
 - [ ] T1211 Profiler: add a tip on Top level with its definition (cycles in code outside any call seen during the period) and its hottest addresses with their symbols, so a BASIC profile's Top level is identified as NEWSTT's loop.
+- [ ] T1212 Add a source comment to a symbol's description everywhere a symbol's description is drawn (the disassembly, source pane, watches, breakpoints, symbols pane and Profiler): the comment on the symbol's defining line in a loaded source file, when that file is found. A debug file has the line and the hash of its file, and the comment is read from the source.
+- [ ] T1213 Profile from history: start a period's profile with the calls open at its first cycle, from `CallStackHistory`, within the history buffer. Top level is then only code outside every call in history, and the tip of T1211 indicates when the period begins at the start of history.
+- [ ] T1214 Profiler timeline: the selected range is hard to see. Draw it far brighter, in a color distinct from every routine color and in every theme.
+- [ ] T1215 Heat columns (disassembly, source pane, BASIC program): the code color is blue at every level, so hot code doesn't look hot. Fill a heat column from a ramp that runs from a dim cool color through to a bright hot color, for the column's level, in every theme. Whether a byte is mostly run, read or written moves to the tip of T1216.
+- [ ] T1216 Heat columns: add a tip on a heat cell with the run, read and write counts of the line's bytes, the color's meaning and why this cell has that color. Add the same tip on a heat column heading with the ramp's definition. This covers the source pane's part of T1196.
