@@ -317,9 +317,11 @@ void CassoLinkManager::ApplyFullSendPrefs()
 
 
 
+    m_context.browser.GetTreeModel().SetFullSendFolder (folder);
+
     if (m_context.app.links != nullptr)
     {
-        m_context.app.links->SetFullSendTarget (TextEncoding::WideToNarrow (folder), m_context.prefs.fullSendExtension, [] (const std::string & path)
+        m_context.app.links->SetFullSendTarget (TextEncoding::WideToNarrow (folder), m_context.prefs.fullSendExtension, TextEncoding::WideToNarrow (m_context.prefs.fullSendPrefix), [] (const std::string & path)
         {
             std::error_code  error;
 

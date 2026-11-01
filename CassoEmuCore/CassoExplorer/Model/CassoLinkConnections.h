@@ -44,11 +44,11 @@ public:
     ~CassoLinkConnections ();
 
     //  Where a full send started from an Apple writes: the folder, made by
-    //  makeFolder when the session starts, and the extension with its period,
-    //  empty for .po on ProDOS and .dsk otherwise.
+    //  makeFolder when the session starts, the extension with its period, empty
+    //  for .po on ProDOS and .dsk otherwise, and what begins each file name.
     using MakeFolderFn = std::function<HRESULT (const std::string & folder)>;
 
-    void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
+    void  SetFullSendTarget (const std::string & folder, const std::string & extension, const std::string & prefix, MakeFolderFn makeFolder);
 
     //  Where a finished operation or a change of state is posted.
     void  SetTarget (HWND hwnd, UINT message) { m_hwnd = hwnd; m_message = message; }
@@ -256,7 +256,7 @@ private:
         void  OnStateChanged       (LinkState state) override;
         void  OnProgress           (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
-        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
         void  OnFinished           (const LinkOperation & operation, const std::string & text) override;
@@ -314,6 +314,7 @@ private:
 
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
+    std::string           m_fullSendPrefix;
     MakeFolderFn          m_makeFullSendFolder;
     std::vector<Job>      m_jobs;
     std::deque<Activity>  m_activity;

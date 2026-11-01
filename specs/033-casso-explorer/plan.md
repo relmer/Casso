@@ -481,3 +481,9 @@ commit per phase, with the 032 merge as the first task of phase 6.
 `ExplorerListMenus::AddBackgroundRows` has the rows particular to a folder. `Win32PackagedCommands` initializes store commands from their registry key, hosts commands with `CommandSite`, and invokes them under a structured exception guard.
 
 MAC Address has no canonical name. `Win32PropertyColumns::GetKey` takes the key's text, `{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 12294`.
+
+## Phase 31: Full send prefix, speed and folder row (Session 2026-11-01)
+
+`FullSendSession::ReadStableTrack` stops at the first whole read, and `RunRound` passes over the drive just sent unless its disk changed during the read. That is 36 track reads per DOS 3.3 disk on one drive, down from 42. The arm's moves between tracks 0 and 17 stay, as the fingerprint needs both before the read and the catalog track again after it.
+
+The prefix follows the folder and extension from `CassoExplorerPrefs` to `LinkOperation::imagePrefix`. The Full send row is an `adtpro:<path>` node under CassoLink's root, so it has the same path tip as an ADTPro server's folder.

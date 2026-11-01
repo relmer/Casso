@@ -80,11 +80,13 @@ struct LinkOperation
     VolumeKind                       volumeKind = VolumeKind::Unknown;
     FilePayload                      file;
 
-    //  Full send: imagePath is the folder and newName the chosen extension.
+    //  Full send: imagePath is the folder, newName the chosen extension and
+    //  imagePrefix what begins each image's file name.
     //  Read disk and Write disk: the image file, and for a read, whether an
     //  unreadable sector is written as zeros rather than failing the read.
     //  unreadable lists those sectors, as track and DOS 3.3 sector.
     std::string                      imagePath;
+    std::string                      imagePrefix;
     bool                             blankUnreadable = false;
 
     //  Write disk for a format: the new volume, as VOL 254 or /NAME, so the
@@ -127,7 +129,7 @@ public:
 
     //  The folder and extension of a full send started from the Apple, with
     //  the folder ready to use; false when there is no folder to send to.
-    virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); return false; }
+    virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); UNREFERENCED_PARAMETER (outPrefix); return false; }
 
     //  An operation the Apple started, so the window can track and cancel it.
     virtual void  OnOperationQueued (const std::shared_ptr<LinkOperation> & operation) { UNREFERENCED_PARAMETER (operation); }

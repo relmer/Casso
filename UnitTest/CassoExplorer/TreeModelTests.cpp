@@ -434,6 +434,53 @@ public:
     }
 
 
+    //  CassoLink lists where every connection's full sends write, with no Apple
+    //  connected, once the folder exists.
+    TEST_METHOD (CassoLink_ListsTheFullSendFolder_OnceItExists)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  nodes;
+        LinkTreeEntry          apple;
+
+        apple.name = L"Apple //c";
+
+        model.SetLinks ({ apple });
+        model.SetFullSendFolder (L"C:\\Box");
+        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
+        Assert::AreEqual ((size_t) 2, nodes.size(), L"the connection and the row that adds one");
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Box\\0001.dsk", "x"));
+
+        model.SetFullSendFolder (L"C:\\Box");
+        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
+
+        Assert::AreEqual ((size_t) 3, nodes.size());
+        Assert::AreEqual (std::wstring (L"Full send"), nodes[1].label);
+        Assert::IsTrue   (nodes[1].location == Location::MakeHostFolder (L"C:\\Box"));
+        Assert::IsTrue   (nodes[2].kind == TreeNode::Kind::AddLink);
+    }
+
+    TEST_METHOD (AConnection_DoesNotListTheFullSendFolder)
+    {
+        InMemoryFileSystem     fs;
+        TreeModel              model (fs);
+        std::vector<TreeNode>  nodes;
+        LinkTreeEntry          apple;
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Box\\0001.dsk", "x"));
+
+        apple.name     = L"Apple //c";
+        apple.replying = true;
+
+        model.SetLinks ({ apple });
+        model.SetFullSendFolder (L"C:\\Box");
+        AssertSucceeded (model.GetChildren (TreeModel::MakeLinkId (apple.name), nodes));
+
+        Assert::IsTrue (nodes.empty());
+    }
+
+
     TEST_METHOD (CassoLink_ListsEveryLink_UnderIdsOfItsOwn)
     {
         InMemoryFileSystem     fs;

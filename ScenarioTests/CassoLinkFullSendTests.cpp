@@ -93,10 +93,11 @@ public:
         std::vector<std::shared_ptr<LinkOperation>>   done;
         std::vector<std::shared_ptr<LinkOperation>>   queued;
 
-        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) override
         {
             outFolder = "C:\\Box";
             outExtension.clear();
+            outPrefix.clear();
 
             return true;
         }
@@ -369,7 +370,7 @@ public:
         bool        swapped = false;
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.send = rig.session->FullSend ("C:\\Box", "");
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
 
         begun = rig.spent;
         rig.RunUntil ([&] ()
@@ -425,7 +426,7 @@ public:
 
         //  Drive 2 has a copy of drive 1's disk: same fingerprint, so a pause.
         rig.Mount (2, DiskFormat::Dsk, rig.dosFile);
-        rig.send = rig.session->FullSend ("C:\\Box", "");
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause, as drive 2's disk repeats drive 1's");
         pauses++;
@@ -478,7 +479,7 @@ public:
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.machine.GetDiskStore().Eject (kSlot, 1);
-        rig.send = rig.session->FullSend ("C:\\Box", "");
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause");
         Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: NO DISK"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
@@ -502,7 +503,7 @@ public:
         Rig  rig;
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
-        rig.send = rig.session->FullSend ("C:\\Box", "");
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
 
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS / 2);
@@ -589,7 +590,7 @@ public:
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.machine.GetDiskStore().Eject (kSlot, 1);
-        rig.send = rig.session->FullSend ("C:\\Box", "");
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
 
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS);

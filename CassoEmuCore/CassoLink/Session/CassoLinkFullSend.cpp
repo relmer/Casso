@@ -37,7 +37,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 {
     HRESULT            hr      = S_OK;
     HRESULT            cleared = S_OK;
-    FullSendSession    session (*this, m_session.m_fileIo, GetUtcTime, operation.imagePath, operation.newName);
+    FullSendSession    session (*this, m_session.m_fileIo, GetUtcTime, operation.imagePath, operation.newName, operation.imagePrefix);
     const Byte         off[2]  = { (Byte) FullSendDriveState::Off, (Byte) FullSendDriveState::Off };
 
 

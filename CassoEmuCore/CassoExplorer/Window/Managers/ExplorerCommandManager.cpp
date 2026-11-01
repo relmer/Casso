@@ -676,6 +676,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
+    choices.fullSendPrefix    = m_context.prefs.fullSendPrefix;
 
     choices.monitor      = (int) m_context.preview.GetPicture().GetMonitor();
     choices.customArgb   = m_context.prefs.previewCustomArgb;
@@ -717,6 +718,7 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.autoPreview       = choices.autoPreview;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
+    m_context.prefs.fullSendPrefix    = choices.fullSendPrefix;
     m_context.cassoLinkManager.ApplyFullSendPrefs();
 
 

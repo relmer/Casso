@@ -142,7 +142,7 @@ public:
 
     //  A chosen extension has its leading period; empty is .po for ProDOS and
     //  .dsk for any other.
-    FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension);
+    FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension, std::string prefix);
 
     //  Returns when the session ends. Q returns kQuit and Cancel
     //  ERROR_CANCELLED; no session ends in S_OK.
@@ -196,12 +196,14 @@ private:
     ClockFn                  m_clock;
     std::string              m_folder;
     std::string              m_extension;
+    std::string              m_prefix;
     FullSendManifest         m_manifest;
     FullSendScreen           m_screen;
     State                    m_state      = State::Starting;
     EndReason                m_endReason  = EndReason::None;
     std::string              m_message;
     int                      m_lastRead   = 0;
+    bool                     m_lastSent   = false;
     uint64_t                 m_commitTag  = 1;
     std::mt19937             m_random     { std::random_device{}() };
     std::vector<Byte>        m_quips;         // the prompt lines left before any repeats

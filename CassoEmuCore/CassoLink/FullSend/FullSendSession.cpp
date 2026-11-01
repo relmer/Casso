@@ -21,12 +21,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-FullSendSession::FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension) :
+FullSendSession::FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension, std::string prefix) :
     m_link      (link),
     m_fileIo    (fileIo),
     m_clock     (std::move (clock)),
     m_folder    (std::move (folder)),
-    m_extension (std::move (extension))
+    m_extension (std::move (extension)),
+    m_prefix    (std::move (prefix))
 {
 }
 
@@ -112,7 +113,9 @@ Error:
 //  FullSendSession::RunRound
 //
 //  The other drive and then the drive just read, a new disk in either sent at
-//  once. At the start drive 1 is first.
+//  once. At the start drive 1 is first. A drive whose disk was just sent is
+//  passed over, as its catalog track was read again a moment ago; one whose
+//  disk changed during the read is checked, so its new disk goes with no key.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,6 +129,11 @@ HRESULT FullSendSession::RunRound()
 
     for (int drive : order)
     {
+        if (drive == m_lastRead && m_lastSent)
+        {
+            continue;
+        }
+
         hr = CheckDrive (drive, disk);
         CHR (hr);
 
@@ -180,6 +188,8 @@ HRESULT FullSendSession::Pause()
     m_screen.quip = 0;
 
     CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
+
+    m_lastSent = false;
 
     for (int drive : order)
     {
@@ -301,10 +311,10 @@ Error:
 //
 //  FullSendSession::ReadFingerprint
 //
-//  Each track twice before the arm moves to the next, as a move between track
-//  0 and the catalog track costs more than a read. outStable is clear for a
-//  drive with no disk, or one whose reads do not match. A disk with a track 0
-//  and no catalog track has a fingerprint too, with that track as zeros.
+//  Track 0 and then the catalog track, and the whole-disk read skips each one
+//  read whole. outStable is clear for a drive with no disk, or one whose reads
+//  do not match. A disk with a track 0 and no catalog track has a fingerprint
+//  too, with that track as zeros.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -346,8 +356,10 @@ Error:
 //
 //  FullSendSession::ReadStableTrack
 //
-//  A disk that is not seated, or that is being swapped, reads differently from
-//  one read to the next, and is not sent until two reads in a row match.
+//  A track read whole passed every sector's checksum, so one read is enough. A
+//  disk that is not seated, or that is being swapped, fails some of them and
+//  reads differently from one read to the next, and is not sent until two reads
+//  in a row match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -369,7 +381,7 @@ HRESULT FullSendSession::ReadStableTrack (int drive, int track, CheckedDisk & io
         CHR (hr);
         BAIL_OUT_IF (!outHasDisk, S_OK);
 
-        outStable = read > 0 && std::equal (previous.begin(), previous.end(), start);
+        outStable = whole || (read > 0 && std::equal (previous.begin(), previous.end(), start));
         previous.assign (start, start + (ptrdiff_t) kTrackBytes);
     }
 
@@ -401,7 +413,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
 {
     HRESULT                             hr               = S_OK;
     int                                 sequence         = m_manifest.GetNextSequence();
-    std::string                         title            = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (checked.image));
+    std::string                         title            = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (checked.image), m_prefix);
     std::string                         fingerprint      = checked.fingerprint;
     std::vector<Byte>                   image            = checked.image;
     std::vector<Byte>                   after;
@@ -419,6 +431,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
 
     m_state       = State::Sending;
     m_lastRead    = drive;
+    m_lastSent    = false;
     m_screen.name = title;
     SetDriveState (drive, FullSendDriveState::Sending);
 
@@ -483,7 +496,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     }
     else
     {
-        title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image));
+        title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image), m_prefix);
 
         hr = WriteImage (title, image, unreadable, row.file);
         CHRF (hr, m_fileFailed = true);
@@ -503,6 +516,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     hr = WriteManifest();
     CHRF (hr, m_fileFailed = true);
 
+    m_lastSent = true;
     SetDriveState (drive, FullSendDriveState::Sent);
 
     hr = m_link.ShowScreen (m_screen);

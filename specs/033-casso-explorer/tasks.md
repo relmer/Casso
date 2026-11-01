@@ -1519,3 +1519,12 @@ Session 2026-10-31. The owner's //c passes, T326 and T331, follow this phase.
 - [X] T341 Display a search result's folder as the shell does, read the path of an item in a zip, and open typed zip and This PC paths
 - [X] T342 Add `ScenarioTests/CassoExplorerShellSearchTests.cpp` for search options, zip paths, drive ranges and Home's ids, against real files
 
+## Phase 31: Full send prefix, speed and folder row
+
+Session 2026-11-01, from the owner's //c passes.
+
+- [X] T343 Add `CassoExplorerPrefs::fullSendPrefix`, its field on Options' Full send page, and pass it through `CassoLinkConnections` and `LinkOperation` to `FullSendDisk::MakeImageTitle`, per FR-107 and FR-112
+- [X] T344 In `FullSendSession`, count a track read whole as one read, and skip the check of a drive whose disk was just sent, per FR-108 and FR-109
+- [X] T345 Add `TreeModel::SetFullSendFolder` and list the Full send row under `TreeModel::kCassoLinkRootId`, per FR-124
+- [X] T346 Add tests in `UnitTest/CassoLink/FullSendTests.cpp` and `UnitTest/CassoExplorer/TreeModelTests.cpp` for the prefix, the track reads per disk and the row
+

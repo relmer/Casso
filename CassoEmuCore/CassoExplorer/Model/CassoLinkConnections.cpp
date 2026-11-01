@@ -1593,7 +1593,7 @@ void CassoLinkConnections::Sink::OnProgress (const std::shared_ptr<LinkOperation
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder)
+void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const std::string & extension, const std::string & prefix, MakeFolderFn makeFolder)
 {
     std::lock_guard<std::mutex>  lock (m_lock);
 
@@ -1601,6 +1601,7 @@ void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const 
 
     m_fullSendFolder     = folder;
     m_fullSendExtension  = extension;
+    m_fullSendPrefix     = prefix;
     m_makeFullSendFolder = std::move (makeFolder);
 }
 
@@ -1614,7 +1615,7 @@ void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, std::string & outExtension)
+bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix)
 {
     std::lock_guard<std::mutex>  lock (m_owner.m_lock);
     bool                         ready = !m_owner.m_fullSendFolder.empty();
@@ -1630,6 +1631,7 @@ bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, 
 
     outFolder    = m_owner.m_fullSendFolder;
     outExtension = m_owner.m_fullSendExtension;
+    outPrefix    = m_owner.m_fullSendPrefix;
 
     return ready;
 }

@@ -167,6 +167,10 @@ public:
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
 
+    //  Where every connection's full sends write, listed under CassoLink once it
+    //  exists.
+    void  SetFullSendFolder  (std::wstring folder);
+
     //  A link's state while its Apple is not replying, for the list in place
     //  of its drives; false once it replies.
     bool  GetLinkStatus      (const std::wstring & name, std::wstring & outStatus) const;
@@ -222,7 +226,8 @@ public:
     //  linked Apple, with CassoLink.dsk and its help beside them in the list.
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
 
-    //  An ADTPro server's folder node under its connection, adtpro:<path>,
+    //  A folder listed where it is not on the disk, adtpro:<path>: an ADTPro
+    //  server's under its connection, or a full send's under CassoLink,
     //  which lists the folder there rather than where the folder is.
     static constexpr const wchar_t *  kAdtProId        = L"adtpro:";
 
@@ -305,4 +310,5 @@ private:
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     NavPaneOptions                                   m_navOptions;
     std::vector<LinkTreeEntry>                       m_links;
+    std::wstring                                     m_fullSendFolder;
 };

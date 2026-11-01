@@ -80,8 +80,9 @@ private:
 //
 //  CassoExplorerFullSendPage
 //
-//  A full send's folder, with its Browse button, and its image format. A full
-//  send starts from the Apple's keyboard, so these are set here ahead of time.
+//  A full send's folder, with its Browse button, its file name prefix and its
+//  image format. A full send starts from the Apple's keyboard, so these are set
+//  here ahead of time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,7 +91,7 @@ class CassoExplorerFullSendPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & prefixLabel, DxuiTextInput & prefix, DxuiLabel & formatLabel, DxuiRadioGroup & format);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -104,8 +105,10 @@ private:
     DxuiLabel       * m_note        = nullptr;
     DxuiLabel       * m_folderLabel = nullptr;
     DxuiLabel       * m_formatLabel = nullptr;
+    DxuiLabel       * m_prefixLabel = nullptr;
     DxuiLabel       * m_folder      = nullptr;
     DxuiButton      * m_browse      = nullptr;
+    DxuiTextInput   * m_prefix      = nullptr;
     DxuiRadioGroup  * m_format      = nullptr;
 };
 
@@ -142,9 +145,11 @@ public:
         //  Whether the preview pane opens and closes for the selected file.
         bool  autoPreview = true;
 
-        //  A full send's folder, and its extension: empty for the default.
+        //  A full send's folder and its extension, each empty for the default,
+        //  and what begins each image's file name.
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;
+        std::wstring  fullSendPrefix;
 
 
         //  The preview's monitor, as a PicturePreview::Monitor, the custom
@@ -210,6 +215,8 @@ private:
     DxuiLabel                     m_fullSendNote;
     DxuiLabel                     m_fullSendFolderLabel;
     DxuiLabel                     m_fullSendFormatLabel;
+    DxuiLabel                     m_fullSendPrefixLabel;
+    DxuiTextInput                 m_fullSendPrefix;
     DxuiLabel                     m_fullSendFolder;
     DxuiButton                    m_fullSendBrowse;
     DxuiRadioGroup                m_fullSendFormat;

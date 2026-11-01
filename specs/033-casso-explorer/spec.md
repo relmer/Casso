@@ -426,7 +426,7 @@ hardware.
 
 - Q: How does a box of floppies get archived from a //c? -> A: Full send, a CassoLink session that alternates between the Apple's two drives with no interaction on the PC. Disk II hardware has no usable disk-change signal, so a new disk is recognized by a fingerprint of track 0 and the catalog track. With no new fingerprint in either drive, the session pauses until Space on the Apple, and Space also forces a send, since two freshly formatted disks can match. Each image's name comes from its catalog where the disk has one. Labels are not typed on the Apple, whose keyboard has a one-character latch that a disk read can't poll; the user renames images on the PC afterward. Raw capture of copy-protected disks is a follow-on; the manifest flags those disks.
 
-- Q: When a disk finishes and the other drive's disk is not new, is the drive just read checked before the pause for Space? -> A: Yes, the other drive and then the drive just read, so a swap during the transfer continues with no key press.
+- Q: When a disk finishes and the other drive's disk is not new, is the drive just read checked before the pause for Space? -> A: Only when its disk changed during the read, so a swap during the transfer continues with no key press. See Session 2026-11-01.
 
 - Q: Does a new full send recognize disks an earlier session sent to the same folder? -> A: Yes, from the folder's manifest, which also has each disk's fingerprint. Sequence numbers continue from it.
 
@@ -509,6 +509,12 @@ hardware.
 - Q: What happens when a shell command faults? -> A: The command fails with a message, and the window stays open. Commands from the command store are initialized from their registry key, as File Explorer does, and have a site and a selection when invoked.
 - Q: How does a search result's Folder and Path read? -> A: As the shell displays them, so Recent reads Recent Items. An item inside a zip has its path.
 - Q: Does a typed path open a zip? -> A: Yes, and a typed shell name for This PC opens the This PC root.
+
+### Session 2026-11-01
+
+- Q: Can a full send's images have a file name prefix, as ADTPro's batch mode does? -> A: Yes. It is set on Options' Full send page, because FR-113 rules out typing on the Apple. It goes before the sequence number exactly as typed, so the user chooses any separator.
+- Q: Why was a full send slower per disk than ADTPro's batch mode, and what changed? -> A: One drive's disk took 42 track reads against ADTPro's 35: a check of two tracks read twice each before the disk, the catalog track read again after it, and another check of the same drive. A track read whole now counts as one read, and a drive whose disk was just sent is not checked again before the pause, which is 36 reads. The check is required to separate a new disk from a repeat, and the whole-disk read skips its tracks.
+- Q: Where is the link to a full send's images? -> A: A Full send row directly under CassoLink, a peer of the connections, in the list and the tree, once the folder exists, because every connection writes to the same folder. It opens the folder.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1298,7 +1304,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **Two operations at once**: one runs at a time per Apple; others queue,
   and when the running one is canceled the Apple is ready for the next.
 - **A disk swapped during its transfer, or not fully seated**: a disk
-  whose fingerprint reads differently on a second read is not sent yet, and a
+  with a track not read whole that reads differently on a second read is not sent yet, and a
   disk that changes during a transfer fails that image with no file left on
   the PC, and the session continues.
 - **An Apple with one drive**: a full send uses that drive alone, and pauses
@@ -1994,18 +2000,19 @@ source and read the manifest. Repeat on a real //c with real floppies.
 
 - **FR-107**: A full send MUST start from the Apple, with F (either case) on the
   program's CassoLink screen, which MUST show `F: FULL SEND`. Casso Explorer's
-  Options MUST have a Full send page with the destination folder and the image
-  format: any format Casso writes, defaulting to .po for a ProDOS disk and .dsk
+  Options MUST have a Full send page with the destination folder, a file name
+  prefix and the image format: any format Casso writes, defaulting to .po for a ProDOS disk and .dsk
   for any other. The default folder MUST be `Casso Full Send` under the user's
   Downloads, made when a session needs it. No command on the PC starts a
   session. F during another operation MUST start the session when that
   operation ends.
 - **FR-108**: A full send MUST read one drive at a time, and when a disk
-  finishes MUST check the other drive first and then the drive just read,
-  alternating for as long as the session runs.
+  finishes MUST check the other drive first, alternating for as long as the
+  session runs. The drive just read MUST be checked as well only when its disk
+  changed during the read.
 - **FR-109**: A disk's fingerprint MUST be a hash of track 0 and the catalog
-  track, and MUST read the same on two reads before the disk is sent. A
-  disk whose fingerprint is not among those sent to the folder MUST be sent
+  track. A track not read whole MUST read the same on two reads before the disk
+  is sent. A disk whose fingerprint is not among those sent to the folder MUST be sent
   with no key press. A drive with no readable disk MUST count as having no
   new disk. A disk with no catalog track that Casso recognizes MUST use track 0 and the DOS 3.3 catalog track.
 - **FR-110**: With no new disk in either drive, the session MUST pause until
@@ -2015,10 +2022,11 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-111**: An image whose whole-disk hash matches an earlier image in the
   folder's manifest MUST be discarded, and the manifest MUST list it as a duplicate of
   that image. A duplicate MUST have a manifest row and a sequence number, so the numbers match the disks fed in.
-- **FR-112**: An image's file name MUST begin with the session's sequence
+- **FR-112**: An image's file name MUST begin with the prefix from Options, as
+  typed and with characters a file name cannot have replaced, then the session's sequence
   number, followed by the volume name on ProDOS or Apple Pascal, or the
   first program's name on DOS 3.3. With no name in the catalog,
-  the sequence number MUST be the whole name. An existing file MUST NOT be
+  the prefix and sequence number MUST be the whole name. An existing file MUST NOT be
   overwritten.
 - **FR-113**: A full send MUST NOT accept a label typed on the Apple. Images
   MUST be renamed on the PC.
@@ -2045,6 +2053,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-121**: A slow folder's rows MUST appear as they are read, and while a folder is read again its rows MUST stay on screen until the read finishes.
 - **FR-122**: The list's background menu MUST have File Explorer's rows for This PC, the Recycle Bin, Home, Network, Libraries and a zip.
 - **FR-123**: A shell command MUST be initialized and hosted as File Explorer hosts it, and one that faults MUST NOT close the window.
+- **FR-124**: CassoLink's root MUST list a Full send row, a peer of the connections, that opens the full send folder, once the folder exists.
 
 ### Key Entities
 

@@ -339,14 +339,15 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & folder, const std::string & extension)
+std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & folder, const std::string & extension, const std::string & prefix)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
 
 
-    operation->imagePath = folder;
-    operation->newName   = extension;
+    operation->imagePath   = folder;
+    operation->newName     = extension;
+    operation->imagePrefix = prefix;
 
     return Queue (LinkOperationKind::FullSend, 1, FilePath(), operation);
 }
@@ -766,12 +767,13 @@ void CassoLinkSession::StartFullSendFromApple()
     HRESULT      logged = S_OK;
     std::string  folder;
     std::string  extension;
+    std::string  prefix;
 
 
 
-    if (m_sink.TryGetFullSendTarget (folder, extension))
+    if (m_sink.TryGetFullSendTarget (folder, extension, prefix))
     {
-        m_sink.OnOperationQueued (FullSend (folder, extension));
+        m_sink.OnOperationQueued (FullSend (folder, extension, prefix));
     }
     else
     {

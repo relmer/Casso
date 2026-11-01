@@ -114,7 +114,7 @@ public:
     //  the Apple, Cancel or a failure ends it. The extension has its period;
     //  empty is .po for ProDOS and .dsk for any other. F on the Apple queues
     //  this with the sink's folder and extension, after what is queued already.
-    std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension);
+    std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension, const std::string & prefix);
 
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.

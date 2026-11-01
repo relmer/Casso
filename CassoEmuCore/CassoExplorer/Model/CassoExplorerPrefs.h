@@ -58,6 +58,7 @@ struct CassoExplorerPrefs
     //  .po on ProDOS and .dsk otherwise.
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
+    std::wstring           fullSendPrefix;
 
 
     //  Each folder's view as last chosen, most recent first. A folder with

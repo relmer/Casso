@@ -35,9 +35,9 @@ public:
     //  DOS 3.3; empty when the catalog has neither.
     static std::string  GetCatalogTitle (const std::vector<Byte> & image);
 
-    //  NNNN NAME, with the name cleaned by the host file name rules, or NNNN
-    //  alone.
-    static std::string  MakeImageTitle (int sequence, const std::string & catalogTitle);
+    //  The prefix, as typed, then NNNN NAME, or NNNN alone, with the prefix and
+    //  the name cleaned by the host file name rules.
+    static std::string  MakeImageTitle (int sequence, const std::string & catalogTitle, const std::string & prefix);
 
     //  With a leading period: the one chosen, or .po for ProDOS and .dsk for
     //  any other.

@@ -827,6 +827,22 @@ void TreeModel::SetLinks (std::vector<LinkTreeEntry> links)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::SetFullSendFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::SetFullSendFolder (std::wstring folder)
+{
+    m_children.erase (kCassoLinkRootId);
+    m_fullSendFolder = std::move (folder);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::MakeLinkId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1727,6 +1743,17 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id == kCassoLinkRootId)
     {
         AppendLinkRoots (outNodes, false);
+
+        if (!m_fullSendFolder.empty() && m_fs.DirectoryExists (m_fullSendFolder))
+        {
+            TreeNode  sent;
+
+            sent.id       = kAdtProId + m_fullSendFolder;
+            sent.kind     = TreeNode::Kind::HostFolder;
+            sent.label    = L"Full send";
+            sent.location = Location::MakeHostFolder (m_fullSendFolder);
+            outNodes.push_back (sent);
+        }
 
         TreeNode  add;
 

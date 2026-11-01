@@ -231,10 +231,10 @@ bool FullSendDisk::TryGetPascalVolume (const std::vector<Byte> & image, std::str
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string FullSendDisk::MakeImageTitle (int sequence, const std::string & catalogTitle)
+std::string FullSendDisk::MakeImageTitle (int sequence, const std::string & catalogTitle, const std::string & prefix)
 {
     bool         substituted = false;
-    std::string  title       = std::format ("{:04}", sequence);
+    std::string  title       = TextEncoding::WideToNarrow (HostFileNaming::MakeHostLegal (prefix, substituted)) + std::format ("{:04}", sequence);
 
 
 

@@ -46,10 +46,11 @@ public:
         std::vector<std::shared_ptr<LinkOperation>>   queued;
         std::string                                   fullSendFolder;
 
-        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) override
         {
             outFolder    = fullSendFolder;
             outExtension = ".do";
+            outPrefix.clear();
 
             return !fullSendFolder.empty();
         }
@@ -762,7 +763,7 @@ public:
         rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
         rig.Start();
 
-        auto  send = rig.Finish (rig.session->FullSend ("C:\\Box", ""));
+        auto  send = rig.Finish (rig.session->FullSend ("C:\\Box", "", ""));
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::IsTrue (rig.fileIo.files["C:\\Box\\0001 HELLO.dsk"] == rig.Drive (1));
@@ -844,7 +845,7 @@ public:
         rig.apple.drives[1].clear();
         rig.Start();
 
-        auto  send = rig.session->FullSend ("C:\\Box", "");
+        auto  send = rig.session->FullSend ("C:\\Box", "", "");
 
         for (int tries = 0; tries < 2000 && rig.apple.keyWaits == 0; tries++)
         {
@@ -871,7 +872,7 @@ public:
         rig.apple.sectorDelayMs = 1;
         rig.Start();
 
-        auto  send = rig.session->FullSend ("C:\\Box", "");
+        auto  send = rig.session->FullSend ("C:\\Box", "", "");
 
         for (int tries = 0; tries < 2000 && rig.apple.sectorsRead < 100; tries++)
         {

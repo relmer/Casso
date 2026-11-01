@@ -75,7 +75,7 @@ public:
 
             trackDrives.push_back (drive);
             outHasDisk = !disk.empty();
-            outWhole   = outHasDisk && !(disk == badDisk && wholeTracksBad);
+            outWhole   = outHasDisk && !(disk == badDisk && wholeTracksBad) && unseatedReads[(size_t) drive - 1] == 0;
 
             if (outHasDisk)
             {
@@ -161,10 +161,11 @@ public:
         ScriptedLink    link;
         FakeDiskFileIo  io;
         std::string     extension;
+        std::string     prefix;
 
         std::unique_ptr<FullSendSession>  Run (HRESULT result = HRESULT_FROM_WIN32 (ERROR_CANCELLED))
         {
-            auto  session = std::make_unique<FullSendSession> (link, io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, extension);
+            auto  session = std::make_unique<FullSendSession> (link, io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, extension, prefix);
 
             Assert::AreEqual (result, session->Run());
             Assert::IsTrue (session->GetState() == FullSendSession::State::Ended);
@@ -374,15 +375,15 @@ public:
         pascalDisk[at + 6] = 5;
         std::copy_n ("APPLE", 5, pascalDisk.begin() + (ptrdiff_t) at + 7);
 
-        Assert::AreEqual (std::string ("0003 GAMES"), FullSendDisk::MakeImageTitle (3, FullSendDisk::GetCatalogTitle (ProDos ("GAMES"))));
-        Assert::AreEqual (std::string ("0012 HELLO"), FullSendDisk::MakeImageTitle (12, FullSendDisk::GetCatalogTitle (Dos ("HELLO"))));
-        Assert::AreEqual (std::string ("0004 APPLE"), FullSendDisk::MakeImageTitle (4, FullSendDisk::GetCatalogTitle (pascalDisk)));
-        Assert::AreEqual (std::string ("0005"),       FullSendDisk::MakeImageTitle (5, FullSendDisk::GetCatalogTitle (Other (9))));
+        Assert::AreEqual (std::string ("0003 GAMES"), FullSendDisk::MakeImageTitle (3, FullSendDisk::GetCatalogTitle (ProDos ("GAMES")), ""));
+        Assert::AreEqual (std::string ("0012 HELLO"), FullSendDisk::MakeImageTitle (12, FullSendDisk::GetCatalogTitle (Dos ("HELLO")), ""));
+        Assert::AreEqual (std::string ("0004 APPLE"), FullSendDisk::MakeImageTitle (4, FullSendDisk::GetCatalogTitle (pascalDisk), ""));
+        Assert::AreEqual (std::string ("0005"),       FullSendDisk::MakeImageTitle (5, FullSendDisk::GetCatalogTitle (Other (9)), ""));
     }
 
     TEST_METHOD (Title_CleansCharactersAHostNameCannotHave)
     {
-        Assert::AreEqual (std::string ("0001 A_B"), FullSendDisk::MakeImageTitle (1, "A/B"));
+        Assert::AreEqual (std::string ("0001 A_B"), FullSendDisk::MakeImageTitle (1, "A/B", ""));
     }
 
     TEST_METHOD (Session_NeverOverwritesAFile)
@@ -643,7 +644,23 @@ public:
         Assert::AreEqual (1, rig.link.waits);
     }
 
-    TEST_METHOD (Session_ADiskRead_TakesTwoMatchingFingerprintReads)
+    //  What a disk costs beyond its whole-disk read: its check, and the catalog
+    //  track read again after it, with no further check before the pause.
+    TEST_METHOD (Session_ADosDisk_ReadsTheCheckedTracksOnce_AndNoMoreBeforeThePause)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.present[1] = false;
+
+        rig.Run();
+
+        Assert::AreEqual ((size_t) 1, rig.link.diskReads.size());
+        Assert::AreEqual ((size_t) 3, rig.link.trackDrives.size(), L"tracks 0 and 17, and 17 again after the read");
+        Assert::AreEqual ((size_t) 33, rig.link.tracksRead.size(), L"the checked tracks are not read again");
+    }
+
+    TEST_METHOD (Session_AProDosDisk_ReadsTrackZeroOnce_AndNoMoreBeforeThePause)
     {
         Rig  rig;
 
@@ -653,7 +670,58 @@ public:
         rig.Run();
 
         Assert::AreEqual ((size_t) 1, rig.link.diskReads.size());
-        Assert::IsTrue (rig.link.trackDrives.size() >= 2, L"track 0 twice before the read");
+        Assert::AreEqual ((size_t) 2, rig.link.trackDrives.size(), L"track 0, and track 0 again after the read");
+    }
+
+    TEST_METHOD (Session_ATrackNotReadWhole_TakesTwoMatchingReads)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]      = Other (1);
+        rig.link.badDisk        = rig.link.drives[0];
+        rig.link.wholeTracksBad = true;
+        rig.link.present[1]     = false;
+
+        rig.Run();
+
+        Assert::AreEqual ((size_t) 1, rig.link.diskReads.size());
+        Assert::AreEqual ((size_t) 5, rig.link.trackDrives.size(), L"tracks 0 and 17 twice, and 17 again after the read");
+    }
+
+    TEST_METHOD (Session_SwappedDuringItsOwnRead_TheNewDiskIsSentWithNoKey)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]        = Other (1);
+        rig.link.present[1]       = false;
+        rig.link.afterDiskRead[1] = [] (ScriptedLink & link) { link.drives[0] = Other (2); };
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
+        Assert::AreEqual (1, rig.link.waits);
+        Assert::AreEqual (1, session->GetScreen().sent);
+    }
+
+    TEST_METHOD (Session_Prefix_BeginsEachImagesName_AndTheManifestsRow)
+    {
+        Rig  rig;
+
+        rig.prefix          = "Box 3-";
+        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[1]  = Other (2);
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0001 HELLO.dsk"));
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0002.dsk"));
+        Assert::AreEqual (std::string ("Box 3-0001 HELLO.dsk"), session->GetManifest().GetRows()[0].file);
+    }
+
+    TEST_METHOD (Title_Prefix_IsCleaned_AndEmptyAddsNothing)
+    {
+        Assert::AreEqual (std::string ("A_B0001 GAMES"), FullSendDisk::MakeImageTitle (1, "GAMES", "A/B"));
+        Assert::AreEqual (std::string ("0001 GAMES"),    FullSendDisk::MakeImageTitle (1, "GAMES", ""));
     }
 
     TEST_METHOD (Session_EndsOnQAtThePause)
@@ -810,10 +878,12 @@ public:
 
         written.fullSendFolder    = L"D:\\Box";
         written.fullSendExtension = ".woz";
+        written.fullSendPrefix    = L"Box 3-";
         AssertSucceeded (read.FromJson (written.ToJson()));
 
         Assert::AreEqual (std::wstring (L"D:\\Box"), read.fullSendFolder);
         Assert::AreEqual (std::string (".woz"), read.fullSendExtension);
+        Assert::AreEqual (std::wstring (L"Box 3-"), read.fullSendPrefix);
 
         written.fullSendExtension = ".exe";
         AssertSucceeded (bad.FromJson (written.ToJson()));
