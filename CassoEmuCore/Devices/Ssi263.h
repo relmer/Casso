@@ -210,9 +210,9 @@ public:
     // The audio source's silent samples, which skip GenerateSample.
     void    CaptureSilence    (uint32_t samples);
 
-    static constexpr size_t  kScopeSamples     = 1024;
+    static constexpr size_t  kScopeSamples        = 1024;
     static constexpr int     kScopeCaptureSeconds = 2;
-    static constexpr int     kRecentCount      = 32;
+    static constexpr int     kRecentCount         = 32;
 
     // Nominal vocal-tract filter clock; the filter register scales formants
     // relative to it, changing "voice type" as the datasheet describes.
@@ -272,9 +272,9 @@ protected:
         float  seconds = 0.0f;
     };
 
-    std::array<RecentPhoneme, kRecentCount>  m_recent = {};
-    int        m_recentAt    = 0;
-    int        m_recentCount = 0;
+    std::array<RecentPhoneme, kRecentCount>  m_recent      = {};
+    int                                      m_recentAt    = 0;
+    int                                      m_recentCount = 0;
 
     Byte       m_reg[kRegCount] = {};
 

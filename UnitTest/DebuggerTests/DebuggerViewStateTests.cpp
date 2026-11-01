@@ -33,6 +33,7 @@
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/SoundBoardView.h"
 #include "Core/TextEncoding.h"
 
 
@@ -4201,7 +4202,8 @@ namespace DebuggerViewStateTests
             MemoryMapBar         map;
             DiskHeadView         head;
             MeterBar             meters;
-            DiagnosticsPane      pane ("fake", L"Fake", &list, &map, &head, &meters);
+            SoundBoardView       board;
+            DiagnosticsPane      pane ("fake", L"Fake", &list, &map, &head, &meters, &board);
             DiagnosticsSnapshot  snapshot;
 
 

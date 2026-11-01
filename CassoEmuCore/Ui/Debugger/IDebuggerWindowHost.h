@@ -74,6 +74,9 @@ public:
     virtual void  SetDebuggerHeatMapShown (bool shown)                     { (void) shown; }
     virtual void  SetDebuggerHeatColumnsShown (bool shown)                 { (void) shown; }
 
+    //  Mutes a sound channel on the host, as the Mockingboard panel's toggles do.
+    virtual void  SetDebuggerSoundMuted   (int channel, bool isMuted)       { (void) channel; (void) isMuted; }
+
     //  Whether a BASIC pane is visible; the Applesoft program is read for
     //  the snapshots only while one is.
     virtual void  SetDebuggerBasicShown   (bool isVisible)                 { (void) isVisible; }

@@ -2,6 +2,7 @@
 
 #include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Shell/CpuManager.h"
 
 #include "Config/WindowPlacementProfile.h"
@@ -605,6 +606,21 @@ void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerSoundMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerSoundMuted (int channel, bool isMuted)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("soundmute {} {}", channel, isMuted ? "on" : "off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebuggerBasicShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -996,6 +1012,31 @@ void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 
 
     m_debugViewState.SetTraceTop (first);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugSoundMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugSoundMuted (int channel, bool isMuted)
+{
+    MockingboardCard             * card = m_machine.GetRefs().mockingboard;
+    std::lock_guard<std::mutex>    viewHeld (m_debugViewStateLock);
+
+
+
+    if (card != nullptr)
+    {
+        card->SetSoundMuted (channel, isMuted);
+    }
+
     m_isDebugViewDirty = true;
 }
 

@@ -8,6 +8,7 @@
 #include "Ui/Debugger/Panes/DiskHeadView.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/SoundBoardView.h"
 
 
 
@@ -68,16 +69,25 @@ std::wstring DevicePanelController::GetId() const
 
 void DevicePanelController::CreateControls()
 {
-    DxuiPanel     & parent = m_host.GetControlParent();
-    DxuiListView  * list   = parent.CreateChild<DxuiListView>();
-    MemoryMapBar  * map    = parent.CreateChild<MemoryMapBar>();
-    DiskHeadView  * head   = parent.CreateChild<DiskHeadView>();
-    MeterBar      * meters = parent.CreateChild<MeterBar>();
+    DxuiPanel       & parent = m_host.GetControlParent();
+    DxuiListView    * list   = parent.CreateChild<DxuiListView>();
+    MemoryMapBar    * map    = parent.CreateChild<MemoryMapBar>();
+    DiskHeadView    * head   = parent.CreateChild<DiskHeadView>();
+    MeterBar        * meters = parent.CreateChild<MeterBar>();
+    SoundBoardView  * board  = parent.CreateChild<SoundBoardView>();
 
 
 
-    m_model = std::make_unique<DiagnosticsPane> (m_panelId, m_title, list, map, head, meters);
+    m_model = std::make_unique<DiagnosticsPane> (m_panelId, m_title, list, map, head, meters, board);
     list->SetVisible (false);
+
+    board->SetOnMute ([this] (int channel, bool isMuted)
+    {
+        if (IDebuggerWindowHost * host = m_host.GetWindowHost())
+        {
+            host->SetDebuggerSoundMuted (channel, isMuted);
+        }
+    });
 }
 
 
@@ -260,6 +270,7 @@ void DevicePanelController::Apply (const DebuggerViewSnapshot & snapshot)
     bool                          wasOpen = m_isOpen;
     DebuggerTextColors::Set       colors  = m_host.GetTextColors();
     MemoryMapBar::SourceColors    map     = {};
+    SoundBoardView::Palette       board;
 
 
 
@@ -281,6 +292,10 @@ void DevicePanelController::Apply (const DebuggerViewSnapshot & snapshot)
         map[(size_t) MemorySource::Io]      = colors.mapIo;
 
         m_model->GetMap()->SetSourceColors (map);
+
+        board.channels = { colors.mapMain, colors.mapRom, colors.mapIo };
+        board.voice    = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->Accent() : board.voice;
+        m_model->GetBoard()->SetPalette (board);
 
         if (m_model->Apply (*mine))
         {
@@ -331,14 +346,22 @@ bool DevicePanelController::Tick (int64_t nowMs)
 
 bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
 {
-    MemoryMapBar  * map  = m_model->GetMap();
-    DiskHeadView  * head = m_model->GetHead();
+    MemoryMapBar    * map   = m_model->GetMap();
+    DiskHeadView    * head  = m_model->GetHead();
+    SoundBoardView  * board = m_model->GetBoard();
 
 
 
     if (map != nullptr && m_host.IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, tip.text))
     {
         tip.kind = PaneTip::Kind::Pointer;
+        return true;
+    }
+
+    if (board != nullptr && m_host.IsRoutable (board) && board->IsVisible() && board->TryGetTipAt (clientPx, tip.text))
+    {
+        tip.kind   = PaneTip::Kind::Control;
+        tip.anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
         return true;
     }
 
@@ -357,6 +380,25 @@ bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
     tip.kind   = PaneTip::Kind::Control;
     tip.anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::RouteContentMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DevicePanelController::RouteContentMouse (const DxuiMouseEvent & ev)
+{
+    SoundBoardView  * board = m_model->GetBoard();
+
+
+
+    return board != nullptr && m_host.IsRoutable (board) && board->IsVisible() && board->OnMouse (ev);
 }
 
 

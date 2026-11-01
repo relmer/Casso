@@ -503,6 +503,21 @@ public:
     }
 
 
+    TEST_METHOD (TheSoundMuteRequestsReachTheTarget)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_VIEW, "soundmute 3 on",  target);
+        Dispatch (IDM_DEBUG_VIEW, "soundmute 6 off", target);
+        Dispatch (IDM_DEBUG_VIEW, "soundmute x on",  target);
+        Dispatch (IDM_DEBUG_VIEW, "soundmute 3",     target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size(), L"nothing for a request without a channel and a state");
+        Assert::AreEqual (std::string ("SetDebugSoundMuted 3 on"),  target.calls[0]);
+        Assert::AreEqual (std::string ("SetDebugSoundMuted 6 off"), target.calls[1]);
+    }
+
+
 private:
 
     //  Every target at once, writing down what it was asked, one line per
@@ -628,6 +643,11 @@ private:
         void     CloseDebugChannel (bool isDetach) override { calls.push_back (isDetach ? "DetachDebugChannel" : "CloseDebugChannel"); }
         void     PauseDebugRun()     override { calls.push_back ("PauseDebugRun"); }
         void     RunDebugActions()   override { calls.push_back ("RunDebugActions"); }
+
+        void     SetDebugSoundMuted (int channel, bool isMuted) override
+        {
+            calls.push_back (std::format ("SetDebugSoundMuted {} {}", channel, isMuted ? "on" : "off"));
+        }
 
         void     SetDebugHeatMapHover (std::optional<Word> address) override
         {

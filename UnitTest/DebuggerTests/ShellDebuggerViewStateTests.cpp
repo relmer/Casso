@@ -163,6 +163,7 @@ namespace ShellDebuggerViewStateTests
             {
                 { L"SetDebugHeatColumnsShown", [] (ShellDebugger & debugger) { debugger.SetDebugHeatColumnsShown (true); } },
                 { L"SetDebugHeatMapShown",     [] (ShellDebugger & debugger) { debugger.SetDebugHeatMapShown (true); } },
+                { L"SetDebugSoundMuted",       [] (ShellDebugger & debugger) { debugger.SetDebugSoundMuted (0, true); } },
                 { L"SetDebugBasicShown",       [] (ShellDebugger & debugger) { debugger.SetDebugBasicShown (true); } },
                 { L"SetDebugHeatMapOptions",   [] (ShellDebugger & debugger) { debugger.SetDebugHeatMapOptions (HeatMapOptions().ToText()); } },
                 { L"SetDebugHeatMapHover",     [] (ShellDebugger & debugger) { debugger.SetDebugHeatMapHover (Word (0x0300)); } },

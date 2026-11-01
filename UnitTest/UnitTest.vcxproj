@@ -374,6 +374,8 @@
     <ClCompile Include="DebuggerTests\InstructionSemanticsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolDescriptionsTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsProviderTests.cpp" />
+    <ClCompile Include="DebuggerTests\SoundBoardLayoutTests.cpp" />
+    <ClCompile Include="DebuggerTests\SoundBoardViewTests.cpp" />
     <ClCompile Include="DebuggerTests\ViaTimerMeterTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryPaneColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerColumnWidthTests.cpp" />

@@ -901,14 +901,14 @@ HRESULT Ay8910::SaveState (StateWriter & writer) const
 HRESULT Ay8910::LoadState (StateReader & reader)
 {
     constexpr uint16_t  kFirstWithWrites = 2;
-    HRESULT   hr             = S_OK;
-    uint16_t  version        = 0;
-    uint32_t  toneCounter[3] = {};
-    uint32_t  toneState[3]   = {};
-    uint32_t  noiseCounter   = 0;
-    uint32_t  envCounter     = 0;
-    uint32_t  envLevel       = 0;
-    int       i              = 0;
+    HRESULT             hr               = S_OK;
+    uint16_t            version          = 0;
+    uint32_t            toneCounter[3]   = {};
+    uint32_t            toneState[3]     = {};
+    uint32_t            noiseCounter     = 0;
+    uint32_t            envCounter       = 0;
+    uint32_t            envLevel         = 0;
+    int                 i                = 0;
 
 
 

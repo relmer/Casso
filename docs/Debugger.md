@@ -1641,9 +1641,18 @@ device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same
 from the command box.
 
-On a Mockingboard C, the Mockingboard panel also has an SSI-263 group: the
-phoneme by name, its timing, the pitch, the filter and the formants. A meter
-indicates the chip's output.
+The Mockingboard panel is a graphical view of the card's chips, in as many
+columns as fit the pane. On a Mockingboard C, the SSI-263's card is across the
+top: the phoneme by name, its waveform, its three formants over the pitch's
+harmonics, a strip of the recent phonemes with widths by duration, its timing
+values and its lamps. Each AY-3-8910's card has a row per channel: a mute, the
+note and frequency, tone and noise indicators, a level meter and a scope. Below
+them are a picture of the envelope, the noise frequency, and its 6522's bus
+state, AY write count, last AY write, registers, T1 rate and lamps. A tip on
+each part has the raw register values. A mute changes the host's audio only, so
+it isn't part of machine state or history, and the muted channel's scope is
+unaffected. `PANEL` in the console and a saved state have the chips' values as
+rows and fields.
 
 ### Colors
 

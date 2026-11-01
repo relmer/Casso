@@ -522,8 +522,9 @@ void MockingboardCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
         board.voice   = std::move (voice);
     }
 
-    board.slot      = m_slot;
-    snapshot.visual = std::move (board);
+    board.slot       = m_slot;
+    board.sampleRate = m_psg[0].GetSampleRate();
+    snapshot.visual  = std::move (board);
 }
 
 

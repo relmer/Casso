@@ -1475,11 +1475,11 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
 HRESULT Ssi263::LoadState (StateReader & reader)
 {
     constexpr uint16_t  kFirstWithRecent = 2;
-    HRESULT   hr          = S_OK;
-    uint16_t  version     = 0;
-    int       i           = 0;
-    uint32_t  recentAt    = 0;
-    uint32_t  recentCount = 0;
+    HRESULT             hr               = S_OK;
+    uint16_t            version          = 0;
+    int                 i                = 0;
+    uint32_t            recentAt         = 0;
+    uint32_t            recentCount      = 0;
 
 
 

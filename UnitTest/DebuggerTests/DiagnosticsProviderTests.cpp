@@ -774,8 +774,8 @@ namespace DebuggerTests
             constexpr Byte       kNominal    = 56;
             constexpr uint32_t   kSampleRate = 44100;
             Ssi263               chip (kXckHz);
-            DiagnosticsSnapshot  cold;
-            DiagnosticsSnapshot  sounding;
+            DiagnosticsSnapshot    cold;
+            DiagnosticsSnapshot    sounding;
             DiagnosticsSoundVoice  voice;
 
 

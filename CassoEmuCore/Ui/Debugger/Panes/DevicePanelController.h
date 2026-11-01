@@ -47,6 +47,7 @@ public:
     //  The Video panel's menu opens the video log, the Mockingboard panel's
     //  the sound log.
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+    bool                             RouteContentMouse (const DxuiMouseEvent & ev) override;
 
 private:
     std::string                         m_panelId;

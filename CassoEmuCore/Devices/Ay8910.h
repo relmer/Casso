@@ -122,6 +122,7 @@ public:
     // again for kScopeCaptureSeconds, so it stops after the panel closes.
     void     AppendSoundBoard      (DiagnosticsSoundPsg & out) const;
     bool     IsScopeCapturing      () const { return m_scopeSamplesLeft > 0; }
+    uint32_t GetSampleRate         () const { return m_sampleRate; }
 
     // A mute takes a channel out of the output and nothing else: its generators
     // run and its scope has its signal. It is not part of the machine's state,
@@ -129,7 +130,7 @@ public:
     void     SetChannelMuted       (int channel, bool isMuted);
     bool     IsChannelMuted        (int channel) const { return (m_muted >> channel) & 1; }
 
-    static constexpr size_t  kScopeSamples     = 1024;
+    static constexpr size_t  kScopeSamples        = 1024;
     static constexpr int     kScopeCaptureSeconds = 2;
 
     static float GetVolumeForLevel (int level);

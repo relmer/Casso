@@ -206,7 +206,8 @@ struct DiagnosticsSoundVoice
 
 struct DiagnosticsSoundBoard
 {
-    int                                   slot = 0;
+    int                                   slot       = 0;
+    uint32_t                              sampleRate = 0;   // of the scopes' samples
     std::vector<DiagnosticsSoundHalf>     halves;
     std::optional<DiagnosticsSoundVoice>  voice;
 };
