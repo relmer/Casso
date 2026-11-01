@@ -6,7 +6,10 @@
 
 
 
-static constexpr std::string_view  s_kHeader = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf";
+static constexpr std::string_view  s_kHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf";
+static constexpr std::string_view  s_kComment = "# Casso full send manifest. Do not edit, rename or move this file.\r\n"
+                                                "# Casso uses it to recognize disks already received in this folder.\r\n"
+                                                "# Changing it can make disks get skipped or read again.\r\n";
 
 
 
@@ -16,8 +19,8 @@ static constexpr std::string_view  s_kHeader = "sequence,file,drive,fingerprint,
 //
 //  FullSendManifest::Parse
 //
-//  The header is required, so a file that only has this file name ends the
-//  session rather than being replaced.
+//  Comments come first. The header is required, so a file that only has this
+//  file name ends the session rather than being replaced.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +31,7 @@ HRESULT FullSendManifest::Parse (std::span<const Byte> bytes)
     std::string                 text (bytes.begin(), bytes.end());
     std::string_view            view  = text;
     size_t                      at    = view.starts_with (kBom) ? kBom.size() : 0;
-    size_t                      end   = view.find_first_of ("\r\n");
+    size_t                      end   = 0;
     bool                        whole = false;
     std::vector<std::string>    cells;
     std::vector<FullSendRow>    rows;
@@ -38,6 +41,13 @@ HRESULT FullSendManifest::Parse (std::span<const Byte> bytes)
 
     m_rows.clear();
 
+    while (at < view.size() && view[at] == '#')
+    {
+        end = view.find ('\n', at);
+        at  = end == std::string_view::npos ? view.size() : end + 1;
+    }
+
+    end   = view.find_first_of ("\r\n", at);
     whole = end != std::string_view::npos && view.substr (at, end - at) == s_kHeader;
     CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
@@ -259,7 +269,7 @@ std::string FullSendManifest::QuoteCell (const std::string & cell)
 
 std::vector<Byte> FullSendManifest::Format() const
 {
-    std::string  text = std::string (s_kHeader) + "\r\n";
+    std::string  text = std::string (s_kComment) + std::string (s_kHeader) + "\r\n";
 
 
 
@@ -309,6 +319,25 @@ int FullSendManifest::GetNextSequence() const
 bool FullSendManifest::HasFingerprint (const std::string & fingerprint) const
 {
     return std::any_of (m_rows.begin(), m_rows.end(), [&] (const FullSendRow & row) { return row.fingerprint == fingerprint; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendManifest::FindByFingerprint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const FullSendRow * FullSendManifest::FindByFingerprint (const std::string & fingerprint) const
+{
+    auto  found = std::find_if (m_rows.rbegin(), m_rows.rend(), [&] (const FullSendRow & row) { return row.fingerprint == fingerprint; });
+
+
+
+    return found == m_rows.rend() ? nullptr : &*found;
 }
 
 

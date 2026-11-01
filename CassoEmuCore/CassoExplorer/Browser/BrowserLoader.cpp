@@ -890,7 +890,17 @@ const wchar_t * BrowserLoader::GetCassoLinkHelp()
            L"- Drag a drive to a folder to make an image of the whole disk, or drag an image onto a drive to write "
            L"it to the disk.\r\n"
            L"- After changing the disk in a drive, open the drive again, or press F5, to read the new disk.\r\n"
-           L"- Choose *Write CassoLink to disk* from a drive's menu to make a boot disk on the Apple itself.\r\n";
+           L"- Choose *Write CassoLink to disk* from a drive's menu to make a boot disk on the Apple itself.\r\n"
+           L"\r\n"
+           L"## Full Send\r\n"
+           L"\r\n"
+           L"Press F on the Apple to archive a stack of floppies, then Space to begin. Each new disk is saved to the "
+           L"Full send folder under CassoLink.\r\n"
+           L"\r\n"
+           L"To recognize a disk already sent without reading all of it, CassoLink compares a few tracks, which can "
+           L"match on different disks. When a disk matches, it isn't read, and the Apple asks whether to send it "
+           L"anyway. Casso Explorer's status lists the image it matches. If you send it, its whole contents are compared, and an "
+           L"exact copy is discarded and counted as a duplicate.\r\n";
 }
 
 

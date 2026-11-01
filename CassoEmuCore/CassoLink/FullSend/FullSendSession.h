@@ -43,6 +43,8 @@ enum class FullSendKey
 {
     Space,
     Quit,
+    Drive1,
+    Drive2,
 };
 
 struct FullSendScreen
@@ -89,8 +91,12 @@ public:
     virtual HRESULT  ReadDisk   (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable) = 0;
     virtual HRESULT  ShowScreen (const FullSendScreen & screen) = 0;
 
-    //  No drive turns until a key arrives.
-    virtual HRESULT  WaitForKey (FullSendKey & outKey) = 0;
+    //  No drive turns until a key arrives. The lines are drawn on the Apple until
+    //  then.
+    virtual HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) = 0;
+
+    //  Whether this PC bootstrapped the Apple, so no CassoLink disk was booted.
+    virtual bool     IsBootstrapped () = 0;
 
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
@@ -108,11 +114,10 @@ public:
 //  at a time, alternating between the drives, until Q, Cancel or a
 //  failure ends it. Pure: the Apple, the clock and the files are injected.
 //
-//  After each disk the other drive is checked and then the drive just read.
-//  A disk is new when its fingerprint reads the same twice and is not in the
-//  manifest. With no new disk the session pauses for Space, and Space then
-//  sends a repeated disk when there is no new one, the drive not read last
-//  first.
+//  It begins on Space. After each disk the other drive is checked. A disk is new
+//  when its fingerprint is not in the manifest. With no new disk the session
+//  pauses for Space, which checks both drives. A repeated disk isn't read: the
+//  prompt lists its drive, and that drive's number sends it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,6 +182,7 @@ private:
     static constexpr int  kFingerprintReads = 3;
 
     HRESULT  LoadManifest    ();
+    HRESULT  AwaitBegin      ();
     HRESULT  RunRound        ();
     HRESULT  Pause           ();
     HRESULT  CheckDrive      (int drive, CheckedDisk & outDisk);
@@ -187,7 +193,9 @@ private:
     HRESULT  WriteManifest   ();
     void     End             (HRESULT hr);
 
+    void         ReportRepeat  (int drive, const CheckedDisk & disk);
     Byte         PickQuip      ();
+    static std::vector<std::string>  GetPauseLines (const std::array<bool, 2> & repeats);
     void         SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
     std::string  GetPath       (const std::string & file) const;
 

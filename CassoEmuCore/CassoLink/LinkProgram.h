@@ -91,7 +91,7 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 63;
+    static constexpr Word    kProgramVersion    = 64;
     static constexpr int     kQuipCount         = 16;      // the prompt lines in Program.s
     static constexpr Byte    kShimVersion       = 7;
     static constexpr Word    kShimAddress       = 0x3B00;

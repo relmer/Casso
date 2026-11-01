@@ -273,7 +273,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkFullSend::WaitForKey (FullSendKey & outKey)
+HRESULT CassoLinkFullSend::WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey)
 {
     HRESULT  hr   = S_OK;
     Byte     code = 0;
@@ -283,13 +283,31 @@ HRESULT CassoLinkFullSend::WaitForKey (FullSendKey & outKey)
     hr = CheckStop();
     CHR (hr);
 
-    hr = m_session.m_host->WaitForKey (code);
+    hr = m_session.m_host->WaitForKey (lines, code);
     CHR (hr);
 
-    outKey = (code == CassoLinkCodec::kKeyQuit) ? FullSendKey::Quit : FullSendKey::Space;
+    outKey = code == CassoLinkCodec::kKeyQuit  ? FullSendKey::Quit
+           : code == CassoLinkCodec::kKeyDrive1 ? FullSendKey::Drive1
+           : code == CassoLinkCodec::kKeyDrive2 ? FullSendKey::Drive2
+                                                : FullSendKey::Space;
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::IsBootstrapped
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::IsBootstrapped()
+{
+    return m_session.m_connector.WasBootstrapped();
 }
 
 

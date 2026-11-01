@@ -36,8 +36,9 @@ struct FullSendRow
 //
 //  FullSendManifest
 //
-//  full-send.csv in a full send's folder, in UTF-8 with one row per disk:
-//  parsed once when a session starts, and formatted again after each disk.
+//  manifest.fullsend in a full send's folder, CSV in UTF-8 with one row per
+//  disk after # comments: parsed once when a session starts, and formatted again
+//  after each disk.
 //  Pure: no I/O, no Win32.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +46,8 @@ struct FullSendRow
 class FullSendManifest
 {
 public:
-    static constexpr const char *  kFileName        = "full-send.csv";
+    static constexpr const char *  kFileName        = "manifest.fullsend";
+    static constexpr const char *  kLegacyFileName  = "full-send.csv";
     static constexpr const char *  kStatusSent      = "sent";
     static constexpr const char *  kStatusDuplicate = "duplicate";
     static constexpr const char *  kStatusProtected = "possibly-protected";
@@ -62,6 +64,9 @@ public:
     //  The row of the image with this hash, or nullptr. A duplicate's row has
     //  no image, so it is passed over.
     const FullSendRow *  FindImageByHash (const std::string & hash) const;
+
+    //  The latest row with this fingerprint, or nullptr.
+    const FullSendRow *  FindByFingerprint (const std::string & fingerprint) const;
 
 private:
     static constexpr size_t  kColumns   = 9;

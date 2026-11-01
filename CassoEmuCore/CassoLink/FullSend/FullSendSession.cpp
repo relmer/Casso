@@ -58,6 +58,9 @@ HRESULT FullSendSession::Run()
         }
     }
 
+    hr = AwaitBegin();
+    CHR (hr);
+
     for (;;)
     {
         hr = RunRound();
@@ -87,10 +90,19 @@ HRESULT FullSendSession::LoadManifest()
 {
     HRESULT            hr     = S_OK;
     std::string        path   = GetPath (FullSendManifest::kFileName);
+    std::string        legacy = GetPath (FullSendManifest::kLegacyFileName);
     std::vector<Byte>  bytes;
     bool               exists = m_fileIo.Exists (path);
 
 
+
+    if (!exists && m_fileIo.Exists (legacy))
+    {
+        hr = m_fileIo.RenameWithoutReplacing (legacy, path);
+        CHRF (hr, m_endReason = EndReason::ManifestDamaged);
+
+        exists = true;
+    }
 
     BAIL_OUT_IF (!exists, S_OK);
 
@@ -99,6 +111,50 @@ HRESULT FullSendSession::LoadManifest()
 
     hr = m_manifest.Parse (bytes);
     CHRF (hr, m_endReason = EndReason::ManifestDamaged);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::AwaitBegin
+//
+//  No disk is read until Space, so a disk left in a drive isn't sent before the
+//  screen has been read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::AwaitBegin()
+{
+    HRESULT                   hr    = S_OK;
+    FullSendKey               key   = FullSendKey::Drive1;
+    std::vector<std::string>  lines;
+
+
+
+    if (!m_link.IsBootstrapped())
+    {
+        lines.push_back ("REMOVE THE CASSOLINK DISK");
+    }
+
+    lines.push_back ("INSERT DISKS TO BE SENT INTO THE DRIVES");
+    lines.push_back ("THEN PRESS SPACE TO BEGIN");
+
+    hr = m_link.ShowScreen (m_screen);
+    CHR (hr);
+
+    while (key != FullSendKey::Space)
+    {
+        hr = m_link.WaitForKey (lines, key);
+        CHR (hr);
+
+        CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
+    }
 
 Error:
     return hr;
@@ -160,64 +216,139 @@ Error:
 //
 //  FullSendSession::Pause
 //
-//  Space checks both drives again. A new disk is sent, and otherwise the first
-//  repeated disk, so with one in both the drive not read last is sent.
+//  Space checks both drives, and a new disk is sent. A repeated disk isn't read:
+//  the prompt lists its drive, and that drive's number checks it again and sends
+//  it. The whole-disk hash discards an exact copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::Pause()
 {
-    HRESULT             hr     = S_OK;
-    FullSendKey         key    = FullSendKey::Space;
-    std::array<int, 2>  order  = { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
-    int                 repeat = 0;
-    CheckedDisk         disk;
-    CheckedDisk         repeated;
+    HRESULT              hr      = S_OK;
+    FullSendKey          key     = FullSendKey::Space;
+    std::array<int, 2>   order   = { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
+    std::array<bool, 2>  repeats = { false, false };
+    int                  chosen  = 0;
+    CheckedDisk          disk;
 
 
 
-    m_state       = State::Paused;
-    m_screen.quip = PickQuip();
-
-    hr = m_link.ShowScreen (m_screen);
-    CHR (hr);
-
-    hr = m_link.WaitForKey (key);
-    CHR (hr);
-
-    m_screen.quip = 0;
-
-    CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
-
-    m_lastSent = false;
-
-    for (int drive : order)
+    for (;;)
     {
-        hr = CheckDrive (drive, disk);
+        m_state       = State::Paused;
+        m_screen.quip = PickQuip();
+
+        hr = m_link.ShowScreen (m_screen);
         CHR (hr);
 
-        if (disk.check == DiskCheck::New)
+        hr = m_link.WaitForKey (GetPauseLines (repeats), key);
+        CHR (hr);
+
+        m_screen.quip = 0;
+        m_lastSent    = false;
+
+        CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
+
+        if (key == FullSendKey::Space)
         {
-            hr = SendDisk (drive, disk);
+            repeats = { false, false };
+
+            for (int drive : order)
+            {
+                hr = CheckDrive (drive, disk);
+                CHR (hr);
+
+                if (disk.check == DiskCheck::New)
+                {
+                    hr = SendDisk (drive, disk);
+                    CHR (hr);
+                    BAIL_OUT_IF (true, S_OK);
+                }
+
+                if (disk.check == DiskCheck::Repeat)
+                {
+                    repeats[(size_t) drive - 1] = true;
+                    ReportRepeat (drive, disk);
+                }
+            }
+
+            continue;
+        }
+
+        chosen = key == FullSendKey::Drive1 ? 1 : 2;
+
+        if (repeats[(size_t) chosen - 1])
+        {
+            hr = CheckDrive (chosen, disk);
             CHR (hr);
-            BAIL_OUT_IF (true, S_OK);
-        }
 
-        if (disk.check == DiskCheck::Repeat && repeat == 0)
-        {
-            repeat   = drive;
-            repeated = disk;
-        }
-    }
+            repeats[(size_t) chosen - 1] = false;
 
-    if (repeat != 0)
-    {
-        hr = SendDisk (repeat, repeated);
-        CHR (hr);
+            if (disk.check != DiskCheck::None)
+            {
+                hr = SendDisk (chosen, disk);
+                CHR (hr);
+                BAIL_OUT_IF (true, S_OK);
+            }
+        }
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::GetPauseLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 2> & repeats)
+{
+    std::vector<std::string>  lines = { "PUT IN A NEW DISK AND PRESS SPACE" };
+
+
+
+    if (repeats[0] && repeats[1])
+    {
+        lines.push_back ("D1 AND D2 MAY ALREADY HAVE BEEN SENT.");
+        lines.push_back ("CHECK CASSO EXPLORER FOR DETAILS.");
+        lines.push_back ("PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY.");
+    }
+    else if (repeats[0] || repeats[1])
+    {
+        int  drive = repeats[0] ? 1 : 2;
+
+        lines.push_back (std::format ("D{} MAY ALREADY HAVE BEEN SENT.", drive));
+        lines.push_back ("CHECK CASSO EXPLORER FOR DETAILS.");
+        lines.push_back (std::format ("PRESS {} TO SEND D{} ANYWAY.", drive, drive));
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::ReportRepeat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::ReportRepeat (int drive, const CheckedDisk & disk)
+{
+    const FullSendRow  * match = m_manifest.FindByFingerprint (disk.fingerprint);
+    std::string          file  = match == nullptr ? std::string ("an earlier disk") : match->file.empty() ? match->duplicateOf : match->file;
+
+
+
+    m_link.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, file, drive));
 }
 
 
@@ -311,8 +442,9 @@ Error:
 //
 //  FullSendSession::ReadFingerprint
 //
-//  Track 0 and then the catalog track, and the whole-disk read skips each one
-//  read whole. outStable is clear for a drive with no disk, or one whose reads
+//  Track 0, then the catalog track, then CP/M's directory track for a disk with
+//  no file system Casso recognizes, and the whole-disk read skips each one read
+//  whole. outStable is clear for a drive with no disk, or one whose reads
 //  do not match. A disk with a track 0 and no catalog track has a fingerprint
 //  too, with that track as zeros.
 //
@@ -337,6 +469,13 @@ HRESULT FullSendSession::ReadFingerprint (int drive, CheckedDisk & outDisk, bool
         hr = ReadStableTrack (drive, FullSendDisk::kDosCatalogTrack, outDisk, hasDisk, outStable);
         CHR (hr);
         BAIL_OUT_IF (hasDisk && !outStable, S_OK);
+
+        if (FullSendDisk::NeedsDirectoryTrack (outDisk.image))
+        {
+            hr = ReadStableTrack (drive, FullSendDisk::kCpmDirectoryTrack, outDisk, hasDisk, outStable);
+            CHR (hr);
+            BAIL_OUT_IF (hasDisk && !outStable, S_OK);
+        }
 
         outStable = true;
     }

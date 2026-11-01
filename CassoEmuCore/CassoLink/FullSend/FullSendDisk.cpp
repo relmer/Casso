@@ -46,6 +46,34 @@ bool FullSendDisk::IsCatalogOnTrackZero (const std::vector<Byte> & image)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendDisk::NeedsDirectoryTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendDisk::NeedsDirectoryTrack (const std::vector<Byte> & image)
+{
+    constexpr size_t   kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    std::vector<Byte>  tracks (image.size(), 0);
+
+
+
+    if (image.size() != (size_t) NibblizationLayer::kImageByteSize)
+    {
+        return false;
+    }
+
+    std::copy_n (image.begin(), kTrackBytes, tracks.begin());
+    std::copy_n (image.begin() + (ptrdiff_t) (kDosCatalogTrack * kTrackBytes), kTrackBytes, tracks.begin() + (ptrdiff_t) (kDosCatalogTrack * kTrackBytes));
+
+    return VolumeImage::DetectFilesystem (tracks) == VolumeKind::Unknown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendDisk::ComputeFingerprint
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +94,11 @@ HRESULT FullSendDisk::ComputeFingerprint (const std::vector<Byte> & image, std::
     if (!IsCatalogOnTrackZero (image))
     {
         tracks.insert (tracks.end(), image.begin() + (ptrdiff_t) (kDosCatalogTrack * kTrackBytes), image.begin() + (ptrdiff_t) ((kDosCatalogTrack + 1) * kTrackBytes));
+
+        if (NeedsDirectoryTrack (image))
+        {
+            tracks.insert (tracks.end(), image.begin() + (ptrdiff_t) (kCpmDirectoryTrack * kTrackBytes), image.begin() + (ptrdiff_t) ((kCpmDirectoryTrack + 1) * kTrackBytes));
+        }
     }
 
     hr = ComputeHash (tracks, outHex);

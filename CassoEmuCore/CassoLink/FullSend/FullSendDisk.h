@@ -20,11 +20,13 @@
 class FullSendDisk
 {
 public:
-    static constexpr int  kDosCatalogTrack = 17;
+    static constexpr int  kDosCatalogTrack   = 17;
+    static constexpr int  kCpmDirectoryTrack = 3;
 
     //  ProDOS's volume directory, blocks 2 to 5, is on track 0, so its
     //  fingerprint is track 0 alone. Every other disk uses track 0 and the DOS
-    //  3.3 catalog track.
+    //  3.3 catalog track, and a disk with no file system recognized from those
+    //  adds CP/M's directory track.
     static bool     IsCatalogOnTrackZero (const std::vector<Byte> & image);
 
     //  SHA-256 in lowercase hex.
@@ -34,6 +36,12 @@ public:
     //  The volume's name on ProDOS or Apple Pascal, the first program's on
     //  DOS 3.3; empty when the catalog has neither.
     static std::string  GetCatalogTitle (const std::vector<Byte> & image);
+
+    //  Whether a disk's tracks 0 and 17 have no file system Casso recognizes, so
+    //  that its fingerprint adds CP/M's directory track. A CP/M data disk can
+    //  have nothing on the other two. Judged from those tracks alone, so the
+    //  result for a full image and for the tracks read first is the same.
+    static bool     NeedsDirectoryTrack (const std::vector<Byte> & image);
 
     //  The prefix, as typed, then NNNN NAME, or NNNN alone, with the prefix and
     //  the name cleaned by the host file name rules.

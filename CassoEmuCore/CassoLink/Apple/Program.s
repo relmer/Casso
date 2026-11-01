@@ -27,8 +27,9 @@
 ;   Session screen  a full send's drive states, counts, tone and image name:
 ;                   drawn over the history's first rows, the tone sounded, and
 ;                   Ready again; both states 0 clears them and ends the session
-;   Wait for key    a full send's pause: the prompt drawn and the motor off,
-;                   Key with its code on Space or Q, Key with 0 each
+;   Wait for key    a full send's pause, with the prompt's lines, each ending in a
+;                   zero: drawn with the motor off,
+;                   Key with its code on Space, Q, 1 or 2, Key with 0 each
 ;                   second until then; any byte from the host is taken as Cancel
 ;
 ; F on the standard screen sends Key with its code ahead of the next Ready,
@@ -3371,6 +3372,8 @@ FSIMAGE  = 2
 FSCOUNTS = 3
 FSQUIPROW = 5
 FSROWS   = 6
+FSPROMPT = 6                    ; the first of Wait for key's lines
+FSPROMPTS = 4
 FSTONE   = 8                    ; Session screen's tone, in PKTBUF
 FSQUIP   = 9                    ; its prompt line: 0 none, else any value
 FSNAME   = 10                   ; and its image name
@@ -3403,18 +3406,32 @@ dowaitkey: jsr motoroff
         jsr showop
         sta $C010
         jsr clrlabel
-wkprompt: lda wktext,y
-        beq wksec
-        ora #$80
-        sta ROWLB,y
-        iny
-        bne wkprompt
+        lda #0
+        sta left
+        lda #FSPROMPT
+        sta sbyte
+wkline: ldx sbyte
+        jsr fsrow
+wkchar: ldx left
+        cpx lenlo
+        bcs wksec
+        inc left
+        lda PKTBUF,x
+        beq wknext
+        jsr putch
+        jmp wkchar
+wknext: inc sbyte
+        jmp wkline
 wksec:  lda #100
         sta tries
 wkpoll: lda $C000
         bpl wkhost
         sta $C010
         cmp #$A0
+        beq wkkey
+        cmp #$B1
+        beq wkkey
+        cmp #$B2
         beq wkkey
         cmp #$F1
         beq wkquit
@@ -3434,11 +3451,13 @@ wkhost: jsr pollcancel
         endif
         jmp wksec
 wkkey:  jsr sendkey
+        ldx #FSPROMPT+FSPROMPTS-1
+wkclear: jsr fsrow
+        dex
+        cpx #FSPROMPT
+        bcs wkclear
         jsr clrlabel
         jmp main
-
-wktext: .text "PUT IN A NEW DISK AND PRESS SPACE"
-        .byte 0
 
 ; doscreen: the Session screen on the history's first rows, its tone, and
 ; Ready again.

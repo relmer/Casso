@@ -760,9 +760,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::WaitForKey (Byte & outKey)
+HRESULT CassoLinkHost::WaitForKey (const std::vector<std::string> & lines, Byte & outKey)
 {
-    return Resend ([&] () { return WaitForKeyOnce (outKey); });
+    return Resend ([&] () { return WaitForKeyOnce (lines, outKey); });
 }
 
 
@@ -774,24 +774,32 @@ HRESULT CassoLinkHost::WaitForKey (Byte & outKey)
 //  CassoLinkHost::WaitForKeyOnce
 //
 //  The program sends Key with no code once a second while no key is pressed,
-//  so an Apple that was reset or unplugged times out as in any operation.
+//  so an Apple that was reset or unplugged times out as in any operation. Each
+//  line of the prompt ends in a zero.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::WaitForKeyOnce (Byte & outKey)
+HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, Byte & outKey)
 {
-    HRESULT          hr    = S_OK;
-    CassoLinkPacket  packet;
-    bool             isKey = false;
+    HRESULT            hr    = S_OK;
+    CassoLinkPacket    packet;
+    bool               isKey = false;
+    std::vector<Byte>  prompt;
 
 
 
     outKey = CassoLinkCodec::kKeyNone;
 
+    for (const std::string & line : lines)
+    {
+        prompt.insert (prompt.end(), line.begin(), line.end());
+        prompt.push_back (0);
+    }
+
     hr = AwaitReady();
     CHR (hr);
 
-    hr = SendPacket (CassoLinkCodec::kWaitForKey, {});
+    hr = SendPacket (CassoLinkCodec::kWaitForKey, prompt);
     CHR (hr);
 
     m_awaitingKey = true;

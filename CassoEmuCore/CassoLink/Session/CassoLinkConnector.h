@@ -51,7 +51,8 @@ public:
     //  the retry interval when it fails or drops, until the stop.
     void     ServeAdtPro     (std::stop_token stop);
 
-    static std::string  DescribeOpenFailure (HRESULT hr, uint16_t port);
+    static std::string  DescribeOpenFailure (HRESULT hr, uint16_t port, const std::wstring & comPort);
+    bool                WasBootstrapped     () const { return m_bootstrapped; }
     bool                IsLineOpen          () const;
     HRESULT             LogOnApple          (const std::string & text);
     HRESULT             AwaitProgram        (std::stop_token stop, DWORD timeoutMs, bool & outReady);
@@ -84,6 +85,7 @@ private:
     //  sets it just before Disconnect.
     std::string                      m_lostReason;
     std::string                      m_openFailure;
+    bool                             m_bootstrapped = false;
     std::wstring                     m_modelName;
     std::shared_ptr<LinkOperation>   m_bootstrap;
     std::jthread                     m_thread;

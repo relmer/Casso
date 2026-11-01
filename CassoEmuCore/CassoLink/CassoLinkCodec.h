@@ -105,6 +105,8 @@ public:
     static constexpr Byte  kKeyQuit       = 0xD1;
     static constexpr Byte  kKeyNone       = 0x00;
     static constexpr Byte  kKeyFullSend   = 0xC6;
+    static constexpr Byte  kKeyDrive1     = 0xB1;
+    static constexpr Byte  kKeyDrive2     = 0xB2;
 
     //  The longest image name on the Session screen.
     static constexpr size_t  kSessionNameLength = 30;

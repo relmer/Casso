@@ -760,6 +760,7 @@ public:
     {
         Rig  rig;
 
+        rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
         rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
         rig.Start();
 
@@ -768,8 +769,8 @@ public:
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::IsTrue (rig.fileIo.files["C:\\Box\\0001 HELLO.dsk"] == rig.Drive (1));
         Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0002 LINKED.po"));
-        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\full-send.csv"));
-        Assert::AreEqual (1, rig.apple.keyWaits.load());
+        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\manifest.fullsend"));
+        Assert::AreEqual (2, rig.apple.keyWaits.load(), L"the entry screen and the pause");
         Assert::IsTrue (send->message.find ("2 sent") != std::string::npos, L"the counts are in the result");
 
         AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
@@ -789,6 +790,7 @@ public:
         Rig  rig;
 
         rig.sink.fullSendFolder = "C:\\Box";
+        rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
         rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
         rig.Start();
 
@@ -867,10 +869,13 @@ public:
 
     TEST_METHOD (FullSend_QDuringARead_WritesNoImage)
     {
+        //  Space begins the session.
         Rig  rig;
 
         rig.apple.sectorDelayMs = 1;
         rig.Start();
+
+        rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
 
         auto  send = rig.session->FullSend ("C:\\Box", "", "");
 

@@ -244,7 +244,7 @@ public:
 
     //  Space or Q on the Apple, with no drive running there: its code.
     //  Any Cancel ends the wait with ERROR_CANCELLED.
-    HRESULT  WaitForKey   (Byte & outKey);
+    HRESULT  WaitForKey   (const std::vector<std::string> & lines, Byte & outKey);
 
     //  Whether Q was pressed during a full send, since the last call.
     bool     TakeQuit   () { bool  quit = m_quit; m_quit = false; return quit; }
@@ -272,7 +272,7 @@ private:
 
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
-    HRESULT  WaitForKeyOnce    (Byte & outKey);
+    HRESULT  WaitForKeyOnce    (const std::vector<std::string> & lines, Byte & outKey);
     HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);

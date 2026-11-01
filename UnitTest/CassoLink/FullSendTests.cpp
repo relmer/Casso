@@ -53,6 +53,11 @@ public:
         std::vector<std::pair<int, int>>      badSectors;    // reported on every disk read of badDisk
         Image                                 badDisk;
         int                                   waits          = 0;
+        bool                                  begun          = false;
+        bool                                  bootstrapped   = false;
+        FullSendKey                           beginKey       = FullSendKey::Space;
+        std::vector<std::string>              entryLines;
+        std::vector<std::vector<std::string>> pauseLines;
         bool                                  wholeTracksBad = false;     // badDisk's tracks are not read whole in a check
         std::vector<int>                      tracksRead;                 // the tracks of the whole-disk reads
 
@@ -134,8 +139,20 @@ public:
             return S_OK;
         }
 
-        HRESULT  WaitForKey (FullSendKey & outKey) override
+        bool     IsBootstrapped() override { return bootstrapped; }
+
+        HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) override
         {
+            //  The first wait is the one that begins the session.
+            if (!begun)
+            {
+                begun      = true;
+                entryLines = lines;
+                outKey     = beginKey;
+                return S_OK;
+            }
+
+            pauseLines.push_back (lines);
             waits++;
 
             if (beforeKey.contains (waits))
@@ -321,6 +338,34 @@ public:
         AssertSucceeded (FullSendDisk::ComputeHash (abc, hex));
 
         Assert::AreEqual (std::string ("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"), hex);
+    }
+
+    TEST_METHOD (Fingerprint_OfAnUnrecognizedDisk_AddsTrackThree)
+    {
+        Image        image = Other (0xE5);
+        std::string  base;
+        std::string  next;
+
+        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, base));
+
+        image[3 * kTrackBytes]++;
+        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
+
+        Assert::AreNotEqual (base, next, L"two CP/M data disks differ only in their directory");
+    }
+
+    TEST_METHOD (Fingerprint_OfADosDisk_LeavesTrackThreeOut)
+    {
+        Image        image = Dos ("HELLO");
+        std::string  base;
+        std::string  next;
+
+        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, base));
+
+        image[3 * kTrackBytes]++;
+        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
+
+        Assert::AreEqual (base, next);
     }
 
     TEST_METHOD (Fingerprint_CoversTrackZeroAndTheCatalogTrack_AndNoOther)
@@ -562,30 +607,132 @@ public:
         }
     }
 
-    TEST_METHOD (Session_Space_SendsARepeatedDisk_WhenNoDriveHasANewOne)
+    TEST_METHOD (Session_DoesNotReadADisk_UntilSpaceBegins)
     {
         Rig  rig;
 
         rig.link.drives[0] = Other (1);
-        rig.link.keys      = { FullSendKey::Space };
+        rig.link.beginKey  = FullSendKey::Quit;
+
+        rig.Run (IFullSendLink::kQuit);
+
+        Assert::IsTrue (rig.link.trackDrives.empty());
+        Assert::IsTrue (rig.link.diskReads.empty());
+    }
+
+    TEST_METHOD (Session_Begin_AsksToRemoveTheCassoLinkDisk_UnlessBootstrapped)
+    {
+        Rig  booted;
+        Rig  bootstrapped;
+
+        bootstrapped.link.bootstrapped = true;
+
+        booted.Run();
+        bootstrapped.Run();
+
+        Assert::AreEqual (std::string ("REMOVE THE CASSOLINK DISK"), booted.link.entryLines[0]);
+        Assert::AreEqual (std::string ("INSERT DISKS TO BE SENT INTO THE DRIVES"), bootstrapped.link.entryLines[0]);
+    }
+
+    //  Space with the disk just sent still in the drive changes nothing.
+    TEST_METHOD (Session_Space_OnAnAlreadySentDisk_DoesNotReadIt_OrCountADuplicate)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Space };
 
         auto  session = rig.Run();
 
-        Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
-        Assert::AreEqual (1, session->GetScreen().duplicates, L"the same bytes are a duplicate");
+        Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1 }));
+        Assert::AreEqual (0, session->GetScreen().duplicates);
+        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines.back()[1]);
+        Assert::AreEqual (std::string ("PRESS 1 TO SEND D1 ANYWAY."), rig.link.pauseLines.back()[3]);
     }
 
-    TEST_METHOD (Session_Space_WithARepeatInBothDrives_SendsTheDriveNotReadLast)
+    TEST_METHOD (Session_DriveKey_SendsTheListedDisk_AndAnExactCopyIsADuplicate)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Space, FullSendKey::Drive1 };
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
+        Assert::AreEqual (1, session->GetScreen().duplicates);
+    }
+
+    TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Drive1 };
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1 }));
+    }
+
+    TEST_METHOD (Session_Space_WithARepeatInBothDrives_ListsBoth)
     {
         Rig  rig;
 
         rig.link.drives[0] = Other (1);
         rig.link.drives[1] = Other (2);
-        rig.link.keys      = { FullSendKey::Space };
+        rig.link.keys      = { FullSendKey::Space, FullSendKey::Drive2 };
 
         rig.Run();
 
-        Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1, 2, 1 }));
+        Assert::AreEqual (std::string ("D1 AND D2 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[1][1]);
+        Assert::AreEqual (std::string ("PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY."), rig.link.pauseLines[1][3]);
+        Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 2, 2 }));
+    }
+
+    TEST_METHOD (Session_RenamesALegacyManifest_AndRecognizesItsDisks)
+    {
+        Rig          rig;
+        Image        disk = Other (1);
+        std::string  fingerprint;
+        std::string  hash;
+
+        AssertSucceeded (FullSendDisk::ComputeFingerprint (disk, fingerprint));
+        AssertSucceeded (FullSendDisk::ComputeHash (disk, hash));
+
+        FullSendManifest  manifest;
+        FullSendRow       row = Row (7, "0007.dsk");
+
+        row.fingerprint = fingerprint;
+        row.hash        = hash;
+        row.status      = FullSendManifest::kStatusSent;
+        manifest.Add (row);
+
+        rig.io.files["C:\\Box\\full-send.csv"] = manifest.Format();
+        rig.link.drives[0] = disk;
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.diskReads.empty());
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\manifest.fullsend"));
+        Assert::IsFalse (rig.io.files.contains ("C:\\Box\\full-send.csv"));
+    }
+
+    TEST_METHOD (Manifest_HasAHeaderOfComments_AndParsesPastThem)
+    {
+        FullSendManifest   manifest;
+        FullSendManifest   read;
+        std::vector<Byte>  bytes;
+
+        manifest.Add (Row (1, "0001.dsk"));
+        bytes = manifest.Format();
+
+        Assert::AreEqual ('#', (char) bytes[0]);
+        AssertSucceeded (read.Parse (bytes));
+        Assert::AreEqual ((size_t) 1, read.GetRows().size());
     }
 
     TEST_METHOD (Session_Space_PrefersANewDisk_OverARepeatInTheOtherDrive)
@@ -685,7 +832,7 @@ public:
         rig.Run();
 
         Assert::AreEqual ((size_t) 1, rig.link.diskReads.size());
-        Assert::AreEqual ((size_t) 5, rig.link.trackDrives.size(), L"tracks 0 and 17 twice, and 17 again after the read");
+        Assert::AreEqual ((size_t) 7, rig.link.trackDrives.size(), L"tracks 0, 17 and 3 twice, and 17 again after the read");
     }
 
     TEST_METHOD (Session_SwappedDuringItsOwnRead_TheNewDiskIsSentWithNoKey)
@@ -762,7 +909,7 @@ public:
         auto  session = rig.Run (HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
 
         Assert::IsTrue (session->GetEndReason() == FullSendSession::EndReason::LinkFailed);
-        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001.dsk", "full-send.csv" }));
+        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001.dsk", "manifest.fullsend" }));
     }
 
 
@@ -776,14 +923,14 @@ public:
         Image  first  = Other (1);
         Image  second = first;
 
-        //  A copy has the first disk's fingerprint, so Space sends it as a repeat.
+        //  A copy has the first disk's fingerprint, so it is sent by its number.
         rig.link.drives[0] = first;
         rig.link.drives[1] = second;
-        rig.link.keys      = { FullSendKey::Space };
+        rig.link.keys      = { FullSendKey::Space, FullSendKey::Drive2 };
 
         auto  session = rig.Run();
 
-        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001.dsk", "full-send.csv" }));
+        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001.dsk", "manifest.fullsend" }));
 
         const auto  & rows = session->GetManifest().GetRows();
 
@@ -834,7 +981,7 @@ public:
         //  The first read's image is gone, and the disk now in the drive is
         //  new, so it is read and written.
         Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
-        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001.dsk", "full-send.csv" }));
+        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001.dsk", "manifest.fullsend" }));
         Assert::IsTrue (rig.io.files["C:\\Box\\0001.dsk"] == next);
         Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
         Assert::AreEqual ((size_t) 2, rig.link.reports.size(), L"the changed disk is reported");
@@ -851,7 +998,7 @@ public:
 
         rig.Run();
 
-        Assert::AreEqual ((size_t) 33, rig.link.tracksRead.size());
+        Assert::AreEqual ((size_t) 32, rig.link.tracksRead.size(), L"tracks 0, 17 and 3 were read in the check");
         Assert::IsTrue (std::find (rig.link.tracksRead.begin(), rig.link.tracksRead.end(), 0) == rig.link.tracksRead.end());
         Assert::IsTrue (std::find (rig.link.tracksRead.begin(), rig.link.tracksRead.end(), 17) == rig.link.tracksRead.end());
 
@@ -903,7 +1050,7 @@ public:
 
         rig.Run();
 
-        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001 GAMES.dsk", "full-send.csv" }));
+        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001 GAMES.dsk", "manifest.fullsend" }));
     }
 
     TEST_METHOD (Session_WritesTheManifestAfterEachDisk_NotAtTheEnd)
@@ -913,7 +1060,7 @@ public:
 
         rig.link.drives[0]         = Other (1);
         rig.link.drives[1]         = Other (2);
-        rig.link.duringDiskRead[2] = [&] (ScriptedLink &) { atSecond = rig.io.files["C:\\Box\\full-send.csv"].size(); };
+        rig.link.duringDiskRead[2] = [&] (ScriptedLink &) { atSecond = rig.io.files["C:\\Box\\manifest.fullsend"].size(); };
 
         rig.Run();
 
@@ -943,7 +1090,7 @@ public:
         row.status      = FullSendManifest::kStatusSent;
         manifest.Add (row);
 
-        rig.io.files["C:\\Box\\full-send.csv"] = manifest.Format();
+        rig.io.files["C:\\Box\\manifest.fullsend"] = manifest.Format();
         rig.link.drives[0] = old;
         rig.link.drives[1] = Other (2);
 
@@ -959,14 +1106,14 @@ public:
         Rig    rig;
         Image  damaged = { 'n', 'o', 'p', 'e', '\r', '\n' };
 
-        rig.io.files["C:\\Box\\full-send.csv"] = damaged;
+        rig.io.files["C:\\Box\\manifest.fullsend"] = damaged;
         rig.link.drives[0] = Other (1);
 
         auto  session = rig.Run (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         Assert::IsTrue (session->GetEndReason() == FullSendSession::EndReason::ManifestDamaged);
         Assert::IsTrue (rig.link.trackDrives.empty());
-        Assert::IsTrue (rig.io.files["C:\\Box\\full-send.csv"] == damaged);
+        Assert::IsTrue (rig.io.files["C:\\Box\\manifest.fullsend"] == damaged);
         Assert::IsFalse (session->GetMessage().empty());
     }
 

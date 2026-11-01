@@ -129,6 +129,8 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
     hr = LinkBootstrap::SendShim (*m_stream, transfer);
     CHR (hr);
 
+    m_bootstrapped = true;
+
     //  The shim starts on the open line and sends Ready unprompted. With an
     //  Idle as well, the shim sends a second Ready in reply to the Idle while
     //  the host's reply to the first arrives, and the 6551's one-byte buffer
@@ -686,7 +688,7 @@ Error:
     {
         std::lock_guard<std::mutex>  lock (m_lock);
 
-        m_openFailure = FAILED (hr) ? DescribeOpenFailure (hr, port) : std::string();
+        m_openFailure = FAILED (hr) ? DescribeOpenFailure (hr, port, m_session.m_settings.IsComPort() ? m_port : std::wstring()) : std::string();
     }
 
     return hr;
@@ -702,7 +704,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port)
+std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port, const std::wstring & comPort)
 {
     std::string  text;
 
@@ -711,6 +713,10 @@ std::string CassoLinkConnector::DescribeOpenFailure (HRESULT hr, uint16_t port)
     if (hr == HRESULT_FROM_WIN32 (WSAEADDRINUSE))
     {
         text = std::format ("TCP port {} is in use by another program.", port);
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED) && !comPort.empty())
+    {
+        text = std::format ("{} is in use by another program.", TextEncoding::WideToNarrow (comPort));
     }
     else
     {

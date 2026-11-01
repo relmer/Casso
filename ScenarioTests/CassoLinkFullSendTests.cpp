@@ -51,6 +51,8 @@ public:
     static constexpr Word      kRowImage    = 0x0728;
     static constexpr Word      kRowCounts   = 0x07A8;
     static constexpr Word      kRowQuip     = 0x04D0;
+    static constexpr Word      kRowPrompt   = 0x0550;
+    static constexpr Word      kRowPrompt2  = 0x05D0;
     static constexpr Word      kRowStatus   = 0x0700;
     static constexpr Word      kRowHeading  = 0x05A8;
     static constexpr Word      kRowKeys     = 0x07D0;
@@ -204,7 +206,15 @@ public:
             return text.substr (0, text.find_last_not_of (' ') + 1);
         }
 
-        bool  IsPrompting() { return Row (kRowLabel).starts_with ("PUT IN A NEW DISK"); }
+        bool  IsPrompting() { return Row (kRowPrompt).starts_with ("PUT IN A NEW DISK"); }
+
+        //  Space on the entry screen, which begins the session.
+        void  Begin()
+        {
+            RunUntil ([&] () { return Row (kRowPrompt).find ("INTO THE DRIVES") != std::string::npos || Row (kRowPrompt2).find ("INTO THE DRIVES") != std::string::npos; }, L"the entry screen");
+            Press (' ');
+            RunUntil ([&] () { return Row (kRowPrompt).empty(); }, L"Space begins the session");
+        }
 
         //  Steps the machine until the condition is true, with realTime at the //c's
         //  speed, so that each pause on the PC costs what it would on a real //c.
@@ -254,7 +264,7 @@ public:
         {
             FullSendManifest  manifest;
 
-            AssertSucceeded (manifest.Parse (fileIo.files["C:\\Box\\full-send.csv"]));
+            AssertSucceeded (manifest.Parse (fileIo.files["C:\\Box\\manifest.fullsend"]));
 
             return manifest.GetRows();
         }
@@ -371,6 +381,7 @@ public:
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.send = rig.session->FullSend ("C:\\Box", "", "");
+        rig.Begin();
 
         begun = rig.spent;
         rig.RunUntil ([&] ()
@@ -427,15 +438,22 @@ public:
         //  Drive 2 has a copy of drive 1's disk: same fingerprint, so a pause.
         rig.Mount (2, DiskFormat::Dsk, rig.dosFile);
         rig.send = rig.session->FullSend ("C:\\Box", "", "");
+        rig.Begin();
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause, as drive 2's disk repeats drive 1's");
         pauses++;
 
         Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: ALREADY SENT"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
 
-        //  Space sends the repeat, and its hash makes it a duplicate.
+        //  Space reads neither disk and lists both. Drive 2's number sends its
+        //  disk, and its hash makes it a duplicate.
         rig.Press (' ');
-        rig.RunUntil ([&] () { return !rig.IsPrompting(); }, L"Space ends the pause");
+        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2).find ("MAY ALREADY HAVE BEEN SENT") != std::string::npos; }, L"the already-sent prompt");
+
+        Assert::IsTrue (rig.Row (kRowCounts).find ("DUPLICATE 0") != std::string::npos, L"checking a disk doesn't count it");
+
+        rig.Press ('2');
+        rig.RunUntil ([&] () { return !rig.IsPrompting(); }, L"2 ends the pause");
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the next pause");
         pauses++;
 
@@ -480,6 +498,7 @@ public:
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.machine.GetDiskStore().Eject (kSlot, 1);
         rig.send = rig.session->FullSend ("C:\\Box", "", "");
+        rig.Begin();
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause");
         Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: NO DISK"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
@@ -504,6 +523,7 @@ public:
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.send = rig.session->FullSend ("C:\\Box", "", "");
+        rig.Begin();
 
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS / 2);
@@ -539,6 +559,7 @@ public:
         Assert::IsTrue (rig.Row (kRowStatus).find ("WAITING FOR A COMMAND") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowStatus)).c_str());
 
         rig.Press ('f');
+        rig.Begin();
 
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING") && rig.Row (kRowStatus).find ("10%") != std::string::npos; }, L"drive 1 is sending, with progress");
 
@@ -591,6 +612,7 @@ public:
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.machine.GetDiskStore().Eject (kSlot, 1);
         rig.send = rig.session->FullSend ("C:\\Box", "", "");
+        rig.Begin();
 
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS);
