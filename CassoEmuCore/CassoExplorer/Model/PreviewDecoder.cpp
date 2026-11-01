@@ -470,6 +470,13 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
     {
         RenderBlockCatalog (listing, kind, outContent.lines);
     }
+
+    if (!outContent.lines.empty())
+    {
+        std::wstring  heading = TextEncoding::NarrowToWide (VolumeImage::GetSystemName (kind)) + L" disk";
+
+        outContent.lines.insert (outContent.lines.begin(), { heading, std::wstring() });
+    }
 }
 
 

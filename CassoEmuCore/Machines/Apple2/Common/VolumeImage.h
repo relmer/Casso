@@ -63,6 +63,10 @@ enum class VolumeKind
 class VolumeImage
 {
 public:
+    //  The file system's name as a listing's heading uses it, and an empty
+    //  string for Unknown.
+    static const char * GetSystemName (VolumeKind kind);
+
     //  Any mountable image file to a DOS-logical sector buffer. The report
     //  describes what the track layer could recover, and is empty of meaning
     //  for a sector-order file, which has no tracks to decode.

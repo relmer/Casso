@@ -426,14 +426,7 @@ std::string CassoExplorerActions::MakeCatalogName (const std::wstring & hostName
 
 std::wstring CassoExplorerActions::GetVolumeSystemName (VolumeKind kind)
 {
-    switch (kind)
-    {
-        case VolumeKind::Dos33:  return L"DOS 3.3";
-        case VolumeKind::ProDos: return L"ProDOS";
-        case VolumeKind::Pascal: return L"Apple Pascal";
-        case VolumeKind::Cpm:    return L"CP/M";
-        default:                 return L"This file system";
-    }
+    return (kind == VolumeKind::Unknown) ? std::wstring (L"This file system") : TextEncoding::NarrowToWide (VolumeImage::GetSystemName (kind));
 }
 
 

@@ -573,6 +573,8 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
         CHRF (hr, result.Fail (options.disk.imagePath, "", "catalog could not be read"));
 
+        result.output += std::string (VolumeImage::GetSystemName (opened.kind)) + " disk\n\n";
+
         if (opened.kind == VolumeKind::Pascal)
         {
             result.output += listing.volumeName + ":\n\n";

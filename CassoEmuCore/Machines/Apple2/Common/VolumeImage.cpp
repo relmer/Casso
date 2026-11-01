@@ -691,6 +691,28 @@ bool VolumeImage::LooksLikeProDos (const vector<Byte> & sectors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VolumeImage::GetSystemName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * VolumeImage::GetSystemName (VolumeKind kind)
+{
+    switch (kind)
+    {
+        case VolumeKind::Dos33:  return "DOS 3.3";
+        case VolumeKind::ProDos: return "ProDOS";
+        case VolumeKind::Pascal: return "Apple Pascal";
+        case VolumeKind::Cpm:    return "CP/M";
+        default:                 return "";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  VolumeImage::DetectFilesystem
 //
 //  DOS 3.3 is tested first because its VTOC offers more independent fields to

@@ -478,13 +478,15 @@ public:
         PreviewDecoder::RenderCatalog (listing, VolumeKind::Dos33, content);
 
         Assert::IsTrue   (content.kind == Kind::Catalog);
-        Assert::AreEqual ((size_t) 6, content.lines.size());
-        Assert::AreEqual (std::wstring (L"DISK VOLUME 254"),        content.lines[0]);
+        Assert::AreEqual ((size_t) 8, content.lines.size());
+        Assert::AreEqual (std::wstring (L"DOS 3.3 disk"),           content.lines[0]);
         Assert::IsTrue   (content.lines[1].empty());
-        Assert::AreEqual (std::wstring (L"*A 003 HELLO"),           content.lines[2]);
-        Assert::AreEqual (std::wstring (L" B 006 LOADER.OBJ0"),     content.lines[3]);
-        Assert::IsTrue   (content.lines[4].empty());
-        Assert::AreEqual (std::wstring (L"283 sectors free of 560"), content.lines[5]);
+        Assert::AreEqual (std::wstring (L"DISK VOLUME 254"),        content.lines[2]);
+        Assert::IsTrue   (content.lines[3].empty());
+        Assert::AreEqual (std::wstring (L"*A 003 HELLO"),           content.lines[4]);
+        Assert::AreEqual (std::wstring (L" B 006 LOADER.OBJ0"),     content.lines[5]);
+        Assert::IsTrue   (content.lines[6].empty());
+        Assert::AreEqual (std::wstring (L"283 sectors free of 560"), content.lines[7]);
     }
 
 
@@ -515,12 +517,29 @@ public:
 
         PreviewDecoder::RenderCatalog (listing, VolumeKind::ProDos, content);
 
-        Assert::AreEqual ((size_t) 8, content.lines.size());
-        Assert::AreEqual (std::wstring (L"/CASSQUE"), content.lines[0]);
-        Assert::AreEqual (std::wstring (L" NAME" L"           " L"TYPE  BLOCKS  MODIFIED"), content.lines[2]);
-        Assert::AreEqual (std::wstring (L" HELLO" L"           " L"BAS" L"       " L"1  17-AUG-84"), content.lines[4]);
-        Assert::AreEqual (std::wstring (L" SUBDIR" L"          " L"DIR" L"       " L"1  <NO DATE>"), content.lines[5]);
-        Assert::AreEqual (std::wstring (L"BLOCKS FREE:  214     BLOCKS USED:   66"), content.lines[7]);
+        Assert::AreEqual ((size_t) 10, content.lines.size());
+        Assert::AreEqual (std::wstring (L"ProDOS disk"), content.lines[0]);
+        Assert::AreEqual (std::wstring (L"/CASSQUE"), content.lines[2]);
+        Assert::AreEqual (std::wstring (L" NAME" L"           " L"TYPE  BLOCKS  MODIFIED"), content.lines[4]);
+        Assert::AreEqual (std::wstring (L" HELLO" L"           " L"BAS" L"       " L"1  17-AUG-84"), content.lines[6]);
+        Assert::AreEqual (std::wstring (L" SUBDIR" L"          " L"DIR" L"       " L"1  <NO DATE>"), content.lines[7]);
+        Assert::AreEqual (std::wstring (L"BLOCKS FREE:  214     BLOCKS USED:   66"), content.lines[9]);
+    }
+
+
+
+    TEST_METHOD (Catalog_PascalAndCpm_StartWithTheirFileSystem)
+    {
+        VolumeListing   listing;
+        PreviewContent  content;
+
+        PreviewDecoder::RenderCatalog (listing, VolumeKind::Pascal, content);
+        Assert::AreEqual (std::wstring (L"Apple Pascal disk"), content.lines[0]);
+        Assert::IsTrue   (content.lines[1].empty());
+
+        PreviewDecoder::RenderCatalog (listing, VolumeKind::Cpm, content);
+        Assert::AreEqual (std::wstring (L"CP/M disk"), content.lines[0]);
+        Assert::IsTrue   (content.lines[1].empty());
     }
 
 
