@@ -43,15 +43,16 @@ Win32ShellSearch::Win32ShellSearch (Win32ShellItemVerbs & verbs)
 
 HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
 {
-    HRESULT                    hr      = S_OK;
-    std::wstring               scope;
-    std::wstring               query;
-    std::vector<std::wstring>  paths;
-    bool                       indexed = false;
-    bool                       parsed  = SearchQuery::TryParseId (id, scope, query);
-    bool                       filters = SearchQuery::HasFilters (query);
-    RowGrouping::Today         today   = RowGrouping::GetToday();
-    WalkOptions                walk;
+    HRESULT                      hr      = S_OK;
+    std::wstring                 scope;
+    std::wstring                 query;
+    std::vector<std::wstring>    paths;
+    bool                         indexed = false;
+    bool                         parsed  = SearchQuery::TryParseId (id, scope, query);
+    bool                         filters = SearchQuery::HasFilters (query);
+    RowGrouping::Today           today   = RowGrouping::GetToday();
+    WalkOptions                  walk;
+    std::map<std::wstring, int>  ranks;
 
 
 
@@ -71,7 +72,7 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         //  The index holds no zip's files and no unindexed file's text, so those
         //  options walk the folder.
         indexed = everywhere || (IsIndexed (folder) && !SearchQuery::HasWildcards (query) && !walk.search.zipped);
-        hr      = indexed ? QueryIndex (everywhere ? SearchQuery::kEverywhere : folder, query, found, walk.search.currentFolder) : S_OK;
+        hr      = indexed ? QueryIndex (everywhere ? SearchQuery::kEverywhere : folder, query, found, walk.search.currentFolder, &ranks) : S_OK;
 
         if (thisPc)
         {
@@ -81,6 +82,15 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         else if (everywhere)
         {
             AddRecentMatches (SearchQuery::GetNameWords (query), found);
+        }
+
+        //  The index has only the text of the files it was told to read.
+        if (!everywhere && indexed && SUCCEEDED (hr) && walk.search.contents)
+        {
+            std::vector<std::wstring>  walked;
+
+            WalkForNames (folder, SearchQuery::GetNameWords (query), walked, walk);
+            AddNewPaths (walked, found);
         }
 
         //  A folder the index leaves out, or an index that cannot answer, is
@@ -130,7 +140,10 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
 
             CoTaskMemFree (shown);
 
-            entry.folder = std::filesystem::path (path).parent_path().wstring();
+            auto  rank = ranks.find (path);
+
+            entry.searchRank = (rank != ranks.end()) ? rank->second : 0;
+            entry.folder     = std::filesystem::path (path).parent_path().wstring();
             outItems.push_back (std::move (entry));
         }
     }
@@ -203,6 +216,8 @@ SearchQuery::ItemFacts Win32ShellSearch::GetItemFacts (IShellItem2 * item, const
     facts.month     = parts.tm_mon + 1;
     facts.day       = parts.tm_mday;
 
+    hrKinds = SUCCEEDED (hrKinds) ? item->GetProperty (kindKey, &kinds) : hrKinds;
+
     if (SUCCEEDED (hrKinds))
     {
         for (ULONG at = 0; at < PropVariantGetElementCount (kinds); at++)
@@ -263,47 +278,66 @@ bool Win32ShellSearch::IsSystemItem (const std::wstring & path)
 //
 //  Win32ShellSearch::FileContainsWords
 //
-//  Every word somewhere in the file's bytes, as ANSI or as UTF-16. A file too
-//  large or unreadable doesn't match.
+//  Every word somewhere in the file's bytes, as ANSI or as UTF-16. A file that
+//  can't be read doesn't match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Win32ShellSearch::FileContainsWords (const std::wstring & path, uint64_t sizeBytes, const std::vector<std::wstring> & words)
+bool Win32ShellSearch::FileContainsWords (const std::wstring & path, const std::vector<std::wstring> & words)
 {
-    std::string  bytes;
+    std::ifstream              file (std::filesystem::path (path), std::ios::binary);
+    std::vector<std::string>   ansi;
+    std::vector<std::string>   wide;
+    std::vector<bool>          found (words.size(), false);
+    std::string                chunk;
+    size_t                     missing = words.size();
 
 
 
-    if (words.empty() || sizeBytes == 0 || sizeBytes > s_kMaxContentBytes)
+    if (words.empty() || !file)
     {
         return false;
     }
 
-    std::ifstream  file (std::filesystem::path (path), std::ios::binary);
-
-    bytes.resize ((size_t) sizeBytes);
-
-    if (!file.read (bytes.data(), (std::streamsize) bytes.size()))
+    for (const std::wstring & word : words)
     {
-        return false;
-    }
-
-    std::transform (bytes.begin(), bytes.end(), bytes.begin(), [] (char c) { return (char) tolower ((unsigned char) c); });
-
-    return std::all_of (words.begin(), words.end(), [&bytes] (const std::wstring & word)
-    {
-        std::string  ansi;
-        std::string  wide;
+        ansi.emplace_back();
+        wide.emplace_back();
 
         for (wchar_t c : word)
         {
-            ansi += (char) c;
-            wide += (char) c;
-            wide += (char) (c >> 8);
+            ansi.back() += (char) c;
+            wide.back() += (char) c;
+            wide.back() += (char) (c >> 8);
+        }
+    }
+
+    while (missing > 0 && file)
+    {
+        size_t  kept = chunk.size();
+
+        chunk.resize (kept + s_kContentChunkBytes);
+        file.read (chunk.data() + kept, (std::streamsize) s_kContentChunkBytes);
+        chunk.resize (kept + (size_t) file.gcount());
+
+        std::transform (chunk.begin() + (std::ptrdiff_t) kept, chunk.end(), chunk.begin() + (std::ptrdiff_t) kept, [] (char c) { return (char) tolower ((unsigned char) c); });
+
+        for (size_t at = 0; at < words.size(); at++)
+        {
+            if (!found[at] && (chunk.find (ansi[at]) != std::string::npos || chunk.find (wide[at]) != std::string::npos))
+            {
+                found[at] = true;
+                missing--;
+            }
         }
 
-        return bytes.find (ansi) != std::string::npos || bytes.find (wide) != std::string::npos;
-    });
+        if (chunk.size() > s_kContentOverlapBytes)
+        {
+            chunk.erase (0, chunk.size() - s_kContentOverlapBytes);
+        }
+    }
+
+    return missing == 0;
 }
 
 
@@ -565,7 +599,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths, bool currentFolder)
+HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths, bool currentFolder, std::map<std::wstring, int> * outRanks)
 {
     static constexpr CLSID  s_kCollatorDataSource = { 0x9E175B8B, 0xF52A, 0x11D8, { 0xB9, 0xA5, 0x50, 0x50, 0x54, 0x50, 0x30, 0x30 } };
     static constexpr GUID   s_kDbGuidDefault      = { 0xC8B521FB, 0x5CF3, 0x11CE, { 0xAD, 0xE5, 0x00, 0xAA, 0x00, 0x44, 0x77, 0x3D } };
@@ -577,22 +611,24 @@ HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wst
         DBSTATUS   status = 0;
         DBLENGTH   length = 0;
         wchar_t    value[MAX_PATH * 2] = {};
+        DBSTATUS   rankStatus = 0;
+        LONG       rank       = 0;
     };
 
-    HRESULT                          hr       = S_OK;
-    ComPtr<ISearchManager>           manager;
-    ComPtr<ISearchCatalogManager>    catalog;
-    ComPtr<ISearchQueryHelper>       helper;
-    ComPtr<IDBInitialize>            source;
-    ComPtr<IDBCreateSession>         sessions;
-    ComPtr<IDBCreateCommand>         session;
-    ComPtr<ICommandText>             command;
-    ComPtr<IRowset>                  rows;
-    ComPtr<IAccessor>                accessor;
-    PWSTR                            sql      = nullptr;
-    HACCESSOR                        binder   = DB_NULL_HACCESSOR;
-    DBBINDING                        binding  = {};
-    Row                              row;
+    HRESULT                        hr          = S_OK;
+    ComPtr<ISearchManager>         manager;
+    ComPtr<ISearchCatalogManager>  catalog;
+    ComPtr<ISearchQueryHelper>     helper;
+    ComPtr<IDBInitialize>          source;
+    ComPtr<IDBCreateSession>       sessions;
+    ComPtr<IDBCreateCommand>       session;
+    ComPtr<ICommandText>           command;
+    ComPtr<IRowset>                rows;
+    ComPtr<IAccessor>              accessor;
+    PWSTR                          sql         = nullptr;
+    HACCESSOR                      binder      = DB_NULL_HACCESSOR;
+    DBBINDING                      bindings[2] = {};
+    Row                            row;
 
 
 
@@ -607,7 +643,7 @@ HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wst
     hr = catalog->GetQueryHelper (&helper);
     CHR (hr);
 
-    hr = helper->put_QuerySelectColumns (L"System.ItemPathDisplay");
+    hr = helper->put_QuerySelectColumns (L"System.ItemPathDisplay,System.Search.Rank");
     CHR (hr);
 
     //  The whole index has no scope to restrict it.
@@ -644,17 +680,26 @@ HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wst
     hr = rows.As (&accessor);
     CHR (hr);
 
-    binding.iOrdinal   = 1;
-    binding.obValue    = offsetof (Row, value);
-    binding.obLength   = offsetof (Row, length);
-    binding.obStatus   = offsetof (Row, status);
-    binding.dwPart     = DBPART_VALUE | DBPART_LENGTH | DBPART_STATUS;
-    binding.dwMemOwner = DBMEMOWNER_CLIENTOWNED;
-    binding.eParamIO   = DBPARAMIO_NOTPARAM;
-    binding.cbMaxLen   = sizeof (row.value);
-    binding.wType      = DBTYPE_WSTR;
+    bindings[0].iOrdinal   = 1;
+    bindings[0].obValue    = offsetof (Row, value);
+    bindings[0].obLength   = offsetof (Row, length);
+    bindings[0].obStatus   = offsetof (Row, status);
+    bindings[0].dwPart     = DBPART_VALUE | DBPART_LENGTH | DBPART_STATUS;
+    bindings[0].dwMemOwner = DBMEMOWNER_CLIENTOWNED;
+    bindings[0].eParamIO   = DBPARAMIO_NOTPARAM;
+    bindings[0].cbMaxLen   = sizeof (row.value);
+    bindings[0].wType      = DBTYPE_WSTR;
 
-    hr = accessor->CreateAccessor (DBACCESSOR_ROWDATA, 1, &binding, sizeof (Row), &binder, nullptr);
+    bindings[1].iOrdinal   = 2;
+    bindings[1].obValue    = offsetof (Row, rank);
+    bindings[1].obStatus   = offsetof (Row, rankStatus);
+    bindings[1].dwPart     = DBPART_VALUE | DBPART_STATUS;
+    bindings[1].dwMemOwner = DBMEMOWNER_CLIENTOWNED;
+    bindings[1].eParamIO   = DBPARAMIO_NOTPARAM;
+    bindings[1].cbMaxLen   = sizeof (row.rank);
+    bindings[1].wType      = DBTYPE_I4;
+
+    hr = accessor->CreateAccessor (DBACCESSOR_ROWDATA, 2, bindings, sizeof (Row), &binder, nullptr);
     CHR (hr);
 
     for (;;)
@@ -674,6 +719,11 @@ HRESULT Win32ShellSearch::QueryIndex (const std::wstring & scope, const std::wst
             if (SUCCEEDED (hrData) && row.status == DBSTATUS_S_OK)
             {
                 outPaths.emplace_back (row.value);
+
+                if (outRanks != nullptr && row.rankStatus == DBSTATUS_S_OK)
+                {
+                    (*outRanks)[row.value] = (int) row.rank;
+                }
             }
         }
 
@@ -938,7 +988,7 @@ void Win32ShellSearch::WalkForNames (const std::wstring & scope, const std::vect
             }
 
             if ((SearchQuery::MatchesName (name, words) && !words.empty()) || options.matchAll
-                || (options.search.contents && !isFolder && FileContainsWords (folder + L"\\" + name, ((uint64_t) found.nFileSizeHigh << 32) | found.nFileSizeLow, words)))
+                || (options.search.contents && !isFolder && FileContainsWords (folder + L"\\" + name, words)))
             {
                 outPaths.push_back (folder + L"\\" + name);
             }

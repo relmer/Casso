@@ -357,7 +357,7 @@ void ExplorerListColumns::ApplyFolderView()
 
 
 
-    if (key == m_viewKey && (m_view == DxuiListView::View::Home) == m_context.browser.IsHomeLocation())
+    if (key == m_viewKey && (m_view == DxuiListView::View::Home) == m_context.browser.IsHomeSectioned() && !(m_context.browser.IsHomeLocation() && m_view != DxuiListView::View::Home && m_view != DxuiListView::View::Details))
     {
         return;
     }
@@ -367,7 +367,7 @@ void ExplorerListColumns::ApplyFolderView()
     if (m_context.browser.IsHomeLocation())
     {
         m_viewKey = key;
-        m_view    = DxuiListView::View::Home;
+        m_view    = m_context.browser.IsHomeSectioned() ? DxuiListView::View::Home : DxuiListView::View::Details;
         m_iconDip = 0;
         m_pane.GetListView()->SetItemIconDip (0);
         m_pane.GetListView()->SetView (m_view);
@@ -678,7 +678,8 @@ void ExplorerListColumns::LoadPropertyColumns()
         CatalogModel::PropertyKey        key;
         std::wstring                     path;
 
-        if (row < rows.size() && m_context.browser.TryGetRowPath ((int) row, path))
+        //  A shell item with no file, as a device in Network, goes by its id.
+        if (row < rows.size() && (m_context.browser.TryGetRowPath ((int) row, path) || !(path = rows[row].shellId).empty()))
         {
             Win32PropertyColumns::Values  values = m_pane.GetPropertyValues().ReadNow (path, ExplorerListPane::GetPropertyStamp (rows[row]));
 
@@ -776,6 +777,26 @@ GroupChoices::Folder ExplorerListColumns::GetGroupFolder() const
         case FolderViews::FolderType::Music:         return GroupChoices::Folder::Music;
         case FolderViews::FolderType::Videos:        return GroupChoices::Folder::Videos;
         default:                                     break;
+    }
+
+    if (m_context.browser.IsHomeLocation())
+    {
+        return GroupChoices::Folder::Home;
+    }
+
+    if (location.path.find (L"E88865EA-0E1C-4E20-9AA6-EDCD0212C87C") != std::wstring::npos)
+    {
+        return GroupChoices::Folder::Gallery;
+    }
+
+    if (location.path.find (L"F02C1A0D-BE21-4350-88B0-7367FC96EF3C") != std::wstring::npos)
+    {
+        return GroupChoices::Folder::Network;
+    }
+
+    if (location.kind == Location::Kind::ShellFolder && (location.path.ends_with (L".zip") || location.path.find (L".zip\\") != std::wstring::npos))
+    {
+        return GroupChoices::Folder::Zip;
     }
 
     if (location.kind != Location::Kind::HostFolder)

@@ -472,7 +472,7 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
 
             //  A group's header selects its rows and adds the group's own
             //  commands to the menu for them, as Explorer's does.
-            if (group >= 0 && m_context.browser.IsHomeLocation())
+            if (group >= 0 && m_context.browser.IsHomeSectioned())
             {
                 return true;
             }
@@ -920,7 +920,7 @@ void ExplorerListPane::FillList()
 
     m_homeShown = m_context.browser.IsHomeLocation();
 
-    if (m_context.browser.IsHomeLocation())
+    if (m_context.browser.IsHomeSectioned())
     {
         static constexpr int  s_kSharedTab = 2;
 

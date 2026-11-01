@@ -91,6 +91,8 @@ struct CatalogRow
     //  image it is in.
     std::wstring  folderPath;
     std::wstring  folderShown;
+    int           searchRank        = 0;   // the index's relevance
+    bool          isGroupCopy       = false;   // listed again under another of its groups
     std::wstring  imagePath;
     size_t        imageCatalogIndex = 0;
     std::string   imageDirectory;
@@ -177,6 +179,12 @@ public:
         double        number  = 0.0;
         std::wstring  text;
         bool          isDate  = false;
+
+        //  The group the property system puts the value in, as "250 GB - 500 GB",
+        //  and a value of several parts, each a group of its own.
+        std::wstring               groupLabel;
+        int                        groupRank = 0;
+        std::vector<std::wstring>  parts;
     };
 
     //  Sorts by a property, with a key for each row in the rows' order.

@@ -25,11 +25,11 @@
 class RowGrouping
 {
 public:
-    enum class Field { None, Name, DateModified, Type, Size, Folder, OriginalLocation, DateDeleted };
+    enum class Field { None, Name, DateModified, Type, Size, Folder, OriginalLocation, DateDeleted, Relevance };
 
     //  A field from here up groups by the shell property at that distance in
     //  the list's property columns.
-    static constexpr int  kFirstPropertyField = (int) Field::DateDeleted + 1;
+    static constexpr int  kFirstPropertyField = (int) Field::Relevance + 1;
 
     static Field   MakePropertyField (size_t property) { return (Field) (kFirstPropertyField + (int) property); }
     static bool    IsPropertyField   (Field field)     { return (int) field >= kFirstPropertyField; }
@@ -65,6 +65,10 @@ public:
     //  A date property groups as a date, and any other by its text; an item
     //  without a value is Unspecified.
     static Group  GetPropertyGroup (const CatalogModel::PropertyKey & key, const Today & today);
+
+    //  An item with a value of several parts is in a group for each, as File
+    //  Explorer lists it.
+    static std::vector<Group>  GetPropertyGroups (const CatalogModel::PropertyKey & key, const Today & today);
 
     //  Whether group `a` comes before group `b` in a list sorted up (or down).
     static bool   IsBefore      (const Group & a, const Group & b, bool descending);

@@ -193,6 +193,9 @@ RowGrouping::Group RowGrouping::GetGroup (const CatalogRow & row, Field field, c
         case Field::OriginalLocation:
             return GetTypeGroup (row.originalFolder);
 
+        case Field::Relevance:
+            return { std::to_wstring (row.searchRank), row.searchRank };
+
         case Field::DateDeleted:
             return row.hasDeleted ? GetUnixDateGroup (row.deletedUnix, false, today) : GetDateGroup (false, 0, 0, 0, today);
 
@@ -251,7 +254,41 @@ RowGrouping::Group RowGrouping::GetPropertyGroup (const CatalogModel::PropertyKe
         return GetUnixDateGroup ((int64_t) key.number / s_kFileTimeTicksPerSecond - s_kUnixEpochInSeconds, false, today);
     }
 
+    if (!key.groupLabel.empty())
+    {
+        return { key.groupLabel, key.groupRank };
+    }
+
     return { key.text, 0 };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RowGrouping::GetPropertyGroups
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<RowGrouping::Group> RowGrouping::GetPropertyGroups (const CatalogModel::PropertyKey & key, const Today & today)
+{
+    std::vector<Group>  groups;
+
+
+
+    for (const std::wstring & part : key.parts)
+    {
+        groups.push_back ({ part, 0 });
+    }
+
+    if (groups.empty())
+    {
+        groups.push_back (GetPropertyGroup (key, today));
+    }
+
+    return groups;
 }
 
 

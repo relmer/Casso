@@ -38,13 +38,13 @@ public:
     {
         using Folder = GroupChoices::Folder;
 
-        for (Folder folder : { Folder::Generic, Folder::Documents, Folder::OneDrive, Folder::Search, Folder::Drives, Folder::Pictures, Folder::Music, Folder::Videos, Folder::RecycleBin })
+        for (Folder folder : { Folder::Generic, Folder::Documents, Folder::OneDrive, Folder::Search, Folder::Drives, Folder::Pictures, Folder::Music, Folder::Videos, Folder::RecycleBin, Folder::Home, Folder::Gallery, Folder::Network, Folder::Zip })
         {
             for (const GroupChoices::Choice & choice : GroupChoices::GetChoices (folder))
             {
-                Win32PropertyColumns::Property  property;
+                PROPERTYKEY  key = {};
 
-                Assert::IsTrue (choice.property == nullptr || Win32PropertyColumns::TryDescribe (choice.property, property), choice.label);
+                Assert::IsTrue (choice.property == nullptr || SUCCEEDED (PSGetPropertyKeyFromName (choice.property, &key)), choice.label);
             }
         }
     }
@@ -63,6 +63,24 @@ public:
         key.isDate = true;
         key.number = 116444736000000000.0;    // 1970, as a FILETIME
         Assert::AreEqual (std::wstring (L"A long time ago"), RowGrouping::GetPropertyGroup (key, today).label);
+    }
+
+    TEST_METHOD (PropertyGroups_ListAValueOfSeveralPartsInEach)
+    {
+        CatalogModel::PropertyKey  key;
+
+        key.has   = true;
+        key.text  = L"Rob; Sam";
+        key.parts = { L"Rob", L"Sam" };
+
+        std::vector<RowGrouping::Group>  groups = RowGrouping::GetPropertyGroups (key, Tuesday());
+
+        Assert::AreEqual ((size_t) 2, groups.size());
+        Assert::AreEqual (std::wstring (L"Sam"), groups[1].label);
+
+        key.parts.clear();
+        key.groupLabel = L"250 GB - 500 GB";
+        Assert::AreEqual (std::wstring (L"250 GB - 500 GB"), RowGrouping::GetPropertyGroup (key, Tuesday()).label);
     }
 
     static std::wstring  DateLabel (int year, int month, int day, const RowGrouping::Today & today)

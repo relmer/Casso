@@ -350,6 +350,8 @@ Win32PropertyColumns::Values Win32PropertyColumns::Read (const std::wstring & pa
             }
 
             value.numeric = SUCCEEDED (hrValue);
+
+            ReadGroup (*store.Get(), keys[index], raw, value);
         }
 
         CoTaskMemFree (shown);
@@ -358,6 +360,109 @@ Win32PropertyColumns::Values Win32PropertyColumns::Read (const std::wstring & pa
 
 Error:
     return values;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PropertyColumns::ReadGroup
+//
+//  The labels File Explorer groups by: the ranges in the property's
+//  description, each part of a value of several, and for free space the
+//  percentage of the drive, in tens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32PropertyColumns::ReadGroup (IPropertyStore & store, const PROPERTYKEY & key, const PROPVARIANT & raw, CatalogModel::PropertyKey & ioValue)
+{
+    ComPtr<IPropertyDescription>  description;
+    ComPtr<IPropertyEnumTypeList> list;
+    ComPtr<IPropertyEnumType>     type;
+    PWSTR                         name      = nullptr;
+    PWSTR                         label     = nullptr;
+    UINT                          index     = 0;
+    PROPERTYKEY                   capacity  = {};
+    PROPVARIANT                   total     = {};
+    HRESULT                       hr        = PSGetPropertyDescription (key, IID_PPV_ARGS (&description));
+    double                        percent   = -1.0;
+    std::wstring                  canonical;
+    const wchar_t               * suffix    = L"%";
+
+
+
+    if ((raw.vt & VT_VECTOR) != 0 && PropVariantGetElementCount (raw) > 1)
+    {
+        for (ULONG at = 0; at < PropVariantGetElementCount (raw); at++)
+        {
+            PWSTR    part   = nullptr;
+            HRESULT  hrPart = PropVariantGetStringElem (raw, at, &part);
+
+            if (SUCCEEDED (hrPart) && part != nullptr)
+            {
+                ioValue.parts.emplace_back (part);
+            }
+
+            CoTaskMemFree (part);
+        }
+    }
+
+    CHR (hr);
+
+    hr = description->GetCanonicalName (&name);
+    CHR (hr);
+
+    canonical = name;
+
+    if (canonical == L"System.FreeSpace" && ioValue.numeric)
+    {
+        hr = PSGetPropertyKeyFromName (L"System.Capacity", &capacity);
+        CHR (hr);
+
+        hr = store.GetValue (capacity, &total);
+        CHR (hr);
+
+        hr = PropVariantToDouble (total, &percent);
+        CHR (hr);
+
+        percent = (percent > 0.0) ? ioValue.number * 100.0 / percent : -1.0;
+        suffix  = L"% free";
+    }
+    else if (canonical == L"System.PercentFull" && ioValue.numeric)
+    {
+        percent = ioValue.number;
+    }
+
+    if (percent >= 0.0)
+    {
+        int  tens = (std::min) ((int) percent / 10, 9);
+
+        ioValue.groupLabel = std::format (L"{}% - {}{}", tens * 10, tens * 10 + 9, suffix);
+        ioValue.groupRank  = tens;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = description->GetEnumTypeList (IID_PPV_ARGS (&list));
+    CHR (hr);
+
+    hr = list->FindMatchingIndex (raw, &index);
+    CHR (hr);
+
+    hr = list->GetAt (index, IID_PPV_ARGS (&type));
+    CHR (hr);
+
+    hr = type->GetDisplayText (&label);
+    CHR (hr);
+
+    ioValue.groupLabel = label;
+    ioValue.groupRank  = (int) index;
+
+Error:
+    CoTaskMemFree (name);
+    CoTaskMemFree (label);
+    PropVariantClear (&total);
 }
 
 

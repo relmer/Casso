@@ -70,6 +70,7 @@ public:
         int           shellOrder    = 0;       // 1 and up: its place in its folder's own Name order, which Explorer sorts by
         std::wstring  folder;                  // a search result's folder
         std::wstring  folderShown;             // and that folder as Explorer displays it, as Recent Items for Recent
+        int           searchRank    = 0;       // a search result's relevance, from the index
         std::wstring  imagePath;               // a search result inside this disk image
         size_t        catalogIndex  = 0;       // and where it is in that image's catalog
         std::string   imageDirectory;          // the directory inside the image that lists it, or empty for the volume's

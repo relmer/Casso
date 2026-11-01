@@ -220,6 +220,7 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.sharedUnix    = items[index].sharedUnix;
         row.folderPath   = items[index].folder;
         row.folderShown  = items[index].folderShown;
+        row.searchRank   = items[index].searchRank;
         row.imagePath    = items[index].imagePath;
         row.imageCatalogIndex = items[index].catalogIndex;
         row.imageDirectory    = items[index].imageDirectory;

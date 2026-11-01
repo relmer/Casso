@@ -80,6 +80,7 @@ private:
     static std::wstring  MakeCacheKey (const std::wstring & path, const std::wstring & stamp) { return path + L'|' + stamp; }
 
     static bool  ReadDescription (IPropertyDescription & description, Property & outProperty);
+    static void  ReadGroup       (IPropertyStore & store, const PROPERTYKEY & key, const PROPVARIANT & raw, CatalogModel::PropertyKey & ioValue);
 
     HWND                                      m_hwnd        = nullptr;
     UINT                                      m_message     = 0;

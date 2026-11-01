@@ -180,6 +180,7 @@ public:
     void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
     std::vector<DxuiListView::Group>  GetListGroups   () const;
     bool                              IsHomeLocation  () const;
+    bool                              IsHomeSectioned () const { return IsHomeLocation() && (!m_model.HasTabs() || m_model.GetActiveTab().groupBy == RowGrouping::Field::None); }
     int                               GetHomeTab      () const { return m_homeTab; }
     void                              SetHomeTab      (int tab);
     void                              RemoveHomeRow   (const std::wstring & shellId);

@@ -20,7 +20,7 @@
 class GroupChoices
 {
 public:
-    enum class Folder { Generic, Documents, OneDrive, Search, Drives, Pictures, Music, Videos, RecycleBin };
+    enum class Folder { Generic, Documents, OneDrive, Search, Drives, Pictures, Music, Videos, RecycleBin, Home, Gallery, Network, Zip };
 
     struct Choice
     {

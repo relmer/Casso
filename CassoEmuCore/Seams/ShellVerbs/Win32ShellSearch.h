@@ -30,9 +30,11 @@ public:
     //  whole would otherwise never finish.
     static constexpr size_t  s_kMaxResults = 5000;
 
-    //  A file's contents are searched up to this size.
-    static constexpr uint64_t  s_kMaxContentBytes = 16 * 1024 * 1024;
-    static constexpr int       s_kMaxZipDepth     = 8;
+    //  A file's contents are read in pieces of this size, each starting far
+    //  enough back to find a word across the join.
+    static constexpr size_t  s_kContentChunkBytes   = 1024 * 1024;
+    static constexpr size_t  s_kContentOverlapBytes = 1024;
+    static constexpr int     s_kMaxZipDepth         = 8;
 
     //  What a walk does beyond matching names: everything matches for a query
     //  of filters alone, which are tested afterward.
@@ -44,7 +46,7 @@ public:
 
     static HRESULT  RunSearch       (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
     static bool     IsIndexed       (const std::wstring & scope);
-    static HRESULT  QueryIndex      (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths, bool currentFolder = false);
+    static HRESULT  QueryIndex      (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths, bool currentFolder = false, std::map<std::wstring, int> * outRanks = nullptr);
     static void     WalkForNames    (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, const WalkOptions & options = {});
     static void     WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths, const WalkOptions & options = {});
 
@@ -63,7 +65,7 @@ public:
     static void     SearchImages    (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder = false);
     static void     WalkForImages   (const std::wstring & scope, std::vector<std::wstring> & outImages, bool currentFolder = false);
 
-    static bool                    FileContainsWords (const std::wstring & path, uint64_t sizeBytes, const std::vector<std::wstring> & words);
+    static bool                    FileContainsWords (const std::wstring & path, const std::vector<std::wstring> & words);
     static void                    WalkZip           (IShellItem * zip, const std::wstring & path, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, int depth);
     static bool                    IsSystemItem      (const std::wstring & path);
     static SearchQuery::ItemFacts  GetItemFacts      (IShellItem2 * item, const IShellItemVerbs::ShellFolderItem & entry);

@@ -318,6 +318,27 @@ void CassoExplorerBrowser::SortRows()
         return;
     }
 
+    //  Grouped, Home is a list of its items, each once, as File Explorer's is.
+    if (IsHomeLocation() && !IsHomeSectioned())
+    {
+        std::set<std::wstring>  seen;
+
+        m_rows.clear();
+
+        for (const CatalogRow & row : m_homeRows)
+        {
+            if (seen.insert (row.shellId.empty() ? row.hostPath : row.shellId).second)
+            {
+                m_rows.push_back (row);
+            }
+        }
+
+        CatalogModel::Sort (m_rows, m_model.GetActiveTab().sortColumn, m_model.GetActiveTab().sortDescending);
+        GroupRows();
+
+        return;
+    }
+
     //  Home keeps the shell's order: Quick access, then the tab's items.
     if (IsHomeLocation())
     {
@@ -587,39 +608,55 @@ void CassoExplorerBrowser::FilterRows()
 
 void CassoExplorerBrowser::GroupRows()
 {
-    RowGrouping::Field                  field      = m_model.GetActiveTab().groupBy;
-    bool                                descending = m_model.GetActiveTab().groupDescending;
-    RowGrouping::Today                  today      = RowGrouping::GetToday();
-    std::vector<size_t>                 order;
-    std::vector<RowGrouping::Group>     groups;
-    std::vector<CatalogRow>             sorted;
-    std::vector<RowGrouping::Group>     sortedGroups;
+    struct Entry
+    {
+        size_t              row = 0;
+        RowGrouping::Group  group;
+    };
+
+    RowGrouping::Field               field      = m_model.GetActiveTab().groupBy;
+    bool                             descending = m_model.GetActiveTab().groupDescending;
+    RowGrouping::Today               today      = RowGrouping::GetToday();
+    bool                             property   = RowGrouping::IsPropertyField (field);
+    std::vector<Entry>               entries;
+    std::vector<CatalogRow>          sorted;
+    std::vector<RowGrouping::Group>  sortedGroups;
+    std::set<size_t>                 listed;
 
 
 
     m_rowGroups.clear();
+    std::erase_if (m_rows, [] (const CatalogRow & row) { return row.isGroupCopy; });
 
-    if (field == RowGrouping::Field::None || (RowGrouping::IsPropertyField (field) && (RowGrouping::GetPropertyIndex (field) >= m_propertyCount || !m_propertyKey)))
+    if (field == RowGrouping::Field::None || (property && (RowGrouping::GetPropertyIndex (field) >= m_propertyCount || !m_propertyKey)))
     {
         return;
     }
 
     for (size_t i = 0; i < m_rows.size(); i++)
     {
-        order.push_back (i);
-        groups.push_back (RowGrouping::IsPropertyField (field) ? RowGrouping::GetPropertyGroup (m_propertyKey (i, RowGrouping::GetPropertyIndex (field)), today)
-                                                                : RowGrouping::GetGroup (m_rows[i], field, today));
+        if (!property)
+        {
+            entries.push_back ({ i, RowGrouping::GetGroup (m_rows[i], field, today) });
+            continue;
+        }
+
+        for (RowGrouping::Group & group : RowGrouping::GetPropertyGroups (m_propertyKey (i, RowGrouping::GetPropertyIndex (field)), today))
+        {
+            entries.push_back ({ i, std::move (group) });
+        }
     }
 
-    std::stable_sort (order.begin(), order.end(), [&] (size_t a, size_t b)
+    std::stable_sort (entries.begin(), entries.end(), [descending] (const Entry & a, const Entry & b)
     {
-        return RowGrouping::IsBefore (groups[a], groups[b], descending);
+        return RowGrouping::IsBefore (a.group, b.group, descending);
     });
 
-    for (size_t i : order)
+    for (Entry & entry : entries)
     {
-        sorted.push_back (std::move (m_rows[i]));
-        sortedGroups.push_back (groups[i]);
+        sorted.push_back (m_rows[entry.row]);
+        sorted.back().isGroupCopy = !listed.insert (entry.row).second;
+        sortedGroups.push_back (std::move (entry.group));
     }
 
     m_rows      = std::move (sorted);
@@ -736,7 +773,7 @@ std::vector<DxuiListView::Group> CassoExplorerBrowser::GetListGroups() const
 
 
 
-    if (IsHomeLocation())
+    if (IsHomeSectioned())
     {
         out.push_back ({ L"Quick access", 0 });
         out.push_back ({ L"Home tabs", m_homeFirstTabRow });

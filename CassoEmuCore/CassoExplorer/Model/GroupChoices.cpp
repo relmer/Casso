@@ -41,12 +41,12 @@ std::vector<GroupChoices::Choice> GroupChoices::GetChoices (Folder folder)
             return { s_kName, { L"Status", Field::None, L"System.StorageProviderUIStatus" }, s_kDateModified, s_kType, s_kSize, s_kDateCreated, s_kAuthors, s_kTags, s_kTitle };
 
         case Folder::Search:
-            return { s_kName, s_kDateModified, s_kType, s_kSize, { L"Folder", Field::Folder, nullptr }, { L"Relevance", Field::None, L"System.Search.Rank" },
+            return { s_kName, s_kDateModified, s_kType, s_kSize, { L"Folder", Field::Folder, nullptr }, { L"Relevance", Field::Relevance, nullptr },
                      s_kDateCreated, s_kAuthors, s_kTags, s_kTitle };
 
         case Folder::Drives:
             return { s_kName, s_kType, { L"Total Size", Field::None, L"System.Capacity" }, { L"Free Space", Field::None, L"System.FreeSpace" },
-                     { L"File System", Field::None, L"System.Volume.FileSystem" }, s_kComments, { L"Network Location", Field::None, L"System.Link.TargetParsingPath" },
+                     { L"File System", Field::None, L"System.Volume.FileSystem" }, s_kComments, { L"Network Location", Field::None, L"System.NetworkLocation" },
                      { L"Percent Full", Field::None, L"System.PercentFull" } };
 
         case Folder::Pictures:
@@ -66,6 +66,23 @@ std::vector<GroupChoices::Choice> GroupChoices::GetChoices (Folder folder)
                      s_kDateModified, s_kDateCreated, { L"Date accessed", Field::None, L"System.DateAccessed" }, { L"Attributes", Field::None, L"System.FileAttributes" },
                      { L"Perceived type", Field::None, L"System.PerceivedType" }, { L"Owner", Field::None, L"System.FileOwner" }, s_kTags, s_kRating, s_kAuthors, s_kTitle, s_kComments,
                      { L"File description", Field::None, L"System.FileDescription" } };
+
+        case Folder::Home:
+            return { s_kName, s_kDateModified, s_kType, s_kSize, { L"Account", Field::None, L"System.WebAccountID" }, { L"Activity", Field::None, L"System.ActivityInfo" },
+                     s_kDateCreated, s_kAuthors, s_kTags, s_kTitle, { L"Status", Field::None, L"System.StorageProviderUIStatus" } };
+
+        case Folder::Gallery:
+            return { s_kName, s_kDateModified, s_kType, s_kSize, { L"Folder", Field::Folder, nullptr }, { L"Relevance", Field::Relevance, nullptr }, s_kDateCreated, s_kAuthors, s_kTags, s_kTitle,
+                     s_kDimensions, { L"Width", Field::None, L"System.Image.HorizontalSize" }, { L"Height", Field::None, L"System.Image.VerticalSize" }, s_kDate,
+                     { L"Kind", Field::None, L"System.Kind" }, s_kLength, { L"Frame height", Field::None, L"System.Video.FrameHeight" }, { L"Frame width", Field::None, L"System.Video.FrameWidth" } };
+
+        case Folder::Network:
+            return { s_kName, { L"Category", Field::None, L"System.Category" }, { L"Workgroup", Field::None, L"System.Computer.Workgroup" }, { L"Network location", Field::None, L"System.NetworkLocation" },
+                     { L"Discovery Method", Field::None, L"System.NetworkProvider" }, { L"IP Address", Field::None, L"System.Devices.IpAddress" } };
+
+        case Folder::Zip:
+            return { s_kName, s_kType, { L"Compressed size", Field::None, L"System.ZipFolder.CompressedSize" }, { L"Password protected", Field::None, L"System.ZipFolder.Encrypted" },
+                     { L"Method", Field::None, L"System.ZipFolder.Method" }, s_kSize, { L"Ratio", Field::None, L"System.ZipFolder.Ratio" }, s_kDateModified, { L"CRC-32", Field::None, L"System.ZipFolder.CRC32" } };
 
         default:
             return { s_kName, s_kDateModified, s_kType, s_kSize, s_kDateCreated, s_kAuthors, s_kTags, s_kTitle };
