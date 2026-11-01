@@ -641,7 +641,7 @@ void CassoExplorerBrowser::GroupRows()
             continue;
         }
 
-        for (RowGrouping::Group & group : RowGrouping::GetPropertyGroups (m_propertyKey (i, RowGrouping::GetPropertyIndex (field)), today))
+        for (RowGrouping::Group & group : RowGrouping::GetPropertyGroups ((m_propertyPeek ? m_propertyPeek : m_propertyKey) (i, RowGrouping::GetPropertyIndex (field)), today))
         {
             entries.push_back ({ i, std::move (group) });
         }

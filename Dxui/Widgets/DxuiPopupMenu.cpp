@@ -289,6 +289,9 @@ void DxuiPopupMenu::ShowAt (
     IDxuiTextRenderer              & text,
     const RECT                     & hostClient)
 {
+    m_holdAtPointer = true;
+    m_pointerAt     = { x, y };
+
     RECT  anchor = { x, y, x, y };
 
 
@@ -1524,11 +1527,24 @@ void DxuiPopupMenu::OnMouseMove (int x, int y)
     idx = HitTestIndex (x, y);
     SetIconHover (GetIconButtonAt (idx, x - m_boundsDip.left));
 
+    //  A menu that opens under the pointer gets a move at the same spot, which
+    //  mustn't cascade the row it happens to be on. The pointer's first real
+    //  move does.
+    if (m_holdAtPointer && (x != m_pointerAt.x || y != m_pointerAt.y))
+    {
+        m_holdAtPointer = false;
+
+        if (idx >= 0 && idx == m_hover && m_rows[(size_t) idx].kind == DxuiPopupMenuItem::Kind::Submenu)
+        {
+            ArmChild (idx);
+        }
+    }
+
     if (idx >= 0 && idx != m_hover)
     {
         SetHover (idx);
 
-        if (m_rows[(size_t) idx].kind == DxuiPopupMenuItem::Kind::Submenu)
+        if (m_rows[(size_t) idx].kind == DxuiPopupMenuItem::Kind::Submenu && !m_holdAtPointer)
         {
             ArmChild (idx);
         }

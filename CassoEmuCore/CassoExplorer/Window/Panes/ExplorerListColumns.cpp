@@ -351,9 +351,10 @@ std::wstring ExplorerListColumns::GetFolderViewKey (FolderViews::FolderType * ou
 
 void ExplorerListColumns::ApplyFolderView()
 {
-    FolderViews::FolderType  type  = FolderViews::FolderType::Generic;
-    std::wstring             key   = GetFolderViewKey (nullptr);
+    FolderViews::FolderType  type     = FolderViews::FolderType::Generic;
+    std::wstring             key      = GetFolderViewKey (nullptr);
     FolderViewEntry          entry;
+    const Location           location = m_context.browser.GetLocation();
 
 
 
@@ -401,6 +402,14 @@ void ExplorerListColumns::ApplyFolderView()
         entry.sortColumn = 0;
     }
 
+    //  Network opens grouped by category, as File Explorer's does, until the
+    //  user chooses otherwise.
+    if (location.path.find (L"F02C1A0D-BE21-4350-88B0-7367FC96EF3C") != std::wstring::npos && !IsFolderViewSaved (key))
+    {
+        entry.groupBy         = (int) GetPropertyField (L"System.Category");
+        entry.groupDescending = true;
+    }
+
     if (entry.groupBy >= RowGrouping::kFirstPropertyField + (int) m_context.prefs.propertyColumns.size())
     {
         entry.groupBy = 0;
@@ -422,6 +431,29 @@ void ExplorerListColumns::ApplyFolderView()
             m_chosen[(size_t) hidden] = false;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::IsFolderViewSaved
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsFolderViewSaved (const std::wstring & key) const
+{
+    for (const FolderViewEntry & entry : m_context.prefs.folderViews.GetEntries())
+    {
+        if (entry.key == key)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -687,6 +719,23 @@ void ExplorerListColumns::LoadPropertyColumns()
             {
                 key = values[property];
             }
+        }
+
+        return key;
+    },
+    [this] (size_t row, size_t property)
+    {
+        const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
+        CatalogModel::PropertyKey        key;
+        std::wstring                     path;
+        Win32PropertyColumns::Values     values;
+
+        //  Grouping never waits: a device or a large folder can take seconds,
+        //  so what isn't read yet is queued, and the rows regroup as it arrives.
+        if (row < rows.size() && (m_context.browser.TryGetRowPath ((int) row, path) || !(path = rows[row].shellId).empty())
+            && m_pane.GetPropertyValues().TryGet (path, ExplorerListPane::GetPropertyStamp (rows[row]), values) && property < values.size())
+        {
+            key = values[property];
         }
 
         return key;

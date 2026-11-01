@@ -445,6 +445,8 @@ private:
     RECT                 m_lastAnchor       = {};
     int                  m_submenuDelayMs   = 0;
     int                  m_pendingChild     = -1;
+    bool                 m_holdAtPointer    = false;   // opened under the pointer, which hasn't moved since
+    POINT                m_pointerAt        = {};
     uint64_t             m_pendingAtMs      = 0;
     uint64_t             m_closedAtMs       = 0;
     bool                 m_hasClosed        = false;

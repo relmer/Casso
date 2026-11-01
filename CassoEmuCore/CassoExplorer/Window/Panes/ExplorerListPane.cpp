@@ -441,7 +441,9 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
     {
         m_context.input.SetFocusPane (ExplorerPane::List);
         m_list->ClearSelection();
-        m_menus.ShowListContextMenu (point.x, point.y);
+
+        //  As the list's own menu, when the button comes up.
+        m_rightPress = RightPress { true, false, -1, point };
         return true;
     }
 
@@ -1819,6 +1821,15 @@ void ExplorerListPane::HandleContentDetailsArrived()
 
     if (m_propertyValues.TakeArrived())
     {
+        const BrowserModel &  model = m_context.browser.GetBrowserModel();
+
+        //  Rows grouped by a property move as its values arrive.
+        if (model.HasTabs() && RowGrouping::IsPropertyField (model.GetActiveTab().groupBy))
+        {
+            m_context.browser.SetGroupBy (model.GetActiveTab().groupBy, model.GetActiveTab().groupDescending);
+            FillList();
+        }
+
         RefreshPropertyCells();
         FitColumnsRead();
     }

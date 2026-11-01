@@ -620,7 +620,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
     }
 
-    if (background && shown.kind == Location::Kind::HostFolder && !SearchQuery::IsId (shown.path))
+    if (background && (shown.kind == Location::Kind::HostFolder || (shown.kind == Location::Kind::ShellFolder && !m_context.browser.IsHomeLocation())) && !SearchQuery::IsId (shown.path))
     {
         POINT  screen = { x, y };
 

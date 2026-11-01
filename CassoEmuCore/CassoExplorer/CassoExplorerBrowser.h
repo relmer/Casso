@@ -158,7 +158,7 @@ public:
     //  function that returns a row's key for sorting by one.
     using PropertyKeyFn = std::function<CatalogModel::PropertyKey (size_t row, size_t property)>;
 
-    void  SetPropertyColumns (size_t count, PropertyKeyFn keyFn) { m_propertyCount = count; m_propertyKey = std::move (keyFn); }
+    void  SetPropertyColumns (size_t count, PropertyKeyFn keyFn, PropertyKeyFn peekFn = nullptr) { m_propertyCount = count; m_propertyKey = std::move (keyFn); m_propertyPeek = std::move (peekFn); }
     bool  IsPropertyColumn   (int column) const { return column >= (int) CatalogModel::kColumnCount && (size_t) column < CatalogModel::kColumnCount + m_propertyCount; }
 
     //  Explorer's Group by: the rows ordered by group, then by the sort
@@ -382,6 +382,7 @@ private:
     bool                                                              m_rowsUnfiltered = false;   // loaded since the last filter
     size_t                                                            m_propertyCount  = 0;
     PropertyKeyFn                                                     m_propertyKey;
+    PropertyKeyFn                                                     m_propertyPeek;     // a value already read, or none, without waiting for the file
     VolumeListing                       m_listing;
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;
