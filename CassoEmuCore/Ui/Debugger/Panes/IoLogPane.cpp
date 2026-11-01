@@ -109,7 +109,7 @@ void IoLogPane::SetOptionsText (const std::string & text)
 
 const wchar_t * IoLogPane::GetLaneLabel (Lane lane)
 {
-    static constexpr const wchar_t * kLabels[kLaneCount] = { L"Speaker", L"Mockingboard 6522", L"Mockingboard AY-3-8910" };
+    static constexpr const wchar_t * kLabels[kLaneCount] = { L"Speaker", L"Mockingboard 6522", L"Mockingboard AY-3-8910", L"Mockingboard SSI-263" };
 
 
 
@@ -130,9 +130,10 @@ IoLogPane::Lane IoLogPane::GetLane (const IoEvent & event)
 {
     switch (event.kind)
     {
-    case IoEventKind::ViaWrite: return kVia;
-    case IoEventKind::AyWrite:  return kAy;
-    default:                    return kSpeaker;
+    case IoEventKind::ViaWrite:    return kVia;
+    case IoEventKind::AyWrite:     return kAy;
+    case IoEventKind::SpeechWrite: return kSpeech;
+    default:                       return kSpeaker;
     }
 }
 
@@ -320,6 +321,10 @@ void IoLogPane::MakeCells (
         out[kLine].text       = std::format (L"{}", event.scanline);
         out[kHorizontal].text = std::format (L"{}", event.cycleInLine);
         out[kSource].text     = L"Display";
+    }
+    else if (event.kind == IoEventKind::SpeechWrite)
+    {
+        out[kSource].text = L"SSI-263";
     }
     else
     {

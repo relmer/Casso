@@ -1216,6 +1216,60 @@ namespace EventLogPaneTests
         }
 
 
+        TEST_METHOD (TheSoundLogFiltersAndLabelsTheSpeechChip)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta    delta;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100, IoEventKind::ViaWrite,    0xC444),
+                                MakeIoRow (2, 100, IoEventKind::SpeechWrite, 0xC444) };
+
+            pane.Apply (delta);
+            pane.Refresh();
+
+            Assert::AreEqual ((size_t) 3, pane.GetView().size(), L"the start row and both writes");
+            Assert::AreEqual (std::wstring (L"SSI-263"), GetColumn (pane, IoLogPane::kSource)[2]);
+            Assert::AreEqual (std::wstring (L"$C444"),   GetColumn (pane, IoLogPane::kAddress)[2]);
+
+            pane.SetLaneShown (IoLogPane::kSpeech, false);
+            pane.Refresh();
+
+            Assert::AreEqual ((size_t) 2, pane.GetView().size(), L"the start row and the 6522's write");
+            Assert::AreEqual (std::wstring (L"Mockingboard 1"), GetColumn (pane, IoLogPane::kSource)[1]);
+        }
+
+
+        //  Options saved before the speech chip had a source lack its flag.
+        TEST_METHOD (SavedOptionsWithoutTheSpeechChipLeaveItShown)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogPane     read (&list, [] (const std::string &) {}, false);
+            std::string   text;
+            size_t        at = 0;
+
+
+
+            pane.Configure();
+            pane.SetLaneShown (IoLogPane::kSpeech, false);
+            text = pane.GetOptionsText();
+            at   = text.find ("1110");
+            Assert::IsTrue (at != std::string::npos, L"the flags in the saved text");
+            text.erase (at + 3, 1);
+
+            read.SetOptionsText (text);
+
+            Assert::IsTrue (read.IsLaneShown (IoLogPane::kSpeech));
+        }
+
+
         TEST_METHOD (TheSoundLogsOptionsRoundTrip)
         {
             DxuiListView  list;
@@ -1232,6 +1286,7 @@ namespace EventLogPaneTests
             Assert::IsTrue  (read.IsLaneShown (IoLogPane::kSpeaker));
             Assert::IsTrue  (read.IsLaneShown (IoLogPane::kVia));
             Assert::IsFalse (read.IsLaneShown (IoLogPane::kAy));
+            Assert::IsTrue  (read.IsLaneShown (IoLogPane::kSpeech));
         }
     };
 }

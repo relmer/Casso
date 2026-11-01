@@ -709,6 +709,21 @@ double Ssi263::GetInflectionFrequencyHz() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetPhonemeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * Ssi263::GetPhonemeName (Byte phoneme)
+{
+    return s_kpszPhonemeNames[phoneme & kPhonemeMask];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetFormantScale
 //
 //  The filter register's scale on the tract's centers, the datasheet's "voice
@@ -747,11 +762,11 @@ void Ssi263::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot &
 
 
 
-    group.rows.push_back (P::MakeFlagRow ("Powered down", IsPoweredDown()));
+    group.rows.push_back (P::MakeTextRow ("Power",        IsPoweredDown() ? "Down" : "On"));
     group.rows.push_back (P::MakeFlagRow ("Sounding",     m_sounding));
     group.rows.push_back (P::MakeFlagRow ("Requesting",   m_request));
     group.rows.push_back (P::MakeTextRow ("Mode",         kModes[m_mode]));
-    group.rows.push_back (P::MakeTextRow ("Phoneme",      std::format ("${:02X} {}", GetPhoneme(), s_kpszPhonemeNames[GetPhoneme()])));
+    group.rows.push_back (P::MakeTextRow ("Phoneme",      std::format ("${:02X} {}", GetPhoneme(), GetPhonemeName (GetPhoneme()))));
     group.rows.push_back (P::MakeTextRow ("Duration",     std::format ("${:X} ({:.1f} ms)", GetDurationSel(), GetPhonemeDurationSec() * kMsPerSecond)));
     group.rows.push_back (P::MakeTextRow ("Rate",         std::format ("${:X} ({:.1f} ms a frame)", GetRateSel(), GetFrameDurationSec() * kMsPerSecond)));
     group.rows.push_back (P::MakeTextRow ("Inflection",   std::format ("${:03X} ({:.0f} Hz)", GetInflectionValue(), GetInflectionFrequencyHz())));

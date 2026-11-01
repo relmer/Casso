@@ -320,6 +320,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 ### Session 2026-10-31 (owner decision: the speech chip in the Mockingboard panel)
 
 - Q: The Mockingboard panel had rows for the 6522s and AY chips only. Does it include the speech chip? -> A: Yes, now, ahead of the rest of the panel work in T627, which also gains the voice (FR-332).
+- Q: Are the speech chip's writes decoded in the sound log? -> A: Yes, now (FR-333).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3535,6 +3536,10 @@ run something, switch back to the //e: it is where it was left.
   one: power down, sounding, the A/R request, the mode, the phoneme with its
   datasheet name and example, duration, rate, inflection, articulation,
   amplitude, filter and formants, and a meter for the chip's output.
+
+- **FR-333**: The sound log MUST have an entry for each write to the
+  SSI-263, decoded by register, with a source of its own in the Source column's
+  filter.
 
 ### Key Entities
 

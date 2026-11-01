@@ -1447,7 +1447,7 @@ std::vector<DxuiPopupMenuItem> IoLogController::GetColumnFilterItems (DxuiListVi
         return items;
     }
 
-    for (IoLogPane::Lane lane : { IoLogPane::kSpeaker, IoLogPane::kVia, IoLogPane::kAy })
+    for (IoLogPane::Lane lane : { IoLogPane::kSpeaker, IoLogPane::kVia, IoLogPane::kAy, IoLogPane::kSpeech })
     {
         item = DebuggerMenuCommand::Make (IoLogPane::GetLaneLabel (lane), m_model->IsLaneShown (lane), [this, lane]
         {

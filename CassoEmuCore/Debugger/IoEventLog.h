@@ -36,6 +36,7 @@ enum class IoEventKind : uint8_t
     Speaker,
     ViaWrite,
     AyWrite,
+    SpeechWrite,
     SerialSettings,
     SerialLines,
     SerialSent,
@@ -149,4 +150,6 @@ private:
 
     static void  FormatEntry    (const IoEvent & entry, uint64_t since, bool hasSince, std::string & line);
     static void  FormatModeBits (uint16_t bits, const char * state, std::string & text);
+
+    static std::string  FormatSpeechWrite (const IoEvent & entry);
 };

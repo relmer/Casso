@@ -196,6 +196,9 @@ public:
 
     static Byte  SelectRegister (Byte address);
 
+    // The phoneme's datasheet name and example word, as in "IU (you)".
+    static const char *  GetPhonemeName (Byte phoneme);
+
     // The debugger panel's contents: the registers decoded, and the output
     // envelope as a meter.
     void    AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const;

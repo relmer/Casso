@@ -2,6 +2,7 @@
 
 #include "Core/IIoAccessSink.h"
 #include "Debugger/Events/IoEventDecoder.h"
+#include "Devices/Ssi263.h"
 #include "EmuTests/TestMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -218,6 +219,67 @@ namespace IoEventDecoderTests
             rig.machine.GetMemoryBus().WriteByte (kOrb, 0x02);    // write with reset low: no AY write
 
             Assert::AreEqual ((size_t) 4, rig.sink.events.size(), L"four 6522 writes and no AY write");
+        }
+
+
+        //  A write in the speech socket's range is a tap: the 6522 at the same
+        //  register takes it too, so it makes both entries.
+        TEST_METHOD (AWriteToTheSpeechChipMakesItsEntry)
+        {
+            constexpr Word  kSpeechFilter = 0xC444;
+            Rig             rig;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (kSpeechFilter, 0xE6);
+
+            Assert::AreEqual ((size_t) 2, rig.sink.events.size(), L"the 6522's and the speech chip's");
+            Assert::IsTrue   (rig.sink.events[0].kind == IoEventKind::ViaWrite);
+            Assert::IsTrue   (rig.sink.events[1].kind == IoEventKind::SpeechWrite);
+            Assert::AreEqual (kSpeechFilter, rig.sink.events[1].address);
+            Assert::AreEqual ((int) Ssi263::kRegFilterFreq, (int) rig.sink.events[1].reg);
+            Assert::AreEqual ((int) 0xE6, (int) rig.sink.events[1].value);
+        }
+
+
+        TEST_METHOD (AWriteOutsideTheInstalledSocketMakesNoSpeechEntry)
+        {
+            constexpr Word  kEmptySocket = 0xC420;
+            constexpr Word  kSecondVia   = 0xC480;
+            Rig             rig;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (kEmptySocket, 0x01);
+            rig.machine.GetMemoryBus().WriteByte (kSecondVia,   0x01);
+
+            Assert::AreEqual ((size_t) 2, rig.sink.events.size());
+            Assert::IsTrue   (rig.sink.events[0].kind == IoEventKind::ViaWrite);
+            Assert::IsTrue   (rig.sink.events[1].kind == IoEventKind::ViaWrite);
+        }
+
+
+        //  $C440 is the first 6522's port B as well as the speech chip's phoneme
+        //  register, so one write can make all three entries.
+        TEST_METHOD (OneWriteCanMakeThe6522TheAyAndTheSpeechEntries)
+        {
+            constexpr Word  kSpeechPhoneme = 0xC440;
+            Rig             rig;
+            size_t          before         = 0;
+
+
+
+            SetUpPorts (rig.machine);
+            rig.machine.GetMemoryBus().WriteByte (kOra, 0x07);
+            rig.machine.GetMemoryBus().WriteByte (kOrb, 0x07);
+            rig.machine.GetMemoryBus().WriteByte (kOrb, 0x04);
+            before = rig.sink.events.size();
+            rig.machine.GetMemoryBus().WriteByte (kSpeechPhoneme, 0x06);
+
+            Assert::AreEqual (before + 3, rig.sink.events.size());
+            Assert::IsTrue   (rig.sink.events[before].kind     == IoEventKind::ViaWrite);
+            Assert::IsTrue   (rig.sink.events[before + 1].kind == IoEventKind::AyWrite);
+            Assert::IsTrue   (rig.sink.events[before + 2].kind == IoEventKind::SpeechWrite);
         }
     };
 }

@@ -47,6 +47,7 @@ public:
         kSpeaker,
         kVia,
         kAy,
+        kSpeech,
         kLaneCount,
     };
 
@@ -83,7 +84,7 @@ protected:
 
 private:
     bool                          m_isVideo = false;
-    std::array<bool, kLaneCount>  m_lanes   = { true, true, true };
+    std::array<bool, kLaneCount>  m_lanes   = { true, true, true, true };
 
     //  For each row, the cycles since the last entry of the same.
     std::vector<std::optional<uint64_t>>  m_since;

@@ -396,7 +396,7 @@ namespace DebuggerTests
             Assert::IsTrue   (hasGroup);
             Assert::AreEqual ((size_t) 11, std::get<DiagnosticsMeters> (snapshot.visual).levels.size());
             Assert::AreEqual (std::string ("SSI-263"), std::get<DiagnosticsMeters> (snapshot.visual).levels[kSpeechMeter].name);
-            Assert::AreEqual (std::string ("on"), FindRow (snapshot, "Powered down").value, L"power down is the chip's state after a reset");
+            Assert::AreEqual (std::string ("Down"), FindRow (snapshot, "Power").value, L"power down is the chip's state after a reset");
         }
 
 
@@ -419,7 +419,7 @@ namespace DebuggerTests
             chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC1);
             chip.AppendDiagnostics ("SSI-263", snapshot);
 
-            Assert::AreEqual (std::string ("off"),                  FindRow (snapshot, "Powered down").value);
+            Assert::AreEqual (std::string ("On"),                   FindRow (snapshot, "Power").value);
             Assert::AreEqual (std::string ("on"),                   FindRow (snapshot, "Sounding").value);
             Assert::AreEqual (std::string ("off"),                  FindRow (snapshot, "Requesting").value);
             Assert::AreEqual (std::string ("Phoneme transitioned"), FindRow (snapshot, "Mode").value);

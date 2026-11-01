@@ -126,14 +126,17 @@ public:
     // The installed voice chip, or nullptr on the sound-only variant.
     Ssi263 *  GetSpeech () { return m_speech.get(); }
 
+    // Whether a write at this offset in the card's page is also a write to the chip.
+    bool      IsInstalledSpeech (Word offset) const;
+
     // Center-panned speech source; silent whenever the chip is absent or idle.
     Ssi263AudioSource *  GetSpeechAudioSource () { return &m_speechSource; }
 
     static unique_ptr<MemoryDevice> Create       (const DeviceConfig & config, MemoryBus & bus);
     static unique_ptr<MemoryDevice> CreateSpeech (const DeviceConfig & config, MemoryBus & bus);
 
-    // The Mockingboard panel: each 6522 and each AY, and meters for the AY
-    // channels and the 6522 timers.
+    // The Mockingboard panel: each 6522, each AY and the speech chip, and meters
+    // for the AY channels, the speech chip and the 6522 timers.
     std::string  GetDiagnosticsId    () const override { return "mockingboard"; }
     std::string  GetDiagnosticsTitle () const override { return "Mockingboard"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
@@ -150,7 +153,6 @@ public:
 
 private:
     void    SyncPsg            (int index);
-    bool    IsInstalledSpeech  (Word offset) const;
     void    SyncSpeechRequest  ();
 
     int                   m_slot    = 0;

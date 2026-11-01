@@ -888,6 +888,9 @@ mode makes no entry. The sound log has an entry for each speaker toggle and each
 write to the Mockingboard's 6522s, with its cycle count and the cycles since
 the last entry of its kind; a port B write that clocks a value into an AY
 register also makes an entry for that write, with the register and the value.
+A write to a Mockingboard C's speech chip makes an entry too, decoded
+by register: the phoneme by name and its duration, the rate, the inflection, the
+power state, the articulation and amplitude, or the filter.
 Entries are added to both logs all the time, from the start of the session,
 whether or not the debugger started the run.
 
@@ -907,7 +910,7 @@ panels' menus. A row is an entry, with the same text the command lists, in
 columns that can be sorted, shown or hidden: the video log has the frame, line
 and position in the line; the sound log has the cycles since the last entry of
 its kind and its source, which the Source column's Filter narrows to the
-speaker, the 6522s or the AY-3-8910s. Scrolling to the top rebuilds older
+speaker, the 6522s, the AY-3-8910s or the SSI-263. Scrolling to the top rebuilds older
 entries from history. Clear and Save on the pane's bar do what `CLEAR` and
 `SAVE` do, so the pane and the command always show the same log.
 
