@@ -45,9 +45,9 @@ public:
     std::vector<DxuiPopupMenuItem>  GetViewChoices         ();
 
 private:
-    std::wstring  GetBackgroundShellId (const Location & shown) const;
-    void          AddBackgroundRows    (std::vector<DxuiPopupMenuItem> & items, const Location & shown);
-    static HRESULT  CreateLibrary      ();
+    std::wstring    GetBackgroundShellId (const Location & shown) const;
+    void            AddBackgroundRows    (std::vector<DxuiPopupMenuItem> & items, const Location & shown);
+    static HRESULT  CreateLibrary        ();
 
     //  The stack icon File Explorer draws beside each filter choice.
     static constexpr const wchar_t *  s_kFilterGroupIcon = L"imageres.dll,-198";
