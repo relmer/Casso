@@ -102,7 +102,8 @@ public:
         turn  = TrackAnalyzer::GetAngle (*track, track->framed.nibbles[track->fields[track->sectors[3].dataField].bodyNibble + 20].startCell);
         tip   = InspectorTip::BuildPlatterTip (context, 68, turn, kOneCell, false);
 
-        Assert::AreEqual (std::wstring (L"Track 17 \x00B7 Sector $3\n16 of 16 sectors good\nData field"), tip.GetText());
+        Assert::IsTrue (tip.GetText().starts_with (L"Track 17 \x00B7 Sector $3\n16 of 16 sectors good\n"), tip.GetText().c_str());
+        Assert::IsTrue (tip.GetText().ends_with (L"\nData field"), tip.GetText().c_str());
 
         tip = InspectorTip::BuildPlatterTip (context, 68, turn, kOneCell, true);
         Assert::IsTrue (tip.GetText().find (L"\nNibble $96 at offset $") != std::wstring::npos, tip.GetText().c_str());
@@ -233,7 +234,7 @@ public:
 
 
 
-    TEST_METHOD (TheFilesOverlayAddsTheSectorsRole)
+    TEST_METHOD (ThePlatterTipHasTheSectorsRole)
     {
         vector<Byte>           image   = FileMapTestImages::MakeDos33();
         DiskAnalysis           analysis;
@@ -268,10 +269,6 @@ public:
         qt               = maps[0].GetTrack (cell) * DiskImage::kQuarterTracksPerWholeTrack;
         track            = analysis.tracks[analysis.entries[qt].slot].get();
 
-        tip = InspectorTip::BuildPlatterTip (context, qt, GetDataTurn (*track, maps[0].GetPhysical (cell), 20), kOneCell, false);
-        Assert::IsTrue (tip.GetText().find (L"HELLO") == std::wstring::npos, L"no role while the overlay is off");
-
-        context.isFilesOverlay = true;
         tip = InspectorTip::BuildPlatterTip (context, qt, GetDataTurn (*track, maps[0].GetPhysical (cell), 20), kOneCell, false);
 
         Assert::IsTrue   (GetLine (tip.GetText(), tip.GetSwatches().back().line).starts_with (L"Used by HELLO, data sector 1 of 3"), tip.GetText().c_str());

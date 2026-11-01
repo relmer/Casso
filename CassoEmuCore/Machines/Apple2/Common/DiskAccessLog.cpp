@@ -25,6 +25,8 @@ static constexpr uint8_t  s_kEpilogue1 = 0xAA;
 
 void DiskAccessLog::Clear()
 {
+    m_taken.fill (0);
+
     for (vector<CellSpan> & spans : m_reads)
     {
         spans.clear();
@@ -77,6 +79,11 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
 
 
     EndWrite();
+
+    if (isValid)
+    {
+        m_taken[static_cast<size_t> (quarterTrack)]++;
+    }
 
     if (gap > kPauseCells)
     {

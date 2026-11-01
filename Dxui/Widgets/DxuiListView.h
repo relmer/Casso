@@ -53,6 +53,9 @@ public:
 
         // How a cell too wide for its column is cut; None takes the column's.
         DxuiElide                         elide = DxuiElide::None;
+
+        // Semibold text, for a group's heading.
+        bool                              isStrong = false;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates

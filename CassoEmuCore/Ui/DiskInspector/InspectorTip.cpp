@@ -132,6 +132,7 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         tip.AddLine  (title);
         tip.AddColor (context.palette.colors.nothingRecorded, L"Nothing recorded");
         tip.AddLine  (L"The drive reads random bits here");
+        tip.AddTaken (context, quarterTrack);
     }
     else
     {
@@ -154,6 +155,15 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         if (sector >= 0)
         {
             tip.AddAccess (context, entry.slot, *track, sector);
+        }
+        else
+        {
+            tip.AddTaken (context, quarterTrack);
+        }
+
+        if (track->measurements.sector0Angle >= 0)
+        {
+            tip.AddLine (std::format (L"Sector 0 starts {:.0f} degrees after the index", track->measurements.sector0Angle * 360.0));
         }
 
         if (isShowingNibbles && nibble >= 0 && !isRandom)
@@ -182,6 +192,31 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
     }
 
     return tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTip::AddTaken
+//
+//  How many nibbles the machine took from the latch on a quarter track. No
+//  line when it took none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTip::AddTaken (const InspectorViewContext & context, int quarterTrack)
+{
+    uint32_t  taken = (context.drive != nullptr) ? context.drive->nibblesTaken[static_cast<size_t> (quarterTrack)] : 0;
+
+
+
+    if (taken > 0)
+    {
+        AddLine (std::format (L"The machine read {} nibbles here", InspectorFormat::FormatCount (taken)));
+    }
 }
 
 
@@ -472,7 +507,7 @@ void InspectorTip::AddFindHit (const InspectorViewContext & context, const Track
 //
 //  InspectorTip::AddFileRole
 //
-//  While the Files overlay is on, the role and owners of the sector whose
+//  The role and owners of the sector whose
 //  data field contains the nibble, in the overlay's color for that role, as
 //  "File data: HELLO, data sector 3 of 5".
 //
@@ -483,7 +518,7 @@ void InspectorTip::AddFileRole (const InspectorViewContext & context, int wholeT
     const FileMap *  map  = context.fileMap;
     int              cell = -1;
     int              half = 0;
-    bool             isOn = context.isFilesOverlay && map != nullptr && map->notMapped == NotMappedReason::None && wholeTrack < map->tracks && nibble >= 0;
+    bool             isOn = map != nullptr && map->notMapped == NotMappedReason::None && wholeTrack < map->tracks && nibble >= 0;
 
 
 

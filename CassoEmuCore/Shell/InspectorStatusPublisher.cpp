@@ -107,7 +107,8 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
         for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
         {
-            state.visitCounts[qt] = controller->GetVisitCount (drive, qt);
+            state.visitCounts[qt]  = controller->GetVisitCount (drive, qt);
+            state.nibblesTaken[qt] = controller->GetAccessLog (drive).GetNibblesTaken (qt);
         }
 
         //  The spans are copied only when the log has changed.
@@ -156,6 +157,6 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
 bool InspectorStatusPublisher::IsSameCounts (const DriveHeadState & a, const DriveHeadState & b)
 {
-    return a.mediaId == b.mediaId && a.recordWriteCounts == b.recordWriteCounts && a.visitCounts == b.visitCounts && a.accessGeneration == b.accessGeneration &&
+    return a.mediaId == b.mediaId && a.recordWriteCounts == b.recordWriteCounts && a.visitCounts == b.visitCounts && a.nibblesTaken == b.nibblesTaken && a.accessGeneration == b.accessGeneration &&
            a.saveCount == b.saveCount && a.writeProtect.imageFlag == b.writeProtect.imageFlag;
 }

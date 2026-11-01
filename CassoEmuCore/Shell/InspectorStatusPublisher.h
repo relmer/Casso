@@ -60,6 +60,7 @@ struct DriveHeadState
     uint64_t                                             saveCount         = 0;
     vector<uint64_t>                                     recordWriteCounts;
     std::array<uint32_t, DiskImage::kQuarterTrackCount>  visitCounts       = {};
+    std::array<uint32_t, DiskImage::kQuarterTrackCount>  nibblesTaken      = {};
 
     //  Shared with the state before while the log has not changed.
     std::shared_ptr<const DriveAccess>                   access;

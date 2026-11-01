@@ -507,3 +507,10 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T727 Draw nibble values on a patch over the timing line in `TrackStripView`
 - [X] T728 Draw cell rules in `FluxView` and track the nearest transition across lines
 - [X] T729 Step `DxuiZoomControl` by 10%
+- [X] T730 Project the head block through the disk's perspective and add an Index label
+- [X] T731 Add the head's colors to the legend
+- [X] T732 Count nibbles taken from the latch per quarter track for Reads, the Tracks table and tooltips
+- [X] T733 Show file role and alignment in the platter tip regardless of overlays
+- [X] T734 Group and collapse the Image tab through `InspectorTableView::SetGrouped`, and select tracks from TMAP and record rows
+- [X] T735 Center Flux dots in their cells, raise the rule threshold and grow dots with zoom
+- [X] T736 Tighten the Files tab layout on a disk with no volume

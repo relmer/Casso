@@ -2539,7 +2539,7 @@ void DxuiListView::PaintDataRows (
                                   DxuiTheme::kBodyFace,
                                   m_columns[c].align,
                                   DxuiTextVAlign::CenterOnCapHeight,
-                                  DxuiFontWeight::Normal,
+                                  cells[c].isStrong ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal,
                                   false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }

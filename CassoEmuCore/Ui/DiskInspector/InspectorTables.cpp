@@ -57,7 +57,7 @@ vector<std::wstring> InspectorTables::GetFindingColumns()
 vector<std::wstring> InspectorTables::GetTrackColumns()
 {
     return { L"Track", L"Recorded", L"Shared with", L"Class", L"Sectors good", L"Nibbles", L"Length", L"Longest sync",
-             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Edited", L"Reach", L"Written", L"Reads",
+             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Edited", L"Reach", L"Written", L"Nibbles read",
              L"Sectors read", L"Sectors written" };
 }
 
@@ -287,7 +287,7 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
         bool                       has   = track != nullptr && track->framed.cellCount > 0;
         bool                       flux  = has && track->framed.isFlux;
         bool                       wrote = drive != nullptr && e.slot >= 0 && e.slot < static_cast<int> (drive->recordWriteCounts.size()) && drive->recordWriteCounts[e.slot] > 0;
-        uint32_t                   reads = (drive != nullptr) ? drive->visitCounts[qt] : 0;
+        uint32_t                   reads = (drive != nullptr) ? drive->nibblesTaken[qt] : 0;
         int                        sRead = 0;
         int                        sWrit = 0;
         TableRow                   row;
@@ -891,9 +891,49 @@ void InspectorTables::AddMapRows (vector<TableRow> & inOut, LPCWSTR title, const
         {
             AddRow (inOut, InspectorFormat::FormatQuarterTrack (static_cast<int> (start)) + ((qt - 1 > start) ? L"-" + InspectorFormat::FormatQuarterTrack (static_cast<int> (qt - 1)) : L""),
                     map[start] == WozFileLayout::kNoTrack ? L"No track (255)" : std::format (L"Record {}", map[start]));
+
+            if (map[start] != WozFileLayout::kNoTrack)
+            {
+                inOut.back().quarterTrack = static_cast<int> ((start + qt - 1) / 2);
+            }
+
             start = qt;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::FindRecordRing
+//
+//  The middle of the first run of quarter tracks mapped to a record, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InspectorTables::FindRecordRing (const std::array<Byte, WozFileLayout::kMapEntries> & map, size_t record)
+{
+    size_t  first = 0;
+    size_t  last  = 0;
+
+
+
+    while (first < map.size() && map[first] != record)
+    {
+        first++;
+    }
+
+    last = first;
+
+    while (last + 1 < map.size() && map[last + 1] == record)
+    {
+        last++;
+    }
+
+    return (first < map.size()) ? static_cast<int> ((first + last) / 2) : -1;
 }
 
 
@@ -940,6 +980,7 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
             AddRow (inOut, std::format (L"Record {}", r), std::format (L"Start block {}, {} blocks, {} {}", rec.startBlock, rec.blockCount,
                                                                           InspectorFormat::FormatCount (now), isFlux[r] ? L"bytes" : L"bits")
                                                           + (now != rec.bitOrByteCount ? s_kpszChanged : L""));
+            inOut.back().quarterTrack = FindRecordRing (layout.tmap, r);
         }
     }
 
@@ -953,6 +994,7 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
                                                                       InspectorFormat::FormatCount (rec.bytesUsed), InspectorFormat::FormatCount (now),
                                                                       rec.splicePoint, rec.spliceNibble, rec.spliceBitCount)
                                                       + (now != rec.bitCount ? s_kpszChanged : L""));
+        inOut.back().quarterTrack = FindRecordRing (layout.tmap, r);
     }
 
     //  Records the guest wrote where the file had none. An empty track, there

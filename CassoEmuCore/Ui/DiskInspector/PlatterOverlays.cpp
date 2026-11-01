@@ -41,6 +41,7 @@ static constexpr uint32_t s_kHeatMinAlpha    = 0x50u;
 static constexpr uint32_t s_kHeatMaxAlpha    = 0xB8u;
 static constexpr uint32_t s_kAccessDimAlpha  = 0x70000000u;
 static constexpr uint32_t s_kVisitAlpha      = 0x30000000u;
+static constexpr uint32_t s_kMinTakenNibbles = 64;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
@@ -1353,7 +1354,7 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
         const TrackAnalysis *  track   = m_view.GetRingTrack (qt);
         int                    slot    = analysis.entries[static_cast<size_t> (qt)].slot;
         bool                   isWhole = (kind == AccessKind::Writes) ? (slot >= 0 && slot < static_cast<int> (drive.recordWriteCounts.size()) && drive.recordWriteCounts[static_cast<size_t> (slot)] > 0)
-                                       : (kind == AccessKind::Reads && drive.visitCounts[static_cast<size_t> (qt)] > 0);
+                                       : (kind == AccessKind::Reads && drive.nibblesTaken[static_cast<size_t> (qt)] >= s_kMinTakenNibbles);
 
         //  A track with sectors is marked sector by sector; only one without
         //  them falls back to its whole ring.

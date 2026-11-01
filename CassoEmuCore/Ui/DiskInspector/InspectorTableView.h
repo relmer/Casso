@@ -34,6 +34,10 @@ public:
     void  SetRows     (vector<TableRow> rows);
     void  SetCaption  (const std::wstring & caption) { m_caption = caption; }
 
+    //  Rows with a title and no value head a group: a click collapses or
+    //  expands the rows under them, and those rows are indented.
+    void  SetGrouped  (bool isGrouped) { m_isGrouped = isGrouped; }
+
     //  A line inside the list, under its header, while it has no rows.
     void  SetEmptyText (const std::wstring & text) { m_emptyText = text; }
     void  SetOnSelect (SelectFn select) { m_select = std::move (select); }
@@ -53,16 +57,24 @@ public:
     bool  OnKey   (const DxuiKeyEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
 
+private:
+    void  ShowRows    ();
+    void  ApplyToggle ();
+
 protected:
     //  The room above the list, for a caption or a subclass's own controls.
     virtual int   GetTopHeightPx () const;
     virtual void  PaintTop       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top);
 
-    DxuiListView          m_list;
-    vector<TableRow>      m_rows;
-    vector<std::wstring>  m_titles;
-    std::wstring          m_caption;
-    std::wstring          m_emptyText;
-    SelectFn              m_select;
-    bool                  m_isSelecting = false;
+    DxuiListView            m_list;
+    vector<TableRow>        m_rows;
+    vector<std::wstring>    m_titles;
+    std::wstring            m_caption;
+    std::wstring            m_emptyText;
+    SelectFn                m_select;
+    bool                    m_isGrouped   = false;
+    vector<TableRow>        m_allRows;
+    std::set<std::wstring>  m_collapsed;
+    std::wstring            m_toggle;
+    bool                    m_isSelecting = false;
 };

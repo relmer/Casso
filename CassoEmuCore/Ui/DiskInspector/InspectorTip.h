@@ -45,6 +45,7 @@ private:
     void  AddFileRole (const InspectorViewContext & context, int wholeTrack, const TrackAnalysis & track, int nibble);
     void  AddFindHit  (const InspectorViewContext & context, const TrackAnalysis & track, uint32_t firstCell, uint32_t cellCount);
     void  AddAccess   (const InspectorViewContext & context, int slot, const TrackAnalysis & track, int sector);
+    void  AddTaken    (const InspectorViewContext & context, int quarterTrack);
 
     std::wstring               m_text;
     vector<DxuiTooltipSwatch>  m_swatches;

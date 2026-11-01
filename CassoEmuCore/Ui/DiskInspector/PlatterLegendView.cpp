@@ -184,6 +184,9 @@ vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewConte
     sections.push_back ({ context.isTimingMode ? L"Platter timing" : L"Platter structure",
                           BuildEntries (context.palette, context.isTimingMode, context.timingRange), GetNote (context.isTimingMode) });
 
+    sections.push_back ({ L"Head", { { context.palette.colors.headIdle, L"Idle" }, { context.palette.colors.headReading, L"Reading" }, { context.palette.colors.headWriting, L"Writing" } },
+                          L"A cross on the head indicates a blocked write." });
+
     if (context.isFilesOverlay && context.fileMap != nullptr && context.fileMap->notMapped == NotMappedReason::None)
     {
         files.title = L"Files overlay: " + FileMapText::FormatVolume (*context.fileMap);

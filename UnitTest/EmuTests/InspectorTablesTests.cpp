@@ -131,21 +131,21 @@ public:
 
     //  In Casso the drive's counts mark each written record's quarter tracks
     //  and each quarter track's read visits (FR-047).
-    TEST_METHOD (TracksMarkWrittenRecordsAndReadVisits)
+    TEST_METHOD (TracksMarkWrittenRecordsAndNibblesRead)
     {
         DiskAnalysis          analysis;
         DriveHeadState        drive;
         vector<TableRow>      rows;
         vector<std::wstring>  names    = InspectorTables::GetTrackColumns();
-        size_t            columns = static_cast<size_t> (std::find (names.begin(), names.end(), L"Reads") - names.begin()) + 1;
+        size_t            columns = static_cast<size_t> (std::find (names.begin(), names.end(), L"Nibbles read") - names.begin()) + 1;
 
 
 
         AnalyzePlanted (analysis);
         drive.recordWriteCounts.assign (analysis.tracks.size(), 0);
         drive.recordWriteCounts[analysis.entries[68].slot] = 3;
-        drive.visitCounts[0]  = 1;
-        drive.visitCounts[68] = 12;
+        drive.nibblesTaken[0]  = 1;
+        drive.nibblesTaken[68] = 12;
 
         rows = InspectorTables::BuildTracks (analysis, nullptr, nullptr, nullptr, &drive);
 
@@ -153,9 +153,9 @@ public:
         Assert::AreEqual (std::wstring (L"Written"), rows[68].cells[columns - 2], L"track 17's record was written");
         Assert::AreEqual (std::wstring (L"Written"), rows[69].cells[columns - 2], L"and so was each quarter track that shares it");
         Assert::AreEqual (std::wstring(),           rows[0].cells[columns - 2]);
-        Assert::AreEqual (std::wstring (L"12"),      rows[68].cells[columns - 1], L"its read visits");
+        Assert::AreEqual (std::wstring (L"12"),      rows[68].cells[columns - 1], L"the nibbles read there");
         Assert::AreEqual (std::wstring (L"1"),       rows[0].cells[columns - 1]);
-        Assert::AreEqual (std::wstring(),           rows[4].cells[columns - 1], L"a quarter track never visited");
+        Assert::AreEqual (std::wstring(),           rows[4].cells[columns - 1], L"a quarter track never read");
 
         rows = InspectorTables::BuildTracks (analysis);
         Assert::AreEqual (std::wstring(), rows[68].cells[columns - 2], L"no marks without the drive");

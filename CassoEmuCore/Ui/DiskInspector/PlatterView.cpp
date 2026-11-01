@@ -16,6 +16,7 @@
 
 
 static constexpr float  s_kIndexMarkDip     = 10.0f;
+static constexpr float  s_kIndexLabelDip    = 40.0f;
 static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
 static constexpr float  s_kHubLightDip     = 2.0f;
@@ -111,6 +112,8 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         PaintDisk    (painter, theme, view);
         PaintNibbles (painter, text, theme, view);
         PaintHead    (painter, theme, view);
+        DrawUpright  (text, view, 0.0, view.outerRadiusPx + m_scaler.ToPxf (s_kIndexMarkDip) + m_scaler.ToPxf (kSmallDip) * 1.5f + std::abs (std::sin (view.rotation * s_kTwoPi)) * m_scaler.ToPxf (s_kIndexLabelDip) / 2, L"Index",
+                      m_scaler.ToPxf (s_kIndexLabelDip), m_scaler.ToPxf (kSmallDip), theme.ForegroundMuted());
             painter.SetClipRect (hadClip ? &oldClip : nullptr);
     }
 }
@@ -1158,11 +1161,11 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
 
     if (view.tilt != 0.0f)
     {
-        PaintHeadBlock (painter, map, sx, sy + drop, ux, uy, tip, hole, len, s_kHeadShadowArgb);
+        PaintHeadBlock (painter, view, radius, drop, tip, hole, len, s_kHeadShadowArgb);
     }
 
-    PaintHeadBlock (painter, map, sx, sy, ux, uy, tip, hole, len, body);
-    PaintHeadEdges (painter, map, sx, sy, ux, uy, tip, len, line, argb);
+    PaintHeadBlock (painter, view, radius, 0.0f, tip, hole, len, body);
+    PaintHeadEdges (painter, view, map, radius, tip, len, line, argb);
 
     //  The window's ring and crosshair are a little translucent too.
     painter.SetGlobalAlpha (alpha * s_kHeadSightAlpha);
@@ -1207,19 +1210,15 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
 //
 //  PlatterView::GetHeadPlace
 //
-//  A point of the head block, by its distance along the radius and across it.
+//  A point of the head block, by its distance along the radius and across it,
+//  through the projection, so the block has the disk's perspective.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::GetHeadPlace (const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float along, float across, float & outX, float & outY)
+void PlatterView::GetHeadPlace (const PlatterPlacement & view, double radius, float drop, float along, float across, float & outX, float & outY)
 {
-    float  px = ux * along - uy * across;
-    float  py = uy * along + ux * across;
-
-
-
-    outX = sx + map[0] * px + map[2] * py;
-    outY = sy + map[1] * px + map[3] * py;
+    PlatterGeometry::Project (view, across, radius + along, outX, outY);
+    outY += drop;
 }
 
 
@@ -1234,7 +1233,7 @@ void PlatterView::GetHeadPlace (const std::array<float, 4> & map, float sx, floa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::PaintHeadBlock (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float half, float hole, float len, uint32_t argb)
+void PlatterView::PaintHeadBlock (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float half, float hole, float len, uint32_t argb)
 {
     const std::array<std::array<float, 4>, 4>  strips = { std::array<float, 4> { -half, -hole, -half,  half },
                                                           std::array<float, 4> {  hole,   len, -half,  half },
@@ -1246,10 +1245,10 @@ void PlatterView::PaintHeadBlock (IDxuiPainter & painter, const std::array<float
 
     for (const std::array<float, 4> & s : strips)
     {
-        GetHeadPlace (map, sx, sy, ux, uy, s[0], s[2], q[0], q[1]);
-        GetHeadPlace (map, sx, sy, ux, uy, s[1], s[2], q[2], q[3]);
-        GetHeadPlace (map, sx, sy, ux, uy, s[1], s[3], q[4], q[5]);
-        GetHeadPlace (map, sx, sy, ux, uy, s[0], s[3], q[6], q[7]);
+        GetHeadPlace (view, radius, drop, s[0], s[2], q[0], q[1]);
+        GetHeadPlace (view, radius, drop, s[1], s[2], q[2], q[3]);
+        GetHeadPlace (view, radius, drop, s[1], s[3], q[4], q[5]);
+        GetHeadPlace (view, radius, drop, s[0], s[3], q[6], q[7]);
         painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
     }
 }
@@ -1264,7 +1263,7 @@ void PlatterView::PaintHeadBlock (IDxuiPainter & painter, const std::array<float
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::PaintHeadEdges (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float half, float len, float line, uint32_t argb)
+void PlatterView::PaintHeadEdges (IDxuiPainter & painter, const PlatterPlacement & view, const std::array<float, 4> & map, double radius, float half, float len, float line, uint32_t argb)
 {
     const std::array<std::array<float, 2>, 4>  corners = { std::array<float, 2> { -half, -half }, std::array<float, 2> { len, -half },
                                                            std::array<float, 2> {   len,  half }, std::array<float, 2> { -half, half } };
@@ -1278,15 +1277,15 @@ void PlatterView::PaintHeadEdges (IDxuiPainter & painter, const std::array<float
 
     for (k = 0; k < corners.size(); k++)
     {
-        GetHeadPlace (map, sx, sy, ux, uy, corners[k][0], corners[k][1], x0, y0);
-        GetHeadPlace (map, sx, sy, ux, uy, corners[(k + 1) % corners.size()][0], corners[(k + 1) % corners.size()][1], x1, y1);
+        GetHeadPlace (view, radius, 0.0f, corners[k][0], corners[k][1], x0, y0);
+        GetHeadPlace (view, radius, 0.0f, corners[(k + 1) % corners.size()][0], corners[(k + 1) % corners.size()][1], x1, y1);
         painter.DrawLine (x0, y0, x1, y1, line / 2.0f, argb);
     }
 
     for (float side : { -1.0f, 1.0f })
     {
-        GetHeadPlace (map, sx, sy, ux, uy, half * s_kHeadScrewAlong, side * half * s_kHeadScrewAcross, x0, y0);
-        painter.FillTaperedCapsuleOnPlane (x0, y0, map, ux * s_kDotLength, uy * s_kDotLength, line, line, 0.0f, 0.0f, argb);
+        GetHeadPlace (view, radius, 0.0f, half * s_kHeadScrewAlong, side * half * s_kHeadScrewAcross, x0, y0);
+        painter.FillTaperedCapsuleOnPlane (x0, y0, map, 0.0f, s_kDotLength, line, line, 0.0f, 0.0f, argb);
     }
 }
 

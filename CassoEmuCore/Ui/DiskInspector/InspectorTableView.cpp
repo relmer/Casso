@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorTableView.h"
+#include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorClipboard.h"
 
 
@@ -8,6 +9,23 @@
 
 
 static constexpr float  s_kEmptyPadDip = 8.0f;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsGroupRow
+//
+//  A heading in view: its value is empty and its title starts with a triangle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool IsGroupRow (const TableRow & row)
+{
+    return row.cells.size() > 1 && row.cells[1].empty() && row.cells[0].size() > 2 && row.cells[0][1] == L' ' && row.cells[0][0] >= 0x25B0;
+}
 
 
 
@@ -30,7 +48,11 @@ InspectorTableView::InspectorTableView (InspectorViewContext & context) :
     m_list.SetHorizontalScrollEnabled (true);
     m_list.SetOnSelectionChanged ([this] (int row)
     {
-        if (!m_isSelecting && m_select && row >= 0 && row < static_cast<int> (m_rows.size()))
+        if (m_isGrouped && !m_isSelecting && row >= 0 && row < static_cast<int> (m_rows.size()) && IsGroupRow (m_rows[row]))
+        {
+            m_toggle = m_rows[row].cells[0].substr (2);
+        }
+        else if (!m_isSelecting && m_select && row >= 0 && row < static_cast<int> (m_rows.size()))
         {
             m_select (m_rows[row]);
         }
@@ -80,11 +102,50 @@ void InspectorTableView::SetColumns (const vector<std::wstring> & titles)
 
 void InspectorTableView::SetRows (vector<TableRow> rows)
 {
+    m_allRows = std::move (rows);
+    ShowRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTableView::ShowRows
+//
+//  The rows in view: all of them, or with groups, each group's heading with
+//  a triangle and, unless it is collapsed, its rows indented.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTableView::ShowRows()
+{
     vector<vector<DxuiListView::Cell>>  cells;
+    bool                                isOpen = true;
 
 
 
-    m_rows = std::move (rows);
+    m_rows.clear();
+
+    for (const TableRow & row : m_allRows)
+    {
+        if (!m_isGrouped)
+        {
+            m_rows.push_back (row);
+        }
+        else if (row.cells.size() > 1 && !row.cells[0].empty() && row.cells[1].empty())
+        {
+            isOpen = !m_collapsed.contains (row.cells[0]);
+            m_rows.push_back (row);
+            m_rows.back().cells[0] = std::wstring (isOpen ? s_kpszTriangleDown : s_kpszTriangleRight) + L" " + row.cells[0];
+        }
+        else if (isOpen)
+        {
+            m_rows.push_back (row);
+            m_rows.back().cells[0] = L"      " + row.cells[0];
+        }
+    }
 
     for (const TableRow & row : m_rows)
     {
@@ -94,7 +155,8 @@ void InspectorTableView::SetRows (vector<TableRow> rows)
         {
             DxuiListView::Cell  cell;
 
-            cell.text = text;
+            cell.text     = text;
+            cell.isStrong = m_isGrouped && IsGroupRow (row);
 
             //  A path is cut from its start, so the file's name at its end
             //  is visible.
@@ -107,6 +169,38 @@ void InspectorTableView::SetRows (vector<TableRow> rows)
 
     m_list.SetRows (std::move (cells));
     m_list.UpdateAutoFitFromRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTableView::ApplyToggle
+//
+//  Collapses or expands the group whose heading was clicked, once the list is
+//  done with the click.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTableView::ApplyToggle()
+{
+    if (!m_toggle.empty())
+    {
+        if (!m_collapsed.erase (m_toggle))
+        {
+            m_collapsed.insert (m_toggle);
+        }
+
+        m_toggle.clear();
+
+        m_isSelecting = true;
+        m_list.SetSelectedRow (-1);
+        m_isSelecting = false;
+
+        ShowRows();
+    }
 }
 
 
@@ -243,7 +337,16 @@ bool InspectorTableView::OnMouse (const DxuiMouseEvent & ev)
     //  The list hit-tests in its own coordinates, from its top-left corner.
     listEv.positionDip = { ev.positionDip.x - list.left, ev.positionDip.y - list.top };
 
-    return m_list.OnMouse (listEv);
+    bool  isHandled = m_list.OnMouse (listEv);
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Up)
+    {
+        ApplyToggle();
+    }
+
+    return isHandled;
 }
 
 
@@ -285,7 +388,13 @@ bool InspectorTableView::GetTooltip (POINT pointPx, std::wstring & outText, RECT
 
 bool InspectorTableView::OnKey (const DxuiKeyEvent & ev)
 {
-    return m_list.OnKey (ev);
+    bool  isHandled = m_list.OnKey (ev);
+
+
+
+    ApplyToggle();
+
+    return isHandled;
 }
 
 

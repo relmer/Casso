@@ -13,7 +13,7 @@
 static constexpr float     s_kLabelDip      = 34.0f;
 static constexpr float     s_kHeaderDip     = 16.0f;
 static constexpr float     s_kAxisDip       = 16.0f;
-static constexpr float     s_kNoteDip       = 34.0f;
+static constexpr float     s_kNoteDip       = 46.0f;
 //  Rows no shorter than a label's text, so every cell has room for its
 //  number or role label.
 static constexpr float     s_kMinRowDip     = InspectorView::kSmallDip;
@@ -114,7 +114,7 @@ void FileMapGridView::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text
     {
         text.DrawString (FileMapText::FormatNotMapped (*m_map).c_str(), static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), GetWidth(),
                          m_scaler.ToPxf (s_kNoteDip), theme.Foreground(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
-                         DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
+                         DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
     }
 
     //  The selected file's sectors numbered in file order.
@@ -602,7 +602,7 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
     else if (at.result == SectorResult::Missing)
     {
-        painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, 1.0f, theme.ForegroundMuted());
+        painter.OutlineRect (x + 1, y + 1, w - 2, h - 2, 1.0f, theme.Divider());
     }
     else if (at.result == SectorResult::NotChecked)
     {

@@ -23,7 +23,9 @@ static constexpr float   s_kPointDip        = 2.0f;
 static constexpr float   s_kPairDip         = 4.0f;
 static constexpr float   s_kHitDip          = 12.0f;
 static constexpr float   s_kCursorPadDip    = 4.0f;
-static constexpr float   s_kCellRuleDip     = 6.0f;
+static constexpr float   s_kCellRuleDip     = 14.0f;
+static constexpr float   s_kDotCellShare    = 0.22f;
+static constexpr float   s_kDotMaxShare     = 3.0f;
 static constexpr float   s_kCursorThickness = 1.5f;
 static constexpr float   s_kUnderlineDip    = 2.0f;
 static constexpr int     s_kDragThresholdPx = 4;
@@ -145,7 +147,7 @@ void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     double         span    = m_context.model->GetStripSpan();
     float          textPx  = m_scaler.ToPxf (kSmallDip);
     float          point   = m_scaler.ToPxf (s_kPointDip);
-    float          pair    = m_scaler.ToPxf (s_kPairDip);
+    float          grown   = std::clamp (GetCellPx() * s_kDotCellShare, point, point * s_kDotMaxShare);
     float          x       = 0;
     float          y       = 0;
     float          size    = 0;
@@ -202,7 +204,7 @@ void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         if ((m_occupied[at] & kind) == 0)
         {
             m_occupied[at] |= kind;
-            size            = (kind == s_kPair) ? pair : point;
+            size            = (kind == s_kPair) ? 2.0f * grown : grown;
             color           = (kind == s_kPair) ? m_context.palette.colors.failedChecksum : (kind == s_kSelected) ? theme.Accent() : theme.Foreground();
             painter.FillRect (x - size / 2, y - size / 2, size, size, color);
         }
@@ -296,7 +298,8 @@ void FluxView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme) co
 //
 //  FluxView::PaintCellRules
 //
-//  A rule at the start of each cell in view, once cells are at least
+//  A rule between each cell in view and the next, a transition's dot being at
+//  the middle of its cell, once cells are at least
 //  s_kCellRuleDip apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -318,7 +321,7 @@ void FluxView::PaintCellRules (IDxuiPainter & painter, const IDxuiTheme & theme,
 
         for (uint32_t n = 0; n < count; n++)
         {
-            x = GetTurnX (m_cellTurns[(cell + 1 + n) % count]);
+            x = GetTurnX ((m_cellTurns[(cell + n) % count] + m_cellTurns[(cell + n) % count + 1]) / 2);
 
             if (x < last || x > plot.right)
             {

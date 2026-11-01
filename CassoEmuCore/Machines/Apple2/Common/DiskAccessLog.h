@@ -77,6 +77,7 @@ public:
     void  EndWrite     ();
 
     const Spans &  GetReads      () const { return m_reads; }
+    uint32_t       GetNibblesTaken (int quarterTrack) const { return m_taken[static_cast<size_t> (quarterTrack)]; }
     const Spans &  GetWrites     () const { return m_writes; }
     const Spans &  GetScans      () const { return m_scans; }
     uint64_t       GetGeneration () const { return m_generation; }
@@ -88,21 +89,22 @@ public:
 private:
     static uint32_t  GetOverlap (const CellSpan & a, uint32_t start, uint32_t end);
 
-    Spans     m_reads;
-    Spans     m_writes;
-    Spans     m_scans;
-    uint64_t  m_generation   = 0;
-    int       m_readTrack    = -1;
-    uint8_t   m_prev[2]      = {};
-    uint32_t  m_prevCell[2]  = {};
-    bool      m_isInData     = false;
-    uint32_t  m_dataStart    = 0;
-    uint32_t  m_dataCount    = 0;
-    bool      m_isClosed     = false;
-    bool      m_isInAddress  = false;
-    uint32_t  m_addressStart = 0;
-    uint32_t  m_addressCount = 0;
-    int       m_writeTrack   = -1;
-    uint32_t  m_writeStart   = 0;
-    uint32_t  m_writeLast    = 0;
+    Spans                                                m_reads;
+    Spans                                                m_writes;
+    Spans                                                m_scans;
+    std::array<uint32_t, DiskImage::kQuarterTrackCount>  m_taken        = {};
+    uint64_t                                             m_generation   = 0;
+    int                                                  m_readTrack    = -1;
+    uint8_t                                              m_prev[2]      = {};
+    uint32_t                                             m_prevCell[2]  = {};
+    bool                                                 m_isInData     = false;
+    uint32_t                                             m_dataStart    = 0;
+    uint32_t                                             m_dataCount    = 0;
+    bool                                                 m_isClosed     = false;
+    bool                                                 m_isInAddress  = false;
+    uint32_t                                             m_addressStart = 0;
+    uint32_t                                             m_addressCount = 0;
+    int                                                  m_writeTrack   = -1;
+    uint32_t                                             m_writeStart   = 0;
+    uint32_t                                             m_writeLast    = 0;
 };

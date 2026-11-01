@@ -312,7 +312,7 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     m_mapVolumes->SetTabs     (std::move (tabs));
     m_mapVolumes->SetSelected (m_session.mapIndex);
     m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label + picker, y, area.right - scaler.ToPx (InspectorMetrics::kExportButtonDip) - margin, y + row }, scaler);
-    y += row + margin / 2;
+    y += (isList || m_session.analysis.fileMaps.size() > 1) ? row + margin / 2 : 0;
 
     //  Open, the picker has the list's filters and the file list in the rest
     //  of the tab; closed, the tab has the grid, its rows at least as tall as its
