@@ -302,12 +302,12 @@ Error:
 
 HRESULT FullSendSession::Pause()
 {
-    HRESULT              hr      = S_OK;
-    FullSendKey          key     = FullSendKey::Space;
-    std::array<int, 2>   order   = { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
-    std::array<bool, 2>  repeats = { false, false };
-    int                  chosen  = 0;
-    CheckedDisk          disk;
+    HRESULT                   hr      = S_OK;
+    FullSendKey               key     = FullSendKey::Space;
+    std::array<int, 2>        order   = { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
+    std::array<bool, 2>       repeats = { false, false };
+    int                       chosen  = 0;
+    CheckedDisk               disk;
     std::vector<std::string>  lines;
 
 
