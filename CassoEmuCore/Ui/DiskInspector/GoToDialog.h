@@ -59,6 +59,7 @@ private:
     bool                  m_isChosen     = false;
 
     GoToBody *            m_body         = nullptr;   // non-owning
+    vector<GoToKind>      m_shownKinds;
     DxuiRadioGroup        m_kinds;
     DxuiInfoTip           m_tips[kTipCount];
     DxuiButton *          m_ok           = nullptr;   // non-owning

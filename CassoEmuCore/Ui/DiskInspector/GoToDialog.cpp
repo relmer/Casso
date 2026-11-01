@@ -18,8 +18,8 @@ static constexpr int          s_kMaxPathChars = 64;
 static constexpr GoToKindTip  s_kKindTips[GoToDialog::kTipCount] =
 {
     { GoToKind::PhysicalSector, L"The number in a sector's address field on the disk.\nDOS 3.3 numbers the same sector differently." },
-    { GoToKind::Dos33Sector,    L"The number DOS 3.3 uses for a sector, which is also the sector's position in a .dsk image.\nThe number in its address field on the disk is its physical sector." },
-    { GoToKind::ProDosBlock,    L"A 512-byte block of two 256-byte sectors, at 8 blocks per track.\nThe numbering is the one ProDOS uses, but these blocks exist on any disk with 16-sector tracks, with or without ProDOS on it." },
+    { GoToKind::Dos33Sector,    L"The number DOS 3.3 uses for a sector, which is also the sector's position in a .dsk image." },
+    { GoToKind::ProDosBlock,    L"A 512-byte block, whether or not ProDOS is on the disk." },
 };
 
 
@@ -42,16 +42,17 @@ class GoToBody : public DxuiPanel
 public:
     struct Parts
     {
-        DxuiRadioGroup    * kinds      = nullptr;
-        DxuiInfoTip       * tips       = nullptr;
-        IDxuiTextRenderer * text       = nullptr;
-        DxuiLabel         * trackLabel = nullptr;
-        DxuiTextInput     * track      = nullptr;
-        DxuiLabel         * entryLabel = nullptr;
-        DxuiTextInput     * input      = nullptr;
-        DxuiComboBox      * files      = nullptr;
-        DxuiLabel         * hint       = nullptr;
-        DxuiLabel         * error      = nullptr;
+        const vector<GoToKind> * kindList   = nullptr;
+        DxuiRadioGroup         * kinds      = nullptr;
+        DxuiInfoTip            * tips       = nullptr;
+        IDxuiTextRenderer      * text       = nullptr;
+        DxuiLabel              * trackLabel = nullptr;
+        DxuiTextInput          * track      = nullptr;
+        DxuiLabel              * entryLabel = nullptr;
+        DxuiTextInput          * input      = nullptr;
+        DxuiComboBox           * files      = nullptr;
+        DxuiLabel              * hint       = nullptr;
+        DxuiLabel              * error      = nullptr;
     };
 
     void  Init (const Parts & parts, int initial, std::function<void (IDxuiControl *)> onPress)
@@ -85,11 +86,13 @@ public:
         int                           x       = boundsPx.left + pad;
         int                           y       = boundsPx.top  + pad;
         int                           i       = 0;
-        int                           rows    = (GoToDialog::kKindCount + 1) / 2;
+        int                           count   = static_cast<int> (m_parts.kindList->size());
+        int                           rows    = (count + 1) / 2;
         int                           sel     = (m_parts.kinds->GetSelected() >= 0) ? m_parts.kinds->GetSelected() : m_initial;
-        bool                          isOn    = InspectorGoTo::IsOnTrack (static_cast<GoToKind> (sel));
-        bool                          isFile  = static_cast<GoToKind> (sel) == GoToKind::File;
-        bool                          isTrack = static_cast<GoToKind> (sel) == GoToKind::Track;
+        GoToKind                      kind    = (*m_parts.kindList)[static_cast<size_t> (sel)];
+        bool                          isOn    = InspectorGoTo::IsOnTrack (kind);
+        bool                          isFile  = kind == GoToKind::File;
+        bool                          isTrack = kind == GoToKind::Track;
         int                           fieldW  = (boundsPx.right - boundsPx.left - 3 * pad - 2 * labelW) / 2;
         std::vector<DxuiRadioOption>  options;
 
@@ -99,10 +102,10 @@ public:
         m_boundsPx = boundsPx;
         m_scaler   = scaler;
 
-        for (i = 0; i < GoToDialog::kKindCount; i++)
+        for (i = 0; i < count; i++)
         {
             options.push_back ({ RECT { x + (i / rows) * half, y + (i % rows) * rowH, x + (i / rows + 1) * half, y + (i % rows + 1) * rowH - 4 },
-                                 InspectorGoTo::GetLabel (static_cast<GoToKind> (i)) });
+                                 InspectorGoTo::GetLabel ((*m_parts.kindList)[static_cast<size_t> (i)]) });
         }
 
         m_parts.kinds->SetOptions  (std::move (options));
@@ -154,8 +157,11 @@ public:
         {
             RECT  tip = m_parts.tips[i].GetBounds();
 
-            isHandled = m_parts.tips[i].OnMouse (ev) || isHandled;
-            isOverTip = isOverTip || (PtInRect (&tip, ev.positionDip) && ev.kind != DxuiMouseEventKind::Leave);
+            if (m_parts.tips[i].IsVisible())
+            {
+                isHandled = m_parts.tips[i].OnMouse (ev) || isHandled;
+                isOverTip = isOverTip || (PtInRect (&tip, ev.positionDip) && ev.kind != DxuiMouseEventKind::Leave);
+            }
         }
 
         //  A tip sits within the row of the radio beside it.
@@ -188,11 +194,19 @@ private:
     {
         for (int i = 0; i < GoToDialog::kTipCount; i++)
         {
-            int           kind  = static_cast<int> (s_kKindTips[i].kind);
-            const RECT &  row   = m_parts.kinds->GetOptions()[static_cast<size_t> (kind)].rect;
-            int           right = (m_parts.text != nullptr) ? m_parts.kinds->GetLabelRight (kind, *m_parts.text) : row.right - scaler.ToPx (kTipDip);
+            auto  found = std::find (m_parts.kindList->begin(), m_parts.kindList->end(), s_kKindTips[i].kind);
 
-            m_parts.tips[i].Layout (RECT { right + scaler.ToPx (kTipGapDip), row.top, right + scaler.ToPx (kTipGapDip + kTipDip), row.bottom }, scaler);
+            m_parts.tips[i].SetVisible (found != m_parts.kindList->end());
+
+            if (found != m_parts.kindList->end())
+            {
+                int           option = static_cast<int> (found - m_parts.kindList->begin());
+                const RECT &  row    = m_parts.kinds->GetOptions()[static_cast<size_t> (option)].rect;
+                int           right  = (m_parts.text != nullptr) ? m_parts.kinds->GetLabelRight (option, *m_parts.text) : row.right - scaler.ToPx (kTipDip);
+                int           drop   = static_cast<int> (std::lround (scaler.ToPxf (kTipDropDip)));
+
+                m_parts.tips[i].Layout (RECT { right + scaler.ToPx (kTipGapDip), row.top + drop, right + scaler.ToPx (kTipGapDip + kTipDip), row.bottom + drop }, scaler);
+            }
         }
     }
 
@@ -202,6 +216,9 @@ private:
     static constexpr int  kLabelDip  = 56;
     static constexpr int  kTipGapDip = 2;
     static constexpr int  kTipDip    = 18;
+
+    //  The icon font's ink sits higher in its box than the label's text does.
+    static constexpr float  kTipDropDip = 1.5f;
 
     Parts          m_parts;
     int            m_initial  = 0;
@@ -244,8 +261,10 @@ void GoToDialog::OnCreate()
 
 
 
-    m_kinds.SetDpi      (GetDpi());
-    m_kinds.SetSelected (static_cast<int> (m_kind));
+    m_shownKinds = InspectorGoTo::GetKinds (*m_analysis);
+    m_kind       = (std::find (m_shownKinds.begin(), m_shownKinds.end(), m_kind) != m_shownKinds.end()) ? m_kind : GoToKind::Track;
+
+    m_kinds.SetDpi (GetDpi());
 
     for (DxuiTextInput * input : { &m_track, &m_input })
     {
@@ -277,18 +296,22 @@ void GoToDialog::OnCreate()
 
     FillFiles();
 
-    parts      = { &m_kinds, m_tips, GetTextRenderer(), &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_files, &m_hint, &m_error };
+    parts      = { &m_shownKinds, &m_kinds, m_tips, GetTextRenderer(), &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_files, &m_hint, &m_error };
     m_body     = CreateDialogContent<GoToBody>();
-    m_body->Init (parts, static_cast<int> (m_kind), [this] (IDxuiControl * control) { FocusControl (control); });
+    m_body->Init (parts, static_cast<int> (std::find (m_shownKinds.begin(), m_shownKinds.end(), m_kind) - m_shownKinds.begin()), [this] (IDxuiControl * control) { FocusControl (control); });
 
     m_kinds.SetOnChange ([this] (int index)
     {
+        GoToKind  kind = m_shownKinds[static_cast<size_t> (index)];
+
+
+
         //  An entry for one kind means nothing for another, but a track does.
         m_input.SetText (L"");
         m_body->Relayout();
-        ShowHint (static_cast<GoToKind> (index));
-        (static_cast<GoToKind> (index) == GoToKind::Track) ? m_track.SelectAll() : m_track.ClearSelection();
-        FocusControl (GetEntryControl (static_cast<GoToKind> (index)));
+        ShowHint (kind);
+        (kind == GoToKind::Track) ? m_track.SelectAll() : m_track.ClearSelection();
+        FocusControl (GetEntryControl (kind));
     });
 
     m_ok = AddDialogButton (L"OK", IDOK);
@@ -453,7 +476,7 @@ void GoToDialog::FillFiles()
 
 GoToKind GoToDialog::GetChosenKind() const
 {
-    return (m_kinds.GetSelected() >= 0) ? static_cast<GoToKind> (std::clamp (m_kinds.GetSelected(), 0, kKindCount - 1)) : m_kind;
+    return (m_kinds.GetSelected() >= 0) ? m_shownKinds[static_cast<size_t> (m_kinds.GetSelected())] : m_kind;
 }
 
 

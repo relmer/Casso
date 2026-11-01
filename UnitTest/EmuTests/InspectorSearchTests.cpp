@@ -180,6 +180,25 @@ public:
 
 
 
+    TEST_METHOD (GoToOffersProDosBlocksOnlyOnADiskThatHasThem)
+    {
+        DiskAnalysis      analysis;
+        DiskAnalysis      empty;
+        vector<GoToKind>  kinds;
+
+
+
+        AnalyzeDisk (analysis);
+
+        kinds = InspectorGoTo::GetKinds (analysis);
+        Assert::IsTrue (std::find (kinds.begin(), kinds.end(), GoToKind::ProDosBlock) != kinds.end());
+
+        kinds = InspectorGoTo::GetKinds (empty);
+        Assert::IsTrue (std::find (kinds.begin(), kinds.end(), GoToKind::ProDosBlock) == kinds.end());
+        Assert::IsTrue (std::find (kinds.begin(), kinds.end(), GoToKind::Track) != kinds.end());
+    }
+
+
     TEST_METHOD (GoToGivesTheRangeOfEachKind)
     {
         DiskAnalysis  analysis;

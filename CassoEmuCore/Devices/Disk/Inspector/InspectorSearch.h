@@ -155,6 +155,10 @@ public:
 
     static LPCWSTR  GetLabel (GoToKind kind);
 
+    //  The kinds that apply to a disk: all but ProDOS blocks on a disk without
+    //  a whole 16-sector track.
+    static vector<GoToKind>  GetKinds (const DiskAnalysis & analysis);
+
     //  What an entry of a kind may be, as "A sector from $0 to $F on track 17".
     static std::wstring  GetRangeHint (const DiskAnalysis & analysis, int quarterTrack, GoToKind kind);
 

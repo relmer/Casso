@@ -600,10 +600,6 @@ void DiskInspectorWindow::OnCreate()
     GetPopupHost()->SetOverlayHooks ([this] () { return m_session.isFindOpen; },
                                      [this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) { m_findPart->PaintBar (painter, text, theme); });
 
-    //  The tips read out what the pointer rests on, so they stay while it
-    //  does rather than dismissing themselves.
-    m_tooltip.SetHasLifetime (false);
-
     m_session.diskTab = kTabTracks;
     ShowTrackTab (kTabSectorData);
 

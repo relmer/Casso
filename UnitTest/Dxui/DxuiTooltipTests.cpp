@@ -75,6 +75,64 @@ public:
         Assert::IsFalse (t.IsVisible());
     }
 
+    TEST_METHOD (HoverTip_StaysUntilThePointerLeaves)
+    {
+        static constexpr int64_t  kLongAfter = 1000000;
+
+        DxuiTooltip  t;
+
+        t.SetDwellOpenMs  (0);
+        t.SetDwellCloseMs (0);
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (0);
+
+        t.Tick (kLongAfter);
+        Assert::IsTrue (t.IsVisible(), L"no time limit");
+
+        t.RequestHide (kLongAfter);
+        t.Tick (kLongAfter);
+        Assert::IsFalse (t.IsVisible());
+    }
+
+    static bool  IsActiveForTest()   { return s_isActive; }
+
+    static inline bool  s_isActive = true;
+
+    TEST_METHOD (HoverTip_GoesWhenTheAppLosesTheForeground)
+    {
+        DxuiTooltip  t;
+
+        s_isActive = true;
+        t.SetActiveTest  (IsActiveForTest);
+        t.SetDwellOpenMs (0);
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (0);
+        Assert::IsTrue (t.IsVisible());
+        Assert::IsTrue (t.WantsTick(), L"a tick detects the change");
+
+        s_isActive = false;
+        t.Tick (1);
+        Assert::IsFalse (t.IsVisible());
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 2);
+        t.Tick (2);
+        Assert::IsFalse (t.IsVisible(), L"nor does one open while the app is in the background");
+    }
+
+    TEST_METHOD (TimedNotice_IgnoresTheForeground)
+    {
+        DxuiTooltip  t;
+
+        s_isActive = false;
+        t.SetActiveTest (IsActiveForTest);
+        t.ShowTimed (MakeRect (0, 0, 50, 20), L"a notice", 0, 1000);
+        t.Tick (1);
+        Assert::IsTrue (t.IsVisible());
+
+        t.Tick (1000);
+        Assert::IsFalse (t.IsVisible());
+    }
+
     TEST_METHOD (Request_HideBeforeShow_CancelsPending)
     {
         DxuiTooltip  t;
@@ -104,13 +162,12 @@ public:
     }
 
     //
-    //  A tip left alone dismisses itself. Without this a pointer parked on a
-    //  control -- or captured by the guest, which parks it by force -- left
-    //  the balloon on screen for the rest of the session.
+    //  A tip with a lifetime dismisses itself.
     //
     TEST_METHOD (Visible_DismissesAfterMaxLifetime)
     {
         DxuiTooltip  t;
+        t.SetHasLifetime (true);
         t.SetDwellOpenMs (100);
 
         t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
@@ -134,6 +191,7 @@ public:
     TEST_METHOD (Visible_RepeatedRequestDoesNotRenewLifetime)
     {
         DxuiTooltip  t;
+        t.SetHasLifetime (true);
         t.SetDwellOpenMs (100);
 
         t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);

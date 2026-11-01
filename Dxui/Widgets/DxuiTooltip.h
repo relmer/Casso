@@ -40,9 +40,8 @@ class DxuiTooltip : public IDxuiControl
 public:
     ~DxuiTooltip() override = default;
 
-    // How long a hover tip stays up before dismissing itself. Matches the
-    // OS default: long enough to read two lines, short enough that a parked
-    // pointer does not leave a panel sitting over the control it describes.
+    // How long a tip with a lifetime stays up before dismissing itself. Matches
+    // the OS default: long enough to read two lines.
     static constexpr int  kMaxVisibleMs = 5000;
 
     // A long tip stays up long enough to read: the system's tip lifetime, or
@@ -82,6 +81,15 @@ public:
     //  Replaces LocatePointer, so a test can put the pointer where it wants.
     void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
 
+    //  Whether a window of this process is in the foreground.
+    using ActiveTest = bool (*) ();
+
+    static bool  IsAppActive ();
+
+    //  Replaces IsAppActive for a test. With no popup host and no test, the
+    //  foreground has no effect on the tooltip.
+    void  SetActiveTest      (ActiveTest test)          { m_pfnIsActive = test; }
+
     //  The rect the tip is placed against: for a hover tip, the pointer's hot
     //  spot grown to clear the pointer's image, as the system's own tips sit;
     //  for a timed notice, its anchor.
@@ -99,9 +107,9 @@ public:
     //  A fixed-width face, for a tip whose lines are columns.
     void  SetMonospace    (bool mono) { m_monospace = mono; }
 
-    //  Whether a tip dismisses itself after a while. On by default; off for a
-    //  tip that reads out whatever the pointer rests on, which should stay
-    //  for as long as the pointer does.
+    //  Whether a hover tip is hidden after a set time. Off by default, so a tip
+    //  is up until the pointer is out of its area or another app is in the
+    //  foreground.
     void  SetHasLifetime  (bool hasLifetime) { m_hasLifetime = hasLifetime; }
 
     //  A square of a color beside each of the given lines, for a tip about
@@ -122,7 +130,7 @@ public:
     //  WS_EX_TRANSPARENT | WS_EX_LAYERED so pointer events pass
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
-    void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
+    void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; m_pfnIsActive = (m_pfnIsActive != nullptr) ? m_pfnIsActive : IsAppActive; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
@@ -158,10 +166,11 @@ public:
     bool                 IsShown   () const { return m_visible && (m_popupHost == nullptr || m_activePopup != nullptr); }
 
     // True while a dwell timer (deferred open or timed close) is still
-    // pending, so a host that idle-blocks knows to keep calling Tick on a
-    // timeout rather than sleeping until the next input/frame.
+    // pending, or a tip is up that has to be hidden if another app comes to the
+    // foreground. A host that idle-blocks calls Tick on a timeout while this is
+    // true, rather than sleeping until the next input/frame.
     bool                 WantsTick () const { return m_pending || m_fadingOut
-                                                   || (m_visible && m_hideAtMs != 0); }
+                                                   || (m_visible && (m_hideAtMs != 0 || m_pfnIsActive != nullptr)); }
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
@@ -242,7 +251,8 @@ private:
     bool                              m_pending           = false;
     bool                              m_fadingOut         = false;
     bool                              m_isInstant         = false;
-    bool                              m_hasLifetime       = true;
+    bool                              m_hasLifetime       = false;
+    ActiveTest                        m_pfnIsActive       = nullptr;
     std::vector<DxuiTooltipSwatch>    m_swatches;
     std::vector<uint32_t>             m_lineArgbs;
     bool                              m_isSwatchChanged   = false;

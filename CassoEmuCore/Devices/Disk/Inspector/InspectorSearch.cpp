@@ -722,6 +722,32 @@ bool InspectorGoTo::IsOnTrack (GoToKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorGoTo::GetKinds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<GoToKind> InspectorGoTo::GetKinds (const DiskAnalysis & analysis)
+{
+    vector<GoToKind>  kinds = { GoToKind::Track, GoToKind::PhysicalSector, GoToKind::Dos33Sector, GoToKind::ProDosBlock, GoToKind::NibbleOffset, GoToKind::Cell, GoToKind::File };
+    int               low   = 0;
+    int               high  = 0;
+
+
+
+    if (!GetBlockRange (analysis, low, high))
+    {
+        kinds.erase (std::remove (kinds.begin(), kinds.end(), GoToKind::ProDosBlock), kinds.end());
+    }
+
+    return kinds;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorGoTo::GetRangeHint
 //
 //  What an entry of a kind may be, for the dialog's line under the entry:

@@ -262,6 +262,34 @@ bool DxuiTooltip::LocatePointer (HWND owner, POINT & outClientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsAppActive
+//
+//  With no foreground window, as during a switch between windows, the app
+//  counts as active.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTooltip::IsAppActive()
+{
+    HWND   foreground = GetForegroundWindow();
+    DWORD  processId  = 0;
+
+
+
+    if (foreground != nullptr)
+    {
+        GetWindowThreadProcessId (foreground, &processId);
+    }
+
+    return foreground == nullptr || processId == GetCurrentProcessId();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetSystemVisibleMs
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -436,6 +464,15 @@ void DxuiTooltip::RequestHide (int64_t nowMs)
 
 void DxuiTooltip::Tick (int64_t nowMs)
 {
+    //  A hover tip is hidden when another app is in the foreground, since the
+    //  app's windows then get no pointer messages to dismiss it. A timed notice
+    //  ends at its set time.
+    if (m_isPointerTip && (m_pending || m_visible) && m_pfnIsActive != nullptr && !m_pfnIsActive())
+    {
+        m_pending = false;
+        FinishHide();
+    }
+
     if (m_pending && nowMs >= m_showAtMs)
     {
         m_anchor   = m_pendingAnchor;
@@ -443,13 +480,9 @@ void DxuiTooltip::Tick (int64_t nowMs)
         m_visible  = true;
         m_pending  = false;
 
-        // A TOOLTIP HAS A LIFETIME, unless its owner turned that off for a
-        // tip that reads out what the pointer rests on. A hover tip used to set no hide time at
-        // all, so it stayed up for as long as the pointer rested -- and a
-        // pointer that has been captured, or simply parked, rests forever.
-        // The OS dismisses its own after a few seconds for the same reason:
-        // the tip has been read by then, and what is left is an obstruction
-        // sitting over the thing it was explaining.
+        // A hover tip has no hide time unless SetHasLifetime turned that on. A
+        // caller that captures the pointer calls HideImmediate as the capture
+        // starts, since no later move dismisses the tip.
         m_hideAtMs = GetHideAtMs (nowMs);
 
         ShowPopup();

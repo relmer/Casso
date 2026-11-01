@@ -68,9 +68,9 @@ void DxuiInfoTip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //
 //  DxuiInfoTip::OnMouse
 //
-//  Shows the tip while the pointer is over the glyph and hides it once the
-//  pointer moves off or leaves the window, and opens it at once on a press.
-//  Consumes only the press, never a move.
+//  Requests the tip while the pointer is over the glyph and hides it once the
+//  pointer is off the glyph or out of the window. A press opens it at once for
+//  the same span as a hover. Consumes only the press, never a move.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +86,11 @@ bool DxuiInfoTip::OnMouse (const DxuiMouseEvent & ev)
 
     if (inside && ev.kind == DxuiMouseEventKind::Down)
     {
-        Open();
+        if (!m_text.empty())
+        {
+            m_tooltip.RequestShowNow (bounds, m_text, nowMs);
+        }
+
         handled = true;
     }
     else if (inside && !m_text.empty())
@@ -163,7 +167,8 @@ void DxuiInfoTip::OnFocusChanged (bool focused)
 //
 //  DxuiInfoTip::Open
 //
-//  Shows the tip with no dwell, for as long as a hovered tip would stay.
+//  The tip with no dwell and a set time, for a key press, as the pointer may
+//  be nowhere near the tip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
