@@ -469,3 +469,15 @@ the result. The laptop session stays off these files until the phase ends.
 
 `/speckit-tasks` generates tasks.md following the seven phases, one
 commit per phase, with the 032 merge as the first task of phase 6.
+
+## Phase 30: Group by, Search options and menus (Session 2026-10-31)
+
+`GroupChoices` has File Explorer's Group by rows per folder type. `RowGrouping` adds fixed fields for Folder, Original Location, Date Deleted and Relevance, and a range of fields for property columns. `Win32PropertyColumns` reads each value's group label on its thread, and `ExplorerListPane` rearranges rows as values arrive.
+
+`SearchQuery::Options` follows the query in a search's id, so a search with other options is another location. Filter words go to the index as typed, and `SearchQuery::MatchesFilters` tests them again on each result. `Win32ShellSearch` walks for zips and file contents.
+
+`CassoExplorerListings` has the latest items per key. A slow read publishes progress through `IShellItemVerbs::s_listingProgress`, and an arrival is acted on only while a read is finished or under way, because a progress message that outlives its read would start another.
+
+`ExplorerListMenus::AddBackgroundRows` has the rows particular to a folder. `Win32PackagedCommands` initializes store commands from their registry key, hosts commands with `CommandSite`, and invokes them under a structured exception guard.
+
+MAC Address has no canonical name. `Win32PropertyColumns::GetKey` takes the key's text, `{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 12294`.

@@ -496,6 +496,20 @@ hardware.
   behavior and lands before the owner's final manual passes, with the //c
   walkthrough moved to 2026-10-28, so no pass is repeated after it.
 
+### Session 2026-10-31
+
+- Q: Which rows does Group by offer? -> A: File Explorer's for the folder's type, read from its menus: generic, Documents and Downloads, OneDrive, search results, This PC, Pictures, Music, Videos, Gallery, Recycle Bin, Network, Zip and Home. Any extra column on display is offered too. (None) is offered only while the folder is grouped. More opens Choose Details.
+- Q: How are property groups labeled? -> A: As File Explorer labels them: ranges from the property's description, date groups for a date, drive ranges from Windows' table, percentages in tens. A value of several parts lists its item under each part.
+- Q: What does an item listed under several groups do when more than one of its rows is selected? -> A: A command acts on it once.
+- Q: Does sorting or grouping by a property wait for its values? -> A: No. Rows take their place as values arrive, at most once a second and again when the last arrive, so a slow device or a large folder never stalls the window.
+- Q: What groupings do folders open with? -> A: File Explorer's defaults until the user chooses otherwise: Network in Tiles grouped by Category, Downloads by Date modified newest first, This PC by Type.
+- Q: Which Search options are there? -> A: File Explorer's: All subfolders or Current folder, Date modified, Kind and Size, System files, Zipped (compressed) folders, File contents, and Change indexed locations. A date, kind or size goes in the search box as a word of its syntax, and choosing it again removes it. Where the index can't answer, these words are tested against each file. File contents has no size limit.
+- Q: How does a slow folder such as Network load? -> A: Rows appear as the read finds them, because Network has its devices in seconds and its read runs up to half a minute more. While a folder is read again, its rows stay on screen until the new read finishes. Which devices are listed varies with network discovery.
+- Q: Which rows does the background menu of a folder have? -> A: File Explorer's: This PC has Add a network location and Properties, the Recycle Bin has Empty Recycle Bin and Properties, a zip has Extract All, Libraries has New. Each then has the installed apps' commands and the row for more options. On a folder not on the disk, a command that is also listed with Network as its item is omitted, which omits Beyond Compare as File Explorer's menus do. This rule is inferred from those menus.
+- Q: What happens when a shell command faults? -> A: The command fails with a message, and the window stays open. Commands from the command store are initialized from their registry key, as File Explorer does, and have a site and a selection when invoked.
+- Q: How does a search result's Folder and Path read? -> A: As the shell displays them, so Recent reads Recent Items. An item inside a zip has its path.
+- Q: Does a typed path open a zip? -> A: Yes, and a typed shell name for This PC opens the This PC root.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2024,6 +2038,13 @@ source and read the manifest. Repeat on a real //c with real floppies.
   Esc MUST be ignored during a session. The screen MUST show
   `Q: BACK TO CASSOLINK`, and the session's rows MUST NOT be under the history's
   heading.
+- **FR-117**: Group by MUST offer File Explorer's rows for the folder's type, any extra column on display, (None) only while grouped, and More, with File Explorer's group labels. An item with a value of several parts is listed under each part, and a command acts on it once.
+- **FR-118**: Sorting or grouping by a property MUST NOT wait on the window's thread for its values.
+- **FR-119**: Network, Downloads and This PC MUST open with File Explorer's default grouping until the user chooses otherwise, and Network in Tiles.
+- **FR-120**: Search results MUST have File Explorer's Search options, with date, kind and size filters applied with or without the index.
+- **FR-121**: A slow folder's rows MUST appear as they are read, and while a folder is read again its rows MUST stay on screen until the read finishes.
+- **FR-122**: The list's background menu MUST have File Explorer's rows for This PC, the Recycle Bin, Home, Network, Libraries and a zip.
+- **FR-123**: A shell command MUST be initialized and hosted as File Explorer hosts it, and one that faults MUST NOT close the window.
 
 ### Key Entities
 
@@ -2200,6 +2221,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **SC-039**: In a full send that includes a duplicate and a disk with an
   unreadable sector, the manifest lists both correctly, no duplicate image is
   on the PC, and the session continues past each.
+- **SC-040**: The window's thread doesn't stall for more than 100 ms when Network opens or when a folder of thousands of files is grouped by a property, and Network's first rows appear within 5 seconds.
+- **SC-041**: The Group by and background menus of each folder type match File Explorer's rows, except Gallery's background menu, which couldn't be read from File Explorer.
 
 ## Assumptions
 

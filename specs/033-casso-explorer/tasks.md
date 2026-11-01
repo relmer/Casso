@@ -1502,3 +1502,20 @@ The product-wide styles are GitHub issue #179.
 - [X] T330 Add a scenario test that presses F, runs a session, presses Q and reads a catalog, per US17/AC9
 - [ ] T326 Walk quickstart section 7c on a real //c with real floppies, per SC-038 and SC-039 (missing)
 - [ ] T331 Read a whole disk from a real //c over serial into each image format (.dsk, .do, .po, .woz, .nib, .nb2), write each of those images back to a real floppy, and compare the sectors with the source disk, per quickstart section 7b
+
+## Phase 30: Group by, Search options and menus
+
+Session 2026-10-31. The owner's //c passes, T326 and T331, follow this phase.
+
+- [X] T332 Add `GroupChoices` with File Explorer's rows per folder type, property fields in `RowGrouping`, hidden columns for a property grouped by, and (None) only while grouped, per FR-117
+- [X] T333 Label property groups from the property's description, Windows' drive ranges and percentages, and list a value of several parts under each, per FR-117
+- [X] T334 Group Home as a list, with ordinary cells, and return to its sections on (None), per FR-117
+- [X] T335 Read properties grouped or sorted by off the window's thread, rearranging as they arrive, per FR-118 and SC-040
+- [X] T336 Add the default groupings of Network, Downloads and This PC, per FR-119
+- [X] T337 Add Search options, with filters tested where the index can't answer, current folder, system files, zipped folders and file contents, per FR-120
+- [X] T338 Publish a slow listing as it is read, and list the latest rows during a read, per FR-121 and SC-040
+- [X] T339 Add the background rows of This PC, the Recycle Bin, Home, a zip and Libraries, per FR-122 and SC-041
+- [X] T340 Initialize store commands, set a site and a selection on commands, and guard against a faulting command, per FR-123
+- [X] T341 Display a search result's folder as the shell does, read the path of an item in a zip, and open typed zip and This PC paths
+- [X] T342 Add `ScenarioTests/CassoExplorerShellSearchTests.cpp` for search options, zip paths, drive ranges and Home's ids, against real files
+
