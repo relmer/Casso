@@ -321,6 +321,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: The Mockingboard panel had rows for the 6522s and AY chips only. Does it include the speech chip? -> A: Yes, now, ahead of the rest of the panel work in T627, which also gains the voice (FR-332).
 - Q: Are the speech chip's writes decoded in the sound log? -> A: Yes, now (FR-333).
+- Q: Does the rest of T627's Mockingboard panel wait for a later spec? -> A: No. The owner: "just do all of 627 here... make it super sexy." A graphical view replaces the list and meters on the panel's pane, and the rows remain for the PANEL text (FR-334 to FR-341).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3540,6 +3541,41 @@ run something, switch back to the //e: it is where it was left.
 - **FR-333**: The sound log MUST have an entry for each write to the
   SSI-263, decoded by register, with a source of its own in the Source column's
   filter.
+
+- **FR-334**: The Mockingboard panel's pane MUST consist of one graphical view
+  that fills the pane, scrolls when its content is taller than the pane, and
+  reflows into columns by width. Its labels MUST be in sentence case, and its
+  colors MUST come from the theme in force.
+
+- **FR-335**: The view MUST have, per AY-3-8910, the chip's 6522 and slot
+  address, an IRQ lamp and the noise frequency. Per channel A, B and C it MUST
+  have a mute toggle, the note name with cents, the frequency, tone and noise
+  indicators, a segmented level meter with the numeric volume and an envelope
+  mark, and a live triggered waveform scope. The envelope MUST be drawn as a picture of its level over time, with its R13 value, the ramp time and a marker at the current level.
+
+- **FR-336**: The view MUST have, per 6522, the bus state, the AY write count,
+  the last AY register write (for example R9=$05), ORA, ORB, DDRA, DDRB, ACR,
+  PCR, IFR, IER, the T1 counter and latch, the T2 counter, the T1 rate in Hz,
+  and RUN, FIRED and T1 IRQ lamps.
+
+- **FR-337**: On a card with the speech chip, the view MUST have the phoneme
+  playing by name with its example word, a strip of the recent phonemes with
+  widths in proportion to their durations, the three formants as a picture on
+  a logarithmic frequency axis with the pitch, a level meter, a mute toggle, a
+  live waveform scope, power, sounding and request lamps, and the mode,
+  duration, rate, articulation, amplitude and filter.
+
+- **FR-338**: A mute MUST change the host's audio only. It MUST NOT be saved
+  in machine state or change the machine's behavior, history or replay, and a muted channel's signal MUST remain in its scope.
+
+- **FR-339**: Capture for the scopes MUST cost one test per sample while the
+  panel is closed, and MUST stop without any other action after the panel
+  closes.
+
+- **FR-340**: The AY write count, the last AY write and the recent phonemes
+  MUST be saved in machine state, so a rewind restores them, and states saved without them MUST load.
+
+- **FR-341**: A tip on each of the view's parts MUST contain the raw register values behind it.
 
 ### Key Entities
 
