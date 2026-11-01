@@ -18,6 +18,8 @@
 static constexpr float  s_kIndexMarkDip     = 10.0f;
 static constexpr float  s_kIndexLabelDip    = 36.0f;
 static constexpr float  s_kIndexStepDip     = 6.0f;
+static constexpr float  s_kIndexGapDip      = 3.0f;
+static constexpr float  s_kIndexLineDip     = 10.0f;
 static constexpr float  s_kIndexButtonDip   = 64.0f;
 static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
@@ -1098,9 +1100,10 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintIndexLabel
 //
-//  The index mark's label off the disk, where a line joins it to the mark: the
-//  nearest place along the rim's tangent at the mark where the label is in the
-//  view, clear of the corner buttons and off the disk.
+//  The index mark's label off the disk: the nearest place along the rim's
+//  tangent, past the mark, where the label is in the view, clear of the corner
+//  buttons and off the disk. A line toward the label's center joins them,
+//  stopping short of the mark and of the text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1114,37 +1117,60 @@ void PlatterView::PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & t
     float   w      = m_scaler.ToPxf (s_kIndexLabelDip);
     float   h      = textPx * 1.5f;
     float   step   = m_scaler.ToPxf (s_kIndexStepDip);
+    float   gap    = m_scaler.ToPxf (s_kIndexGapDip);
+    float   away   = m_scaler.ToPxf (s_kIndexLineDip) + 2 * gap + h / 2;
     double  rim    = view.outerRadiusPx + 2.0f + m_scaler.ToPxf (s_kIndexMarkDip);
     float   tipX   = 0.0f;
     float   tipY   = 0.0f;
     float   nextX  = 0.0f;
     float   nextY  = 0.0f;
+    float   outX   = 0.0f;
+    float   outY   = 0.0f;
     float   cx     = 0.0f;
     float   cy     = 0.0f;
     float   len    = 0.0f;
+    float   textW  = 0.0f;
+    float   textH  = 0.0f;
     bool    isDone = false;
 
 
 
     PlatterGeometry::ProjectAt (view, 0.0, rim, tipX, tipY);
     PlatterGeometry::ProjectAt (view, 0.25 / (s_kTwoPi * rim) * 4.0, rim, nextX, nextY);
+    PlatterGeometry::ProjectAt (view, 0.0, rim + 1.0, outX, outY);
 
     len   = std::max (std::hypot (nextX - tipX, nextY - tipY), 1e-3f);
     nextX = (nextX - tipX) / len;
     nextY = (nextY - tipY) / len;
+    len   = std::max (std::hypot (outX - tipX, outY - tipY), 1e-3f);
+    outX  = (outX - tipX) / len;
+    outY  = (outY - tipY) / len;
+
+    text.MeasureString (L"Index", textPx, DxuiTheme::kBodyFace, textW, textH);
 
     for (int k = 0; k < kTries && !isDone && tipX >= m_boundsDip.left && tipX <= m_boundsDip.right && tipY >= m_boundsDip.top && tipY <= m_boundsDip.bottom; k++)
     {
         for (float side : { 1.0f, -1.0f })
         {
-            cx = tipX + side * nextX * step * k;
-            cy = tipY + side * nextY * step * k;
+            cx = tipX + outX * away + side * nextX * step * k;
+            cy = tipY + outY * away + side * nextY * step * k;
 
             if (!isDone && IsIndexLabelClear (view, cx, cy, w, h))
             {
+                float  dx    = cx - tipX;
+                float  dy    = cy - tipY;
+                float  dist  = std::max (std::hypot (dx, dy), 1e-3f);
+                float  scale = std::min ((std::abs (dx) > 1e-3f) ? (textW / 2 + gap) / std::abs (dx) : FLT_MAX,
+                                         (std::abs (dy) > 1e-3f) ? (textH / 2 + gap) / std::abs (dy) : FLT_MAX);
+
                 isDone = true;
 
-                painter.DrawLine (tipX, tipY, std::clamp (tipX, cx - w / 2, cx + w / 2), std::clamp (tipY, cy - h / 2, cy + h / 2), 1.0f, theme.ForegroundMuted());
+                //  The line ends a gap short of the text's box.
+                if (dist * (1.0f - scale) > gap)
+                {
+                    painter.DrawLine (tipX + dx / dist * gap, tipY + dy / dist * gap, cx - dx * scale, cy - dy * scale, 1.0f, theme.ForegroundMuted());
+                }
+
                 text.DrawString (L"Index", cx - w / 2, cy - h / 2, w, h, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
                                  DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             }

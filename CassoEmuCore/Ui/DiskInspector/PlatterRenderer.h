@@ -66,7 +66,7 @@ public:
     static constexpr double kDefaultRange  = 0.05;
 
     HRESULT  Initialize (ID3D11Device * pDevice);
-    void     SetRing    (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing = nullptr, bool isEcho = false);
+    void     SetRing    (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing = nullptr, bool isEcho = false, std::shared_ptr<const Levels> edges = nullptr);
     void     SetTiming  (bool isTimingMode, double range);
     void     SetPalette (const DiskInspectorPalette & palette);
     HRESULT  Render     (const DxuiCustomDrawArgs & args, const PlatterPlacement & view);
@@ -101,6 +101,7 @@ private:
         PlatterRingState               state  = PlatterRingState::Nothing;
         std::shared_ptr<const Levels>  levels;
         std::shared_ptr<const Levels>  timing;
+        std::shared_ptr<const Levels>  edges;
         bool                           isEcho = false;
     };
 
@@ -118,6 +119,8 @@ private:
     ComPtr<ID3D11ShaderResourceView>    m_kindsView;
     ComPtr<ID3D11Texture2D>             m_timing;
     ComPtr<ID3D11ShaderResourceView>    m_timingView;
+    ComPtr<ID3D11Texture2D>             m_edges;
+    ComPtr<ID3D11ShaderResourceView>    m_edgesView;
     ComPtr<ID3D11RasterizerState>       m_raster;
     UINT                                m_kindRows     = 0;
     std::array<Ring, kRingCount>        m_ringData;

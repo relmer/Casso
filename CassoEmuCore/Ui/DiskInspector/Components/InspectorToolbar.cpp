@@ -301,6 +301,7 @@ std::wstring InspectorToolbar::GetTip (POINT pointPx, RECT & outAnchorPx) const
     RECT             modes  = m_modes->GetBounds();
     RECT             down   = m_rangeDown->GetBounds();
     RECT             up     = m_rangeUp->GetBounds();
+    RECT             range  = m_rangeLabel->GetBounds();
     const wchar_t  * tool   = nullptr;
     std::wstring     tip;
 
@@ -316,6 +317,12 @@ std::wstring InspectorToolbar::GetTip (POINT pointPx, RECT & outAnchorPx) const
         tip         = (m_modes->HitTest (pointPx.x, pointPx.y) == 0) ? L"Structure: color the platter by what each cell contains"
                                                                      : L"Timing: color flux tracks by how fast or slow each cell runs";
         outAnchorPx = modes;
+    }
+    else if (m_rangeLabel->IsVisible() && PtInRect (&range, pointPx))
+    {
+        tip         = std::format (L"A cell {}{} or more from the nominal 3.91 {}s is full fast or slow color.\nCloser cells blend toward the nominal color. A narrower range makes smaller differences visible.",
+                                   s_kpszPlusMinus, InspectorFormat::FormatPercent (m_session.context.timingRange).substr (1), s_kpszMicro);
+        outAnchorPx = range;
     }
     else if (m_rangeDown->IsVisible() && PtInRect (&down, pointPx))
     {

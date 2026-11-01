@@ -22,7 +22,7 @@ static constexpr float  s_kColumnGapDip = 16.0f;
 //  PlatterLegendView::Paint
 //
 //  Each section under its title, its entries in a grid of kColumns columns
-//  filled row by row, then its note.
+//  filled row by row or, with descriptions, one to a row, then its note.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,18 +45,22 @@ void PlatterLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
         y += rowH;
 
+        int  columns = GetColumnCount (section);
+
         for (size_t i = 0; i < section.entries.size(); i++)
         {
-            float  x  = left + static_cast<float> (i % kColumns) * columnW;
-            float  ey = y + static_cast<float> (i / kColumns) * rowH;
+            float  x  = left + static_cast<float> (i % columns) * columnW;
+            float  ey = y + static_cast<float> (i / columns) * rowH;
 
             painter.FillRect    (x, ey + (rowH - swatch) / 2, swatch, swatch, section.entries[i].argb);
             painter.OutlineRect (x, ey + (rowH - swatch) / 2, swatch, swatch, 1.0f, theme.Border());
             text.DrawString (section.entries[i].label.c_str(), x + swatch + gap, ey, columnW - swatch - gap, rowH, theme.Foreground(), textPx,
                              DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            text.DrawString (section.entries[i].description.c_str(), x + columnW, ey, GetWidth() - pad - x - columnW, rowH, theme.ForegroundMuted(), textPx,
+                             DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
 
-        y += static_cast<float> ((section.entries.size() + kColumns - 1) / kColumns) * rowH;
+        y += static_cast<float> ((section.entries.size() + columns - 1) / columns) * rowH;
 
         if (!section.note.empty())
         {
@@ -110,14 +114,15 @@ float PlatterLegendView::GetColumnDip (IDxuiTextRenderer & text, const Inspector
 //
 //  PlatterLegendView::GetWidthDip
 //
-//  The columns side by side, or a title or note, whichever is widest, and
-//  the padding.
+//  The columns side by side, a label's column and its description, or a title
+//  or note, whichever is widest, and the padding.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int PlatterLegendView::GetWidthDip (IDxuiTextRenderer & text, const InspectorViewContext & context)
 {
-    float  widest = GetColumnDip (text, context) * kColumns;
+    float  column = GetColumnDip (text, context);
+    float  widest = 0;
     float  w      = 0;
     float  h      = 0;
 
@@ -130,9 +135,36 @@ int PlatterLegendView::GetWidthDip (IDxuiTextRenderer & text, const InspectorVie
             text.MeasureString (line.c_str(), kSmallDip, DxuiTheme::kBodyFace, w, h);
             widest = std::max (widest, w);
         }
+
+        widest = std::max (widest, column * GetColumnCount (section));
+
+        for (const LegendEntry & entry : section.entries)
+        {
+            text.MeasureString (entry.description.c_str(), kSmallDip, DxuiTheme::kBodyFace, w, h);
+            widest = std::max (widest, entry.description.empty() ? 0.0f : column + w);
+        }
     }
 
     return static_cast<int> (std::ceil (widest)) + 2 * kPadDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterLegendView::GetColumnCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PlatterLegendView::GetColumnCount (const LegendSection & section)
+{
+    bool  hasDescriptions = std::any_of (section.entries.begin(), section.entries.end(), [] (const LegendEntry & entry) { return !entry.description.empty(); });
+
+
+
+    return hasDescriptions ? 1 : kColumns;
 }
 
 
@@ -153,7 +185,7 @@ int PlatterLegendView::GetHeightDip() const
 
     for (const LegendSection & section : BuildSections (m_context))
     {
-        rows += 2 + static_cast<int> ((section.entries.size() + kColumns - 1) / kColumns) * 2 + (section.note.empty() ? 0 : 2) + 1;
+        rows += 2 + static_cast<int> ((section.entries.size() + GetColumnCount (section) - 1) / GetColumnCount (section)) * 2 + (section.note.empty() ? 0 : 2) + 1;
     }
 
     return rows * kRowDip / 2 + 2 * kPadDip;
@@ -184,7 +216,9 @@ vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewConte
     sections.push_back ({ context.isTimingMode ? L"Platter timing" : L"Platter structure",
                           BuildEntries (context.palette, context.isTimingMode, context.timingRange), GetNote (context.isTimingMode) });
 
-    sections.push_back ({ L"Head", { { context.palette.colors.headIdle, L"Idle" }, { context.palette.colors.headReading, L"Reading" }, { context.palette.colors.headWriting, L"Writing" } },
+    sections.push_back ({ L"Head", { { context.palette.colors.headIdle, L"Idle", L"The machine isn't reading or writing the disk" },
+                                     { context.palette.colors.headReading, L"Reading", L"The machine is reading the track under the head" },
+                                     { context.palette.colors.headWriting, L"Writing", L"The machine is writing the track under the head" } },
                           L"A cross on the head indicates a blocked write." });
 
     if (context.isFilesOverlay && context.fileMap != nullptr && context.fileMap->notMapped == NotMappedReason::None)
@@ -228,24 +262,24 @@ vector<LegendEntry> PlatterLegendView::BuildEntries (const DiskInspectorPalette 
 
     if (isTimingMode)
     {
-        entries.push_back ({ c.timingFast,    L"Fast cells (" + std::wstring (s_kpszMinus) + percent + L")" });
-        entries.push_back ({ c.timingNominal, L"Nominal 3.91 " + std::wstring (s_kpszMicro) + L"s" });
-        entries.push_back ({ c.timingSlow,    L"Slow cells (+" + percent + L")" });
+        entries.push_back ({ c.timingFast,    L"Fast cells (" + std::wstring (s_kpszMinus) + percent + L")", L"Cells this much shorter than nominal or more" });
+        entries.push_back ({ c.timingNominal, L"Nominal 3.91 " + std::wstring (s_kpszMicro) + L"s", L"The standard cell length; closer cells blend toward this color" });
+        entries.push_back ({ c.timingSlow,    L"Slow cells (+" + percent + L")", L"Cells this much longer than nominal or more" });
     }
     else
     {
-        entries.push_back ({ c.sync,            L"Sync" });
-        entries.push_back ({ c.addressMark,     L"Address marks" });
-        entries.push_back ({ c.addressField,    L"Address field" });
-        entries.push_back ({ c.dataMark,        L"Data marks" });
-        entries.push_back ({ c.dataField,       L"Data field" });
-        entries.push_back ({ c.failedChecksum,  L"Failed checksum" });
-        entries.push_back ({ c.other,           L"Other" });
-        entries.push_back ({ c.noise,           L"Noise" });
-        entries.push_back ({ c.randomBits,      L"Random bits" });
-        entries.push_back ({ c.nothingRecorded, L"Nothing recorded" });
-        entries.push_back ({ c.damageHatch,     L"Damaged" });
-        entries.push_back ({ c.pendingPattern,  L"Analyzing" });
+        entries.push_back ({ c.sync,            L"Sync",             L"$FF nibbles with extra 0 bits, which bring a read into step with the nibbles" });
+        entries.push_back ({ c.addressMark,     L"Address marks",    L"The bytes before and after an address field" });
+        entries.push_back ({ c.addressField,    L"Address field",    L"A sector's volume, track, sector number and checksum" });
+        entries.push_back ({ c.dataMark,        L"Data marks",       L"The bytes before and after a data field" });
+        entries.push_back ({ c.dataField,       L"Data field",       L"A sector's contents" });
+        entries.push_back ({ c.failedChecksum,  L"Failed checksum",  L"A field whose contents don't match its stored checksum" });
+        entries.push_back ({ c.other,           L"Other",            L"Valid nibbles outside any standard field, such as gaps or copy protection" });
+        entries.push_back ({ c.noise,           L"Noise",            L"A nibble with three 0 cells in a row, which no valid disk byte has" });
+        entries.push_back ({ c.randomBits,      L"Random bits",      L"A long stretch with no flux transitions, where a real drive reads random bits" });
+        entries.push_back ({ c.nothingRecorded, L"Nothing recorded", L"The image has no data for this quarter track" });
+        entries.push_back ({ c.damageHatch,     L"Damaged",          L"The image's data for this track can't be read" });
+        entries.push_back ({ c.pendingPattern,  L"Analyzing",        L"This track's analysis hasn't finished" });
     }
 
     return entries;

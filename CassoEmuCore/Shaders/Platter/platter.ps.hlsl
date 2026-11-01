@@ -10,7 +10,9 @@
 //  important kind under it.
 //
 //  Timing has each cell's deviation from the nominal cell, 128 at nominal
-//  and 1 and 255 at full scale, at the same texels as its kind.
+//  and 1 and 255 at full scale, at the same texels as its kind. Edges has how
+//  far along a finest-level texel its kind changes to the next texel's, in
+//  255ths, for a flux track, whose cells don't line up with the texels.
 //
 //  Texture changes brightness alone, never a ring's color (FR-149): a grain
 //  that varies from texel to texel, a line between cells once each spans
@@ -84,6 +86,7 @@ cbuffer Platter : register (b0)
 Texture2D<uint>  Kinds  : register (t0);
 Buffer<uint>     Rings  : register (t1);
 Texture2D<uint>  Timing : register (t2);
+Texture2D<uint>  Edges  : register (t3);
 
 
 
@@ -132,6 +135,13 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position, float
         uint   texel         = Rings[base + 2 + level] + index;
         int3   at            = int3 (texel % kTextureWidth, texel / kTextureWidth, 0);
         uint   value         = Kinds.Load (at);
+
+        if (level == 0 && frac (turn * count) * 255.0 >= (float) Edges.Load (at))
+        {
+            uint  next = Rings[base + 2] + (index + 1) % count;
+
+            value = Kinds.Load (int3 (next % kTextureWidth, next / kTextureWidth, 0));
+        }
 
         color = kindColors[value & 15];
 

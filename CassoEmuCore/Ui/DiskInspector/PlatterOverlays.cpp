@@ -37,11 +37,11 @@ static constexpr float    s_kMinHitDip       = 3.0f;
 static constexpr float    s_kHitEdgeDip      = 1.0f;
 static constexpr float    s_kHitSolidDip     = 24.0f;
 static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
-static constexpr uint32_t s_kHeatMinAlpha    = 0x50u;
-static constexpr uint32_t s_kHeatMaxAlpha    = 0xB8u;
-static constexpr uint32_t s_kAccessDimAlpha  = 0x70000000u;
-static constexpr uint32_t s_kVisitMinAlpha   = 0x10u;
-static constexpr uint32_t s_kVisitMaxAlpha   = 0x58u;
+static constexpr uint32_t s_kHeatMinAlpha    = 0x30u;
+static constexpr double   s_kHeatDecades     = 3.0;
+static constexpr uint32_t s_kHeatMaxAlpha    = 0xE0u;
+static constexpr float    s_kHeatWhiteShare  = 0.6f;
+static constexpr uint32_t s_kAccessDimAlpha  = 0xA0000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
@@ -1308,10 +1308,9 @@ void PlatterOverlays::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme &
 //
 //  The "Reads", "Writes" or "Scans" overlay (FR-031, FR-161), as a heat
 //  map: each sector the guest read, wrote or scanned since the disk was
-//  inserted, as an arc over its fields in the kind's color, more opaque the
-//  more times it was accessed, against the most-accessed sector on the
-//  disk on a log scale. A quarter track with no sectors, visited or
-//  written, gets a band over its whole ring, stronger the more it had.
+//  inserted, as an arc over its fields in the kind's color, and each quarter
+//  track with no sectors that was read or written as a band over its whole
+//  ring. Sectors and bands have separate scales, as they count different things.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1325,6 +1324,22 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
     uint32_t                         mostBand = 1;
     static const vector<CellSpan>    s_kNone;
     vector<vector<uint32_t>>         counts (analysis.tracks.size());
+    auto                             getBand  = [&] (int qt) -> uint32_t
+    {
+        const TrackAnalysis *  track = m_view.GetRingTrack (qt);
+        int                    slot  = analysis.entries[static_cast<size_t> (qt)].slot;
+        uint32_t               band  = 0;
+
+        //  A track with sectors is marked sector by sector; only one without
+        //  them falls back to its whole ring.
+        if (track == nullptr || track->sectors.empty())
+        {
+            band = (kind == AccessKind::Reads) ? drive.nibblesTaken[static_cast<size_t> (qt)]
+                 : (kind == AccessKind::Writes && slot >= 0 && slot < static_cast<int> (drive.recordWriteCounts.size())) ? static_cast<uint32_t> (drive.recordWriteCounts[static_cast<size_t> (slot)]) : 0;
+        }
+
+        return band;
+    };
 
 
 
@@ -1345,31 +1360,28 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
             for (size_t s = 0; s < ring.size(); s++)
             {
                 counts[static_cast<size_t> (slot)][s] += ring[s];
-                most = std::max (most, counts[static_cast<size_t> (slot)][s]);
             }
         }
     }
 
-    for (uint32_t taken : drive.nibblesTaken)
+    for (const vector<uint32_t> & slotCounts : counts)
     {
-        mostBand = std::max (mostBand, (kind == AccessKind::Reads) ? taken : 1u);
+        for (uint32_t count : slotCounts)
+        {
+            most = std::max (most, count);
+        }
     }
 
-    for (uint64_t written : drive.recordWriteCounts)
+    for (int qt = 0; qt < PlatterRenderer::kRingCount; qt++)
     {
-        mostBand = std::max (mostBand, (kind == AccessKind::Writes) ? static_cast<uint32_t> (written) : 1u);
+        mostBand = std::max (mostBand, getBand (qt));
     }
 
     for (int qt = 0; qt < PlatterRenderer::kRingCount; qt++)
     {
         const TrackAnalysis *  track   = m_view.GetRingTrack (qt);
         int                    slot    = analysis.entries[static_cast<size_t> (qt)].slot;
-        bool                   isWhole = (kind == AccessKind::Writes) ? (slot >= 0 && slot < static_cast<int> (drive.recordWriteCounts.size()) && drive.recordWriteCounts[static_cast<size_t> (slot)] > 0)
-                                       : (kind == AccessKind::Reads && drive.nibblesTaken[static_cast<size_t> (qt)] > 0);
-
-        //  A track with sectors is marked sector by sector; only one without
-        //  them falls back to its whole ring.
-        isWhole = isWhole && (track == nullptr || track->sectors.empty());
+        uint32_t               band    = getBand (qt);
 
         for (size_t s = 0; slot >= 0 && track != nullptr && !PlatterCells::IsEchoRing (analysis.copy->playedSlot, qt) && s < counts[static_cast<size_t> (slot)].size(); s++)
         {
@@ -1382,13 +1394,13 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
 
             if (count > 0)
             {
-                ShadeTrackField (painter, view, a, (b >= a) ? b : b + 1.0, qt, rgb | GetHeatAlpha (count, most));
+                ShadeTrackField (painter, view, a, (b >= a) ? b : b + 1.0, qt, GetHeatColor (rgb, count, most));
             }
         }
 
-        if (isWhole)
+        if (band > 0)
         {
-                        ShadeTrackField (painter, view, 0.0, 1.0, qt, rgb | GetBandAlpha ((kind == AccessKind::Writes) ? static_cast<uint32_t> (drive.recordWriteCounts[static_cast<size_t> (slot)]) : drive.nibblesTaken[static_cast<size_t> (qt)], mostBand));
+            ShadeTrackField (painter, view, 0.0, 1.0, qt, GetHeatColor (rgb, band, mostBand));
         }
     }
 }
@@ -1433,45 +1445,28 @@ void PlatterOverlays::DimForAccess (IDxuiPainter & painter, const PlatterPlaceme
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PlatterOverlays::GetBandAlpha
+//  PlatterOverlays::GetHeatColor
 //
-//  A whole ring's alpha, from s_kVisitMinAlpha for a count of one to
-//  s_kVisitMaxAlpha for the most on the disk, on a log scale, so a ring with a
-//  few reads is fainter than one with many even on a darker ring.
+//  A count's color on a log scale over the s_kHeatDecades below the most on the
+//  disk: faint at the bottom of the scale and below it, and nearly opaque and
+//  lightened toward white at the top. The head passes over a track with a read
+//  or two, so a scale down to the least would squeeze every real count together.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t PlatterOverlays::GetBandAlpha (uint32_t count, uint32_t most)
+uint32_t PlatterOverlays::GetHeatColor (uint32_t rgb, uint32_t count, uint32_t most)
 {
-    double  t = (most > 1) ? std::log (static_cast<double> (std::max (count, 1u))) / std::log (static_cast<double> (most)) : 1.0;
+    double    t     = 1.0 + std::log10 (static_cast<double> (std::max (count, 1u)) / std::max (most, 1u)) / s_kHeatDecades;
+    uint32_t  alpha = 0;
+    uint32_t  color = 0;
 
 
 
-    return static_cast<uint32_t> (s_kVisitMinAlpha + t * (s_kVisitMaxAlpha - s_kVisitMinAlpha)) << 24;
-}
+    t     = std::clamp (t, 0.0, 1.0);
+    alpha = s_kHeatMinAlpha + static_cast<uint32_t> (t * (s_kHeatMaxAlpha - s_kHeatMinAlpha));
+    color = DxuiColor::Lerp (rgb | 0xFF000000u, 0xFFFFFFFFu, static_cast<float> (std::max (t * 2.0 - 1.0, 0.0)) * s_kHeatWhiteShare);
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlatterOverlays::GetHeatAlpha
-//
-//  A count's alpha, from s_kHeatMinAlpha for one access to s_kHeatMaxAlpha
-//  for the most, on a log scale so a sector read a few times is visible
-//  beside one read thousands of times.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t PlatterOverlays::GetHeatAlpha (uint32_t count, uint32_t most)
-{
-    double    t     = (most > 1) ? std::log (static_cast<double> (count)) / std::log (static_cast<double> (most)) : 1.0;
-    uint32_t  alpha = s_kHeatMinAlpha + static_cast<uint32_t> (std::clamp (t, 0.0, 1.0) * (s_kHeatMaxAlpha - s_kHeatMinAlpha));
-
-
-
-    return alpha << 24;
+    return (color & 0x00FFFFFFu) | (alpha << 24);
 }
 
 

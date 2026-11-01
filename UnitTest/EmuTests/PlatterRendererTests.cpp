@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "Ui/DiskInspector/PlatterOverlays.h"
 #include "Ui/DiskInspector/PlatterRenderer.h"
 #include "WarpRenderHarness.h"
 
@@ -338,6 +339,105 @@ public:
         Assert::AreEqual (static_cast<Byte> (1), cells[2]);
         Assert::AreEqual (static_cast<Byte> (3), cells[3]);
     }
+
+
+    //  Every ring has data for the first quarter of the turn, up to an edge halfway
+    //  along the entry before the quarter's end, as on a flux track.
+    TEST_METHOD (AnEdgeMovesAKindChangeWithinItsTexel)
+    {
+        WarpRenderHarness               harness;
+        ComPtr<ID3D11Texture2D>         texture;
+        ComPtr<ID3D11RenderTargetView>  rtv;
+        DxuiPainter                     painter;
+        PlatterRenderer                 renderer;
+        PlatterPlacement                view;
+        DiskInspectorPalette            palette  = DiskInspectorPalette::MakeFallback (true);
+        vector<uint32_t>                pixels;
+        RECT                            rect     = { 0, 0, kSize, kSize };
+        vector<Byte>                    cells (16, PlatterCells::Encode (PlatterKind::Sync));
+        auto                            levels   = std::make_shared<PlatterRenderer::Levels>();
+        auto                            edges    = std::make_shared<PlatterRenderer::Levels> (1);
+        float                           outer    = kSize / 2.0f - 6.0f;
+        float                           ringPx   = (1.0f - PlatterRenderer::kInnerFraction) * outer / PlatterRenderer::kRingCount;
+        float                           radius   = outer - 20.5f * ringPx;
+
+
+
+        if (!harness.IsAvailable())
+        {
+            return;
+        }
+
+        DxuiResetUiThreadIdForTest();
+
+        AssertSucceeded (harness.MakeTarget (kSize, kSize, texture, rtv));
+        AssertSucceeded (painter.Initialize (harness.GetDevice(), harness.GetContext()));
+        AssertSucceeded (renderer.Initialize (harness.GetDevice()));
+
+        std::fill (cells.begin(), cells.begin() + 4, PlatterCells::Encode (PlatterKind::DataField));
+        PlatterCells::BuildLevels (cells, *levels);
+        (*edges)[0].assign (cells.size(), PlatterCells::kNoEdge);
+        (*edges)[0][3] = 127;
+
+        renderer.SetPalette (palette);
+
+        for (int ring = 0; ring < PlatterRenderer::kRingCount; ring++)
+        {
+            renderer.SetRing (ring, PlatterRingState::Data, levels, nullptr, false, edges);
+        }
+
+        view.centerXPx     = kSize / 2.0f;
+        view.centerYPx     = kSize / 2.0f;
+        view.outerRadiusPx = outer;
+
+        AssertSucceeded (painter.Begin (kSize, kSize, rtv.Get()));
+        painter.DrawCustom (rect, [&] (const DxuiCustomDrawArgs & args) { (void) renderer.Render (args, view); });
+        AssertSucceeded (painter.End (rtv.Get()));
+        AssertSucceeded (harness.ReadBack (texture.Get(), pixels));
+
+        Assert::IsTrue (IsShadeOf (PixelAt (pixels, 75, radius), palette.GetKindColor (PlatterKind::DataField)), L"before the edge");
+        Assert::IsTrue (IsShadeOf (PixelAt (pixels, 85, radius), palette.GetKindColor (PlatterKind::Sync)),      L"past the edge, within the same texel");
+    }
+
+
+
+    TEST_METHOD (BuildEdges_PlacesAKindChangeWithinItsEntry)
+    {
+        TrackAnalysis  analysis;
+        vector<Byte>   cells = { 1, 2, 2, 2 };
+        vector<Byte>   edges;
+
+
+
+        analysis.framed.isFlux    = true;
+        analysis.framed.cellCount = 4;
+        analysis.framed.turnTicks = 16;
+        analysis.framed.cellTicks = { 10, 2, 2, 2 };
+
+        PlatterCells::BuildEdges (analysis, cells, edges);
+
+        Assert::AreEqual (PlatterCells::kNoEdge, edges[0]);
+        Assert::AreEqual (PlatterCells::kNoEdge, edges[1]);
+        Assert::AreEqual (static_cast<Byte> (127), edges[2], L"cell 1 starts halfway along the third entry");
+        Assert::AreEqual (PlatterCells::kNoEdge, edges[3]);
+    }
+
+
+
+    TEST_METHOD (GetHeatColor_ScalesBelowTheHottestTrack)
+    {
+        uint32_t  coldest = PlatterOverlays::GetHeatColor (0x00408040u, 14000, 8000000);
+        uint32_t  hottest = PlatterOverlays::GetHeatColor (0x00408040u, 8000000, 8000000);
+        uint32_t  middle  = PlatterOverlays::GetHeatColor (0x00408040u, 300000, 8000000);
+
+
+
+        Assert::IsTrue ((coldest >> 24) < 0x50u, L"14k reads against 8M is faint");
+        Assert::IsTrue ((hottest >> 24) > 0xD0u, L"the most read is nearly opaque");
+        Assert::IsTrue ((middle >> 24) > (coldest >> 24) && (middle >> 24) < (hottest >> 24));
+        Assert::AreEqual (hottest, PlatterOverlays::GetHeatColor (0x00408040u, 5, 5), L"the hottest is at the top at any count");
+    }
+
 
 
     TEST_METHOD (TheWholeTrackOfARecordingIsNotAnEcho)

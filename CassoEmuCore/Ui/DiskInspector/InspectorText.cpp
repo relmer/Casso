@@ -343,9 +343,9 @@ std::wstring InspectorText::FormatSectorTooltip (const AnalyzedSector & sector, 
 //
 //  InspectorText::FormatAccessCounts
 //
-//  How many times the guest read, wrote and scanned a sector, as "Read: 2 times
-//  · Scanned: 1 time", leaving out each that is 0; empty when all three are
-//  (FR-161).
+//  How many times the guest read, wrote and scanned a sector, one to a line, as
+//  "Read: 2 times" over "Scanned: 1 time", leaving out each that is 0; empty when
+//  all three are (FR-161).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -359,7 +359,7 @@ std::wstring InspectorText::FormatAccessCounts (uint32_t reads, uint32_t writes,
     {
         if (item.second > 0)
         {
-            text += (text.empty() ? L"" : s_kSeparator) + std::format (L"{}: {} {}", item.first, InspectorFormat::FormatCount (item.second), (item.second == 1) ? L"time" : L"times");
+            text += (text.empty() ? L"" : L"\n") + std::format (L"{}: {} {}", item.first, InspectorFormat::FormatCount (item.second), (item.second == 1) ? L"time" : L"times");
         }
     }
 

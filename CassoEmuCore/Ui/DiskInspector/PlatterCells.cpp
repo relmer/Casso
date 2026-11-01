@@ -188,6 +188,67 @@ void PlatterCells::MapToTime (const TrackAnalysis & analysis, vector<Byte> & inO
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterCells::BuildEdges
+//
+//  MapToTime can only change kind between entries, up to a cell away from where
+//  the kind changes on a flux track. Taking `cells` before that mapping, each
+//  entry gets how far along it the first change lies, in 255ths, or kNoEdge. The
+//  platter draws the next entry's kind past that point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterCells::BuildEdges (const TrackAnalysis & analysis, const vector<Byte> & cells, vector<Byte> & outEdges)
+{
+    const FramedTrack &  framed  = analysis.framed;
+    size_t               count   = cells.size();
+    size_t               i       = 0;
+    size_t               k       = 0;
+    uint32_t             cell    = 0;
+    double               elapsed = 0;
+    double               width   = 0;
+    double               target  = 0;
+    double               end     = 0;
+
+
+
+    outEdges.assign (count, kNoEdge);
+
+    if (framed.isFlux && framed.turnTicks > 0 && framed.cellTicks.size() >= count)
+    {
+        width = static_cast<double> (framed.turnTicks) / count;
+
+        for (i = 0; i < count; i++)
+        {
+            target = i * width;
+
+            while (cell + 1 < count && elapsed + framed.cellTicks[cell] <= target)
+            {
+                elapsed += framed.cellTicks[cell];
+                cell++;
+            }
+
+            end = elapsed + framed.cellTicks[cell];
+
+            for (k = cell; k + 1 < count && end < target + width; k++)
+            {
+                if (cells[k + 1] != cells[cell])
+                {
+                    outEdges[i] = static_cast<Byte> ((end - target) / width * kNoEdge);
+                    break;
+                }
+
+                end += framed.cellTicks[k + 1];
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterCells::BuildLevels
 //
 //  Level 0 is the cells; each level after has the larger of each pair in

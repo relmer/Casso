@@ -316,7 +316,6 @@ InspectorTip InspectorTip::BuildNibbleTip (const InspectorViewContext & context,
 void InspectorTip::AddAccess (const InspectorViewContext & context, int slot, const TrackAnalysis & track, int sector)
 {
     std::array<uint32_t, 3>  counts = {};
-    std::wstring             line;
 
 
 
@@ -330,11 +329,12 @@ void InspectorTip::AddAccess (const InspectorViewContext & context, int slot, co
         }
     }
 
-    line = InspectorText::FormatAccessCounts (counts[0], counts[1], counts[2]);
-
-    if (!line.empty())
+    for (const std::array<uint32_t, 3> & one : { std::array<uint32_t, 3> { counts[0], 0, 0 }, { 0, counts[1], 0 }, { 0, 0, counts[2] } })
     {
-        AddLine (line);
+        if (one[0] + one[1] + one[2] > 0)
+        {
+            AddLine (InspectorText::FormatAccessCounts (one[0], one[1], one[2]));
+        }
     }
 }
 

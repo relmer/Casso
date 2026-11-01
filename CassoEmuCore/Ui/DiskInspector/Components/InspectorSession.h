@@ -152,6 +152,7 @@ public:
     vector<int>                              diffCells;
     Levels                                   levels;
     Levels                                   timingLevels;
+    Levels                                   edgeLevels;
     std::set<int>                            changedSlots;
     DxuiDpiScaler                            scaler;
     DxuiDpiScaler                            hostScaler;

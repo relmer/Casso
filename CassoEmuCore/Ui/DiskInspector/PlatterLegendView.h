@@ -12,8 +12,8 @@
 //
 //  LegendEntry / LegendSection
 //
-//  One color and what it means, and a titled group of them with an optional
-//  note under the group.
+//  One color, its label and optionally a sentence on what it means, and a
+//  titled group of them with an optional note under the group.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +21,7 @@ struct LegendEntry
 {
     uint32_t      argb = 0;
     std::wstring  label;
+    std::wstring  description;
 };
 
 
@@ -65,6 +66,7 @@ public:
     //  The legend's width for its entries, titles and notes, padding included.
     static int    GetWidthDip  (IDxuiTextRenderer & text, const InspectorViewContext & context);
     static float  GetColumnDip (IDxuiTextRenderer & text, const InspectorViewContext & context);
+    static int    GetColumnCount (const LegendSection & section);
 
     static vector<LegendEntry>    BuildEntries  (const DiskInspectorPalette & palette, bool isTimingMode, double range);
     static std::wstring           GetNote       (bool isTimingMode);

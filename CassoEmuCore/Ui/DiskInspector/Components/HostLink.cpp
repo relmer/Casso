@@ -172,6 +172,7 @@ void HostLink::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstri
     m_session.changedSlots.clear();
     m_session.levels.fill (nullptr);
     m_session.timingLevels.fill (nullptr);
+    m_session.edgeLevels.fill (nullptr);
 
     if (m_session.context.hasDisk)
     {
@@ -244,6 +245,7 @@ void HostLink::TakeResults()
             m_session.changedSlots.insert (result.slot);
             m_session.levels[result.slot]       = nullptr;
             m_session.timingLevels[result.slot] = nullptr;
+            m_session.edgeLevels[result.slot]   = nullptr;
         }
     }
 
@@ -575,10 +577,14 @@ void HostLink::UpdateRings()
             {
                 auto  levels = std::make_shared<PlatterRenderer::Levels>();
 
+                auto  edges  = std::make_shared<PlatterRenderer::Levels> (1);
+
                 PlatterCells::BuildCells  (*m_session.analysis.tracks[slot], cells);
+                PlatterCells::BuildEdges  (*m_session.analysis.tracks[slot], cells, (*edges)[0]);
                 PlatterCells::MapToTime   (*m_session.analysis.tracks[slot], cells);
                 PlatterCells::BuildLevels (cells, *levels);
-                m_session.levels[slot] = levels;
+                m_session.levels[slot]    = levels;
+                m_session.edgeLevels[slot] = edges;
 
                 if (m_session.analysis.tracks[slot]->framed.isFlux)
                 {
@@ -591,7 +597,7 @@ void HostLink::UpdateRings()
                 }
             }
 
-            renderer.SetRing (qt, PlatterRingState::Data, m_session.levels[slot], m_session.timingLevels[slot], PlatterCells::IsEchoRing (copy->playedSlot, qt));
+            renderer.SetRing (qt, PlatterRingState::Data, m_session.levels[slot], m_session.timingLevels[slot], PlatterCells::IsEchoRing (copy->playedSlot, qt), m_session.edgeLevels[slot]);
         }
     }
 

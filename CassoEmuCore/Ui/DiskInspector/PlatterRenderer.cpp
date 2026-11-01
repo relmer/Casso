@@ -81,13 +81,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing, bool isEcho)
+void PlatterRenderer::SetRing (int ring, PlatterRingState state, std::shared_ptr<const Levels> levels, std::shared_ptr<const Levels> timing, bool isEcho, std::shared_ptr<const Levels> edges)
 {
     if (ring >= 0 && ring < kRingCount)
     {
         m_ringData[ring].state  = state;
         m_ringData[ring].levels = std::move (levels);
         m_ringData[ring].timing = std::move (timing);
+        m_ringData[ring].edges  = std::move (edges);
         m_ringData[ring].isEcho = isEcho;
         m_isDirty               = true;
     }
@@ -149,8 +150,8 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
     D3D11_MAPPED_SUBRESOURCE    mapped      = {};
     Constants                   c           = {};
     D3D11_VIEWPORT              viewport    = {};
-    ID3D11ShaderResourceView  * views[3]    = {};
-    ID3D11ShaderResourceView  * nulls[3]    = {};
+    ID3D11ShaderResourceView  * views[4]    = {};
+    ID3D11ShaderResourceView  * nulls[4]    = {};
     const DiskInspectorColors & colors      = m_palette.colors;
     size_t                      i           = 0;
 
@@ -207,6 +208,7 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
     views[0] = m_kindsView.Get();
     views[1] = m_ringsView.Get();
     views[2] = m_timingView.Get();
+    views[3] = m_edgesView.Get();
 
     context->OMSetRenderTargets      (1, &args.target, nullptr);
     context->OMSetBlendState         (nullptr, nullptr, 0xFFFFFFFF);
@@ -219,11 +221,11 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
     context->VSSetShader             (m_vs.Get(), nullptr, 0);
     context->PSSetShader             (m_ps.Get(), nullptr, 0);
     context->PSSetConstantBuffers    (0, 1, m_constants.GetAddressOf());
-    context->PSSetShaderResources    (0, 3, views);
+    context->PSSetShaderResources    (0, 4, views);
 
     context->Draw (3, 0);
 
-    context->PSSetShaderResources (0, 3, nulls);
+    context->PSSetShaderResources (0, 4, nulls);
 
 Error:
     return hr;
@@ -240,7 +242,8 @@ Error:
 //  Lays every distinct record's levels end to end, records where each ring's
 //  levels start, and uploads both. Rings that play the same record point at
 //  the same texels. Timing levels sit at the same offsets in their own
-//  texture, nominal where a record has none.
+//  texture, nominal for a record without timing, and the edges in theirs,
+//  kNoEdge except on a record's finest level.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,6 +253,7 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
     vector<uint32_t>                       table (kRingCount * kRingStride, 0);
     vector<Byte>                           texels;
     vector<Byte>                           timing;
+    vector<Byte>                           edges;
     std::map<const Levels *, size_t>       placed;
     int                                    ring    = 0;
     size_t                                 level   = 0;
@@ -290,6 +294,15 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
                 {
                     timing.insert (timing.end(), l.size(), FluxTiming::kNominal);
                 }
+
+                if (r.edges != nullptr && level < r.edges->size() && (*r.edges)[level].size() == l.size())
+                {
+                    edges.insert (edges.end(), (*r.edges)[level].begin(), (*r.edges)[level].end());
+                }
+                else
+                {
+                    edges.insert (edges.end(), l.size(), PlatterCells::kNoEdge);
+                }
             }
         }
 
@@ -310,12 +323,14 @@ HRESULT PlatterRenderer::Upload (ID3D11DeviceContext * pContext)
     rows = std::max<UINT> (1, static_cast<UINT> ((texels.size() + kTextureWidth - 1) / kTextureWidth));
     texels.resize (static_cast<size_t> (rows) * kTextureWidth, 0);
     timing.resize (static_cast<size_t> (rows) * kTextureWidth, FluxTiming::kNominal);
+    edges.resize  (static_cast<size_t> (rows) * kTextureWidth, PlatterCells::kNoEdge);
 
     hr = EnsureKinds (rows);
     CHRA (hr);
 
     pContext->UpdateSubresource (m_kinds.Get(),  0, nullptr, texels.data(), kTextureWidth, 0);
     pContext->UpdateSubresource (m_timing.Get(), 0, nullptr, timing.data(), kTextureWidth, 0);
+    pContext->UpdateSubresource (m_edges.Get(),  0, nullptr, edges.data(),  kTextureWidth, 0);
     pContext->UpdateSubresource (m_rings.Get(), 0, nullptr, table.data(), 0, 0);
 
     m_isDirty = false;
@@ -347,6 +362,8 @@ HRESULT PlatterRenderer::EnsureKinds (UINT rows)
     m_kindsView.Reset();
     m_timing.Reset();
     m_timingView.Reset();
+    m_edges.Reset();
+    m_edgesView.Reset();
 
     desc.Width            = kTextureWidth;
     desc.Height           = rows;
@@ -367,6 +384,12 @@ HRESULT PlatterRenderer::EnsureKinds (UINT rows)
     CHRA (hr);
 
     hr = m_device->CreateShaderResourceView (m_timing.Get(), nullptr, &m_timingView);
+    CHRA (hr);
+
+    hr = m_device->CreateTexture2D (&desc, nullptr, &m_edges);
+    CHRA (hr);
+
+    hr = m_device->CreateShaderResourceView (m_edges.Get(), nullptr, &m_edgesView);
     CHRA (hr);
 
     m_kindRows = rows;

@@ -551,6 +551,7 @@ void ComparisonPart::SwapSides()
     m_session.model.SetAnalysis (m_session.context.hasDisk ? &m_session.analysis : nullptr);
     m_session.levels.fill (nullptr);
     m_session.timingLevels.fill (nullptr);
+    m_session.edgeLevels.fill (nullptr);
     m_session.changedSlots.clear();
 
     for (slot = 0; slot < static_cast<int> (m_session.analysis.tracks.size()); slot++)
