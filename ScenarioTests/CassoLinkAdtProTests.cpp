@@ -561,6 +561,7 @@ public:
         settings.name      = CassoLinkSettings::MakeName (settings);
 
         session.SetRetryInterval (200);
+        settings.use40 = true;
         AssertSucceeded (session.Start (settings));
 
         rig.Start ('D');

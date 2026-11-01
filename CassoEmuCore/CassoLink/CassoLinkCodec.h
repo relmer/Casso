@@ -101,6 +101,7 @@ public:
     //  screen, and kKeyNone once a second in a pause.
     static constexpr Byte  kSessionScreen = 0xE1;
     static constexpr Byte  kWaitForKey    = 0xE2;
+    static constexpr Byte  kSetColumns    = 0xE3;
     static constexpr Byte  kKeySpace      = 0xA0;
     static constexpr Byte  kKeyQuit       = 0xD1;
     static constexpr Byte  kKeyNone       = 0x00;
@@ -109,7 +110,7 @@ public:
     static constexpr Byte  kKeyDrive2     = 0xB2;
 
     //  The longest row on the Session screen.
-    static constexpr size_t  kSessionRowLength = 40;
+    static constexpr size_t  kSessionRowLength = 80;
 
     //  Time drive's marker, one a revolution, outside any packet.
     static constexpr Byte  kTimeMark     = 0xA5;

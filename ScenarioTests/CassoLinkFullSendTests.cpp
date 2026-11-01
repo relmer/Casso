@@ -142,7 +142,7 @@ public:
         std::shared_ptr<LinkOperation>        send;
         uint64_t                              spent = 0;
 
-        explicit Rig (DWORD shimBaud = 9600)
+        explicit Rig (DWORD shimBaud = 9600, bool use40 = true)
         {
             FixtureProvider       fixtures;
             std::vector<uint8_t>  bytes;
@@ -178,6 +178,8 @@ public:
             settings.name      = "//c";
             settings.transport = LinkTransport::Emulated;
             settings.address   = "127.0.0.1:6502";
+
+            settings.use40 = use40;
 
             AssertSucceeded (session->Start (settings));
         }
@@ -365,6 +367,29 @@ public:
         }
     }
 
+
+
+
+    //  A connection that doesn't ask for 40 columns gets 80 on a machine with them:
+    //  odd columns are in main memory, and a bar has two cells a track.
+    TEST_METHOD (ThePc_SelectsEightyColumns_OnAMachineWithThem)
+    {
+        Rig  rig (115200, false);
+
+        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
+        rig.machine.RunCycles (kCyclesPerS);
+
+        Assert::AreEqual<int> ('A' | 0x80, rig.machine.GetCpu()->ReadByte (0x0400), L"column 1 of CASSOLINK");
+        Assert::AreEqual<int> ('S' | 0x80, rig.machine.GetCpu()->ReadByte (0x0401), L"column 3");
+
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
+        rig.machine.RunCycles (kCyclesPerS);
+
+        Assert::IsFalse (rig.sink.IsDone (rig.send), L"the session waits on its entry screen");
+
+        rig.session->Cancel();
+        rig.Finish();
+    }
 
 
 

@@ -149,6 +149,7 @@ public:
             CassoLinkSession  session (factory, folder, fileIo, sink);
 
             session.SetBootstrapPause (40);
+            settings.use40 = true;
             AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
 
             while (!sink.IsDone (bootstrap) && spent < kBudget)
@@ -228,6 +229,7 @@ public:
             CassoLinkSession  session (factory, folder, fileIo, sink);
 
             session.SetBootstrapPause (40);
+            settings.use40 = true;
             AssertSucceeded (session.Start (settings));
 
             auto  list = session.Enumerate (2, FilePath());
@@ -287,6 +289,8 @@ public:
 
         {
             CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            settings.use40 = true;
 
             AssertSucceeded (session.Start (settings));
 
@@ -349,6 +353,8 @@ public:
 
         {
             CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            settings.use40 = true;
 
             AssertSucceeded (session.Start (settings));
 
@@ -492,6 +498,8 @@ public:
             CassoLinkSession  session (factory, folder, fileIo, sink);
 
             auto  started = std::chrono::steady_clock::now();
+
+            settings.use40 = true;
 
             AssertSucceeded (session.Start (settings));
 

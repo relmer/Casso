@@ -231,6 +231,7 @@ public:
             CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
 
             session.SetRetryInterval (kRetryMs);
+            settings.use40 = true;
             AssertSucceeded (session.Start (settings));
 
             auto  list = rig.Finish (session.Enumerate (2, FilePath()));
@@ -261,6 +262,7 @@ public:
             CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
 
             session.SetRetryInterval (kRetryMs);
+            settings.use40 = true;
             AssertSucceeded (session.Start (settings));
 
             auto  list = rig.Finish (session.Enumerate (2, FilePath()));
@@ -281,6 +283,7 @@ public:
             rig.machine.GetCpu()->WriteByte ((Word) (ready + 14), (Byte) (rig.machine.GetCpu()->ReadByte ((Word) (ready + 14)) ^ version ^ (Byte) (version - 1)));
 
             session.SetRetryInterval (kRetryMs);
+            settings.use40 = true;
             AssertSucceeded (session.Start (settings));
 
             auto  list = rig.Finish (session.Enumerate (2, FilePath()));
@@ -331,6 +334,7 @@ public:
             CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
 
             session.SetRetryInterval (kRetryMs);
+            settings.use40 = true;
             AssertSucceeded (session.Start (settings));
 
             auto  list = rig.Finish (session.Enumerate (2, FilePath()));
@@ -395,6 +399,7 @@ public:
             CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
 
             session.SetRetryInterval (kRetryMs);
+            settings.use40 = true;
             AssertSucceeded (session.Start (settings));
 
             auto  list = rig.Finish (session.Enumerate (2, FilePath()));

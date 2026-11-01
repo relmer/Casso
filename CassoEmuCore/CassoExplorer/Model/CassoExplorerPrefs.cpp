@@ -318,6 +318,11 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
         fields.emplace_back ("folder",        JsonValue (TextEncoding::WideToNarrow (link.folder)));
     }
 
+    if (link.use40)
+    {
+        fields.emplace_back ("use40",         JsonValue (true));
+    }
+
     if (link.userDisconnected)
     {
         fields.emplace_back ("disconnected",  JsonValue (true));
@@ -370,6 +375,7 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
         value.HasString ("port",    outLink.port);
         value.HasString ("address", outLink.address);
         value.HasBool   ("hardwareHandshake", outLink.hardwareHandshake);
+        value.HasBool   ("use40", outLink.use40);
         value.HasBool   ("disconnected", outLink.userDisconnected);
         value.HasString ("lastPort", outLink.lastPort);
         value.HasInt    ("lastUsed", outLink.lastUsed);

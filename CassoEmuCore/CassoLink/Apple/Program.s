@@ -27,6 +27,8 @@
 ;   Session screen  whether a full send is active, its tone, and its rows' text,
 ;                   each ending in a zero: drawn, the tone sounded, and Ready
 ;                   again; not active clears them and ends the session
+;   Set columns     1 for 80 columns where the machine has them, 0 for 40: the
+;                   screen drawn again, and Ready again
 ;   Wait for key    a full send's pause, with the prompt's lines, each ending in a
 ;                   zero: drawn with the motor off,
 ;                   Key with its code on Space, Q, 1 or 2, Key with 0 each
@@ -153,6 +155,7 @@ CMDTIME   = $DE
 CMDEXIT   = $DF
 CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
 CMDSCREEN = $E1                 ; a full send's screen
+CMDCOLS   = $E3                 ; 40 or 80 columns
 CMDKEY    = $E2                 ; Wait for key, and the key in reply
 SHIM      = $3B00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
@@ -419,7 +422,10 @@ notload: cmp #CMDEXIT
 notexit: cmp #CMDSCREEN
         bne notscreen
         jmp doscreen
-notscreen: cmp #CMDKEY
+notscreen: cmp #CMDCOLS
+        bne notcols
+        jmp docols
+notcols: cmp #CMDKEY
         bne tomain
         jmp dowaitkey
 tomain: jmp main
@@ -433,6 +439,7 @@ tomain: jmp main
 ; start when there is no DOS.
 exitlink: sei
         cld
+        jsr col40
         ldx #$FF
         txs
         ldx diskx
@@ -551,11 +558,13 @@ ggdone: rts
 ; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
         ifdef W5100
-doload: jsr flush
+doload: jsr col40
+        jsr flush
         jsr rxdone
         jmp SHIM
         else
-doload: ldx slotx
+doload: jsr col40
+        ldx slotx
         lda ACIACTL,x
         sta SHIMSPEED
         and #$0F
@@ -2577,6 +2586,7 @@ ROWHIST = $0728                 ; row 14: the history's title, its lines below
 LOGROWS = 8                     ; the history's lines, rows 15 to 22
 BARCELLS = 35                   ; one a track
 BARTEXT = 14                    ; the column of the track and sector over the bar
+BARTEXTW = 31                   ; and in 80 columns, where a track has two cells
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
 FSKEYSCOL = 10                  ; and in a full send
@@ -2606,33 +2616,97 @@ dsclear: sta $0400,y
         sta $0700,y
         iny
         bne dsclear
-        ldx #0
-dsline: lda labels+1,x          ; row low, row high, text, 0; a 0 row ends
-        beq dsdone
-        sta ptr+1
-        lda labels,x
-        sta ptr
-        inx
-        inx
-        ldy #0
-dstext: lda labels,x
-        beq dsnext
-        ora #$80
-        sta (ptr),y
-        inx
+        bit wide
+        bpl dsmain
+        sta PAGE2ON
+dsaux:  sta $0400,y
+        sta $0500,y
+        sta $0600,y
+        sta $0700,y
         iny
-        bne dstext
-dsnext: inx
-        jmp dsline
+        bne dsaux
+        sta PAGE2OFF
+dsmain: lda #<ROW0
+        sta scr
+        lda #>ROW0
+        sta scr+1
+        lda #<titletxt
+        sta ptr
+        lda #>titletxt
+        sta ptr+1
+        jsr puttext
 dsdone: jsr fschrome
         jsr showaddr
         jsr showconn
         jmp showstatus
 
-labels: .byte <ROW0, >ROW0
-        .text "CASSOLINK"
+titletxt: .text "CASSOLINK"
         .byte 0
-        .byte 0, 0
+
+; 40 or 80 columns. wide has its high bit set for 80, whose odd columns are in
+; main memory and even ones in auxiliary memory, selected by PAGE2 under 80STORE.
+PAGE2OFF = $C054
+PAGE2ON  = $C055
+wide:     .byte 0
+rowwidth: .byte 40
+
+; col40: 40 columns, as the shim and BASIC expect.
+col40:  sta $C00C
+        sta $C000
+        sta PAGE2OFF
+        lda #0
+        sta wide
+        lda #40
+        sta rowwidth
+        rts
+
+; canwide: the carry clear when the machine has 80 columns: a //e, //c or IIgs
+; whose auxiliary text page holds what is written to it, apart from the main
+; page's.
+canwide: lda $FBB3
+        cmp #$06
+        bne cwno
+        lda $0400
+        sta tmp
+        sta $C001
+        sta PAGE2ON
+        lda #$A5
+        sta $0400
+        cmp $0400
+        bne cwfail
+        lda #$5A
+        sta $0400
+        cmp $0400
+        bne cwfail
+        sta PAGE2OFF
+        sta $C000
+        lda $0400
+        cmp tmp
+        bne cwno
+        clc
+        rts
+cwfail: sta PAGE2OFF
+        sta $C000
+cwno:   sec
+        rts
+
+; docols: Set columns.
+docols: jsr col40
+        lda PKTBUF
+        beq dcdraw
+        jsr canwide
+        bcs dcdraw
+        sta $C00D
+        sta $C001
+        lda #$80
+        sta wide
+        lda #80
+        sta rowwidth
+dcdraw: lda #$FF
+        sta bardrawn
+        sta bardrawn+1
+        jsr drawscreen
+        jmp main
 
 ; puttext: the 0-terminated text at (ptr) into the field from Y.
 puttext: sty tmp
@@ -2652,16 +2726,34 @@ ptdone: ldy tmp
 ; putch: A into the field at Y, and Y on, in inverse left of barcells, so that
 ; text over a bar inverts where the bar has passed. Nothing is drawn at a Y of 40 or
 ; more, so a text from a row's start is never drawn on the row below it.
-putch:  cpy #40
+putch:  cpy rowwidth
         bcs pcnext
         cpy barcells
         bcs pcnorm
         and #$3F
         bcc pcput
 pcnorm: ora #$80
-pcput:  sta (scr),y
+pcput:  bit wide
+        bmi pcwide
+        sta (scr),y
 pcnext: iny
         rts
+pcwide: sty pcy
+        pha
+        tya
+        lsr a
+        tay
+        pla
+        bcs pcmain
+        sta PAGE2ON
+        sta (scr),y
+        sta PAGE2OFF
+        jmp pcwdone
+pcmain: sta (scr),y
+pcwdone: ldy pcy
+        iny
+        rts
+pcy:    .byte 0
 
 
 ; putdec2: A in decimal, with a leading zero below 10, so a track or sector
@@ -3032,30 +3124,45 @@ drawbar: sta barover
         lda barpct,x
         ora barover
         bne dbdraw
-        ldy #39
-        lda #$A0
-dbclear: sta (scr),y
-        dey
-        bpl dbclear
-        rts
+        lda #$FF
+        sta bardrawn,x
+        jmp clrscr
 dbdraw: ldy barpct,x
         lda barcelltab,y
-        sta bartop
+        bit wide
+        bpl dbtop
+        asl a
+dbtop:  sta bartop
+        ldy #BARCELLS
+        bit wide
+        bpl dbwidth
+        ldy #BARCELLS*2
+dbwidth: sty barwidth
+        lda barover
+        beq dbcells
+        lda bartop
+        cmp bardrawn,x
+        beq dbover
+dbcells: lda bartop
+        sta bardrawn,x
+        sta barcells
         ldy #0
-dbcell: lda #$AE                ; a period
+dbcell: lda #' '
         cpy bartop
-        bcs dbput
-        lda #$20                ; an inverse space
-dbput:  sta (scr),y
-        iny
-        cpy #BARCELLS
+        bcc dbput
+        lda #'.'
+dbput:  jsr putch
+        cpy barwidth
         bne dbcell
         lda barover
-        beq dbpct
-        lda bartop
+        beq dbtext
+dbover: lda bartop
         sta barcells
         ldy #BARTEXT
-        lda #'T'
+        bit wide
+        bpl dbcol
+        ldy #BARTEXTW
+dbcol:  lda #'T'
         jsr putch
         lda track
         jsr putdec2
@@ -3069,20 +3176,17 @@ dbput:  sta (scr),y
         jsr putdec2
 dbtext: lda #0
         sta barcells
-dbpct:  ldy #BARCELLS
-        lda #' '
+        ldy barwidth
+dbspace: lda #' '
         jsr putch
-        lda #' '
-        jsr putch
-        lda #' '
-        jsr putch
-        lda #' '
-        jsr putch
-        lda #' '
-        jsr putch
+        cpy rowwidth
+        bne dbspace
         ldx barx
+        lda rowwidth
+        sec
+        sbc #2
+        tay
         lda barpct,x
-        ldy #38
         cmp #10
         bcc dbpct2
         dey
@@ -3100,6 +3204,8 @@ barover: .byte 0
 barx:    .byte 0
 bartop:  .byte 0
 barcells: .byte 0               ; putch inverts left of this column
+bardrawn: .byte $FF, $FF        ; each bar's cells filled when last drawn
+barwidth: .byte BARCELLS
 ; The cells filled at each percentage.
 barcelltab:
         .byte 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6
@@ -3171,12 +3277,23 @@ pctdone: txa
 ; whole row cleared. Y is 0.
 fullrow: stx scr
         sta scr+1
-        ldy #39
+        ; falls through
+
+; clrscr: the row at scr cleared. Y is 0, and X is kept.
+clrscr: ldy #39
         lda #$A0
 frclear: sta (scr),y
         dey
         bpl frclear
-        iny
+        bit wide
+        bpl frdone
+        sta PAGE2ON
+        ldy #39
+fraux:  sta (scr),y
+        dey
+        bpl fraux
+        sta PAGE2OFF
+frdone: ldy #0
         rts
 
 ; showpc: the PC: waiting for its first reply, connected, or how long since
@@ -3185,12 +3302,7 @@ showpc: lda #<ROW1
         sta scr
         lda #>ROW1
         sta scr+1
-        ldy pccol
-        lda #$A0
-spclear: sta (scr),y
-        iny
-        cpy #40
-        bne spclear
+        jsr spblank
         ldy pccol
         lda #$3A
         jsr putch
@@ -3209,6 +3321,14 @@ spclear: sta (scr),y
         lda #>pcwait
         sta ptr+1
 sptext: jmp puttext
+; spblank: the row at scr blank from the connection's end.
+spblank: ldy pccol
+spclear: lda #' '
+        jsr putch
+        cpy rowwidth
+        bcc spclear
+        rts
+
 spquiet: lda #<pcnone
         sta ptr
         lda #>pcnone
@@ -3345,23 +3465,17 @@ edrive:   .text "NO SUCH DRIVE"
 dolabel: jsr clrlabel
 lbtext: cpy lenlo
         beq lbdone
-        cpy #40
+        cpy rowwidth
         beq lbdone
         lda PKTBUF,y
-        ora #$80
-        sta ROWLB,y
-        iny
-        bne lbtext
+        jsr putch
+        jmp lbtext
 lbdone: jmp main
 
 ; clrlabel: the label row cleared. Y is 0.
-clrlabel: ldy #39
-        lda #$A0
-lbclear: sta ROWLB,y
-        dey
-        bpl lbclear
-        iny
-        rts
+clrlabel: ldx #<ROWLB
+        lda #>ROWLB
+        jmp fullrow
 
 ; dolog: the history moved down a row, its last line dropped, and the PC's
 ; line at its top: the time as HH:MM, then the text. Then Ready again.
@@ -3379,6 +3493,16 @@ lgcopy: lda (ptr),y
         sta (scr),y
         dey
         bpl lgcopy
+        bit wide
+        bpl lgnext
+        sta PAGE2ON
+        ldy #39
+lgaux:  lda (ptr),y
+        sta (scr),y
+        dey
+        bpl lgaux
+        sta PAGE2OFF
+lgnext:
         dex
         bne lgscroll
         ldx logrowlo
@@ -3395,7 +3519,7 @@ lgcopy: lda (ptr),y
         ldx #2
 lgtext: cpx lenlo
         beq lgdone
-        cpy #40
+        cpy rowwidth
         beq lgdone
         lda PKTBUF,x
         jsr putch
@@ -3601,12 +3725,18 @@ fcnohead: ldx #<ROWKEYS
         sta ptr+1
         ldy #KEYSCOL
         lda fsmode
-        beq fckeys
+        beq fckeys80
         lda #<fskeystxt
         sta ptr
         lda #>fskeystxt
         sta ptr+1
         ldy #FSKEYSCOL
+fckeys80: bit wide
+        bpl fckeys
+        tya
+        clc
+        adc #20
+        tay
 fckeys: jmp puttext
 
 histtxt: .text "HISTORY"
@@ -3625,13 +3755,7 @@ fsrow:  lda logrowlo,x
         sta scr
         lda logrowhi,x
         sta scr+1
-        ldy #39
-        lda #$A0
-fsrclr: sta (scr),y
-        dey
-        bpl fsrclr
-        iny
-        rts
+        jmp clrscr
 
 ; fssound: the tone, by $C030, with the request's byte: one note for a finished
 ; disk, two for a duplicate and a low pair for bad sectors. Nothing else is

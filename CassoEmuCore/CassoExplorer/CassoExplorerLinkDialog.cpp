@@ -462,7 +462,7 @@ void CassoExplorerLinkPanel::Init (const Children & children)
              children.addressLabel, children.address, children.addressError,
              children.bootstrapNote, children.bootstrapLabel, children.bootstrap,
              children.speedLabel, children.speed,
-             children.handshakeLabel, children.handshakeTip, children.handshake,
+             children.handshakeLabel, children.handshakeTip, children.handshake, children.columnsLabel, children.columns,
              children.folderNote, children.folderLabel, children.folder, children.browse,
              children.duplicate })
     {
@@ -552,6 +552,7 @@ int CassoExplorerLinkPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScale
     y = PlaceRow  (bounds, y, m_kids.bootstrapLabel, m_kids.bootstrap, nullptr,             scaler, place);
     y = PlaceRow  (bounds, y, m_kids.speedLabel,     m_kids.speed,     nullptr,             scaler, place);
     y = PlaceRow  (bounds, y, m_kids.handshakeLabel, m_kids.handshake, nullptr,             scaler, place, m_kids.handshakeTip);
+    y = PlaceRow  (bounds, y, m_kids.columnsLabel,   m_kids.columns,   nullptr,             scaler, place);
     y = PlaceNote (bounds, y, m_kids.folderNote,                                            scaler, place);
     y = PlaceRow  (bounds, y, m_kids.folderLabel,    m_kids.folder,    nullptr,             scaler, place, nullptr, m_kids.browse);
 
@@ -750,7 +751,7 @@ int CassoExplorerLinkPanel::GetNoteHeightPx (const DxuiLabel & note, int widthPx
 
 bool CassoExplorerLinkPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    IDxuiControl *  fields[] = { m_kids.transport, m_kids.port, m_kids.speed, m_kids.bootstrap, m_kids.address, m_kids.handshake,
+    IDxuiControl *  fields[] = { m_kids.transport, m_kids.port, m_kids.speed, m_kids.bootstrap, m_kids.address, m_kids.handshake, m_kids.columns,
                                  m_kids.folder, m_kids.browse, m_kids.handshakeTip };
     bool            press    = ev.kind == DxuiMouseEventKind::Down;
     bool            handled  = false;
@@ -803,7 +804,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_transportLabel, &m_portLabel, &m_addressLabel, &m_bootstrapLabel, &m_speedLabel, &m_handshakeLabel, &m_folderLabel })
+    for (DxuiLabel * label : { &m_transportLabel, &m_portLabel, &m_addressLabel, &m_bootstrapLabel, &m_speedLabel, &m_handshakeLabel, &m_columnsLabel, &m_folderLabel })
     {
         ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -815,6 +816,7 @@ void CassoExplorerLinkDialog::OnCreate()
     m_bootstrapLabel.SetText (L"Bootstrap speed:");
     m_speedLabel.SetText     (L"Transfer speed:");
     m_handshakeLabel.SetText (L"Handshake:");
+    m_columnsLabel.SetText   (L"Apple screen:");
     m_folderLabel.SetText    (L"Folder:");
 
     for (DxuiLabel * note : { &m_note, &m_portNote, &m_bootstrapNote, &m_folderNote })
@@ -860,6 +862,9 @@ void CassoExplorerLinkDialog::OnCreate()
     m_handshake.SetSingleLineLabel (true);
     m_handshake.SetChecked         (m_initial.hardwareHandshake);
 
+    m_columns.SetSingleLineLabel (true);
+    m_columns.SetChecked         (m_initial.use40);
+
     m_browse.SetOnClick ([this]()
     {
         std::wstring  folder = m_folder.GetText();
@@ -888,6 +893,8 @@ void CassoExplorerLinkDialog::OnCreate()
     kids.handshakeLabel = &m_handshakeLabel;
     kids.handshakeTip   = &m_handshakeTip;
     kids.handshake      = &m_handshake;
+    kids.columnsLabel   = &m_columnsLabel;
+    kids.columns        = &m_columns;
     kids.folderNote     = &m_folderNote;
     kids.folderLabel    = &m_folderLabel;
     kids.folder         = &m_folder;
@@ -996,9 +1003,13 @@ CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const
 
 CassoLinkSettings CassoExplorerLinkDialog::MakeChosen() const
 {
-    return CassoExplorerLinkChoices::MakeSettings (m_transport.GetSelectedIndex(), m_comPorts, m_port.GetSelectedIndex(), m_address.GetText(),
+    CassoLinkSettings  settings = CassoExplorerLinkChoices::MakeSettings (m_transport.GetSelectedIndex(), m_comPorts, m_port.GetSelectedIndex(), m_address.GetText(),
                                                    m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked(),
                                                    m_folder.GetText());
+
+    settings.use40 = settings.transport != LinkTransport::AdtProServer && m_columns.IsChecked();
+
+    return settings;
 }
 
 
@@ -1082,6 +1093,8 @@ void CassoExplorerLinkDialog::ShowTransportRows()
     m_handshakeLabel.SetVisible (Choices::UsesHandshake (transport, port));
     m_handshakeTip.SetVisible   (Choices::UsesHandshake (transport, port));
     m_handshake.SetVisible      (Choices::UsesHandshake (transport, port));
+    m_columnsLabel.SetVisible   (transport != LinkTransport::AdtProServer);
+    m_columns.SetVisible        (transport != LinkTransport::AdtProServer);
     m_folderNote.SetVisible     (Choices::UsesFolder (transport));
     m_folderLabel.SetVisible    (Choices::UsesFolder (transport));
     m_folder.SetVisible         (Choices::UsesFolder (transport));

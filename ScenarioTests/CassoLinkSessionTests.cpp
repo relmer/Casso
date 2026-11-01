@@ -158,6 +158,8 @@ public:
             settings.transport = LinkTransport::Emulated;
             settings.address   = "127.0.0.1:6502";
 
+            settings.use40 = true;
+
             AssertSucceeded (session->Start (settings));
         }
 

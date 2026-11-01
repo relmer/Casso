@@ -240,6 +240,9 @@ public:
     //  A full send's screen, in the Session screen packet: whether the session
     //  is active, its tone, and its rows' text. Not active clears the rows and
     //  ends the session.
+    //  80 columns where the Apple has them, or 40. The screen is drawn again.
+    HRESULT  SetColumns        (bool wide);
+
     HRESULT  SendSessionScreen (bool active, Byte tone, const std::vector<std::string> & rows);
 
     //  Space or Q on the Apple, with no drive running there: its code.

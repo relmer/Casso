@@ -268,6 +268,8 @@ public:
         {
             CassoLinkSession  session (factory, folder, fileIo, sink);
 
+            settings.use40 = true;
+
             AssertSucceeded (session.Start (settings));
 
             auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
@@ -343,6 +345,8 @@ public:
         {
             CassoLinkSession  session (factory, folder, fileIo, sink);
 
+            settings.use40 = true;
+
             AssertSucceeded (session.Start (settings));
 
             auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
@@ -398,6 +402,7 @@ public:
             CassoLinkSession  session (factory, folder, fileIo, sink);
 
             session.SetBootstrapPause (40);
+            settings.use40 = true;
             AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
 
             Finish (machine, sink, bootstrap);
@@ -472,6 +477,8 @@ public:
 
         {
             CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            settings.use40 = true;
 
             AssertSucceeded (session.Start (settings));
 

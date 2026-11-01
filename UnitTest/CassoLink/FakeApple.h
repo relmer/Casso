@@ -341,6 +341,9 @@ private:
                     break;
                 }
 
+                case CassoLinkCodec::kSetColumns:
+                    break;
+
                 case CassoLinkCodec::kSessionScreen:
                 {
                     std::lock_guard<std::mutex>  guard (lock);

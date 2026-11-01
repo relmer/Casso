@@ -32,6 +32,7 @@ struct CassoLinkSettings
     DWORD          baud              = kDefaultBaud;
     DWORD          bootstrapBaud     = kDefaultBootstrapBaud;
     bool           hardwareHandshake = false;
+    bool           use40             = false;    // 40 columns on the Apple even where it has 80
     std::wstring   folder;
 
     //  Whether the user disconnected it, which outlasts a restart; the port an
