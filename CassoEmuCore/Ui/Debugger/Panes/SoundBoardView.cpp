@@ -1032,6 +1032,7 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
     constexpr float                       kPillAlpha   = 0.20f;
     int                                   pictureRight = rect.left + m_scaler.ToPx (kPictureDip);
     int                                   textLeft     = pictureRight + m_scaler.ToPx (kGapDip2);
+    int                                   textMiddle   = (textLeft + rect.right) / 2;
     int                                   line         = m_scaler.ToPx (kLineDip);
     float                                 inset        = m_scaler.ToPxf (kInsetDip);
     float                                 x            = (float) rect.left;
@@ -1055,7 +1056,8 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
     p.painter.DrawLine (x + inset, markY, x + w - inset, markY, 1.0f, WithAlpha (p.theme.Foreground(), kMarkAlpha));
     p.painter.FillCircle (x + w - inset, markY, m_scaler.ToPxf (3.0f), p.theme.Foreground());
 
-    PaintValue (p, { textLeft, rect.top, rect.right, rect.top + line }, L"Ramp", std::format (L"{:.1f} ms", psg.envelopeRampMs));
+    PaintValue (p, { textLeft, rect.top, textMiddle, rect.top + line }, L"Ramp", std::format (L"{:.1f} ms", psg.envelopeRampMs));
+    PaintValue (p, { textMiddle, rect.top, rect.right, rect.top + line }, L"R13", std::format (L"${:02X} ({})", psg.envelopeRegister, psg.envelopeRegister));
     PaintValue (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, L"Noise", SoundBoardLayout::GetFrequencyText (psg.noiseHz));
 
     for (int b = 0; b < 4; b++)
