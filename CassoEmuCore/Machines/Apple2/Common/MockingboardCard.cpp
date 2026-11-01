@@ -483,13 +483,15 @@ void MockingboardCard::SyncSpeechRequest()
 //
 //  MockingboardCard::GetDiagnostics
 //
-//  Each 6522 beside the AY it drives, numbered as the card's two halves are.
+//  Each 6522 beside the AY it drives, numbered as the card's two halves are,
+//  then the speech chip on a card that has one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MockingboardCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 {
-    DiagnosticsMeters  meters;
+    static constexpr const char * kSpeechTitle = "SSI-263";
+    DiagnosticsMeters             meters;
 
 
 
@@ -498,6 +500,12 @@ void MockingboardCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
         m_via[index].AppendDiagnostics (std::format ("6522 #{}", index + 1), snapshot);
         m_psg[index].AppendDiagnostics (std::format ("AY #{}",   index + 1), snapshot);
         m_psg[index].AppendChannelLevels (std::format ("AY{}",   index + 1), meters);
+    }
+
+    if (m_speech != nullptr)
+    {
+        m_speech->AppendDiagnostics (kSpeechTitle, snapshot);
+        m_speech->AppendLevel       (kSpeechTitle, meters);
     }
 
     for (int index = 0; index < kViaCount; index++)

@@ -1638,6 +1638,10 @@ device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same
 from the command box.
 
+On a Mockingboard C, the Mockingboard panel also has an SSI-263 group: the
+phoneme by name, its timing, the pitch, the filter and the formants. A meter
+indicates the chip's output.
+
 ### Colors
 
 Every pane whose colors mean something has an info button (an i in a circle)

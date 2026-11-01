@@ -4,6 +4,9 @@
 
 #include "Core/IMachineState.h"
 
+struct DiagnosticsMeters;
+struct DiagnosticsSnapshot;
+
 
 
 
@@ -193,6 +196,11 @@ public:
 
     static Byte  SelectRegister (Byte address);
 
+    // The debugger panel's contents: the registers decoded, and the output
+    // envelope as a meter.
+    void    AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const;
+    void    AppendLevel       (const std::string & title, DiagnosticsMeters & meters) const;
+
     // Nominal vocal-tract filter clock; the filter register scales formants
     // relative to it, changing "voice type" as the datasheet describes.
     static constexpr double  kNominalFilterHz = 20000.0;
@@ -209,6 +217,7 @@ public:
 
 private:
     double  GetTickClockHz      () const { return (m_tickClockHz > 0.0) ? m_tickClockHz : m_xckHz; }
+    double  GetFormantScale     () const;
 
     void    LatchMode           ();
     void    BeginPhoneme        ();

@@ -371,9 +371,128 @@ namespace DebuggerTests
             Assert::IsTrue   (Contains (titles, "AY #1")   && Contains (titles, "AY #2"));
             Assert::IsTrue   (std::holds_alternative<DiagnosticsMeters> (snapshot.visual));
             Assert::AreEqual ((size_t) 10, std::get<DiagnosticsMeters> (snapshot.visual).levels.size());
+            Assert::IsFalse  (Contains (titles, "SSI-263"), L"a Mockingboard A has no speech chip");
             (void) FindRow (snapshot, "IFR");
             (void) FindRow (snapshot, "T1 count");
             (void) FindRow (snapshot, kMixer);
+        }
+
+
+        //  The speech chip's meter follows the AY channels, ahead of the timers.
+        TEST_METHOD (AMockingboardCPublishesItsSpeechChip)
+        {
+            constexpr size_t      kSpeechMeter = 6;
+            MockingboardCard      card (4, MockingboardVariant::SoundSpeech);
+            DiagnosticsSnapshot   snapshot     = Snapshot (card);
+            bool                  hasGroup     = false;
+
+
+
+            for (const DiagnosticsGroup & group : snapshot.groups)
+            {
+                hasGroup = hasGroup || (group.title == "SSI-263");
+            }
+
+            Assert::IsTrue   (hasGroup);
+            Assert::AreEqual ((size_t) 11, std::get<DiagnosticsMeters> (snapshot.visual).levels.size());
+            Assert::AreEqual (std::string ("SSI-263"), std::get<DiagnosticsMeters> (snapshot.visual).levels[kSpeechMeter].name);
+            Assert::AreEqual (std::string ("on"), FindRow (snapshot, "Powered down").value, L"power down is the chip's state after a reset");
+        }
+
+
+        //  At the datasheet's XCK: frame = 4096 * (16 - 10) / XCK, phoneme =
+        //  frame * (4 - 3), inflection = XCK / (8 * (4096 - $800)), and
+        //  filter = XCK / (2 * (256 - $E7)).
+        TEST_METHOD (TheSpeechChipPublishesItsPhonemeAndTiming)
+        {
+            Ssi263               chip;
+            DiagnosticsSnapshot  snapshot;
+
+
+
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,       0x80);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC0);
+            chip.WriteRegister (Ssi263::kRegRateInflection,  0xA8);
+            chip.WriteRegister (Ssi263::kRegInflection,      0x00);
+            chip.WriteRegister (Ssi263::kRegFilterFreq,      0xE7);
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,       0x5C);     // out of power down, which latches the mode
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC1);
+            chip.AppendDiagnostics ("SSI-263", snapshot);
+
+            Assert::AreEqual (std::string ("off"),                  FindRow (snapshot, "Powered down").value);
+            Assert::AreEqual (std::string ("on"),                   FindRow (snapshot, "Sounding").value);
+            Assert::AreEqual (std::string ("off"),                  FindRow (snapshot, "Requesting").value);
+            Assert::AreEqual (std::string ("Phoneme transitioned"), FindRow (snapshot, "Mode").value);
+            Assert::AreEqual (std::string ("$01 E (meet)"),         FindRow (snapshot, "Phoneme").value);
+            Assert::AreEqual (std::string ("$3 (13.7 ms)"),         FindRow (snapshot, "Duration").value);
+            Assert::AreEqual (std::string ("$A (13.7 ms a frame)"), FindRow (snapshot, "Rate").value);
+            Assert::AreEqual (std::string ("$800 (109 Hz)"),        FindRow (snapshot, "Inflection").value);
+            Assert::AreEqual (std::string ("$5"),                   FindRow (snapshot, "Articulation").value);
+            Assert::AreEqual (std::string ("$C"),                   FindRow (snapshot, "Amplitude").value);
+            Assert::AreEqual (std::string ("$E7 (35795 Hz)"),       FindRow (snapshot, "Filter").value);
+        }
+
+
+        TEST_METHOD (EverySpeechPhonemeHasAName)
+        {
+            Ssi263  chip;
+
+
+
+            for (int phoneme = 0; phoneme < Ssi263::kPhonemeCount; phoneme++)
+            {
+                DiagnosticsSnapshot  snapshot;
+                std::string          prefix  = std::format ("${:02X} ", phoneme);
+                std::string          value;
+
+
+
+                chip.WriteRegister (Ssi263::kRegDurationPhoneme, (Byte) phoneme);
+                chip.AppendDiagnostics ("SSI-263", snapshot);
+                value = FindRow (snapshot, "Phoneme").value;
+
+                Assert::IsTrue (value.starts_with (prefix) && value.size() > prefix.size(), TextEncoding::NarrowToWide (value).c_str());
+            }
+        }
+
+
+        //  The formants row is the centers the resonators filter at. This XCK and
+        //  filter register put the filter at its nominal clock, for a scale of 1.
+        TEST_METHOD (TheSpeechChipPublishesItsFormantsAndLevel)
+        {
+            constexpr double     kXckHz      = 8000000.0;
+            constexpr Byte       kNominal    = 56;
+            constexpr uint32_t   kSampleRate = 44100;
+            Ssi263               chip (kXckHz);
+            DiagnosticsSnapshot  cold;
+            DiagnosticsSnapshot  sounding;
+            DiagnosticsMeters    meters;
+
+
+
+            chip.AppendDiagnostics ("SSI-263", cold);
+            Assert::AreEqual (std::string ("0, 0, 0 Hz"), FindRow (cold, "Formants").value);
+
+            chip.SetSampleRate (kSampleRate);
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,       0x80);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC0);
+            chip.WriteRegister (Ssi263::kRegFilterFreq,      kNominal);
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp,       0x0F);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0xC1);
+
+            for (uint32_t sample = 0; sample < kSampleRate / 10; sample++)
+            {
+                (void) chip.GenerateSample();
+            }
+
+            chip.AppendDiagnostics ("SSI-263", sounding);
+            chip.AppendLevel ("SSI-263", meters);
+
+            Assert::AreEqual (std::format ("{:.0f}, {:.0f}, {:.0f} Hz", chip.GetFormantCenter (0), chip.GetFormantCenter (1), chip.GetFormantCenter (2)),
+                              FindRow (sounding, "Formants").value);
+            Assert::AreEqual (314.0, chip.GetFormantCenter (0), 1.0, L"the glide is at E's first formant");
+            Assert::AreEqual ((size_t) 1, meters.levels.size());
+            Assert::IsTrue   (meters.levels[0].level > 0.5f, L"a sounding phoneme at full amplitude");
         }
 
 

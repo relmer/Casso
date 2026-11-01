@@ -4,6 +4,8 @@
 #include "Core/StateFloat.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
+#include "Debugger/IDiagnosticsProvider.h"
 
 // Per-phoneme acoustic targets, indexed by phoneme code $00-$3F.
 //
@@ -88,6 +90,75 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
     {  176, 1922, 2425, true,  false, 0.67f, 0.00f },   // 3D :UH  menu
     {  482, 1730, 2425, true,  false, 0.47f, 0.00f },   // 3E E2   bitte
     {  256,  943, 2756, true,  false, 0.53f, 0.00f },   // 3F LB   lube
+};
+
+// Each phoneme's datasheet name and example, indexed by phoneme code $00-$3F.
+static constexpr const char *  s_kpszPhonemeNames[Ssi263::kPhonemeCount] =
+{
+    "PA (pause)",                 // 00
+    "E (meet)",                   // 01
+    "E1 (bent)",                  // 02
+    "Y (before)",                 // 03
+    "YI (year)",                  // 04
+    "AY (please)",                // 05
+    "IE (any)",                   // 06
+    "I (six)",                    // 07
+    "A (made)",                   // 08
+    "AI (care)",                  // 09
+    "EH (nest)",                  // 0A
+    "EH1 (belt)",                 // 0B
+    "AE (dad)",                   // 0C
+    "AE1 (after)",                // 0D
+    "AH (got)",                   // 0E
+    "AH1 (father)",               // 0F
+    "AW (office)",                // 10
+    "O (store)",                  // 11
+    "OU (boat)",                  // 12
+    "OO (look)",                  // 13
+    "IU (you)",                   // 14
+    "IU1 (could)",                // 15
+    "U (tune)",                   // 16
+    "U1 (cartoon)",               // 17
+    "UH (wonder)",                // 18
+    "UH1 (love)",                 // 19
+    "UH2 (what)",                 // 1A
+    "UH3 (nut)",                  // 1B
+    "ER (bird)",                  // 1C
+    "R (roof)",                   // 1D
+    "R1 (rug)",                   // 1E
+    "R2 (mutter)",                // 1F
+    "L (lift)",                   // 20
+    "L1 (play)",                  // 21
+    "LF (fall)",                  // 22
+    "W (water)",                  // 23
+    "B (bag)",                    // 24
+    "D (paid)",                   // 25
+    "KV (tag)",                   // 26
+    "P (pen)",                    // 27
+    "T (tart)",                   // 28
+    "K (kit)",                    // 29
+    "HV (hold vocal)",            // 2A
+    "HVC (hold vocal closure)",   // 2B
+    "HF (heart)",                 // 2C
+    "HFC (hold fric closure)",    // 2D
+    "HN (hold nasal)",            // 2E
+    "Z (zero)",                   // 2F
+    "S (same)",                   // 30
+    "J (measure)",                // 31
+    "SCH (ship)",                 // 32
+    "V (very)",                   // 33
+    "F (four)",                   // 34
+    "THV (there)",                // 35
+    "TH (with)",                  // 36
+    "M (more)",                   // 37
+    "N (nine)",                   // 38
+    "NG (rang)",                  // 39
+    ":A (maerchen)",              // 3A
+    ":OH (loewe)",                // 3B
+    ":U (fuenf)",                 // 3C
+    ":UH (menu)",                 // 3D
+    "E2 (bitte)",                 // 3E
+    "LB (lube)",                  // 3F
 };
 
 // Synthesis constants: excitation gains, the spectral tilt on the glottal
@@ -638,6 +709,81 @@ double Ssi263::GetInflectionFrequencyHz() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetFormantScale
+//
+//  The filter register's scale on the tract's centers, the datasheet's "voice
+//  type" adjustment, relative to the filter's nominal clock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double Ssi263::GetFormantScale() const
+{
+    return std::clamp (GetFilterFrequencyHz() / kNominalFilterHz, 0.5, 2.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendDiagnostics
+//
+//  The phoneme row is the register's value, which stays after the phoneme ends;
+//  the sounding row indicates whether it is playing. The formants are the
+//  centers the resonators filter at, which move only while audio is rendered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const
+{
+    using P = IDiagnosticsProvider;
+
+    static constexpr const char * kModes[]      = { "A/R disabled", "Frame immediate", "Phoneme immediate", "Phoneme transitioned" };
+    constexpr int                 kNibbleDigits = 1;
+    constexpr double              kMsPerSecond  = 1000.0;
+    DiagnosticsGroup              group         { title, {} };
+    double                        scale         = GetFormantScale();
+
+
+
+    group.rows.push_back (P::MakeFlagRow ("Powered down", IsPoweredDown()));
+    group.rows.push_back (P::MakeFlagRow ("Sounding",     m_sounding));
+    group.rows.push_back (P::MakeFlagRow ("Requesting",   m_request));
+    group.rows.push_back (P::MakeTextRow ("Mode",         kModes[m_mode]));
+    group.rows.push_back (P::MakeTextRow ("Phoneme",      std::format ("${:02X} {}", GetPhoneme(), s_kpszPhonemeNames[GetPhoneme()])));
+    group.rows.push_back (P::MakeTextRow ("Duration",     std::format ("${:X} ({:.1f} ms)", GetDurationSel(), GetPhonemeDurationSec() * kMsPerSecond)));
+    group.rows.push_back (P::MakeTextRow ("Rate",         std::format ("${:X} ({:.1f} ms a frame)", GetRateSel(), GetFrameDurationSec() * kMsPerSecond)));
+    group.rows.push_back (P::MakeTextRow ("Inflection",   std::format ("${:03X} ({:.0f} Hz)", GetInflectionValue(), GetInflectionFrequencyHz())));
+    group.rows.push_back (P::MakeHexRow  ("Articulation", GetArticulation(), kNibbleDigits));
+    group.rows.push_back (P::MakeHexRow  ("Amplitude",    GetAmplitude(),    kNibbleDigits));
+    group.rows.push_back (P::MakeTextRow ("Filter",       std::format ("${:02X} ({:.0f} Hz)", m_reg[kRegFilterFreq], GetFilterFrequencyHz())));
+    group.rows.push_back (P::MakeTextRow ("Formants",     std::format ("{:.0f}, {:.0f}, {:.0f} Hz", m_fCur[0] * scale, m_fCur[1] * scale, m_fCur[2] * scale)));
+
+    snapshot.groups.push_back (std::move (group));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendLevel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::AppendLevel (const std::string & title, DiagnosticsMeters & meters) const
+{
+    meters.levels.push_back ({ title, std::clamp (m_envLevel, 0.0f, 1.0f) });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GenerateSample
 //
 //  One mono sample of formant synthesis: an excitation source shaped by
@@ -671,8 +817,7 @@ float Ssi263::GenerateSample()
     GlideFormants();
     GlideLevels();
 
-    scale = GetFilterFrequencyHz() / kNominalFilterHz;
-    scale = std::clamp (scale, 0.5, 2.0);
+    scale = GetFormantScale();
 
     // Voiced excitation drives the whole tract from the glottis; frication
     // is front-cavity excitation and enters AFTER the first formant stage.

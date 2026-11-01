@@ -317,6 +317,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: What does a click on a flame graph bar do? -> A: It selects the routine: the bar is marked, its row in the list is selected and the disassembly moves to it. A double-click zooms to it, and the mouse's back and forward buttons and Alt+Left and Alt+Right move through the zooms (T1178, T1179).
 - Q: Which view does the Profiler pane open on? -> A: Routines. The view drop-down lists the views most used first: Routines, Call tree, Flame graph, Addresses, Opcodes (T1180).
 
+### Session 2026-10-31 (owner decision: the speech chip in the Mockingboard panel)
+
+- Q: The Mockingboard panel had rows for the 6522s and AY chips only. Does it include the speech chip? -> A: Yes, now, ahead of the rest of the panel work in T627, which also gains the voice (FR-332).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3527,6 +3531,10 @@ run something, switch back to the //e: it is where it was left.
 - **FR-331**: The memory map MUST list $C800-$CEFF as the selected card's ROM,
   and as unused (floating bus) when no card's ROM is selected; $CF00-$CFFF
   MUST read as unused (floating bus).
+- **FR-332**: The Mockingboard panel MUST include the SSI-263 on a card that has
+  one: power down, sounding, the A/R request, the mode, the phoneme with its
+  datasheet name and example, duration, rate, inflection, articulation,
+  amplitude, filter and formants, and a meter for the chip's output.
 
 ### Key Entities
 
