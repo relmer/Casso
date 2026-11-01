@@ -978,7 +978,7 @@ namespace DebuggerToolPanesTests
             video.Clear();
             Assert::AreEqual (std::string ("VIDEOLOG CLEAR"), host.commands.back());
 
-            Assert::AreEqual ((size_t) 3, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522 and AY");
+            Assert::AreEqual ((size_t) 4, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522, AY and SSI-263");
             Assert::IsTrue   (video.GetColumnFilterItems (video.GetLists().front(), IoLogPane::kSource, commands).empty());
         }
 
