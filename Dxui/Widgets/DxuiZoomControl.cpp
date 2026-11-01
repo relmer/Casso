@@ -13,7 +13,7 @@ static constexpr float   s_kTickPercent = 5.0f;
 static constexpr int     s_kPercentDip  = 56;
 
 //  The stops a step moves between, as percentages.
-static constexpr int     s_kStops[]     = { 80, 90, 100, 110, 125 };
+static constexpr int     s_kStops[]     = { 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200 };
 
 
 

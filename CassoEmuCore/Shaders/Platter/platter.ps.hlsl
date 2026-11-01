@@ -14,8 +14,12 @@
 //
 //  Texture changes brightness alone, never a ring's color (FR-149): a grain
 //  that varies from texel to texel, a line between cells once each spans
-//  two pixels, a dark seam between rings at least kSeamMinPx wide, and a
-//  darker rim.
+//  two pixels, and a darker rim.
+//
+//  Only a recording's center ring is drawn at full strength. A ring between
+//  recordings has the field of the nearest one on each side, falling off with
+//  the inverse square of the distance from its edge, and the two mix where
+//  they overlap at the half track, where a groove runs.
 //
 //  In the tilted view (FR-151) the pixel is first taken back to the point
 //  on the disk's plane under it, as PlatterGeometry::Unproject does, and
@@ -37,14 +41,13 @@ static const float kTwoPi        = 6.28318530718;
 static const float kPatternPx    = 6.0;
 static const uint  kTimingFlag   = 0x100;
 static const uint  kEchoFlag     = 0x200;
-static const float kEchoDim      = 0.55;
+static const float kFieldFalloff = 1.2;
+static const uint  kFieldReach   = 3;
 static const float kFullScale    = 0.25;
 static const float kDimShare     = 0.6;
 
 static const float kGrainShare   = 0.16;
 static const float kCellLineDark = 0.8;
-static const float kSeamDark     = 0.72;
-static const float kSeamMinPx    = 3.0;
 static const float kRimPx        = 6.0;
 static const float kRimDark      = 0.55;
 static const float kEyeDistance  = 3.0;
@@ -155,16 +158,62 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position, float
         }
 
         color.rgb *= shade;
-
-        //  Dim a ring that repeats its neighbor's recording. The ring at the
-        //  recording's center is drawn at full brightness.
-        if ((flags & kEchoFlag) != 0)
-        {
-            color.rgb = lerp (color.rgb, nothingColor.rgb, kEchoDim);
-        }
     }
 
     return color;
+}
+
+
+
+//  Whether a ring is a recording's center.
+bool IsCenterRing (uint ring)
+{
+    uint  flags = Rings[ring * kRingStride + 1];
+
+
+    return (flags & 0xFF) == kStateData && (flags & kEchoFlag) == 0 && Rings[ring * kRingStride] > 0;
+}
+
+
+
+//  A ring's color at a distance along the rings: a center ring's data, or the
+//  field of the nearest center ring on each side.
+float4 SampleField (uint ring, float at, float turn, float radiusPx, float2 position, float scale)
+{
+    uint    flags  = Rings[ring * kRingStride + 1] & 0xFF;
+    float4  sum    = float4 (0.0, 0.0, 0.0, 0.0);
+    float   weight = 0.0;
+    float   share  = 0.0;
+    uint    d      = 0;
+    bool    isOut  = false;
+    bool    isIn   = false;
+
+
+    if (IsCenterRing (ring) || (flags != kStateData && flags != kStateNothing))
+    {
+        return SampleRing (ring, turn, radiusPx, position, scale);
+    }
+
+    for (d = 1; d <= kFieldReach; d++)
+    {
+        if (!isOut && ring >= d && IsCenterRing (ring - d))
+        {
+            isOut   = true;
+            share   = 1.0 / pow (1.0 + kFieldFalloff * max (at - (float) (ring - d + 1), 0.0), 2.0);
+            sum    += share * SampleRing (ring - d, turn, radiusPx, position, scale);
+            weight += share;
+        }
+
+        if (!isIn && ring + d < (uint) ringCount && IsCenterRing (ring + d))
+        {
+            isIn    = true;
+            share   = 1.0 / pow (1.0 + kFieldFalloff * max ((float) (ring + d) - at, 0.0), 2.0);
+            sum    += share * SampleRing (ring + d, turn, radiusPx, position, scale);
+            weight += share;
+        }
+    }
+
+    return (weight > 0.0) ? lerp (nothingColor, sum / weight, saturate (weight)) : nothingColor;
 }
 
 
@@ -206,24 +255,19 @@ float4 main (float4 position : SV_Position) : SV_Target
     for (at = floor (from); at < to && at < ringCount; at += stride)
     {
         weight = max (min (at + stride, to) - max (at, from), 1e-4);
-        color += weight * SampleRing ((uint) at, turn, radiusPx, position.xy, 1.0 / max (footprint, 1e-6));
+        color += weight * SampleField ((uint) at, (max (at, from) + min (at + stride, to)) / 2.0, turn, radiusPx, position.xy, 1.0 / max (footprint, 1e-6));
         total += weight;
     }
 
     color /= max (total, 1e-6);
 
-    //  A groove at each whole-track boundary and a dark seam at every other
-    //  ring's edge. Spacing is measured on the screen, so it includes the
-    //  tilt's foreshortening. Each line covers one pixel in proportion to how
-    //  much of it the line crosses, and fades out as its lines close up, so
-    //  it can't beat against the pixel grid.
-    if (ring % 4 == 0)
+    //  A groove at each half track. Spacing is measured on the screen, so it
+    //  includes the tilt's foreshortening. The line covers one pixel in
+    //  proportion to how much of it the line crosses, and fades out as the
+    //  grooves close up, so it can't beat against the pixel grid.
+    if (ring % 4 == 2)
     {
         color = lerp (color, grooveColor, coverage * saturate (spacing * 4.0 / grooveMinPx - 1.0));
-    }
-    else
-    {
-        color.rgb *= lerp (1.0, kSeamDark, coverage * saturate (spacing / kSeamMinPx - 1.0));
     }
 
     //  The rim darkens toward the disk's edge.

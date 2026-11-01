@@ -57,6 +57,7 @@ private:
     void           GetVisibleRadii  (const PlatterPlacement & view, double r0, double r1, double & outNear, double & outFar) const;
     static void    GetDiffTurns     (const Difference & difference, const TrackAnalysis & track, const PlatterView::RingTurns & turns, double & outA, double & outB);
     void           ShadeRingArc     (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb) const;
+    void  ShadeTrackField (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, int ring, uint32_t argb) const;
     vector<std::pair<double, double>>  GetVisibleParts (const PlatterPlacement & view, double a, double b) const;
     bool           IsBandVisible    (const PlatterPlacement & view, double r0, double r1) const;
     void           DrawMarqueeArc   (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;

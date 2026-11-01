@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/InspectorClipboard.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 
@@ -20,7 +21,9 @@ static constexpr float   s_kLabelRowDip     = 16.0f;
 static constexpr float   s_kPlotShare       = 0.55f;
 static constexpr float   s_kPointDip        = 2.0f;
 static constexpr float   s_kPairDip         = 4.0f;
-static constexpr float   s_kHitDip          = 6.0f;
+static constexpr float   s_kHitDip          = 12.0f;
+static constexpr float   s_kCursorPadDip    = 4.0f;
+static constexpr float   s_kCursorThickness = 1.5f;
 static constexpr float   s_kUnderlineDip    = 2.0f;
 static constexpr int     s_kDragThresholdPx = 4;
 static constexpr int     s_kPeakRadius      = 6;
@@ -162,12 +165,17 @@ void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         painter.DrawLine (static_cast<float> (plot.left), y, static_cast<float> (plot.right), y, 1.0f, theme.Divider());
         text.DrawString (InspectorText::FormatCount (k, L"cell", L"cells").c_str(), static_cast<float> (m_boundsDip.left), y - textPx, m_scaler.ToPxf (s_kAxisDip) - m_scaler.ToPxf (s_kGapDip),
                          2 * textPx, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        text.DrawString (L"late", static_cast<float> (m_boundsDip.left), y - 2.2f * textPx, m_scaler.ToPxf (s_kAxisDip) - m_scaler.ToPxf (s_kGapDip),
+                         2 * textPx, theme.ForegroundMuted(), textPx * 0.85f, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        text.DrawString (L"early", static_cast<float> (m_boundsDip.left), y + 0.2f * textPx, m_scaler.ToPxf (s_kAxisDip) - m_scaler.ToPxf (s_kGapDip),
+                         2 * textPx, theme.ForegroundMuted(), textPx * 0.85f, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
     PaintMarks (painter, text, theme, track, g);
+    PaintSelection (painter, theme, g);
 
-    text.DrawString (L"Each dot is a flux transition, placed by the time since the one before it. On a line is on time, above is late and below is early.\n"
-                     L"1 cell is a 1 bit after a 1 bit; 2 and 3 cells have one and two 0 bits between. Highlighted dots are selected; larger colored dots are too close to read.",
+    text.DrawString (std::format (L"Each dot is a flux transition. Its height is the time since the transition before it, in cells of about 4 {}s.\n"
+                                  L"1 cell is a 1 bit after a 1 bit; 2 and 3 cells have one and two 0 bits between. Larger colored dots are too close to read.", s_kpszMicro).c_str(),
                      static_cast<float> (plot.left) + m_scaler.ToPxf (s_kGapDip), static_cast<float> (plot.bottom) - 3 * textPx,
                      static_cast<float> (w) - 2 * m_scaler.ToPxf (s_kGapDip), 3 * textPx, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace);
 
@@ -197,6 +205,98 @@ void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             painter.FillRect (x - size / 2, y - size / 2, size, size, color);
         }
     }
+
+    PaintCursor (painter, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintSelection
+//
+//  The selection's stretch of the plot lit by the window's shimmer (FR-038).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g) const
+{
+    RECT                         plot   = GetPlotRect();
+    std::array<StripSegment, 2>  parts  = {};
+    double                       first  = 0;
+    double                       length = 0;
+    uint32_t                     accent = theme.Accent();
+    int                          count  = 0;
+    int                          k      = 0;
+
+
+
+    if (m_hasSel && !m_cellTurns.empty())
+    {
+        first   = m_cellTurns[std::min<size_t> (m_selFirst, m_cellTurns.size() - 1)];
+        length  = m_cellTurns[std::min<size_t> (m_selEnd, m_cellTurns.size() - 1)] - first;
+        length -= std::floor (length);
+        count   = g.GetSegments (first, length, parts);
+
+        for (k = 0; k < count; k++)
+        {
+            InspectorMarquee::PaintShimmer (painter, parts[k].x0, static_cast<float> (plot.top), parts[k].x1 - parts[k].x0, static_cast<float> (plot.bottom - plot.top),
+                                            InspectorMarquee::GetClockMs(), { static_cast<LONG> (parts[k].x0), plot.top, static_cast<LONG> (parts[k].x1), plot.bottom });
+            painter.OutlineRect (parts[k].x0, static_cast<float> (plot.top), parts[k].x1 - parts[k].x0, static_cast<float> (plot.bottom - plot.top), m_scaler.ToPxf (s_kUnderlineDip), accent);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintCursor
+//
+//  A thin line at the pointer across only the dots of the nearest cell line,
+//  from the shortest interval around that line to the longest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT   plot = GetPlotRect();
+    int    line = GetNearestLine (m_context.hoverPx.y);
+    float  pad  = m_scaler.ToPxf (s_kCursorPadDip);
+    float  x    = static_cast<float> (m_context.hoverPx.x);
+
+
+
+    if (PtInRect (&plot, m_context.hoverPx) && m_lineTicks[line].second > 0)
+    {
+        painter.DrawLine (x, GetPlotY (m_lineTicks[line].second) - pad, x, GetPlotY (m_lineTicks[line].first) + pad, s_kCursorThickness, theme.Accent());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetNearestLine
+//
+//  The index of the cell line nearest a height in the plot, from 0 for 1 cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::GetNearestLine (LONG y) const
+{
+    RECT    plot  = GetPlotRect();
+    double  cells = (plot.bottom - y) * kPlotCells / std::max (static_cast<double> (plot.bottom - plot.top), 1.0);
+
+
+
+    return std::clamp (static_cast<int> (std::lround (cells)) - 1, 0, 2);
 }
 
 
@@ -615,6 +715,16 @@ void FluxView::Update (const TrackAnalysis & track) const
         FluxTiming::BuildIntervals (track, m_intervals);
         FluxTiming::BuildCellTurns (track, m_cellTurns);
         m_whole = FluxTiming::BuildHistogram (m_intervals, 0, UINT32_MAX);
+        m_lineTicks.fill ({ UINT32_MAX, 0 });
+
+        for (const FluxInterval & interval : m_intervals)
+        {
+            auto &  ticks = m_lineTicks[std::clamp (static_cast<int> (std::lround (static_cast<double> (interval.ticks) / TrackAnalyzer::kNominalCellTicks)) - 1, 0, 2)];
+
+            ticks.first  = std::min<uint32_t> (ticks.first,  static_cast<uint32_t> (interval.ticks));
+            ticks.second = std::max<uint32_t> (ticks.second, static_cast<uint32_t> (interval.ticks));
+        }
+
         m_of    = &track;
     }
 
@@ -831,7 +941,8 @@ float FluxView::GetPlotY (double ticks) const
 //
 //  FluxView::HitInterval
 //
-//  The transition nearest the point within a few pixels, or -1.
+//  The transition on the cell line nearest the point whose time is nearest
+//  the pointer, within a few pixels, or -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -842,9 +953,9 @@ int FluxView::HitInterval (POINT pointPx) const
     double  span   = m_context.model->GetStripSpan();
     float   w      = static_cast<float> (plot.right - plot.left);
     float   reach  = m_scaler.ToPxf (s_kHitDip);
-    float   best   = reach * reach;
+    float   best   = reach;
     float   dx     = 0;
-    float   dy     = 0;
+    int     line   = GetNearestLine (pointPx.y);
     double  offset = 0;
     size_t  i      = 0;
     int     hit    = -1;
@@ -855,12 +966,11 @@ int FluxView::HitInterval (POINT pointPx) const
     {
         offset  = m_intervals[i].turn - start;
         offset -= std::floor (offset);
-        dx      = static_cast<float> (plot.left) + static_cast<float> (offset / span) * w - pointPx.x;
-        dy      = GetPlotY (m_intervals[i].ticks) - pointPx.y;
+        dx      = std::abs (static_cast<float> (plot.left) + static_cast<float> (offset / span) * w - pointPx.x);
 
-        if (offset < span && dx * dx + dy * dy <= best)
+        if (offset < span && dx <= best && m_intervals[i].ticks >= m_lineTicks[line].first && m_intervals[i].ticks <= m_lineTicks[line].second)
         {
-            best = dx * dx + dy * dy;
+            best = dx;
             hit  = static_cast<int> (i);
         }
     }

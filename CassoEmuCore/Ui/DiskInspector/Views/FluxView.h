@@ -59,6 +59,8 @@ public:
 private:
     void  PaintPlot      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
     void  PaintMarks     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
+    void  PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g) const;
+    void  PaintCursor    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     void  PaintHistogram (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
     void  PaintBars      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram);
     void  PaintScope     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram);
@@ -75,19 +77,21 @@ private:
     float          GetPlotY      (double ticks) const;
     int            HitInterval   (POINT pointPx) const;
     int            HitBin        (POINT pointPx) const;
+    int            GetNearestLine (LONG y) const;
 
-    HistogramScope                  m_scope     = HistogramScope::WholeTrack;
-    mutable const TrackAnalysis   * m_of        = nullptr;
-    mutable vector<FluxInterval>    m_intervals;
-    mutable vector<double>          m_cellTurns;
-    mutable FluxHistogram           m_whole;
-    mutable vector<uint8_t>         m_occupied;
-    mutable uint32_t                m_selFirst  = 0;
-    mutable uint32_t                m_selEnd    = 0;
-    mutable bool                    m_hasSel    = false;
-    bool                            m_isPressed = false;
-    bool                            m_isPanning = false;
-    bool                            m_isShift   = false;
-    POINT                           m_pressAt   = {};
-    POINT                           m_lastAt    = {};
+    HistogramScope                                          m_scope     = HistogramScope::WholeTrack;
+    mutable const TrackAnalysis                           * m_of        = nullptr;
+    mutable vector<FluxInterval>                            m_intervals;
+    mutable vector<double>                                  m_cellTurns;
+    mutable FluxHistogram                                   m_whole;
+    mutable vector<uint8_t>                                 m_occupied;
+    mutable std::array<std::pair<uint32_t, uint32_t>, 3>    m_lineTicks = {};
+    mutable uint32_t                                        m_selFirst  = 0;
+    mutable uint32_t                                        m_selEnd    = 0;
+    mutable bool                                            m_hasSel    = false;
+    bool                                                    m_isPressed = false;
+    bool                                                    m_isPanning = false;
+    bool                                                    m_isShift   = false;
+    POINT                                                   m_pressAt   = {};
+    POINT                                                   m_lastAt    = {};
 };

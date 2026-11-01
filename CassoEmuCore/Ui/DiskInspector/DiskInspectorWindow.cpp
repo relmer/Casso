@@ -1057,6 +1057,8 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     //  The platter as large as its column allows; its controls float in the corners.
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
+    //  The overlay and zoom groups go in a band under the disk.
+    platter.bottom = std::max<LONG> (platter.top + 1, std::min<LONG> (platter.bottom, top + margin + areaH - m_corners->GetBottomBandPx (scaler)));
     m_session.views.platter->Layout (platter, scaler);
 
     m_session.layout.platterArea = { boundsDip.left, top, splitX, bandTop };

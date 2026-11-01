@@ -57,6 +57,7 @@ public:
 
     void    Layout         (const RECT & area, const DxuiDpiScaler & scaler);
     int     GetMinWidthPx  (const DxuiDpiScaler & scaler) const;
+    int     GetBottomBandPx (const DxuiDpiScaler & scaler) const;
     bool    Contains       (POINT pointPx) const;
     bool    IsOverlayOn    (PlatterOverlay overlay) const;
     void    SetOverlay     (PlatterOverlay overlay, bool isOn);

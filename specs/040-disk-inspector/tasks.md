@@ -491,3 +491,11 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T233 Select the field under a double-click on the track strip, per FR-033
 - [X] T234 Show a message when the window size limits the zoom, per FR-154
 - [X] T235 Compute every nibble of a selected byte for 6-and-2 and 5-and-3, and mark them on the platter and strip, per FR-043
+- [X] T714 Make a right drag follow the pointer on every side through `PlatterGeometry::GetDragStep`
+- [X] T715 Widen the zoom range to 50% through 200% in `DxuiZoomControl`
+- [X] T716 Reserve a band under the disk for the overlay and zoom groups
+- [X] T717 Replace the head arm with a short carriage in `PlatterView::PaintHead`
+- [X] T718 Draw each recording at full strength on its center ring with a falloff toward the half tracks in `platter.ps.hlsl`
+- [X] T719 Center Files and heat map shading on recordings through `PlatterOverlays::ShadeTrackField`
+- [X] T720 Add late and early labels, a selection box and a nearest-line cursor to `FluxView`
+- [X] T721 Show RPM first in `InspectorText::FormatMeasureLine`

@@ -105,13 +105,13 @@ double PlatterGeometry::GetTurnAt (double dx, double dy)
 //
 //  PlatterGeometry::IsGrooveOutside
 //
-//  A groove runs along the outer edge of each whole track's ring.
+//  A groove runs halfway between whole tracks, where their fields overlap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PlatterGeometry::IsGrooveOutside (int quarterTrack)
 {
-    return quarterTrack % DiskImage::kQuarterTracksPerWholeTrack == 0;
+    return quarterTrack % DiskImage::kQuarterTracksPerWholeTrack == DiskImage::kQuarterTracksPerWholeTrack / 2;
 }
 
 
@@ -542,6 +542,56 @@ double PlatterGeometry::GetLocalScale (const PlatterPlacement & view, double tur
     }
 
     return scale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::GetDragStep
+//
+//  The turn is the change in the pointer's angle about the center on the disk's
+//  plane, so the disk follows the pointer around on every side. A move toward
+//  the center tilts the disk and a move away flattens it, in proportion to how
+//  far the pointer is above or below the center; that is the way a point of the
+//  disk moves on screen as the disk tilts. Over the hub, where an angle is
+//  unstable, a move down tilts and a move up flattens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterGeometry::GetDragStep (const PlatterPlacement & view, POINT from, POINT to, double & outTurns, double & outTilt)
+{
+    static constexpr double  kTiltGain = 1.7;
+
+
+
+    double  radius = std::max (static_cast<double> (view.outerRadiusPx), 1.0);
+    double  hub    = radius * PlatterRenderer::kInnerFraction;
+    double  dx0    = 0;
+    double  dy0    = 0;
+    double  dx1    = 0;
+    double  dy1    = 0;
+    double  r0     = 0;
+    double  ux     = 0;
+    double  uy     = 0;
+    bool    isOn   = Unproject (view, from.x, from.y, dx0, dy0) && Unproject (view, to.x, to.y, dx1, dy1);
+
+
+
+    outTurns = 0.0;
+    outTilt  = (to.y - from.y) / radius;
+    r0       = std::hypot (dx0, dy0);
+
+    if (isOn && r0 >= hub && std::hypot (dx1, dy1) >= hub)
+    {
+        ux       = dx0 / r0;
+        uy       = dy0 / r0;
+        outTurns = GetTurnAt (dx1, dy1) - GetTurnAt (dx0, dy0);
+        outTurns -= std::round (outTurns);
+        outTilt  = -kTiltGain * ((to.x - from.x) * ux + (to.y - from.y) * uy) * std::abs (uy) / radius;
+    }
 }
 
 

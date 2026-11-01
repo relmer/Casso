@@ -20,6 +20,7 @@ static constexpr float  s_kAlignmentDotDip  = 2.5f;
 static constexpr float  s_kTickShare        = 0.3f;
 static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr uint32_t s_kFilesAlpha     = 0xD0000000u;
+static constexpr float    s_kThinRingDip = 3.0f;
 static constexpr uint32_t s_kDimAlpha       = 0x80000000u;
 static constexpr float    s_kMarqueeStepDip = 8.0f;
 static constexpr float    s_kShadeStepDip   = 24.0f;
@@ -50,9 +51,9 @@ static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 //
 //  PlatterOverlays::PaintFiles
 //
-//  The "Files" overlay (FR-091): each standard sector's data field across
-//  its whole track in its role's color, and the selected file's sectors
-//  marked with a band along the track's inner edge (FR-090).
+//  The "Files" overlay (FR-091): each standard sector's data field on its
+//  whole track's ring in its role's color, fading toward the half tracks, and
+//  the selected file's sectors marked on that ring (FR-090).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +65,6 @@ void PlatterOverlays::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & the
     int              slot   = -1;
     double           outer  = 0;
     double           inner  = 0;
-    double           band   = 0;
     uint32_t         color  = 0;
     bool             isMine = false;
 
@@ -82,8 +82,7 @@ void PlatterOverlays::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & the
 
         slot  = m_view.m_context.analysis->entries[qt].slot;
         outer = PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx;
-        inner = PlatterGeometry::GetRingOuter (qt + DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
-        band  = inner + (outer - inner) * s_kTickShare;
+        inner = PlatterGeometry::GetRingOuter (qt + 1) * view.outerRadiusPx;
 
         const PlatterView::RingTurns &  turns = m_view.GetRingTurns (slot, *track);
 
@@ -105,13 +104,13 @@ void PlatterOverlays::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & the
             color  = m_view.m_context.palette.GetRoleColor (static_cast<MapRole> (map.cells[cell].role));
             color  = (m_view.m_context.isFileHighlighted && !isMine) ? InspectorMarquee::Dim (m_view.m_context.palette, color) : color;
 
-            ShadeRingArc (painter, view, a, b, inner, outer, (color & 0x00FFFFFFu) | s_kFilesAlpha);
+            ShadeTrackField (painter, view, a, b, qt, (color & 0x00FFFFFFu) | s_kFilesAlpha);
 
             //  The marquee marks the file's sectors while the File map tab is
-            //  up; a band along the inner edge marks them otherwise.
+            //  up; the track's ring marks them otherwise.
             if (isMine && !m_view.m_context.isFileHighlighted)
             {
-                ShadeRingArc (painter, view, a, b, inner, band, theme.Accent());
+                ShadeRingArc (painter, view, a, b, inner, outer, theme.Accent());
             }
         }
     }
@@ -181,8 +180,8 @@ void PlatterOverlays::DimOutsideFile (IDxuiPainter & painter, const PlatterPlace
 
     for (int t = 0; t * DiskImage::kQuarterTracksPerWholeTrack < PlatterRenderer::kRingCount; t++)
     {
-        outer = PlatterGeometry::GetRingOuter (t * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
-        inner = PlatterGeometry::GetRingOuter ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        outer = PlatterGeometry::GetRingOuter (std::max (t * DiskImage::kQuarterTracksPerWholeTrack - DiskImage::kQuarterTracksPerWholeTrack / 2, 0)) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack - DiskImage::kQuarterTracksPerWholeTrack / 2) * view.outerRadiusPx;
         from  = 0;
         spans.clear();
 
@@ -336,8 +335,8 @@ void PlatterOverlays::PaintMarquee (IDxuiPainter & painter, const PlatterPlaceme
     {
         const Spans &  set = sets[static_cast<size_t> (t) + 1];
 
-        outer = PlatterGeometry::GetRingOuter (t * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
-        inner = PlatterGeometry::GetRingOuter ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
+        outer = PlatterGeometry::GetRingOuter (std::max (t * DiskImage::kQuarterTracksPerWholeTrack - DiskImage::kQuarterTracksPerWholeTrack / 2, 0)) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack - DiskImage::kQuarterTracksPerWholeTrack / 2) * view.outerRadiusPx;
 
         if (set.empty() || !IsBandVisible (view, inner, outer))
         {
@@ -1208,6 +1207,50 @@ void PlatterOverlays::ShadeRingArc (IDxuiPainter & painter, const PlatterPlaceme
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterOverlays::ShadeTrackField
+//
+//  A stretch of a recording's ring at full strength, fading over the rings
+//  toward the half tracks either side. Rings too thin to draw separately are
+//  one band at the fade's mean strength, which can't beat against the pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterOverlays::ShadeTrackField (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, int ring, uint32_t argb) const
+{
+    static constexpr std::array<float, 4>  kShares = { 0.1f, 0.25f, 1.0f, 0.25f };
+    static constexpr float                 kMean   = (0.1f + 0.25f + 1.0f + 0.25f) / 4.0f;
+
+
+
+    double    width = PlatterGeometry::GetRingWidth() * view.outerRadiusPx;
+    uint32_t  rgb   = argb & 0x00FFFFFFu;
+    float     alpha = static_cast<float> (argb >> 24);
+    int       first = std::max (ring - 2, 0);
+    int       end   = std::min (ring + 2, static_cast<int> (PlatterRenderer::kRingCount));
+
+
+
+    if (width < m_view.m_scaler.ToPxf (s_kThinRingDip))
+    {
+        ShadeRingArc (painter, view, a, b, PlatterGeometry::GetRingOuter (end) * view.outerRadiusPx, PlatterGeometry::GetRingOuter (first) * view.outerRadiusPx,
+                      rgb | (static_cast<uint32_t> (alpha * kMean) << 24));
+    }
+    else
+    {
+        for (int r = first; r < end; r++)
+        {
+            ShadeRingArc (painter, view, a, b, PlatterGeometry::GetRingOuter (r + 1) * view.outerRadiusPx, PlatterGeometry::GetRingOuter (r) * view.outerRadiusPx,
+                          rgb | (static_cast<uint32_t> (alpha * kShares[static_cast<size_t> (r - ring + 2)]) << 24));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterOverlays::PaintAlignment
 //
 //  The "Alignment" overlay (FR-031): on each whole track, a dot where sector
@@ -1285,8 +1328,8 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
 
 
 
-    //  The quarter tracks that share a record share its counts, so the whole
-    //  band a track is drawn as is shaded, not just the ring the head was on.
+    //  The quarter tracks that share a record share its counts, so a sector
+    //  is marked once, on the recording's center ring, wherever the head was.
     for (int qt = 0; qt < PlatterRenderer::kRingCount; qt++)
     {
         const TrackAnalysis *     track = m_view.GetRingTrack (qt);
@@ -1318,7 +1361,7 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
         //  them falls back to its whole ring.
         isWhole = isWhole && (track == nullptr || track->sectors.empty());
 
-        for (size_t s = 0; slot >= 0 && track != nullptr && s < counts[static_cast<size_t> (slot)].size(); s++)
+        for (size_t s = 0; slot >= 0 && track != nullptr && !PlatterCells::IsEchoRing (analysis.copy->playedSlot, qt) && s < counts[static_cast<size_t> (slot)].size(); s++)
         {
             const AnalyzedSector &  sector = track->sectors[s];
             int                     firstF = (kind == AccessKind::Reads && sector.dataField >= 0) ? sector.dataField : sector.addressField;
@@ -1329,8 +1372,7 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
 
             if (count > 0)
             {
-                ShadeRingArc (painter, view, a, (b >= a) ? b : b + 1.0, PlatterGeometry::GetRingOuter (std::min (qt + 1, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx,
-                              PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx, rgb | GetHeatAlpha (count, most));
+                ShadeTrackField (painter, view, a, (b >= a) ? b : b + 1.0, qt, rgb | GetHeatAlpha (count, most));
             }
         }
 
@@ -1365,8 +1407,8 @@ void PlatterOverlays::DimForAccess (IDxuiPainter & painter, const PlatterPlaceme
 
     for (int t = 0; t * DiskImage::kQuarterTracksPerWholeTrack < PlatterRenderer::kRingCount; t++)
     {
-        outer = PlatterGeometry::GetRingOuter (t * DiskImage::kQuarterTracksPerWholeTrack) * view.outerRadiusPx;
-        inner = PlatterGeometry::GetRingOuter (std::min ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx;
+        outer = PlatterGeometry::GetRingOuter (std::max (t * DiskImage::kQuarterTracksPerWholeTrack - DiskImage::kQuarterTracksPerWholeTrack / 2, 0)) * view.outerRadiusPx;
+        inner = PlatterGeometry::GetRingOuter (std::min ((t + 1) * DiskImage::kQuarterTracksPerWholeTrack - DiskImage::kQuarterTracksPerWholeTrack / 2, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx;
 
         if (IsBandVisible (view, inner, outer))
         {

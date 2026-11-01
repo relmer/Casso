@@ -260,7 +260,7 @@ std::wstring InspectorText::FormatTrackLine (const TrackAnalysis * track)
 //
 //  InspectorText::FormatMeasureLine
 //
-//  "One revolution 199.6 ms (300.6 RPM) · mean cell 3.93µs (+0.5%) · longest sync 40
+//  "300.6 RPM (199.6 ms per revolution) · mean cell 3.93µs (+0.5%) · longest sync 40
 //  nibbles at cell 12,400", the turn and cell items on flux tracks only.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,7 +279,7 @@ std::wstring InspectorText::FormatMeasureLine (const TrackAnalysis & track)
 
     if (track.framed.isFlux && m.turnTicks > 0)
     {
-        items.push_back (std::format (L"One revolution {:.1f} ms ({:.1f} RPM)", m.turnTicks / kTicksPerMs, m.rpm));
+        items.push_back (std::format (L"{:.1f} RPM ({:.1f} ms per revolution)", m.rpm, m.turnTicks / kTicksPerMs));
         items.push_back (L"mean cell " + InspectorFormat::FormatMicroseconds (m.meanCellTicks) + L" (" + InspectorFormat::FormatPercent (m.deviation) + L")");
     }
 
