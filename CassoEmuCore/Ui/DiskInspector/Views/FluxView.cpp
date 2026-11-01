@@ -323,6 +323,13 @@ void FluxView::PaintCellRules (IDxuiPainter & painter, const IDxuiTheme & theme,
         {
             x = GetTurnX ((m_cellTurns[(cell + n) % count] + m_cellTurns[(cell + n) % count + 1]) / 2);
 
+            //  The first cell's middle can be just before the view, which wraps
+            //  past its far side.
+            if (n == 0 && x > plot.right)
+            {
+                continue;
+            }
+
             if (x < last || x > plot.right)
             {
                 break;

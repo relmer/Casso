@@ -148,14 +148,6 @@ public:
 
 
 
-    TEST_METHOD (GroovesRunOutsideEachWholeTrack)
-    {
-        Assert::IsTrue  (PlatterGeometry::IsGrooveOutside (2));
-        Assert::IsFalse (PlatterGeometry::IsGrooveOutside (1));
-        Assert::IsTrue  (PlatterGeometry::IsGrooveOutside (70));
-    }
-
-
     TEST_METHOD (GetDragTilt_FollowsThePointerAboveAndBelowTheCenter)
     {
         PlatterPlacement  view;

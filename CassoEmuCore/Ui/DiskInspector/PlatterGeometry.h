@@ -42,7 +42,6 @@ public:
     static double      GetRingMiddle     (int quarterTrack);
     static int         GetQuarterTrackAt (double radius);
     static double      GetTurnAt         (double dx, double dy);
-    static bool        IsGrooveOutside   (int quarterTrack);
     static PlatterHit  HitTest           (const PlatterPlacement & view, POINT pointPx);
 
     static constexpr double  kEyeDistance = 3.0;

@@ -80,9 +80,8 @@ private:
         float  ringCount;
         float  rotation;
         float  headLimitRing;
-        float  grooveMinPx;
+        float  pad0;
         float  kindColors[16][4];
-        float  grooveColor[4];
         float  nothingColor[4];
         float  pendingColor[4];
         float  damagedColor[4];

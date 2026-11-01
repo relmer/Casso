@@ -54,8 +54,11 @@ public:
         // How a cell too wide for its column is cut; None takes the column's.
         DxuiElide                         elide = DxuiElide::None;
 
-        // Semibold text, for a group's heading.
-        bool                              isStrong = false;
+        // Semibold text with a chevron before it, for a group's heading. The
+        // cell's text starts with spaces for the chevron.
+        bool                              isStrong  = false;
+        bool                              isHeading = false;
+        bool                              isOpen    = false;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates

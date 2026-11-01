@@ -19,7 +19,7 @@
 //  Only a recording's center ring is drawn at full strength. A ring between
 //  recordings has the field of the nearest one, falling off with the inverse
 //  square of the distance from its edge to nothing a third of a track from
-//  its center. A groove runs at each half track.
+//  its center.
 //
 //  In the tilted view (FR-151) the pixel is first taken back to the point
 //  on the disk's plane under it, as PlatterGeometry::Unproject does, and
@@ -53,6 +53,9 @@ static const float kRimPx        = 6.0;
 static const float kRimDark      = 0.55;
 static const float kEyeDistance  = 3.0;
 static const float kMaxRingSamples = 8.0;
+static const float kRingsPerTrack  = 4.0;
+static const float kMinPeriodPx    = 3.0;
+static const float kFilterPx       = 2.0;
 
 cbuffer Platter : register (b0)
 {
@@ -62,9 +65,8 @@ cbuffer Platter : register (b0)
     float   ringCount;
     float   rotation;
     float   headLimitRing;
-    float   grooveMinPx;
+    float   pad0;
     float4  kindColors[16];
-    float4  grooveColor;
     float4  nothingColor;
     float4  pendingColor;
     float4  damagedColor;
@@ -246,8 +248,7 @@ float4 main (float4 position : SV_Position) : SV_Target
     float   turn       = frac (atan2 (d.x, -d.y) / kTwoPi - rotation + 1.0);
     float   spacing    = 1.0 / max (length (float2 (ddx (ringF), ddy (ringF))), 1e-6);
     float   footprint  = max (length (ddx (d)), length (ddy (d)));
-    float   coverage   = saturate (1.0 - frac (ringF) * spacing);
-    float   across     = 1.0 / spacing;
+    float   across     = (spacing * kRingsPerTrack < kMinPeriodPx) ? kRingsPerTrack : kFilterPx / spacing;
     float   from       = max (ringF - across / 2.0, 0.0);
     float   to         = min (ringF + across / 2.0, ringCount);
     float   stride     = max (ceil ((floor (to) - floor (from) + 1.0) / kMaxRingSamples), 1.0);
@@ -263,8 +264,9 @@ float4 main (float4 position : SV_Position) : SV_Target
         discard;
     }
 
-    //  Every ring under the pixel in proportion to how much of the pixel it
-    //  covers, so rings narrower than a pixel can't beat against the pixel grid.
+    //  Every ring under a filter two pixels wide in proportion to how much of
+    //  the filter it covers, or a whole track's rings once tracks are too close
+    //  for the pixels, so rings can't beat against the pixel grid.
     for (at = floor (from); at < to && at < ringCount; at += stride)
     {
         weight = max (min (at + stride, to) - max (at, from), 1e-4);
@@ -273,15 +275,6 @@ float4 main (float4 position : SV_Position) : SV_Target
     }
 
     color /= max (total, 1e-6);
-
-    //  A groove at each half track. Spacing is measured on the screen, so it
-    //  includes the tilt's foreshortening. The line covers one pixel in
-    //  proportion to how much of it the line crosses, and fades out as the
-    //  grooves close up, so it can't beat against the pixel grid.
-    if (ring % 4 == 2)
-    {
-        color = lerp (color, grooveColor, coverage * saturate (spacing * 4.0 / grooveMinPx - 1.0));
-    }
 
     //  The rim darkens toward the disk's edge.
     color.rgb *= lerp (kRimDark, 1.0, saturate ((outerRadiusPx - radiusPx) * scale / kRimPx));

@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/InspectorTableView.h"
-#include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorClipboard.h"
 
 
@@ -9,6 +8,8 @@
 
 
 static constexpr float  s_kEmptyPadDip = 8.0f;
+static constexpr std::wstring_view  s_kHeadingIndent = L"    ";
+static constexpr std::wstring_view  s_kRowIndent     = L"      ";
 
 
 
@@ -18,13 +19,13 @@ static constexpr float  s_kEmptyPadDip = 8.0f;
 //
 //  IsGroupRow
 //
-//  A heading in view: its value is empty and its title starts with a triangle.
+//  A heading in view: its value is empty and its title has the heading's indent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool IsGroupRow (const TableRow & row)
 {
-    return row.cells.size() > 1 && row.cells[1].empty() && row.cells[0].size() > 2 && row.cells[0][1] == L' ' && row.cells[0][0] >= 0x25B0;
+    return row.cells.size() > 1 && row.cells[1].empty() && row.cells[0].starts_with (s_kHeadingIndent) && !row.cells[0].starts_with (s_kRowIndent);
 }
 
 
@@ -50,7 +51,7 @@ InspectorTableView::InspectorTableView (InspectorViewContext & context) :
     {
         if (m_isGrouped && !m_isSelecting && row >= 0 && row < static_cast<int> (m_rows.size()) && IsGroupRow (m_rows[row]))
         {
-            m_toggle = m_rows[row].cells[0].substr (2);
+            m_toggle = m_rows[row].cells[0].substr (s_kHeadingIndent.size());
         }
         else if (!m_isSelecting && m_select && row >= 0 && row < static_cast<int> (m_rows.size()))
         {
@@ -115,7 +116,7 @@ void InspectorTableView::SetRows (vector<TableRow> rows)
 //  InspectorTableView::ShowRows
 //
 //  The rows in view: all of them, or with groups, each group's heading with
-//  a triangle and, unless it is collapsed, its rows indented.
+//  a chevron and, unless it is collapsed, its rows indented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,12 +139,12 @@ void InspectorTableView::ShowRows()
         {
             isOpen = !m_collapsed.contains (row.cells[0]);
             m_rows.push_back (row);
-            m_rows.back().cells[0] = std::wstring (isOpen ? s_kpszTriangleDown : s_kpszTriangleRight) + L" " + row.cells[0];
+            m_rows.back().cells[0] = std::wstring (s_kHeadingIndent) + row.cells[0];
         }
         else if (isOpen)
         {
             m_rows.push_back (row);
-            m_rows.back().cells[0] = L"      " + row.cells[0];
+            m_rows.back().cells[0] = std::wstring (s_kRowIndent) + row.cells[0];
         }
     }
 
@@ -156,7 +157,9 @@ void InspectorTableView::ShowRows()
             DxuiListView::Cell  cell;
 
             cell.text     = text;
-            cell.isStrong = m_isGrouped && IsGroupRow (row);
+            cell.isStrong  = m_isGrouped && IsGroupRow (row);
+            cell.isHeading = cell.isStrong && &text == &row.cells[0];
+            cell.isOpen    = cell.isHeading && !m_collapsed.contains (row.cells[0].substr (s_kHeadingIndent.size()));
 
             //  A path is cut from its start, so the file's name at its end
             //  is visible.

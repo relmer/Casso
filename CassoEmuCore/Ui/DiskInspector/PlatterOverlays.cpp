@@ -40,7 +40,8 @@ static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
 static constexpr uint32_t s_kHeatMinAlpha    = 0x50u;
 static constexpr uint32_t s_kHeatMaxAlpha    = 0xB8u;
 static constexpr uint32_t s_kAccessDimAlpha  = 0x70000000u;
-static constexpr uint32_t s_kVisitAlpha      = 0x30000000u;
+static constexpr uint32_t s_kVisitMinAlpha   = 0x10u;
+static constexpr uint32_t s_kVisitMaxAlpha   = 0x58u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
@@ -1310,7 +1311,7 @@ void PlatterOverlays::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme &
 //  inserted, as an arc over its fields in the kind's color, more opaque the
 //  more times it was accessed, against the most-accessed sector on the
 //  disk on a log scale. A quarter track with no sectors, visited or
-//  written, gets a faint band over its whole ring.
+//  written, gets a band over its whole ring, stronger the more it had.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1321,6 +1322,7 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
     const DiskAnalysis             & analysis = *m_view.m_context.analysis;
     uint32_t                         rgb      = ((kind == AccessKind::Writes) ? colors.headWriting : (kind == AccessKind::Scans) ? colors.headScanning : colors.headReading) & 0x00FFFFFFu;
     uint32_t                         most     = 1;
+    uint32_t                         mostBand = 1;
     static const vector<CellSpan>    s_kNone;
     vector<vector<uint32_t>>         counts (analysis.tracks.size());
 
@@ -1346,6 +1348,16 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
                 most = std::max (most, counts[static_cast<size_t> (slot)][s]);
             }
         }
+    }
+
+    for (uint32_t taken : drive.nibblesTaken)
+    {
+        mostBand = std::max (mostBand, (kind == AccessKind::Reads) ? taken : 1u);
+    }
+
+    for (uint64_t written : drive.recordWriteCounts)
+    {
+        mostBand = std::max (mostBand, (kind == AccessKind::Writes) ? static_cast<uint32_t> (written) : 1u);
     }
 
     for (int qt = 0; qt < PlatterRenderer::kRingCount; qt++)
@@ -1376,7 +1388,7 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
 
         if (isWhole)
         {
-                        ShadeRingArc (painter, view, 0.0, 1.0, PlatterGeometry::GetRingOuter (qt + 1) * view.outerRadiusPx, PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx, rgb | s_kVisitAlpha);
+                        ShadeTrackField (painter, view, 0.0, 1.0, qt, rgb | GetBandAlpha ((kind == AccessKind::Writes) ? static_cast<uint32_t> (drive.recordWriteCounts[static_cast<size_t> (slot)]) : drive.nibblesTaken[static_cast<size_t> (qt)], mostBand));
         }
     }
 }
@@ -1413,6 +1425,29 @@ void PlatterOverlays::DimForAccess (IDxuiPainter & painter, const PlatterPlaceme
             ShadeRingArc (painter, view, 0.0, 1.0, inner, outer, dim);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterOverlays::GetBandAlpha
+//
+//  A whole ring's alpha, from s_kVisitMinAlpha for a count of one to
+//  s_kVisitMaxAlpha for the most on the disk, on a log scale, so a ring with a
+//  few reads is fainter than one with many even on a darker ring.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t PlatterOverlays::GetBandAlpha (uint32_t count, uint32_t most)
+{
+    double  t = (most > 1) ? std::log (static_cast<double> (std::max (count, 1u))) / std::log (static_cast<double> (most)) : 1.0;
+
+
+
+    return static_cast<uint32_t> (s_kVisitMinAlpha + t * (s_kVisitMaxAlpha - s_kVisitMinAlpha)) << 24;
 }
 
 

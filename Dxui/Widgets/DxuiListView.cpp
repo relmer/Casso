@@ -2529,6 +2529,24 @@ void DxuiListView::PaintDataRows (
                 m_clipped.push_back ({ r, c });
             }
 
+            if (cells[c].isHeading)
+            {
+                float  size = fontPx * 0.3f;
+                float  cx   = x + colOff + (float) colXPx[c] + cellPadL + size * 1.5f;
+                float  cy   = ry + rowH / 2;
+
+                if (cells[c].isOpen)
+                {
+                    painter.DrawLine (cx - size, cy - size / 2, cx, cy + size / 2, 1.5f, argb);
+                    painter.DrawLine (cx, cy + size / 2, cx + size, cy - size / 2, 1.5f, argb);
+                }
+                else
+                {
+                    painter.DrawLine (cx - size / 2, cy - size, cx + size / 2, cy, 1.5f, argb);
+                    painter.DrawLine (cx + size / 2, cy, cx - size / 2, cy + size, 1.5f, argb);
+                }
+            }
+
             hr = text.DrawString (shown.c_str(),
                                   x + colOff + (float) colXPx[c] + cellPadL,
                                   ry,

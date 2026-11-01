@@ -518,3 +518,10 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T738 Draw random bits over any nibble on the platter, matching the strip and tooltip
 - [X] T739 Add the head arm and move the Index label inside the rim
 - [X] T740 Order platter tips with access counts last, as Read: N nibbles
+- [X] T741 Rank Other below other kinds in the platter's coarse levels
+- [X] T742 Remove the platter grooves and widen the ring filter
+- [X] T743 Draw the head as one tapered outline through the projection
+- [X] T744 Place the Index label off the disk with a connecting line
+- [X] T745 Scale whole-ring heat by count on a log scale
+- [X] T746 Draw chevrons on grouped list headings
+- [X] T747 Patch strip percentages and fix the Flux cell rules at the view's edge

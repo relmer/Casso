@@ -20,10 +20,11 @@ Byte PlatterCells::Encode (PlatterKind kind)
 
     switch (kind)
     {
-        case PlatterKind::FailedChecksum: priority = 3; break;
-        case PlatterKind::Noise:          priority = 2; break;
-        case PlatterKind::RandomBits:     priority = 1; break;
-        default:                          priority = 0; break;
+        case PlatterKind::FailedChecksum: priority = 4; break;
+        case PlatterKind::Noise:          priority = 3; break;
+        case PlatterKind::RandomBits:     priority = 2; break;
+        case PlatterKind::Other:          priority = 0; break;
+        default:                          priority = 1; break;
     }
 
     return static_cast<Byte> ((priority << kKindBits) | static_cast<Byte> (kind));

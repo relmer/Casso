@@ -39,6 +39,7 @@ static constexpr float  s_kBracketGapDip   = 3.0f;
 static constexpr float  s_kTickShare       = 0.45f;
 static constexpr double s_kTickTurn        = 0.0001;
 static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
+static constexpr uint32_t s_kPercentPatchAlpha = 0xD0000000u;
 static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
 static constexpr float     s_kFilesShare     = 0.3f;
 static constexpr float     s_kDiffBandDip    = 4.0f;
@@ -439,8 +440,15 @@ void TrackStripView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
             if (showTiming)
             {
-                text.DrawString (InspectorFormat::FormatPercent (FluxTiming::GetDeviation (framed.cellTicks[cell])).c_str(), parts[k].x0, bandTop,
-                                 parts[k].x1 - parts[k].x0, rowH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
+                std::wstring  percent = InspectorFormat::FormatPercent (FluxTiming::GetDeviation (framed.cellTicks[cell]));
+                float         textW   = 0.0f;
+                float         textH   = 0.0f;
+
+                //  On a patch, so the cell's tick can't run through its digits.
+                text.MeasureString (percent.c_str(), textPx, DxuiTheme::kBodyFace, textW, textH);
+                painter.FillRect (cx - textW / 2, bandTop + (rowH - textH) / 2, textW, textH, (theme.Background() & 0x00FFFFFFu) | s_kPercentPatchAlpha);
+                text.DrawString (percent.c_str(), parts[k].x0, bandTop,
+                                 parts[k].x1 - parts[k].x0, rowH, theme.Foreground(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
                                  DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             }
         }

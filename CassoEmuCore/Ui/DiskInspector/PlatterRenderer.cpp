@@ -144,10 +144,6 @@ void PlatterRenderer::SetTiming (bool isTimingMode, double range)
 
 HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterPlacement & view)
 {
-    static constexpr float  kGrooveMinPx = 4.0f;
-
-
-
     HRESULT                     hr          = S_OK;
     ID3D11DeviceContext       * context     = args.context;
     D3D11_MAPPED_SUBRESOURCE    mapped      = {};
@@ -176,14 +172,12 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
     c.ringCount     = static_cast<float> (kRingCount);
     c.rotation      = view.rotation;
     c.headLimitRing = static_cast<float> (view.headLimitRing);
-    c.grooveMinPx   = kGrooveMinPx;
 
     for (i = 0; i < m_palette.kinds.size(); i++)
     {
         ToFloat4 (m_palette.kinds[i], c.kindColors[i]);
     }
 
-    ToFloat4 (m_palette.background,     c.grooveColor);
     ToFloat4 (colors.nothingRecorded,   c.nothingColor);
     ToFloat4 (colors.pendingPattern,    c.pendingColor);
     ToFloat4 (colors.damaged,           c.damagedColor);

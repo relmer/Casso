@@ -17,7 +17,8 @@
 
 static constexpr float  s_kIndexMarkDip     = 10.0f;
 static constexpr float  s_kIndexLabelDip    = 36.0f;
-static constexpr uint32_t s_kIndexPatchAlpha = 0xC0000000u;
+static constexpr float  s_kIndexStepDip     = 6.0f;
+static constexpr float  s_kIndexButtonDip   = 64.0f;
 static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
 static constexpr float  s_kHubLightDip     = 2.0f;
@@ -37,10 +38,9 @@ static constexpr float  s_kTickShare        = 0.3f;
 static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr float    s_kHeadEyeDip      = 14.0f;
-static constexpr float    s_kHeadLengthShare = 2.1f;
-static constexpr float    s_kHeadArmShare    = 0.5f;
-static constexpr float    s_kHeadScrewAlong  = 1.55f;
-static constexpr float    s_kHeadScrewAcross = 0.6f;
+static constexpr float    s_kHeadWideShare   = 1.8f;
+static constexpr float    s_kHeadTaper       = 0.25f;
+static constexpr float    s_kHeadMinReach    = 2.5f;
 static constexpr float    s_kHeadMarginDip   = 9.0f;
 static constexpr uint32_t s_kHeadBodyAlpha   = 0x90000000u;
 static constexpr float    s_kHeadSightAlpha  = 0.75f;
@@ -1098,24 +1098,89 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintIndexLabel
 //
-//  The index mark's label just inside the rim on a dark patch, where the
-//  view's edge can't cut it off at fit.
+//  The index mark's label off the disk, where a line joins it to the mark: the
+//  nearest place along the rim's tangent at the mark where the label is in the
+//  view, clear of the corner buttons and off the disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const
 {
+    static constexpr int  kTries = 60;
+
+
+
     float   textPx = m_scaler.ToPxf (kSmallDip);
-    float   width  = m_scaler.ToPxf (s_kIndexLabelDip);
-    double  radius = view.outerRadiusPx - textPx * 1.5f - std::abs (std::sin (view.rotation * s_kTwoPi)) * width / 2;
-    float   x      = 0.0f;
-    float   y      = 0.0f;
+    float   w      = m_scaler.ToPxf (s_kIndexLabelDip);
+    float   h      = textPx * 1.5f;
+    float   step   = m_scaler.ToPxf (s_kIndexStepDip);
+    double  rim    = view.outerRadiusPx + 2.0f + m_scaler.ToPxf (s_kIndexMarkDip);
+    float   tipX   = 0.0f;
+    float   tipY   = 0.0f;
+    float   nextX  = 0.0f;
+    float   nextY  = 0.0f;
+    float   cx     = 0.0f;
+    float   cy     = 0.0f;
+    float   len    = 0.0f;
+    bool    isDone = false;
 
 
 
-    PlatterGeometry::ProjectAt (view, 0.0, radius, x, y);
-    painter.FillRect (x - width / 2, y - textPx * 0.75f, width, textPx * 1.5f, (theme.Background() & 0x00FFFFFFu) | s_kIndexPatchAlpha);
-    DrawUpright (text, view, 0.0, radius, L"Index", width, textPx, theme.Foreground());
+    PlatterGeometry::ProjectAt (view, 0.0, rim, tipX, tipY);
+    PlatterGeometry::ProjectAt (view, 0.25 / (s_kTwoPi * rim) * 4.0, rim, nextX, nextY);
+
+    len   = std::max (std::hypot (nextX - tipX, nextY - tipY), 1e-3f);
+    nextX = (nextX - tipX) / len;
+    nextY = (nextY - tipY) / len;
+
+    for (int k = 0; k < kTries && !isDone && tipX >= m_boundsDip.left && tipX <= m_boundsDip.right && tipY >= m_boundsDip.top && tipY <= m_boundsDip.bottom; k++)
+    {
+        for (float side : { 1.0f, -1.0f })
+        {
+            cx = tipX + side * nextX * step * k;
+            cy = tipY + side * nextY * step * k;
+
+            if (!isDone && IsIndexLabelClear (view, cx, cy, w, h))
+            {
+                isDone = true;
+
+                painter.DrawLine (tipX, tipY, std::clamp (tipX, cx - w / 2, cx + w / 2), std::clamp (tipY, cy - h / 2, cy + h / 2), 1.0f, theme.ForegroundMuted());
+                text.DrawString (L"Index", cx - w / 2, cy - h / 2, w, h, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
+                                 DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::IsIndexLabelClear
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::IsIndexLabelClear (const PlatterPlacement & view, float cx, float cy, float w, float h) const
+{
+    float   button = m_scaler.ToPxf (s_kIndexButtonDip);
+    bool    isOk   = cx - w / 2 >= m_boundsDip.left && cx + w / 2 <= m_boundsDip.right && cy - h / 2 >= m_boundsDip.top && cy + h / 2 <= m_boundsDip.bottom &&
+                     !(cy - h / 2 < m_boundsDip.top + button && (cx - w / 2 < m_boundsDip.left + button || cx + w / 2 > m_boundsDip.right - button));
+    double  dx     = 0;
+    double  dy     = 0;
+
+
+
+    for (float sx : { -0.5f, 0.0f, 0.5f })
+    {
+        for (float sy : { -0.5f, 0.5f })
+        {
+            isOk = isOk && (!PlatterGeometry::Unproject (view, cx + sx * w, cy + sy * h, dx, dy) || std::hypot (dx, dy) > view.outerRadiusPx + 2.0);
+        }
+    }
+
+    return isOk;
 }
 
 
@@ -1126,10 +1191,9 @@ void PlatterView::PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & t
 //
 //  PlatterView::PaintHead
 //
-//  The head marker, drawn as a floppy drive's head block lying on the disk
-//  (FR-064, FR-152), always at 6 o'clock as in a real drive: a short
-//  translucent rectangle around the head with two mounting screws at its far
-//  end, on a narrower arm that runs out past the rim. Around the head, a ring with a margin of arm around it has a clear
+//  The head marker, drawn as a head arm lying on the disk (FR-064, FR-152),
+//  always at 6 o'clock as in a real drive: one translucent outline, as
+//  PaintHeadShape draws it, that runs out past the rim. Around the head, a ring with a margin of arm around it has a clear
 //  window over the platter under the head, and a crosshair in the window has
 //  its center exactly on the head's quarter track and angle, its lines along
 //  the radius and across it. The ring and crosshair are a little
@@ -1160,7 +1224,6 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     float                        gap    = std::max (hole * 0.18f, line);
     float                        ux     = 0.0f;
     float                        uy     = 0.0f;
-    float                        len    = tip * s_kHeadLengthShare;
     float                        reach  = 0.0f;
     float                        sx     = 0.0f;
     float                        sy     = 0.0f;
@@ -1188,17 +1251,14 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     ux  = static_cast<float> (std::sin (angle));
     uy  = static_cast<float> (-std::cos (angle));
     map   = GetPlaneMap (view, radius * ux, radius * uy, sx, sy);
-    reach = std::max (static_cast<float> (view.outerRadiusPx - radius) + tip, len);
+    reach = std::max (static_cast<float> (view.outerRadiusPx - radius) + tip, tip * s_kHeadMinReach);
 
     if (view.tilt != 0.0f)
     {
-        PaintHeadArm   (painter, view, radius, drop, tip * s_kHeadArmShare, len, reach, s_kHeadShadowArgb, 0.0f, 0);
-        PaintHeadBlock (painter, view, radius, drop, tip, hole, len, s_kHeadShadowArgb);
+        PaintHeadShape (painter, view, radius, drop, tip, hole, reach, s_kHeadShadowArgb, 0.0f, 0);
     }
 
-    PaintHeadArm   (painter, view, radius, 0.0f, tip * s_kHeadArmShare, len, reach, body, line, argb);
-    PaintHeadBlock (painter, view, radius, 0.0f, tip, hole, len, body);
-    PaintHeadEdges (painter, view, map, radius, tip, len, line, argb);
+    PaintHeadShape (painter, view, radius, 0.0f, tip, hole, reach, body, line, argb);
 
     //  The window's ring and crosshair are a little translucent too.
     painter.SetGlobalAlpha (alpha * s_kHeadSightAlpha);
@@ -1260,97 +1320,83 @@ void PlatterView::GetHeadPlace (const PlatterPlacement & view, double radius, fl
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PlatterView::PaintHeadArm
+//  PlatterView::PaintHeadShape
 //
-//  The arm's fill and, with a line thickness, its sides.
+//  The head's outline, the same wherever the head is placed: a rounded
+//  tip around the head, widening at a fixed slope to a fixed width, then straight
+//  out to the given length. Filled as a fan of quads between the clear window and the
+//  outline, with every point through the projection, so the outline has the disk's
+//  perspective and the translucent fill has no overlaps. With a line thickness,
+//  the outline is also drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::PaintHeadArm (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float half, float from, float to, uint32_t argb, float line, uint32_t edge)
+void PlatterView::PaintHeadShape (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float tip, float hole, float reach, uint32_t argb, float line, uint32_t edge)
 {
-    std::array<float, 8>  q = {};
+    static constexpr int  kSteps = 48;
 
 
 
-    GetHeadPlace (view, radius, drop, from, -half, q[0], q[1]);
-    GetHeadPlace (view, radius, drop, to,   -half, q[2], q[3]);
-    GetHeadPlace (view, radius, drop, to,    half, q[4], q[5]);
-    GetHeadPlace (view, radius, drop, from,  half, q[6], q[7]);
-    painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
+    float                         wide = tip * s_kHeadWideShare;
+    float                         cap  = (wide - tip) / s_kHeadTaper;
+    vector<double>                turns;
+    std::array<float, 8>          q    = {};
+    float                         x    = 0.0f;
+    float                         y    = 0.0f;
+    float                         r    = 0.0f;
+    float                         s    = 0.0f;
+    float                         c    = 0.0f;
+    float                         bend = static_cast<float> (std::atan2 (wide, cap));
+    float                         end  = static_cast<float> (std::atan2 (wide, reach));
 
-    if (line > 0.0f)
+
+
+    for (int k = 0; k <= kSteps; k++)
     {
-        painter.DrawLine (q[0], q[1], q[2], q[3], line / 2.0f, edge);
-        painter.DrawLine (q[6], q[7], q[4], q[5], line / 2.0f, edge);
-        painter.DrawLine (q[2], q[3], q[4], q[5], line / 2.0f, edge);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlatterView::PaintHeadBlock
-//
-//  The block's fill as four strips around a clear square over the head.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PlatterView::PaintHeadBlock (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float half, float hole, float len, uint32_t argb)
-{
-    const std::array<std::array<float, 4>, 4>  strips = { std::array<float, 4> { -half, -hole, -half,  half },
-                                                          std::array<float, 4> {  hole,   len, -half,  half },
-                                                          std::array<float, 4> { -hole,  hole, -half, -hole },
-                                                          std::array<float, 4> { -hole,  hole,  hole,  half } };
-    std::array<float, 8>                       q      = {};
-
-
-
-    for (const std::array<float, 4> & s : strips)
-    {
-        GetHeadPlace (view, radius, drop, s[0], s[2], q[0], q[1]);
-        GetHeadPlace (view, radius, drop, s[1], s[2], q[2], q[3]);
-        GetHeadPlace (view, radius, drop, s[1], s[3], q[4], q[5]);
-        GetHeadPlace (view, radius, drop, s[0], s[3], q[6], q[7]);
-        painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlatterView::PaintHeadEdges
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PlatterView::PaintHeadEdges (IDxuiPainter & painter, const PlatterPlacement & view, const std::array<float, 4> & map, double radius, float half, float len, float line, uint32_t argb)
-{
-    const std::array<std::array<float, 2>, 4>  corners = { std::array<float, 2> { -half, -half }, std::array<float, 2> { len, -half },
-                                                           std::array<float, 2> {   len,  half }, std::array<float, 2> { -half, half } };
-    float                                      x0      = 0.0f;
-    float                                      y0      = 0.0f;
-    float                                      x1      = 0.0f;
-    float                                      y1      = 0.0f;
-    size_t                                     k       = 0;
-
-
-
-    for (k = 0; k < corners.size(); k++)
-    {
-        GetHeadPlace (view, radius, 0.0f, corners[k][0], corners[k][1], x0, y0);
-        GetHeadPlace (view, radius, 0.0f, corners[(k + 1) % corners.size()][0], corners[(k + 1) % corners.size()][1], x1, y1);
-        painter.DrawLine (x0, y0, x1, y1, line / 2.0f, argb);
+        turns.push_back (-s_kTwoPi / 2 + s_kTwoPi * k / kSteps);
     }
 
-    for (float side : { -1.0f, 1.0f })
+    for (float corner : { bend, end })
     {
-        GetHeadPlace (view, radius, 0.0f, half * s_kHeadScrewAlong, side * half * s_kHeadScrewAcross, x0, y0);
-        painter.FillTaperedCapsuleOnPlane (x0, y0, map, 0.0f, s_kDotLength, line, line, 0.0f, 0.0f, argb);
+        turns.push_back (corner);
+        turns.push_back (-corner);
+    }
+
+    std::sort (turns.begin(), turns.end());
+
+    for (size_t k = 0; k < turns.size(); k++)
+    {
+        s = static_cast<float> (std::abs (std::sin (turns[k])));
+        c = static_cast<float> (std::cos (turns[k]));
+        r = tip;
+
+        if (c > 1e-4f)
+        {
+            float  slant = s - s_kHeadTaper * c;
+
+            r = (slant > 1e-4f && c * tip / slant <= cap) ? tip / slant : (s > 1e-4f ? wide / s : reach / c);
+            r = std::min (r, reach / c);
+        }
+
+        x = static_cast<float> (std::cos (turns[k]));
+        y = static_cast<float> (std::sin (turns[k]));
+
+        q[2] = q[4];
+        q[3] = q[5];
+        q[0] = q[6];
+        q[1] = q[7];
+        GetHeadPlace (view, radius, drop, x * r,    y * r,    q[4], q[5]);
+        GetHeadPlace (view, radius, drop, x * hole, y * hole, q[6], q[7]);
+
+        if (k > 0)
+        {
+            painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
+
+            if (line > 0.0f)
+            {
+                painter.DrawLine (q[2], q[3], q[4], q[5], line / 2.0f, edge);
+            }
+        }
     }
 }
 
