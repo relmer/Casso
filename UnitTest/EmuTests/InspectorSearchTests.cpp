@@ -163,6 +163,9 @@ public:
 
 
         AnalyzeTrack (track);
+        Assert::AreEqual (FindOnTrack (track, SearchKind::SectorText, L"hello").size(), FindOnTrack (track, SearchKind::SectorText, L"h?L?o").size(), L"? matches any character");
+        Assert::IsTrue (FindOnTrack (track, SearchKind::SectorText, L"h\\?llo").empty(), L"\\? is a question mark");
+
         hits = FindOnTrack (track, SearchKind::SectorText, L"hello");
 
         Assert::AreEqual (static_cast<size_t> (1), hits.size(), L"text matches without regard to case or the high bit");

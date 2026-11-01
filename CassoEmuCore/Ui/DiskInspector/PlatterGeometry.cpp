@@ -535,24 +535,19 @@ double PlatterGeometry::GetLocalScale (const PlatterPlacement & view, double tur
 //
 //  PlatterGeometry::GetDragTilt
 //
-//  As the disk tilts, a point above the center moves down the screen and a
-//  point below it moves up, so a move toward the center tilts the disk and a
-//  move away flattens it.
+//  The change in tilt from a drag, by how far up or down it has gone from the
+//  press, as a share of the disk's radius at fit: up tilts the disk and down
+//  flattens it, wherever on the disk the drag started.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double PlatterGeometry::GetDragTilt (const PlatterPlacement & view, POINT from, POINT to)
+double PlatterGeometry::GetDragTilt (double fitPx, POINT from, POINT to)
 {
     static constexpr double  kTiltGain = 1.7;
 
 
 
-    double  radius = std::max (static_cast<double> (view.outerRadiusPx), 1.0);
-    double  side   = (from.y > view.centerYPx) ? -1.0 : 1.0;
-
-
-
-    return side * kTiltGain * (to.y - from.y) / radius;
+    return kTiltGain * (from.y - to.y) / std::max (fitPx, 1.0);
 }
 
 

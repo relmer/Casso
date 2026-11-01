@@ -12,7 +12,7 @@
 //
 //  FindBar
 //
-//  Find, docked under the inspector's toolbar (FR-056): the pattern, the
+//  Find, over the top right corner of the inspector's content (FR-056): the pattern, the
 //  kind of search, Whole disk and Any bit offset, the selected hit's place
 //  among the hits, steps to the previous and next hit, a button for the
 //  Find results tab, and a close button. An info tip after the kind of
@@ -29,8 +29,6 @@ public:
     using SearchFn = std::function<void (const SearchQuery & query)>;
     using StepFn   = std::function<void (int step)>;
     using ActionFn = std::function<void ()>;
-
-    static constexpr int  kRowDip = 38;
 
     FindBar();
 
@@ -53,8 +51,6 @@ public:
     void  SetInputFocused (bool isFocused);
     bool  IsInputFocused  () const;
 
-    static int  GetHeightPx (const DxuiDpiScaler & scaler) { return scaler.ToPx (kRowDip); }
-
     //  The format of each kind of pattern, for the info tip.
     static std::wstring  GetHint (SearchKind kind);
 
@@ -70,7 +66,6 @@ private:
     void  Submit   (int step);
     void  ShowHint ();
 
-    DxuiLabel      * m_label       = nullptr;
     DxuiTextInput  * m_input       = nullptr;
     DxuiComboBox   * m_kind        = nullptr;
     DxuiCheckbox   * m_wholeDisk   = nullptr;
@@ -89,4 +84,6 @@ private:
     SearchQuery      m_searched;
     bool             m_hasSearched = false;
     bool             m_isError     = false;
+    RECT             m_areaPx      = {};
+    DxuiDpiScaler    m_scaler;
 };

@@ -11,8 +11,12 @@ static constexpr int      s_kMaxPatternChars = 96;
 static constexpr int      s_kPadDip          = 8;
 static constexpr int      s_kInsetDip        = 4;
 static constexpr int      s_kGapDip          = 8;
-static constexpr int      s_kLabelDip        = 40;
-static constexpr int      s_kInputDip        = 240;
+static constexpr int      s_kWidthDip        = 500;
+static constexpr int      s_kRowDip          = 34;
+static constexpr int      s_kEdgeDip         = 8;
+static constexpr float    s_kRadiusDip       = 8.0f;
+static constexpr float    s_kShadowDip       = 3.0f;
+static constexpr uint32_t s_kShadowArgb      = 0x50000000u;
 static constexpr int      s_kKindDip         = 120;
 static constexpr int      s_kTipDip          = 28;
 static constexpr int      s_kWholeDiskDip    = 112;
@@ -36,7 +40,6 @@ static constexpr int      s_kListDip         = 56;
 
 FindBar::FindBar()
 {
-    m_label       = CreateChild<DxuiLabel>    (L"Find", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_input       = CreateChild<DxuiTextInput>();
     m_kind        = CreateChild<DxuiComboBox>();
     m_hintTip     = CreateChild<DxuiInfoTip>();
@@ -52,6 +55,7 @@ FindBar::FindBar()
     m_kind->SetItems    ({ L"Nibbles", L"Sector hex", L"Sector text" });
     m_kind->SetSelected (0);
     m_input->SetMaxLength (s_kMaxPatternChars);
+    m_input->SetPlaceholder (L"Find");
 
     m_input->SetOnChange      ([this] (const std::wstring &) { SetError (L""); });
     m_kind->SetSelect         ([this] (int) { m_anyBit->SetEnabled (GetQuery().kind == SearchKind::Nibbles); ShowHint(); Submit (0); });
@@ -172,8 +176,17 @@ void FindBar::SetResult (int index, int count)
 
 void FindBar::SetError (const std::wstring & message)
 {
+    bool  isChanged = m_isError != !message.empty();
+
+
+
     m_isError = !message.empty();
     m_error->SetText (message);
+
+    if (isChanged && m_scaler.GetDpi() != 0)
+    {
+        Layout (m_areaPx, m_scaler);
+    }
 }
 
 
@@ -226,7 +239,7 @@ std::wstring FindBar::GetHint (SearchKind kind)
     {
         case SearchKind::Nibbles:    hint = L"Nibbles in hex pairs, such as D5 AA 96. ? matches any digit, and + after a nibble for extra zero cells."; break;
         case SearchKind::SectorHex:  hint = L"Bytes of sector data in hex pairs, such as A9 00 8D. ? matches any digit.";                             break;
-        case SearchKind::SectorText: hint = L"Text in sector data, such as HELLO, in either case and with or without the high bit set.";               break;
+        case SearchKind::SectorText: hint = L"Text in sector data, such as HELLO, in either case and with or without the high bit set. ? matches any character, and \\? a question mark."; break;
         default:                                                                                                                                         break;
     }
 
@@ -302,9 +315,9 @@ void FindBar::ShowHint()
 //
 //  FindBar::Layout
 //
-//  One row: the label, the pattern, the kind, its info tip, the two options
-//  and any error from the left, and the close button, List, the steps and
-//  the count from the right.
+//  In the top right corner of the area, over what is there: the pattern, the
+//  count, the steps, List and the close button; under them the kind, its info
+//  tip and the two options; and under those any error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -312,40 +325,48 @@ void FindBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     int  inset  = scaler.ToPx (s_kInsetDip);
     int  gap    = scaler.ToPx (s_kGapDip);
-    int  top    = boundsPx.top + inset;
-    int  bottom = boundsPx.bottom - inset;
-    int  x      = boundsPx.left + scaler.ToPx (s_kPadDip);
-    int  r      = boundsPx.right - scaler.ToPx (s_kPadDip);
+    int  edge   = scaler.ToPx (s_kEdgeDip);
+    int  pad    = scaler.ToPx (s_kPadDip);
+    int  rowH   = scaler.ToPx (s_kRowDip);
     int  step   = scaler.ToPx (s_kStepDip);
+    int  right  = boundsPx.right - edge;
+    int  left   = std::max (static_cast<int> (boundsPx.left) + edge, right - scaler.ToPx (s_kWidthDip));
+    int  top    = boundsPx.top + edge;
+    int  x      = left + pad;
+    int  r      = right - pad;
+    int  y      = top + inset;
 
 
 
-    SetBounds (boundsPx);
+    m_areaPx = boundsPx;
+    m_scaler = scaler;
 
-    m_label->Layout ({ x, top, x + scaler.ToPx (s_kLabelDip), bottom }, scaler);
-    x    += scaler.ToPx (s_kLabelDip);
-    m_input->Layout ({ x, top, x + scaler.ToPx (s_kInputDip), bottom }, scaler);
-    x    += scaler.ToPx (s_kInputDip) + gap;
-    m_kind->Layout ({ x, top, x + scaler.ToPx (s_kKindDip), bottom }, scaler);
-    x    += scaler.ToPx (s_kKindDip);
-    m_hintTip->Layout ({ x, top, x + scaler.ToPx (s_kTipDip), bottom }, scaler);
-    x    += scaler.ToPx (s_kTipDip) + gap;
-    m_wholeDisk->Layout ({ x, top, x + scaler.ToPx (s_kWholeDiskDip), bottom }, scaler);
-    x    += scaler.ToPx (s_kWholeDiskDip);
-    m_anyBit->Layout ({ x, top, x + scaler.ToPx (s_kAnyBitDip), bottom }, scaler);
-    x    += scaler.ToPx (s_kAnyBitDip) + gap;
+    SetBounds ({ left, top, right, top + 2 * inset + rowH * (m_isError ? 3 : 2) });
 
-    m_closeButton->Layout ({ r - step, top, r, bottom }, scaler);
+    m_closeButton->Layout ({ r - step, y + inset, r, y + rowH - inset }, scaler);
     r -= step + gap;
-    m_listButton->Layout ({ r - scaler.ToPx (s_kListDip), top, r, bottom }, scaler);
+    m_listButton->Layout ({ r - scaler.ToPx (s_kListDip), y + inset, r, y + rowH - inset }, scaler);
     r -= scaler.ToPx (s_kListDip) + gap;
-    m_next->Layout ({ r - step, top, r, bottom }, scaler);
+    m_next->Layout ({ r - step, y + inset, r, y + rowH - inset }, scaler);
     r -= step;
-    m_prev->Layout ({ r - step, top, r, bottom }, scaler);
+    m_prev->Layout ({ r - step, y + inset, r, y + rowH - inset }, scaler);
     r -= step + gap;
-    m_count->Layout ({ r - scaler.ToPx (s_kCountDip), top, r, bottom }, scaler);
+    m_count->Layout ({ r - scaler.ToPx (s_kCountDip), y + inset, r, y + rowH - inset }, scaler);
     r -= scaler.ToPx (s_kCountDip) + gap;
-    m_error->Layout ({ x, top, std::max (x, r), bottom }, scaler);
+    m_input->Layout ({ x, y + inset, std::max (x, r), y + rowH - inset }, scaler);
+    y += rowH;
+
+    m_kind->Layout ({ x, y + inset, x + scaler.ToPx (s_kKindDip), y + rowH - inset }, scaler);
+    x    += scaler.ToPx (s_kKindDip);
+    m_hintTip->Layout ({ x, y + inset, x + scaler.ToPx (s_kTipDip), y + rowH - inset }, scaler);
+    x    += scaler.ToPx (s_kTipDip) + gap;
+    m_wholeDisk->Layout ({ x, y + inset, x + scaler.ToPx (s_kWholeDiskDip), y + rowH - inset }, scaler);
+    x    += scaler.ToPx (s_kWholeDiskDip);
+    m_anyBit->Layout ({ x, y + inset, x + scaler.ToPx (s_kAnyBitDip), y + rowH - inset }, scaler);
+    y += rowH;
+
+    m_error->SetVisible (m_isError);
+    m_error->Layout ({ left + pad, y + inset, right - pad, y + rowH - inset }, scaler);
 }
 
 
@@ -356,17 +377,24 @@ void FindBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 //  FindBar::Paint
 //
-//  The bar's surface, a step above the window's, with a divider along its
-//  bottom, then its controls.
+//  A shadow and the bar's surface, a step above the window's, then its controls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void FindBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    painter.FillRect (static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.top), static_cast<float> (m_boundsDip.right - m_boundsDip.left),
-                      static_cast<float> (m_boundsDip.bottom - m_boundsDip.top), theme.BackgroundElevated());
-    painter.FillRect (static_cast<float> (m_boundsDip.left), static_cast<float> (m_boundsDip.bottom) - 1.0f, static_cast<float> (m_boundsDip.right - m_boundsDip.left), 1.0f,
-                      theme.Divider());
+    float  x      = static_cast<float> (m_boundsDip.left);
+    float  y      = static_cast<float> (m_boundsDip.top);
+    float  w      = static_cast<float> (m_boundsDip.right - m_boundsDip.left);
+    float  h      = static_cast<float> (m_boundsDip.bottom - m_boundsDip.top);
+    float  radius = m_scaler.ToPxf (s_kRadiusDip);
+    float  shadow = m_scaler.ToPxf (s_kShadowDip);
+
+
+
+    painter.FillRoundedRect    (x + shadow, y + shadow, w, h, radius, s_kShadowArgb);
+    painter.FillRoundedRect    (x, y, w, h, radius, theme.BackgroundElevated());
+    painter.OutlineRoundedRect (x, y, w, h, radius, m_scaler.ToPxf (1.0f), theme.Border());
 
     DxuiPanel::Paint (painter, text, theme);
 }
@@ -379,8 +407,8 @@ void FindBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDx
 //
 //  FindBar::OnMouse
 //
-//  A press on the pattern focuses it; a press anywhere else on the bar
-//  is consumed.
+//  A press on the pattern focuses it. An event over the bar isn't passed to what
+//  is under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,7 +424,7 @@ bool FindBar::OnMouse (const DxuiMouseEvent & ev)
         m_input->SetFocused (true);
     }
 
-    return DxuiPanel::OnMouse (ev) || (isInside && ev.kind == DxuiMouseEventKind::Down);
+    return DxuiPanel::OnMouse (ev) || (isInside && ev.kind != DxuiMouseEventKind::Leave);
 }
 
 

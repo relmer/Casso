@@ -32,7 +32,7 @@ public:
     void  Tick   (int64_t nowMs) override;
     bool  OnKey  (const DxuiKeyEvent & ev) override;
 
-    void  Layout             (const RECT & bar, const DxuiDpiScaler & scaler);
+    void  Layout             (const RECT & area, const DxuiDpiScaler & scaler);
     void  OpenFindBar        ();
     void  CloseFindBar       ();
     void  StepFind           (int step);
@@ -42,6 +42,8 @@ public:
     void  OnDiskStarted      (const DiskChange & change) override;
     void  OnAnalysisChanged  () override;
     void  OnPress            ();
+    void  PaintBar           (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    bool  OnBarMouse         (const DxuiMouseEvent & ev);
     bool  IsBarAt            (POINT pointPx) const;
 
     InspectorTableView & GetResults () const { return *m_findResults; }

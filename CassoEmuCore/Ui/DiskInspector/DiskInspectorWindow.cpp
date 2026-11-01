@@ -591,6 +591,11 @@ void DiskInspectorWindow::OnCreate()
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
+    //  The find bar's layer, as its fill has to cover the views' text, which
+    //  is drawn after every fill in the window's pass.
+    GetPopupHost()->SetOverlayHooks ([this] () { return m_session.isFindOpen; },
+                                     [this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) { m_findPart->PaintBar (painter, text, theme); });
+
     //  The tips read out what the pointer rests on, so they stay while it
     //  does rather than dismissing themselves.
     m_tooltip.SetHasLifetime (false);
@@ -790,7 +795,7 @@ void DiskInspectorWindow::BuildCommands()
         c.followHead                = make (L"&Follow head", L"", [this] () { m_hostLink->SetFollowHead (!m_hostLink->IsFollowingHead()); });
         c.followHead->isEnabled     = [this] () { return m_hostLink->IsHeadShown(); };
         c.followHead->isChecked     = [this] () { return m_hostLink->IsFollowingHead(); };
-        toolbarCommand (c.followHead, L"Follow head", kpszGlyphFollow, L"Follow head: show the track the head is on");
+        toolbarCommand (c.followHead, L"Follow head", kpszGlyphFollow, L"Follow head: select each track the head settles on. Any other selection turns this off.");
     }
 
     //  Disk
@@ -1007,8 +1012,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     int                        splitX    = boundsDip.left + static_cast<int> (width * m_splitFraction);
     int                        toolbar   = m_toolbar->GetHeightPx (scaler);
     int                        bar       = m_session.comparison.IsComparing() ? scaler.ToPx (s_kBarDip) : 0;
-    int                        find      = m_session.isFindOpen ? FindBar::GetHeightPx (scaler) : 0;
-    int                        top       = boundsDip.top + toolbar + bar + find;
+    int                        top       = boundsDip.top + toolbar + bar;
     int                        strip     = scaler.ToPx (s_kStripDip);
     int                        band      = 2 * margin + strip + (m_session.comparison.IsComparing() ? strip + margin / 2 : 0) + margin / 2 + row;
     int                        bandTop   = std::max (top, static_cast<int> (boundsDip.bottom) - band);
@@ -1051,11 +1055,11 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     //  The walkthrough's toolbar step covers the menu bar too.
     m_session.layout.toolbar  = { boundsDip.left, boundsDip.top - m_menus->GetHeightPx (m_session.hostScaler), boundsDip.right, boundsDip.top + toolbar };
     m_toolbar->Layout  ({ boundsDip.left, boundsDip.top, boundsDip.right, boundsDip.top + toolbar }, scaler);
-    m_findPart->Layout ({ boundsDip.left, top - find, boundsDip.right, top }, scaler);
+    m_findPart->Layout ({ boundsDip.left, top, boundsDip.right, bandTop }, scaler);
     m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
     right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, bandTop - margin / 2 };
 
-    m_comparisonPart->Layout ({ boundsDip.left, top - bar - find, boundsDip.right, top - find }, scaler);
+    m_comparisonPart->Layout ({ boundsDip.left, top - bar, boundsDip.right, top }, scaler);
 
     //  The platter as large as its column allows; its controls float in the corners.
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
@@ -1157,8 +1161,8 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
 
     //  The view the keys act on, outlined once a key has been used, unless a
-    //  control has the focus (FR-059).
-    if (m_isFocusShown && m_session.context.hasDisk && !m_session.is35 && GetFocusManager().GetFocusedControl() == nullptr)
+    //  control or the find bar has the focus (FR-059).
+    if (m_isFocusShown && m_session.keyTarget != KeyTarget::FindBar && m_session.context.hasDisk && !m_session.is35 && GetFocusManager().GetFocusedControl() == nullptr)
     {
         focus = m_selection->GetKeyTargetBounds();
         InflateRect (&focus, m_session.scaler.ToPx (s_kFocusGapDip), m_session.scaler.ToPx (s_kFocusGapDip));
@@ -1192,6 +1196,18 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (m_selection->OnHistoryButton (ev))
     {
+        return true;
+    }
+
+    //  The find bar floats over the views, so it has the pointer first, unless
+    //  a drag that started under it is passing over.
+    if (!m_isSplitting && !m_session.views.platter->IsDragging() && m_findPart->OnBarMouse (ev))
+    {
+        m_isFocusShown            = m_isFocusShown && ev.kind != DxuiMouseEventKind::Down;
+        m_session.context.hoverPx = POINT { SHRT_MIN, SHRT_MIN };
+        m_tooltip.RequestHide (static_cast<int64_t> (GetTickCount64()));
+        m_tooltipText.clear();
+
         return true;
     }
 
@@ -1317,6 +1333,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 
 
     bool  isHandled = false;
+    bool  wasFind   = m_session.keyTarget == KeyTarget::FindBar;
     int   qt        = m_session.model.GetQuarterTrack();
 
 
@@ -1445,7 +1462,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
-    m_isFocusShown = m_isFocusShown || isHandled;
+    m_isFocusShown = (m_isFocusShown || isHandled) && !wasFind && m_session.keyTarget != KeyTarget::FindBar;
 
     if (!isHandled)
     {

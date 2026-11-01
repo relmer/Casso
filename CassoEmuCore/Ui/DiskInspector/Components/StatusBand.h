@@ -28,6 +28,7 @@ public:
     StatusBand (InspectorSession & session, IInspectorComponentHost & host);
 
     void          Create     () override;
+    void          Tick       (int64_t nowMs) override;
     void          PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool          OnMouse    (const DxuiMouseEvent & ev) override;
     std::wstring  GetTip     (POINT pointPx, RECT & outAnchorPx) const override;

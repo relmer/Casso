@@ -48,15 +48,18 @@ void FindPart::Create()
 
 
     m_findResults = parent.CreateChild<InspectorTableView> (m_session.context);
-    m_findBar     = parent.CreateChild<FindBar>();
 
     m_findResults->SetColumns  (InspectorTables::GetSearchHitColumns());
     m_findResults->SetOnSelect ([this] (const TableRow & row) { if (m_session.find.Choose (row.finding)) { SelectHit (m_session.find.GetHits()[row.finding]); m_findBar->SetResult (row.finding, m_session.find.GetCount()); } });
+    m_findBar     = parent.CreateChild<FindBar>();
     m_findBar->Init            (m_host.GetOwnerHwnd(), m_host.GetTextRenderer(), m_host.GetPopupHost(), m_session.theme);
     m_findBar->SetOnSearch     ([this] (const SearchQuery & query) { RunFind (query); });
     m_findBar->SetOnStep       ([this] (int step) { StepFind (step); });
     m_findBar->SetOnList       ([this] () { m_host.ShowDiskTab (kTabFindResults); });
     m_findBar->SetOnClose      ([this] () { CloseFindBar(); });
+
+    //  The bar is painted as a separate layer over the window. PaintBar and
+    //  OnBarMouse call it directly, so the window's passes skip it.
     m_findBar->SetVisible      (false);
     m_session.find.GetQuery().isWholeDisk = true;
 }
@@ -86,9 +89,9 @@ void FindPart::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindPart::Layout (const RECT & bar, const DxuiDpiScaler & scaler)
+void FindPart::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 {
-    m_findBar->Layout (bar, scaler);
+    m_findBar->Layout (area, scaler);
 }
 
 
@@ -129,6 +132,49 @@ bool FindPart::OnKey (const DxuiKeyEvent & ev)
 void FindPart::OnPress()
 {
     m_findBar->SetInputFocused (m_session.keyTarget == KeyTarget::FindBar && m_findBar->IsInputFocused());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindPart::OnBarMouse
+//
+//  The bar has every event while it is open, so its controls' hover and presses
+//  end wherever the pointer goes. True when the event is for the bar alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FindPart::OnBarMouse (const DxuiMouseEvent & ev)
+{
+    bool  isOver = (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Wheel) && IsBarAt (ev.positionDip);
+
+
+
+    if (m_session.isFindOpen)
+    {
+        m_session.keyTarget = (isOver && ev.kind == DxuiMouseEventKind::Down) ? KeyTarget::FindBar : m_session.keyTarget;
+        m_findBar->OnMouse (ev);
+    }
+
+    return isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindPart::PaintBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FindPart::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    m_findBar->Paint (painter, text, theme);
 }
 
 
@@ -217,7 +263,6 @@ void FindPart::OpenFindBar()
         m_session.isFindOpen = true;
         m_findBar->SetQuery  (m_session.find.GetQuery());
         m_findBar->SetResult (m_session.find.GetIndex(), m_session.find.GetCount());
-        m_findBar->SetVisible (true);
         SyncFindMarks();
         m_host.Relayout();
     }
@@ -242,7 +287,6 @@ void FindPart::CloseFindBar()
 {
     m_session.isFindOpen = false;
     m_findBar->SetInputFocused (false);
-    m_findBar->SetVisible (false);
     SyncFindMarks();
     m_session.keyTarget = KeyTarget::Platter;
     m_host.Relayout();

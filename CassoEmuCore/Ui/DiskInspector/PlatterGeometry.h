@@ -59,7 +59,7 @@ public:
 
     //  The change in tilt that moves the disk with a right drag from one
     //  pixel to another.
-    static double      GetDragTilt       (const PlatterPlacement & view, POINT from, POINT to);
+    static double      GetDragTilt       (double fitPx, POINT from, POINT to);
 
     //  The rings and the stretch of the turn a view shows: every ring the
     //  rectangle reaches, and when it does not contain the center, the turns

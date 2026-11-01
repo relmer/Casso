@@ -148,20 +148,12 @@ public:
 
 
 
-    TEST_METHOD (GetDragTilt_FollowsThePointerAboveAndBelowTheCenter)
+    TEST_METHOD (GetDragTilt_GoesByTheDragAloneOnEitherSideOfTheCenter)
     {
-        PlatterPlacement  view;
-
-
-
-        view.centerXPx     = 500.0f;
-        view.centerYPx     = 500.0f;
-        view.outerRadiusPx = 400.0f;
-        view.tilt          = 0.5f;
-
-        Assert::IsTrue (PlatterGeometry::GetDragTilt (view, { 500, 200 }, { 500, 210 }) > 0);
-        Assert::IsTrue (PlatterGeometry::GetDragTilt (view, { 500, 750 }, { 500, 760 }) < 0);
-        Assert::IsTrue (PlatterGeometry::GetDragTilt (view, { 500, 750 }, { 500, 740 }) > 0);
+        Assert::IsTrue (PlatterGeometry::GetDragTilt (400.0, { 500, 200 }, { 500, 190 }) > 0, L"up tilts above the center");
+        Assert::IsTrue (PlatterGeometry::GetDragTilt (400.0, { 500, 750 }, { 500, 740 }) > 0, L"up tilts below the center");
+        Assert::IsTrue (PlatterGeometry::GetDragTilt (400.0, { 500, 750 }, { 500, 760 }) < 0, L"down flattens");
+        Assert::AreEqual (PlatterGeometry::GetDragTilt (400.0, { 500, 750 }, { 500, 150 }), PlatterGeometry::GetDragTilt (400.0, { 500, 700 }, { 500, 100 }), 1e-9, L"crossing the center changes nothing");
     }
 
 

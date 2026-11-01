@@ -40,7 +40,11 @@ public:
     void    SetZoom    (double zoom);
     double  GetZoom    () const { return m_zoom; }
     void    SetOnZoom  (ZoomFn fn) { m_onZoom = std::move (fn); }
-    bool    IsSliderShown () const { return m_isSliderShown; }
+    bool    IsSliderShown () const { return m_isSliderShown || m_isHoverShown; }
+
+    //  The slider appears while the pointer is over the percentage, and stays
+    //  while the pointer is near the control or the thumb is being dragged.
+    void    UpdateHover   (POINT cursorPx);
 
     //  Whether the slider's thumb is being dragged. When the drag ends, the
     //  callback is called again with the zoom it ended on.
@@ -69,6 +73,7 @@ private:
     DxuiDpiScaler    m_scaler;
     double           m_zoom               = 1.0;
     bool             m_isSliderShown      = false;
+    bool             m_isHoverShown       = false;
     uint64_t         m_lastPercentClickMs = 0;
     ZoomFn           m_onZoom;
 };

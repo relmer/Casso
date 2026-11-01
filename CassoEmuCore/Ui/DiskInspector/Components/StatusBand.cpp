@@ -57,6 +57,33 @@ void StatusBand::Create()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StatusBand::Tick
+//
+//  The zoom's slider goes by where the cursor is, not the last mouse event, so
+//  it stays through a tooltip that ends the window's hover.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StatusBand::Tick (int64_t nowMs)
+{
+    POINT  cursor = {};
+
+
+
+    (void) nowMs;
+
+    if (m_scaler.GetDpi() != 0 && m_host.GetOwnerHwnd() != nullptr && GetCursorPos (&cursor) && ScreenToClient (m_host.GetOwnerHwnd(), &cursor))
+    {
+        m_zoomControl->UpdateHover (cursor);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StatusBand::GetHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////

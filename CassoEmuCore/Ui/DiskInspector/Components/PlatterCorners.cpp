@@ -304,7 +304,8 @@ void PlatterCorners::Place()
 //
 //  The groups are hidden with no disk; the chips match their overlays, so a
 //  View menu change appears on them; and the slider is out while the tilt
-//  button or the slider is under the pointer or has the focus.
+//  button or the slider is under the pointer or has the focus. A legend open
+//  across a change of zoom opens again at the new size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,6 +365,11 @@ void PlatterCorners::Update()
     if (isRelayout && m_scaler.GetDpi() != 0)
     {
         Place();
+    }
+
+    if (m_legendPopup != nullptr && m_legendDpi != m_session.scaler.GetDpi())
+    {
+        ShowLegend (m_isLegendPinned);
     }
 }
 
@@ -585,7 +591,7 @@ void PlatterCorners::ToggleTilt()
 //  The legend in a popup below the "Legend" button (FR-030). A preview on
 //  hover lets the pointer through and closes when the pointer moves off the
 //  button; a pinned one, after a click, stays until the next click outside
-//  it.
+//  it. The legend is drawn at the window's zoom, so its size is scaled to match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -598,6 +604,7 @@ void PlatterCorners::ShowLegend (bool isPinned)
     POINT                      topLeft  = { button.left,  button.top };
     POINT                      botRight = { button.right, button.bottom };
     int                        width    = (m_host.GetTextRenderer() != nullptr) ? PlatterLegendView::GetWidthDip (*m_host.GetTextRenderer(), m_session.context) : s_kLegendWidthDip;
+    double                     zoom     = static_cast<double> (m_session.scaler.GetDpi()) / std::max (m_session.hostScaler.GetDpi(), 1u);
 
 
 
@@ -616,7 +623,7 @@ void PlatterCorners::ShowLegend (bool isPinned)
     params.flipIfOffscreen  = true;
     params.dismiss          = isPinned ? DxuiPopupDismiss::OnClickOutside : DxuiPopupDismiss::Manual;
     params.input            = isPinned ? DxuiPopupInput::Interactive : DxuiPopupInput::PassThrough;
-    params.sizeDip          = { width, m_legend->GetHeightDip() };
+    params.sizeDip          = { static_cast<LONG> (std::ceil (width * zoom)), static_cast<LONG> (std::ceil (m_legend->GetHeightDip() * zoom)) };
     params.backgroundArgb   = m_session.theme->BackgroundElevated();
     params.renderContent    = [this, width] (IDxuiPainter & painter, IDxuiTextRenderer & text)
                               {
@@ -634,6 +641,7 @@ void PlatterCorners::ShowLegend (bool isPinned)
     CHRF (hr, host->ReleasePopup (m_legendPopup); m_legendPopup = nullptr);
 
     m_isLegendPinned = isPinned;
+    m_legendDpi      = m_session.scaler.GetDpi();
 
 Error:
     return;

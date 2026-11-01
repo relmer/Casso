@@ -605,6 +605,23 @@ void InspectorViewModel::PanBy (Point delta)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorViewModel::GetFitPx
+//
+//  The flat disk's radius at fit, which is also the pixels in a pan's unit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double InspectorViewModel::GetFitPx (const RECT & boundsPx) const
+{
+    return std::max (0.0, std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0 - kRimInsetPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorViewModel::GetDiskPoint
 //
 //  Where a point on a ring sits in the view, in fit units from the view's
@@ -962,7 +979,7 @@ double InspectorViewModel::Ease (double t)
 PlatterPlacement InspectorViewModel::GetPlacement (const RECT & boundsPx) const
 {
     PlatterPlacement  view;
-    double            fit    = std::max (0.0, std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0 - kRimInsetPx);
+    double            fit    = GetFitPx (boundsPx);
     double            scale  = 1.0;
     double            offset = 0.0;
 

@@ -11,6 +11,7 @@ static constexpr int     s_kButtonDip   = 26;
 static constexpr int     s_kSliderDip   = 140;
 static constexpr float   s_kTickPercent = 25.0f;
 static constexpr int     s_kPercentDip  = 56;
+static constexpr int     s_kNearDip     = 16;
 
 //  The stops a step moves between, as percentages.
 static constexpr int     s_kStops[]     = { 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200 };
@@ -183,16 +184,16 @@ void DxuiZoomControl::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 
     m_percent->Layout ({ x, top, x + percent, boundsPx.bottom }, scaler);
 
-    x -= m_isSliderShown ? button : 0;
+    x -= IsSliderShown() ? button : 0;
     m_zoomIn->Layout  ({ x, top, x + button, boundsPx.bottom }, scaler);
-    x -= m_isSliderShown ? slider : 0;
+    x -= IsSliderShown() ? slider : 0;
     m_slider->Layout  ({ x, top, x + slider, boundsPx.bottom }, scaler);
-    x -= m_isSliderShown ? button : 0;
+    x -= IsSliderShown() ? button : 0;
     m_zoomOut->Layout ({ x, top, x + button, boundsPx.bottom }, scaler);
 
-    m_zoomIn->SetVisible  (m_isSliderShown);
-    m_slider->SetVisible  (m_isSliderShown);
-    m_zoomOut->SetVisible (m_isSliderShown);
+    m_zoomIn->SetVisible  (IsSliderShown());
+    m_slider->SetVisible  (IsSliderShown());
+    m_zoomOut->SetVisible (IsSliderShown());
 }
 
 
@@ -213,9 +214,39 @@ bool DxuiZoomControl::IsOverControls (POINT p) const
 
 
 
-    area.left = m_isSliderShown ? m_zoomOut->GetBounds().left : area.left;
+    area.left = IsSliderShown() ? m_zoomOut->GetBounds().left : area.left;
 
     return PtInRect (&area, p) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiZoomControl::UpdateHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiZoomControl::UpdateHover (POINT cursorPx)
+{
+    RECT  area   = m_percent->GetBounds();
+    int   margin = IsSliderShown() ? m_scaler.ToPx (s_kNearDip) : 0;
+    bool  isOver = false;
+
+
+
+    area.left = IsSliderShown() ? m_zoomOut->GetBounds().left : area.left;
+    InflateRect (&area, margin, margin);
+
+    isOver = PtInRect (&area, cursorPx) != FALSE || IsDragging();
+
+    if (isOver != m_isHoverShown)
+    {
+        m_isHoverShown = isOver;
+        Layout (m_boundsDip, m_scaler);
+    }
 }
 
 

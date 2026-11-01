@@ -34,20 +34,23 @@ public:
         DxuiTextInput   * track      = nullptr;
         DxuiLabel       * entryLabel = nullptr;
         DxuiTextInput   * input      = nullptr;
+        DxuiComboBox    * files      = nullptr;
         DxuiLabel       * hint       = nullptr;
         DxuiLabel       * error      = nullptr;
     };
 
-    void  Init (const Parts & parts, int initial)
+    void  Init (const Parts & parts, int initial, std::function<void (IDxuiControl *)> onPress)
     {
         m_parts   = parts;
         m_initial = initial;
+        m_onPress = std::move (onPress);
 
         Adopt (*parts.kinds);
         Adopt (*parts.trackLabel);
         Adopt (*parts.track);
         Adopt (*parts.entryLabel);
         Adopt (*parts.input);
+        Adopt (*parts.files);
         Adopt (*parts.hint);
         Adopt (*parts.error);
     }
@@ -57,7 +60,6 @@ public:
         int                           pad     = scaler.ToPx (kPadDip);
         int                           rowH    = scaler.ToPx (kRowDip);
         int                           labelW  = scaler.ToPx (kLabelDip);
-        int                           trackW  = scaler.ToPx (kTrackDip);
         int                           half    = (boundsPx.right - boundsPx.left - 2 * pad) / 2;
         int                           x       = boundsPx.left + pad;
         int                           y       = boundsPx.top  + pad;
@@ -65,6 +67,8 @@ public:
         int                           rows    = (GoToDialog::kKindCount + 1) / 2;
         int                           sel     = (m_parts.kinds->GetSelected() >= 0) ? m_parts.kinds->GetSelected() : m_initial;
         bool                          isOn    = InspectorGoTo::IsOnTrack (static_cast<GoToKind> (sel));
+        bool                          isFile  = static_cast<GoToKind> (sel) == GoToKind::File;
+        int                           fieldW  = (boundsPx.right - boundsPx.left - 3 * pad - 2 * labelW) / 2;
         std::vector<DxuiRadioOption>  options;
 
 
@@ -86,16 +90,19 @@ public:
 
         m_parts.trackLabel->SetVisible (isOn);
         m_parts.track->SetVisible      (isOn);
+        m_parts.input->SetVisible      (!isFile);
+        m_parts.files->SetVisible      (isFile);
 
         if (isOn)
         {
             m_parts.trackLabel->Layout (RECT { x, y, x + labelW, y + rowH - 4 }, scaler);
-            m_parts.track->Layout      (RECT { x + labelW, y, x + labelW + trackW, y + rowH - 4 }, scaler);
-            x += labelW + trackW + pad;
+            m_parts.track->Layout      (RECT { x + labelW, y, x + labelW + fieldW, y + rowH - 4 }, scaler);
+            x += labelW + fieldW + pad;
         }
 
         m_parts.entryLabel->Layout (RECT { x, y, x + labelW, y + rowH - 4 }, scaler);
         m_parts.input->Layout      (RECT { x + labelW, y, boundsPx.right - pad, y + rowH - 4 }, scaler);
+        m_parts.files->Layout      (RECT { x + labelW, y, boundsPx.right - pad, y + rowH - 4 }, scaler);
         x  = boundsPx.left + pad;
         y += rowH;
 
@@ -112,7 +119,23 @@ public:
 
     bool  OnMouse (const DxuiMouseEvent & ev) override
     {
-        return m_parts.kinds->OnMouse (ev) || (m_parts.track->IsVisible() && m_parts.track->OnMouse (ev)) || m_parts.input->OnMouse (ev);
+        bool  isHandled = m_parts.kinds->OnMouse (ev);
+
+
+
+        for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { m_parts.track, m_parts.input, m_parts.files })
+        {
+            RECT  bounds = control->GetBounds();
+
+            if (ev.kind == DxuiMouseEventKind::Down && control->IsVisible() && control->IsEnabled() && PtInRect (&bounds, ev.positionDip) && m_onPress)
+            {
+                m_onPress (control);
+            }
+
+            isHandled = isHandled || (control->IsVisible() && control->OnMouse (ev));
+        }
+
+        return isHandled;
     }
 
 private:
@@ -120,10 +143,10 @@ private:
     static constexpr int  kRowDip   = 32;
     static constexpr int  kHintDip  = 20;
     static constexpr int  kLabelDip = 56;
-    static constexpr int  kTrackDip = 72;
 
     Parts          m_parts;
     int            m_initial  = 0;
+    std::function<void (IDxuiControl *)>  m_onPress;
     RECT           m_boundsPx = {};
     DxuiDpiScaler  m_scaler;
 };
@@ -187,11 +210,18 @@ void GoToDialog::OnCreate()
     m_error.SetTextRole  (DxuiTextRole::Error);
     m_error.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
-    parts      = { &m_kinds, &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_hint, &m_error };
-    m_body     = CreateDialogContent<GoToBody>();
-    m_body->Init (parts, static_cast<int> (m_kind));
+    FillFiles();
 
-    m_kinds.SetOnChange ([this] (int index) { m_body->Relayout(); ShowHint (static_cast<GoToKind> (index)); });
+    parts      = { &m_kinds, &m_trackLabel, &m_track, &m_entryLabel, &m_input, &m_files, &m_hint, &m_error };
+    m_body     = CreateDialogContent<GoToBody>();
+    m_body->Init (parts, static_cast<int> (m_kind), [this] (IDxuiControl * control) { FocusControl (control); });
+
+    m_kinds.SetOnChange ([this] (int index)
+    {
+        m_body->Relayout();
+        ShowHint (static_cast<GoToKind> (index));
+        FocusControl ((static_cast<GoToKind> (index) == GoToKind::File) ? static_cast<IDxuiControl *> (&m_files) : &m_input);
+    });
     ShowHint (m_kind);
 
     ok = AddDialogButton (L"OK", IDOK);
@@ -199,7 +229,45 @@ void GoToDialog::OnCreate()
 
     ok->SetOnClick ([this] () { OnOkClicked(); });
 
-    SetInitialFocus (&m_input);
+    SetInitialFocus ((m_kind == GoToKind::File) ? static_cast<IDxuiControl *> (&m_files) : &m_input);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GoToDialog::FillFiles
+//
+//  The files of every mapped volume that have a sector on the disk, for the
+//  File kind's list. With none, the list is empty and can't be opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GoToDialog::FillFiles()
+{
+    vector<std::wstring>  paths;
+
+
+
+    for (const FileMap & map : (m_analysis != nullptr) ? m_analysis->fileMaps : vector<FileMap>())
+    {
+        for (const MappedFile & file : map.files)
+        {
+            if (!file.isDeleted && std::any_of (file.sectors.begin(), file.sectors.end(), [] (const FilePlace & place) { return place.cell >= 0; }))
+            {
+                paths.push_back (file.path);
+            }
+        }
+    }
+
+    m_files.SetPopupHost (GetPopupHost());
+    m_files.SetElide     (DxuiElide::Middle);
+    m_files.SetItems     (paths);
+    m_files.SetSelected  (paths.empty() ? -1 : 0);
+    m_files.SetEnabled   (!paths.empty());
+    m_paths = std::move (paths);
 }
 
 
@@ -259,7 +327,8 @@ void GoToDialog::ShowHint (GoToKind kind)
 
     m_entryLabel.SetText (GetEntryLabel (kind));
 
-    m_hint.SetText ((m_analysis == nullptr)                                       ? std::wstring()
+    m_hint.SetText ((kind == GoToKind::File)                                       ? std::wstring (m_paths.empty() ? L"No files on this disk" : L"Selects the file in the Files tab and marks its sectors")
+                    : (m_analysis == nullptr)                                       ? std::wstring()
                     : (InspectorGoTo::IsOnTrack (kind) && quarterTrack < 0)        ? std::wstring (L"Enter a track from 0 to 39.75, such as 17.25")
                     : InspectorGoTo::GetRangeHint (*m_analysis, (quarterTrack >= 0) ? quarterTrack : m_quarterTrack, kind));
     m_error.SetText (L"");
@@ -289,7 +358,7 @@ LPCWSTR GoToDialog::GetEntryLabel (GoToKind kind)
         case GoToKind::ProDosBlock:    label = L"Block";  break;
         case GoToKind::NibbleOffset:   label = L"Offset"; break;
         case GoToKind::Cell:           label = L"Cell";   break;
-        case GoToKind::File:           label = L"Path";   break;
+        case GoToKind::File:           label = L"File";   break;
         default:                                          break;
     }
 
@@ -309,6 +378,7 @@ LPCWSTR GoToDialog::GetEntryLabel (GoToKind kind)
 void GoToDialog::OnOkClicked()
 {
     std::wstring  error;
+    int           file         = m_files.GetSelectedIndex();
     int           quarterTrack = GetEnteredTrack();
     bool          isFound      = false;
 
@@ -320,9 +390,13 @@ void GoToDialog::OnOkClicked()
     {
         error = L"Enter a track from 0 to 39.75, such as 17.25.";
     }
+    else if (m_kind == GoToKind::File && (file < 0 || file >= static_cast<int> (m_paths.size())))
+    {
+        error = L"This disk has no files.";
+    }
     else if (m_analysis != nullptr)
     {
-        isFound = InspectorGoTo::Resolve (*m_analysis, (quarterTrack >= 0) ? quarterTrack : m_quarterTrack, m_kind, m_input.GetText(), m_target, error);
+        isFound = InspectorGoTo::Resolve (*m_analysis, (quarterTrack >= 0) ? quarterTrack : m_quarterTrack, m_kind, (m_kind == GoToKind::File) ? m_paths[static_cast<size_t> (file)] : m_input.GetText(), m_target, error);
     }
 
     if (isFound)

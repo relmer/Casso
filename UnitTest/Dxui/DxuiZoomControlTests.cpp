@@ -20,6 +20,34 @@ TEST_CLASS (DxuiZoomControlTests)
 {
 public:
 
+    TEST_METHOD (TheSliderShowsOverThePercentageAndStaysNearTheControl)
+    {
+        DxuiZoomControl  control;
+        DxuiDpiScaler    scaler;
+
+
+
+        control.Layout ({ 0, 0, 270, 30 }, scaler);
+        Assert::IsFalse (control.IsSliderShown());
+
+        control.UpdateHover ({ 100, 15 });
+        Assert::IsFalse (control.IsSliderShown(), L"not yet, off the percentage");
+
+        control.UpdateHover ({ 250, 15 });
+        Assert::IsTrue (control.IsSliderShown(), L"over the percentage");
+
+        control.UpdateHover ({ 100, 15 });
+        Assert::IsTrue (control.IsSliderShown(), L"over the slider");
+
+        control.UpdateHover ({ 100, 40 });
+        Assert::IsTrue (control.IsSliderShown(), L"just below it");
+
+        control.UpdateHover ({ 100, 200 });
+        Assert::IsFalse (control.IsSliderShown(), L"away from it");
+    }
+
+
+
     TEST_METHOD (StepsMoveBetweenTheStops)
     {
         Assert::AreEqual (1.1, DxuiZoomControl::StepZoom (1.0,  1), 1e-9);

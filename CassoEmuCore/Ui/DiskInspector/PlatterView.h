@@ -104,6 +104,9 @@ private:
     bool                              m_isPressed        = false;
     bool                              m_isPanning        = false;
     bool                              m_isTilting        = false;
+    bool                              m_isTiltOn         = false;
+    double                            m_tiltDx           = 0.0;
+    double                            m_tiltDy           = 0.0;
     double                            m_pressTilt        = 0.0;
     POINT                             m_tiltAt           = {};
     POINT                             m_pressAt          = {};

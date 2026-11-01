@@ -99,6 +99,7 @@ public:
     void    ZoomAbout       (double zoom, Point anchor);
     void    Fit             ();
     void    PanBy           (Point delta);
+    double  GetFitPx        (const RECT & boundsPx) const;
     bool    IsAtFit         () const { return m_zoom <= 1.0; }
     double  GetZoom         () const { return m_zoom; }
     Point   GetPan          () const { return m_pan; }

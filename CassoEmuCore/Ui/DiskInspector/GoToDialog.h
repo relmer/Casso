@@ -16,7 +16,7 @@ class GoToBody;
 //
 //  "Go to" (FR-055): a track, a physical or DOS 3.3 sector, a ProDOS block,
 //  a nibble offset or a cell, each entered in the base the inspector shows
-//  it in. A sector, offset or cell is entered with its track. OK selects
+//  it in, or a file chosen from a list. A sector, offset or cell is entered with its track. OK selects
 //  it; after an entry that finds nothing, the dialog stays open with the
 //  reason under the entry.
 //
@@ -41,6 +41,7 @@ protected:
 private:
     void      OnOkClicked     ();
     void      ShowHint        (GoToKind kind);
+    void      FillFiles       ();
     GoToKind  GetChosenKind   () const;
     int       GetEnteredTrack () const;
 
@@ -59,6 +60,8 @@ private:
     DxuiTextInput         m_track;
     DxuiLabel             m_entryLabel;
     DxuiTextInput         m_input;
+    DxuiComboBox          m_files;
+    vector<std::wstring>  m_paths;
     DxuiLabel             m_hint;
     DxuiLabel             m_error;
 };

@@ -96,6 +96,7 @@ private:
     DxuiDpiScaler              m_scaler;
     RECT                       m_areaPx           = {};
     bool                       m_isLegendPinned   = false;
+    UINT                       m_legendDpi        = 0;
     int64_t                    m_legendClosedMs   = 0;
     bool                       m_isSliderOut      = false;
     bool                       m_isAlignment      = false;

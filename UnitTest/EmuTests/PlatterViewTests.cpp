@@ -75,6 +75,54 @@ public:
     }
 
 
+    TEST_METHOD (ARightDragTiltsFromThePressAndKeepsThePointUnderThePointer)
+    {
+        static constexpr int  kSide = 1000;
+
+        InspectorViewModel    model;
+        InspectorViewContext  context;
+        DxuiDpiScaler         scaler;
+        DxuiMouseEvent        ev;
+        double                dx    = 0;
+        double                dy    = 0;
+        float                 x     = 0.0f;
+        float                 y     = 0.0f;
+        double                upper = 0;
+
+
+
+        model.ZoomAbout (4.0, { 0.0, 0.0 });
+
+        context.model   = &model;
+        context.hasDisk = true;
+
+        PlatterView  view (context);
+
+        view.Layout ({ 0, 0, kSide, kSide }, scaler);
+
+        ev.button      = DxuiMouseButton::Right;
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.positionDip = { 500, 800 };
+        Assert::IsTrue (view.OnMouse (ev));
+        Assert::IsTrue (PlatterGeometry::Unproject (model.GetPlacement ({ 0, 0, kSide, kSide }), 500, 800, dx, dy));
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = { 520, 600 };
+        Assert::IsTrue (view.OnMouse (ev));
+        Assert::IsTrue (model.GetTilt() > 0.0, L"up tilts");
+
+        PlatterGeometry::Project (model.GetPlacement ({ 0, 0, kSide, kSide }), dx, dy, x, y);
+        Assert::AreEqual (520.0f, x, 0.5f, L"the point pressed is under the pointer");
+        Assert::AreEqual (600.0f, y, 0.5f);
+
+        upper          = model.GetTilt();
+        ev.positionDip = { 520, 400 };
+        Assert::IsTrue (view.OnMouse (ev));
+        Assert::IsTrue (model.GetTilt() > upper, L"past the center the tilt goes on growing");
+    }
+
+
+
     //  The head marker is drawn over the platter but takes no input: a click
     //  on its bullseye selects the head's track and the sector under the
     //  head, with the platter turned as the drive turns it (FR-064).

@@ -20,6 +20,9 @@ static constexpr float  s_kIndexLabelDip    = 36.0f;
 static constexpr float  s_kIndexStepDip     = 6.0f;
 static constexpr float  s_kIndexGapDip      = 3.0f;
 static constexpr float  s_kIndexLineDip     = 10.0f;
+static constexpr float  s_kIndexMaxCos      = 0.866f;
+static constexpr float  s_kIndexAboveEm     = 0.29f;
+static constexpr float  s_kIndexBelowEm     = 0.41f;
 static constexpr float  s_kIndexButtonDip   = 64.0f;
 static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
@@ -1102,8 +1105,9 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  The index mark's label off the disk: the nearest place along the rim's
 //  tangent, past the mark, where the label is in the view, clear of the corner
-//  buttons and off the disk. A line toward the label's center joins them,
-//  stopping short of the mark and of the text.
+//  buttons and off the disk, and where a line to it is at least
+//  30 degrees from the mark. The line runs toward the label's center and
+//  stops one gap short of the mark and of the letters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1155,17 +1159,19 @@ void PlatterView::PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & t
             cx = tipX + outX * away + side * nextX * step * k;
             cy = tipY + outY * away + side * nextY * step * k;
 
-            if (!isDone && IsIndexLabelClear (view, cx, cy, w, h))
+            float  dx     = cx - tipX;
+            float  dy     = cy - tipY;
+            float  dist   = std::max (std::hypot (dx, dy), 1e-3f);
+            bool   isWide = (dx * outX + dy * outY) / dist <= s_kIndexMaxCos;
+
+            if (!isDone && isWide && IsIndexLabelClear (view, cx, cy, w, h))
             {
-                float  dx    = cx - tipX;
-                float  dy    = cy - tipY;
-                float  dist  = std::max (std::hypot (dx, dy), 1e-3f);
-                float  scale = std::min ((std::abs (dx) > 1e-3f) ? (textW / 2 + gap) / std::abs (dx) : FLT_MAX,
-                                         (std::abs (dy) > 1e-3f) ? (textH / 2 + gap) / std::abs (dy) : FLT_MAX);
+                float  letters = (dy > 0.0f) ? textPx * s_kIndexAboveEm : textPx * s_kIndexBelowEm;
+                float  scale   = std::min ((std::abs (dx) > 1e-3f) ? (textW / 2 + gap) / std::abs (dx) : FLT_MAX,
+                                           (std::abs (dy) > 1e-3f) ? (letters + gap) / std::abs (dy) : FLT_MAX);
 
                 isDone = true;
 
-                //  The line ends a gap short of the text's box.
                 if (dist * (1.0f - scale) > gap)
                 {
                     painter.DrawLine (tipX + dx / dist * gap, tipY + dy / dist * gap, cx - dx * scale, cy - dy * scale, 1.0f, theme.ForegroundMuted());
@@ -1548,8 +1554,9 @@ void PlatterView::FillDiskCircle (IDxuiPainter & painter, const PlatterPlacement
 //
 //  PlatterView::OnTiltMouse
 //
-//  A right drag tilts the disk with the pointer (FR-151), as
-//  PlatterGeometry::GetDragTilt calculates.
+//  A right drag tilts the disk by how far it has gone up or down from the
+//  press (FR-151), as PlatterGeometry::GetDragTilt calculates, and pans so the
+//  point pressed stays under the pointer. A platter at fit doesn't pan.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1557,6 +1564,8 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
 {
     POINT    p         = ev.positionDip;
     bool     isHandled = false;
+    float    x         = 0.0f;
+    float    y         = 0.0f;
 
 
 
@@ -1568,6 +1577,7 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
                 m_isTilting = true;
                 m_tiltAt    = p;
                 m_pressTilt = m_context.model->GetTilt();
+                m_isTiltOn  = PlatterGeometry::Unproject (MakeView(), p.x, p.y, m_tiltDx, m_tiltDy);
                 isHandled   = true;
             }
 
@@ -1576,8 +1586,14 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Move:
             if (m_isTilting)
             {
-                m_context.model->SetTilt (m_context.model->GetTilt() + PlatterGeometry::GetDragTilt (MakeView(), m_tiltAt, p));
-                m_tiltAt  = p;
+                m_context.model->SetTilt (m_pressTilt + PlatterGeometry::GetDragTilt (m_context.model->GetFitPx (m_boundsDip), m_tiltAt, p));
+
+                if (m_isTiltOn)
+                {
+                    PlatterGeometry::Project (MakeView(), m_tiltDx, m_tiltDy, x, y);
+                    m_context.model->PanBy ({ (p.x - x) / std::max (m_context.model->GetFitPx (m_boundsDip), 1.0), (p.y - y) / std::max (m_context.model->GetFitPx (m_boundsDip), 1.0) });
+                }
+
                 isHandled = true;
             }
 
@@ -1586,12 +1602,6 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Up:
             isHandled   = m_isTilting && ev.button == DxuiMouseButton::Right;
             m_isTilting = m_isTilting && ev.button != DxuiMouseButton::Right;
-
-            if (isHandled && m_context.model->GetTilt() != m_pressTilt)
-            {
-                m_context.model->RefitSelection();
-            }
-
             break;
 
         default:

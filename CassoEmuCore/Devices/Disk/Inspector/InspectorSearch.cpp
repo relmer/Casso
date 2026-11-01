@@ -23,7 +23,8 @@ static constexpr int   s_kBlocksPerTrack = 8;
 //
 //  Hex patterns are pairs of digits, either of which can be ?, spaces
 //  ignored, and in a nibble pattern a + after a pair; text is any ASCII,
-//  matched without regard to the high bit or to case.
+//  matched without regard to the high bit or to case, where ? matches any byte
+//  and a backslash makes the next character literal.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,13 @@ bool InspectorSearch::ParsePattern (const std::wstring & text, SearchKind kind, 
     {
         for (i = 0; isOk && i < text.size(); i++)
         {
+            if (text[i] == L'?')
+            {
+                outItems.push_back (SearchItem { 0, 0, false });
+                continue;
+            }
+
+            i   += (text[i] == L'\\' && i + 1 < text.size()) ? 1 : 0;
             isOk = text[i] < 0x80;
             outItems.push_back (SearchItem { static_cast<Byte> (text[i]), s_kAsciiMask, false });
         }
@@ -374,7 +382,7 @@ bool InspectorSearch::IsMatch (Byte value, const SearchItem & item, bool isText)
         b = (b >= 'a' && b <= 'z') ? static_cast<Byte> (b & ~kCaseBit) : b;
     }
 
-    return isText ? a == b : (value & item.mask) == (item.value & item.mask);
+    return (isText && item.mask != 0) ? a == b : (value & item.mask) == (item.value & item.mask);
 }
 
 
