@@ -743,6 +743,7 @@ bool Win32PackagedCommands::IsInSyncRootOf (const std::wstring & package, const 
         wchar_t       name[256] = {};
         DWORD         length    = (DWORD) std::size (name);
         HKEY          users     = nullptr;
+        LSTATUS       opened    = ERROR_SUCCESS;
         std::wstring  provider;
 
         if (RegEnumKeyExW (roots, index, name, &length, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
@@ -752,8 +753,14 @@ bool Win32PackagedCommands::IsInSyncRootOf (const std::wstring & package, const 
 
         provider = std::wstring (name).substr (0, std::wstring (name).find (L'!'));
 
-        if (StrStrIW (package.c_str(), provider.c_str()) == nullptr
-            || RegOpenKeyExW (roots, (std::wstring (name) + L"\\UserSyncRoots").c_str(), 0, KEY_READ, &users) != ERROR_SUCCESS)
+        if (StrStrIW (package.c_str(), provider.c_str()) == nullptr)
+        {
+            continue;
+        }
+
+        opened = RegOpenKeyExW (roots, (std::wstring (name) + L"\\UserSyncRoots").c_str(), 0, KEY_READ, &users);
+
+        if (opened != ERROR_SUCCESS || users == nullptr)
         {
             continue;
         }

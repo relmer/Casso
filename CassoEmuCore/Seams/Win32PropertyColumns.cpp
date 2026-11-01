@@ -508,6 +508,7 @@ void Win32PropertyColumns::ReadGroup (IPropertyStore & store, const PROPERTYKEY 
 
     hr = description->GetCanonicalName (&name);
     CHR (hr);
+    CPR (name);
 
     canonical = name;
 
@@ -668,6 +669,7 @@ bool Win32PropertyColumns::ReadDescription (IPropertyDescription & description, 
 
     hr = description.GetCanonicalName (&canonical);
     CHR (hr);
+    CPR (canonical);
 
     hr = description.GetDisplayName (&title);
     CHR (hr);

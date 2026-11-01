@@ -115,10 +115,10 @@ void DxuiPopupMenuPainter::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer 
         {
             painter.FillRoundedRect (left, top, width, height, radius, pal.bg);
         }
-        //  Over acrylic the card is translucent, so the border is drawn as a
-        //  ring over it rather than filled beneath it.
         else if (m_menu.m_acrylic)
         {
+            //  Over acrylic the card is translucent, so the border is drawn as a
+            //  ring over it rather than filled beneath it.
             float  opacity = DxuiColor::ComputeRelativeLuminance (pal.bg) < 0.5f ? DxuiPopupMenu::s_kAcrylicDarkOpacity : DxuiPopupMenu::s_kAcrylicLightOpacity;
 
             painter.FillRoundedRect    (left, top, width, height, radius, DxuiColor::ScaleAlpha (pal.bg, opacity));

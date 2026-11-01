@@ -262,12 +262,17 @@ bool Win32ShellSearch::IsSystemItem (const std::wstring & path)
 
 
 
+    if (length == 0 || length >= MAX_PATH)
+    {
+        return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_SYSTEM) != 0;
+    }
+
     if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_SYSTEM) != 0)
     {
         return true;
     }
 
-    return length != 0 && _wcsnicmp (path.c_str(), windows, length) == 0 && path.size() > length && path[length] == L'\\';
+    return _wcsnicmp (path.c_str(), windows, length) == 0 && path.size() > length && path[length] == L'\\';
 }
 
 
