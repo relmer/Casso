@@ -177,12 +177,12 @@ public:
     //  The open drive's disk, or the given link's drive, so a second read
     //  goes to the drive the first one did, wherever the window is by then.
     Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (imagePath, blankUnreadable, onUnreadable); }
-    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, onUnreadable); }
+    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, forceVerify, onUnreadable); }
     Outcome  WriteImageToDisk (const std::wstring & imagePath) { return m_appleDrive.WriteImageToDisk (imagePath); }
 
     //  The same for any drive of any link, as a drop onto a drive's node
     //  writes to a drive that may not be open.
-    Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath) { return m_appleDrive.WriteImageToAppleDrive (link, drive, imagePath); }
+    Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify = false) { return m_appleDrive.WriteImageToAppleDrive (link, drive, imagePath, forceVerify); }
 
     //  A drive's whole disk read into an image in hostFolder, with its volume
     //  in the file name, as a drag of the drive's node onto a folder does. The name is

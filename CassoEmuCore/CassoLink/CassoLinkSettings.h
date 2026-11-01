@@ -33,6 +33,7 @@ struct CassoLinkSettings
     DWORD          bootstrapBaud     = kDefaultBootstrapBaud;
     bool           hardwareHandshake = false;
     bool           use40             = false;    // 40 columns on the Apple even where it has 80
+    int            verify            = kVerifyDefault;
     std::wstring   folder;
 
     //  Whether the user disconnected it, which outlasts a restart; the port an
@@ -42,6 +43,9 @@ struct CassoLinkSettings
     std::string    lastPort;
     int            lastUsed          = 0;
 
+    static constexpr int       kVerifyDefault        = 0;    // Verified transfers as Casso Explorer's options have them
+    static constexpr int       kVerifyOn             = 1;
+    static constexpr int       kVerifyOff            = 2;
     static constexpr DWORD     kDefaultBaud          = 115200;
     static constexpr DWORD     kDefaultBootstrapBaud = 9600;
     static constexpr uint16_t  kModemPort            = 6400;

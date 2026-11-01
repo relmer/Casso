@@ -43,6 +43,16 @@ public:
     //  result for a full image and for the tracks read first is the same.
     static bool     NeedsDirectoryTrack (const std::vector<Byte> & image);
 
+    //  What a disk with unreadable sectors probably is, as a manifest status.
+    //  Sector reads aren't conclusive: a recognized file system comes first,
+    //  then whether whole tracks have no sectors at all.
+    static const char *  AssessDamage (const std::vector<Byte> & image, int emptyTracks, int scatteredSectors);
+
+    //  Whole tracks with no sector found before the rest of a disk is read once
+    //  with no retries. Retries don't recover a copy-protected disk's nonstandard
+    //  tracks.
+    static constexpr int  kEmptyTracksToStop = 3;
+
     //  The prefix, as typed, then NNNN NAME, or NNNN alone, with the prefix and
     //  the name cleaned by the host file name rules.
     static std::string  MakeImageTitle (int sequence, const std::string & catalogTitle, const std::string & prefix);

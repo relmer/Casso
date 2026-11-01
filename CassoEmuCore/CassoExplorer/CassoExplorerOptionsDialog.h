@@ -118,6 +118,56 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerVerifyPage
+//
+//  Verified transfers: a toggle for reads, writes and automatic verification, in
+//  one column after their labels, each with a note, and notes on overriding them
+//  and what they can't do. The rows are stacked by their notes' heights.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CassoExplorerVerifyPage : public DxuiPropertyPage
+{
+public:
+    struct Row
+    {
+        DxuiLabel   label;
+        DxuiToggle  toggle;
+        DxuiLabel   state;
+        DxuiLabel   note;
+    };
+
+    explicit CassoExplorerVerifyPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
+
+    void  Init    (DxuiLabel & intro, std::array<Row, 3> & rows, DxuiLabel & overrideHead, DxuiLabel & overrideNote, DxuiLabel & limitHead, DxuiLabel & limitNote);
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    static constexpr int  kIntroHeightDip  = 84;
+    static constexpr int  kRowHeightDip    = 26;
+    static constexpr int  kToggleColDip    = 290;
+    static constexpr int  kToggleWidthDip  = 44;
+    static constexpr int  kStateWidthDip   = 40;
+    static constexpr int  kNoteHeightDip   = 64;
+    static constexpr int  kHeadHeightDip   = 24;
+    static constexpr int  kOverrideDip     = 84;
+    static constexpr int  kLimitDip        = 84;
+
+private:
+    DxuiLabel           * m_intro        = nullptr;
+    std::array<Row, 3>  * m_rows         = nullptr;
+    DxuiLabel           * m_overrideHead = nullptr;
+    DxuiLabel           * m_overrideNote = nullptr;
+    DxuiLabel           * m_limitHead    = nullptr;
+    DxuiLabel           * m_limitNote    = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerOptionsDialog
 //
 //  CassoExplorer's settings: the form a copy out of an image takes on the
@@ -150,6 +200,11 @@ public:
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;
         std::wstring  fullSendPrefix;
+
+        //  Verified transfers.
+        bool          verifyReads  = false;
+        bool          verifyWrites = false;
+        bool          autoVerify   = true;
 
 
         //  The preview's monitor, as a PicturePreview::Monitor, the custom
@@ -199,30 +254,38 @@ private:
     void            WireDisplay     ();
     void            WireColorPicker ();
     void            WireFullSend    ();
+    void            WireVerify      ();
     void            SetCustomColor  (uint32_t argb);
     void            PreviewChoices  ();
 
-    const IDxuiTheme            * m_theme         = nullptr;
-    DisplayHost                   m_display;
-    Choices                       m_original;
-    Choices                       m_choices;
-    bool                          m_confirmed     = false;
-    DxuiRadioGroup                m_naming;
-    DxuiLabel                     m_namingNote;
-    DxuiLabel                     m_previewNote;
-    DxuiCheckbox                  m_autoPreview;
-    DxuiCheckbox                  m_register;
-    DxuiLabel                     m_fullSendNote;
-    DxuiLabel                     m_fullSendFolderLabel;
-    DxuiLabel                     m_fullSendFormatLabel;
-    DxuiLabel                     m_fullSendPrefixLabel;
-    DxuiTextInput                 m_fullSendPrefix;
-    DxuiLabel                     m_fullSendFolder;
-    DxuiButton                    m_fullSendBrowse;
-    DxuiRadioGroup                m_fullSendFormat;
-    CassoExplorerFullSendPage   * m_fullSend      = nullptr;
-    ColorPickerOverlay            m_colorPicker;
-    CassoExplorerGeneralPage    * m_general       = nullptr;
-    CassoExplorerHostNamesPage  * m_hostNames     = nullptr;
-    DisplayPage                 * m_displayPage   = nullptr;
+    const IDxuiTheme                             * m_theme               = nullptr;
+    DisplayHost                                    m_display;
+    Choices                                        m_original;
+    Choices                                        m_choices;
+    bool                                           m_confirmed           = false;
+    DxuiRadioGroup                                 m_naming;
+    DxuiLabel                                      m_namingNote;
+    DxuiLabel                                      m_previewNote;
+    DxuiCheckbox                                   m_autoPreview;
+    DxuiCheckbox                                   m_register;
+    DxuiLabel                                      m_fullSendNote;
+    DxuiLabel                                      m_fullSendFolderLabel;
+    DxuiLabel                                      m_fullSendFormatLabel;
+    DxuiLabel                                      m_fullSendPrefixLabel;
+    DxuiTextInput                                  m_fullSendPrefix;
+    DxuiLabel                                      m_fullSendFolder;
+    DxuiButton                                     m_fullSendBrowse;
+    DxuiRadioGroup                                 m_fullSendFormat;
+    CassoExplorerFullSendPage                    * m_fullSend            = nullptr;
+    DxuiLabel                                      m_verifyIntro;
+    std::array<CassoExplorerVerifyPage::Row, 3>    m_verifyRows;
+    DxuiLabel                                      m_verifyOverrideHead;
+    DxuiLabel                                      m_verifyOverrideNote;
+    DxuiLabel                                      m_verifyLimitHead;
+    DxuiLabel                                      m_verifyLimitNote;
+    CassoExplorerVerifyPage                      * m_verifyPage          = nullptr;
+    ColorPickerOverlay                             m_colorPicker;
+    CassoExplorerGeneralPage                     * m_general             = nullptr;
+    CassoExplorerHostNamesPage                   * m_hostNames           = nullptr;
+    DisplayPage                                  * m_displayPage         = nullptr;
 };

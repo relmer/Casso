@@ -218,7 +218,7 @@ bool FullSendManifest::TryParseRow (const std::vector<std::string> & cells, Full
              && (outRow.drive == 1 || outRow.drive == 2)
              && IsHexHash (outRow.fingerprint)
              && IsHexHash (outRow.hash)
-             && (outRow.status == kStatusSent || outRow.status == kStatusDuplicate || outRow.status == kStatusProtected);
+             && (outRow.status == kStatusSent || outRow.status == kStatusDuplicate || outRow.status == kStatusProtected || outRow.status == kStatusDamaged || outRow.status == kStatusUnclear || outRow.status == kStatusLegacyProtected);
     }
 
     if (valid && cells.size() == kColumns)

@@ -63,6 +63,10 @@ public:
 
     //  Sectors the drive cannot read, as track and physical sector.
     std::set<std::pair<int, int>>     badSectors;
+
+    //  Written tracks to fail as not reading back, and the writes received.
+    std::atomic<int>                  writeFailures  { 0 };
+    std::atomic<int>                  trackWrites    { 0 };
     std::vector<Byte>                 loadedProgram;
 
     //  As the serial loader typed in by a bootstrap: once the command that
@@ -577,6 +581,15 @@ private:
             }
 
             sectorsWritten++;
+        }
+
+        trackWrites++;
+
+        if (count == 16 && writeFailures > 0)
+        {
+            writeFailures--;
+            SendPacket (line, CassoLinkCodec::kStatus, { 2, (Byte) drive, (Byte) track, 0, CassoLinkHost::kErrorVerify });
+            return;
         }
 
         SendPacket (line, CassoLinkCodec::kStatus, { 2, (Byte) drive, (Byte) track, (Byte) done, CassoLinkHost::kErrorNone });

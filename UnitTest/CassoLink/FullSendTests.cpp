@@ -57,6 +57,7 @@ public:
         bool                                  verifying      = false;
         std::vector<SectorMark>               reportMarks;
         int                                   reportVerified = 0;
+        int                                   reportEmpty    = 0;
         bool                                  bootstrapped   = false;
         FullSendKey                           beginKey       = FullSendKey::Space;
         std::vector<std::string>              entryLines;
@@ -105,6 +106,7 @@ public:
         {
             outReport.marks          = reportMarks;
             outReport.tracksVerified = reportVerified;
+            outReport.emptyTracks    = reportEmpty;
 
             int  read = (int) diskReads.size() + 1;
 
@@ -286,7 +288,22 @@ public:
         Assert::AreEqual (std::string (64, 'b'), row.hash);
         Assert::AreEqual (std::string ("2026-10-30T12:00:00Z"), row.time);
         Assert::AreEqual (3, row.unreadable);
-        Assert::AreEqual (std::string ("possibly-protected"), row.status);
+        Assert::AreEqual (std::string ("likely-copy-protected"), row.status);
+    }
+
+    TEST_METHOD (Manifest_ParsesTheEarlierProtectedLabel)
+    {
+        FullSendManifest   manifest;
+        FullSendManifest   parsed;
+        auto               row = Row (1, "x.dsk");
+        std::vector<Byte>  text;
+
+        row.status = FullSendManifest::kStatusLegacyProtected;
+        manifest.Add (row);
+        text = manifest.Format();
+
+        AssertSucceeded (parsed.Parse (text));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusLegacyProtected), parsed.GetRows()[0].status);
     }
 
     TEST_METHOD (Manifest_FailsToParseDamage_WithNoRows)
@@ -299,7 +316,7 @@ public:
             "",
             "not a manifest\r\n",
             text + "1,2,3\r\n",
-            std::string (text).replace (text.find ("sent") == std::string::npos ? text.find ("possibly-protected") : text.find ("sent"), 18, "whatever"),
+            std::string (text).replace (text.find ("sent") == std::string::npos ? text.find ("likely-copy-protected") : text.find ("sent"), 18, "whatever"),
             text + "x,y.dsk,1," + std::string (64, 'a') + "," + std::string (64, 'b') + ",t,0,sent,\r\n",
             text + "2,\"unclosed,1," + std::string (64, 'a') + "," + std::string (64, 'b') + ",t,0,sent,\r\n",
             text + "2,y.dsk,3," + std::string (64, 'a') + "," + std::string (64, 'b') + ",t,0,sent,\r\n",
@@ -708,6 +725,33 @@ public:
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.dsk.unreadable.txt"));
     }
 
+    TEST_METHOD (Assess_FollowsTheFileSystem_ThenTheTracks)
+    {
+        Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), std::string (FullSendDisk::AssessDamage (Other (1), 4, 64)));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Other (1), 0, 2)));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 4, 64)));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 0, 2)));
+    }
+
+    TEST_METHOD (Session_ALikelyProtectedDisk_IsLabeled_AndTheSessionGoesOn)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]   = Other (1);
+        rig.link.badDisk     = rig.link.drives[0];
+        rig.link.badSectors  = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty = 3;
+        rig.link.present[1]  = false;
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), session->GetManifest().GetRows()[0].status);
+        Assert::AreEqual (1, session->GetScreen().prot);
+        Assert::AreEqual (0, session->GetScreen().bad);
+        Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Protected);
+        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & s) { return s.tone == FullSendTone::Protected; }));
+    }
+
     TEST_METHOD (Session_DoesNotReadADisk_UntilSpaceBegins)
     {
         Rig  rig;
@@ -1059,7 +1103,7 @@ public:
 
         Assert::AreEqual ((size_t) 2, rows.size());
         Assert::AreEqual (2, rows[0].unreadable);
-        Assert::AreEqual (std::string ("possibly-protected"), rows[0].status);
+        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear), rows[0].status);
         Assert::AreEqual (std::string ("sent"), rows[1].status);
         Assert::IsTrue (rig.io.files.contains (CassoLinkDiskTransfer::GetUnreadableListPath ("C:\\Box\\0001.dsk")));
         Assert::AreEqual (1, session->GetScreen().bad);

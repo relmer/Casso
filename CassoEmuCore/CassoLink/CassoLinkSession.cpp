@@ -319,7 +319,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std::string & imagePath, const std::string & formatted)
+std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std::string & imagePath, const std::string & formatted, bool forceVerify)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
@@ -327,6 +327,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std
 
     operation->imagePath = imagePath;
     operation->formatted = formatted;
+    operation->verifyWrites = forceVerify || m_verifyWrites;
 
     return Queue (LinkOperationKind::WriteDisk, drive, FilePath(), operation);
 }

@@ -50,6 +50,9 @@ public:
 
     void  SetFullSendTarget (const std::string & folder, const std::string & extension, const std::string & prefix, MakeFolderFn makeFolder);
 
+    //  Verified transfers for every connection that doesn't override them.
+    void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
+
     //  Where a finished operation or a change of state is posted.
     void  SetTarget (HWND hwnd, UINT message) { m_hwnd = hwnd; m_message = message; }
 
@@ -307,6 +310,7 @@ private:
     void                      Notify        ();
     HRESULT                   StartLink     (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
     HRESULT                   TakePort      (const std::string & name);
+    void                      ApplyVerify   (Link & link) const;
     std::vector<std::string>  GetPortRivals (const std::string & name);
     void                      Merge         ();
     bool                      IsSearching   () const;
@@ -337,6 +341,9 @@ private:
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
     std::string           m_fullSendPrefix;
+    bool                  m_verifyReads        = false;
+    bool                  m_verifyWrites       = false;
+    bool                  m_autoVerify         = true;
     MakeFolderFn          m_makeFullSendFolder;
     std::vector<Job>      m_jobs;
     std::deque<Activity>  m_activity;

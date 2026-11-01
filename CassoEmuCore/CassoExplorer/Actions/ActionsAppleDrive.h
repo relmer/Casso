@@ -67,10 +67,10 @@ public:
     ActionsTypes::Outcome  WriteBlocks  (int block, const std::wstring & hostPath);
 
     ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
-    ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
+    ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable);
     ActionsTypes::Outcome  WriteImageToDisk (const std::wstring & imagePath);
 
-    ActionsTypes::Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath);
+    ActionsTypes::Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify = false);
 
     ActionsTypes::Outcome  CreateImageFromAppleDrive (const std::string & link, int drive, const std::wstring & hostFolder);
 

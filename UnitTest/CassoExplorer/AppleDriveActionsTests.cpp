@@ -528,7 +528,7 @@ public:
         Assert::IsTrue   (rig.io.files.find ("C:\\Images\\out.dsk") == rig.io.files.end());
 
         //  Read again by the link and drive the offer was given, not by the location.
-        AssertSucceeded (rig.actions->ReadDiskToImage (link, drive, L"C:\\Images\\out.dsk", true, {}).hr);
+        AssertSucceeded (rig.actions->ReadDiskToImage (link, drive, L"C:\\Images\\out.dsk", true, false, {}).hr);
         Assert::IsTrue (rig.Finish().empty());
         Assert::IsTrue (rig.io.files.find ("C:\\Images\\out.dsk") != rig.io.files.end(), L"read again with the sector as zeros");
     }

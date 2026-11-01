@@ -112,7 +112,7 @@ public:
     //  back. The caller has the user's confirmation first. An image whose
     //  tracks do not all decode to standard sectors fails before any track
     //  is written.
-    std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath, const std::string & formatted = std::string());
+    std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath, const std::string & formatted = std::string(), bool forceVerify = false);
 
     //  Disks into a folder, alternating between the drives, until Q on
     //  the Apple, Cancel or a failure ends it. The extension has its period;

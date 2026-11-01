@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkFullSend.h"
+#include "CassoLink/FullSend/FullSendDisk.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
@@ -222,7 +224,9 @@ Error:
 
 HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    size_t   before = 0;
+    bool     stop   = false;
 
 
 
@@ -240,7 +244,17 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         m_session.Report (*m_operation, track * 100 / NibblizationLayer::kTrackCount);
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
-        if (m_verifying)
+        before = outUnreadable.size();
+
+        //  With no file system and whole tracks gone, the rest is read once.
+        //  Retries don't recover a copy-protected disk's nonstandard tracks.
+        stop = outReport.emptyTracks >= FullSendDisk::kEmptyTracksToStop && VolumeImage::DetectFilesystem (ioImage) == VolumeKind::Unknown;
+
+        if (stop)
+        {
+            hr = ReadTrackOnce (drive, track, ioImage, outUnreadable);
+        }
+        else if (m_verifying)
         {
             hr = m_session.m_diskTransfer.ReadVerifiedTrack (drive, track, ioImage, outUnreadable, outReport.marks);
             outReport.tracksVerified++;
@@ -251,6 +265,60 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         }
 
         CHR (hr);
+
+        outReport.emptyTracks += outUnreadable.size() - before == NibblizationLayer::kSectorsPerTrack ? 1 : 0;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::ReadTrackOnce
+//
+//  One request for the track, with no retries. Sectors not read are left
+//  as zeros and listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::ReadTrackOnce (int drive, int track, std::vector<Byte> & ioImage, std::vector<std::pair<int, int>> & outUnreadable)
+{
+    HRESULT            hr        = S_OK;
+    std::vector<Byte>  physicals;
+    std::vector<Byte>  data;
+    CassoLinkStatus    status;
+    int                done      = 0;
+
+
+
+    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    {
+        physicals.push_back ((Byte) physical);
+    }
+
+    hr = m_session.m_host->ReadSectors ((Byte) drive, (Byte) track, physicals, data, status);
+    CHR (hr);
+
+    done = status.error == CassoLinkHost::kErrorNone ? NibblizationLayer::kSectorsPerTrack : status.done;
+
+    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    {
+        int  logical = CassoLinkSession::GetLogicalSector (physical);
+
+        if (physical < done)
+        {
+            std::copy_n (data.begin() + (ptrdiff_t) ((size_t) physical * LinkedDisk::kSectorSize), LinkedDisk::kSectorSize,
+                         ioImage.begin() + (ptrdiff_t) ((size_t) (track * NibblizationLayer::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize));
+        }
+        else
+        {
+            outUnreadable.push_back ({ track, logical });
+        }
     }
 
 Error:

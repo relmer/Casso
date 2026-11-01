@@ -3906,6 +3906,8 @@ fsrow:  lda logrowlo,x
 ; happening: the drive is not being read and the host is waiting for Ready.
 fssound: lda PKTBUF+FSTONE
         beq fsndone
+        cmp #4
+        beq fsnprot
         cmp #2
         beq fsndup
         bcs fsnbad
@@ -3925,6 +3927,15 @@ fsnbad: lda #140
         ldx #60
         jmp beep
 fsndone: rts
+fsnprot: lda #60                ; three rising notes for a likely copy-protected disk
+        ldx #100
+        jsr beep
+        lda #40
+        ldx #120
+        jsr beep
+        lda #27
+        ldx #160
+        jmp beep
 
 ; beep: X half-cycles of about 9 times A CPU cycles each.
 beep:   stx tmp

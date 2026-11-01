@@ -677,6 +677,9 @@ void ExplorerCommandManager::ShowOptions()
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
     choices.fullSendPrefix    = m_context.prefs.fullSendPrefix;
+    choices.verifyReads       = m_context.prefs.verifyReads;
+    choices.verifyWrites      = m_context.prefs.verifyWrites;
+    choices.autoVerify        = m_context.prefs.autoVerify;
 
     choices.monitor      = (int) m_context.preview.GetPicture().GetMonitor();
     choices.customArgb   = m_context.prefs.previewCustomArgb;
@@ -719,7 +722,11 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
     m_context.prefs.fullSendPrefix    = choices.fullSendPrefix;
+    m_context.prefs.verifyReads       = choices.verifyReads;
+    m_context.prefs.verifyWrites      = choices.verifyWrites;
+    m_context.prefs.autoVerify        = choices.autoVerify;
     m_context.cassoLinkManager.ApplyFullSendPrefs();
+    m_context.cassoLinkManager.ApplyVerifyPrefs();
 
 
     //  The user's file types change only when the box was changed.

@@ -756,6 +756,70 @@ public:
 
     //  A full send through the link, ended by Q at its pause: drive 1 and
     //  then drive 2, the screens on the Apple, and the screen cleared at the end.
+    TEST_METHOD (VerifiedWrite_RewritesATrackUpToTwice)
+    {
+        Rig                rig;
+        std::vector<Byte>  file;
+
+        VolumeImage::DosLogicalToProDosFile (rig.Drive (1), file);
+        rig.fileIo.files["in.po"] = file;
+        rig.Start();
+        rig.session->SetVerifySettings (false, true, true);
+
+        rig.apple.writeFailures = 2;
+
+        auto  recovered = rig.Finish (rig.session->WriteDisk (1, "in.po"));
+
+        AssertSucceeded (recovered->result);
+        Assert::AreEqual (37, rig.apple.trackWrites.load());
+        Assert::IsTrue (recovered->message.find ("written again") != std::string::npos);
+
+        rig.apple.writeFailures = 3;
+
+        auto  failed = rig.Finish (rig.session->WriteDisk (1, "in.po"));
+
+        Assert::IsTrue (FAILED (failed->result));
+    }
+
+    TEST_METHOD (Write_WithoutVerification_DoesNotRewrite)
+    {
+        Rig                rig;
+        std::vector<Byte>  file;
+
+        VolumeImage::DosLogicalToProDosFile (rig.Drive (1), file);
+        rig.fileIo.files["in.po"] = file;
+        rig.Start();
+
+        rig.apple.writeFailures = 1;
+
+        auto  failed = rig.Finish (rig.session->WriteDisk (1, "in.po"));
+
+        Assert::IsTrue (FAILED (failed->result));
+        Assert::AreEqual (1, rig.apple.trackWrites.load());
+    }
+
+    TEST_METHOD (VerifiedWrite_ComparesTheWholeDisk)
+    {
+        Rig                rig;
+        std::vector<Byte>  image = rig.Drive (1);
+        std::vector<Byte>  file;
+
+        VolumeImage::DosLogicalToProDosFile (image, file);
+        rig.fileIo.files["in.po"] = file;
+        rig.Start();
+
+        rig.session->SetVerifySettings (false, true, true);
+
+        AssertSucceeded (rig.Finish (rig.session->WriteDisk (1, "in.po"))->result);
+
+        //  A sector that no longer reads fails the comparison, with its track.
+        rig.apple.badSectors.insert ({ 12, 3 });
+
+        auto  write = rig.Finish (rig.session->WriteDisk (1, "in.po"));
+
+        Assert::IsTrue (FAILED (write->result));
+    }
+
     TEST_METHOD (FullSend_SendsBothDrives_AndEndsOnQAtThePause)
     {
         Rig  rig;

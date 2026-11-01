@@ -194,7 +194,7 @@ CassoLinkManager::~CassoLinkManager()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::ReadDiskToImage (const Location & drive)
+void CassoLinkManager::ReadDiskToImage (const Location & drive, bool forceVerify)
 {
     HRESULT                        hr     = S_OK;
     std::filesystem::path          picked;
@@ -239,7 +239,7 @@ void CassoLinkManager::ReadDiskToImage (const Location & drive)
 
     //  The second read goes to the link and drive the first one read, not to
     //  whatever drive the window has open by the time the first one fails.
-    outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, [this, picked] (const LinkOperation & operation, const std::string & link, int drive)
+    outcome = m_context.actions.ReadDiskToImage (TextEncoding::WideToNarrow (link), number, picked.wstring(), false, forceVerify, [this, picked, forceVerify] (const LinkOperation & operation, const std::string & link, int drive)
     {
         std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkDiskTransfer::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
         std::wstring                   message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros? Their list is saved beside the image as " + list + L".";
@@ -248,7 +248,7 @@ void CassoLinkManager::ReadDiskToImage (const Location & drive)
         if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, message.c_str(), L"Read disk to image",
                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Read again", L"Cancel" }) == IDOK)
         {
-            again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, nullptr);
+            again = m_context.actions.ReadDiskToImage (link, drive, picked.wstring(), true, forceVerify, nullptr);
 
             if (!again.Succeeded())
             {
@@ -304,6 +304,24 @@ std::wstring CassoLinkManager::GetDefaultFullSendFolder()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::ApplyVerifyPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::ApplyVerifyPrefs()
+{
+    if (m_context.app.links != nullptr)
+    {
+        m_context.app.links->SetVerifyDefaults (m_context.prefs.verifyReads, m_context.prefs.verifyWrites, m_context.prefs.autoVerify);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::ApplyFullSendPrefs
 //
 //  The folder is made when a session starts, not here, so one never used is
@@ -345,7 +363,7 @@ void CassoLinkManager::ApplyFullSendPrefs()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::WriteImageToDisk (const Location & drive)
+void CassoLinkManager::WriteImageToDisk (const Location & drive, bool forceVerify)
 {
     HRESULT                hr     = S_OK;
     std::filesystem::path  picked;
@@ -370,7 +388,7 @@ void CassoLinkManager::WriteImageToDisk (const Location & drive)
     CHR (hr);
     BAIL_OUT_IF (!chosen, S_OK);
 
-    StartImageWrite (target, picked.wstring());
+    StartImageWrite (target, picked.wstring(), forceVerify);
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -393,7 +411,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::StartImageWrite (const Location & drive, const std::wstring & imagePath)
+void CassoLinkManager::StartImageWrite (const Location & drive, const std::wstring & imagePath, bool forceVerify)
 {
     HRESULT       hr     = S_OK;
     std::wstring  link;
@@ -412,7 +430,7 @@ void CassoLinkManager::StartImageWrite (const Location & drive, const std::wstri
 
     name = TextEncoding::WideToNarrow (link);
 
-    hr = m_context.actions.CheckLinkDisk (name, number, [this, name, number, title, file, imagePath] (bool linkDisk, HRESULT result)
+    hr = m_context.actions.CheckLinkDisk (name, number, [this, name, number, title, file, imagePath, forceVerify] (bool linkDisk, HRESULT result)
     {
         std::wstring                   message;
         CassoExplorerActions::Outcome  outcome;
@@ -435,7 +453,7 @@ void CassoLinkManager::StartImageWrite (const Location & drive, const std::wstri
             return;
         }
 
-        outcome = m_context.actions.WriteImageToAppleDrive (name, number, imagePath);
+        outcome = m_context.actions.WriteImageToAppleDrive (name, number, imagePath, forceVerify);
 
         if (!outcome.Succeeded())
         {
@@ -1538,7 +1556,9 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         std::wstring  title = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
 
         m_context.menus.AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { ReadDiskToImage (location); });
+        m_context.menus.AddMenuCommand (items, std::format (L"Create &verified image from {}...", title).c_str(), [this, location]() { ReadDiskToImage (location, true); });
         m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { WriteImageToDisk (location); });
+        m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { WriteImageToDisk (location, true); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { SaveLinkToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });
     }

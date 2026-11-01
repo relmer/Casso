@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -66,6 +67,32 @@ bool FullSendDisk::NeedsDirectoryTrack (const std::vector<Byte> & image)
     std::copy_n (image.begin() + (ptrdiff_t) (kDosCatalogTrack * kTrackBytes), kTrackBytes, tracks.begin() + (ptrdiff_t) (kDosCatalogTrack * kTrackBytes));
 
     return VolumeImage::DetectFilesystem (tracks) == VolumeKind::Unknown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDisk::AssessDamage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * FullSendDisk::AssessDamage (const std::vector<Byte> & image, int emptyTracks, int scatteredSectors)
+{
+    bool  recognized = VolumeImage::DetectFilesystem (image) != VolumeKind::Unknown;
+
+
+
+    UNREFERENCED_PARAMETER (scatteredSectors);
+
+    if (emptyTracks != 0)
+    {
+        return recognized ? FullSendManifest::kStatusUnclear : FullSendManifest::kStatusProtected;
+    }
+
+    return recognized ? FullSendManifest::kStatusDamaged : FullSendManifest::kStatusUnclear;
 }
 
 

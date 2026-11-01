@@ -1542,9 +1542,9 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T354 Rearrange the Apple's 40-column screen: drive rows, the bar with its overlay and right-edge percentage, the map row, merged connection rows, the divider and prompt lines after ON DECK--, per FR-128
 - [X] T355 Add the 80-column layout with its detection and the per-connection Use 40 columns setting, per FR-128
 - [X] T356 Add the Apple program's per-sector CRC command and the verified read and vote in `CassoLinkDiskTransfer`, per FR-129
-- [ ] T357 Add verified writes: rewrite up to twice and the final comparison, per FR-129
-- [ ] T358 Add the settings: the Verified transfers Options page with toggles in one column after their labels, the per-connection override, toggles in Create image and Write image, V on the Apple and its indicator, and automatic verification of a failing track, per FR-129
-- [ ] T359 Add the copy-protection assessment, its early stop, PROT count and tone, and the manifest's labels, per FR-130
+- [X] T357 Add verified writes: rewrite up to twice and the final comparison, per FR-129
+- [X] T358 Add the settings: the Verified transfers Options page with toggles in one column after their labels, the per-connection override, toggles in Create image and Write image, V on the Apple and its indicator, and automatic verification of a failing track, per FR-129
+- [X] T359 Add the copy-protection assessment, its early stop, PROT count and tone, and the manifest's labels, per FR-130
 - [ ] T360 Add the tree's transfer animation and the badge for files not yet rendered, saved across restarts, per FR-131
 - [ ] T361 Add Apple Pascal read and write, on images and over CassoLink, starting from the readers on `040-disk-inspector`, with 0006 APPLE0.dsk as a fixture source, per FR-132
 - [ ] T362 Add CP/M read and write the same way, with heuristic detection and the manual choice, with 0005.dsk as a fixture source, per FR-132

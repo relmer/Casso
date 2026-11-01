@@ -647,6 +647,12 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
 
     link->session  = std::make_unique<CassoLinkSession> (m_factory, link->folder ? *link->folder : m_folder, m_fileIo, *link->sink);
 
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        ApplyVerify (*link);
+    }
+
     //  A search opens the ports in turn even when the link has one set.
     opening = link->settings;
 
@@ -1832,6 +1838,53 @@ void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const 
     m_fullSendExtension  = extension;
     m_fullSendPrefix     = prefix;
     m_makeFullSendFolder = std::move (makeFolder);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::SetVerifyDefaults
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::SetVerifyDefaults (bool reads, bool writes, bool autoReads)
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    m_verifyReads  = reads;
+    m_verifyWrites = writes;
+    m_autoVerify   = autoReads;
+
+    for (const std::unique_ptr<Link> & link : m_started)
+    {
+        ApplyVerify (*link);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::ApplyVerify
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::ApplyVerify (Link & link) const
+{
+    int  choice = link.settings.verify;
+
+
+
+    link.session->SetVerifySettings (choice == CassoLinkSettings::kVerifyOn || (choice == CassoLinkSettings::kVerifyDefault && m_verifyReads),
+                                     choice == CassoLinkSettings::kVerifyOn || (choice == CassoLinkSettings::kVerifyDefault && m_verifyWrites),
+                                     choice != CassoLinkSettings::kVerifyOff && m_autoVerify);
 }
 
 

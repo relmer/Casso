@@ -1007,7 +1007,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::wstring & i
         return outcome;
     }
 
-    return ReadDiskToImage (link, drive, imagePath, blankUnreadable, std::move (onUnreadable));
+    return ReadDiskToImage (link, drive, imagePath, blankUnreadable, false, std::move (onUnreadable));
 }
 
 
@@ -1022,7 +1022,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::wstring & i
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable,
+ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify,
                                                                     ActionsTypes::UnreadableFn onUnreadable)
 {
     ActionsTypes::Outcome    outcome;
@@ -1032,7 +1032,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & li
 
 
 
-    hr = links->Submit (link, [drive, path, blankUnreadable] (CassoLinkSession & session) { return session.ReadDisk (drive, path, blankUnreadable); },
+    hr = links->Submit (link, [drive, path, blankUnreadable, forceVerify] (CassoLinkSession & session) { return session.ReadDisk (drive, path, blankUnreadable, forceVerify); },
                         Guard ([onUnreadable, link, drive] (const LinkOperation & operation) -> std::wstring
     {
         bool  offer = operation.result == HRESULT_FROM_WIN32 (ERROR_CRC) && !operation.unreadable.empty() && !operation.blankUnreadable && onUnreadable;
@@ -1093,14 +1093,14 @@ ActionsTypes::Outcome ActionsAppleDrive::WriteImageToDisk (const std::wstring & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath)
+ActionsTypes::Outcome ActionsAppleDrive::WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify)
 {
     ActionsTypes::Outcome  outcome;
     std::string            path    = TextEncoding::WideToNarrow (imagePath);
 
 
 
-    SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+    SubmitWrite (link, drive, [drive, path, forceVerify] (CassoLinkSession & session) { return session.WriteDisk (drive, path, std::string(), forceVerify); }, outcome);
 
     return outcome;
 }

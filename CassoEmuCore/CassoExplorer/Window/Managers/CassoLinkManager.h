@@ -40,13 +40,13 @@ public:
     static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
 
     void          RefreshCassoLinkViews   ();
-    void          ReadDiskToImage         (const Location & drive = Location());
-    void          StartImageWrite         (const Location & drive, const std::wstring & imagePath);
+    void          ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
+    void          StartImageWrite         (const Location & drive, const std::wstring & imagePath, bool forceVerify = false);
     bool          TryGetSelectedLinkDrive (Location & outDrive) const;
     bool          TryGetTargetDrive       (const Location & drive, Location & outDrive, std::wstring & outLink, int & outNumber) const;
     bool          IsOnLinkedMachine       () const;
     void          OpenSelectedLinkDrive   ();
-    void          WriteImageToDisk        (const Location & drive = Location());
+    void          WriteImageToDisk        (const Location & drive = Location(), bool forceVerify = false);
     void          SaveLinkToDisk          (const Location & drive = Location());
     void          FormatAppleDisk         (const Location & location);
     void          SaveLinkDiskImage       (const std::string & name);
@@ -72,6 +72,7 @@ public:
     void          ReleaseIdleConnections  ();
     void          ApplyConnections        ();
     void          ApplyFullSendPrefs      ();
+    void          ApplyVerifyPrefs        ();
 
     static std::wstring  GetDefaultFullSendFolder ();
 

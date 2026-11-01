@@ -318,6 +318,11 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
         fields.emplace_back ("folder",        JsonValue (TextEncoding::WideToNarrow (link.folder)));
     }
 
+    if (link.verify != CassoLinkSettings::kVerifyDefault)
+    {
+        fields.emplace_back ("verify",        JsonValue ((double) link.verify));
+    }
+
     if (link.use40)
     {
         fields.emplace_back ("use40",         JsonValue (true));
@@ -376,6 +381,7 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
         value.HasString ("address", outLink.address);
         value.HasBool   ("hardwareHandshake", outLink.hardwareHandshake);
         value.HasBool   ("use40", outLink.use40);
+        value.HasInt    ("verify", outLink.verify);
         value.HasBool   ("disconnected", outLink.userDisconnected);
         value.HasString ("lastPort", outLink.lastPort);
         value.HasInt    ("lastUsed", outLink.lastUsed);
@@ -526,6 +532,9 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
     root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
     root.emplace_back ("fullSendPrefix", JsonValue (TextEncoding::WideToUtf8 (fullSendPrefix)));
+    root.emplace_back ("verifyReads", JsonValue (verifyReads));
+    root.emplace_back ("verifyWrites", JsonValue (verifyWrites));
+    root.emplace_back ("autoVerify", JsonValue (autoVerify));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
@@ -733,6 +742,10 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     {
         fullSendFolder = TextEncoding::Utf8ToWide (text);
     }
+
+    root.HasBool ("verifyReads", verifyReads);
+    root.HasBool ("verifyWrites", verifyWrites);
+    root.HasBool ("autoVerify", autoVerify);
 
     if (root.HasString ("fullSendPrefix", text))
     {

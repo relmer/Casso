@@ -273,6 +273,117 @@ bool CassoExplorerFullSendPage::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerVerifyPage::Init
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerVerifyPage::Init (DxuiLabel & intro, std::array<Row, 3> & rows, DxuiLabel & overrideHead, DxuiLabel & overrideNote, DxuiLabel & limitHead, DxuiLabel & limitNote)
+{
+    m_intro        = &intro;
+    m_rows         = &rows;
+    m_overrideHead = &overrideHead;
+    m_overrideNote = &overrideNote;
+    m_limitHead    = &limitHead;
+    m_limitNote    = &limitNote;
+
+    Adopt (intro);
+
+    for (Row & row : rows)
+    {
+        Adopt (row.label);
+        Adopt (row.toggle);
+        Adopt (row.state);
+        Adopt (row.note);
+    }
+
+    Adopt (overrideHead);
+    Adopt (overrideNote);
+    Adopt (limitHead);
+    Adopt (limitNote);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerVerifyPage::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerVerifyPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    int  gap     = scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  y       = boundsDip.top + scaler.ToPx (kIntroHeightDip);
+    int  rowH    = scaler.ToPx (kRowHeightDip);
+    int  noteH   = scaler.ToPx (kNoteHeightDip);
+    int  headH   = scaler.ToPx (kHeadHeightDip);
+    int  toggleX = boundsDip.left + scaler.ToPx (kToggleColDip);
+    int  toggleW = scaler.ToPx (kToggleWidthDip);
+    int  stateW  = scaler.ToPx (kStateWidthDip);
+
+
+
+    SetBounds (boundsDip);
+
+    m_intro->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, y }, scaler);
+
+    for (Row & row : *m_rows)
+    {
+        row.label.Layout (RECT { boundsDip.left, y, toggleX, y + rowH }, scaler);
+        row.toggle.SetDpi (scaler.GetDpi());
+        row.toggle.Layout (RECT { toggleX, y, toggleX + toggleW, y + rowH }, scaler);
+        row.state.Layout (RECT { toggleX + toggleW + gap, y, toggleX + toggleW + gap + stateW, y + rowH }, scaler);
+
+        y += rowH;
+
+        row.note.Layout (RECT { boundsDip.left, y, boundsDip.right, y + noteH }, scaler);
+
+        y += noteH + gap;
+    }
+
+    m_overrideHead->Layout (RECT { boundsDip.left, y, boundsDip.right, y + headH }, scaler);
+    y += headH;
+    m_overrideNote->Layout (RECT { boundsDip.left, y, boundsDip.right, y + scaler.ToPx (kOverrideDip) }, scaler);
+    y += scaler.ToPx (kOverrideDip) + gap;
+    m_limitHead->Layout (RECT { boundsDip.left, y, boundsDip.right, y + headH }, scaler);
+    y += headH;
+    m_limitNote->Layout (RECT { boundsDip.left, y, boundsDip.right, y + scaler.ToPx (kLimitDip) }, scaler);
+    y += scaler.ToPx (kLimitDip);
+
+    SetContentHeightPx (y - boundsDip.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerVerifyPage::OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerVerifyPage::OnMouse (const DxuiMouseEvent & ev)
+{
+    for (Row & row : *m_rows)
+    {
+        if (row.toggle.OnMouse (ev))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerOptionsDialog::GetNamingOptions
 //
 //  Each style's name, the file name of a binary program called GAME that loads
@@ -336,6 +447,11 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full send");
     m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendPrefixLabel, m_fullSendPrefix, m_fullSendFormatLabel, m_fullSendFormat);
+
+    WireVerify();
+
+    m_verifyPage = CreatePage<CassoExplorerVerifyPage> (L"Verified transfers");
+    m_verifyPage->Init (m_verifyIntro, m_verifyRows, m_verifyOverrideHead, m_verifyOverrideNote, m_verifyLimitHead, m_verifyLimitNote);
 
     m_displayPage = CreatePage<DisplayPage> (L"Display");
     m_displayPage->SetPopupHost     (GetPopupHost());
@@ -410,6 +526,73 @@ void CassoExplorerOptionsDialog::WireFullSend()
             m_fullSendFolder.SetText (m_choices.fullSendFolder);
         }
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::WireVerify
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::WireVerify()
+{
+    static constexpr const wchar_t *  kLabels[] = { L"Verify disks read from the Apple", L"Verify disks written to the Apple", L"Verify automatically when a read fails" };
+    static constexpr const wchar_t *  kNotes[]  =
+    {
+        L"Each track is read three times and the sectors are compared. If the reads disagree, the track is read up to nine times to find a consensus "
+        L"for the correct data. A sector with read errors is accepted once two good reads match. A sector with one good read is kept and marked "
+        L"unreliable. A sector with none is saved as zeros and listed beside the image.",
+        L"Every track is already read back for validation by default. With this additional verification, a track that fails is rewritten up to twice "
+        L"more, and the whole disk is compared with the image at the end. That catches a track damaged by a later write, for example on a misaligned drive.",
+        L"A track with read errors is read again with the verification steps above. Verification happens only for that track.",
+    };
+    const bool  values[] = { m_choices.verifyReads, m_choices.verifyWrites, m_choices.autoVerify };
+
+
+
+    for (DxuiLabel * label : { &m_verifyIntro, &m_verifyOverrideNote, &m_verifyLimitNote })
+    {
+        ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormNote);
+        label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    }
+
+    m_verifyIntro.SetText (L"Old disks can read differently from one pass to the next, and a read can pass its checksum with the wrong data. Verified transfers read and "
+                           L"write disks more than once, so a damaged copy is caught while you still have the disk. They apply to whole disks: Full Send, Create image and "
+                           L"Write image. They take longer, and they don't change how files are browsed or copied.");
+
+    for (size_t i = 0; i < m_verifyRows.size(); i++)
+    {
+        CassoExplorerVerifyPage::Row  & row = m_verifyRows[i];
+
+        row.label.SetText (kLabels[i]);
+        ExplorerTextStyles::Apply (row.label, ExplorerTextStyles::kFormLabel);
+
+        row.toggle.SetLabelVisible (false);
+        row.toggle.SetChecked (values[i]);
+        row.state.SetText (values[i] ? L"On" : L"Off");
+        ExplorerTextStyles::Apply (row.state, ExplorerTextStyles::kFormLabel);
+        row.toggle.SetOnChange ([&row] (bool on) { row.state.SetText (on ? L"On" : L"Off"); });
+
+        row.note.SetText (kNotes[i]);
+        ExplorerTextStyles::Apply (row.note, ExplorerTextStyles::kFormNote);
+        row.note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    }
+
+    m_verifyOverrideHead.SetText (L"Verify for specific connections, or for a single transfer");
+    ExplorerTextStyles::Apply (m_verifyOverrideHead, ExplorerTextStyles::kFormLabel);
+    m_verifyOverrideNote.SetText (L"A connection's settings can override these options. A drive's menu has Create verified image and Write image and verify for that transfer. "
+                                  L"In Full Send on the Apple, press V at any time to turn verification on or off. Tracks already read aren't read again. "
+                                  L"The Apple's screen always indicates whether verification is on.");
+
+    m_verifyLimitHead.SetText (L"What it can't do");
+    ExplorerTextStyles::Apply (m_verifyLimitHead, ExplorerTextStyles::kFormLabel);
+    m_verifyLimitNote.SetText (L"A verified image has sectors that read consistently, but it may not run. Some copy protection schemes store data between tracks or sectors, "
+                               L"where sector reads can't capture it. A disk that is likely copy-protected is read once and labeled, without retries. "
+                               L"Use a flux tool such as an Applesauce for those.");
 }
 
 
@@ -600,6 +783,9 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.autoPreview = m_autoPreview.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) m_fullSendFormat.GetSelected()].extension;
     m_choices.fullSendPrefix    = m_fullSendPrefix.GetText();
+    m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
+    m_choices.verifyWrites      = m_verifyRows[1].toggle.IsChecked();
+    m_choices.autoVerify        = m_verifyRows[2].toggle.IsChecked();
     m_choices.hostNaming = m_naming.GetSelected();
     m_confirmed          = true;
 

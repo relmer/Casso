@@ -2,6 +2,7 @@
 
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/TrackVerifier.h"
+#include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
@@ -468,6 +469,7 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
     Byte                gap      = 0;
     bool                standard = false;
     HRESULT             listed   = S_OK;
+    int                 retried  = 0;
 
 
 
@@ -524,12 +526,101 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
             data.insert (data.end(), from, from + (ptrdiff_t) LinkedDisk::kSectorSize);
         }
 
-        hr = m_session.m_host->WriteTrack ((Byte) operation.drive, (Byte) track, volume, data, status, gap);
-        CHR (hr);
+        //  A verified write rewrites a track that doesn't read back, up to twice.
+        for (int attempt = 0; attempt <= (operation.verifyWrites ? kWriteRetries : 0); attempt++)
+        {
+            hr = m_session.m_host->WriteTrack ((Byte) operation.drive, (Byte) track, volume, data, status, gap);
+            CHR (hr);
 
-        hr = CassoLinkSession::FromStatusError (status.error);
+            hr = CassoLinkSession::FromStatusError (status.error);
+
+            if (status.error != CassoLinkHost::kErrorVerify && status.error != CassoLinkHost::kErrorNotFound && status.error != CassoLinkHost::kErrorData)
+            {
+                break;
+            }
+
+            retried += attempt == 0 ? 1 : 0;
+        }
+
         CHR (hr);
     }
+
+    if (operation.verifyWrites)
+    {
+        hr = CompareWrittenDisk (operation, sectors);
+        CHR (hr);
+
+        if (retried != 0)
+        {
+            operation.message = std::format ("The image was written and matches, but {} tracks had to be written again, so this disk may not be reliable.", retried);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::CompareWrittenDisk
+//
+//  Reads every track back after the last is written, to catch a track damaged by
+//  a later write. Only CRCs cross the link.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::CompareWrittenDisk (LinkOperation & operation, const std::vector<Byte> & sectors)
+{
+    HRESULT            hr        = S_OK;
+    std::vector<Byte>  physicals;
+    std::vector<Word>  crcs;
+    std::vector<bool>  read;
+    CassoLinkStatus    status;
+    std::string        list;
+    bool               matches   = true;
+
+
+
+    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    {
+        physicals.push_back ((Byte) physical);
+    }
+
+    for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+    {
+        bool  same = true;
+
+        m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
+        m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+
+        hr = m_session.m_host->ReadCrcs ((Byte) operation.drive, (Byte) track, physicals, crcs, read, status);
+        CHR (hr);
+
+        for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+        {
+            size_t                 from = (size_t) (track * NibblizationLayer::kSectorsPerTrack + CassoLinkSession::GetLogicalSector (physical)) * LinkedDisk::kSectorSize;
+            std::span<const Byte>  data (sectors.data() + from, LinkedDisk::kSectorSize);
+
+            same = same && read[(size_t) physical] && crcs[(size_t) physical] == CassoLinkCodec::ComputeCrc (data);
+        }
+
+        if (!same)
+        {
+            list   += std::format ("{}{}", list.empty() ? "" : ", ", track);
+            matches = false;
+        }
+    }
+
+    if (!matches)
+    {
+        operation.message = std::format ("The disk doesn't match the image: tracks {} read back differently after the whole disk was written.", list);
+    }
+
+    CBREx (matches, HRESULT_FROM_WIN32 (ERROR_CRC));
 
 Error:
     return hr;

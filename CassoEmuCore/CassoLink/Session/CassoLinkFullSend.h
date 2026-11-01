@@ -43,7 +43,8 @@ public:
     static std::string  GetUtcTime ();
 
 private:
-    HRESULT  CheckStop  ();
+    HRESULT  CheckStop     ();
+    HRESULT  ReadTrackOnce (int drive, int track, std::vector<Byte> & ioImage, std::vector<std::pair<int, int>> & outUnreadable);
 
     CassoLinkSession   & m_session;
     LinkOperation      * m_operation = nullptr;

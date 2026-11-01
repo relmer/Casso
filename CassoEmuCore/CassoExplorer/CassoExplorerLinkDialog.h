@@ -140,6 +140,8 @@ public:
         DxuiCheckbox    * handshake      = nullptr;
     DxuiLabel       * columnsLabel   = nullptr;
     DxuiCheckbox    * columns        = nullptr;
+    DxuiLabel       * verifyLabel    = nullptr;
+    DxuiComboBox    * verify         = nullptr;
         DxuiLabel       * folderNote     = nullptr;
         DxuiLabel       * folderLabel    = nullptr;
         DxuiTextInput   * folder         = nullptr;
@@ -256,6 +258,8 @@ private:
     DxuiLabel                    m_handshakeLabel;
     DxuiInfoTip                  m_handshakeTip;
     DxuiCheckbox                 m_handshake { L"RTS and CTS" };
+    DxuiLabel                    m_verifyLabel;
+    DxuiComboBox                 m_verify;
     DxuiLabel                    m_columnsLabel;
     DxuiCheckbox                 m_columns { L"Use 40 columns, even where the Apple has 80" };
     DxuiLabel                    m_folderNote;

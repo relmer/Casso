@@ -43,6 +43,11 @@ std::vector<std::string> FullSendScreen::GetRows() const
         rows[1] += std::format ("   FIXED {}", recovered);
     }
 
+    if (prot != 0)
+    {
+        rows[1] += std::format ("   PROT {}", prot);
+    }
+
     for (size_t i = 0; i < drives.size(); i++)
     {
         std::string  row = std::format ("D{}: ", i + 1);
@@ -56,6 +61,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Empty:    row += "NO DISK";            break;
             case FullSendDriveState::Repeat:   row += "ALREADY SENT";       break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
+            case FullSendDriveState::Protected: row += "LIKELY COPY-PROTECTED " + names[i]; break;
             case FullSendDriveState::OnDeck:
                 row += "ON DECK--";
                 row += quip == 0 ? "INSERT A DISK TO SEND NEXT" : GetQuipText (quip);
@@ -672,6 +678,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     std::vector<Byte>                   after;
     std::vector<std::pair<int, int>>    unreadable;
     FullSendReadReport                  report;
+    bool                                isProtected      = false;
     std::string                         imageFingerprint;
     std::string                         afterFingerprint;
     std::string                         hash;
@@ -770,11 +777,19 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
         hr = WriteImage (title, image, unreadable, report.marks, row.file);
         CHRF (hr, m_fileFailed = true);
 
-        row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendManifest::kStatusProtected;
-        m_screen.tone = unreadable.empty() ? FullSendTone::Done : FullSendTone::BadSectors;
+        row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
+        isProtected   = row.status == FullSendManifest::kStatusProtected;
+        m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
+        m_screen.prot += isProtected ? 1 : 0;
+
+        if (isProtected)
+        {
+            m_link.Report (std::format ("{} is likely copy-protected, so it was read once with no retries. The image may not run. Use a flux tool such as an Applesauce for a working copy.", title));
+        }
+
         m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image));
         m_screen.sent++;
-        m_screen.bad += unreadable.empty() ? 0 : 1;
+        m_screen.bad += (unreadable.empty() || isProtected) ? 0 : 1;
         m_screen.recovered += (row.recovered != 0 || row.unreliable != 0) ? 1 : 0;
     }
 
@@ -807,7 +822,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     }
 
     m_lastSent = true;
-    SetDriveState (drive, FullSendDriveState::Sent);
+    SetDriveState (drive, isProtected ? FullSendDriveState::Protected : FullSendDriveState::Sent);
 
     hr = m_link.ShowScreen (m_screen);
     m_screen.tone = FullSendTone::None;

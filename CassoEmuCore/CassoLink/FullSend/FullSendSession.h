@@ -30,6 +30,7 @@ enum class FullSendDriveState : Byte
     Repeat,
     Sent,
     OnDeck,
+    Protected,
 };
 
 enum class FullSendTone : Byte
@@ -38,6 +39,7 @@ enum class FullSendTone : Byte
     Done,
     Duplicate,
     BadSectors,
+    Protected,
 };
 
 enum class FullSendKey
@@ -61,6 +63,7 @@ struct FullSendScreen
     std::array<std::string, 2>         maps;                // each drive's tracks with a problem, or empty
     bool                               verify     = false;  // verified reads are on
     int                                recovered  = 0;      // disks with a sector recovered
+    int                                prot       = 0;      // disks that are likely copy-protected
 
     static constexpr int  kQuipCount = 16;
 
@@ -89,6 +92,7 @@ struct FullSendReadReport
 {
     std::vector<SectorMark>  marks;
     int                      tracksVerified = 0;
+    int                      emptyTracks    = 0;   // tracks where no sector was found
 };
 
 

@@ -59,6 +59,9 @@ struct CassoExplorerPrefs
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
     std::wstring           fullSendPrefix;
+    bool                   verifyReads  = false;
+    bool                   verifyWrites = false;
+    bool                   autoVerify   = true;
 
 
     //  Each folder's view as last chosen, most recent first. A folder with
