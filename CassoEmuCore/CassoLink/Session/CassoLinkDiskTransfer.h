@@ -29,7 +29,7 @@ public:
     //  as NAME.unreadable.txt: lines starting with # are comments, and each
     //  other line is a sector's track and DOS 3.3 sector in decimal, as "17 3".
     static std::string  GetUnreadableListPath (const std::string & imagePath);
-    static std::string  FormatUnreadableList  (const std::vector<std::pair<int, int>> & unreadable);
+    static std::string  FormatUnreadableList  (const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks = {});
 
     //  A drive's speed for the activity log, from its measured revolution:
     //  D1 turns at 293.1 rpm, 2.3% slow, with a note when it is more than
@@ -43,7 +43,8 @@ public:
     HRESULT  SaveUnreadableList (const LinkOperation & operation);
     HRESULT  WriteWholeDisk     (LinkOperation & operation);
     HRESULT  ReadBootSector     (LinkOperation & operation);
-    HRESULT  ReadTrack          (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable);
+    HRESULT  ReadTrack          (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, bool autoVerify = false, std::vector<SectorMark> * marks = nullptr);
+    HRESULT  ReadVerifiedTrack  (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, std::vector<SectorMark> & marks);
     HRESULT  TimeDriveForFormat (int drive, Byte & outGap);
 
 private:

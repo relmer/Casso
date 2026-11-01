@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendManifest.h"
+#include "CassoLink/Session/CassoLinkSessionTypes.h"
 
 class IDiskFileIo;
 
@@ -45,6 +46,7 @@ enum class FullSendKey
     Quit,
     Drive1,
     Drive2,
+    Verify,
 };
 
 struct FullSendScreen
@@ -57,6 +59,8 @@ struct FullSendScreen
     Byte                               quip       = 0;      // the prompt line: 0 none, else a line from 1
     std::array<std::string, 2>         names;               // each drive's latest disk, as 13 GAMES DISK
     std::array<std::string, 2>         maps;                // each drive's tracks with a problem, or empty
+    bool                               verify     = false;  // verified reads are on
+    int                                recovered  = 0;      // disks with a sector recovered
 
     static constexpr int  kQuipCount = 16;
 
@@ -66,6 +70,25 @@ struct FullSendScreen
 
     //  A prompt line, from 1. Each fits after ON DECK-- on a 40-column row.
     static const char *  GetQuipText (Byte quip);
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendReadReport
+//
+//  What a disk's read found: the sectors that weren't clean, and how many of its
+//  tracks were verified.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct FullSendReadReport
+{
+    std::vector<SectorMark>  marks;
+    int                      tracksVerified = 0;
 };
 
 
@@ -98,12 +121,16 @@ public:
 
     //  Every track but those already in the image; an unreadable sector is left
     //  as zeros and listed by track and DOS 3.3 sector.
-    virtual HRESULT  ReadDisk   (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable) = 0;
+    virtual HRESULT  ReadDisk   (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) = 0;
     virtual HRESULT  ShowScreen (const FullSendScreen & screen) = 0;
 
     //  No drive turns until a key arrives. The lines are drawn on the Apple until
     //  then.
     virtual HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) = 0;
+
+    //  Whether verified reads are on; V on the Apple switches them.
+    virtual bool     IsVerifying    () = 0;
+    virtual void     ToggleVerify   () = 0;
 
     //  Whether this PC bootstrapped the Apple, so no CassoLink disk was booted.
     virtual bool     IsBootstrapped () = 0;
@@ -199,7 +226,7 @@ private:
     HRESULT  ReadFingerprint (int drive, CheckedDisk & outDisk, bool & outStable);
     HRESULT  ReadStableTrack (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk        (int drive, const CheckedDisk & checked);
-    HRESULT  WriteImage      (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, std::string & outFile);
+    HRESULT  WriteImage      (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
     HRESULT  WriteManifest   ();
     void     End             (HRESULT hr);
 

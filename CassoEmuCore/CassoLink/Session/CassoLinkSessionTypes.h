@@ -12,6 +12,26 @@ class CassoLinkSession;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SectorMark
+//
+//  A sector a verified read didn't find clean: R recovered, U unreliable, or X
+//  unreadable. The sector is DOS 3.3's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct SectorMark
+{
+    int   track  = 0;
+    int   sector = 0;
+    char  mark   = 'X';
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkState, LinkOperation
 //
 //  The session's state, and one queued request with its result. An
@@ -79,6 +99,14 @@ struct LinkOperation
     VolumeListing                    listing;
     VolumeKind                       volumeKind = VolumeKind::Unknown;
     FilePayload                      file;
+
+    //  Verified transfers, from the session's settings or for this operation
+    //  alone; autoVerify verifies only a track that has read errors. marks lists
+    //  the sectors that weren't clean.
+    bool                             verifyReads  = false;
+    bool                             autoVerify   = false;
+    bool                             verifyWrites = false;
+    std::vector<SectorMark>          marks;
 
     //  Full send: imagePath is the folder, newName the chosen extension and
     //  imagePrefix what begins each image's file name.

@@ -54,6 +54,9 @@ public:
         Image                                 badDisk;
         int                                   waits          = 0;
         bool                                  begun          = false;
+        bool                                  verifying      = false;
+        std::vector<SectorMark>               reportMarks;
+        int                                   reportVerified = 0;
         bool                                  bootstrapped   = false;
         FullSendKey                           beginKey       = FullSendKey::Space;
         std::vector<std::string>              entryLines;
@@ -95,8 +98,14 @@ public:
             return S_OK;
         }
 
-        HRESULT  ReadDisk (int drive, Image & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable) override
+        bool     IsVerifying() override { return verifying; }
+        void     ToggleVerify() override { verifying = !verifying; }
+
+        HRESULT  ReadDisk (int drive, Image & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) override
         {
+            outReport.marks          = reportMarks;
+            outReport.tracksVerified = reportVerified;
+
             int  read = (int) diskReads.size() + 1;
 
             diskReads.push_back (drive);
@@ -582,7 +591,7 @@ public:
 
         std::vector<std::string>  rows = screen.GetRows();
 
-        Assert::AreEqual (std::string ("FULL SEND"), rows[0]);
+        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF"), rows[0]);
         Assert::AreEqual (std::string ("SENT 12   DUP 0   BAD 0"), rows[1]);
         Assert::AreEqual (std::string (40, '-'), rows[2]);
         Assert::AreEqual (std::string ("D1: SENDING 13 GAMES DISK"), rows[3]);
@@ -662,6 +671,43 @@ public:
         }
     }
 
+    TEST_METHOD (Session_VerifyKey_TogglesVerification_WithTheFlagOnTheScreen)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Verify };
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.verifying);
+        Assert::IsTrue (rig.link.screens.back().verify);
+        Assert::AreEqual ((int) (unsigned char) ('V' | 0x80), (int) (unsigned char) rig.link.screens.back().GetRows()[0][13], L"inverse on the Apple");
+    }
+
+    TEST_METHOD (Session_Marks_AreOnTheMap_AndInTheManifestRow)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]     = Other (1);
+        rig.link.present[1]    = false;
+        rig.link.reportMarks   = { SectorMark { 9, 1, 'R' }, SectorMark { 9, 2, 'U' }, SectorMark { 12, 0, 'R' } };
+        rig.link.reportVerified = 20;
+
+        auto  session = rig.Run();
+
+        const FullSendRow  & row = session->GetManifest().GetRows()[0];
+
+        Assert::AreEqual ('U', session->GetScreen().maps[0][9],  L"the worst of the track");
+        Assert::AreEqual ('R', session->GetScreen().maps[0][12]);
+        Assert::AreEqual (2, row.recovered);
+        Assert::AreEqual (1, row.unreliable);
+        Assert::AreEqual (std::string (FullSendManifest::kVerifyPartial), row.verification);
+        Assert::AreEqual (1, session->GetScreen().recovered);
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.dsk.unreadable.txt"));
+    }
+
     TEST_METHOD (Session_DoesNotReadADisk_UntilSpaceBegins)
     {
         Rig  rig;
@@ -685,8 +731,8 @@ public:
         booted.Run();
         bootstrapped.Run();
 
-        Assert::AreEqual (std::string ("REMOVE THE CASSOLINK DISK"), booted.link.entryLines[0]);
-        Assert::AreEqual (std::string ("INSERT DISKS TO BE SENT INTO THE DRIVES"), bootstrapped.link.entryLines[0]);
+        Assert::AreEqual (std::string ("REMOVE THE CASSOLINK DISK"), booted.link.entryLines[3]);
+        Assert::AreEqual (std::string ("INSERT DISKS TO BE SENT INTO THE DRIVES"), bootstrapped.link.entryLines[3]);
     }
 
     //  Space with the disk just sent still in the drive changes nothing.

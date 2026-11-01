@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
@@ -55,7 +56,15 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
         m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
-        hr = ReadTrack (operation.drive, track, sectors, operation.unreadable);
+        if (operation.verifyReads)
+        {
+            hr = ReadVerifiedTrack (operation.drive, track, sectors, operation.unreadable, operation.marks);
+        }
+        else
+        {
+            hr = ReadTrack (operation.drive, track, sectors, operation.unreadable, operation.autoVerify, &operation.marks);
+        }
+
         CHR (hr);
     }
 
@@ -157,7 +166,7 @@ std::string CassoLinkDiskTransfer::GetUnreadableListPath (const std::string & im
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CassoLinkDiskTransfer::FormatUnreadableList (const std::vector<std::pair<int, int>> & unreadable)
+std::string CassoLinkDiskTransfer::FormatUnreadableList (const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks)
 {
     std::string  text = "# Sectors that could not be read when this image was made, written as zeros.\r\n"
                         "# Each line is a sector's track and DOS 3.3 sector, in decimal.\r\n";
@@ -167,6 +176,14 @@ std::string CassoLinkDiskTransfer::FormatUnreadableList (const std::vector<std::
     for (const auto & [track, sector] : unreadable)
     {
         text += std::format ("{} {}\r\n", track, sector);
+    }
+
+    for (const SectorMark & mark : marks)
+    {
+        if (mark.mark != 'X')
+        {
+            text += std::format ("# {} {} {}\r\n", mark.mark == 'R' ? "recovered" : "unreliable", mark.track, mark.sector);
+        }
     }
 
     return text;
@@ -236,7 +253,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable)
+HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, bool autoVerify, std::vector<SectorMark> * marks)
 {
     HRESULT            hr        = S_OK;
     HRESULT            disk      = S_OK;
@@ -262,6 +279,12 @@ HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte
 
     BAIL_OUT_IF (FAILED (disk) && !damaged, disk);
 
+    if (damaged && autoVerify && marks != nullptr)
+    {
+        hr = ReadVerifiedTrack (drive, track, sectors, unreadable, *marks);
+        BAIL_OUT_IF (true, hr);
+    }
+
     for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
     {
         int     logical = CassoLinkSession::GetLogicalSector (physical);
@@ -285,6 +308,129 @@ HRESULT CassoLinkDiskTransfer::ReadTrack (int drive, int track, std::vector<Byte
         }
 
         std::copy_n (data.begin() + (ptrdiff_t) from, LinkedDisk::kSectorSize, sectors.begin() + (ptrdiff_t) to);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::ReadVerifiedTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, std::vector<SectorMark> & marks)
+{
+    struct Io : ITrackVerifierIo
+    {
+        CassoLinkHost  & host;
+        Byte             drive;
+        Byte             track;
+
+        Io (CassoLinkHost & hostIn, int driveIn, int trackIn) : host (hostIn), drive ((Byte) driveIn), track ((Byte) trackIn) {}
+
+        HRESULT  ReadData (std::span<const Byte> list, std::vector<Byte> & outData, std::vector<bool> & outRead) override
+        {
+            HRESULT            hr     = S_OK;
+            std::vector<Byte>  one;
+            CassoLinkStatus    status;
+            int                done   = 0;
+            bool               damaged = false;
+
+            outRead.assign (list.size(), false);
+
+            hr = host.ReadSectors (drive, track, list, outData, status);
+            CHR (hr);
+
+            damaged = status.error == CassoLinkHost::kErrorNotFound || status.error == CassoLinkHost::kErrorData;
+            done    = status.error == CassoLinkHost::kErrorNone ? (int) list.size() : status.done;
+
+            hr = CassoLinkSession::FromStatusError (status.error);
+            BAIL_OUT_IF (FAILED (hr) && !damaged, hr);
+
+            hr = S_OK;
+
+            for (size_t i = 0; i < list.size(); i++)
+            {
+                const Byte  single[] = { list[i] };
+
+                if ((int) i < done)
+                {
+                    outRead[i] = true;
+                    continue;
+                }
+
+                hr = host.ReadSectors (drive, track, single, one, status);
+                CHR (hr);
+
+                if (status.error == CassoLinkHost::kErrorNone)
+                {
+                    outRead[i] = true;
+                    std::copy (one.begin(), one.end(), outData.begin() + (ptrdiff_t) (i * LinkedDisk::kSectorSize));
+                }
+            }
+
+        Error:
+            return hr;
+        }
+
+        HRESULT  ReadCrcs (std::span<const Byte> list, std::vector<Word> & outCrcs, std::vector<bool> & outRead) override
+        {
+            CassoLinkStatus  status;
+
+            return host.ReadCrcs (drive, track, list, outCrcs, outRead, status);
+        }
+
+        HRESULT  MoveHead() override
+        {
+            const Byte         first[] = { 0 };
+            std::vector<Word>  crcs;
+            std::vector<bool>  read;
+            CassoLinkStatus    status;
+
+            return host.ReadCrcs (drive, (Byte) (track == 0 ? 1 : track - 1), first, crcs, read, status);
+        }
+    };
+
+    HRESULT                hr = S_OK;
+    Io                     io (*m_session.m_host, drive, track);
+    TrackVerifier::Result  result;
+
+
+
+    hr = TrackVerifier::Verify (io, result);
+    CHR (hr);
+
+    for (int physical = 0; physical < NibblizationLayer::kSectorsPerTrack; physical++)
+    {
+        int     logical = CassoLinkSession::GetLogicalSector (physical);
+        size_t  to      = (size_t) (track * NibblizationLayer::kSectorsPerTrack + logical) * LinkedDisk::kSectorSize;
+
+        std::copy_n (result.data.begin() + (ptrdiff_t) ((size_t) physical * LinkedDisk::kSectorSize), LinkedDisk::kSectorSize, sectors.begin() + (ptrdiff_t) to);
+
+        switch (result.outcomes[(size_t) physical])
+        {
+            case TrackVerifier::Outcome::Clean:
+                break;
+
+            case TrackVerifier::Outcome::Recovered:
+                marks.push_back (SectorMark { track, logical, 'R' });
+                break;
+
+            case TrackVerifier::Outcome::Unreliable:
+                marks.push_back (SectorMark { track, logical, 'U' });
+                break;
+
+            case TrackVerifier::Outcome::Unreadable:
+                marks.push_back (SectorMark { track, logical, 'X' });
+                unreadable.push_back ({ track, logical });
+                break;
+        }
     }
 
 Error:

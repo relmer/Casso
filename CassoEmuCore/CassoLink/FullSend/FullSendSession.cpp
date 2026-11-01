@@ -22,9 +22,26 @@
 
 std::vector<std::string> FullSendScreen::GetRows() const
 {
-    std::vector<std::string>  rows = { "FULL SEND", std::format ("SENT {}   DUP {}   BAD {}", sent, duplicates, bad), std::string (40, '-') };
+    std::vector<std::string>  rows = { "FULL SEND    VERIFY: OFF", std::format ("SENT {}   DUP {}   BAD {}", sent, duplicates, bad), std::string (40, '-') };
 
 
+
+    if (verify)
+    {
+        std::string  flag = "VERIFY: ON";
+
+        for (char & ch : flag)
+        {
+            ch = (char) (ch | 0x80);
+        }
+
+        rows[0] = "FULL SEND    " + flag;
+    }
+
+    if (recovered != 0)
+    {
+        rows[1] += std::format ("   FIXED {}", recovered);
+    }
 
     for (size_t i = 0; i < drives.size(); i++)
     {
@@ -35,7 +52,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Off:      row.clear();                 break;
             case FullSendDriveState::Idle:     row += "IDLE";               break;
             case FullSendDriveState::Checking: row += "CHECKING";           break;
-            case FullSendDriveState::Sending:  row += "SENDING " + names[i]; break;
+            case FullSendDriveState::Sending:  row += (verify ? "VERIFYING " : "SENDING ") + names[i]; break;
             case FullSendDriveState::Empty:    row += "NO DISK";            break;
             case FullSendDriveState::Repeat:   row += "ALREADY SENT";       break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
@@ -211,7 +228,7 @@ HRESULT FullSendSession::AwaitBegin()
 {
     HRESULT                   hr    = S_OK;
     FullSendKey               key   = FullSendKey::Drive1;
-    std::vector<std::string>  lines;
+    std::vector<std::string>  lines = { "V: VERIFY READS EACH TRACK THREE TIMES.", "SLOWER, BUT CATCHES BAD READS.", "" };
 
 
 
@@ -223,15 +240,22 @@ HRESULT FullSendSession::AwaitBegin()
     lines.push_back ("INSERT DISKS TO BE SENT INTO THE DRIVES");
     lines.push_back ("THEN PRESS SPACE TO BEGIN");
 
-    hr = m_link.ShowScreen (m_screen);
-    CHR (hr);
-
     while (key != FullSendKey::Space)
     {
+        m_screen.verify = m_link.IsVerifying();
+
+        hr = m_link.ShowScreen (m_screen);
+        CHR (hr);
+
         hr = m_link.WaitForKey (lines, key);
         CHR (hr);
 
         CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
+
+        if (key == FullSendKey::Verify)
+        {
+            m_link.ToggleVerify();
+        }
     }
 
 Error:
@@ -314,8 +338,9 @@ HRESULT FullSendSession::Pause()
 
     for (;;)
     {
-        m_state       = State::Paused;
-        m_screen.quip = PickQuip();
+        m_state         = State::Paused;
+        m_screen.quip   = PickQuip();
+        m_screen.verify = m_link.IsVerifying();
 
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
@@ -330,6 +355,12 @@ HRESULT FullSendSession::Pause()
         m_lastSent    = false;
 
         CBREx (key != FullSendKey::Quit, IFullSendLink::kQuit);
+
+        if (key == FullSendKey::Verify)
+        {
+            m_link.ToggleVerify();
+            continue;
+        }
 
         if (key == FullSendKey::Space)
         {
@@ -640,6 +671,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     std::vector<Byte>                   image            = checked.image;
     std::vector<Byte>                   after;
     std::vector<std::pair<int, int>>    unreadable;
+    FullSendReadReport                  report;
     std::string                         imageFingerprint;
     std::string                         afterFingerprint;
     std::string                         hash;
@@ -669,7 +701,12 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
 
-    hr = m_link.ReadDisk (drive, image, checked.wholeTracks, unreadable);
+    m_screen.verify = m_link.IsVerifying();
+
+    hr = m_link.ShowScreen (m_screen);
+    CHR (hr);
+
+    hr = m_link.ReadDisk (drive, image, checked.wholeTracks, unreadable, report);
     CHR (hr);
 
     hr = FullSendDisk::ComputeFingerprint (image, imageFingerprint);
@@ -683,7 +720,9 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     hr = FullSendDisk::ComputeFingerprint (after, afterFingerprint);
     CHR (hr);
 
-    same          = imageFingerprint == fingerprint && hasDisk && afterFingerprint == fingerprint;
+    //  A sector that reads differently from read to read isn't a swap, which a
+    //  verified read has already voted on.
+    same          = hasDisk && ((imageFingerprint == fingerprint && afterFingerprint == fingerprint) || !report.marks.empty());
     m_screen.quip = 0;
 
     if (!same)
@@ -710,6 +749,11 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     row.hash        = hash;
     row.time        = m_clock();
     row.unreadable  = (int) unreadable.size();
+    row.recovered   = (int) std::count_if (report.marks.begin(), report.marks.end(), [] (const SectorMark & mark) { return mark.mark == 'R'; });
+    row.unreliable  = (int) std::count_if (report.marks.begin(), report.marks.end(), [] (const SectorMark & mark) { return mark.mark == 'U'; });
+    row.verification = report.tracksVerified == 0                                ? FullSendManifest::kVerifyNone
+                     : report.tracksVerified >= NibblizationLayer::kTrackCount ? FullSendManifest::kVerifyFull
+                                                                                : FullSendManifest::kVerifyPartial;
 
     if (earlier != nullptr)
     {
@@ -723,7 +767,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     {
         title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image), m_prefix);
 
-        hr = WriteImage (title, image, unreadable, row.file);
+        hr = WriteImage (title, image, unreadable, report.marks, row.file);
         CHRF (hr, m_fileFailed = true);
 
         row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendManifest::kStatusProtected;
@@ -731,6 +775,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
         m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image));
         m_screen.sent++;
         m_screen.bad += unreadable.empty() ? 0 : 1;
+        m_screen.recovered += (row.recovered != 0 || row.unreliable != 0) ? 1 : 0;
     }
 
     m_link.Report (row.file.empty() ? std::format ("Disk {:04} is a duplicate of {}", sequence, row.duplicateOf)
@@ -741,13 +786,23 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     hr = WriteManifest();
     CHRF (hr, m_fileFailed = true);
 
-    if (!unreadable.empty())
+    if (!unreadable.empty() || !report.marks.empty())
     {
-        m_screen.maps[(size_t) drive - 1].assign (NibblizationLayer::kTrackCount, '.');
+        std::string  & map = m_screen.maps[(size_t) drive - 1];
+
+        map.assign (NibblizationLayer::kTrackCount, '.');
+
+        //  The worst of a track's sectors.
+        for (const SectorMark & mark : report.marks)
+        {
+            char  & cell = map[(size_t) mark.track];
+
+            cell = (cell == '.' || mark.mark == 'X' || (mark.mark == 'U' && cell == 'R')) ? mark.mark : cell;
+        }
 
         for (const auto & [track, sector] : unreadable)
         {
-            m_screen.maps[(size_t) drive - 1][(size_t) track] = 'X';
+            map[(size_t) track] = 'X';
         }
     }
 
@@ -799,7 +854,7 @@ std::string FullSendSession::GetScreenName (int sequence, const std::string & ca
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, std::string & outFile)
+HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile)
 {
     HRESULT               hr        = S_OK;
     std::string           extension = FullSendDisk::GetImageExtension (image, m_extension);
@@ -826,9 +881,9 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
     hr = DurableCommit::Commit (m_fileIo, GetPath (outFile), bytes, m_commitTag++, CommitMode::CreateNew, progress);
     CHR (hr);
 
-    if (!unreadable.empty())
+    if (!unreadable.empty() || !marks.empty())
     {
-        text = CassoLinkDiskTransfer::FormatUnreadableList (unreadable);
+        text = CassoLinkDiskTransfer::FormatUnreadableList (unreadable, marks);
 
         hr = DurableCommit::Commit (m_fileIo, CassoLinkDiskTransfer::GetUnreadableListPath (GetPath (outFile)), std::vector<Byte> (text.begin(), text.end()), m_commitTag++, CommitMode::Replace, progress);
         CHR (hr);

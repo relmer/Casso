@@ -194,6 +194,10 @@ public:
     //  field; data is 256 bytes per sector, in the order of `sectors`.
     HRESULT  ReadSectors  (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
     HRESULT  WriteSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::span<const Byte> data, CassoLinkStatus & outStatus);
+
+    //  Each sector's CRC, read and computed on the Apple, so a read again takes a
+    //  few bytes of the link. A sector not read has its entry false in outRead.
+    HRESULT  ReadCrcs     (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     //  `gap` is the self-sync bytes after each sector; 0 is the program's own.
     HRESULT  FormatTrack  (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap = 0);
 
@@ -252,6 +256,9 @@ public:
     //  Whether Q was pressed during a full send, since the last call.
     bool     TakeQuit   () { bool  quit = m_quit; m_quit = false; return quit; }
 
+    //  Whether V was pressed during a full send, since the last call.
+    bool     TakeVerifyToggle () { bool  toggle = m_verifyToggle; m_verifyToggle = false; return toggle; }
+
     //  Whether F was pressed on the Apple's standard screen, since the last call.
     bool     TakeFullSendRequest () { bool  request = m_fullSendRequest; m_fullSendRequest = false; return request; }
 
@@ -277,13 +284,14 @@ private:
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
     HRESULT  WaitForKeyOnce    (const std::vector<std::string> & lines, Byte & outKey);
     HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
+    HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);
 
-    static bool  IsKeyReport (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend); }
-    void         NoteKey     (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; }
+    static bool  IsKeyReport (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend || packet.payload[0] == CassoLinkCodec::kKeyVerify); }
+    void         NoteKey     (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; m_verifyToggle = m_verifyToggle != (packet.payload[0] == CassoLinkCodec::kKeyVerify); }
     static bool  IsBlank     (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
 
     //  An operation sent again while its request is lost, up to
@@ -330,6 +338,7 @@ private:
     bool                            m_readyPending    = false;
     bool                            m_quit            = false;
     bool                            m_fullSendRequest = false;
+    bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
     Byte                            m_progressStart   = 0;

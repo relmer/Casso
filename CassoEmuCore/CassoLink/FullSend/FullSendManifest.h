@@ -26,6 +26,9 @@ struct FullSendRow
     int          unreadable = 0;
     std::string  status;
     std::string  duplicateOf;
+    std::string  verification = "none";
+    int          recovered  = 0;
+    int          unreliable = 0;
 };
 
 
@@ -51,6 +54,9 @@ public:
     static constexpr const char *  kStatusSent      = "sent";
     static constexpr const char *  kStatusDuplicate = "duplicate";
     static constexpr const char *  kStatusProtected = "possibly-protected";
+    static constexpr const char *  kVerifyNone      = "none";
+    static constexpr const char *  kVerifyFull      = "verified";
+    static constexpr const char *  kVerifyPartial   = "partly-verified";
 
     //  ERROR_INVALID_DATA for anything but a whole manifest, with no rows then.
     HRESULT            Parse           (std::span<const Byte> bytes);
@@ -69,8 +75,9 @@ public:
     const FullSendRow *  FindByFingerprint (const std::string & fingerprint) const;
 
 private:
-    static constexpr size_t  kColumns   = 9;
-    static constexpr size_t  kHashChars = 64;
+    static constexpr size_t  kColumns       = 12;
+    static constexpr size_t  kLegacyColumns = 9;
+    static constexpr size_t  kHashChars     = 64;
 
     static bool         TrySplitRow (std::string_view text, size_t & ioAt, std::vector<std::string> & outCells);
     static bool         TryParseInt (const std::string & text, int & outValue);

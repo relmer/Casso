@@ -574,6 +574,32 @@ public:
 
 
 
+    //  The Apple's CRCs of a track are the PC's CRCs of the same sectors.
+    TEST_METHOD (ReadCrcs_MatchTheSectorsData)
+    {
+        Rig                rig;
+        std::vector<Byte>  data;
+        std::vector<Word>  crcs;
+        std::vector<bool>  read;
+        CassoLinkStatus    status;
+
+        rig.Connect();
+
+        data = rig.Read (1, 17, AllSectors());
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->ReadCrcs (1, 17, AllSectors(), crcs, read, status); }));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+        Assert::AreEqual ((size_t) 16, crcs.size());
+
+        for (size_t i = 0; i < crcs.size(); i++)
+        {
+            Assert::IsTrue (read[i], std::format (L"sector {} was read", i).c_str());
+            Assert::AreEqual<int> (CassoLinkCodec::ComputeCrc (std::span<const Byte> (data.data() + i * 256, 256)), crcs[i], std::format (L"sector {}", i).c_str());
+        }
+    }
+
+
+
     TEST_METHOD (ReadSectors_CompleteAfterTheMachinePausesTenSeconds)
     {
         Rig                rig;

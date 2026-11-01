@@ -1007,6 +1007,8 @@ CassoLinkSettings CassoExplorerLinkDialog::MakeChosen() const
                                                    m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked(),
                                                    m_folder.GetText());
 
+
+
     settings.use40 = settings.transport != LinkTransport::AdtProServer && m_columns.IsChecked();
 
     return settings;

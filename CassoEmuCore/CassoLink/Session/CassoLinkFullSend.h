@@ -31,9 +31,11 @@ public:
 
     bool     HasDrive       (int drive) override;
     HRESULT  ReadTrack      (int drive, int track, std::vector<Byte> & ioImage, bool & outHasDisk, bool & outWhole) override;
-    HRESULT  ReadDisk       (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable) override;
+    HRESULT  ReadDisk       (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) override;
     HRESULT  ShowScreen     (const FullSendScreen & screen) override;
     HRESULT  WaitForKey     (const std::vector<std::string> & lines, FullSendKey & outKey) override;
+    bool     IsVerifying    () override { return m_verifying; }
+    void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;
     void     Report         (const std::string & text) override;
 
@@ -46,4 +48,6 @@ private:
     CassoLinkSession   & m_session;
     LinkOperation      * m_operation = nullptr;
     std::atomic<bool>    m_canceled  { false };
+    bool                 m_verifying = false;
+    FullSendScreen       m_lastScreen;
 };

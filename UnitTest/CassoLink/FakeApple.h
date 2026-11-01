@@ -344,6 +344,10 @@ private:
                 case CassoLinkCodec::kSetColumns:
                     break;
 
+                case CassoLinkCodec::kReadCrcs:
+                    ReadCrcs (line, packet.payload);
+                    break;
+
                 case CassoLinkCodec::kSessionScreen:
                 {
                     std::lock_guard<std::mutex>  guard (lock);
@@ -432,6 +436,34 @@ private:
 
         loadedProgram = program;
         return true;
+    }
+
+    void  ReadCrcs (Line & line, const std::vector<Byte> & request)
+    {
+        int                drive = request.at (0);
+        int                track = request.at (1);
+        size_t             count = request.at (2);
+        std::vector<Byte>  reply;
+
+        for (size_t i = 0; i < count; i++)
+        {
+            Byte  physical = request.at (3 + i);
+
+            if (drive < 1 || drive > 2 || drives[(size_t) drive - 1].empty() || badSectors.contains ({ track, physical }))
+            {
+                reply.insert (reply.end(), { 0, 0, 0 });
+                continue;
+            }
+
+            std::lock_guard<std::mutex>  guard (lock);
+            auto                         at  = drives[(size_t) drive - 1].begin() + (ptrdiff_t) Index (track, physical);
+            Word                         crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (at, at + 256));
+
+            reply.insert (reply.end(), { (Byte) (crc & 0xFF), (Byte) (crc >> 8), 1 });
+        }
+
+        SendPacket (line, CassoLinkCodec::kSectorCrcs, reply);
+        SendPacket (line, CassoLinkCodec::kStatus, { 1, (Byte) drive, (Byte) track, (Byte) count, CassoLinkHost::kErrorNone });
     }
 
     void  ReadSectors (std::stop_token stop, Line & line, const std::vector<Byte> & request)

@@ -103,7 +103,10 @@ public:
 
     //  Every track's standard sectors into an image file, in the format of
     //  its extension, replaced atomically and only when the read succeeds.
-    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable);
+    std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false);
+
+    //  Verified transfers for whole disks, unless an operation asks for them itself.
+    void  SetVerifySettings (bool reads, bool writes, bool autoReads) { m_verifyReads = reads; m_verifyWrites = writes; m_autoVerify = autoReads; }
 
     //  An image file onto the disk: every track formatted, written and read
     //  back. The caller has the user's confirmation first. An image whose
@@ -145,6 +148,10 @@ public:
     static std::string  DescribeLineFailure (HRESULT hr);
 
 private:
+    std::atomic<bool>  m_verifyReads  { false };
+    std::atomic<bool>  m_verifyWrites { false };
+    std::atomic<bool>  m_autoVerify   { true };
+
 
     std::shared_ptr<LinkOperation>  Queue (LinkOperationKind kind, int drive, const FilePath & path, std::shared_ptr<LinkOperation> operation = nullptr);
 

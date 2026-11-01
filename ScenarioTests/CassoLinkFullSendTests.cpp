@@ -212,7 +212,7 @@ public:
         //  Space on the entry screen, which begins the session.
         void  Begin()
         {
-            RunUntil ([&] () { return Row (kRowPrompt).find ("INTO THE DRIVES") != std::string::npos || Row (kRowPrompt2).find ("INTO THE DRIVES") != std::string::npos; }, L"the entry screen");
+            RunUntil ([&] () { return Row (kRowPrompt).starts_with ("V: VERIFY READS"); }, L"the entry screen");
             Press (' ');
             RunUntil ([&] () { return Row (kRowPrompt).empty(); }, L"Space begins the session");
         }
@@ -367,6 +367,35 @@ public:
         }
     }
 
+
+
+
+    //  V on the entry screen: every track is read three times, with no sector
+    //  flagged on a good disk, so the Apple's CRCs match the PC's.
+    TEST_METHOD (Verify_OnTheEntryScreen_ReadsAGoodDiskClean)
+    {
+        Rig  rig;
+
+        rig.machine.GetDiskStore().Eject (kSlot, 1);
+        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
+
+        rig.RunUntil ([&] () { return rig.Row (kRowPrompt).starts_with ("V: VERIFY READS"); }, L"the entry screen");
+        rig.Press ('v');
+        rig.RunUntil ([&] () { return (rig.machine.GetCpu()->ReadByte ((Word) (kRowTitle + 13)) & 0xC0) == 0 && rig.Row (kRowPrompt).starts_with ("V: VERIFY READS"); }, L"VERIFY: ON is inverse, and the prompt is back");
+        rig.Press (' ');
+        rig.RunUntil ([&] () { return rig.Row (kRowCounts).starts_with ("SENT 1"); }, L"the disk is sent");
+        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
+        rig.Press ('Q');
+        rig.Finish();
+
+        std::vector<FullSendRow>  rows = rig.Rows();
+
+        Assert::AreEqual (std::string (FullSendManifest::kVerifyFull), rows[0].verification);
+        Assert::AreEqual (0, rows[0].recovered, L"the Apple's CRCs match");
+        Assert::AreEqual (0, rows[0].unreliable);
+        Assert::IsTrue (Sectors (rig.fileIo.files["C:\\Box\\" + rows[0].file], rows[0].file) == Sectors (rig.dosFile, "d.dsk"));
+    }
 
 
 
@@ -589,7 +618,7 @@ public:
 
         Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rig.Row (kRowDrive2));
         Assert::IsTrue (rig.Row (kRowDrive1).starts_with ("D1: SENDING 1"), TextEncoding::NarrowToWide (rig.Row (kRowDrive1)).c_str());
-        Assert::AreEqual (std::string ("FULL SEND"), rig.Row (kRowTitle));
+        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF"), rig.Row (kRowTitle));
         Assert::AreEqual (std::string (40, '-'), rig.Row (kRowDivider));
         Assert::AreEqual (std::string(), rig.Row (kRowHeading));
 
@@ -597,12 +626,12 @@ public:
         Assert::AreEqual<int> ('T' & 0x3F, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 14)) & 0x3F);
         Assert::AreEqual<int> (0x20, rig.machine.GetCpu()->ReadByte (kRowBar1), L"the first cell is filled");
         Assert::AreEqual<int> (0xAE, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 34)), L"the last cell is not");
-        Assert::AreEqual (std::string ("          Q: BACK TO CASSOLINK"), rig.Row (kRowKeys));
+        Assert::AreEqual (std::string ("    V: VERIFY  Q: BACK TO CASSOLINK"), rig.Row (kRowKeys));
 
         rig.Press (0x1B);
         rig.machine.RunCycles (kCyclesPerS);
 
-        Assert::AreEqual (std::string ("FULL SEND"), rig.Row (kRowTitle), L"Esc is ignored during a transfer");
+        Assert::IsTrue (rig.Row (kRowTitle).starts_with ("FULL SEND"), L"Esc is ignored during a transfer");
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
 

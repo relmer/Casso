@@ -102,12 +102,15 @@ public:
     static constexpr Byte  kSessionScreen = 0xE1;
     static constexpr Byte  kWaitForKey    = 0xE2;
     static constexpr Byte  kSetColumns    = 0xE3;
+    static constexpr Byte  kReadCrcs      = 0xE4;
+    static constexpr Byte  kSectorCrcs    = 0xE5;
     static constexpr Byte  kKeySpace      = 0xA0;
     static constexpr Byte  kKeyQuit       = 0xD1;
     static constexpr Byte  kKeyNone       = 0x00;
     static constexpr Byte  kKeyFullSend   = 0xC6;
     static constexpr Byte  kKeyDrive1     = 0xB1;
     static constexpr Byte  kKeyDrive2     = 0xB2;
+    static constexpr Byte  kKeyVerify     = 0xD6;
 
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;

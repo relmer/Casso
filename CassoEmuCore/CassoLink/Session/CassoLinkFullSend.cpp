@@ -43,6 +43,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 
     m_canceled  = false;
     m_operation = &operation;
+    m_verifying = operation.verifyReads;
 
     hr = session.Run();
 
@@ -91,6 +92,16 @@ HRESULT CassoLinkFullSend::CheckStop()
 
     CBREx (!quit,       kQuit);
     CBREx (!m_canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+    //  V takes effect at the next track, and the screen says so at once.
+    if (m_session.m_host->TakeVerifyToggle())
+    {
+        m_verifying         = !m_verifying;
+        m_lastScreen.verify = m_verifying;
+
+        hr = m_session.m_host->SendSessionScreen (true, (Byte) FullSendTone::None, m_lastScreen.GetRows());
+        CHR (hr);
+    }
 
 Error:
     return hr;
@@ -209,7 +220,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable)
+HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport)
 {
     HRESULT  hr = S_OK;
 
@@ -220,7 +231,8 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         hr = CheckStop();
         CHR (hr);
 
-        if (std::find (haveTracks.begin(), haveTracks.end(), track) != haveTracks.end())
+        //  A track the check read once still has its three reads when verifying.
+        if (!m_verifying && std::find (haveTracks.begin(), haveTracks.end(), track) != haveTracks.end())
         {
             continue;
         }
@@ -228,7 +240,16 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         m_session.Report (*m_operation, track * 100 / NibblizationLayer::kTrackCount);
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
-        hr = m_session.m_diskTransfer.ReadTrack (drive, track, ioImage, outUnreadable);
+        if (m_verifying)
+        {
+            hr = m_session.m_diskTransfer.ReadVerifiedTrack (drive, track, ioImage, outUnreadable, outReport.marks);
+            outReport.tracksVerified++;
+        }
+        else
+        {
+            hr = m_session.m_diskTransfer.ReadTrack (drive, track, ioImage, outUnreadable, m_operation->autoVerify, &outReport.marks);
+        }
+
         CHR (hr);
     }
 
@@ -248,14 +269,22 @@ Error:
 
 HRESULT CassoLinkFullSend::ShowScreen (const FullSendScreen & screen)
 {
-    HRESULT  hr = S_OK;
+    HRESULT         hr    = S_OK;
+    FullSendScreen  shown = screen;
 
 
+
+    m_lastScreen      = screen;
+    m_lastScreen.tone = FullSendTone::None;
 
     hr = CheckStop();
     CHR (hr);
 
-    hr = m_session.m_host->SendSessionScreen (true, (Byte) screen.tone, screen.GetRows());
+    m_lastScreen.verify = m_verifying;
+
+    shown.verify = m_verifying;
+
+    hr = m_session.m_host->SendSessionScreen (true, (Byte) screen.tone, shown.GetRows());
     CHR (hr);
 
 Error:
@@ -288,6 +317,7 @@ HRESULT CassoLinkFullSend::WaitForKey (const std::vector<std::string> & lines, F
     outKey = code == CassoLinkCodec::kKeyQuit  ? FullSendKey::Quit
            : code == CassoLinkCodec::kKeyDrive1 ? FullSendKey::Drive1
            : code == CassoLinkCodec::kKeyDrive2 ? FullSendKey::Drive2
+           : code == CassoLinkCodec::kKeyVerify ? FullSendKey::Verify
                                                 : FullSendKey::Space;
 
 Error:

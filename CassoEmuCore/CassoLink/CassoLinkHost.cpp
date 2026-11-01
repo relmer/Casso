@@ -192,6 +192,82 @@ HRESULT CassoLinkHost::ReadSectors (Byte drive, Byte track, std::span<const Byte
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::ReadCrcs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ReadCrcs (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus)
+{
+    return Resend ([&] () { return ReadCrcsOnce (drive, track, sectors, outCrcs, outRead, outStatus); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ReadCrcsOnce
+//
+//  Three bytes a sector: its CRC, low byte first, and whether it was read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ReadCrcsOnce (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus)
+{
+    constexpr size_t   kEntryBytes = 3;
+    HRESULT            hr          = S_OK;
+    std::vector<Byte>  request     = { drive, track, (Byte) sectors.size() };
+    CassoLinkPacket    packet;
+    bool               valid       = false;
+
+
+
+    outCrcs.assign (sectors.size(), 0);
+    outRead.assign (sectors.size(), false);
+    outStatus = {};
+
+    request.insert (request.end(), sectors.begin(), sectors.end());
+    request.insert (request.end(), { m_progressStart, m_progressEnd });
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kReadCrcs, request);
+    CHR (hr);
+
+    for (;;)
+    {
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        if (packet.command == CassoLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        valid = packet.command == CassoLinkCodec::kSectorCrcs && packet.payload.size() == sectors.size() * kEntryBytes;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        for (size_t i = 0; i < sectors.size(); i++)
+        {
+            outCrcs[i] = (Word) (packet.payload[i * kEntryBytes] | (packet.payload[i * kEntryBytes + 1] << 8));
+            outRead[i] = packet.payload[i * kEntryBytes + 2] != 0;
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::SendSectors
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -761,7 +837,12 @@ HRESULT CassoLinkHost::SendSessionScreen (bool active, Byte tone, const std::vec
     {
         for (size_t i = 0; i < row.size() && i < CassoLinkCodec::kSessionRowLength; i++)
         {
-            screen.push_back ((row[i] >= ' ' && row[i] <= '~') ? (Byte) toupper ((unsigned char) row[i]) : (Byte) '?');
+            Byte  ch      = (Byte) row[i];
+            Byte  inverse = ch & 0x80;
+
+            ch &= 0x7F;
+
+            screen.push_back ((ch >= ' ' && ch <= '~') ? (Byte) (toupper (ch) | inverse) : (Byte) '?');
         }
 
         screen.push_back (0);

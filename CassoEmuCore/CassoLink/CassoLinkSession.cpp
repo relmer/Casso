@@ -295,7 +295,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::CheckLinkDisk (int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std::string & imagePath, bool blankUnreadable)
+std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
@@ -303,6 +303,8 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
 
     operation->imagePath       = imagePath;
     operation->blankUnreadable = blankUnreadable;
+    operation->verifyReads     = forceVerify || m_verifyReads;
+    operation->autoVerify      = m_autoVerify;
 
     return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
 }
@@ -348,6 +350,8 @@ std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & f
     operation->imagePath   = folder;
     operation->newName     = extension;
     operation->imagePrefix = prefix;
+    operation->verifyReads = m_verifyReads;
+    operation->autoVerify  = m_autoVerify;
 
     return Queue (LinkOperationKind::FullSend, 1, FilePath(), operation);
 }

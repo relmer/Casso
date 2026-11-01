@@ -27,6 +27,9 @@
 ;   Session screen  whether a full send is active, its tone, and its rows' text,
 ;                   each ending in a zero: drawn, the tone sounded, and Ready
 ;                   again; not active clears them and ends the session
+;   Read CRCs       drive, track, count, sectors: Sector CRCs, each sector's CRC
+;                   and whether it was read, computed here so a read again
+;                   crosses the link in a few bytes; then the status
 ;   Set columns     1 for 80 columns where the machine has them, 0 for 40: the
 ;                   screen drawn again, and Ready again
 ;   Wait for key    a full send's pause, with the prompt's lines, each ending in a
@@ -156,6 +159,8 @@ CMDEXIT   = $DF
 CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
 CMDSCREEN = $E1                 ; a full send's screen
 CMDCOLS   = $E3                 ; 40 or 80 columns
+CMDREADCRC = $E4                ; Read CRCs
+CMDCRCS   = $E5                 ; and the CRCs in reply
 CMDKEY    = $E2                 ; Wait for key, and the key in reply
 SHIM      = $3B00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
@@ -340,6 +345,10 @@ main:   lda $C000               ; Escape on the Apple ends CassoLink
         beq mnfull
         cmp #$E6
         beq mnfull
+        cmp #$D6                ; V or v turns a full send's verification on or off
+        beq mnverify
+        cmp #$F6
+        beq mnverify
         cmp #$D1                ; Q or q ends a full send
         beq mnquit
         cmp #$F1
@@ -348,6 +357,12 @@ mnquit: ldx fsmode
         beq mnokey
         sta $C010
         lda #$D1
+        jsr sendkey
+        jmp mnokey
+mnverify: ldx fsmode
+        beq mnokey
+        sta $C010
+        lda #$D6
         jsr sendkey
         jmp mnokey
 mnfull: ldx fsmode
@@ -425,7 +440,10 @@ notexit: cmp #CMDSCREEN
 notscreen: cmp #CMDCOLS
         bne notcols
         jmp docols
-notcols: cmp #CMDKEY
+notcols: cmp #CMDREADCRC
+        bne notcrc
+        jmp docrcs
+notcrc: cmp #CMDKEY
         bne tomain
         jmp dowaitkey
 tomain: jmp main
@@ -659,6 +677,113 @@ rdnext: jsr showprog
 opdone: jsr showerr
         jsr sendstatus
         jmp main
+
+; Read CRCs: the requested sectors read as for Read sectors, and each one's CRC
+; sent with a flag for whether it was read. A sector not read isn't an error here,
+; as the host is counting them.
+docrcs: lda #OPREAD
+        jsr begin
+        bcs crdone
+        jsr readtrack
+        lda #ERRNONE
+        sta err
+        lda count
+        asl a
+        clc
+        adc count
+        sta tmp
+        lda #$C1
+        jsr putb
+        lda tmp
+        jsr putb
+        lda #0
+        jsr putb
+        lda #CMDCRCS
+        jsr putb
+        lda tmp
+        eor #$C1 ^ CMDCRCS
+        jsr putb
+        lda #0
+        sta peor
+crnext: jsr showprog
+        ldy index
+        lda PKTBUF+3,y
+        and #15
+        sta sector
+        tax
+        lda PENDING,x
+        bne crmiss
+        jsr rawslot
+        jsr sectorcrc
+        lda crclo
+        jsr putpe
+        lda crchi
+        jsr putpe
+        lda #1
+        jsr putpe
+        jmp cradv
+crmiss: lda #0
+        jsr putpe
+        lda #0
+        jsr putpe
+        lda #0
+        jsr putpe
+cradv:  jsr pollcancel
+        inc index
+        lda index
+        cmp count
+        bne crnext
+        lda peor
+        jsr putb
+crdone: jmp opdone
+
+; sectorcrc: crclo and crchi for the sector at dst and dstp, from its raw values
+; as sendsector sends them.
+sectorcrc: ldy #85
+scaux:  lda (dst),y
+        tax
+        lda AUXT0,x
+        sta AUXA0,y
+        lda AUXT1,x
+        sta AUXA1,y
+        lda AUXT2,x
+        sta AUXA2,y
+        dey
+        bpl scaux
+        ldy #0
+        sty crclo
+        sty crchi
+        lda #<AUXA0
+        sta scora+1
+        lda #>AUXA0
+        sta scora+2
+scpass: ldx #0
+scdata: lda (dstp),y
+        asl a
+        asl a
+scora:  ora AUXA0,x
+        eor crchi
+        stx tmp2
+        tax
+        lda crclo
+        eor CRCHI,x
+        sta crchi
+        lda CRCLO,x
+        sta crclo
+        ldx tmp2
+        iny
+        beq scdone
+        inx
+        cpx #86
+        bne scdata
+        lda scora+1
+        clc
+        adc #86
+        sta scora+1
+        bcc scpass
+        inc scora+2
+        jmp scpass
+scdone: rts
 
 ; Write sectors: for each, an Acknowledge with its number, then the host's
 ; Sector nibbles, checked by their CRC, with a NAK sent for another copy
@@ -2589,7 +2714,7 @@ BARTEXT = 14                    ; the column of the track and sector over the ba
 BARTEXTW = 31                   ; and in 80 columns, where a track has two cells
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
-FSKEYSCOL = 10                  ; and in a full send
+FSKEYSCOL = 4                   ; and in a full send
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
@@ -3551,7 +3676,7 @@ logrowhi: .byte $07, $04, $04, $05, $05, $06, $06, $07
 ; ---------------------------------------------------------------------------
 
 FSPROMPT = 0                    ; the first of Wait for key's lines, by its index in logrowlo
-FSPROMPTS = 5
+FSPROMPTS = 6
 FSROWS   = 7                    ; Session screen's rows
 FSTONE   = 1                    ; its tone, in PKTBUF
 FSTEXT   = 2                    ; and the start of its rows' text
@@ -3607,6 +3732,13 @@ wkpoll: lda $C000
         beq wkkey
         cmp #$B2
         beq wkkey
+        cmp #$D6
+        beq wkkey
+        cmp #$F6
+        bne wkquitq
+        lda #$D6
+        bne wkkey
+wkquitq:
         cmp #$F1
         beq wkquit
         cmp #$D1
@@ -3657,13 +3789,22 @@ dsrow:  ldx sbyte
         tax
         pla
         jsr fullrow
+        sty dscol
 dschar: ldx left
         cpx lenlo
         bcs dssound
         inc left
         lda PKTBUF,x
         beq dsrown
+        bpl dsplain
+        and #$7F                ; a high bit is inverse
+        ldy rowwidth
+        sty barcells
+dsplain: ldy dscol
         jsr putch
+        sty dscol
+        ldy #0
+        sty barcells
         jmp dschar
 dsrown: inc sbyte
         lda sbyte
@@ -3674,6 +3815,7 @@ dssound: jsr fssound
 
 ; The rows of the Session screen: the title, the counts, a line, and each
 ; drive's row and map.
+dscol:  .byte 0
 fsrowlo: .byte <ROWLB, $80, $00, <ROWD1, $A8, <ROWD2, $28
 fsrowhi: .byte >ROWLB, $06, $07, >ROWD1, $04, >ROWD2, $06
 
@@ -3745,7 +3887,9 @@ keystxt: .text "F"
         .byte $3A
         .text " FULL SEND   PRESS ESC TO EXIT"
         .byte 0
-fskeystxt: .text "Q"
+fskeystxt: .text "V"
+        .byte $3A
+        .text " VERIFY  Q"
         .byte $3A
         .text " BACK TO CASSOLINK"
         .byte 0
