@@ -889,6 +889,8 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             std::string  failure = (*found)->session->GetOpenFailure();
 
             entry.replying = state == LinkState::Ready || state == LinkState::Busy;
+            entry.transferring = (*found)->sink->IsTransferring ((*found)->session->IsServingAdtPro());
+            entry.fullSending  = (*found)->sink->IsFullSending();
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
             entry.status   = failure.empty() ? DescribeState (state, settings, GetPcName()) : TextEncoding::NarrowToWide (failure);
         }
@@ -1215,6 +1217,28 @@ std::vector<std::shared_ptr<LinkOperation>> CassoLinkConnections::GetPendingJobs
     }
 
     return pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsAnyTransferring
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsAnyTransferring() const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    return std::any_of (m_started.begin(), m_started.end(), [] (const std::unique_ptr<Link> & link)
+    {
+        return link->session != nullptr && link->sink->IsTransferring (link->session->IsServingAdtPro());
+    });
 }
 
 
@@ -1813,9 +1837,46 @@ void CassoLinkConnections::Sink::OnStateChanged (LinkState)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::Sink::OnProgress (const std::shared_ptr<LinkOperation> &)
+void CassoLinkConnections::Sink::OnProgress (const std::shared_ptr<LinkOperation> & operation)
 {
+    m_lastProgress = GetTickCount64();
+    m_fullSending  = operation != nullptr && operation->kind == LinkOperationKind::FullSend;
+
     m_owner.Notify();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::IsTransferring
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::Sink::IsTransferring (bool serving) const
+{
+    ULONGLONG  now = GetTickCount64();
+
+
+
+    return now - m_lastProgress < kTransferWindowMs || (serving && now - m_lastActivity < kTransferWindowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::IsFullSending
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::Sink::IsFullSending() const
+{
+    return m_fullSending && GetTickCount64() - m_lastProgress < kTransferWindowMs;
 }
 
 
@@ -1954,6 +2015,9 @@ void CassoLinkConnections::Sink::OnOperationQueued (const std::shared_ptr<LinkOp
 
 void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
 {
+    m_lastProgress = 0;
+    m_fullSending  = false;
+
     m_owner.Notify();
 }
 
@@ -1969,6 +2033,8 @@ void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
 
 void CassoLinkConnections::Sink::OnActivity (const std::string & text)
 {
+    m_lastActivity = GetTickCount64();
+
     Log (Activity(), text);
 }
 

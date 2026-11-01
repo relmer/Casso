@@ -73,6 +73,8 @@ public:
     void          ApplyConnections        ();
     void          ApplyFullSendPrefs      ();
     void          ApplyVerifyPrefs        ();
+    void          HandleTransferTimer     ();
+    void          NoteListFilled          ();
 
     static std::wstring  GetDefaultFullSendFolder ();
 
@@ -97,7 +99,15 @@ public:
     bool  HandleListActionMouse   (const DxuiMouseEvent & ev);
 
 private:
+    void  UpdateUnseenFiles    ();
+    void  UpdateTransferTimer  ();
+
+    static constexpr UINT  kTransferFrameMs = 150;
+    static constexpr int   kPulseFrames     = 8;
+
     ExplorerContext  & m_context;
+    bool               m_transferTimer        = false;
+    int                m_pulseFrame           = 0;
     uint32_t           m_announcedChanges     = 0;   // ILinkAnnouncements::GetChangeCount at the last look
     uint32_t           m_firewallVersion      = 0;   // FirewallMonitor::GetVersion the views were drawn from
     HANDLE             m_firewallHelper       = nullptr;   // the elevated helper, until it exits

@@ -865,6 +865,97 @@ bool TreeModel::IsLinkFolder (const std::wstring & path) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::GetLinkFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> TreeModel::GetLinkFolders() const
+{
+    std::vector<std::wstring>  folders;
+
+
+
+    if (!m_fullSendFolder.empty())
+    {
+        folders.push_back (m_fullSendFolder);
+    }
+
+    for (const LinkTreeEntry & link : m_links)
+    {
+        if (!link.folder.empty())
+        {
+            folders.push_back (link.folder);
+        }
+    }
+
+    return folders;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::SetUnseenFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::SetUnseenFiles (const std::wstring & folder, int count)
+{
+    for (const LinkTreeEntry & link : m_links)
+    {
+        m_children.erase (MakeLinkId (link.name));
+    }
+
+    m_children.erase (kCassoLinkRootId);
+    m_unseen[folder] = count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetUnseenFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int TreeModel::GetUnseenFiles (const std::wstring & folder) const
+{
+    auto  found = m_unseen.find (folder);
+
+
+
+    return found == m_unseen.end() ? 0 : found->second;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::IsReceivedFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsReceivedFile (const std::wstring & name)
+{
+    std::wstring  extension = std::filesystem::path (name).extension().wstring();
+
+
+
+    return std::none_of (std::begin (kNotReceived), std::end (kNotReceived), [&extension] (const wchar_t * other) { return _wcsicmp (extension.c_str(), other) == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::MakeLinkId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1015,6 +1106,7 @@ void TreeModel::AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) co
         node.id        = copy ? kLinkCopyTag + node.id : node.id;
         node.offline   = !link.replying;
         node.warning   = !link.firewall.empty();
+        node.transferring = link.transferring;
         node.canExpand = link.replying && !link.drives.empty();
 
         outNodes.push_back (node);
@@ -1198,6 +1290,8 @@ HRESULT TreeModel::ListLink (const std::wstring & name, std::vector<TreeNode> & 
         shared.label    = std::filesystem::path (found->folder).filename().wstring();
         shared.label    = shared.label.empty() ? found->folder : shared.label;
         shared.location = Location::MakeHostFolder (found->folder);
+        shared.unseen   = GetUnseenFiles (found->folder);
+        shared.transferring = found->transferring;
         outNodes.push_back (shared);
     }
 
@@ -1774,6 +1868,8 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
             sent.kind     = TreeNode::Kind::HostFolder;
             sent.label    = L"Full send";
             sent.location = Location::MakeHostFolder (m_fullSendFolder);
+            sent.unseen   = GetUnseenFiles (m_fullSendFolder);
+            sent.transferring = std::any_of (m_links.begin(), m_links.end(), [] (const LinkTreeEntry & link) { return link.fullSending; });
             outNodes.push_back (sent);
         }
 

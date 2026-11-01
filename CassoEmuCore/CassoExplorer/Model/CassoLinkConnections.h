@@ -202,6 +202,9 @@ public:
 
     static constexpr size_t  kLogLength = 500;
 
+    //  Whether any connection is in a transfer.
+    bool  IsAnyTransferring () const;
+
     //  Whether an image is being written to a drive, or waits to be.
     bool  IsWritingDisk (const std::string & name, int drive) const;
 
@@ -283,11 +286,21 @@ private:
         void  OnActivity           (const std::string & text) override;
         void  OnFinished           (const LinkOperation & operation, const std::string & text) override;
 
+        //  Whether a transfer reported progress lately. A Full Send waiting for
+        //  disks doesn't report progress, so it isn't transferring.
+        bool  IsTransferring       (bool serving) const;
+        bool  IsFullSending        () const;
+
     private:
         void  Log (Activity entry, const std::string & text);
 
-        CassoLinkConnections  & m_owner;
-        std::string             m_name;
+        static constexpr ULONGLONG  kTransferWindowMs = 10000;
+
+        CassoLinkConnections    & m_owner;
+        std::string               m_name;
+        std::atomic<ULONGLONG>    m_lastProgress { 0 };
+        std::atomic<ULONGLONG>    m_lastActivity { 0 };
+        std::atomic<bool>         m_fullSending  { false };
     };
 
     struct Link

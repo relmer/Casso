@@ -39,6 +39,8 @@ struct TreeNode
     bool          dividerAbove = false;   // a line above it, as between Explorer's navigation groups
     bool          offline      = false;   // a linked machine that is not connected, drawn in grays
     bool          warning      = false;   // a connection Windows Firewall blocks, drawn with an amber badge
+    bool          transferring = false;   // a connection or its receiving folder during a transfer, drawn with a pulsing dot
+    int           unseen       = 0;       // a receiving folder's files not yet listed, drawn as a count
     std::wstring  iconId;                 // the shell's name for the entry whose icon it shows
 };
 
@@ -71,8 +73,10 @@ struct LinkTreeEntry
 
     std::wstring        name;
     std::wstring        model;   // the Apple's model once connected, as Apple //c
-    bool                replying = false;
-    bool                probing  = false;   // a drive's catalog being read; its row is left out until it arrives
+    bool                replying     = false;
+    bool                probing      = false;   // a drive's catalog being read; its row is left out until it arrives
+    bool                transferring = false;
+    bool                fullSending  = false;   // the transfer is a Full Send, received in the Full Send folder
     std::wstring        status;
     std::vector<Drive>  drives;
     std::wstring        folder;   // an ADTPro server's shared folder, listed under it
@@ -174,6 +178,16 @@ public:
     //  Whether a folder is one disks arrive in over CassoLink: the full send
     //  folder, or an ADTPro server's shared folder.
     bool  IsLinkFolder       (const std::wstring & path) const;
+
+    //  The Full Send folder and each ADTPro server's. Each has a count of files
+    //  received and not yet listed, and only files that a transfer delivers are
+    //  counted, not the manifest or a list of unreadable sectors.
+    std::vector<std::wstring>  GetLinkFolders () const;
+    void                       SetUnseenFiles (const std::wstring & folder, int count);
+    int                        GetUnseenFiles (const std::wstring & folder) const;
+    static bool                IsReceivedFile (const std::wstring & name);
+
+    static constexpr const wchar_t *  kNotReceived[] = { L".fullsend", L".csv", L".txt", L".md" };
 
     //  A link's state while its Apple is not replying, for the list in place
     //  of its drives; false once it replies.
@@ -299,6 +313,7 @@ private:
                                              std::wstring & outPath, std::string & outInner);
 
     IFileSystem                                    & m_fs;
+    std::map<std::wstring, int>                      m_unseen;
     std::vector<std::wstring>                        m_knownFolders;
     std::vector<std::wstring>                        m_drives;
     DirectoryProbe                                   m_directoryProbe;

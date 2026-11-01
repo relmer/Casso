@@ -869,6 +869,7 @@ void ExplorerListPane::FillList()
 
 
     m_context.cassoLinkManager.ReleaseIdleConnections();
+    m_context.cassoLinkManager.NoteListFilled();
 
     //  The rows are about to change under it.
     if (m_context.fileOps.GetRenameRow() >= 0)

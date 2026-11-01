@@ -335,6 +335,20 @@ public:
 
     //  A link's name is made from its settings when it is read, and a running
     //  Casso's, which an older build saved, is dropped.
+    TEST_METHOD (LinkFolderSeen_RoundTrips_WithTicksPastADoublesPrecision)
+    {
+        InMemoryFileSystem  fs;
+        CassoExplorerPrefs  saved;
+        CassoExplorerPrefs  loaded;
+
+        saved.linkFolderSeen[L"C:\\Box"] = 134000000000000123LL;
+
+        AssertSucceeded (saved.Save (kBase, fs));
+        AssertSucceeded (loaded.Load (kBase, fs));
+
+        Assert::AreEqual (134000000000000123LL, loaded.linkFolderSeen[L"C:\\Box"]);
+    }
+
     TEST_METHOD (Links_RoundTrip)
     {
         InMemoryFileSystem  fs;

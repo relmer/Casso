@@ -62,6 +62,8 @@ DxuiTreeNode BrowserCells::ToTreeNode (const TreeNode & node, IShellIcons * icon
     out.iconGhosted    = node.hidden;
     out.iconBroken     = node.broken;
     out.iconWarning    = node.warning;
+    out.iconActivity   = node.transferring;
+    out.countBadge     = node.unseen;
     out.pinned         = node.pinned;
 
     if (icons != nullptr)

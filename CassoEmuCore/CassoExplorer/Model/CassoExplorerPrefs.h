@@ -59,6 +59,11 @@ struct CassoExplorerPrefs
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
     std::wstring           fullSendPrefix;
+
+    //  When each CassoLink receiving folder was last listed, in file time ticks.
+    //  Files newer than this are counted on its tree row.
+    std::map<std::wstring, long long>  linkFolderSeen;
+
     bool                   verifyReads  = false;
     bool                   verifyWrites = false;
     bool                   autoVerify   = true;

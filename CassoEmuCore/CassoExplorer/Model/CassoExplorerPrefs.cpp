@@ -576,6 +576,19 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
     root.emplace_back ("links",            JsonValue (std::move (linkValues)));
 
+    std::vector<JsonValue>  seenValues;
+
+    for (const auto & [folder, ticks] : linkFolderSeen)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  seen;
+
+        seen.emplace_back ("folder", JsonValue (TextEncoding::WideToUtf8 (folder)));
+        seen.emplace_back ("ticks",  JsonValue (std::to_string (ticks)));
+        seenValues.push_back (JsonValue (std::move (seen)));
+    }
+
+    root.emplace_back ("linkFolderSeen",   JsonValue (std::move (seenValues)));
+
     return JsonValue (std::move (root));
 }
 
@@ -656,6 +669,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * splitters    = nullptr;
     const JsonValue  * tabArray     = nullptr;
     const JsonValue  * typedArray   = nullptr;
+    const JsonValue  * seenArray    = nullptr;
     const JsonValue  * linkArray    = nullptr;
     const JsonValue  * widthArray   = nullptr;
     const JsonValue  * orderArray   = nullptr;
@@ -810,6 +824,20 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
                 && std::none_of (links.begin(), links.end(), [&link] (const CassoLinkSettings & other) { return other.name == link.name; }))
             {
                 links.push_back (link);
+            }
+        }
+    }
+
+    if (root.HasArray ("linkFolderSeen", seenArray))
+    {
+        for (i = 0; i < seenArray->GetArraySize(); i++)
+        {
+            std::string  folder;
+            std::string  ticks;
+
+            if (seenArray->GetArrayElement (i).HasString ("folder", folder) && seenArray->GetArrayElement (i).HasString ("ticks", ticks))
+            {
+                linkFolderSeen[TextEncoding::Utf8ToWide (folder)] = _atoi64 (ticks.c_str());
             }
         }
     }

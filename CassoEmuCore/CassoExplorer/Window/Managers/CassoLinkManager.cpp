@@ -21,6 +21,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "Core/AppTimerIds.h"
 
 
 
@@ -1746,6 +1747,147 @@ void CassoLinkManager::ApplyConnections()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::UpdateUnseenFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::UpdateUnseenFiles()
+{
+    TreeModel  & tree = m_context.browser.GetTreeModel();
+
+
+
+    for (const std::wstring & folder : tree.GetLinkFolders())
+    {
+        std::error_code  error;
+        int              count = 0;
+        auto             seen  = m_context.prefs.linkFolderSeen.find (folder);
+
+        //  A folder not seen before counts what arrives from now on.
+        if (seen == m_context.prefs.linkFolderSeen.end())
+        {
+            m_context.prefs.linkFolderSeen[folder] = std::filesystem::file_time_type::clock::now().time_since_epoch().count();
+            continue;
+        }
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder, std::filesystem::directory_options::skip_permission_denied, error))
+        {
+            if (entry.is_regular_file (error) && TreeModel::IsReceivedFile (entry.path().filename().wstring()) && entry.last_write_time (error).time_since_epoch().count() > seen->second)
+            {
+                count++;
+            }
+        }
+
+        tree.SetUnseenFiles (folder, count);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::UpdateTransferTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::UpdateTransferTimer()
+{
+    bool  transferring = m_context.app.links->IsAnyTransferring();
+
+
+
+    if (transferring && !m_transferTimer)
+    {
+        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerLinkTransfer, kTransferFrameMs, nullptr);
+    }
+    else if (!transferring && m_transferTimer)
+    {
+        KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerLinkTransfer);
+    }
+
+    m_transferTimer = transferring;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::HandleTransferTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::HandleTransferTimer()
+{
+    int  fromPeak = 0;
+
+
+
+    //  The last progress aged out, as in a Full Send waiting for disks.
+    if (m_context.app.links == nullptr || !m_context.app.links->IsAnyTransferring())
+    {
+        RefreshCassoLinkViews();
+        return;
+    }
+
+    m_pulseFrame = (m_pulseFrame + 1) % (kPulseFrames * 2);
+    fromPeak     = std::abs (m_pulseFrame - kPulseFrames);
+
+    m_context.treePane.SetActivityPulse (DxuiSystemSettings::Instance().AreAnimationsEnabled() ? (float) fromPeak / kPulseFrames : 1.0f);
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::NoteListFilled
+//
+//  A receiving folder now listed has no files waiting to be seen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::NoteListFilled()
+{
+    TreeModel       & tree     = m_context.browser.GetTreeModel();
+    const Location &  location = m_context.browser.GetLocation();
+
+
+
+    if (location.kind != Location::Kind::HostFolder)
+    {
+        return;
+    }
+
+    for (const std::wstring & folder : tree.GetLinkFolders())
+    {
+        if (_wcsicmp (folder.c_str(), location.path.c_str()) == 0)
+        {
+            int  unseen = tree.GetUnseenFiles (folder);
+
+            m_context.prefs.linkFolderSeen[folder] = std::filesystem::file_time_type::clock::now().time_since_epoch().count();
+
+            if (unseen != 0)
+            {
+                tree.SetUnseenFiles (folder, 0);
+                m_context.window.SaveSession();
+                RefreshCassoLinkViews();
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::HandleConnectionChanged
 //
 //  An CassoLink finished an operation or changed state. The links post to
@@ -1839,6 +1981,8 @@ void CassoLinkManager::RefreshCassoLinkViews()
     }
 
     m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());
+    UpdateUnseenFiles();
+    UpdateTransferTimer();
     m_context.statusBar.SetActivity (GetLatestActivity());
 
     for (const CassoLinkSettings & settings : m_context.app.links->GetLinks())

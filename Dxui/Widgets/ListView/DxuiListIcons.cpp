@@ -68,6 +68,79 @@ uint32_t DxuiListIcons::ShiftGray (uint32_t argb, int delta)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListIcons::PaintActivityDot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListIcons::PaintActivityDot (IDxuiTextRenderer & text, float iconX, float iconY, float iconPx, uint32_t color, uint32_t edge, float pulse)
+{
+    constexpr float  kMinAlpha = 0.25f;
+    HRESULT          hr        = S_OK;
+    float            radius    = iconPx * 0.25f;
+    float            cx        = iconX + iconPx - radius;
+    float            cy        = iconY + radius;
+    uint32_t         alpha     = (uint32_t) ((kMinAlpha + (1.0f - kMinAlpha) * pulse) * 255.0f);
+
+
+
+    hr = text.FillEllipse (cx, cy, radius + 1.0f, radius + 1.0f, edge);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillEllipse (cx, cy, radius, radius, (color & 0x00FFFFFFu) | (alpha << 24));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListIcons::PaintCountBadge
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiListIcons::PaintCountBadge (IDxuiTextRenderer & text, float right, float rowY, float rowHeight, int count, float fontPx, uint32_t fill, uint32_t ink)
+{
+    HRESULT       hr       = S_OK;
+    std::wstring  digits   = std::to_wstring (count);
+    float         width    = 0.0f;
+    float         measured = 0.0f;
+    float         height   = fontPx * 1.3f;
+    float         radius   = height * 0.5f;
+    float         top      = rowY + (rowHeight - height) * 0.5f;
+    float         pill     = 0.0f;
+    float         left     = 0.0f;
+
+
+
+    hr = text.MeasureString (digits.c_str(), fontPx, L"Segoe UI", width, measured);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    pill = (std::max) (height, width + radius);
+    left = right - pill;
+
+    hr = text.FillEllipse (left + radius, top + radius, radius, radius, fill);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillEllipse (right - radius, top + radius, radius, radius, fill);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.FillRect (left + radius, top, pill - height, height, fill);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (digits.c_str(), left, rowY, pill, rowHeight, ink, fontPx, L"Segoe UI", DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiListIcons::PaintBrokenBadge
 //
 //  A red disc with a white cross over the icon's lower-left corner, about

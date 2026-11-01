@@ -457,6 +457,12 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
         return true;
     }
 
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerLinkTransfer)
+    {
+        context.cassoLinkManager.HandleTransferTimer();
+        return true;
+    }
+
     if (timerId == (UINT_PTR) AppTimerId::ExplorerRefresh)
     {
         KillTimer (hwnd, (UINT_PTR) AppTimerId::ExplorerRefresh);

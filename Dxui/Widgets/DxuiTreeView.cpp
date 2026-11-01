@@ -1364,6 +1364,11 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                 DxuiWarningBadge::Draw (text, textX, iconTop + iconPx - badgePx, badgePx, badgePx, theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());
             }
 
+            if (node->iconActivity)
+            {
+                DxuiListIcons::PaintActivityDot (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, theme.Accent(), theme.Background(), m_activityPulse);
+            }
+
             textX += iconPx + m_scaler.ToPxf (m_iconGapDip);
         }
 
@@ -1390,6 +1395,11 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             text.SetGlobalAlpha (alpha);
 
             labelRight = pinX;
+        }
+
+        if (node != nullptr && node->countBadge > 0)
+        {
+            labelRight = DxuiListIcons::PaintCountBadge (text, labelRight - m_scaler.ToPxf (s_kPinRightDip), rowY, rowHeight, node->countBadge, m_scaler.ToPxf (m_fontDip) * 0.85f, theme.Accent(), theme.Background());
         }
 
         if (node != nullptr)

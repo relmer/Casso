@@ -78,6 +78,12 @@ struct DxuiTreeNode
     //  The theme's amber warning mark on the icon, for an item that opens
     //  but has a problem, with the cause in the item's tip.
     bool                       iconWarning    = false;
+
+    //  A pulsing dot on the icon, for an item with a transfer running.
+    bool                       iconActivity   = false;
+
+    //  A count at the row's right, for new items in it. Zero for none.
+    int                        countBadge     = 0;
 };
 
 
@@ -135,8 +141,9 @@ public:
     DxuiTreeView() { m_focusable = true; }
     ~DxuiTreeView() override = default;
 
-    void  SetRect      (const RECT & rect) { SetBounds (rect); }
-    void  SetRowHeight (int px) { m_rowHeightPx = px; }
+    void  SetRect          (const RECT & rect) { SetBounds (rect); }
+    void  SetRowHeight     (int px) { m_rowHeightPx = px; }
+    void  SetActivityPulse (float pulse) { m_activityPulse = pulse; }   // 0 to 1, the brightness of iconActivity's dot
 
     //  True while a scrollbar thumb drag is in progress, even with the pointer
     //  outside the tree. The host routes mouse input to the widget that started
@@ -327,6 +334,7 @@ private:
 
     bool                       m_showCheckboxes = true;
     bool                       m_hScrollEnabled = true;
+    float                      m_activityPulse  = 1.0f;
     float                      m_fontDip        = s_kDefaultFontDip;
     ChildProviderFn            m_childProvider;
     SelectFn                   m_onSelect;
@@ -357,7 +365,7 @@ private:
     int                        m_rowsExtentPx   = 0;
     float                      m_wheelRows      = 0.0f;   // a touchpad's part notches, until they make a row
     float                      m_wheelPx        = 0.0f;   // the same, sideways
-    std::vector<POINT>         m_labelSpans;              // per flat row: icon start, label end, unscrolled
+    std::vector<POINT>         m_labelSpans;   // per flat row: icon start, label end, unscrolled
     mutable DxuiScrollbar      m_vertScroll;
     mutable DxuiScrollbar      m_horzScroll;
 };

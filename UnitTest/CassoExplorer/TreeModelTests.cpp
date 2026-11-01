@@ -461,6 +461,54 @@ public:
         Assert::IsTrue   (nodes[2].kind == TreeNode::Kind::AddLink);
     }
 
+    TEST_METHOD (ATransfer_MarksTheConnectionAndItsReceivingFolder)
+    {
+        InMemoryFileSystem         fs;
+        TreeModel                  model (fs);
+        LinkTreeEntry              apple;
+        LinkTreeEntry              server;
+        std::vector<TreeNode>      roots;
+        std::vector<TreeNode>      shared;
+
+        AssertSucceeded (fs.WriteAllText (L"C:\\Box\\0001.dsk", "x"));
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\ADTPro\\in.dsk", "x"));
+
+        apple.name         = L"Apple //c";
+        apple.replying     = true;
+        apple.transferring = true;
+        apple.fullSending  = true;
+        server.name        = L"ADTPro server";
+        server.folder      = L"C:\\Disks\\ADTPro";
+        server.transferring = true;
+
+        model.SetLinks ({ apple, server });
+        model.SetFullSendFolder (L"C:\\Box");
+        model.SetUnseenFiles (L"C:\\Box", 3);
+        model.SetUnseenFiles (L"C:\\Disks\\ADTPro", 2);
+
+        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, roots));
+        AssertSucceeded (model.GetChildren (TreeModel::MakeLinkId (L"ADTPro server"), shared));
+
+        auto  sent = std::find_if (roots.begin(), roots.end(), [] (const TreeNode & node) { return node.label == L"Full send"; });
+
+        Assert::IsTrue (roots[0].transferring);
+        Assert::IsTrue (sent != roots.end());
+        Assert::IsTrue (sent->transferring);
+        Assert::AreEqual (3, sent->unseen);
+        Assert::IsTrue (shared[0].transferring);
+        Assert::AreEqual (2, shared[0].unseen);
+    }
+
+    TEST_METHOD (IsReceivedFile_LeavesOutTheFilesATransferDoesNotDeliver)
+    {
+        Assert::IsTrue  (TreeModel::IsReceivedFile (L"0001 GAMES.dsk"));
+        Assert::IsTrue  (TreeModel::IsReceivedFile (L"FROM APPLE.PO"));
+        Assert::IsFalse (TreeModel::IsReceivedFile (L"manifest.fullsend"));
+        Assert::IsFalse (TreeModel::IsReceivedFile (L"full-send.csv"));
+        Assert::IsFalse (TreeModel::IsReceivedFile (L"0001 GAMES.dsk.unreadable.txt"));
+        Assert::IsFalse (TreeModel::IsReceivedFile (L"README.md"));
+    }
+
     TEST_METHOD (IsLinkFolder_MatchesTheFullSendFolderAndAnAdtProServersFolder)
     {
         InMemoryFileSystem  fs;

@@ -149,9 +149,10 @@ public:
     static constexpr int  kToggleWidthDip  = 44;
     static constexpr int  kStateWidthDip   = 40;
     static constexpr int  kNoteHeightDip   = 64;
+    static constexpr int  kShortNoteDip    = 34;
     static constexpr int  kHeadHeightDip   = 24;
-    static constexpr int  kOverrideDip     = 84;
-    static constexpr int  kLimitDip        = 84;
+    static constexpr int  kOverrideDip     = 64;
+    static constexpr int  kLimitDip        = 64;
 
 private:
     DxuiLabel           * m_intro        = nullptr;

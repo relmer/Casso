@@ -331,6 +331,8 @@ void CassoExplorerVerifyPage::Layout (const RECT & boundsDip, const DxuiDpiScale
 
     for (Row & row : *m_rows)
     {
+        noteH = scaler.ToPx (&row == &m_rows->back() ? kShortNoteDip : kNoteHeightDip);
+
         row.label.Layout (RECT { boundsDip.left, y, toggleX, y + rowH }, scaler);
         row.toggle.SetDpi (scaler.GetDpi());
         row.toggle.Layout (RECT { toggleX, y, toggleX + toggleW, y + rowH }, scaler);
