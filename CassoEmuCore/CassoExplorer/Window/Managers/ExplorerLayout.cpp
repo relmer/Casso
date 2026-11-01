@@ -114,7 +114,7 @@ void ExplorerLayout::ConfigureWidgets()
         m_context.browser.SetLinks (m_context.app.links);
         m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());
         m_context.treePane.RefreshTree();
-        m_context.cassoLinkManager.StartAdtProServers();
+        m_context.cassoLinkManager.StartConnections();
     }
 
     //  Each running Casso with a serial port on TCP is a root as well, read

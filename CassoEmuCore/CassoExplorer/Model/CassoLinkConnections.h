@@ -109,6 +109,25 @@ public:
     //  Apple, as a link with no port set does.
     HRESULT  Start     (const std::string & name, bool search = false);
 
+    //  For a start the user didn't ask for, at launch or on opening a list. A
+    //  port another connection has is left with it, and this one is disconnected
+    //  with the reason.
+    HRESULT  StartIfFree (const std::string & name);
+
+    //  Whether two connections would open one COM port. An any-port connection
+    //  opens a PC's only COM port, so with several it conflicts with no other.
+    static bool  SharesPort (const CassoLinkSettings & a, const CassoLinkSettings & b, size_t comPortCount);
+
+    //  The COM port a started connection opened, or empty.
+    std::wstring  GetOpenPort (const std::string & name) const;
+
+    //  Marks a connection disconnected with no session to stop, as at launch.
+    void     Hold       (const std::string & name);
+
+    //  Whether the user disconnected it, rather than another connection taking
+    //  its port.
+    bool     IsHeldByUser (const std::string & name) const;
+
     //  Starts a link on an Apple with no link program, typing the loader in
     //  first. The completion runs when the program is running or the
     //  Apple does not answer.
@@ -287,6 +306,8 @@ private:
                                 const std::string & path, std::shared_ptr<LinkOperation> & outOperation);
     void     Notify      ();
     HRESULT  StartLink   (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
+    HRESULT  TakePort    (const std::string & name);
+    std::vector<std::string>  GetPortRivals (const std::string & name);
     void     Merge       ();
     bool     IsSearching () const;
     void     AddFirewall (const CassoLinkSettings & settings, LinkTreeEntry & entry) const;
@@ -302,6 +323,7 @@ private:
     std::vector<LinkAnnouncement>        m_announced;
     std::vector<CassoLinkSettings>       m_links;
     std::set<std::string>                m_held;
+    std::map<std::string, std::string>   m_heldFor;   // a connection disconnected for another that took its port
     std::map<const void *, std::string>  m_viewing;
     std::vector<std::unique_ptr<Link>>   m_started;
 

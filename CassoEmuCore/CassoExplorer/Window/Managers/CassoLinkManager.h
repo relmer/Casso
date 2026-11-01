@@ -63,7 +63,8 @@ public:
     std::wstring  GetLatestActivity       () const;
     std::wstring  FormatActivity          (size_t lines) const;
     void          ShowActivityLog         ();
-    void          StartAdtProServers      ();
+    void          StartConnections        ();
+    void          SaveConnectionState     ();
     bool          IsConnectionReplying    (const std::string & name) const;
     bool          IsConnectionRemoved     (const std::wstring & link) const;
     void          AddConnectionRows       (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
@@ -84,6 +85,7 @@ public:
     RECT         GetListActionAltRect   () const;
     std::string  GetBootstrapConnection () const;
     void         FillListAction         (bool hasMessage);
+    bool         IsStoppedServer        (const std::string & name) const;
     void         PollFirewall           ();
     void         FixFirewall            (bool markPrivate);
     bool         TryGetConnectionEntry  (const std::wstring & name, LinkTreeEntry & outEntry) const;

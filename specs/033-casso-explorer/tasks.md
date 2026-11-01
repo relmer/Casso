@@ -1529,3 +1529,23 @@ Session 2026-11-01, from the owner's //c passes.
 - [X] T347 Open the full send folder and an ADTPro server's folder grouped by Date modified, through `TreeModel::IsLinkFolder`, per FR-125
 - [X] T346 Add tests in `UnitTest/CassoLink/FullSendTests.cpp` and `UnitTest/CassoExplorer/TreeModelTests.cpp` for the prefix, the track reads per disk and the row
 
+## Phase 32: Connections, the Apple screen, verified transfers, Pascal and CP/M
+
+Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 follow.
+
+- [X] T348 Start an ADTPro server only from its floating Start server button, start other connections at launch by `CassoLinkManager::StartConnections`, and save a user's disconnect, an any-port connection's last port and the most recent choice, per FR-126
+- [X] T349 Add `CassoLinkConnections::StartIfFree`, `TakePort` and `SharesPort`, so that a chosen connection takes a shared port from an idle one, per FR-127
+- [ ] T350 Enter Full Send on F without reading, begin on Space, and add the entry screen's text, with REMOVE THE CASSOLINK DISK unless this session bootstrapped the Apple, per FR-107
+- [ ] T351 Stop reading an already-sent disk on Space, and add the prompt that lists drives, keys 1 and 2, and Casso Explorer's status and help, per FR-110
+- [ ] T352 Rename the manifest to `manifest.fullsend`, with its # header, parsing past comments, and renaming `full-send.csv`, per FR-114
+- [ ] T353 Add track 3 to the fingerprint of a disk with no recognized file system, per FR-109. 0005.dsk from the owner's CP/M disk has E5 on tracks 0 and 17, so all such disks match today
+- [ ] T354 Rearrange the Apple's 40-column screen: drive rows, the bar with its overlay and right-edge percentage, the map row, merged connection rows, the divider and prompt lines after ON DECK--, per FR-128
+- [ ] T355 Add the 80-column layout with its detection, the per-connection Use 40 columns setting and the boot disk option, per FR-128
+- [ ] T356 Add the Apple program's per-sector CRC command and the verified read and vote in `CassoLinkDiskTransfer`, per FR-129
+- [ ] T357 Add verified writes: rewrite up to twice and the final comparison, per FR-129
+- [ ] T358 Add the settings: the Verified transfers Options page with toggles in one column after their labels, the per-connection override, toggles in Create image and Write image, V on the Apple and its indicator, and automatic verification of a failing track, per FR-129
+- [ ] T359 Add the copy-protection assessment, its early stop, PROT count and tone, and the manifest's labels, per FR-130
+- [ ] T360 Add the tree's transfer animation and the badge for files not yet rendered, saved across restarts, per FR-131
+- [ ] T361 Add Apple Pascal read and write, on images and over CassoLink, starting from the readers on `040-disk-inspector`, with 0006 APPLE0.dsk as a fixture source, per FR-132
+- [ ] T362 Add CP/M read and write the same way, with heuristic detection and the manual choice, with 0005.dsk as a fixture source, per FR-132
+

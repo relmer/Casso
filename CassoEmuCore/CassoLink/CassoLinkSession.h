@@ -84,6 +84,7 @@ public:
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }
+    std::wstring  GetPort      () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_port; }
 
     //  Why the line last failed to open, such as a TCP port another program
     //  listens on; empty once it opens.

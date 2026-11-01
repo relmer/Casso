@@ -461,13 +461,13 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
 
 
 
-    //  Opening a link's root starts it, unless the user disconnected it;
-    //  until Casso's program runs on the Apple, the list has the link's
-    //  state in place of drives.
+    //  Opening a link's root starts it, unless the user disconnected it or it is
+    //  an ADTPro server, which its button starts; until Casso's program runs on
+    //  the Apple, the list has the link's state in place of drives.
     if (m_browser.m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && !m_browser.m_links->IsStarted (TextEncoding::WideToNarrow (link))
-        && !m_browser.m_links->IsHeld (TextEncoding::WideToNarrow (link)))
+        && !m_browser.m_links->IsHeld (TextEncoding::WideToNarrow (link)) && !IsAdtProServer (TextEncoding::WideToNarrow (link)))
     {
-        hr = m_browser.m_links->Start (TextEncoding::WideToNarrow (link));
+        hr = m_browser.m_links->StartIfFree (TextEncoding::WideToNarrow (link));
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         m_browser.m_tree.SetLinks (m_browser.m_links->BuildTreeEntries());

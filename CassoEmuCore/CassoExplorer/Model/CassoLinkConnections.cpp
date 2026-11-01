@@ -343,7 +343,225 @@ void CassoLinkConnections::Merge()
 
 HRESULT CassoLinkConnections::Start (const std::string & name, bool search)
 {
-    return StartLink (name, search, nullptr);
+    HRESULT  hr = S_OK;
+
+
+
+    if (!search)
+    {
+        hr = TakePort (name);
+        CHR (hr);
+    }
+
+    hr = StartLink (name, search, nullptr);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::StartIfFree
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkConnections::StartIfFree (const std::string & name)
+{
+    HRESULT                   hr     = S_OK;
+    std::vector<std::string>  rivals = GetPortRivals (name);
+
+
+
+    if (!rivals.empty())
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_held.insert (name);
+        m_heldFor[name] = rivals[0];
+    }
+
+    BAIL_OUT_IF (!rivals.empty(), S_OK);
+
+    hr = StartLink (name, false, nullptr);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::SharesPort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::SharesPort (const CassoLinkSettings & a, const CassoLinkSettings & b, size_t comPortCount)
+{
+    if (!a.IsComPort() || !b.IsComPort())
+    {
+        return false;
+    }
+
+    if (a.port == b.port)
+    {
+        return true;
+    }
+
+    return (a.port.empty() || b.port.empty()) && comPortCount <= 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::GetPortRivals
+//
+//  The started connections on the port a connection would open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CassoLinkConnections::GetPortRivals (const std::string & name)
+{
+    std::vector<std::string>   rivals;
+    std::vector<std::wstring>  ports;
+    HRESULT                    listed   = ListComPorts (ports);
+    auto                       settings = std::find_if (m_links.begin(), m_links.end(), [&name] (const CassoLinkSettings & s) { return s.name == name; });
+
+
+
+    IGNORE_RETURN_VALUE (listed, S_OK);
+
+    if (settings != m_links.end())
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        for (const std::unique_ptr<Link> & link : m_started)
+        {
+            if (link->settings.name != name && SharesPort (*settings, link->settings, ports.size()))
+            {
+                rivals.push_back (link->settings.name);
+            }
+        }
+    }
+
+    return rivals;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::TakePort
+//
+//  The connections on the port are disconnected with the reason. A connection
+//  with a transfer running keeps the port, and this start fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkConnections::TakePort (const std::string & name)
+{
+    HRESULT                   hr     = S_OK;
+    std::vector<std::string>  rivals = GetPortRivals (name);
+    bool                      idle   = true;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        for (const std::unique_ptr<Link> & link : m_started)
+        {
+            if (std::find (rivals.begin(), rivals.end(), link->settings.name) != rivals.end())
+            {
+                idle = idle && link->session->GetState() != LinkState::Busy;
+            }
+        }
+    }
+
+    CBREx (idle, HRESULT_FROM_WIN32 (ERROR_BUSY));
+
+    for (const std::string & rival : rivals)
+    {
+        Disconnect (rival);
+
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_heldFor[rival] = name;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::GetOpenPort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkConnections::GetOpenPort (const std::string & name) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    auto                         found = std::find_if (m_started.begin(), m_started.end(), [&name] (const std::unique_ptr<Link> & link) { return link->settings.name == name; });
+
+
+
+    return found == m_started.end() ? std::wstring() : (*found)->session->GetPort();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Hold
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::Hold (const std::string & name)
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    m_held.insert (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsHeldByUser
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsHeldByUser (const std::string & name) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    return m_held.contains (name) && !m_heldFor.contains (name);
 }
 
 
@@ -367,6 +585,9 @@ HRESULT CassoLinkConnections::Bootstrap (const std::string & name, Completion co
 
 
     Stop (name);
+
+    hr = TakePort (name);
+    CHR (hr);
 
     hr = StartLink (name, false, &operation);
     CHR (hr);
@@ -405,6 +626,7 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
         std::lock_guard<std::mutex>  lock (m_lock);
 
         m_held.erase (name);
+        m_heldFor.erase (name);
     }
 
     BAIL_OUT_IF (IsStarted (name), S_OK);
@@ -431,6 +653,10 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
     if (search)
     {
         opening.port.clear();
+    }
+    else if (opening.port.empty())
+    {
+        opening.port = opening.lastPort;
     }
 
     if (outBootstrap != nullptr)
@@ -644,7 +870,10 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
 
         if (found == m_started.end())
         {
-            entry.status = m_held.contains (settings.name) ? std::format (L"{} is disconnected.", entry.name)
+            auto  heldFor = m_heldFor.find (settings.name);
+
+            entry.status = heldFor != m_heldFor.end()          ? std::format (L"{} is disconnected because {} is using its port.", entry.name, TextEncoding::NarrowToWide (heldFor->second))
+                         : m_held.contains (settings.name)     ? std::format (L"{} is disconnected.", entry.name)
                                                            : DescribeState (LinkState::Closed, settings, GetPcName());
         }
         else
@@ -883,7 +1112,7 @@ HRESULT CassoLinkConnections::Submit (const std::string & name, const Queuer & q
 
     if (!IsStarted (name))
     {
-        hr = Start (name);
+        hr = StartIfFree (name);
         CHR (hr);
     }
 
@@ -1850,7 +2079,7 @@ bool CassoLinkConnections::TryGetResult (const std::string & name, int drive, co
 
     if (!IsStarted (name))
     {
-        hr = Start (name);
+        hr = StartIfFree (name);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 

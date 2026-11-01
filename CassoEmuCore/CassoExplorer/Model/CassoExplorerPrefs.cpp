@@ -318,6 +318,21 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
         fields.emplace_back ("folder",        JsonValue (TextEncoding::WideToNarrow (link.folder)));
     }
 
+    if (link.userDisconnected)
+    {
+        fields.emplace_back ("disconnected",  JsonValue (true));
+    }
+
+    if (!link.lastPort.empty())
+    {
+        fields.emplace_back ("lastPort",      JsonValue (link.lastPort));
+    }
+
+    if (link.lastUsed != 0)
+    {
+        fields.emplace_back ("lastUsed",      JsonValue ((double) link.lastUsed));
+    }
+
     return JsonValue (std::move (fields));
 }
 
@@ -355,6 +370,9 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
         value.HasString ("port",    outLink.port);
         value.HasString ("address", outLink.address);
         value.HasBool   ("hardwareHandshake", outLink.hardwareHandshake);
+        value.HasBool   ("disconnected", outLink.userDisconnected);
+        value.HasString ("lastPort", outLink.lastPort);
+        value.HasInt    ("lastUsed", outLink.lastUsed);
 
         if (value.HasInt ("baud", baud) && baud > 0)
         {

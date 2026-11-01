@@ -34,6 +34,13 @@ struct CassoLinkSettings
     bool           hardwareHandshake = false;
     std::wstring   folder;
 
+    //  Whether the user disconnected it, which outlasts a restart; the port an
+    //  any-port connection last connected to an Apple on; and when it was last
+    //  chosen, higher being more recent, for which starts first at launch.
+    bool           userDisconnected  = false;
+    std::string    lastPort;
+    int            lastUsed          = 0;
+
     static constexpr DWORD     kDefaultBaud          = 115200;
     static constexpr DWORD     kDefaultBootstrapBaud = 9600;
     static constexpr uint16_t  kModemPort            = 6400;

@@ -318,6 +318,73 @@ public:
 
     //  ADTPro's client is served by an ADTPro-compatible server, which lists
     //  no drives, and not by any other connection.
+    TEST_METHOD (SharesPort_MatchesOneComPort_AndAnyPortOnlyWithOnePortOnThePc)
+    {
+        CassoLinkSettings  com3;
+        CassoLinkSettings  com4;
+        CassoLinkSettings  any;
+        CassoLinkSettings  tcp;
+
+        com3.port      = "COM3";
+        com4.port      = "COM4";
+        tcp.transport  = LinkTransport::Uthernet;
+        tcp.address    = "127.0.0.1:6502";
+
+        Assert::IsTrue  (CassoLinkConnections::SharesPort (com3, com3, 2));
+        Assert::IsFalse (CassoLinkConnections::SharesPort (com3, com4, 2));
+        Assert::IsTrue  (CassoLinkConnections::SharesPort (any,  com3, 1));
+        Assert::IsFalse (CassoLinkConnections::SharesPort (any,  com3, 2));
+        Assert::IsFalse (CassoLinkConnections::SharesPort (tcp,  com3, 1));
+    }
+
+    TEST_METHOD (StartIfFree_LeavesAPortWithItsConnection_AndStart_TakesIt)
+    {
+        Rig                         rig;
+        CassoLinkSettings           serial;
+        CassoLinkSettings           server;
+        std::vector<LinkTreeEntry>  entries;
+
+        serial.port      = "COM3";
+        serial.name      = CassoLinkSettings::MakeName (serial);
+        server.transport = LinkTransport::AdtProServer;
+        server.port      = "COM3";
+        server.name      = CassoLinkSettings::MakeName (server);
+
+        rig.links->SetLinks ({ serial, server });
+
+        AssertSucceeded (rig.links->Start (serial.name));
+        AssertSucceeded (rig.links->StartIfFree (server.name));
+
+        Assert::IsTrue  (rig.links->IsStarted (serial.name));
+        Assert::IsFalse (rig.links->IsStarted (server.name));
+        Assert::IsTrue  (rig.links->IsHeld (server.name));
+        Assert::IsFalse (rig.links->IsHeldByUser (server.name), L"the port was taken, and the user didn't disconnect it");
+
+        AssertSucceeded (rig.links->Start (server.name));
+
+        Assert::IsTrue  (rig.links->IsStarted (server.name));
+        Assert::IsFalse (rig.links->IsStarted (serial.name));
+        Assert::IsFalse (rig.links->IsHeldByUser (serial.name));
+
+        entries = rig.links->BuildTreeEntries();
+
+        auto  loser = std::find_if (entries.begin(), entries.end(), [&serial] (const LinkTreeEntry & entry) { return entry.name == TextEncoding::NarrowToWide (serial.name); });
+
+        Assert::IsTrue (loser != entries.end());
+        Assert::IsTrue (loser->status.find (TextEncoding::NarrowToWide (server.name)) != std::wstring::npos, loser->status.c_str());
+    }
+
+    TEST_METHOD (Disconnect_IsHeldByTheUser)
+    {
+        Rig  rig;
+
+        AssertSucceeded (rig.links->Start ("Test"));
+
+        rig.links->Disconnect ("Test");
+
+        Assert::IsTrue (rig.links->IsHeldByUser ("Test"));
+    }
+
     TEST_METHOD (AnAdtProServer_ServesAdtProsClient_AndNoOtherConnectionDoes)
     {
         Rig                         rig;

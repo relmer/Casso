@@ -802,11 +802,13 @@ void CassoLinkManager::FillListAction (bool hasMessage)
     int            drive  = 0;
     std::string    disconnected;
     LinkTreeEntry  entry;
-    bool           onLink = hasMessage && m_context.app.links != nullptr && TreeModel::TryParseLinkId (m_context.browser.GetLocation().path, name, slot, drive) && drive == 0;
+    bool           parsed = m_context.app.links != nullptr && TreeModel::TryParseLinkId (m_context.browser.GetLocation().path, name, slot, drive) && drive == 0;
+    bool           onLink = hasMessage && parsed;
+    bool           server = parsed && IsStoppedServer (TextEncoding::WideToNarrow (name));
 
 
 
-    if (onLink && m_context.app.links->IsHeld (TextEncoding::WideToNarrow (name)))
+    if (server || (onLink && m_context.app.links->IsHeld (TextEncoding::WideToNarrow (name))))
     {
         disconnected = TextEncoding::WideToNarrow (name);
     }
@@ -818,7 +820,7 @@ void CassoLinkManager::FillListAction (bool hasMessage)
     m_listActionConnection              = m_listActionFirewall ? std::string() : m_listActionConnects ? disconnected : hasMessage ? GetBootstrapConnection() : std::string();
 
     m_context.listPane.AlignMessage (m_listActionFirewall);
-    m_listAction->SetLabel      (m_listActionFirewall ? FirewallText::kAllowAction : m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
+    m_listAction->SetLabel      (m_listActionFirewall ? FirewallText::kAllowAction : server ? L"Start server" : m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
     m_listActionAlt->SetVisible (m_listActionFirewall && entry.firewallPublic);
     m_listAction->Layout        (GetListActionRect(), m_context.scaler);
     m_listActionAlt->Layout     (GetListActionAltRect(), m_context.scaler);
@@ -1061,6 +1063,10 @@ void CassoLinkManager::EditConnection (const std::string & name)
 
     if (found != m_context.prefs.links.end())
     {
+        outcome.settings.userDisconnected = found->userDisconnected;
+        outcome.settings.lastPort         = outcome.settings.port == found->port ? found->lastPort : std::string();
+        outcome.settings.lastUsed         = found->lastUsed;
+
         *found = outcome.settings;
         ApplyConnections();
         return;
@@ -1068,6 +1074,9 @@ void CassoLinkManager::EditConnection (const std::string & name)
 
     m_context.prefs.links.push_back (outcome.settings);
     ApplyConnections();
+
+    //  A new connection takes its port from any other.
+    Connect (outcome.settings.name);
 
     //  A new connection is selected in the tree, as a new folder is.
     m_context.addressBar.GoToLocation (Location::MakeRoot (TreeModel::MakeLinkId (TextEncoding::NarrowToWide (outcome.settings.name))));
@@ -1384,8 +1393,34 @@ void CassoLinkManager::Connect (const std::string & name)
 
 
 
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    if (hr == HRESULT_FROM_WIN32 (ERROR_BUSY))
+    {
+        m_context.window.ShowMessage (L"A transfer is using this connection's port. Try again when it finishes.", MB_ICONINFORMATION);
+    }
+
     HandleConnectionChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::IsStoppedServer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::IsStoppedServer (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.app.links->GetLinks();
+
+
+
+    return !m_context.app.links->IsStarted (name) && std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name && settings.transport == LinkTransport::AdtProServer;
+    });
 }
 
 
@@ -1520,35 +1555,99 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkManager::StartAdtProServers
+//  CassoLinkManager::StartConnections
 //
-//  ADTPro's client speaks first, so each ADTPro-compatible server is open
-//  from the start, and from when it is added, unless the user disconnected
-//  it.
+//  At launch, the most recently chosen first, so it has its port. An ADTPro
+//  server waits for its button, and a running Casso for its list. An any-port
+//  connection needs a port that has connected to an Apple, as opening another
+//  can disturb the device on it, and a Wi-Fi modem needs the firewall's
+//  permission, as listening without it raises a prompt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::StartAdtProServers()
+void CassoLinkManager::StartConnections()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                         hr    = S_OK;
+    std::vector<CassoLinkSettings>  links = m_context.prefs.links;
+    LinkTreeEntry                   entry;
 
 
 
     BAIL_OUT_IF (m_context.app.links == nullptr, S_OK);
 
-    for (const CassoLinkSettings & settings : m_context.app.links->GetLinks())
-    {
-        bool  idle = settings.transport == LinkTransport::AdtProServer && !m_context.app.links->IsStarted (settings.name) && !m_context.app.links->IsHeld (settings.name);
+    std::stable_sort (links.begin(), links.end(), [] (const CassoLinkSettings & a, const CassoLinkSettings & b) { return a.lastUsed > b.lastUsed; });
 
-        if (idle)
+    for (const CassoLinkSettings & settings : links)
+    {
+        bool  blocked = TryGetConnectionEntry (TextEncoding::NarrowToWide (settings.name), entry) && !entry.firewall.empty();
+
+        if (settings.userDisconnected)
         {
-            hr = m_context.app.links->Start (settings.name);
+            m_context.app.links->Hold (settings.name);
+        }
+        else if (settings.transport != LinkTransport::AdtProServer && !blocked && !(settings.IsComPort() && settings.port.empty() && settings.lastPort.empty())
+                 && !m_context.app.links->IsStarted (settings.name) && !m_context.app.links->IsHeld (settings.name))
+        {
+            hr = m_context.app.links->StartIfFree (settings.name);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::SaveConnectionState
+//
+//  What outlasts a restart: whether the user disconnected each connection, and
+//  for one replying, when it was last chosen and the port it is on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::SaveConnectionState()
+{
+    bool  changed = false;
+    int   newest  = 0;
+
+
+
+    for (const CassoLinkSettings & settings : m_context.prefs.links)
+    {
+        newest = std::max (newest, settings.lastUsed);
+    }
+
+    for (CassoLinkSettings & settings : m_context.prefs.links)
+    {
+        bool         held    = m_context.app.links->IsHeldByUser (settings.name);
+        bool         replies = IsConnectionReplying (settings.name);
+        std::string  port    = TextEncoding::WideToNarrow (m_context.app.links->GetOpenPort (settings.name));
+
+        changed = changed || held != settings.userDisconnected;
+        settings.userDisconnected = held;
+
+        if (replies && settings.lastUsed != newest)
+        {
+            settings.lastUsed = ++newest;
+            changed           = true;
+        }
+
+        if (replies && settings.port.empty() && !port.empty() && port != settings.lastPort)
+        {
+            settings.lastPort = port;
+            changed           = true;
+        }
+    }
+
+    if (changed)
+    {
+        m_context.window.SaveSession();
+    }
 }
 
 
@@ -1649,6 +1748,7 @@ void CassoLinkManager::HandleConnectionChanged()
 
     messages = m_context.app.links->RunCompletions();
     m_context.app.links->ProbeDrives();
+    SaveConnectionState();
 
     if (m_context.app.host != nullptr)
     {
@@ -1852,7 +1952,6 @@ void CassoLinkManager::HandleRunningChanged()
 
     m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());
     m_context.treePane.RefreshTree();
-    StartAdtProServers();
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
