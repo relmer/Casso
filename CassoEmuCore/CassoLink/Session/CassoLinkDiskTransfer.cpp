@@ -336,10 +336,10 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
 
         HRESULT  ReadData (std::span<const Byte> list, std::vector<Byte> & outData, std::vector<bool> & outRead) override
         {
-            HRESULT            hr     = S_OK;
+            HRESULT            hr      = S_OK;
             std::vector<Byte>  one;
             CassoLinkStatus    status;
-            int                done   = 0;
+            int                done    = 0;
             bool               damaged = false;
 
             outRead.assign (list.size(), false);

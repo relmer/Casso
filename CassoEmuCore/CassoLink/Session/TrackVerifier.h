@@ -61,9 +61,9 @@ public:
 
     struct Result
     {
-        std::array<Outcome, 16>  outcomes = {};
-        std::vector<Byte>        data;              // 16 sectors of 256 bytes, physical order
-        bool                     noSectors = false;  // nothing read at all, and retries were stopped
+        std::array<Outcome, 16>  outcomes  = {};
+        std::vector<Byte>        data;   // 16 sectors of 256 bytes, physical order
+        bool                     noSectors = false;   // nothing read at all, and retries were stopped
     };
 
     static constexpr int  kSectors   = 16;

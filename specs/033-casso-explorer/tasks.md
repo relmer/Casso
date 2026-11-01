@@ -1541,7 +1541,7 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T353 Add track 3 to the fingerprint of a disk with no recognized file system, per FR-109. 0005.dsk from the owner's CP/M disk has E5 on tracks 0 and 17, so all such disks match today
 - [X] T354 Rearrange the Apple's 40-column screen: drive rows, the bar with its overlay and right-edge percentage, the map row, merged connection rows, the divider and prompt lines after ON DECK--, per FR-128
 - [X] T355 Add the 80-column layout with its detection and the per-connection Use 40 columns setting, per FR-128
-- [ ] T356 Add the Apple program's per-sector CRC command and the verified read and vote in `CassoLinkDiskTransfer`, per FR-129
+- [X] T356 Add the Apple program's per-sector CRC command and the verified read and vote in `CassoLinkDiskTransfer`, per FR-129
 - [ ] T357 Add verified writes: rewrite up to twice and the final comparison, per FR-129
 - [ ] T358 Add the settings: the Verified transfers Options page with toggles in one column after their labels, the per-connection override, toggles in Create image and Write image, V on the Apple and its indicator, and automatic verification of a failing track, per FR-129
 - [ ] T359 Add the copy-protection assessment, its early stop, PROT count and tone, and the manifest's labels, per FR-130

@@ -27,8 +27,8 @@ public:
     struct Drive : ITrackVerifierIo
     {
         std::array<std::vector<int>, 16>  script;
-        std::array<size_t, 16>            nexts   = {};
-        int                               moves   = 0;
+        std::array<size_t, 16>            nexts     = {};
+        int                               moves     = 0;
         int                               dataReads = 0;
 
         int  Next (Byte sector)
