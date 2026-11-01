@@ -193,11 +193,11 @@ private:
     HRESULT  WriteManifest   ();
     void     End             (HRESULT hr);
 
-    void         ReportRepeat  (int drive, const CheckedDisk & disk);
-    Byte         PickQuip      ();
+    void                             ReportRepeat  (int drive, const CheckedDisk & disk);
+    Byte                             PickQuip      ();
     static std::vector<std::string>  GetPauseLines (const std::array<bool, 2> & repeats);
-    void         SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
-    std::string  GetPath       (const std::string & file) const;
+    void                             SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
+    std::string                      GetPath       (const std::string & file) const;
 
     IFullSendLink          & m_link;
     IDiskFileIo            & m_fileIo;

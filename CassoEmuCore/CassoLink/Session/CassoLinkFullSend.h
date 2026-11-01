@@ -29,13 +29,13 @@ public:
     HRESULT  Run           (LinkOperation & operation);
     void     RequestCancel () { m_canceled = true; }
 
-    bool     HasDrive   (int drive) override;
-    HRESULT  ReadTrack  (int drive, int track, std::vector<Byte> & ioImage, bool & outHasDisk, bool & outWhole) override;
-    HRESULT  ReadDisk   (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable) override;
-    HRESULT  ShowScreen (const FullSendScreen & screen) override;
-    HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) override;
+    bool     HasDrive       (int drive) override;
+    HRESULT  ReadTrack      (int drive, int track, std::vector<Byte> & ioImage, bool & outHasDisk, bool & outWhole) override;
+    HRESULT  ReadDisk       (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable) override;
+    HRESULT  ShowScreen     (const FullSendScreen & screen) override;
+    HRESULT  WaitForKey     (const std::vector<std::string> & lines, FullSendKey & outKey) override;
     bool     IsBootstrapped () override;
-    void     Report     (const std::string & text) override;
+    void     Report         (const std::string & text) override;
 
     //  The time for a manifest's row: UTC, in ISO 8601.
     static std::string  GetUtcTime ();
