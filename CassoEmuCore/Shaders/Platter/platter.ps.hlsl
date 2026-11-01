@@ -148,10 +148,11 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position, float
         }
 
         //  Grain fixed to the texel, so it turns with the disk, and once a
-        //  cell spans two pixels, a darker line at each cell's edge.
+        //  cell spans two pixels, a darker line at each cell's edge. A flux
+        //  track's cells differ in length, so its lines are left to the view.
         shade = 1.0 + ((float) (Hash (texel * 2654435761u + ring) & 255) / 255.0 - 0.5) * kGrainShare;
 
-        if (cellsPerPixel <= 0.5)
+        if (cellsPerPixel <= 0.5 && (flags & kTimingFlag) == 0)
         {
             cellPx = 1.0 / cellsPerPixel;
             along  = frac (turn * count) * cellPx;

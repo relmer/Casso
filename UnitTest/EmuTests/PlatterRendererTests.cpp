@@ -319,6 +319,27 @@ public:
     }
 
 
+    TEST_METHOD (MapToTime_PlacesAFluxTracksCellsByTheirTime)
+    {
+        TrackAnalysis  analysis;
+        vector<Byte>   cells = { 1, 2, 3, 4 };
+
+
+
+        analysis.framed.isFlux    = true;
+        analysis.framed.cellCount = 4;
+        analysis.framed.turnTicks = 16;
+        analysis.framed.cellTicks = { 10, 2, 2, 2 };
+
+        PlatterCells::MapToTime (analysis, cells);
+
+        Assert::AreEqual (static_cast<Byte> (1), cells[0]);
+        Assert::AreEqual (static_cast<Byte> (1), cells[1]);
+        Assert::AreEqual (static_cast<Byte> (1), cells[2]);
+        Assert::AreEqual (static_cast<Byte> (3), cells[3]);
+    }
+
+
     TEST_METHOD (TheWholeTrackOfARecordingIsNotAnEcho)
     {
         constexpr int  kSlots[] = { 0, 0, 0, 0, 1, 1, 1, 1, -1, 2, 2, 2, -1, -1, 3, -1 };

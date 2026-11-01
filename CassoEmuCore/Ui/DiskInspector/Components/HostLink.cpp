@@ -576,6 +576,7 @@ void HostLink::UpdateRings()
                 auto  levels = std::make_shared<PlatterRenderer::Levels>();
 
                 PlatterCells::BuildCells  (*m_session.analysis.tracks[slot], cells);
+                PlatterCells::MapToTime   (*m_session.analysis.tracks[slot], cells);
                 PlatterCells::BuildLevels (cells, *levels);
                 m_session.levels[slot] = levels;
 
@@ -584,6 +585,7 @@ void HostLink::UpdateRings()
                     auto  timing = std::make_shared<PlatterRenderer::Levels>();
 
                     FluxTiming::BuildDeviations (*m_session.analysis.tracks[slot], cells);
+                    PlatterCells::MapToTime     (*m_session.analysis.tracks[slot], cells);
                     FluxTiming::BuildLevels     (cells, *timing);
                     m_session.timingLevels[slot] = timing;
                 }

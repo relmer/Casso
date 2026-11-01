@@ -152,7 +152,7 @@ public:
         tip   = InspectorText::FormatSectorTooltip (track->sectors[5], *track);
 
         Assert::AreEqual (std::wstring (L"Sector $5\nAddress field: volume 254, track 17"), tip);
-        Assert::AreEqual (std::wstring (L"Reads: 2 \x00B7 Scans: 1,024"), InspectorText::FormatAccessCounts (2, 0, 1024));
+        Assert::AreEqual (std::wstring (L"Read: 2 times \x00B7 Scanned: 1,024 times"), InspectorText::FormatAccessCounts (2, 0, 1024));
         Assert::IsTrue   (InspectorText::FormatAccessCounts (0, 0, 0).empty());
     }
 

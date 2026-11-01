@@ -514,3 +514,7 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T734 Group and collapse the Image tab through `InspectorTableView::SetGrouped`, and select tracks from TMAP and record rows
 - [X] T735 Center Flux dots in their cells, raise the rule threshold and grow dots with zoom
 - [X] T736 Tighten the Files tab layout on a disk with no volume
+- [X] T737 Place a flux track's platter cells by time through `PlatterCells::MapToTime`
+- [X] T738 Draw random bits over any nibble on the platter, matching the strip and tooltip
+- [X] T739 Add the head arm and move the Index label inside the rim
+- [X] T740 Order platter tips with access counts last, as Read: N nibbles

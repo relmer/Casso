@@ -152,15 +152,6 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
             tip.AddLine (std::format (L"{} of {} sectors good", track->sectorsGood, track->sectorsFound));
         }
 
-        if (sector >= 0)
-        {
-            tip.AddAccess (context, entry.slot, *track, sector);
-        }
-        else
-        {
-            tip.AddTaken (context, quarterTrack);
-        }
-
         if (track->measurements.sector0Angle >= 0)
         {
             tip.AddLine (std::format (L"Sector 0 starts {:.0f} degrees after the index", track->measurements.sector0Angle * 360.0));
@@ -182,6 +173,15 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         if (fileTrack != nullptr && fileTrack->framed.cellCount > 0)
         {
             tip.AddFileRole (context, wholeTrack, *fileTrack, PlatterGeometry::GetNibbleAt (*fileTrack, PlatterGeometry::GetCellAtTurn (*fileTrack, turn)));
+        }
+
+        if (sector >= 0)
+        {
+            tip.AddAccess (context, entry.slot, *track, sector);
+        }
+        else
+        {
+            tip.AddTaken (context, quarterTrack);
         }
 
         //  A hit's mark on the platter is a few pixels long however short the
@@ -215,7 +215,7 @@ void InspectorTip::AddTaken (const InspectorViewContext & context, int quarterTr
 
     if (taken > 0)
     {
-        AddLine (std::format (L"The machine read {} nibbles here", InspectorFormat::FormatCount (taken)));
+        AddLine (std::format (L"Read: {} {}", InspectorFormat::FormatCount (taken), (taken == 1) ? L"nibble" : L"nibbles"));
     }
 }
 

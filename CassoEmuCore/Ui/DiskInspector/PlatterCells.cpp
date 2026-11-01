@@ -87,8 +87,8 @@ PlatterKind PlatterCells::GetKindOf (NibbleKind kind)
 //  A nibble runs from its start cell to the next nibble's, wrapping at the
 //  index, so the cells before the first nibble belong to the last. A nibble
 //  in a field whose checksum failed takes the failed-checksum kind; a cell in
-//  a random-bit region takes that kind unless something of higher priority
-//  covers it. A track with no nibbles is nothing recorded.
+//  a random-bit region takes that kind whatever nibble covers it, as on the
+//  strip and in the tooltip. A track with no nibbles has the empty kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,10 +131,53 @@ void PlatterCells::BuildCells (const TrackAnalysis & analysis, vector<Byte> & ou
     {
         for (cell = 0; cell < region.cellCount && cells > 0; cell++)
         {
-            Byte &  target = outCells[(region.startCell + cell) % cells];
-
-            target = std::max (target, random);
+            outCells[(region.startCell + cell) % cells] = random;
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterCells::MapToTime
+//
+//  The platter finds a cell by its share of the turn, but a flux track's cells
+//  differ in length, so each entry becomes the cell at that share of the
+//  track's time. A bit track's cells are all one length and stay as they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterCells::MapToTime (const TrackAnalysis & analysis, vector<Byte> & inOutCells)
+{
+    const FramedTrack &  framed  = analysis.framed;
+    size_t               count   = inOutCells.size();
+    size_t               i       = 0;
+    uint32_t             cell    = 0;
+    double               elapsed = 0;
+    double               target  = 0;
+    vector<Byte>         mapped  (count);
+
+
+
+    if (framed.isFlux && framed.turnTicks > 0 && framed.cellTicks.size() >= count)
+    {
+        for (i = 0; i < count; i++)
+        {
+            target = static_cast<double> (i) / count * framed.turnTicks;
+
+            while (cell + 1 < count && elapsed + framed.cellTicks[cell] <= target)
+            {
+                elapsed += framed.cellTicks[cell];
+                cell++;
+            }
+
+            mapped[i] = inOutCells[cell];
+        }
+
+        inOutCells = std::move (mapped);
     }
 }
 

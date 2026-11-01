@@ -16,7 +16,8 @@
 
 
 static constexpr float  s_kIndexMarkDip     = 10.0f;
-static constexpr float  s_kIndexLabelDip    = 40.0f;
+static constexpr float  s_kIndexLabelDip    = 36.0f;
+static constexpr uint32_t s_kIndexPatchAlpha = 0xC0000000u;
 static constexpr float  s_kHubFraction      = 0.6f;
 static constexpr float  s_kSpindleFraction  = 0.28f;
 static constexpr float  s_kHubLightDip     = 2.0f;
@@ -37,6 +38,7 @@ static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr float    s_kHeadEyeDip      = 14.0f;
 static constexpr float    s_kHeadLengthShare = 2.1f;
+static constexpr float    s_kHeadArmShare    = 0.5f;
 static constexpr float    s_kHeadScrewAlong  = 1.55f;
 static constexpr float    s_kHeadScrewAcross = 0.6f;
 static constexpr float    s_kHeadMarginDip   = 9.0f;
@@ -112,8 +114,7 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         PaintDisk    (painter, theme, view);
         PaintNibbles (painter, text, theme, view);
         PaintHead    (painter, theme, view);
-        DrawUpright  (text, view, 0.0, view.outerRadiusPx + m_scaler.ToPxf (s_kIndexMarkDip) + m_scaler.ToPxf (kSmallDip) * 1.5f + std::abs (std::sin (view.rotation * s_kTwoPi)) * m_scaler.ToPxf (s_kIndexLabelDip) / 2, L"Index",
-                      m_scaler.ToPxf (s_kIndexLabelDip), m_scaler.ToPxf (kSmallDip), theme.ForegroundMuted());
+        PaintIndexLabel (painter, text, theme, view);
             painter.SetClipRect (hadClip ? &oldClip : nullptr);
     }
 }
@@ -1095,12 +1096,40 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PlatterView::PaintIndexLabel
+//
+//  The index mark's label just inside the rim on a dark patch, where the
+//  view's edge can't cut it off at fit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const
+{
+    float   textPx = m_scaler.ToPxf (kSmallDip);
+    float   width  = m_scaler.ToPxf (s_kIndexLabelDip);
+    double  radius = view.outerRadiusPx - textPx * 1.5f - std::abs (std::sin (view.rotation * s_kTwoPi)) * width / 2;
+    float   x      = 0.0f;
+    float   y      = 0.0f;
+
+
+
+    PlatterGeometry::ProjectAt (view, 0.0, radius, x, y);
+    painter.FillRect (x - width / 2, y - textPx * 0.75f, width, textPx * 1.5f, (theme.Background() & 0x00FFFFFFu) | s_kIndexPatchAlpha);
+    DrawUpright (text, view, 0.0, radius, L"Index", width, textPx, theme.Foreground());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PlatterView::PaintHead
 //
 //  The head marker, drawn as a floppy drive's head block lying on the disk
 //  (FR-064, FR-152), always at 6 o'clock as in a real drive: a short
 //  translucent rectangle around the head with two mounting screws at its far
-//  end. Around the head, a ring with a margin of arm around it has a clear
+//  end, on a narrower arm that runs out past the rim. Around the head, a ring with a margin of arm around it has a clear
 //  window over the platter under the head, and a crosshair in the window has
 //  its center exactly on the head's quarter track and angle, its lines along
 //  the radius and across it. The ring and crosshair are a little
@@ -1132,6 +1161,7 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     float                        ux     = 0.0f;
     float                        uy     = 0.0f;
     float                        len    = tip * s_kHeadLengthShare;
+    float                        reach  = 0.0f;
     float                        sx     = 0.0f;
     float                        sy     = 0.0f;
     float                        alpha  = painter.GetGlobalAlpha();
@@ -1157,13 +1187,16 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     //  map at the head, from a step in the plane to a step on screen.
     ux  = static_cast<float> (std::sin (angle));
     uy  = static_cast<float> (-std::cos (angle));
-    map = GetPlaneMap (view, radius * ux, radius * uy, sx, sy);
+    map   = GetPlaneMap (view, radius * ux, radius * uy, sx, sy);
+    reach = std::max (static_cast<float> (view.outerRadiusPx - radius) + tip, len);
 
     if (view.tilt != 0.0f)
     {
+        PaintHeadArm   (painter, view, radius, drop, tip * s_kHeadArmShare, len, reach, s_kHeadShadowArgb, 0.0f, 0);
         PaintHeadBlock (painter, view, radius, drop, tip, hole, len, s_kHeadShadowArgb);
     }
 
+    PaintHeadArm   (painter, view, radius, 0.0f, tip * s_kHeadArmShare, len, reach, body, line, argb);
     PaintHeadBlock (painter, view, radius, 0.0f, tip, hole, len, body);
     PaintHeadEdges (painter, view, map, radius, tip, len, line, argb);
 
@@ -1219,6 +1252,38 @@ void PlatterView::GetHeadPlace (const PlatterPlacement & view, double radius, fl
 {
     PlatterGeometry::Project (view, across, radius + along, outX, outY);
     outY += drop;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintHeadArm
+//
+//  The arm's fill and, with a line thickness, its sides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintHeadArm (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float half, float from, float to, uint32_t argb, float line, uint32_t edge)
+{
+    std::array<float, 8>  q = {};
+
+
+
+    GetHeadPlace (view, radius, drop, from, -half, q[0], q[1]);
+    GetHeadPlace (view, radius, drop, to,   -half, q[2], q[3]);
+    GetHeadPlace (view, radius, drop, to,    half, q[4], q[5]);
+    GetHeadPlace (view, radius, drop, from,  half, q[6], q[7]);
+    painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
+
+    if (line > 0.0f)
+    {
+        painter.DrawLine (q[0], q[1], q[2], q[3], line / 2.0f, edge);
+        painter.DrawLine (q[6], q[7], q[4], q[5], line / 2.0f, edge);
+        painter.DrawLine (q[2], q[3], q[4], q[5], line / 2.0f, edge);
+    }
 }
 
 

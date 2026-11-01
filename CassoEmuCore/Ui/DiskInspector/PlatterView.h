@@ -80,6 +80,8 @@ private:
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     static void  GetHeadPlace   (const PlatterPlacement & view, double radius, float drop, float along, float across, float & outX, float & outY);
+    void         PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const;
+    static void  PaintHeadArm   (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float half, float from, float to, uint32_t argb, float line, uint32_t edge);
     static void  PaintHeadBlock (IDxuiPainter & painter, const PlatterPlacement & view, double radius, float drop, float half, float hole, float len, uint32_t argb);
     static void  PaintHeadEdges (IDxuiPainter & painter, const PlatterPlacement & view, const std::array<float, 4> & map, double radius, float half, float len, float line, uint32_t argb);
     static std::array<float, 4>  GetPlaneMap (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY);
