@@ -42,6 +42,11 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Menus are drawn without the pale outline around them. The shadow under a
+  menu is what separates it from the window, as it is in Windows and in
+  Visual Studio.
+- The line between groups of menu items is drawn in a gray that suits the
+  menu, not in the blue that highlights the item under the pointer.
 - Dialogs size to fit their text, so a long message no longer runs into the
   buttons.
 - Selecting the other Disk II drive no longer moves its head to the previous

@@ -127,6 +127,6 @@ void MainMenu::ApplyChromeColors (const CassoTheme & theme)
                        theme.dropdownHover,
                        theme.dropdownItemText,
                        theme.dropdownAccel,
-                       theme.navHover,
-                       theme.navHover);
+                       theme.dropdownBorder,
+                       theme.dropdownDivider);
 }

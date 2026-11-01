@@ -107,9 +107,17 @@ void DxuiPopupMenuPainter::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer 
         float     otherPx = std::ceil  (edgePx);
         uint32_t  border  = m_menu.m_compactRows ? DxuiColor::Mix (pal.bg, 0xFF000000u, DxuiPopupMenu::s_kCompactBorderDarken) : pal.border;
 
+        //  THE SHADOW IS THE EDGE for a menu in its host's own colors, as the
+        //  emulator's menu bar has: the host's shadow already lifts the card, and
+        //  an outline over it reads as a bright wire. An Explorer menu keeps the
+        //  border Explorer draws.
+        if (m_menu.m_activePopup != nullptr && m_menu.m_colorsSet)
+        {
+            painter.FillRoundedRect (left, top, width, height, radius, pal.bg);
+        }
         //  Over acrylic the card is translucent, so the border is drawn as a
         //  ring over it rather than filled beneath it.
-        if (m_menu.m_acrylic)
+        else if (m_menu.m_acrylic)
         {
             float  opacity = DxuiColor::ComputeRelativeLuminance (pal.bg) < 0.5f ? DxuiPopupMenu::s_kAcrylicDarkOpacity : DxuiPopupMenu::s_kAcrylicLightOpacity;
 
