@@ -63,6 +63,20 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
 
 
 
+    //  A catalog's heading is apart from its contents, in the muted text color.
+    if (!preview.heading.empty())
+    {
+        DxuiTextView::Row  heading { { preview.heading } };
+
+        if (colors.address != 0)
+        {
+            heading.spans.push_back ({ 0, 0, (int) preview.heading.size(), colors.address });
+        }
+
+        rows.push_back (std::move (heading));
+        rows.push_back (DxuiTextView::Row { { std::wstring() } });
+    }
+
     if (lineAddresses && preview.kind == PreviewContent::Kind::Listing)
     {
         addresses = GetLineAddresses (preview.bytes, preview.integerBasic);

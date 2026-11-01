@@ -5,6 +5,7 @@
 #include "CassoExplorer/CrtPictureRenderer.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
+#include "CassoExplorer/Model/PreviewText.h"
 #include "Core/MemoryBus.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/Printer/PngCodec.h"
@@ -478,15 +479,14 @@ public:
         PreviewDecoder::RenderCatalog (listing, VolumeKind::Dos33, content);
 
         Assert::IsTrue   (content.kind == Kind::Catalog);
-        Assert::AreEqual ((size_t) 8, content.lines.size());
-        Assert::AreEqual (std::wstring (L"DOS 3.3 disk"),           content.lines[0]);
+        Assert::AreEqual ((size_t) 6, content.lines.size());
+        Assert::AreEqual (std::wstring (L"DOS 3.3 disk"),           content.heading);
+        Assert::AreEqual (std::wstring (L"DISK VOLUME 254"),        content.lines[0]);
         Assert::IsTrue   (content.lines[1].empty());
-        Assert::AreEqual (std::wstring (L"DISK VOLUME 254"),        content.lines[2]);
-        Assert::IsTrue   (content.lines[3].empty());
-        Assert::AreEqual (std::wstring (L"*A 003 HELLO"),           content.lines[4]);
-        Assert::AreEqual (std::wstring (L" B 006 LOADER.OBJ0"),     content.lines[5]);
-        Assert::IsTrue   (content.lines[6].empty());
-        Assert::AreEqual (std::wstring (L"283 sectors free of 560"), content.lines[7]);
+        Assert::AreEqual (std::wstring (L"*A 003 HELLO"),           content.lines[2]);
+        Assert::AreEqual (std::wstring (L" B 006 LOADER.OBJ0"),     content.lines[3]);
+        Assert::IsTrue   (content.lines[4].empty());
+        Assert::AreEqual (std::wstring (L"283 sectors free of 560"), content.lines[5]);
     }
 
 
@@ -517,13 +517,13 @@ public:
 
         PreviewDecoder::RenderCatalog (listing, VolumeKind::ProDos, content);
 
-        Assert::AreEqual ((size_t) 10, content.lines.size());
-        Assert::AreEqual (std::wstring (L"ProDOS disk"), content.lines[0]);
-        Assert::AreEqual (std::wstring (L"/CASSQUE"), content.lines[2]);
-        Assert::AreEqual (std::wstring (L" NAME" L"           " L"TYPE  BLOCKS  MODIFIED"), content.lines[4]);
-        Assert::AreEqual (std::wstring (L" HELLO" L"           " L"BAS" L"       " L"1  17-AUG-84"), content.lines[6]);
-        Assert::AreEqual (std::wstring (L" SUBDIR" L"          " L"DIR" L"       " L"1  <NO DATE>"), content.lines[7]);
-        Assert::AreEqual (std::wstring (L"BLOCKS FREE:  214     BLOCKS USED:   66"), content.lines[9]);
+        Assert::AreEqual ((size_t) 8, content.lines.size());
+        Assert::AreEqual (std::wstring (L"ProDOS disk"), content.heading);
+        Assert::AreEqual (std::wstring (L"/CASSQUE"), content.lines[0]);
+        Assert::AreEqual (std::wstring (L" NAME" L"           " L"TYPE  BLOCKS  MODIFIED"), content.lines[2]);
+        Assert::AreEqual (std::wstring (L" HELLO" L"           " L"BAS" L"       " L"1  17-AUG-84"), content.lines[4]);
+        Assert::AreEqual (std::wstring (L" SUBDIR" L"          " L"DIR" L"       " L"1  <NO DATE>"), content.lines[5]);
+        Assert::AreEqual (std::wstring (L"BLOCKS FREE:  214     BLOCKS USED:   66"), content.lines[7]);
     }
 
 
@@ -534,12 +534,51 @@ public:
         PreviewContent  content;
 
         PreviewDecoder::RenderCatalog (listing, VolumeKind::Pascal, content);
-        Assert::AreEqual (std::wstring (L"Apple Pascal disk"), content.lines[0]);
-        Assert::IsTrue   (content.lines[1].empty());
+        Assert::AreEqual (std::wstring (L"Apple Pascal disk"), content.heading);
 
         PreviewDecoder::RenderCatalog (listing, VolumeKind::Cpm, content);
-        Assert::AreEqual (std::wstring (L"CP/M disk"), content.lines[0]);
-        Assert::IsTrue   (content.lines[1].empty());
+        Assert::AreEqual (std::wstring (L"CP/M disk"), content.heading);
+    }
+
+
+
+    TEST_METHOD (Catalog_HeadingIsDrawnInTheMutedColorAndOnlyThere)
+    {
+        constexpr uint32_t              kMuted = 0xFF808080;
+        VolumeListing                   listing;
+        PreviewContent                  content;
+        SourceSyntax::Colors            colors;
+        std::vector<DxuiTextView::Row>  rows;
+
+        colors.address = kMuted;
+
+        PreviewDecoder::RenderCatalog (listing, VolumeKind::ProDos, content);
+
+        rows = PreviewText::BuildTextRows (content, false, colors);
+
+        Assert::AreEqual (std::wstring (L"ProDOS disk"), rows[0].cells[0]);
+        Assert::AreEqual ((size_t) 1, rows[0].spans.size());
+        Assert::AreEqual (kMuted, rows[0].spans[0].argb);
+        Assert::AreEqual ((int) content.heading.size(), rows[0].spans[0].length);
+        Assert::IsTrue   (rows[1].cells[0].empty(), L"A blank row sets it apart");
+        Assert::AreEqual (content.lines[0], rows[2].cells[0]);
+        Assert::IsTrue   (rows[2].spans.empty(), L"The contents keep the normal color");
+    }
+
+
+
+    TEST_METHOD (NoHeading_NoHeadingRows)
+    {
+        PreviewContent                  content;
+        std::vector<DxuiTextView::Row>  rows;
+
+        content.kind  = Kind::Text;
+        content.lines = { L"ONE" };
+
+        rows = PreviewText::BuildTextRows (content, false);
+
+        Assert::AreEqual ((size_t) 1, rows.size());
+        Assert::AreEqual (std::wstring (L"ONE"), rows[0].cells[0]);
     }
 
 

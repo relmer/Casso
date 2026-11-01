@@ -524,6 +524,7 @@ hardware.
 - Q: What does Casso Explorer's tree add for transfers? -> A: An animation on the connection's icon and the receiving folder during any transfer, and a count badge on the Full Send and ADTPro folders for files received but not yet rendered in the list, which survives a restart.
 - Q: Are Apple Pascal and CP/M in this spec? -> A: Yes, full read and write in Casso Explorer, on images and over CassoLink, on 140K disks. CP/M has no reliable signature, so detection is heuristic with a manual choice. A fingerprint adds track 3 for a disk with no recognized file system. Booting CP/M in Casso requires a Z80, which is a separate spec.
 - Q: Where does a catalog listing indicate its file system? -> A: Every listing starts with a heading line, `CP/M disk`, `Apple Pascal disk`, `ProDOS disk` or `DOS 3.3 disk`, in the preview pane and in `disk list`. DOS 3.2 follows when Casso can open those images.
+- Q: How is a catalog listing's heading set apart in the preview pane? -> A: It is drawn in the theme's muted text color above a blank row, from a heading field on the preview rather than from the first line. `disk list` prints the plain text heading.
 
 ## User Scenarios & Testing *(mandatory)*
 

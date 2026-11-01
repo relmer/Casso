@@ -1549,4 +1549,5 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T361 Add Apple Pascal read and write, on images and over CassoLink, starting from the readers on `040-disk-inspector`, with 0006 APPLE0.dsk as a fixture source, per FR-132
 - [X] T362 Add CP/M read and write the same way, with heuristic detection and the manual choice, with 0005.dsk as a fixture source, per FR-132
 - [X] T363 Start each catalog listing with its file system (`CP/M disk`, `Apple Pascal disk`, `ProDOS disk`, `DOS 3.3 disk`), in the preview pane and in `disk list`, through `VolumeImage::GetSystemName`. DOS 3.2 gets the heading when Casso can open those images (GitHub issue 164).
+- [X] T364 Draw the preview's catalog heading in the theme's muted text color, carried in `PreviewContent::heading`, per FR-132
 

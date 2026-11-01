@@ -61,6 +61,10 @@ struct PreviewContent
     Kind                       kind   = Kind::Hex;
     std::vector<std::wstring>  lines;
 
+    //  A catalog's first line, the file system, which the pane draws dimmer than
+    //  the lines below it.
+    std::wstring               heading;
+
     //  Why a listing that is shown is not a valid program, shown after it.
     std::wstring               warning;
     std::vector<uint32_t>      bgra;
@@ -153,7 +157,7 @@ public:
     static void  RenderDos33Catalog  (const VolumeListing & listing, std::vector<std::wstring> & outLines);
     static void  RenderProDosCatalog (const VolumeListing & listing, std::vector<std::wstring> & outLines);
 
-    //  A file system with no guest listing Casso reproduces.
+    //  An Apple Pascal or CP/M catalog as the Filer or STAT prints it.
     static void  RenderBlockCatalog  (const VolumeListing & listing, VolumeKind kind, std::vector<std::wstring> & outLines);
 
     static PreviewContent::Kind  DecideCpm (const FilePayload & payload);

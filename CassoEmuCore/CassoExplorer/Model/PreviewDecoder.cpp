@@ -473,9 +473,7 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
 
     if (!outContent.lines.empty())
     {
-        std::wstring  heading = TextEncoding::NarrowToWide (VolumeImage::GetSystemName (kind)) + L" disk";
-
-        outContent.lines.insert (outContent.lines.begin(), { heading, std::wstring() });
+        outContent.heading = TextEncoding::NarrowToWide (VolumeImage::GetSystemName (kind)) + L" disk";
     }
 }
 
