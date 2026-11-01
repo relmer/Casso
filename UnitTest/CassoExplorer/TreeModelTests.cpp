@@ -461,6 +461,23 @@ public:
         Assert::IsTrue   (nodes[2].kind == TreeNode::Kind::AddLink);
     }
 
+    TEST_METHOD (IsLinkFolder_MatchesTheFullSendFolderAndAnAdtProServersFolder)
+    {
+        InMemoryFileSystem  fs;
+        TreeModel           model (fs);
+        LinkTreeEntry       server;
+
+        server.name   = L"ADTPro server on COM3";
+        server.folder = L"C:\\Disks\\ADTPro";
+
+        model.SetLinks ({ server });
+        model.SetFullSendFolder (L"C:\\Box");
+
+        Assert::IsTrue  (model.IsLinkFolder (L"c:\\box"));
+        Assert::IsTrue  (model.IsLinkFolder (L"C:\\Disks\\ADTPro"));
+        Assert::IsFalse (model.IsLinkFolder (L"C:\\Disks"));
+    }
+
     TEST_METHOD (AConnection_DoesNotListTheFullSendFolder)
     {
         InMemoryFileSystem     fs;

@@ -420,7 +420,7 @@ void ExplorerListColumns::ApplyFolderView()
         {
             entry.groupBy = (int) RowGrouping::Field::Type;
         }
-        else if (IsDownloadsFolder())
+        else if (IsDownloadsFolder() || (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.GetTreeModel().IsLinkFolder (m_context.browser.GetLocation().path)))
         {
             entry.groupBy         = (int) RowGrouping::Field::DateModified;
             entry.groupDescending = true;

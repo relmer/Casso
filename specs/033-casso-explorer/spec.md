@@ -2054,6 +2054,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-122**: The list's background menu MUST have File Explorer's rows for This PC, the Recycle Bin, Home, Network, Libraries and a zip.
 - **FR-123**: A shell command MUST be initialized and hosted as File Explorer hosts it, and one that faults MUST NOT close the window.
 - **FR-124**: CassoLink's root MUST list a Full send row, a peer of the connections, that opens the full send folder, once the folder exists.
+- **FR-125**: The full send folder and an ADTPro server's folder MUST open grouped by Date modified, newest first, until the user chooses otherwise.
 
 ### Key Entities
 

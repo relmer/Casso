@@ -1526,5 +1526,6 @@ Session 2026-11-01, from the owner's //c passes.
 - [X] T343 Add `CassoExplorerPrefs::fullSendPrefix`, its field on Options' Full send page, and pass it through `CassoLinkConnections` and `LinkOperation` to `FullSendDisk::MakeImageTitle`, per FR-107 and FR-112
 - [X] T344 In `FullSendSession`, count a track read whole as one read, and skip the check of a drive whose disk was just sent, per FR-108 and FR-109
 - [X] T345 Add `TreeModel::SetFullSendFolder` and list the Full send row under `TreeModel::kCassoLinkRootId`, per FR-124
+- [X] T347 Open the full send folder and an ADTPro server's folder grouped by Date modified, through `TreeModel::IsLinkFolder`, per FR-125
 - [X] T346 Add tests in `UnitTest/CassoLink/FullSendTests.cpp` and `UnitTest/CassoExplorer/TreeModelTests.cpp` for the prefix, the track reads per disk and the row
 

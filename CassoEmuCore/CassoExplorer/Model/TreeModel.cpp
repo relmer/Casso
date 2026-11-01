@@ -843,6 +843,28 @@ void TreeModel::SetFullSendFolder (std::wstring folder)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::IsLinkFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsLinkFolder (const std::wstring & path) const
+{
+    bool  sent = !m_fullSendFolder.empty() && _wcsicmp (path.c_str(), m_fullSendFolder.c_str()) == 0;
+
+
+
+    return sent || std::any_of (m_links.begin(), m_links.end(), [&path] (const LinkTreeEntry & link)
+    {
+        return !link.folder.empty() && _wcsicmp (path.c_str(), link.folder.c_str()) == 0;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::MakeLinkId
 //
 ////////////////////////////////////////////////////////////////////////////////

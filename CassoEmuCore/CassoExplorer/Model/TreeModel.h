@@ -171,6 +171,10 @@ public:
     //  exists.
     void  SetFullSendFolder  (std::wstring folder);
 
+    //  Whether a folder is one disks arrive in over CassoLink: the full send
+    //  folder, or an ADTPro server's shared folder.
+    bool  IsLinkFolder       (const std::wstring & path) const;
+
     //  A link's state while its Apple is not replying, for the list in place
     //  of its drives; false once it replies.
     bool  GetLinkStatus      (const std::wstring & name, std::wstring & outStatus) const;
