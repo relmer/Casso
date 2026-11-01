@@ -94,6 +94,16 @@ public:
     static bool  TryGetDos33TypeByte   (char letter, Byte & outDosType);
     static Byte  MapDos33ToProDosType  (Byte dosType);
     static bool  TryMapProDosToDos33   (Byte proDosType, Byte & outDosType);
+    static Byte  MapPascalToProDosType (Byte kind);
+
+    //  The Pascal kind for a ProDOS type, or kind 0 for one with no match, which
+    //  takes its kind from the file's name.
+    static Byte  MapProDosToPascalKind (Byte proDosType);
+
+    //  The payload's type as `target` has it, so it means the same thing there.
+    //  A file with no type on the target goes as a binary, and one with no
+    //  address gets 0 where the target requires one.
+    static void  ConvertPayloadType    (VolumeKind source, VolumeKind target, FilePayload & inOutPayload);
 
     static constexpr const wchar_t *  kApplesoftSuffix = L".Applesoft BASIC.txt";
     static constexpr const wchar_t *  kIntegerSuffix   = L".Integer BASIC.txt";

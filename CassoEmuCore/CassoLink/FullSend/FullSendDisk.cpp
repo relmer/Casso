@@ -28,6 +28,7 @@ bool FullSendDisk::IsCatalogOnTrackZero (const std::vector<Byte> & image)
 {
     constexpr size_t   kTrackBytes = (size_t) NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
     std::vector<Byte>  zero (image.size(), 0);
+    VolumeKind         kind = VolumeKind::Unknown;
 
 
 
@@ -38,7 +39,9 @@ bool FullSendDisk::IsCatalogOnTrackZero (const std::vector<Byte> & image)
 
     std::copy_n (image.begin(), kTrackBytes, zero.begin());
 
-    return VolumeImage::DetectFilesystem (zero) == VolumeKind::ProDos;
+    kind = VolumeImage::DetectFilesystem (zero);
+
+    return kind == VolumeKind::ProDos || kind == VolumeKind::Pascal;
 }
 
 

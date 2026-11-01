@@ -23,6 +23,12 @@ BasicConversion::Kind BasicConversion::GetKind (VolumeKind volume, Byte type)
 
 
 
+    //  A Pascal kind's values overlap DOS 3.3's types and mean something else.
+    if (volume != VolumeKind::ProDos && volume != VolumeKind::Dos33)
+    {
+        return Kind::None;
+    }
+
     if (type == (proDos ? kProDosApplesoft : kDos33Applesoft) || type == (proDos ? kProDosInteger : kDos33Integer))
     {
         return Kind::ToListing;

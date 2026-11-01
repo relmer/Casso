@@ -6,6 +6,7 @@
 #include "CommandLineParser.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "DiskImageStore.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -17,6 +18,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "IntegerBasicDetokenizer.h"
 #include "Utils.h"
@@ -339,6 +341,41 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::FormatBlockEntry
+//
+//  An Apple Pascal entry: the lock column, the name, the kind, the blocks and
+//  the exact length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::FormatBlockEntry (const FileEntry & entry, VolumeKind kind)
+{
+    char         detail[64] = {};
+    std::string  text       = std::string (entry.isLocked ? "*" : " ") + entry.name;
+
+
+
+    UNREFERENCED_PARAMETER (kind);
+
+    while (text.size() < 18)
+    {
+        text += " ";
+    }
+
+    snprintf (detail, sizeof (detail), "%-4s %5u  eof=%u",
+              TextEncoding::WideToNarrow (CatalogModel::GetPascalKindText (entry.type)).c_str(),
+              (unsigned) entry.sizeUnits,
+              (unsigned) entry.eofBytes);
+
+    return text + detail;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::DescribeListingRefusal
 //
 //  WHICH LINE, AND THE LINE ITSELF. A number on its own is useless against a
@@ -407,7 +444,9 @@ std::string DiskCommandRunner::DescribeDamage (HRESULT hr, VolumeKind kind)
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
     {
-        damage = (kind == VolumeKind::ProDos) ? "the index block is damaged" : "the track/sector list is damaged";
+        damage = (kind == VolumeKind::ProDos) ? "the index block is damaged"
+               : (kind == VolumeKind::Dos33)  ? "the track/sector list is damaged"
+                                              : "the directory entry is damaged";
     }
 
     return damage;
@@ -471,8 +510,14 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr, VolumeKind kin
           "ProDOS starts only a file of type SYS, and not the kernel itself" },
     };
     std::string  sentence = DescribeDamage (hr, kind);
+    bool         noBoot   = hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED) && kind != VolumeKind::Dos33 && kind != VolumeKind::ProDos;
 
 
+
+    if (noBoot)
+    {
+        sentence = "this file system has no setting for a startup program";
+    }
 
     for (const auto & row : kSentences)
     {
@@ -520,19 +565,19 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     CHR (hr);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
 
 
-        hr = volume.Enumerate (listing);
+        hr = volume->Enumerate (listing);
 
         CHRF (hr, result.Fail (options.disk.imagePath, "", "catalog could not be read"));
 
-        if (listing.hasVolumeName)
+        if (opened.kind == VolumeKind::Pascal)
+        {
+            result.output += listing.volumeName + ":\n\n";
+        }
+        else if (listing.hasVolumeName)
         {
             result.output += "/" + listing.volumeName + "\n\n";
         }
@@ -549,7 +594,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         hr = ResolveVolumePath (options, opened, options.disk.path, directory, result);
         CHR (hr);
 
-        hr = AppendDirectoryRows (volume, opened.kind, directory, options.disk.recurse, result);
+        hr = AppendDirectoryRows (*volume, opened.kind, directory, options.disk.recurse, result);
 
         CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
                               ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
@@ -567,12 +612,12 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         // to 2; a ProDOS disk from the PRODOS file its block 0 loader loads.
         if (opened.kind == VolumeKind::Dos33)
         {
-            if (!dos.HasDosImage())
+            if (!Dos33Volume (opened.sectors).HasDosImage())
             {
                 result.output += "\nNot bootable: no DOS on tracks 0 to 2\n";
             }
         }
-        else if (!HasProDosSystemFile (listing))
+        else if (opened.kind == VolumeKind::ProDos && !HasProDosSystemFile (listing))
         {
             result.output += "\nNot bootable: no PRODOS file on the volume\n";
         }
@@ -657,9 +702,9 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
             shown.name = directory + "/" + entry.name;
         }
 
-        result.output += (kind == VolumeKind::Dos33)
-                       ? FormatDos33Entry (shown)
-                       : FormatProDosEntry (shown);
+        result.output += (kind == VolumeKind::Dos33)  ? FormatDos33Entry (shown)
+                       : (kind == VolumeKind::ProDos) ? FormatProDosEntry (shown)
+                                                      : FormatBlockEntry (shown, kind);
 
         //  A name that several entries share cannot select one of them, so
         //  each such entry is listed with its index. A unique name has none.
@@ -946,7 +991,14 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             // fixture volumes carry TXT files that are predominantly high-bit
             // with $8D terminators, not the plain seven-bit form usually
             // assumed for that filesystem.
-            AppleTextCodec::Decode (payload.bytes, AppleTextConvention::HighAscii, hostText);
+            if (payload.textForm == PayloadTextForm::PascalPages)
+            {
+                PascalVolume::DecodeText (payload.bytes, hostText);
+            }
+            else
+            {
+                AppleTextCodec::Decode (payload.bytes, AppleTextConvention::HighAscii, hostText);
+            }
 
             payload.bytes.assign (hostText.begin(), hostText.end());
             payload.encoding = PayloadEncoding::HostText;
@@ -1036,13 +1088,9 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     CHR (hr);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
-        hr = volume.Read (path, payload);
+        hr = volume->Read (path, payload);
     }
 
     result.failure = hr;
@@ -1326,6 +1374,12 @@ HRESULT DiskCommandRunner::ResolveFileType (
 
 
 
+    if (kind == VolumeKind::Pascal)
+    {
+        hr = ResolvePascalKind (options, outType, result);
+        BAIL_OUT_IF (true, hr);
+    }
+
     if (isBasic)
     {
         // A tokenized program stored under any other type is a file the guest
@@ -1397,6 +1451,58 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ResolvePascalKind
+//
+//  The kind --type selects. With no --type, text is TEXT, and anything else
+//  takes its kind from the name in the volume, as Pascal's Filer does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ResolvePascalKind (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result)
+{
+    static constexpr struct { const char * form; Byte kind; }  kForms[] =
+    {
+        { "BAD",  PascalVolume::kKindBad  },
+        { "CODE", PascalVolume::kKindCode },
+        { "TEXT", PascalVolume::kKindText },
+        { "INFO", PascalVolume::kKindInfo },
+        { "DATA", PascalVolume::kKindData },
+        { "GRAF", PascalVolume::kKindGraf },
+        { "FOTO", PascalVolume::kKindFoto },
+    };
+    HRESULT  hr         = S_OK;
+    bool     recognized = options.disk.typeName.empty();
+
+
+
+    outType = (options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Text) ? PascalVolume::kKindText : PascalVolume::kKindNone;
+
+    for (const auto & row : kForms)
+    {
+        if (_stricmp (options.disk.typeName.c_str(), row.form) == 0)
+        {
+            outType    = row.kind;
+            recognized = true;
+        }
+    }
+
+    if (!recognized)
+    {
+        result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype ", options.flagPrefix) + options.disk.typeName
+                            + " means nothing on this volume: Apple Pascal takes BAD, CODE, TEXT, INFO, DATA, GRAF or FOTO\n";
+        result.exitStatus   = DiskCommandResult::kNoOutput;
+        hr                  = E_NOTIMPL;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::BuildPutPayload
 //
 //  What a file from the host becomes on the disk.
@@ -1422,14 +1528,20 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     FilePayload               & outPayload,
     DiskCommandResult         & result)
 {
-    HRESULT                hr        = S_OK;
-    Byte                   type      = 0;
-    size_t                 badOffset = 0;
-    char                   note[160] = {};
+    HRESULT                hr           = S_OK;
+    Byte                   type         = 0;
+    size_t                 badOffset    = 0;
+    char                   note[160]    = {};
     std::string            hostText;
     ApplesoftListingError  listingError;
+    bool                   hasAddresses = kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos;
+    bool                   allowed      = hasAddresses || (!options.disk.hasLoadAddress && options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Basic);
 
 
+
+    CBRFEx (allowed, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
+            (result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Lload and %Lbasic mean nothing on this volume: it has no load addresses or BASIC programs\n", options.flagPrefix),
+             result.exitStatus   = DiskCommandResult::kNoOutput));
 
     hr = ResolveFileType (options, kind, hostBytes, type, result);
     CHR (hr);
@@ -1448,8 +1560,8 @@ HRESULT DiskCommandRunner::BuildPutPayload (
         case CommandLineOptions::DiskOptions::Encoding::Text:
             hostText.assign (hostBytes.begin(), hostBytes.end());
 
-            hr = AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii,
-                                         outPayload.bytes, badOffset);
+            hr = (kind == VolumeKind::Pascal) ? PascalVolume::EncodeText (hostText, outPayload.bytes, badOffset)
+                                              : AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii, outPayload.bytes, badOffset);
 
             if (FAILED (hr))
             {
@@ -1588,6 +1700,12 @@ HRESULT DiskCommandRunner::ApplyHostFileType (const ParsedHostName & parsed, Vol
 
 
 
+    if (kind == VolumeKind::Pascal)
+    {
+        inOutPayload.type = HostFileNaming::MapProDosToPascalKind (parsed.type);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     mapped = !isDos || HostFileNaming::TryMapProDosToDos33 (parsed.type, dosType);
     CBREx (mapped, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
@@ -1668,13 +1786,9 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     path = FilePath::Parse (diskName);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
-        hr = volume.Write (path, payload, edited);
+        hr = volume->Write (path, payload, edited);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName,
@@ -1728,15 +1842,11 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
     CHR (hr);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
 
 
-        hr = volume.Delete (path, edited, outcome);
+        hr = volume->Delete (path, edited, outcome);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "delete " + name,
@@ -1784,7 +1894,7 @@ HRESULT DiskCommandRunner::ResolveVolumePath (
 {
     HRESULT        hr        = S_OK;
     FilePath       path      = FilePath::Parse (typed);
-    bool           plain     = !path.IsRooted() || opened.kind == VolumeKind::Dos33;
+    bool           plain     = !path.IsRooted() || opened.kind != VolumeKind::ProDos;
     bool           mine      = false;
     size_t         i         = 0;
     VolumeListing  listing;
@@ -1968,19 +2078,15 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     CHR (hr);
 
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
 
 
-        hr = volume.SetStartupProgram (path, edited);
+        hr = volume->SetStartupProgram (path, edited);
 
         if (SUCCEEDED (hr) && opened.kind == VolumeKind::Dos33)
         {
-            listHr = volume.Enumerate (listing);
+            listHr = volume->Enumerate (listing);
             IGNORE_RETURN_VALUE (listHr, S_OK);
 
             runnable = IsRunnableAsDos33Greeting (listing, name);

@@ -33,6 +33,25 @@ uint64_t CatalogModel::GetUnitBytes (VolumeKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CatalogModel::GetPascalKindText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::GetPascalKindText (Byte kind)
+{
+    static constexpr const wchar_t *  kNames[] = { L"NONE", L"BAD", L"CODE", L"TEXT", L"INFO", L"DATA", L"GRAF", L"FOTO", L"SDIR" };
+
+
+
+    return (kind < std::size (kNames)) ? kNames[kind] : std::format (L"${:02X}", (unsigned) kind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CatalogModel::GetTypeText
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +63,11 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
         return std::wstring (1, (wchar_t) HostFileNaming::GetDos33TypeLetter (type));
     }
 
+    if (kind == VolumeKind::Pascal)
+    {
+        return GetPascalKindText (type);
+    }
+
     for (const ProDosTypeName & row : kProDosTypeNames)
     {
         if (row.type == type)
@@ -53,6 +77,21 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
     }
 
     return std::format (L"${:02X}", (unsigned) type);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::GetEntryTypeText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::GetEntryTypeText (const FileEntry & entry, VolumeKind kind)
+{
+    return GetTypeText (entry.type, kind);
 }
 
 
@@ -138,7 +177,7 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
 
 
     row.name         = AppleFileName::ToDisplay (entry.name);
-    row.typeText     = GetTypeText (entry.type, kind);
+    row.typeText     = GetEntryTypeText (entry, kind);
     row.sizeBytes    = entry.hasEofBytes ? entry.eofBytes
                                          : (uint64_t) entry.sizeUnits * GetUnitBytes (kind);
     row.locked       = entry.isLocked;

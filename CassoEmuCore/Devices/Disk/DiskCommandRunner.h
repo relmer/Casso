@@ -366,6 +366,8 @@ private:
     //  produces and what the default has always been.
     static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
 
+    static HRESULT  ResolvePascalKind (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
+
     static HRESULT  ResolveFileType (const CommandLineOptions & options,
                                      VolumeKind                 kind,
                                      const std::vector<Byte>  & hostBytes,
@@ -394,6 +396,7 @@ private:
     //  whether or not anybody asks and the widest row still fits in 80.
     static std::string  FormatDos33Entry  (const FileEntry & entry);
     static std::string  FormatProDosEntry (const FileEntry & entry);
+    static std::string  FormatBlockEntry  (const FileEntry & entry, VolumeKind kind);
 
     static char  GetDos33TypeLetter (Byte type);
 

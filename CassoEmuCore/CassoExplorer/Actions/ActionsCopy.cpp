@@ -836,13 +836,13 @@ void ActionsCopy::CopyEntry (
     //  go into a directory just made, where nothing collides.
     bool                    beside  = sourceImage == targetImage && _stricmp (parent.c_str(), directory.c_str()) == 0;
     std::string             leaf    = (slash == std::string::npos) ? catalogPath : catalogPath.substr (slash + 1);
-    std::string             name    = (depth == 0) ? CassoExplorerActions::MakeFreeEntryName (leaf, m_actions.GetEntryNames (targetImage, directory), targetKind, beside) : leaf;
+    std::string             fitted  = CassoExplorerActions::FitEntryName (leaf, sourceKind, targetKind);
+    std::string             name    = (depth == 0) ? CassoExplorerActions::MakeFreeEntryName (fitted, m_actions.GetEntryNames (targetImage, directory), targetKind, beside) : fitted;
     std::string             target  = directory.empty() ? name : directory + "/" + name;
     VolumeListing           listing;
     VolumeKind              listed  = VolumeKind::Unknown;
     DiskOperations::Result  result;
     FilePayload             payload;
-    Byte                    mapped  = 0;
     DiskOperations::Result  listedResult;
 
 
@@ -866,7 +866,7 @@ void ActionsCopy::CopyEntry (
 
         if (targetKind != VolumeKind::ProDos)
         {
-            AppendMessage (inOutOutcome, E_FAIL, TextEncoding::NarrowToWide (leaf) + L": DOS 3.3 has no folders, so a folder cannot go on this disk.");
+            AppendMessage (inOutOutcome, E_FAIL, TextEncoding::NarrowToWide (leaf) + L": " + CassoExplorerActions::GetVolumeSystemName (targetKind) + L" has no folders, so a folder cannot go on this disk.");
             return;
         }
 
@@ -896,14 +896,7 @@ void ActionsCopy::CopyEntry (
     }
 
     //  The type means the same thing on the other file system.
-    if (sourceKind == VolumeKind::Dos33 && targetKind == VolumeKind::ProDos)
-    {
-        payload.type = HostFileNaming::MapDos33ToProDosType (payload.type);
-    }
-    else if (sourceKind == VolumeKind::ProDos && targetKind == VolumeKind::Dos33)
-    {
-        payload.type = HostFileNaming::TryMapProDosToDos33 (payload.type, mapped) ? mapped : Dos33Volume::kTypeBinary;
-    }
+    HostFileNaming::ConvertPayloadType (sourceKind, targetKind, payload);
 
     Record (inOutOutcome, m_actions.m_browser.GetOperations().WritePayload (targetImage, target, payload), target);
 }
@@ -957,7 +950,7 @@ void ActionsCopy::PutFolder (
 
     if (kind != VolumeKind::ProDos)
     {
-        AppendMessage (inOutOutcome, E_FAIL, CassoExplorerActions::GetLeafName (hostFolder) + L": DOS 3.3 has no folders, so a folder cannot go on this disk.");
+        AppendMessage (inOutOutcome, E_FAIL, CassoExplorerActions::GetLeafName (hostFolder) + L": " + CassoExplorerActions::GetVolumeSystemName (kind) + L" has no folders, so a folder cannot go on this disk.");
         return;
     }
 

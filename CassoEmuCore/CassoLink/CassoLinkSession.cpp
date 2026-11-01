@@ -1074,6 +1074,11 @@ HRESULT CassoLinkSession::Revalidate (int drive)
     {
         marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack);
     }
+    else if (disk.GetKind() != VolumeKind::ProDos)
+    {
+        //  With no free map, only the whole directory identifies the volume.
+        marks = LinkedDisk::GetCatalogSectors (disk.GetKind());
+    }
     else
     {
         for (int block : { ProDosSkeleton::kDirKeyBlock, ProDosSkeleton::kBitmapBlock })

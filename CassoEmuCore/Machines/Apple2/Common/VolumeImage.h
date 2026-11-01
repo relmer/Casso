@@ -7,6 +7,9 @@
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Devices/Disk/SectorWrite.h"
 
+class ISectorReadObserver;
+class IVolume;
+
 
 
 
@@ -27,6 +30,7 @@ enum class VolumeKind
     Unknown,
     Dos33,
     ProDos,
+    Pascal,
 };
 
 
@@ -105,6 +109,11 @@ public:
 
     //  Which filesystem the DOS-logical buffer carries.
     static VolumeKind  DetectFilesystem (const vector<Byte> & sectors);
+
+    //  The volume of `kind` over the buffer, which must outlive it. Each read
+    //  of a sector is reported to the observer, when there is one. An Unknown
+    //  kind has a NullVolume, whose operations all fail.
+    static std::unique_ptr<IVolume>  CreateVolume (VolumeKind kind, const vector<Byte> & sectors, ISectorReadObserver * observer = nullptr);
 
 private:
     //  The bit-stream half of Save: decode, judge, re-encode only what changed.

@@ -6,6 +6,7 @@
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 
@@ -90,7 +91,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         {
             //  A boot file is found in the volume directory, so one in a
             //  subdirectory would never be run.
-            if (!entries[0].isDirectory && !nested)
+            if (!entries[0].isDirectory && !nested && (m_browser.GetVolumeKind() == VolumeKind::Dos33 || m_browser.GetVolumeKind() == VolumeKind::ProDos))
             {
                 verbs.push_back (Verb::Boot);
             }
@@ -273,7 +274,12 @@ ActionsTypes::Encoding CassoExplorerActions::GetEncoding (const FileEntry & entr
 
 
 
-    if (isDos ? (entry.type == Dos33Volume::kTypeApplesoft || entry.type == Dos33Volume::kTypeInteger)
+    if (kind == VolumeKind::Pascal)
+    {
+        return (entry.type == PascalVolume::kKindText) ? Encoding::Text : Encoding::Verbatim;
+    }
+
+    if (isDos ?(entry.type == Dos33Volume::kTypeApplesoft || entry.type == Dos33Volume::kTypeInteger)
               : (entry.type == ProDosVolume::kTypeBasic || entry.type == kProDosInteger))
     {
         return Encoding::Basic;
@@ -323,12 +329,56 @@ std::string CassoExplorerActions::MakeCatalogName (const std::wstring & hostName
 
 
 
-    if (dot != std::wstring::npos && dot > 0)
+    //  A name on this system includes the suffix.
+    if (dot != std::wstring::npos && dot > 0 && kind != VolumeKind::Pascal)
     {
         stem = stem.substr (0, dot);
     }
 
     return SanitizeCatalogName (stem, kind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::GetVolumeSystemName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerActions::GetVolumeSystemName (VolumeKind kind)
+{
+    switch (kind)
+    {
+        case VolumeKind::Dos33:  return L"DOS 3.3";
+        case VolumeKind::ProDos: return L"ProDOS";
+        case VolumeKind::Pascal: return L"Apple Pascal";
+        default:                 return L"This file system";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::FitEntryName
+//
+//  An entry's name going to another file system, cleaned by the target's rules
+//  when either side is Apple Pascal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoExplorerActions::FitEntryName (const std::string & name, VolumeKind source, VolumeKind target)
+{
+    bool  needsFit = source != target && (source == VolumeKind::Pascal || target == VolumeKind::Pascal);
+
+
+
+    return needsFit ? SanitizeCatalogName (TextEncoding::NarrowToWide (name), target) : name;
 }
 
 
@@ -348,6 +398,11 @@ std::string CassoExplorerActions::SanitizeCatalogName (const std::wstring & stem
     std::string              name;
 
 
+
+    if (kind == VolumeKind::Pascal)
+    {
+        return SanitizePascalName (stem);
+    }
 
     for (wchar_t ch : stem)
     {
@@ -391,6 +446,102 @@ std::string CassoExplorerActions::SanitizeCatalogName (const std::wstring & stem
     }
 
     return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::SanitizePascalName
+//
+//  Upper case, with a period for each character Pascal doesn't allow. A name
+//  too long is shortened ahead of its suffix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoExplorerActions::SanitizePascalName (const std::wstring & stem)
+{
+    static constexpr size_t  kMaxName   = 15;
+    static constexpr size_t  kMaxSuffix = 5;
+    std::string              name;
+    std::string              suffix;
+    size_t                   dot        = 0;
+
+
+
+    for (wchar_t ch : stem)
+    {
+        char  c = (ch > 0x20 && ch < 0x7F) ? (char) toupper ((int) ch) : '.';
+
+        name.push_back (strchr ("$=?,:[]", c) != nullptr ? '.' : c);
+    }
+
+    if (name.empty())
+    {
+        name = "FILE";
+    }
+
+    if (name.size() > kMaxName)
+    {
+        dot    = name.rfind ('.');
+        suffix = (dot != std::string::npos && name.size() - dot <= kMaxSuffix) ? name.substr (dot) : std::string();
+        name   = name.substr (0, kMaxName - suffix.size()) + suffix;
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::AdaptPlanToVolume
+//
+//  A plan made in terms of DOS 3.3 and ProDOS, for a system with no load
+//  addresses or BASIC. A file's type maps across; text gets Pascal's suffix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::PutPlan CassoExplorerActions::AdaptPlanToVolume (PutPlan plan, VolumeKind kind)
+{
+    constexpr size_t  kMaxStem = 10;
+    size_t            dot      = 0;
+
+
+
+    if (kind != VolumeKind::Pascal)
+    {
+        return plan;
+    }
+
+    if (plan.usePayload)
+    {
+        plan.payload.type           = HostFileNaming::MapProDosToPascalKind (plan.payload.type);
+        plan.payload.hasAuxType     = false;
+        plan.payload.hasLoadAddress = false;
+        plan.refusal.clear();
+    }
+
+    plan.typeName.clear();
+    plan.hasLoadAddress = false;
+    plan.guessedAddress = false;
+
+    if (plan.encoding == Encoding::Basic)
+    {
+        plan.encoding = Encoding::Verbatim;
+    }
+
+    if (plan.encoding == Encoding::Text && PascalVolume::GetKindFromName (plan.catalogName) != PascalVolume::kKindText)
+    {
+        dot              = plan.catalogName.rfind ('.');
+        plan.catalogName = plan.catalogName.substr (0, (std::min) ((dot == std::string::npos) ? plan.catalogName.size() : dot, kMaxStem)) + ".TEXT";
+    }
+
+    return plan;
 }
 
 
@@ -452,6 +603,21 @@ void CassoExplorerActions::SetTypedPayload (PutPlan & plan, const std::vector<By
 ////////////////////////////////////////////////////////////////////////////////
 
 ActionsTypes::PutPlan CassoExplorerActions::PlanForced (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion)
+{
+    return AdaptPlanToVolume (PlanForcedConversion (hostName, bytes, kind, conversion), kind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::PlanForcedConversion
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::PutPlan CassoExplorerActions::PlanForcedConversion (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion)
 {
     PutPlan                  plan;
     Word                     suggested = 0;
@@ -668,6 +834,21 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanAppleSingle (const std::wstring 
 ////////////////////////////////////////////////////////////////////////////////
 
 ActionsTypes::PutPlan CassoExplorerActions::PlanPut (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind)
+{
+    return AdaptPlanToVolume (PlanPutByContent (hostName, bytes, kind), kind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::PlanPutByContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::PutPlan CassoExplorerActions::PlanPutByContent (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind)
 {
     PutPlan                  plan;
     ParsedHostName           parsed;
@@ -941,7 +1122,7 @@ std::wstring CassoExplorerActions::MakeUnusedName (const std::wstring & base, co
 
 std::string CassoExplorerActions::MakeFreeEntryName (const std::string & desired, const std::vector<std::string> & taken, VolumeKind kind, bool copy)
 {
-    bool         proDos    = kind == VolumeKind::ProDos;
+    bool         proDos    = kind != VolumeKind::Dos33;
     size_t       maxLength = proDos ? kProDosNameMax : kDos33NameMax;
     std::string  base      = desired;
     std::string  candidate;

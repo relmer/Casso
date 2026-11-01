@@ -242,14 +242,10 @@ DiskOperations::Result DiskOperations::List (const std::string & imagePath, cons
 
     if (result.Succeeded())
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
         outKind = opened.kind;
-        hr      = volume.EnumerateDirectory (FilePath::Parse (directory), outListing);
+        hr      = volume->EnumerateDirectory (FilePath::Parse (directory), outListing);
 
         result.listingDamaged = !outListing.damage.empty();
 
@@ -285,19 +281,12 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
 
     if (result.Succeeded())
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
-        LostSectorCounter  lost (opened.report);
-
         //  A bit-stream image's undecodable sectors read as zeros; the ones the
         //  file touches are counted, so a copy of it is reported as damaged.
-        dos.SetReadObserver (&lost);
-        pro.SetReadObserver (&lost);
+        LostSectorCounter         lost (opened.report);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors, &lost);
 
-        hr = volume.Read (MakeEntryPath (opened.kind, name, catalogIndex), outPayload);
+        hr = volume->Read (MakeEntryPath (opened.kind, name, catalogIndex), outPayload);
 
         if (FAILED (hr))
         {
@@ -783,13 +772,9 @@ DiskOperations::Result DiskOperations::WritePayload (
 
     if (result.Succeeded())
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
-        hr = volume.Write ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name), payload, edited);
+        hr = volume->Write ((opened.kind == VolumeKind::Dos33) ? FilePath::FromName (name) : FilePath::Parse (name), payload, edited);
 
         if (FAILED (hr))
         {
@@ -831,13 +816,9 @@ DiskOperations::Result DiskOperations::Rename (
 
     if (result.Succeeded())
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
-        hr = volume.Rename (MakeEntryPath (opened.kind, from, catalogIndex), to, edited);
+        hr = volume->Rename (MakeEntryPath (opened.kind, from, catalogIndex), to, edited);
 
         if (FAILED (hr))
         {
@@ -879,13 +860,9 @@ DiskOperations::Result DiskOperations::SetAttributes (
 
     if (result.Succeeded())
     {
-        Dos33Volume   dos (opened.sectors);
-        ProDosVolume  pro (opened.sectors);
-        IVolume     & volume = (opened.kind == VolumeKind::Dos33)
-                             ? static_cast<IVolume &> (dos)
-                             : static_cast<IVolume &> (pro);
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
 
-        hr = volume.SetAttributes (MakeEntryPath (opened.kind, name, catalogIndex), attributes, edited);
+        hr = volume->SetAttributes (MakeEntryPath (opened.kind, name, catalogIndex), attributes, edited);
 
         if (FAILED (hr))
         {

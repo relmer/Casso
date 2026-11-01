@@ -62,6 +62,9 @@ public:
     //  rule, the looser of the two.
     static bool                     IsValidName    (VolumeKind kind, const std::wstring & name);
 
+    //  The rule IsValidName applies, as a sentence.
+    static std::wstring             DescribeNameRule (VolumeKind kind);
+
     //  What the dialog's fields changed, each only where its edited flag is
     //  set. Access is ProDOS's bits, the changed ones in accessMask; on DOS 3.3
     //  the Locked box is the lock.
@@ -125,6 +128,19 @@ private:
         { 0x04, L"B", L"Binary"         },
         { 0x08, L"S", L"Special"        },
         { 0x10, L"R", L"Relocatable"    },
+    };
+
+    static constexpr NamedType  kPascalKinds[] =
+    {
+        { 0x00, L"NONE", L"No kind"              },
+        { 0x01, L"BAD",  L"Bad blocks"           },
+        { 0x02, L"CODE", L"Code"                 },
+        { 0x03, L"TEXT", L"Text"                 },
+        { 0x04, L"INFO", L"Debugger information" },
+        { 0x05, L"DATA", L"Data"                 },
+        { 0x06, L"GRAF", L"Graphics"             },
+        { 0x07, L"FOTO", L"Screen image"         },
+        { 0x08, L"SDIR", L"Secure directory"     },
     };
 
     static constexpr NamedType  kDos33SpareTypes[] =

@@ -171,6 +171,10 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     {
         outStatus.freeSpaceTip += L", ProDOS volume /" + TextEncoding::NarrowToWide (listing.volumeName);
     }
+    else if (kind == VolumeKind::Pascal)
+    {
+        outStatus.freeSpaceTip += L", Apple Pascal volume " + TextEncoding::NarrowToWide (listing.volumeName) + L":";
+    }
 }
 
 

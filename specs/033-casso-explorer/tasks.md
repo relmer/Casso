@@ -1546,6 +1546,6 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T358 Add the settings: the Verified transfers Options page with toggles in one column after their labels, the per-connection override, toggles in Create image and Write image, V on the Apple and its indicator, and automatic verification of a failing track, per FR-129
 - [X] T359 Add the copy-protection assessment, its early stop, PROT count and tone, and the manifest's labels, per FR-130
 - [X] T360 Add the tree's transfer animation and the badge for files not yet rendered, saved across restarts, per FR-131
-- [ ] T361 Add Apple Pascal read and write, on images and over CassoLink, starting from the readers on `040-disk-inspector`, with 0006 APPLE0.dsk as a fixture source, per FR-132
+- [X] T361 Add Apple Pascal read and write, on images and over CassoLink, starting from the readers on `040-disk-inspector`, with 0006 APPLE0.dsk as a fixture source, per FR-132
 - [ ] T362 Add CP/M read and write the same way, with heuristic detection and the manual choice, with 0005.dsk as a fixture source, per FR-132
 

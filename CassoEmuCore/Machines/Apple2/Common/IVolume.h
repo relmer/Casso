@@ -136,3 +136,33 @@ public:
                                     const FileAttributes  & attributes,
                                     std::vector<Byte>     & outBuffer) const = 0;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NullVolume
+//
+//  The volume of a buffer with no recognized file system: every operation
+//  returns ERROR_UNRECOGNIZED_VOLUME.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class NullVolume : public IVolume
+{
+public:
+    HRESULT  Enumerate            (VolumeListing &) const override                                                  { return kResult; }
+    HRESULT  Read                 (const FilePath &, FilePayload &) const override                                  { return kResult; }
+    HRESULT  Write                (const FilePath &, const FilePayload &, std::vector<Byte> &) const override       { return kResult; }
+    HRESULT  Delete               (const FilePath &, std::vector<Byte> &) const override                            { return kResult; }
+    HRESULT  Delete               (const FilePath &, std::vector<Byte> &, DeleteOutcome &) const override           { return kResult; }
+    HRESULT  BuildIntegrityReport (VolumeIntegrityReport &) const override                                          { return kResult; }
+    HRESULT  SetStartupProgram    (const FilePath &, std::vector<Byte> &) const override                            { return kResult; }
+    HRESULT  Rename               (const FilePath &, const std::string &, std::vector<Byte> &) const override       { return kResult; }
+    HRESULT  SetAttributes        (const FilePath &, const FileAttributes &, std::vector<Byte> &) const override    { return kResult; }
+
+private:
+    static constexpr HRESULT  kResult = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME);
+};

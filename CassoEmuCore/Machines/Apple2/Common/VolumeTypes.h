@@ -62,6 +62,19 @@ enum class PayloadEncoding
 
 
 //
+//  How a text file's bytes are laid out on its file system, which selects the
+//  conversion to and from host text. It follows the payload, so a caller that
+//  has only a payload converts it correctly.
+//
+enum class PayloadTextForm
+{
+    AppleHighAscii,     // DOS 3.3 and ProDOS: high-bit characters, $8D line ends
+    PascalPages,        // Apple Pascal: a header, then pages of indent-coded lines
+};
+
+
+
+//
 //  One catalog record. `sizeUnits` counts whatever the filesystem allocates in
 //  -- sectors for DOS 3.3, blocks for ProDOS -- because the two are not
 //  interchangeable and pretending otherwise invites an off-by-eight.
@@ -140,6 +153,7 @@ struct FilePayload
     bool               hasLoadAddress = false;
     bool               hasAuxType     = false;
     PayloadEncoding    encoding       = PayloadEncoding::Verbatim;
+    PayloadTextForm    textForm       = PayloadTextForm::AppleHighAscii;
 
     //  The access byte and dates the file had where it was read, so a copy
     //  to another disk is locked, and dated, as the original is. ProDOS's

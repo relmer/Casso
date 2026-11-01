@@ -4,7 +4,10 @@
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
@@ -715,5 +718,64 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
         return VolumeKind::ProDos;
     }
 
+    if (PascalVolume::IsFound (sectors))
+    {
+        return VolumeKind::Pascal;
+    }
+
     return VolumeKind::Unknown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VolumeImage::CreateVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vector<Byte> & sectors, ISectorReadObserver * observer)
+{
+    std::unique_ptr<IVolume>  volume;
+
+
+
+    switch (kind)
+    {
+        case VolumeKind::Dos33:
+        {
+            auto  dos = std::make_unique<Dos33Volume> (sectors);
+
+            dos->SetReadObserver (observer);
+            volume = std::move (dos);
+            break;
+        }
+
+        case VolumeKind::ProDos:
+        {
+            auto  pro = std::make_unique<ProDosVolume> (sectors);
+
+            pro->SetReadObserver (observer);
+            volume = std::move (pro);
+            break;
+        }
+
+        case VolumeKind::Pascal:
+        {
+            auto  block = std::make_unique<PascalVolume> (sectors);
+
+            block->SetReadObserver (observer);
+            volume = std::move (block);
+            break;
+        }
+
+        case VolumeKind::Unknown:
+        default:
+            volume = std::make_unique<NullVolume>();
+            break;
+    }
+
+    return volume;
 }

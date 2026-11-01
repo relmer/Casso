@@ -23,8 +23,8 @@ public:
     static constexpr int  kDosCatalogTrack   = 17;
     static constexpr int  kCpmDirectoryTrack = 3;
 
-    //  ProDOS's volume directory, blocks 2 to 5, is on track 0, so its
-    //  fingerprint is track 0 alone. Every other disk uses track 0 and the DOS
+    //  The directory of ProDOS or Apple Pascal, blocks 2 to 5, is on track 0, so
+    //  its fingerprint is track 0 alone. Every other disk uses track 0 and the DOS
     //  3.3 catalog track, and a disk with no file system recognized from those
     //  adds CP/M's directory track.
     static bool     IsCatalogOnTrackZero (const std::vector<Byte> & image);

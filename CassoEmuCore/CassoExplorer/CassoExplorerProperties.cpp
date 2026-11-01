@@ -23,9 +23,9 @@ std::vector<CassoExplorerProperties::Row> CassoExplorerProperties::DescribeEntry
     std::vector<Row>  rows;
     uint64_t          unit    = CatalogModel::GetUnitBytes (kind);
     uint64_t          onDisk  = (uint64_t) entry.sizeUnits * unit;
-    std::wstring      type    = CatalogModel::GetTypeText (entry.type, kind);
+    std::wstring      type    = CatalogModel::GetEntryTypeText (entry, kind);
     wchar_t           code[8] = {};
-    const wchar_t   * units  = (kind == VolumeKind::ProDos) ? L"blocks" : L"sectors";
+    const wchar_t   * units  = (kind == VolumeKind::Dos33) ? L"sectors" : L"blocks";
 
 
 

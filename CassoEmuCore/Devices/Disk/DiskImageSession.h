@@ -112,10 +112,10 @@ public:
     static constexpr const char *  kInUseRefusalText =
         "is open in another program. Close it and try again";
 
-    //  The sentence a listing gives when neither filesystem is there. Named so
-    //  a test asserts on the wording a user reads rather than a paraphrase.
+    //  The diagnostic for an image with no recognized filesystem. A test asserts
+    //  on the wording a user reads rather than a paraphrase.
     static constexpr const char *  kNoFilesystemText =
-        "does not have a DOS or ProDOS file system";
+        "does not have a recognized file system";
 
     //  Renders an edited sector buffer back into the container it came from and
     //  puts it where the old one was. One helper because the two orderings it

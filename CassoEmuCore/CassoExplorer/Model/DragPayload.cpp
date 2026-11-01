@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -79,9 +80,11 @@ std::wstring DragPayload::GetHostName (
     bool                   & outConverted)
 {
     bool  isDos       = kind == VolumeKind::Dos33;
-    bool  isApplesoft = isDos ? (entry.type == Dos33Volume::kTypeApplesoft) : (entry.type == ProDosVolume::kTypeBasic);
-    bool  isInteger   = isDos ? (entry.type == Dos33Volume::kTypeInteger)   : (entry.type == s_kProDosTypeInteger);
-    bool  isText      = isDos ? (entry.type == Dos33Volume::kTypeText)      : (entry.type == ProDosVolume::kTypeText);
+    bool  isApple     = isDos || kind == VolumeKind::ProDos;
+    bool  isApplesoft = isApple && (isDos ? (entry.type == Dos33Volume::kTypeApplesoft) : (entry.type == ProDosVolume::kTypeBasic));
+    bool  isInteger   = isApple && (isDos ? (entry.type == Dos33Volume::kTypeInteger)   : (entry.type == s_kProDosTypeInteger));
+    bool  isText      = isApple ? (isDos ? (entry.type == Dos33Volume::kTypeText) : (entry.type == ProDosVolume::kTypeText))
+                                : (kind == VolumeKind::Pascal && entry.type == PascalVolume::kKindText);
 
 
 
@@ -129,7 +132,9 @@ AppleSingleFile DragPayload::MakeAppleSingle (const FileEntry & entry, VolumeKin
     file.realName      = entry.name;
     file.hasProDosInfo = true;
     file.access        = entry.isLocked ? 0x01 : 0xC3;
-    file.fileType      = isDos ? HostFileNaming::MapDos33ToProDosType (entry.type) : entry.type;
+    file.fileType      = isDos                       ? HostFileNaming::MapDos33ToProDosType (entry.type)
+                       : (kind == VolumeKind::Pascal) ? HostFileNaming::MapPascalToProDosType (entry.type)
+                                                      : entry.type;
     file.auxType       = entry.hasLoadAddress ? entry.loadAddress : entry.auxType;
 
     if (entry.hasModified)
@@ -161,7 +166,7 @@ std::string DragPayload::EncodeCatalogEntries (
 
     bytes += sourceImage;
     bytes += '\n';
-    bytes += (kind == VolumeKind::Dos33) ? "dos33" : "prodos";
+    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : "prodos";
     bytes += '\n';
 
     for (const std::string & path : catalogPaths)
@@ -214,6 +219,7 @@ bool DragPayload::DecodeCatalogEntries (
 
     if (lines[1] == "dos33")       { outKind = VolumeKind::Dos33; }
     else if (lines[1] == "prodos") { outKind = VolumeKind::ProDos; }
+    else if (lines[1] == "pascal") { outKind = VolumeKind::Pascal; }
     else                           { return false; }
 
     outCatalogPaths.assign (lines.begin() + 2, lines.end());

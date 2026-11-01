@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Ui/FileBrowseModel.h"
@@ -113,6 +114,118 @@ bool HostFileNaming::TryMapProDosToDos33 (Byte proDosType, Byte & outDosType)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFileNaming::MapPascalToProDosType
+//
+//  ProDOS has types for Pascal's code, text and data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte HostFileNaming::MapPascalToProDosType (Byte kind)
+{
+    static constexpr Byte  kBadBlocks = 0x01;
+    static constexpr Byte  kCode      = 0x02;
+    static constexpr Byte  kText      = 0x03;
+    static constexpr Byte  kData      = 0x05;
+    static constexpr Byte  kGraphics  = 0x08;
+
+
+
+    switch (kind)
+    {
+        case PascalVolume::kKindBad:  return kBadBlocks;
+        case PascalVolume::kKindCode: return kCode;
+        case PascalVolume::kKindText: return kText;
+        case PascalVolume::kKindGraf: return kGraphics;
+        case PascalVolume::kKindFoto: return kGraphics;
+        default:                      return kData;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFileNaming::MapProDosToPascalKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte HostFileNaming::MapProDosToPascalKind (Byte proDosType)
+{
+    static constexpr Byte  kBadBlocks = 0x01;
+    static constexpr Byte  kCode      = 0x02;
+    static constexpr Byte  kText      = 0x03;
+    static constexpr Byte  kData      = 0x05;
+    static constexpr Byte  kGraphics  = 0x08;
+
+
+
+    switch (proDosType)
+    {
+        case kBadBlocks:              return PascalVolume::kKindBad;
+        case kCode:                   return PascalVolume::kKindCode;
+        case kText:                   return PascalVolume::kKindText;
+        case ProDosVolume::kTypeText: return PascalVolume::kKindText;
+        case kData:                   return PascalVolume::kKindData;
+        case kGraphics:               return PascalVolume::kKindFoto;
+        default:                      return PascalVolume::kKindNone;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFileNaming::ConvertPayloadType
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HostFileNaming::ConvertPayloadType (VolumeKind source, VolumeKind target, FilePayload & inOutPayload)
+{
+    Byte  proDos = inOutPayload.type;
+    Byte  mapped = 0;
+
+
+
+    if (source == target)
+    {
+        return;
+    }
+
+    proDos = (source == VolumeKind::Dos33)  ? MapDos33ToProDosType (inOutPayload.type)
+           : (source == VolumeKind::Pascal) ? MapPascalToProDosType (inOutPayload.type)
+                                            : inOutPayload.type;
+
+    if (target == VolumeKind::ProDos)
+    {
+        inOutPayload.type = proDos;
+    }
+    else if (target == VolumeKind::Dos33)
+    {
+        inOutPayload.type = TryMapProDosToDos33 (proDos, mapped) ? mapped : Dos33Volume::kTypeBinary;
+    }
+    else if (target == VolumeKind::Pascal)
+    {
+        inOutPayload.type = MapProDosToPascalKind (proDos);
+    }
+
+    //  A DOS 3.3 binary has to record a load address, so a file from a system
+    //  with no addresses goes at 0.
+    if (source == VolumeKind::Pascal && target == VolumeKind::Dos33 && inOutPayload.type == Dos33Volume::kTypeBinary)
+    {
+        inOutPayload.hasLoadAddress = true;
+    }
 }
 
 
@@ -430,12 +543,20 @@ std::wstring HostFileNaming::ForRaw (
     bool          isDos       = kind == VolumeKind::Dos33;
     bool          isBinary    = isDos ? (type == Dos33Volume::kTypeBinary)
                                       : (type == ProDosVolume::kTypeBinary);
-    Byte          proDosType  = isDos ? MapDos33ToProDosType (type) : type;
+    bool          isFlatNamed = kind == VolumeKind::Pascal;
+    Byte          proDosType  = isDos ? MapDos33ToProDosType (type)
+                              : (kind == VolumeKind::Pascal) ? MapPascalToProDosType (type) : type;
     Word          aux         = hasAddress ? address : 0;
     std::wstring  name        = MakeHostLegal (catalogName, substituted);
     char          letter      = GetDos33TypeLetter (type);
 
 
+
+    //  A Pascal name ends in what the file is, so it goes on the host as it is.
+    if (isFlatNamed && style == Style::Descriptive)
+    {
+        return name;
+    }
 
     if (style == Style::CiderPress)
     {

@@ -95,9 +95,11 @@ std::vector<size_t> LinkedDisk::GetCatalogSectors (VolumeKind kind)
             sectors.push_back ((size_t) (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack + sector));
         }
     }
-    else if (kind == VolumeKind::ProDos)
+    else if (kind == VolumeKind::ProDos || kind == VolumeKind::Pascal)
     {
-        for (int block = ProDosSkeleton::kDirKeyBlock; block <= ProDosSkeleton::kBitmapBlock; block++)
+        int  last = (kind == VolumeKind::ProDos) ? ProDosSkeleton::kBitmapBlock : ProDosSkeleton::kDirLastBlock;
+
+        for (int block = ProDosSkeleton::kDirKeyBlock; block <= last; block++)
         {
             sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, 0) / kSectorSize);
             sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, kSectorSize) / kSectorSize);
@@ -414,24 +416,9 @@ Error:
 
 HRESULT LinkedDisk::RunOn (const std::vector<Byte> & sectors, const std::function<HRESULT (const IVolume & volume)> & operation)
 {
-    HRESULT  hr = S_OK;
+    std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (m_kind, sectors, this);
 
 
 
-    if (m_kind == VolumeKind::Dos33)
-    {
-        Dos33Volume  volume (sectors);
-
-        volume.SetReadObserver (this);
-        hr = operation (volume);
-    }
-    else
-    {
-        ProDosVolume  volume (sectors);
-
-        volume.SetReadObserver (this);
-        hr = operation (volume);
-    }
-
-    return hr;
+    return operation (*volume);
 }

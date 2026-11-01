@@ -153,6 +153,12 @@ public:
     static void  RenderDos33Catalog  (const VolumeListing & listing, std::vector<std::wstring> & outLines);
     static void  RenderProDosCatalog (const VolumeListing & listing, std::vector<std::wstring> & outLines);
 
+    //  A file system with no guest listing Casso reproduces.
+    static void  RenderBlockCatalog  (const VolumeListing & listing, VolumeKind kind, std::vector<std::wstring> & outLines);
+
+    //  A text file that isn't high-bit ASCII, as host text.
+    static void  DecodeVolumeText    (const FilePayload & payload, std::string & outText);
+
     //  The labeled lines of the disk command runner's description of an image
     //  with no file system, as label and value; false when the message has none.
     static bool  ParseDetails (const std::string & message, std::vector<std::pair<std::wstring, std::wstring>> & outDetails);

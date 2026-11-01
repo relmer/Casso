@@ -166,11 +166,10 @@ ActionsTypes::Outcome ActionsAppleDrive::CopyEntriesToAppleDrive (const std::str
     {
         size_t       slash = catalogPath.find_last_of ('/');
         std::string  leaf  = (slash == std::string::npos) ? catalogPath : catalogPath.substr (slash + 1);
-        std::string  name  = CassoExplorerActions::MakeFreeEntryName (leaf, taken, targetKind, false);
+        std::string  name  = CassoExplorerActions::MakeFreeEntryName (CassoExplorerActions::FitEntryName (leaf, sourceKind, targetKind), taken, targetKind, false);
         std::string             path = directory.empty() ? name : directory + "/" + name;
         FilePayload             payload;
         DiskOperations::Result  result = m_actions.m_browser.GetOperations().Read (sourceImage, catalogPath, payload);
-        Byte                    mapped = 0;
 
         if (!result.Succeeded())
         {
@@ -178,14 +177,7 @@ ActionsTypes::Outcome ActionsAppleDrive::CopyEntriesToAppleDrive (const std::str
             continue;
         }
 
-        if (sourceKind == VolumeKind::Dos33 && targetKind == VolumeKind::ProDos)
-        {
-            payload.type = HostFileNaming::MapDos33ToProDosType (payload.type);
-        }
-        else if (sourceKind == VolumeKind::ProDos && targetKind == VolumeKind::Dos33)
-        {
-            payload.type = HostFileNaming::TryMapProDosToDos33 (payload.type, mapped) ? mapped : Dos33Volume::kTypeBinary;
-        }
+        HostFileNaming::ConvertPayloadType (sourceKind, targetKind, payload);
 
         taken.push_back (name);
         SubmitWrite (link, drive, [drive, path, payload] (CassoLinkSession & session) { return session.WriteFile (drive, FilePath::Parse (path), payload); }, outcome);
@@ -364,7 +356,7 @@ void ActionsAppleDrive::PutItemsOnAppleDrive (const std::string & link, int driv
         {
             if (kind != VolumeKind::ProDos)
             {
-                ActionsCopy::AppendMessage (inOutOutcome, E_FAIL, CassoExplorerActions::GetLeafName (hostPath) + L": a DOS 3.3 disk has no folders.");
+                ActionsCopy::AppendMessage (inOutOutcome, E_FAIL, CassoExplorerActions::GetLeafName (hostPath) + L": a " + CassoExplorerActions::GetVolumeSystemName (kind) + L" disk has no folders.");
                 continue;
             }
 
@@ -1228,6 +1220,10 @@ std::wstring ActionsAppleDrive::MakeDriveImageName (const VolumeListing & listin
     if (kind == VolumeKind::ProDos && listing.hasVolumeName)
     {
         name = TextEncoding::NarrowToWide (listing.volumeName) + L".po";
+    }
+    else if (listing.hasVolumeName)
+    {
+        name = TextEncoding::NarrowToWide (listing.volumeName) + L".dsk";
     }
     else if (listing.hasVolumeNumber)
     {

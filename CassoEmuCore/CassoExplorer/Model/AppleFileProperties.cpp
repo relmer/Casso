@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/AppleFileProperties.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -50,6 +51,13 @@ std::vector<AppleFileProperties::TypeChoice> AppleFileProperties::GetTypeChoices
             {
                 choices.push_back (MakeChoice (row));
             }
+        }
+    }
+    else if (kind == VolumeKind::Pascal)
+    {
+        for (const NamedType & row : kPascalKinds)
+        {
+            choices.push_back (MakeChoice (row));
         }
     }
     else
@@ -105,6 +113,11 @@ AppleFileProperties::AuxKind AppleFileProperties::GetAuxKind (VolumeKind kind, B
     if (kind == VolumeKind::Dos33)
     {
         return (type == Dos33Volume::kTypeBinary) ? AuxKind::LoadAddress : AuxKind::None;
+    }
+
+    if (kind != VolumeKind::ProDos)
+    {
+        return AuxKind::None;
     }
 
     return (type == ProDosVolume::kTypeBinary || type == 0xFF) ? AuxKind::LoadAddress
@@ -288,7 +301,32 @@ bool AppleFileProperties::IsValidName (VolumeKind kind, const std::wstring & nam
 
 
 
+    if (kind == VolumeKind::Pascal)
+    {
+        return PascalVolume::IsValidName (narrow);
+    }
+
     return (kind == VolumeKind::ProDos) ? ProDosVolume::IsValidName (narrow) : Dos33Volume::IsValidName (narrow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleFileProperties::DescribeNameRule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring AppleFileProperties::DescribeNameRule (VolumeKind kind)
+{
+    switch (kind)
+    {
+        case VolumeKind::ProDos: return L"A ProDOS name has up to 15 letters, digits and periods, and starts with a letter.";
+        case VolumeKind::Pascal: return L"An Apple Pascal name has up to 15 characters, with no space and none of $ = ? , : [ ].";
+        default:                 return L"A DOS 3.3 name has up to 30 characters, starts with a letter, and has no comma.";
+    }
 }
 
 

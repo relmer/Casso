@@ -340,7 +340,7 @@ void AppleFilePropertiesDialog::OnCreate()
     //  between the files starts clear and changes only when it is clicked.
     m_locked.SetChecked  (std::all_of (m_entries.begin(), m_entries.end(), [] (const FileEntry & e) { return e.isLocked; }));
     m_locked.SetEnabled  (!m_readOnly);
-    m_locked.SetVisible  (!proDos && (!m_hasHost || m_host.showAccess));
+    m_locked.SetVisible  (!proDos && m_kind != VolumeKind::Pascal && (!m_hasHost || m_host.showAccess));
     m_locked.SetOnChange ([this] (bool) { m_lockedEdited = true; });
 
     for (auto [box, bit] : bits)
@@ -667,8 +667,7 @@ bool AppleFilePropertiesDialog::CollectEdits (AppleFileProperties::Edits & outEd
 
     if (outEdits.nameEdited && !AppleFileProperties::IsValidName (m_hasHost ? m_host.nameKind : m_kind, outEdits.name))
     {
-        outError = ((m_hasHost ? m_host.nameKind : m_kind) == VolumeKind::ProDos) ? L"A ProDOS name has up to 15 letters, digits and periods, and starts with a letter."
-                                                  : L"A DOS 3.3 name has up to 30 characters, starts with a letter, and has no comma.";
+        outError = AppleFileProperties::DescribeNameRule (m_hasHost ? m_host.nameKind : m_kind);
         return false;
     }
 

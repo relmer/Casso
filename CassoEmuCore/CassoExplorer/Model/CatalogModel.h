@@ -192,8 +192,13 @@ public:
     //  Folders first, and the name breaking ties, as Sort.
     static void  SortByProperty (std::vector<CatalogRow> & rows, const std::vector<PropertyKey> & keys, bool descending);
 
-    //  The DOS 3.3 letter or the ProDOS mnemonic for a type byte.
+    //  The DOS 3.3 letter, the ProDOS mnemonic or the Pascal kind for a type byte.
     static std::wstring  GetTypeText (Byte type, VolumeKind kind);
+
+    //  An entry's type as the list has it.
+    static std::wstring  GetEntryTypeText (const FileEntry & entry, VolumeKind kind);
+
+    static std::wstring  GetPascalKindText (Byte kind);
 
     static std::wstring  FormatAddress (Word address);
 
@@ -205,7 +210,7 @@ public:
     //  letter.
     static std::wstring  GetDisplayName (const std::wstring & name, std::vector<std::pair<int, int>> & outControlRanges);
 
-    //  What one allocation unit holds: a sector on DOS 3.3, a block on ProDOS.
+    //  The bytes in one allocation unit: a sector on DOS 3.3, a block elsewhere.
     static uint64_t  GetUnitBytes (VolumeKind kind);
 
 private:

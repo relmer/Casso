@@ -11,6 +11,7 @@
 #include "Disassembler.h"
 #include "IntegerBasicDetokenizer.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -33,7 +34,7 @@ static constexpr Byte  s_kProDosTypeInteger = 0xFA;
 bool PreviewDecoder::IsApplesoftType (Byte type, VolumeKind kind)
 {
     return (kind == VolumeKind::Dos33) ? (type == Dos33Volume::kTypeApplesoft)
-                                       : (type == ProDosVolume::kTypeBasic);
+                                       : (kind == VolumeKind::ProDos && type == ProDosVolume::kTypeBasic);
 }
 
 
@@ -49,7 +50,7 @@ bool PreviewDecoder::IsApplesoftType (Byte type, VolumeKind kind)
 bool PreviewDecoder::IsIntegerType (Byte type, VolumeKind kind)
 {
     return (kind == VolumeKind::Dos33) ? (type == Dos33Volume::kTypeInteger)
-                                       : (type == s_kProDosTypeInteger);
+                                       : (kind == VolumeKind::ProDos && type == s_kProDosTypeInteger);
 }
 
 
@@ -64,8 +65,13 @@ bool PreviewDecoder::IsIntegerType (Byte type, VolumeKind kind)
 
 bool PreviewDecoder::IsTextType (Byte type, VolumeKind kind)
 {
+    if (kind == VolumeKind::Pascal)
+    {
+        return type == PascalVolume::kKindText;
+    }
+
     return (kind == VolumeKind::Dos33) ? (type == Dos33Volume::kTypeText)
-                                       : (type == ProDosVolume::kTypeText);
+                                       : (kind == VolumeKind::ProDos && type == ProDosVolume::kTypeText);
 }
 
 
@@ -81,7 +87,7 @@ bool PreviewDecoder::IsTextType (Byte type, VolumeKind kind)
 bool PreviewDecoder::IsBinaryType (Byte type, VolumeKind kind)
 {
     return (kind == VolumeKind::Dos33) ? (type == Dos33Volume::kTypeBinary)
-                                       : (type == ProDosVolume::kTypeBinary);
+                                       : (kind == VolumeKind::ProDos && type == ProDosVolume::kTypeBinary);
 }
 
 
@@ -432,6 +438,10 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
     {
         RenderProDosCatalog (listing, outContent.lines);
     }
+    else if (kind == VolumeKind::Pascal)
+    {
+        RenderBlockCatalog (listing, kind, outContent.lines);
+    }
 }
 
 
@@ -535,7 +545,12 @@ HRESULT PreviewDecoder::Render (
         case PreviewContent::Kind::Text:
             //  Text is lines of text. A text file whose bytes are not text
             //  goes to the hex view, as a binary does.
-            if (LooksLikeText (payload.bytes))
+            if (payload.textForm != PayloadTextForm::AppleHighAscii)
+            {
+                DecodeVolumeText (payload, text);
+                SplitIntoLines (text, outContent.lines);
+            }
+            else if (LooksLikeText (payload.bytes))
             {
                 SplitAppleText (payload.bytes, outContent.lines);
             }
@@ -622,6 +637,64 @@ void PreviewDecoder::RenderDos33Catalog (const VolumeListing & listing, std::vec
     outLines.push_back (std::wstring());
     swprintf_s (line, L"%u sectors free of %u", (unsigned) listing.freeUnits, (unsigned) listing.totalUnits);
     outLines.push_back (line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::RenderBlockCatalog
+//
+//  The volume when it has a name, then per file the lock, the name, the type,
+//  the blocks and the date, and the free blocks at the foot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::RenderBlockCatalog (const VolumeListing & listing, VolumeKind kind, std::vector<std::wstring> & outLines)
+{
+    wchar_t  line[96] = {};
+
+
+
+    outLines.clear();
+
+    if (listing.hasVolumeName)
+    {
+        outLines.push_back (TextEncoding::NarrowToWide (listing.volumeName) + L":");
+        outLines.push_back (std::wstring());
+    }
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        swprintf_s (line, L"%lc%-15ls %4ls%8u  %ls",
+                    entry.isLocked ? L'*' : L' ',
+                    TextEncoding::NarrowToWide (entry.name).c_str(),
+                    CatalogModel::GetEntryTypeText (entry, kind).c_str(),
+                    (unsigned) entry.sizeUnits,
+                    entry.hasModified ? FormatProDosDate (entry).c_str() : L"");
+        outLines.push_back (line);
+    }
+
+    outLines.push_back (std::wstring());
+    swprintf_s (line, L"%u blocks free of %u", (unsigned) listing.freeUnits, (unsigned) listing.totalUnits);
+    outLines.push_back (line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::DecodeVolumeText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::DecodeVolumeText (const FilePayload & payload, std::string & outText)
+{
+    PascalVolume::DecodeText (payload.bytes, outText);
 }
 
 

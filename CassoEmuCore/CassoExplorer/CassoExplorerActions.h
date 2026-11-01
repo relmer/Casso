@@ -227,6 +227,11 @@ public:
     static PutPlan       PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind);
     static void          SetTypedPayload (PutPlan & plan, const std::vector<Byte> & bytes, Byte type, bool hasAux, Word aux, bool isDos);
 
+    static PutPlan       PlanPutByContent     (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
+    static PutPlan       PlanForcedConversion (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
+    static PutPlan       AdaptPlanToVolume    (PutPlan plan, VolumeKind kind);
+    static std::string   SanitizePascalName   (const std::wstring & stem);
+
     //  A host file's stem as a legal catalog name: DOS 3.3 keeps up to 30
     //  printable characters; ProDOS keeps up to 15 of letters, digits and
     //  periods, starting with a letter.
@@ -234,6 +239,12 @@ public:
 
     //  The same rules over a name that has no extension to strip.
     static std::string  SanitizeCatalogName (const std::wstring & stem, VolumeKind kind);
+
+    //  An entry's name for a copy to another file system.
+    static std::string  FitEntryName (const std::string & name, VolumeKind source, VolumeKind target);
+
+    //  The file system's name, for a message.
+    static std::wstring  GetVolumeSystemName (VolumeKind kind);
 
     static std::wstring  GetLeafName (const std::wstring & path);
 

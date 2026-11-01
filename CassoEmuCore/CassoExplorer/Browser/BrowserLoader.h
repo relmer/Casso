@@ -48,7 +48,7 @@ public:
     bool  TryGetRowEntry (int row, FileEntry & outEntry) const;
 
     //  What the disk runner says of a whole disk it finds no file system on.
-    static constexpr const char *  s_kNoFileSystem = "does not have a DOS or ProDOS file system";
+    static constexpr const char *  s_kNoFileSystem = "does not have a recognized file system";
 
     std::wstring  GetImageProblem (const std::wstring & imagePath);
 
