@@ -622,20 +622,27 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
     }
 
-    if (background && (shown.kind == Location::Kind::HostFolder || (shown.kind == Location::Kind::ShellFolder && !m_context.browser.IsHomeLocation())) && !SearchQuery::IsId (shown.path))
+    if (background)
     {
-        POINT  screen = { x, y };
+        AddBackgroundRows (items, shown);
+    }
+
+    if (background && !GetBackgroundShellId (shown).empty())
+    {
+        POINT         screen  = { x, y };
+        std::wstring  shellId = GetBackgroundShellId (shown);
+        bool          onDisk  = shown.kind == Location::Kind::HostFolder || m_pane.GetColumns().GetGroupFolder() == GroupChoices::Folder::Zip;
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
         //  A folder that isn't on the disk has no item for the commands to act
         //  on, as File Explorer's menu there asks them with none.
-        m_context.menus.AddPackagedCommandsFor (items, (shown.kind == Location::Kind::HostFolder) ? std::vector<std::wstring> { shown.path } : std::vector<std::wstring>(), Win32PackagedCommands::ItemKind::Background, (shown.kind == Location::Kind::HostFolder) ? std::wstring() : shown.path);
+        m_context.menus.AddPackagedCommandsFor (items, onDisk ? std::vector<std::wstring> { shellId } : std::vector<std::wstring>(), Win32PackagedCommands::ItemKind::Background);
 
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, shown, screen]()
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, shellId, screen]()
         {
-            HRESULT  hr = m_context.shellVerbs.ShowBackgroundMenu (m_context.window.GetHwnd(), shown.path, screen);
+            HRESULT  hr = m_context.shellVerbs.ShowBackgroundMenu (m_context.window.GetHwnd(), shellId, screen);
 
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_context.folderSync.RefreshAfterHostChange();
@@ -903,6 +910,162 @@ bool ExplorerListMenus::IsListVerbOffered (CassoExplorerActions::Verb verb) cons
 
 
     return std::find (verbs.begin(), verbs.end(), verb) != verbs.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::GetBackgroundShellId
+//
+//  The shell's id for the folder on display, for the commands of its
+//  background; empty where the shell has no such folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerListMenus::GetBackgroundShellId (const Location & shown) const
+{
+    if (SearchQuery::IsId (shown.path))
+    {
+        return std::wstring();
+    }
+
+    if (m_context.browser.IsHomeLocation())
+    {
+        return IShellItemVerbs::kHomeId;
+    }
+
+    switch (shown.kind)
+    {
+        case Location::Kind::HostFolder:
+        case Location::Kind::ShellFolder:
+            return shown.path;
+
+        case Location::Kind::RecycleBin:
+            return L"::{645FF040-5081-101B-9F08-00AA002F954E}";
+
+        case Location::Kind::Root:
+            return (shown.path == TreeModel::kThisPcRootId) ? L"::{20D04FE0-3AEA-1069-A2D8-08002B30309D}" : std::wstring();
+
+        default:
+            return std::wstring();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::AddBackgroundRows
+//
+//  The rows File Explorer has on the background of these folders alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListMenus::AddBackgroundRows (std::vector<DxuiPopupMenuItem> & items, const Location & shown)
+{
+    std::wstring  shellId = GetBackgroundShellId (shown);
+    std::wstring  lower   = shown.path;
+    HWND          owner   = m_context.window.GetHwnd();
+    auto          addProperties = [this, owner, shellId, &items]()
+    {
+        m_context.menus.AddMenuCommand (items, L"P&roperties", [owner, shellId]()
+        {
+            SHELLEXECUTEINFOW  info = { sizeof (info) };
+            std::wstring       file = L"shell:" + shellId;
+            BOOL               ran  = FALSE;
+
+            info.fMask  = SEE_MASK_INVOKEIDLIST;
+            info.hwnd   = owner;
+            info.lpVerb = L"properties";
+            info.lpFile = file.c_str();
+            info.nShow  = SW_SHOWNORMAL;
+            ran         = ShellExecuteExW (&info);
+
+            IGNORE_RETURN_VALUE (ran, TRUE);
+        }, L"Alt+Enter");
+        m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+        m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
+    };
+
+
+
+    std::transform (lower.begin(), lower.end(), lower.begin(), towlower);
+
+    if (shown.kind == Location::Kind::Root && shown.path == TreeModel::kThisPcRootId)
+    {
+        m_context.menus.AddMenuCommand (items, L"Add a &network location", []()
+        {
+            ShellExecuteW (nullptr, L"open", L"rundll32.exe", L"shwebsvc.dll,AddNetPlaceRunDll", nullptr, SW_SHOWNORMAL);
+        });
+        addProperties();
+    }
+    else if (shown.kind == Location::Kind::RecycleBin)
+    {
+        addProperties();
+    }
+    else if (m_pane.GetColumns().GetGroupFolder() == GroupChoices::Folder::Zip)
+    {
+        m_context.menus.AddMenuCommand (items, L"E&xtract All...", [this]() { m_context.commandManager.Dispatch (CassoExplorerCommands::kExtractAll); });
+    }
+    else if (lower.find (L"shell:libraries") != std::wstring::npos || lower.find (L"031e4825-7b94-4dc3-b131-e946b44c8dd5") != std::wstring::npos)
+    {
+        std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+        std::vector<DxuiPopupMenuItem>  rows;
+
+        m_context.menus.AddMenuCommand (rows, L"&Library", [this]()
+        {
+            HRESULT  hr = CreateLibrary();
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+            m_context.folderSync.RefreshAfterHostChange();
+        });
+
+        parent->label     = L"Ne&w";
+        parent->menuGlyph = m_context.commands.Find (CassoExplorerCommands::kNew)->glyph;
+        items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (rows)));
+        m_context.menus.GetMenuCommands().push_back (std::move (parent));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::CreateLibrary
+//
+//  A new, empty library under the name File Explorer gives one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ExplorerListMenus::CreateLibrary()
+{
+    HRESULT                 hr      = S_OK;
+    ComPtr<IShellLibrary>   library;
+    ComPtr<IShellItem>      saved;
+    PWSTR                   folder  = nullptr;
+
+
+
+    hr = SHCreateLibrary (IID_PPV_ARGS (&library));
+    CHR (hr);
+
+    hr = SHGetKnownFolderPath (FOLDERID_Libraries, 0, nullptr, &folder);
+    CHR (hr);
+
+    hr = SHSaveLibraryInFolderPath (library.Get(), folder, L"New Library", LSF_MAKEUNIQUENAME, nullptr);
+    CHR (hr);
+
+Error:
+    CoTaskMemFree (folder);
+
+    return hr;
 }
 
 

@@ -101,8 +101,14 @@ class CommandSite : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeC
 public:
     explicit CommandSite (HWND owner) : m_owner (owner) {}
 
-    IFACEMETHODIMP QueryService (REFGUID, REFIID riid, void ** ppv) override { return QueryInterface (riid, ppv); }
-    IFACEMETHODIMP GetWindow (HWND * outWindow) override { *outWindow = m_owner; return S_OK; }
+    IFACEMETHODIMP QueryService (REFGUID, REFIID riid, void ** ppv) override
+    {
+        *ppv = nullptr;
+
+        return (riid == __uuidof (IOleWindow) || riid == __uuidof (IServiceProvider)) ? QueryInterface (riid, ppv) : E_NOINTERFACE;
+    }
+
+    IFACEMETHODIMP GetWindow (HWND * outWindow) override { *outWindow = m_owner; return (m_owner != nullptr) ? S_OK : E_FAIL; }
     IFACEMETHODIMP ContextSensitiveHelp (BOOL) override { return E_NOTIMPL; }
 
 private:
