@@ -43,8 +43,9 @@ public:
             for (const GroupChoices::Choice & choice : GroupChoices::GetChoices (folder))
             {
                 PROPERTYKEY  key = {};
+                HRESULT      hr  = (choice.property != nullptr) ? PSGetPropertyKeyFromName (choice.property, &key) : S_OK;
 
-                Assert::IsTrue (choice.property == nullptr || SUCCEEDED (PSGetPropertyKeyFromName (choice.property, &key)), choice.label);
+                Assert::IsTrue (SUCCEEDED (hr), choice.label);
             }
         }
     }
