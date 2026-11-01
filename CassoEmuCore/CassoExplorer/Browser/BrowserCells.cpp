@@ -175,6 +175,10 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     {
         outStatus.freeSpaceTip += L", Apple Pascal volume " + TextEncoding::NarrowToWide (listing.volumeName) + L":";
     }
+    else if (kind == VolumeKind::Cpm)
+    {
+        outStatus.freeSpaceTip += L", CP/M volume";
+    }
 }
 
 
@@ -516,7 +520,7 @@ std::wstring BrowserCells::ShortenPaths (const std::wstring & message)
 //
 //  BrowserCells::FormatLinkError
 //
-//  A disk whose sectors read but whose data is no DOS 3.3 or ProDOS volume
+//  A disk whose sectors read but whose data is no volume detection recognizes
 //  gets the same sentence as an image with no file system; any other failure
 //  with no message is a drive that could not be read.
 //

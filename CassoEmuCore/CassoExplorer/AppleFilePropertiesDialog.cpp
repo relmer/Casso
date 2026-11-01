@@ -317,11 +317,16 @@ void AppleFilePropertiesDialog::OnCreate()
     {
         m_type.SetSelected (AppleFileProperties::FindChoice (m_choices, first.type));
     }
-    else
+    else if (!m_choices.empty())
     {
         m_type.SetSelected ((int) m_choices.size());
         m_typeHex.SetText  (AppleFileProperties::FormatHex (first.type, 2));
     }
+
+    //  CP/M has no types, so it has no row for one.
+    m_typeLabel.SetVisible (!m_choices.empty());
+    m_type.SetVisible      (!m_choices.empty());
+    m_typeNote.SetVisible  (!m_choices.empty());
 
     m_type.SetSelect     ([this] (int) { m_typeEdited = true; UpdateTypeRow(); });
     m_typeHex.SetOnChange ([this] (const std::wstring &) { m_typeEdited = true; UpdateTypeRow(); });
@@ -479,7 +484,7 @@ void AppleFilePropertiesDialog::UpdateTypeRow()
 
 
 
-    m_typeHex.SetVisible (!multi && m_type.GetSelectedIndex() - (m_typeOffset ? 1 : 0) == (int) m_choices.size());
+    m_typeHex.SetVisible (!m_choices.empty() && !multi && m_type.GetSelectedIndex() - (m_typeOffset ? 1 : 0) == (int) m_choices.size());
     m_auxLabel.SetText   (AppleFileProperties::GetAuxLabel (aux));
     m_auxLabel.SetVisible (aux != AppleFileProperties::AuxKind::None);
     m_aux.SetVisible     (aux != AppleFileProperties::AuxKind::None);

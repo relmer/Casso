@@ -173,6 +173,7 @@ struct CommandLineOptions
         //
         std::string  containerType;                    // --type: dsk, do, po, woz
         std::string  formatName;                       // --format: dos33, prodos, none
+        std::string  filesystem;                       // --filesystem: cpm, for an image with no recognized file system
         std::string  volumeName;                       // --volume: a DOS number or a ProDOS name
 
         //  TWO WAYS TO BOOT, AND THEY ARE NOT THE SAME MECHANISM, which is

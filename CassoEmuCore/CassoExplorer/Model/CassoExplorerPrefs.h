@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkSettings.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
 #include "CassoExplorer/Model/PicturePreview.h"
@@ -63,6 +64,9 @@ struct CassoExplorerPrefs
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.
     std::map<std::wstring, long long>  linkFolderSeen;
+
+    //  The file system chosen for each image that detection doesn't recognize.
+    FilesystemChoices      filesystemChoices;
 
     bool                   verifyReads  = false;
     bool                   verifyWrites = false;

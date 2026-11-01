@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/LinkedDisk.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
@@ -68,6 +69,20 @@ HRESULT LinkedDisk::Prefetch()
 
     m_kind = VolumeImage::DetectFilesystem (m_sectors);
 
+    //  CP/M's directory is read only for a disk nothing else recognizes.
+    if (m_kind == VolumeKind::Unknown)
+    {
+        hr = Fetch (GetCatalogSectors (VolumeKind::Cpm));
+        CHR (hr);
+
+        m_kind = VolumeImage::DetectFilesystem (m_sectors);
+    }
+
+    if (m_kind == VolumeKind::Unknown)
+    {
+        m_kind = m_chosenKind;
+    }
+
 Error:
     return hr;
 }
@@ -104,6 +119,11 @@ std::vector<size_t> LinkedDisk::GetCatalogSectors (VolumeKind kind)
             sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, 0) / kSectorSize);
             sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, kSectorSize) / kSectorSize);
         }
+    }
+
+    else if (kind == VolumeKind::Cpm)
+    {
+        sectors = CpmVolume::GetDirectorySectors();
     }
 
     return sectors;

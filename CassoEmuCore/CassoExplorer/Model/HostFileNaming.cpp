@@ -205,6 +205,7 @@ void HostFileNaming::ConvertPayloadType (VolumeKind source, VolumeKind target, F
 
     proDos = (source == VolumeKind::Dos33)  ? MapDos33ToProDosType (inOutPayload.type)
            : (source == VolumeKind::Pascal) ? MapPascalToProDosType (inOutPayload.type)
+           : (source == VolumeKind::Cpm)    ? (Byte) 0
                                             : inOutPayload.type;
 
     if (target == VolumeKind::ProDos)
@@ -219,10 +220,14 @@ void HostFileNaming::ConvertPayloadType (VolumeKind source, VolumeKind target, F
     {
         inOutPayload.type = MapProDosToPascalKind (proDos);
     }
+    else if (target == VolumeKind::Cpm)
+    {
+        inOutPayload.type = 0;
+    }
 
     //  A DOS 3.3 binary has to record a load address, so a file from a system
     //  with no addresses goes at 0.
-    if (source == VolumeKind::Pascal && target == VolumeKind::Dos33 && inOutPayload.type == Dos33Volume::kTypeBinary)
+    if ((source == VolumeKind::Pascal || source == VolumeKind::Cpm) && target == VolumeKind::Dos33 && inOutPayload.type == Dos33Volume::kTypeBinary)
     {
         inOutPayload.hasLoadAddress = true;
     }
@@ -543,16 +548,18 @@ std::wstring HostFileNaming::ForRaw (
     bool          isDos       = kind == VolumeKind::Dos33;
     bool          isBinary    = isDos ? (type == Dos33Volume::kTypeBinary)
                                       : (type == ProDosVolume::kTypeBinary);
-    bool          isFlatNamed = kind == VolumeKind::Pascal;
+    bool          isFlatNamed = kind == VolumeKind::Pascal || kind == VolumeKind::Cpm;
     Byte          proDosType  = isDos ? MapDos33ToProDosType (type)
-                              : (kind == VolumeKind::Pascal) ? MapPascalToProDosType (type) : type;
+                              : (kind == VolumeKind::Pascal) ? MapPascalToProDosType (type)
+                              : (kind == VolumeKind::Cpm)    ? (Byte) 0 : type;
     Word          aux         = hasAddress ? address : 0;
     std::wstring  name        = MakeHostLegal (catalogName, substituted);
     char          letter      = GetDos33TypeLetter (type);
 
 
 
-    //  A Pascal name ends in what the file is, so it goes on the host as it is.
+    //  A Pascal or CP/M name ends in what the file is, so it goes on the host as
+    //  it is.
     if (isFlatNamed && style == Style::Descriptive)
     {
         return name;

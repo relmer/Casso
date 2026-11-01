@@ -75,11 +75,13 @@ public:
     void     Clear ();
 
     //  The catalog's sectors -- the VTOC and track 17 for DOS 3.3, blocks 2
-    //  to 6 for ProDOS -- in one request, and the volume's kind from them.
+    //  to 6 for ProDOS -- in one request, and the volume's kind from them. A
+    //  disk not recognized from those has CP/M's directory read too.
     HRESULT  Prefetch ();
 
     //  The sectors that hold the catalog of a volume of `kind`: track 17 for
-    //  DOS 3.3, blocks 2 to 6 for ProDOS, blocks 2 to 5 for Apple Pascal.
+    //  DOS 3.3, blocks 2 to 6 for ProDOS, blocks 2 to 5 for Apple Pascal, and
+    //  the directory blocks for CP/M.
     static std::vector<size_t>  GetCatalogSectors (VolumeKind kind);
 
     //  Runs `operation` until a run reads no absent sector. Its result is the
@@ -94,6 +96,10 @@ public:
 
     //  Fetches the given sectors that are absent, in one request.
     HRESULT  Fetch (std::span<const size_t> sectors);
+
+    //  The kind of a disk with no recognized file system. Clear doesn't reset it.
+    void                           SetChosenKind (VolumeKind kind) { m_chosenKind = kind; }
+    VolumeKind                     GetChosenKind () const { return m_chosenKind; }
 
     VolumeKind                     GetKind     () const { return m_kind; }
     bool                           IsPresent   (size_t sector) const { return sector < kSectorCount && m_present[sector]; }
@@ -111,10 +117,11 @@ private:
     HRESULT  RunOn       (const std::vector<Byte> & sectors, const std::function<HRESULT (const IVolume & volume)> & operation);
     HRESULT  FindWritten (const WriteOperation & operation, std::vector<Byte> & outResult, std::vector<bool> & outWritten);
 
-    ILinkedSectorSource     & m_source;
-    std::vector<Byte>         m_sectors;
-    std::vector<bool>         m_present;
-    std::vector<size_t>       m_misses;
-    VolumeKind                m_kind   = VolumeKind::Unknown;
-    int                       m_rounds = 0;
+    ILinkedSectorSource  & m_source;
+    std::vector<Byte>      m_sectors;
+    std::vector<bool>      m_present;
+    std::vector<size_t>    m_misses;
+    VolumeKind             m_kind       = VolumeKind::Unknown;
+    VolumeKind             m_chosenKind = VolumeKind::Unknown;
+    int                    m_rounds     = 0;
 };

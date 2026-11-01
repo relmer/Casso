@@ -1562,6 +1562,18 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { WriteImageToDisk (location, true); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { SaveLinkToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });
+
+        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.CanChooseDriveFilesystem (TextEncoding::WideToNarrow (link), drive))
+        {
+            std::string  name   = TextEncoding::WideToNarrow (link);
+            bool         chosen = m_context.app.links->GetChosenKind (name, drive) != VolumeKind::Unknown;
+
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (chosen ? CassoExplorerActions::Verb::DetectFilesystem : CassoExplorerActions::Verb::ReadAsCpm), [this, name, drive, chosen]()
+            {
+                m_context.actions.ChooseDriveFilesystem (name, drive, chosen ? VolumeKind::Unknown : VolumeKind::Cpm);
+                m_context.listPane.FillList();
+            });
+        }
     }
 
     if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)

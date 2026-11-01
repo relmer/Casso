@@ -226,7 +226,11 @@ public:
     //  outKept set. RemoveListed takes an entry deleted from the drive out
     //  of that listing.
     void  Invalidate   (const std::string & name, int drive);
-    void  RemoveListed (const std::string & name, int drive, const std::string & directory, const std::string & entry);
+
+    //  The file system of a drive's disk when detection doesn't recognize it.
+    void        SetChosenKind (const std::string & name, int drive, VolumeKind kind);
+    VolumeKind  GetChosenKind (const std::string & name, int drive) const;
+    void        RemoveListed  (const std::string & name, int drive, const std::string & directory, const std::string & entry);
 
     //  Whether anything arrived since the last call.
     bool  TakeChanged ();

@@ -956,6 +956,13 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
     disk = m_disks[index].get();
 
+    if (disk->GetChosenKind() != m_chosenKinds[index].load())
+    {
+        disk->SetChosenKind (m_chosenKinds[index].load());
+        disk->Clear();
+        m_listings[index].reset();
+    }
+
     hr = m_host->SendLabel (DescribeOperation (operation, m_listings[index]));
     CHR (hr);
 
@@ -1098,9 +1105,12 @@ HRESULT CassoLinkSession::Revalidate (int drive)
                                    disk.GetSectors().begin() + (ptrdiff_t) (marks[i] * LinkedDisk::kSectorSize));
     }
 
+    //  A choice was for the disk that was in the drive.
     if (!same)
     {
         disk.Clear();
+        disk.SetChosenKind (VolumeKind::Unknown);
+        m_chosenKinds[index] = VolumeKind::Unknown;
     }
 
 Error:

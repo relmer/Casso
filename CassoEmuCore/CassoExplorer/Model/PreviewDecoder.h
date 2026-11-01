@@ -156,6 +156,8 @@ public:
     //  A file system with no guest listing Casso reproduces.
     static void  RenderBlockCatalog  (const VolumeListing & listing, VolumeKind kind, std::vector<std::wstring> & outLines);
 
+    static PreviewContent::Kind  DecideCpm (const FilePayload & payload);
+
     //  A text file that isn't high-bit ASCII, as host text.
     static void  DecodeVolumeText    (const FilePayload & payload, std::string & outText);
 

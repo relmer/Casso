@@ -237,6 +237,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "text",
     "basic",
     "format",
+    "filesystem",
     "volume",
     "bootable",
     "boot",
@@ -1075,7 +1076,7 @@ bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
     return arg == "--out"  || arg == "--as"   || arg == "--type"
         || arg == "--load" || arg == "--exec" || arg == "--on-change"
-        || arg == "--index";
+        || arg == "--index" || arg == "--filesystem";
 }
 
 
@@ -1485,6 +1486,13 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--format" && hasValue)
         {
             options.disk.formatName = argv[i + 1];
+            i++;
+            continue;
+        }
+
+        if (arg == "--filesystem" && hasValue)
+        {
+            options.disk.filesystem = argv[i + 1];
             i++;
             continue;
         }

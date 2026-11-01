@@ -783,6 +783,38 @@ public:
 
 
 
+    TEST_METHOD (ConvertedTextGoesBackUnderItsName)
+    {
+        FileEntry              entry;
+        bool                   converted = false;
+        std::string            text      = "HI\r\n";
+        std::vector<Byte>      bytes (text.begin(), text.end());
+        ActionsTypes::PutPlan  plan;
+
+        entry.name = "PROG.TEXT";
+        entry.type = PascalVolume::kKindText;
+
+        plan = CassoExplorerActions::PlanPut (DragPayload::GetHostName (entry, VolumeKind::Pascal, HostFileNaming::Style::Descriptive, converted), bytes, VolumeKind::Pascal);
+
+        Assert::AreEqual (std::string ("PROG.TEXT"), plan.catalogName);
+        Assert::IsTrue (plan.encoding == DiskOperations::Encoding::Text);
+    }
+
+
+
+    TEST_METHOD (ACiderPressNameGoesBackWithItsKind)
+    {
+        std::vector<Byte>      bytes (16, 0x01);
+        ActionsTypes::PutPlan  plan = CassoExplorerActions::PlanPut (L"TOOL.CODE#020000", bytes, VolumeKind::Pascal);
+
+        Assert::AreEqual (std::string ("TOOL.CODE"), plan.catalogName);
+        Assert::IsTrue (plan.usePayload);
+        Assert::AreEqual ((int) PascalVolume::kKindCode, (int) plan.payload.type);
+        Assert::IsFalse (plan.payload.hasLoadAddress);
+    }
+
+
+
     TEST_METHOD (TheEncodingFollowsTheKind)
     {
         FileEntry  entry;

@@ -113,6 +113,7 @@ void ExplorerLayout::ConfigureWidgets()
         m_context.cassoLinkManager.ApplyVerifyPrefs();
         m_context.app.links->SetLinks (m_context.prefs.links);
         m_context.browser.SetLinks (m_context.app.links);
+    m_context.browser.SetFilesystemChoices (&m_context.prefs.filesystemChoices);
         m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());
         m_context.treePane.RefreshTree();
         m_context.cassoLinkManager.StartConnections();

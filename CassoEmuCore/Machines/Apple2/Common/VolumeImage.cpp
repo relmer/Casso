@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
@@ -723,6 +724,12 @@ VolumeKind VolumeImage::DetectFilesystem (const vector<Byte> & sectors)
         return VolumeKind::Pascal;
     }
 
+    //  Last, as the only one with no signature.
+    if (CpmVolume::IsFound (sectors))
+    {
+        return VolumeKind::Cpm;
+    }
+
     return VolumeKind::Unknown;
 }
 
@@ -768,6 +775,15 @@ std::unique_ptr<IVolume> VolumeImage::CreateVolume (VolumeKind kind, const vecto
 
             block->SetReadObserver (observer);
             volume = std::move (block);
+            break;
+        }
+
+        case VolumeKind::Cpm:
+        {
+            auto  cpm = std::make_unique<CpmVolume> (sectors);
+
+            cpm->SetReadObserver (observer);
+            volume = std::move (cpm);
             break;
         }
 

@@ -10,6 +10,7 @@
 #include "Cpu.h"
 #include "Disassembler.h"
 #include "IntegerBasicDetokenizer.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -152,6 +153,33 @@ PreviewContent::Kind PreviewDecoder::Decide (
     }
 
     return PreviewContent::Kind::Hex;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::DecideCpm
+//
+//  CP/M has no file types, so this tests the bytes up to the text end. CP/M text
+//  is seven bits, so a high bit isn't Apple text there, as it is elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PreviewContent::Kind PreviewDecoder::DecideCpm (const FilePayload & payload)
+{
+    std::string  text;
+    bool         isAscii = false;
+
+
+
+    CpmVolume::DecodeText (payload.bytes, text);
+
+    isAscii = std::all_of (text.begin(), text.end(), [] (char ch) { return (Byte) ch < 0x80; });
+
+    return (isAscii && LooksLikeText (std::span<const Byte> ((const Byte *) text.data(), text.size()))) ? PreviewContent::Kind::Text : PreviewContent::Kind::Hex;
 }
 
 
@@ -438,7 +466,7 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
     {
         RenderProDosCatalog (listing, outContent.lines);
     }
-    else if (kind == VolumeKind::Pascal)
+    else if (kind == VolumeKind::Pascal || kind == VolumeKind::Cpm)
     {
         RenderBlockCatalog (listing, kind, outContent.lines);
     }
@@ -469,8 +497,8 @@ HRESULT PreviewDecoder::Render (
     uint32_t                 customArgb)
 {
     HRESULT                   hr      = S_OK;
-    PreviewContent::Kind      decided = Decide (entry, kind, payload.bytes.size(),
-                                                payload.loadAddress, payload.hasLoadAddress);
+    PreviewContent::Kind      decided = (kind == VolumeKind::Cpm) ? DecideCpm (payload)
+                                                                  : Decide (entry, kind, payload.bytes.size(), payload.loadAddress, payload.hasLoadAddress);
     Word                      origin  = payload.hasLoadAddress ? payload.loadAddress : 0;
     std::string               text;
     ApplesoftListingError     applesoftError;
@@ -694,7 +722,14 @@ void PreviewDecoder::RenderBlockCatalog (const VolumeListing & listing, VolumeKi
 
 void PreviewDecoder::DecodeVolumeText (const FilePayload & payload, std::string & outText)
 {
-    PascalVolume::DecodeText (payload.bytes, outText);
+    if (payload.textForm == PayloadTextForm::PascalPages)
+    {
+        PascalVolume::DecodeText (payload.bytes, outText);
+    }
+    else
+    {
+        CpmVolume::DecodeText (payload.bytes, outText);
+    }
 }
 
 

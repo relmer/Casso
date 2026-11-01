@@ -7,6 +7,8 @@
 #include "Config/IFileSystem.h"
 #include "Seams/IShellItemVerbs.h"
 
+class FilesystemChoices;
+
 
 
 
@@ -129,6 +131,10 @@ public:
     //  Which hidden folders and images are listed. A change applies to the
     //  folders listed after it; the caller invalidates what is cached.
     void  SetFolderOptions  (const FolderOptions & options) { m_folderOptions = options; }
+
+    //  The file systems chosen for images detection doesn't recognize.
+    void  SetFilesystemChoices (const FilesystemChoices * choices) { m_filesystemChoices = choices; }
+
 
     //  The shell's navigation roots and pinned folders, read again on each
     //  call: Explorer's sections below Casso's own root. Without the shell the
@@ -320,6 +326,7 @@ private:
     mutable std::map<std::wstring, bool>             m_archiveExtensions;
     LocalizedNameLookup                              m_localizedName;
     FolderOptions                                    m_folderOptions;
+    const FilesystemChoices                        * m_filesystemChoices = nullptr;
     std::map<std::wstring, std::vector<TreeNode>>    m_children;
     int                                              m_fetchCount = 0;
     IShellItemVerbs                                * m_shellVerbs = nullptr;

@@ -81,6 +81,9 @@ public:
     {
     }
 
+    //  The filesystem of an image with no recognized filesystem.
+    void  SetChosenKind (VolumeKind kind) { m_chosenKind = kind; }
+
     //  Loads the image, identifies its filesystem and records its stamp, or
     //  explains why not.
     //  `requireFilesystem` is what every command but `stamp` wants: a disk with
@@ -189,4 +192,5 @@ private:
     //  What separates this session's temporaries from any other
     //  invocation's, taken once at construction.
     uint64_t       m_invocationTag = CommitPlan::NextInvocationTag();
+    VolumeKind     m_chosenKind    = VolumeKind {};
 };

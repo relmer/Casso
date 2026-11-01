@@ -367,6 +367,10 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.formatName == "prodos"; },
               "--format picks the filesystem" },
 
+            { "disk", "filesystem", { "CassoCli", "disk", "list", "d.dsk", "--filesystem", "cpm" },
+              [] (const CommandLineOptions & o) { return o.disk.filesystem == "cpm"; },
+              "--filesystem selects CP/M for an image with no recognized file system" },
+
             { "disk", "volume", { "CassoCli", "disk", "create", "d.dsk", "--volume", "42" },
               [] (const CommandLineOptions & o) { return o.disk.volumeName == "42"; },
               "--volume names or numbers the volume" },

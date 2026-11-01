@@ -195,7 +195,7 @@ public:
     //  The DOS 3.3 letter, the ProDOS mnemonic or the Pascal kind for a type byte.
     static std::wstring  GetTypeText (Byte type, VolumeKind kind);
 
-    //  An entry's type as the list has it.
+    //  An entry's type as the list has it, which on CP/M is its name's suffix.
     static std::wstring  GetEntryTypeText (const FileEntry & entry, VolumeKind kind);
 
     static std::wstring  GetPascalKindText (Byte kind);

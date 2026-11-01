@@ -5,6 +5,7 @@
 #include "AppleTextCodec.h"
 #include "CommandLineParser.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -19,6 +20,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CatalogModel.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "IntegerBasicDetokenizer.h"
 #include "Utils.h"
@@ -343,8 +345,8 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
 //
 //  DiskCommandRunner::FormatBlockEntry
 //
-//  An Apple Pascal entry: the lock column, the name, the kind, the blocks and
-//  the exact length.
+//  An Apple Pascal or CP/M entry: the lock column, the name, the kind where
+//  there is one, the blocks and the length.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,15 +357,13 @@ std::string DiskCommandRunner::FormatBlockEntry (const FileEntry & entry, Volume
 
 
 
-    UNREFERENCED_PARAMETER (kind);
-
     while (text.size() < 18)
     {
         text += " ";
     }
 
     snprintf (detail, sizeof (detail), "%-4s %5u  eof=%u",
-              TextEncoding::WideToNarrow (CatalogModel::GetPascalKindText (entry.type)).c_str(),
+              TextEncoding::WideToNarrow (CatalogModel::GetEntryTypeText (entry, kind)).c_str(),
               (unsigned) entry.sizeUnits,
               (unsigned) entry.eofBytes);
 
@@ -773,7 +773,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "create " + options.disk.path,
-                               "this volume is DOS 3.3, which has no directories"));
+                               (opened.kind == VolumeKind::Dos33) ? "this volume is DOS 3.3, which has no directories" : "this volume has no directories"));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -870,7 +870,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                               "this volume is DOS 3.3, which has no directories"));
+                               (opened.kind == VolumeKind::Dos33) ? "this volume is DOS 3.3, which has no directories" : "this volume has no directories"));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -994,6 +994,10 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             if (payload.textForm == PayloadTextForm::PascalPages)
             {
                 PascalVolume::DecodeText (payload.bytes, hostText);
+            }
+            else if (payload.textForm == PayloadTextForm::CpmRecords)
+            {
+                CpmVolume::DecodeText (payload.bytes, hostText);
             }
             else
             {
@@ -1380,6 +1384,17 @@ HRESULT DiskCommandRunner::ResolveFileType (
         BAIL_OUT_IF (true, hr);
     }
 
+    if (kind == VolumeKind::Cpm)
+    {
+        outType = 0;
+
+        CBRFEx (!named, E_NOTIMPL,
+                (result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype means nothing on this volume: CP/M has no file types\n", options.flagPrefix),
+                 result.exitStatus   = DiskCommandResult::kNoOutput));
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     if (isBasic)
     {
         // A tokenized program stored under any other type is a file the guest
@@ -1560,8 +1575,15 @@ HRESULT DiskCommandRunner::BuildPutPayload (
         case CommandLineOptions::DiskOptions::Encoding::Text:
             hostText.assign (hostBytes.begin(), hostBytes.end());
 
-            hr = (kind == VolumeKind::Pascal) ? PascalVolume::EncodeText (hostText, outPayload.bytes, badOffset)
-                                              : AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii, outPayload.bytes, badOffset);
+            if (kind == VolumeKind::Cpm)
+            {
+                CpmVolume::EncodeText (hostText, outPayload.bytes);
+            }
+            else
+            {
+                hr = (kind == VolumeKind::Pascal) ? PascalVolume::EncodeText (hostText, outPayload.bytes, badOffset)
+                                                  : AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii, outPayload.bytes, badOffset);
+            }
 
             if (FAILED (hr))
             {
@@ -1700,9 +1722,9 @@ HRESULT DiskCommandRunner::ApplyHostFileType (const ParsedHostName & parsed, Vol
 
 
 
-    if (kind == VolumeKind::Pascal)
+    if (kind == VolumeKind::Pascal || kind == VolumeKind::Cpm)
     {
-        inOutPayload.type = HostFileNaming::MapProDosToPascalKind (parsed.type);
+        inOutPayload.type = (kind == VolumeKind::Pascal) ? HostFileNaming::MapProDosToPascalKind (parsed.type) : (Byte) 0;
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -2203,6 +2225,8 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     std::vector<std::string>  missing;
     bool                      refused          = options.parseVerdict == CommandLineOptions::ParseVerdict::Refused;
     bool                      allOperandsGiven = false;
+    bool                      known            = false;
+    VolumeKind                chosen           = VolumeKind::Unknown;
 
 
 
@@ -2217,6 +2241,14 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
     missing          = FindMissingParameters (options);
     allOperandsGiven = missing.empty();
     CBRF (allOperandsGiven, ReportMissingParameters (missing, result));
+
+    chosen = FilesystemChoices::FromWord (options.disk.filesystem);
+    known  = options.disk.filesystem.empty() || chosen != VolumeKind::Unknown;
+
+    CBRF (known, (result.diagnostics += "Error: unknown file system: " + options.disk.filesystem + "\n",
+                  result.exitStatus   = DiskCommandResult::kNoOutput));
+
+    m_session.SetChosenKind (chosen);
 
     switch (options.disk.command)
     {

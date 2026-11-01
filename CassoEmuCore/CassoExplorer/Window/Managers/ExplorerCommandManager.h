@@ -40,6 +40,7 @@ public:
 
     static std::wstring    GetVerbTitle               (CassoExplorerActions::Verb verb);
     int                    ChooseFormatDefault        (const std::wstring & image);
+    void                   ChooseFilesystem           (VolumeKind kind);
     void                   ExtractAll                 ();
     void                   Dispatch                   (int id);
     bool                   IsEnabled                  (int id) const;

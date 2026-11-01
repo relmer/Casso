@@ -56,6 +56,11 @@ public:
 
     //  A file read from an Apple, converted as a copy out of an image is,
     //  and wrapped for HostFileNaming::Style::AppleSingle.
+    bool  CanChooseDriveFilesystem (const std::string & link, int drive) const;
+    void  AddFilesystemVerbs       (std::vector<ActionsTypes::Verb> & inOutVerbs) const;
+    void  ChooseDriveFilesystem    (VolumeKind kind);
+    void  ChooseDriveFilesystem    (const std::string & link, int drive, VolumeKind kind);
+
     static HRESULT  ToHostBytes (FilePayload payload, ActionsTypes::Encoding encoding, bool appleSingle, const AppleSingleFile & single, std::vector<Byte> & outBytes);
 
     //  A host file as the payload a put plan makes of it.

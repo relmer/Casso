@@ -1235,12 +1235,41 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             Dispatch (CassoExplorerCommands::kRefresh);
             break;
 
+        case CassoExplorerActions::Verb::ReadAsCpm:
+        case CassoExplorerActions::Verb::DetectFilesystem:
+            ChooseFilesystem ((verb == CassoExplorerActions::Verb::ReadAsCpm) ? VolumeKind::Cpm : VolumeKind::Unknown);
+            break;
+
         default:
             break;
     }
 
     IGNORE_RETURN_VALUE (hr, S_OK);
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::ChooseFilesystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::ChooseFilesystem (VolumeKind kind)
+{
+    if (m_context.browser.IsAppleDriveLocation())
+    {
+        m_context.actions.ChooseDriveFilesystem (kind);
+    }
+    else
+    {
+        m_context.actions.ChooseImageFilesystem (m_context.actions.GetFormatTarget(), kind);
+    }
+
+    m_context.listPane.FillList();
 }
 
 

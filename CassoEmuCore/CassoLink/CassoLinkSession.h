@@ -90,6 +90,11 @@ public:
     //  listens on; empty once it opens.
     std::string   GetOpenFailure () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_openFailure; }
 
+    //  The file system of a drive's disk when detection doesn't recognize it,
+    //  until another disk is found there. It takes effect at the next operation.
+    void        SetChosenKind (int drive, VolumeKind kind) { m_chosenKinds[(size_t) drive - 1] = kind; }
+    VolumeKind  GetChosenKind (int drive) const            { return m_chosenKinds[(size_t) drive - 1].load(); }
+
     std::shared_ptr<LinkOperation>  Enumerate     (int drive, const FilePath & directory);
     std::shared_ptr<LinkOperation>  ReadFile      (int drive, const FilePath & path);
     std::shared_ptr<LinkOperation>  WriteFile     (int drive, const FilePath & path, const FilePayload & payload);
@@ -179,7 +184,8 @@ private:
     std::array<std::unique_ptr<DriveSource>, 2>    m_sources;
     std::array<std::unique_ptr<LinkedDisk>, 2>     m_disks;
     std::array<std::optional<VolumeListing>, 2>    m_listings;
-    std::atomic<bool>                              m_stopping { false };   // Stop closed the line
+    std::array<std::atomic<VolumeKind>, 2>         m_chosenKinds = {};
+    std::atomic<bool>                              m_stopping    { false };   // Stop closed the line
     std::shared_ptr<LinkOperation>                 m_running;
 
     //  The session's parts, each with the state it uses.

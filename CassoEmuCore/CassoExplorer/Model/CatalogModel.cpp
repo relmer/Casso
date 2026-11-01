@@ -4,7 +4,9 @@
 
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -22,9 +24,9 @@
 
 uint64_t CatalogModel::GetUnitBytes (VolumeKind kind)
 {
-    return (kind == VolumeKind::Dos33)
-         ? (uint64_t) NibblizationLayer::kSectorByteSize
-         : (uint64_t) ProDosSkeleton::kBlockByteSize;
+    return (kind == VolumeKind::Dos33) ? (uint64_t) NibblizationLayer::kSectorByteSize
+         : (kind == VolumeKind::Cpm)   ? (uint64_t) CpmVolume::kBlockBytes
+                                       : (uint64_t) ProDosSkeleton::kBlockByteSize;
 }
 
 
@@ -68,6 +70,12 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
         return GetPascalKindText (type);
     }
 
+    //  CP/M has no types, only names.
+    if (kind == VolumeKind::Cpm)
+    {
+        return std::wstring();
+    }
+
     for (const ProDosTypeName & row : kProDosTypeNames)
     {
         if (row.type == type)
@@ -91,6 +99,15 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
 
 std::wstring CatalogModel::GetEntryTypeText (const FileEntry & entry, VolumeKind kind)
 {
+    size_t  dot = entry.name.rfind ('.');
+
+
+
+    if (kind == VolumeKind::Cpm)
+    {
+        return (dot == std::string::npos) ? std::wstring() : TextEncoding::NarrowToWide (entry.name.substr (dot + 1));
+    }
+
     return GetTypeText (entry.type, kind);
 }
 

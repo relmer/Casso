@@ -4,7 +4,9 @@
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
 #include "CassoExplorer/Model/DragPayload.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -137,6 +139,8 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         verbs.push_back (Verb::Format);
     }
 
+    AddFilesystemVerbs (verbs);
+
     //  A real file opens in its own program, and anything real has the shell's
     //  own menu. A folder or an image opens here instead.
     if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder && selected > 0)
@@ -261,6 +265,72 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerActions::AddFilesystemVerbs
+//
+//  Read as CP/M, on an image or a drive's disk that detection doesn't recognize,
+//  and the way back once it's chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::AddFilesystemVerbs (std::vector<Verb> & inOutVerbs) const
+{
+    std::wstring  image = GetFormatTarget();
+
+
+
+    if (m_browser.IsAppleDriveLocation())
+    {
+        m_appleDrive.AddFilesystemVerbs (inOutVerbs);
+    }
+    else if (!image.empty() && (m_browser.IsImageLocation() || m_browser.AreSelectedRowsImages()) && CanChooseFilesystem (image))
+    {
+        inOutVerbs.push_back ((m_browser.GetFilesystemChoices()->GetChoice (image) == VolumeKind::Unknown) ? Verb::ReadAsCpm : Verb::DetectFilesystem);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanChooseFilesystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanChooseFilesystem (const std::wstring & image) const
+{
+    return m_browser.GetFilesystemChoices() != nullptr && m_browser.GetOperations().IsUnrecognized (TextEncoding::WideToNarrow (image));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ChooseImageFilesystem
+//
+//  The list and the tree read the image again with the new choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::ChooseImageFilesystem (const std::wstring & image, VolumeKind kind)
+{
+    if (m_browser.GetFilesystemChoices() != nullptr)
+    {
+        m_browser.GetFilesystemChoices()->SetChoice (image, kind);
+    }
+
+    FinishWrite (image);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerActions::GetEncoding
 //
 //  BASIC to a listing and text to text; everything else verbatim.
@@ -277,6 +347,12 @@ ActionsTypes::Encoding CassoExplorerActions::GetEncoding (const FileEntry & entr
     if (kind == VolumeKind::Pascal)
     {
         return (entry.type == PascalVolume::kKindText) ? Encoding::Text : Encoding::Verbatim;
+    }
+
+    //  CP/M has no file types, and its text is plain ASCII.
+    if (kind == VolumeKind::Cpm)
+    {
+        return Encoding::Verbatim;
     }
 
     if (isDos ?(entry.type == Dos33Volume::kTypeApplesoft || entry.type == Dos33Volume::kTypeInteger)
@@ -330,7 +406,7 @@ std::string CassoExplorerActions::MakeCatalogName (const std::wstring & hostName
 
 
     //  A name on this system includes the suffix.
-    if (dot != std::wstring::npos && dot > 0 && kind != VolumeKind::Pascal)
+    if (dot != std::wstring::npos && dot > 0 && kind != VolumeKind::Pascal && kind != VolumeKind::Cpm)
     {
         stem = stem.substr (0, dot);
     }
@@ -355,6 +431,7 @@ std::wstring CassoExplorerActions::GetVolumeSystemName (VolumeKind kind)
         case VolumeKind::Dos33:  return L"DOS 3.3";
         case VolumeKind::ProDos: return L"ProDOS";
         case VolumeKind::Pascal: return L"Apple Pascal";
+        case VolumeKind::Cpm:    return L"CP/M";
         default:                 return L"This file system";
     }
 }
@@ -368,13 +445,13 @@ std::wstring CassoExplorerActions::GetVolumeSystemName (VolumeKind kind)
 //  CassoExplorerActions::FitEntryName
 //
 //  An entry's name going to another file system, cleaned by the target's rules
-//  when either side is Apple Pascal.
+//  when either side is Apple Pascal or CP/M.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CassoExplorerActions::FitEntryName (const std::string & name, VolumeKind source, VolumeKind target)
 {
-    bool  needsFit = source != target && (source == VolumeKind::Pascal || target == VolumeKind::Pascal);
+    bool  needsFit = source != target && (source == VolumeKind::Pascal || target == VolumeKind::Pascal || source == VolumeKind::Cpm || target == VolumeKind::Cpm);
 
 
 
@@ -402,6 +479,11 @@ std::string CassoExplorerActions::SanitizeCatalogName (const std::wstring & stem
     if (kind == VolumeKind::Pascal)
     {
         return SanitizePascalName (stem);
+    }
+
+    if (kind == VolumeKind::Cpm)
+    {
+        return SanitizeCpmName (stem);
     }
 
     for (wchar_t ch : stem)
@@ -499,10 +581,49 @@ std::string CassoExplorerActions::SanitizePascalName (const std::wstring & stem)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerActions::SanitizeCpmName
+//
+//  Upper case 8.3, split at the last period, leaving out each character CP/M
+//  doesn't allow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoExplorerActions::SanitizeCpmName (const std::wstring & stem)
+{
+    static constexpr size_t  kMaxBase = 8;
+    static constexpr size_t  kMaxType = 3;
+    size_t                   dot      = stem.rfind (L'.');
+    std::string              base;
+    std::string              type;
+
+
+
+    for (size_t i = 0; i < stem.size(); i++)
+    {
+        wchar_t  ch = stem[i];
+
+        if (i != dot && ch > 0x20 && ch < 0x7F && strchr ("<>.,;:=?*[]", (char) ch) == nullptr)
+        {
+            ((dot != std::wstring::npos && i > dot) ? type : base).push_back ((char) toupper ((int) ch));
+        }
+    }
+
+    base = base.empty() ? std::string ("FILE") : base.substr (0, kMaxBase);
+    type = type.substr (0, kMaxType);
+
+    return type.empty() ? base : base + "." + type;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerActions::AdaptPlanToVolume
 //
 //  A plan made in terms of DOS 3.3 and ProDOS, for a system with no load
-//  addresses or BASIC. A file's type maps across; text gets Pascal's suffix.
+//  addresses or BASIC. A file's type maps across, and text gets Pascal's suffix.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -513,14 +634,14 @@ ActionsTypes::PutPlan CassoExplorerActions::AdaptPlanToVolume (PutPlan plan, Vol
 
 
 
-    if (kind != VolumeKind::Pascal)
+    if (kind != VolumeKind::Pascal && kind != VolumeKind::Cpm)
     {
         return plan;
     }
 
     if (plan.usePayload)
     {
-        plan.payload.type           = HostFileNaming::MapProDosToPascalKind (plan.payload.type);
+        plan.payload.type           = (kind == VolumeKind::Pascal) ? HostFileNaming::MapProDosToPascalKind (plan.payload.type) : (Byte) 0;
         plan.payload.hasAuxType     = false;
         plan.payload.hasLoadAddress = false;
         plan.refusal.clear();
@@ -535,7 +656,7 @@ ActionsTypes::PutPlan CassoExplorerActions::AdaptPlanToVolume (PutPlan plan, Vol
         plan.encoding = Encoding::Verbatim;
     }
 
-    if (plan.encoding == Encoding::Text && PascalVolume::GetKindFromName (plan.catalogName) != PascalVolume::kKindText)
+    if (kind == VolumeKind::Pascal && plan.encoding == Encoding::Text && PascalVolume::GetKindFromName (plan.catalogName) != PascalVolume::kKindText)
     {
         dot              = plan.catalogName.rfind ('.');
         plan.catalogName = plan.catalogName.substr (0, (std::min) ((dot == std::string::npos) ? plan.catalogName.size() : dot, kMaxStem)) + ".TEXT";
@@ -1124,6 +1245,7 @@ std::string CassoExplorerActions::MakeFreeEntryName (const std::string & desired
 {
     bool         proDos    = kind != VolumeKind::Dos33;
     size_t       maxLength = proDos ? kProDosNameMax : kDos33NameMax;
+    size_t       dot       = desired.rfind ('.');
     std::string  base      = desired;
     std::string  candidate;
     int          n         = 1;
@@ -1138,6 +1260,22 @@ std::string CassoExplorerActions::MakeFreeEntryName (const std::string & desired
     if (!isTaken (desired))
     {
         return desired;
+    }
+
+    //  CP/M's 8.3: the number goes on the part before the period.
+    if (kind == VolumeKind::Cpm)
+    {
+        std::string  stem   = desired.substr (0, dot);
+        std::string  suffix = (dot == std::string::npos) ? std::string() : desired.substr (dot);
+
+        do
+        {
+            std::string  digits = std::to_string (++n);
+
+            candidate = stem.substr (0, (std::min) (stem.size(), kCpmBaseMax - digits.size())) + digits + suffix;
+        } while (isTaken (candidate));
+
+        return candidate;
     }
 
     if (copy)

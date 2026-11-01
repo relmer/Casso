@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/TreeModel.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -1467,6 +1468,11 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
     if (SUCCEEDED (hr))
     {
         kind = VolumeImage::DetectFilesystem (sectors);
+
+        if (kind == VolumeKind::Unknown && m_filesystemChoices != nullptr)
+        {
+            kind = m_filesystemChoices->GetChoice (path);
+        }
 
         if (kind == VolumeKind::Unknown)
         {

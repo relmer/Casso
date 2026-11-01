@@ -707,6 +707,11 @@ HRESULT DiskImageSession::OpenImage (
 
     outOpened.kind = VolumeImage::DetectFilesystem (outOpened.sectors);
 
+    if (outOpened.kind == VolumeKind::Unknown)
+    {
+        outOpened.kind = m_chosenKind;
+    }
+
     // THE STATUS AND THE STREAM BOTH STAY WHAT THEY WERE. A caller still
     // got no catalog, so this is still status 2 and still goes to the error
     // stream -- a script that pipes a listing must not suddenly find a

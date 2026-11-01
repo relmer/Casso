@@ -59,6 +59,110 @@ bool ActionsAppleDrive::TryGetAppleDrive (std::string & outLink, int & outDrive,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsAppleDrive::CanChooseDriveFilesystem
+//
+//  A drive whose disk read and wasn't recognized, or has a file system chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsAppleDrive::CanChooseDriveFilesystem (const std::string & link, int drive) const
+{
+    CassoLinkConnections  * links  = m_actions.m_browser.GetLinks();
+    VolumeListing           listing;
+    VolumeKind              kind   = VolumeKind::Unknown;
+    HRESULT                 result = S_OK;
+    std::string             message;
+
+
+
+    if (links == nullptr)
+    {
+        return false;
+    }
+
+    return links->GetChosenKind (link, drive) != VolumeKind::Unknown
+        || (links->TryGetListing (link, drive, std::string(), listing, kind, result, message) && result == HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::AddFilesystemVerbs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsAppleDrive::AddFilesystemVerbs (std::vector<ActionsTypes::Verb> & inOutVerbs) const
+{
+    std::string  link;
+    std::string  directory;
+    int          drive = 0;
+
+
+
+    if (TryGetAppleDrive (link, drive, directory) && directory.empty() && CanChooseDriveFilesystem (link, drive))
+    {
+        inOutVerbs.push_back ((m_actions.m_browser.GetLinks()->GetChosenKind (link, drive) == VolumeKind::Unknown) ? ActionsTypes::Verb::ReadAsCpm : ActionsTypes::Verb::DetectFilesystem);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::ChooseDriveFilesystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsAppleDrive::ChooseDriveFilesystem (VolumeKind kind)
+{
+    std::string  link;
+    std::string  directory;
+    int          drive = 0;
+
+
+
+    if (TryGetAppleDrive (link, drive, directory))
+    {
+        ChooseDriveFilesystem (link, drive, kind);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::ChooseDriveFilesystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsAppleDrive::ChooseDriveFilesystem (const std::string & link, int drive, VolumeKind kind)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_actions.m_browser.GetLinks() != nullptr)
+    {
+        m_actions.m_browser.GetLinks()->SetChosenKind (link, drive, kind);
+    }
+
+    hr = m_actions.m_browser.Refresh();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsAppleDrive::ToHostBytes
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1482,7 +1586,15 @@ std::wstring ActionsAppleDrive::DescribeAppleDrive() const
 
     text = TreeModel::GetLinkDriveLabel (slot, drive);
 
-    if (listing.hasVolumeName)
+    if (m_actions.m_browser.GetVolumeKind() == VolumeKind::Pascal)
+    {
+        text += std::format (L" ({}:)", TextEncoding::NarrowToWide (listing.volumeName));
+    }
+    else if (m_actions.m_browser.GetVolumeKind() == VolumeKind::Cpm)
+    {
+        text += L" (CP/M)";
+    }
+    else if (listing.hasVolumeName)
     {
         text += std::format (L" (/{})", TextEncoding::NarrowToWide (listing.volumeName));
     }

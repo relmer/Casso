@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/DiskOperations.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -78,6 +80,7 @@ std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
     if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))          { return "it is larger than this file system can record"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED)) { return "it is a directory, and this operation is for files only"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))       { return "it requires a load address"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))           { return "this file system does not store that"; }
 
     return std::format ("the volume returned error 0x{:08X}", (unsigned) hr);
 }
@@ -99,15 +102,18 @@ std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
 
 DiskOperations::Result DiskOperations::RunCommand (const CommandLineOptions & options)
 {
-    DiskCommandRunner  runner (m_fileIo);
-    DiskCommandResult  command;
-    Result             result;
+    DiskCommandRunner   runner (m_fileIo);
+    DiskCommandResult   command;
+    Result              result;
+    CommandLineOptions  effective = options;
 
 
 
     runner.SetIntentChannel (m_intentChannel);
 
-    command = runner.Run (options);
+    effective.disk.filesystem = FilesystemChoices::GetWord (GetChoice (options.disk.imagePath));
+
+    command = runner.Run (effective);
 
     result.exitStatus = command.exitStatus;
     result.message    = command.diagnostics;
@@ -174,11 +180,53 @@ DiskOperations::Result DiskOperations::OpenVolume (const std::string & imagePath
 
 
 
+    session.SetChosenKind (GetChoice (imagePath));
+
     result.hr         = session.OpenImage (imagePath, outOpened, command);
     result.exitStatus = command.exitStatus;
     result.message    = command.diagnostics;
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::GetChoice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+VolumeKind DiskOperations::GetChoice (const std::string & imagePath) const
+{
+    return (m_choices != nullptr) ? m_choices->GetChoice (TextEncoding::NarrowToWide (imagePath)) : VolumeKind::Unknown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::IsUnrecognized
+//
+//  Whether the image loads, with no file system detection recognizes. A choice
+//  doesn't change the answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskOperations::IsUnrecognized (const std::string & imagePath)
+{
+    DiskImageSession               session (m_fileIo);
+    DiskCommandResult              command;
+    DiskImageSession::OpenedImage  opened;
+    HRESULT                        hr = session.OpenImage (imagePath, opened, command, false);
+
+
+
+    return SUCCEEDED (hr) && opened.kind == VolumeKind::Unknown;
 }
 
 

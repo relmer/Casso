@@ -6,10 +6,12 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -441,6 +443,95 @@ public:
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED), write->result);
         Assert::IsFalse (write->message.empty());
         Assert::IsTrue (rig.Drive (1) == changed, L"nothing written");
+    }
+
+
+
+
+    TEST_METHOD (APascalDisk_ListsReadsAndWrites)
+    {
+        Rig                rig;
+        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  expected;
+        FilePayload        payload = Binary (PascalVolume::kKindData, 1500, 7);
+        const char         name[]  = "LINKED";
+
+        disk[ProDosSkeleton::GetBlockByteOffset (2, 2)]  = 6;
+        disk[ProDosSkeleton::GetBlockByteOffset (2, 6)]  = (Byte) strlen (name);
+        disk[ProDosSkeleton::GetBlockByteOffset (2, 14)] = 24;
+        disk[ProDosSkeleton::GetBlockByteOffset (2, 15)] = 1;
+
+        for (size_t i = 0; i < strlen (name); i++)
+        {
+            disk[ProDosSkeleton::GetBlockByteOffset (2, 7 + i)] = (Byte) name[i];
+        }
+
+        rig.apple.drives[0] = disk;
+        rig.Start();
+
+        auto  list = rig.Finish (rig.session->Enumerate (1, FilePath()));
+
+        AssertSucceeded (list->result);
+        Assert::IsTrue (list->volumeKind == VolumeKind::Pascal);
+        Assert::AreEqual (std::string ("LINKED"), list->listing.volumeName);
+
+        AssertSucceeded (PascalVolume (disk).Write (FilePath::Parse ("NEW.DATA"), payload, expected));
+        AssertSucceeded (rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("NEW.DATA"), payload))->result);
+        Assert::IsTrue (rig.Drive (1) == expected);
+
+        auto  read = rig.Finish (rig.session->ReadFile (1, FilePath::Parse ("NEW.DATA")));
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue (read->file.bytes == payload.bytes);
+
+        AssertSucceeded (rig.Finish (rig.session->Rename (1, FilePath::Parse ("NEW.DATA"), "OLD.DATA"))->result);
+        AssertSucceeded (rig.Finish (rig.session->Delete (1, FilePath::Parse ("OLD.DATA")))->result);
+        Assert::AreEqual ((size_t) 0, rig.Finish (rig.session->Enumerate (1, FilePath()))->listing.entries.size());
+    }
+
+
+
+
+    TEST_METHOD (ABlankCpmDisk_NeedsAChoice_UntilAnotherDiskIsInTheDrive)
+    {
+        Rig                rig;
+        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, CpmVolume::kFree);
+        std::vector<Byte>  expected;
+        FilePayload        payload = Binary (0, 2000, 3);
+
+        rig.apple.drives[1] = disk;
+        rig.Start();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
+
+        rig.session->SetChosenKind (2, VolumeKind::Cpm);
+
+        auto  list = rig.Finish (rig.session->Enumerate (2, FilePath()));
+
+        AssertSucceeded (list->result);
+        Assert::IsTrue (list->volumeKind == VolumeKind::Cpm);
+        Assert::AreEqual ((uint32_t) 126, list->listing.freeUnits);
+
+        AssertSucceeded (CpmVolume (disk).Write (FilePath::Parse ("A.COM"), payload, expected));
+        AssertSucceeded (rig.Finish (rig.session->WriteFile (2, FilePath::Parse ("A.COM"), payload))->result);
+        Assert::IsTrue (rig.Drive (2) == expected);
+
+        auto  read = rig.Finish (rig.session->ReadFile (2, FilePath::Parse ("A.COM")));
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue (std::equal (payload.bytes.begin(), payload.bytes.end(), read->file.bytes.begin()));
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            rig.apple.drives[1] = BuildProDos();
+        }
+
+        auto  changed = rig.Finish (rig.session->Enumerate (2, FilePath()));
+
+        AssertSucceeded (changed->result);
+        Assert::IsTrue (changed->volumeKind == VolumeKind::ProDos);
+        Assert::IsTrue (rig.session->GetChosenKind (2) == VolumeKind::Unknown, L"the choice was for the other disk");
     }
 
 

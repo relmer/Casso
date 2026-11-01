@@ -589,6 +589,19 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("linkFolderSeen",   JsonValue (std::move (seenValues)));
 
+    std::vector<JsonValue>  choiceValues;
+
+    for (const auto & [image, kind] : filesystemChoices.GetAll())
+    {
+        std::vector<std::pair<std::string, JsonValue>>  choice;
+
+        choice.emplace_back ("image",      JsonValue (TextEncoding::WideToUtf8 (image)));
+        choice.emplace_back ("filesystem", JsonValue (std::string (FilesystemChoices::GetWord (kind))));
+        choiceValues.push_back (JsonValue (std::move (choice)));
+    }
+
+    root.emplace_back ("filesystemChoices", JsonValue (std::move (choiceValues)));
+
     return JsonValue (std::move (root));
 }
 
@@ -670,6 +683,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * tabArray     = nullptr;
     const JsonValue  * typedArray   = nullptr;
     const JsonValue  * seenArray    = nullptr;
+    const JsonValue  * choiceArray  = nullptr;
     const JsonValue  * linkArray    = nullptr;
     const JsonValue  * widthArray   = nullptr;
     const JsonValue  * orderArray   = nullptr;
@@ -838,6 +852,20 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
             if (seenArray->GetArrayElement (i).HasString ("folder", folder) && seenArray->GetArrayElement (i).HasString ("ticks", ticks))
             {
                 linkFolderSeen[TextEncoding::Utf8ToWide (folder)] = _atoi64 (ticks.c_str());
+            }
+        }
+    }
+
+    if (root.HasArray ("filesystemChoices", choiceArray))
+    {
+        for (i = 0; i < choiceArray->GetArraySize(); i++)
+        {
+            std::string  image;
+            std::string  word;
+
+            if (choiceArray->GetArrayElement (i).HasString ("image", image) && choiceArray->GetArrayElement (i).HasString ("filesystem", word))
+            {
+                filesystemChoices.SetChoice (TextEncoding::Utf8ToWide (image), FilesystemChoices::FromWord (word));
             }
         }
     }

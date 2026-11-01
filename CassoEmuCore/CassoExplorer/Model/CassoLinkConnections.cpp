@@ -928,9 +928,11 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             {
                 const VolumeListing  & listing = catalog->second->listing;
 
-                row.volume = listing.hasVolumeName   ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
-                           : listing.hasVolumeNumber ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
-                                                     : std::wstring();
+                row.volume = (catalog->second->volumeKind == VolumeKind::Pascal) ? TextEncoding::NarrowToWide (listing.volumeName) + L":"
+                           : (catalog->second->volumeKind == VolumeKind::Cpm)    ? std::wstring (L"CP/M")
+                           : listing.hasVolumeName                               ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
+                           : listing.hasVolumeNumber                             ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
+                                                                                 : std::wstring();
 
                 for (const FileEntry & entry : listing.entries)
                 {
@@ -1582,6 +1584,53 @@ std::wstring CassoLinkConnections::DescribeFailure (const LinkOperation & operat
     }
 
     return what + L": " + why;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::SetChosenKind
+//
+//  The drive's catalog is read again by the next listing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::SetChosenKind (const std::string & name, int drive, VolumeKind kind)
+{
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+        Link                       * link = FindLink (name);
+
+        if (link != nullptr && link->session != nullptr)
+        {
+            link->session->SetChosenKind (drive, kind);
+        }
+    }
+
+    Invalidate (name, drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::GetChosenKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+VolumeKind CassoLinkConnections::GetChosenKind (const std::string & name, int drive) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+    const Link                 * link = FindLink (name);
+
+
+
+    return (link != nullptr && link->session != nullptr) ? link->session->GetChosenKind (drive) : VolumeKind::Unknown;
 }
 
 

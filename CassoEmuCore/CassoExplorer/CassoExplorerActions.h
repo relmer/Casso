@@ -109,6 +109,7 @@ public:
     static constexpr const wchar_t *  kProDosFolderBase        = L"NEW.FOLDER";
     static constexpr size_t           kProDosNameMax           = 15;
     static constexpr size_t           kDos33NameMax            = 30;
+    static constexpr size_t           kCpmBaseMax              = 8;
     Outcome  DeleteSelected ();
 
     //  Entries by catalog path, for the second half of a move. A path that
@@ -218,6 +219,15 @@ public:
     //  Stops the open Apple drive's link's running operation.
     void  CancelLinkOperation () { m_appleDrive.CancelLinkOperation(); }
 
+    //  An image that detection doesn't recognize, whose file system is chosen.
+    bool  CanChooseFilesystem   (const std::wstring & image) const;
+    void  ChooseImageFilesystem (const std::wstring & image, VolumeKind kind);
+
+    //  The same for the open Apple drive's disk.
+    void  ChooseDriveFilesystem    (VolumeKind kind) { m_appleDrive.ChooseDriveFilesystem (kind); }
+    void  ChooseDriveFilesystem    (const std::string & link, int drive, VolumeKind kind) { m_appleDrive.ChooseDriveFilesystem (link, drive, kind); }
+    bool  CanChooseDriveFilesystem (const std::string & link, int drive) const { return m_appleDrive.CanChooseDriveFilesystem (link, drive); }
+
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
 
     static PutPlan       PlanPut         (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
@@ -231,6 +241,9 @@ public:
     static PutPlan       PlanForcedConversion (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
     static PutPlan       AdaptPlanToVolume    (PutPlan plan, VolumeKind kind);
     static std::string   SanitizePascalName   (const std::wstring & stem);
+    static std::string   SanitizeCpmName      (const std::wstring & stem);
+
+    void                 AddFilesystemVerbs   (std::vector<Verb> & inOutVerbs) const;
 
     //  A host file's stem as a legal catalog name: DOS 3.3 keeps up to 30
     //  printable characters; ProDOS keeps up to 15 of letters, digits and

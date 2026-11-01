@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EhmTestHelper.h"
+#include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -100,5 +101,90 @@ public:
         AssertSucceeded (volume.Read (FilePath::Parse ("SYSTEM.SYNTAX"), syntax));
         PascalVolume::DecodeText (syntax.bytes, text);
         Assert::IsTrue (text.find ("1: Error in simple type\r\n2: Identifier expected\r\n") != std::string::npos, L"The compiler's messages");
+    }
+
+
+
+    static bool  HasText (const FilePayload & payload, const char * text)
+    {
+        return std::search (payload.bytes.begin(), payload.bytes.end(), text, text + strlen (text)) != payload.bytes.end();
+    }
+
+
+
+    //  A data disk, with leftover program bytes in half its directory.
+    TEST_METHOD (CpmDataDiskListsAndReads)
+    {
+        std::vector<Byte>  sectors;
+        VolumeListing      listing;
+        FilePayload        test;
+        FilePayload        data;
+
+        if (!TryLoad ("0005.dsk", sectors))
+        {
+            return;
+        }
+
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::Cpm);
+
+        CpmVolume  volume (sectors);
+
+        AssertSucceeded (volume.Enumerate (listing));
+
+        Assert::AreEqual ((size_t) 2, listing.entries.size());
+        Assert::AreEqual (std::string ("TEST.COM"), listing.entries[0].name);
+        Assert::AreEqual (std::string ("TESTFILE"), listing.entries[1].name);
+        Assert::AreEqual ((size_t) 1, listing.damage.size(), L"The leftover bytes are reported");
+
+        AssertSucceeded (volume.Read (FilePath::Parse ("TEST.COM"), test));
+
+        Assert::AreEqual ((size_t) 56 * 128, test.bytes.size());
+        Assert::AreEqual ((int) 0xC3, (int) test.bytes[0], L"A program starts with a jump");
+        Assert::IsTrue (HasText (test, "Copyright (c) 1983 by microMethods"));
+
+        AssertSucceeded (volume.Read (FilePath::Parse ("TESTFILE"), data));
+        Assert::AreEqual ((size_t) 256 * 128, data.bytes.size(), L"Three entries, the last with no records");
+    }
+
+
+
+    //  A boot disk, whose system image is listed under user 31.
+    TEST_METHOD (CpmBootDiskListsAndReads)
+    {
+        std::vector<Byte>  sectors;
+        VolumeListing      listing;
+        FilePayload        configure;
+        FilePayload        sample;
+        FilePayload        system;
+        std::string        text;
+
+        if (!TryLoad ("0007.dsk", sectors))
+        {
+            return;
+        }
+
+        Assert::IsTrue (VolumeImage::DetectFilesystem (sectors) == VolumeKind::Cpm);
+
+        CpmVolume  volume (sectors);
+
+        AssertSucceeded (volume.Enumerate (listing));
+
+        Assert::IsTrue (listing.damage.empty());
+        Assert::AreEqual (std::string ("31:cp/am.sys"), listing.entries[0].name);
+        Assert::IsTrue (listing.entries[0].isLocked);
+        Assert::AreEqual ((uint32_t) 3, listing.freeUnits, L"Blocks 2 to 124 are in use");
+
+        //  Strings that cross a sector boundary confirm the skew.
+        AssertSucceeded (volume.Read (FilePath::Parse ("CONFIGIO.COM"), configure));
+        Assert::IsTrue (HasText (configure, "REQUIRED (Y/N)?"));
+        Assert::IsTrue (HasText (configure, "ADD/DELETE/EXIT (A/D/X)"));
+
+        AssertSucceeded (volume.Read (FilePath::Parse ("SAMPLE.SUB"), sample));
+        CpmVolume::DecodeText (sample.bytes, text);
+        Assert::IsTrue (text.starts_with ("dir\r\nramdrive d:\r\n"), L"A text file");
+
+        //  The system entry's blocks wrap to tracks 0 to 2.
+        AssertSucceeded (volume.Read (FilePath::Parse ("31:cp/am.sys"), system));
+        Assert::IsTrue (HasText (system, "CP/AM (C) 1985 Applied Engineering"));
     }
 };

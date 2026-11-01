@@ -117,6 +117,8 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::EmptyRecycleBin: return L"Empty Recycle &Bin";
         case CassoExplorerActions::Verb::ExtractAll:     return L"Extract A&ll...";
         case CassoExplorerActions::Verb::ExtractFiles:   return L"E&xtract all files";
+        case CassoExplorerActions::Verb::ReadAsCpm:      return L"Read as C&P/M";
+        case CassoExplorerActions::Verb::DetectFilesystem: return L"Detect the file s&ystem";
         case CassoExplorerActions::Verb::Lock:           return L"&Lock";
         case CassoExplorerActions::Verb::Unlock:         return L"&Unlock";
         case CassoExplorerActions::Verb::ConvertTo:      return L"Con&vert to";

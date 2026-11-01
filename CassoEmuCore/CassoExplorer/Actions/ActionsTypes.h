@@ -62,6 +62,8 @@ struct ActionsTypes
 
         //  Every file on a disk image, copied into a folder beside it.
         ExtractFiles,
+        ReadAsCpm,
+        DetectFilesystem,
 
         //  A disk's files: locked or unlocked, and a BASIC program or text
         //  file converted into a new file beside it.

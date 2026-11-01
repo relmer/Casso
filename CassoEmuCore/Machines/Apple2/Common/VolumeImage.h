@@ -31,6 +31,7 @@ enum class VolumeKind
     Dos33,
     ProDos,
     Pascal,
+    Cpm,
 };
 
 

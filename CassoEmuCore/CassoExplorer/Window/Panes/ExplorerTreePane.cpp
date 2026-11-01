@@ -15,6 +15,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/Model/FilesystemChoices.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
@@ -890,6 +892,17 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.fileOps.OpenInNewCasso (image); });
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.commandManager.ExtractImageFiles (image); });
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
+
+        if (m_context.actions.CanChooseFilesystem (image))
+        {
+            bool  chosen = m_context.browser.GetFilesystemChoices()->GetChoice (image) != VolumeKind::Unknown;
+
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (chosen ? CassoExplorerActions::Verb::DetectFilesystem : CassoExplorerActions::Verb::ReadAsCpm), [this, image, chosen]()
+            {
+                m_context.actions.ChooseImageFilesystem (image, chosen ? VolumeKind::Unknown : VolumeKind::Cpm);
+                m_context.listPane.FillList();
+            });
+        }
     }
 
     if (hasFolder && m_context.browser.CanRemoveFromCasso (id))

@@ -45,7 +45,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "list | cat | catalog | dir | ls",
         "Show what is on the disk",
         "CassoCli disk list <image> [<dir>] [%Lrecurse]",
-        "  %Lrecurse               Also list everything below <dir>, one full path per row\n",
+        "  %Lrecurse               Also list everything below <dir>, one full path per row\n"
+        "  %Lfilesystem cpm        Read an image as CP/M when its file system is not recognized. It also applies to get, put, and delete\n",
         //  The columns still speak for themselves, and the paragraph says only
         //  what the rows cannot: where a directory goes, and the short forms.
         "Naming a directory lists that one instead of the volume directory, on a ProDOS disk. -r and -s do what --recurse does.",

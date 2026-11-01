@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
+class FilesystemChoices;
 class IDiskFileIo;
 class IIntentChannel;
 enum class VolumeKind;
@@ -78,6 +79,11 @@ public:
     explicit DiskOperations (IDiskFileIo & fileIo);
 
     void  SetIntentChannel (IIntentChannel * channel) { m_intentChannel = channel; }
+
+    //  The file systems chosen for images detection doesn't recognize.
+    void  SetFilesystemChoices (const FilesystemChoices * choices) { m_choices = choices; }
+
+    bool  IsUnrecognized (const std::string & imagePath);
 
     IDiskFileIo &  GetFileIo () { return m_fileIo; }
 
@@ -148,6 +154,9 @@ private:
 
     Result  RunCommand (const CommandLineOptions & options);
     Result  OpenVolume (const std::string & imagePath, DiskImageSession::OpenedImage & outOpened);
+
+    VolumeKind  GetChoice (const std::string & imagePath) const;
+
     Result  CommitEdit (const std::string & imagePath, const DiskImageSession::OpenedImage & opened,
                         const std::vector<Byte> & edited);
 
@@ -157,6 +166,7 @@ private:
 
     void  ApplyIndex (size_t catalogIndex, CommandLineOptions & inOutOptions);
 
-    IDiskFileIo     & m_fileIo;
-    IIntentChannel  * m_intentChannel = nullptr;
+    IDiskFileIo              & m_fileIo;
+    IIntentChannel           * m_intentChannel = nullptr;
+    const FilesystemChoices  * m_choices       = nullptr;
 };
