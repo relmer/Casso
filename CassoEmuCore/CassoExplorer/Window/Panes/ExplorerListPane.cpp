@@ -1538,8 +1538,9 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
     }
     else if (key.starts_with (listKey))
     {
-        if ((m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && m_context.browser.GetLocation().path == key.substr (listKey.size()))
-            || (m_context.browser.IsHomeLocation() && key.substr (listKey.size()) == IShellItemVerbs::kHomeId))
+        if (m_context.browser.GetShellListings().IsReadOrReading (key)
+            && ((m_context.browser.GetLocation().kind == Location::Kind::ShellFolder && m_context.browser.GetLocation().path == key.substr (listKey.size()))
+                || (m_context.browser.IsHomeLocation() && key.substr (listKey.size()) == IShellItemVerbs::kHomeId)))
         {
             //  Home reads again while it is shown, so its selection stays.
             hr = m_context.browser.IsHomeLocation() ? m_context.browser.Reload (true) : m_context.browser.Refresh();
@@ -1823,9 +1824,17 @@ void ExplorerListPane::HandleContentDetailsArrived()
     {
         const BrowserModel &  model = m_context.browser.GetBrowserModel();
 
-        //  Rows grouped by a property move as its values arrive.
-        if (model.HasTabs() && RowGrouping::IsPropertyField (model.GetActiveTab().groupBy))
+        static constexpr ULONGLONG  s_kRearrangeMs = 1000;
+
+        ULONGLONG  now      = GetTickCount64();
+        bool       property = model.HasTabs() && (RowGrouping::IsPropertyField (model.GetActiveTab().groupBy) || (size_t) model.GetActiveTab().sortColumn >= CatalogModel::kColumnCount);
+
+        //  Rows sorted or grouped by a property move as its values arrive: at
+        //  most once a second, so a large folder stays usable, and when the
+        //  last have arrived.
+        if (property && (m_propertyValues.IsQueueEmpty() || now - m_lastRearrangeMs >= s_kRearrangeMs))
         {
+            m_lastRearrangeMs = now;
             m_context.browser.SetGroupBy (model.GetActiveTab().groupBy, model.GetActiveTab().groupDescending);
             FillList();
         }

@@ -90,7 +90,9 @@ public:
     //  created, or an empty path when none can be found.
     HRESULT  CreateNew (HWND owner, const std::wstring & folder, const std::wstring & verb, std::wstring & outPath);
 
-    HRESULT  Invoke (HWND owner, const Entry & entry, const std::vector<std::wstring> & paths);
+    HRESULT         Invoke         (HWND owner, const Entry & entry, const std::vector<std::wstring> & paths);
+    static HRESULT  InvokeGuarded  (IExplorerCommand * command, IShellItemArray * items);
+    static HRESULT  SetSiteGuarded (IObjectWithSite * sited, IUnknown * site);
 
 private:
     std::vector<std::wstring>  m_itemIds;

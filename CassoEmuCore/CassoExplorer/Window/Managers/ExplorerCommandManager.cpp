@@ -358,6 +358,7 @@ void ExplorerCommandManager::Dispatch (int id)
             m_context.browser.SetGroupBy (field, field == RowGrouping::Field::DateModified || field == RowGrouping::Field::DateDeleted || field == RowGrouping::Field::Relevance);
             m_context.listPane.GetColumns().RememberFolderSort();
             m_context.listPane.FillList();
+            m_context.toolbars.SetCommandBarDropDowns();
         }
 
         return;

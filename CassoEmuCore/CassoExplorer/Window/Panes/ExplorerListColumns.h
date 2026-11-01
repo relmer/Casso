@@ -54,6 +54,7 @@ public:
     RowGrouping::Field    GetPropertyField   (const std::wstring & canonicalName);
     GroupChoices::Folder  GetGroupFolder     () const;
     bool                  IsFolderViewSaved  (const std::wstring & key) const;
+    bool                  IsDownloadsFolder  () const;
     void                  ApplyFolderView    ();
     void                  RememberFolderSort ();
     DxuiListView::View    GetView            () const { return m_view; }

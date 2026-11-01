@@ -291,6 +291,7 @@ void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
 {
     m_shellVerbs = verbs;
     m_shellListings.SetLister ((verbs != nullptr) ? verbs->GetShellLister() : IShellItemVerbs::ShellLister());
+    m_shellListings.SetProgressSetter ([] (CassoExplorerShellListings::Progress progress) { IShellItemVerbs::s_listingProgress = std::move (progress); });
     m_tree.SetShellVerbs (verbs);
 
     m_tree.SetShellFetch ([this] (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
@@ -392,7 +393,7 @@ void CassoExplorerBrowser::SortRows()
 
         for (size_t row = 0; row < m_rows.size(); row++)
         {
-            keys.push_back (m_propertyKey (row, (size_t) m_model.GetActiveTab().sortColumn - CatalogModel::kColumnCount));
+            keys.push_back ((m_propertyPeek ? m_propertyPeek : m_propertyKey) (row, (size_t) m_model.GetActiveTab().sortColumn - CatalogModel::kColumnCount));
         }
 
         CatalogModel::SortByProperty (m_rows, keys, m_model.GetActiveTab().sortDescending);

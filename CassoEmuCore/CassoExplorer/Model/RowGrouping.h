@@ -66,6 +66,11 @@ public:
     //  without a value is Unspecified.
     static Group  GetPropertyGroup (const CatalogModel::PropertyKey & key, const Today & today);
 
+    //  Windows' ranges for a drive: its total size, and a percentage in tens,
+    //  with a whole drive's 100% alone. The suffix is " free" for free space.
+    static Group  GetCapacityGroup (uint64_t bytes);
+    static Group  GetPercentGroup  (double percent, const wchar_t * suffix);
+
     //  An item with a value of several parts is in a group for each, as File
     //  Explorer lists it.
     static std::vector<Group>  GetPropertyGroups (const CatalogModel::PropertyKey & key, const Today & today);

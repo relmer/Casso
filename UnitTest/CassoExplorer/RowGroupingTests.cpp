@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Core/UnicodeSymbols.h"
+#include "CassoExplorer/CassoExplorerShellListings.h"
 #include "CassoExplorer/Model/GroupChoices.h"
 #include "CassoExplorer/Model/RowGrouping.h"
 #include "Seams/Win32PropertyColumns.h"
@@ -64,6 +65,89 @@ public:
         key.isDate = true;
         key.number = 116444736000000000.0;    // 1970, as a FILETIME
         Assert::AreEqual (std::wstring (L"A long time ago"), RowGrouping::GetPropertyGroup (key, today).label);
+    }
+
+    //  A slow read shows what it has so far, and a second read keeps showing
+    //  the first one's items until it finishes.
+    TEST_METHOD (ShellListing_PublishesProgressAndKeepsItemsDuringTheNextRead)
+    {
+        using Listings = CassoExplorerListings<int>;
+
+        static constexpr int  s_kTries = 2000;
+
+        Listings               listings;
+        HWND                   target  = CreateWindowExW (0, L"STATIC", nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
+        std::vector<int>                 items;
+        HRESULT                          result   = S_OK;
+        std::atomic<bool>                release  = false;
+        thread_local Listings::Progress  progress;
+
+        listings.SetTarget (target, WM_NULL);
+        listings.SetProgressSetter ([] (Listings::Progress given) { progress = std::move (given); });
+        listings.SetLister ([&release] (const std::wstring &, std::vector<int> & outItems)
+        {
+            outItems = { 1 };
+            progress (outItems);
+
+            while (!release)
+            {
+                std::this_thread::sleep_for (std::chrono::milliseconds (1));
+            }
+
+            outItems = { 1, 2 };
+
+            return S_OK;
+        });
+
+        Assert::IsFalse (listings.TryTake (L"k", L"id", items, result));
+
+        for (int at = 0; at < s_kTries && !listings.TryGetLatest (L"k", items); at++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        Assert::AreEqual ((size_t) 1, items.size(), L"The read in progress shows what it has");
+        Assert::IsFalse  (listings.TryTake (L"k", L"id", items, result), L"and is not finished");
+
+        release = true;
+
+        for (int at = 0; at < s_kTries && !listings.TryTake (L"k", L"id", items, result); at++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        Assert::AreEqual ((size_t) 2, items.size());
+        Assert::IsFalse  (listings.IsReadOrReading (L"k"), L"A progress message arriving now has nothing to act on");
+
+        //  A second read, still under way, has the first's items to show.
+        release = false;
+        Assert::IsFalse  (listings.TryTake (L"k", L"id", items, result));
+        Assert::IsTrue   (listings.TryGetLatest (L"k", items));
+        Assert::IsFalse  (items.empty());
+
+        release = true;
+
+        for (int at = 0; at < s_kTries && !listings.TryTake (L"k", L"id", items, result); at++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        DestroyWindow (target);
+    }
+
+    TEST_METHOD (DriveRanges_AreWindowsLabels)
+    {
+        static constexpr uint64_t  kGiB = 1024ull * 1024ull * 1024ull;
+
+        Assert::AreEqual (std::wstring (L"0 - 16 GB"),       RowGrouping::GetCapacityGroup (16 * kGiB).label);
+        Assert::AreEqual (std::wstring (L"16 GB - 80 GB"),   RowGrouping::GetCapacityGroup (16 * kGiB + 1).label);
+        Assert::AreEqual (std::wstring (L"250 GB - 500 GB"), RowGrouping::GetCapacityGroup (476 * kGiB).label);
+        Assert::AreEqual (std::wstring (L"500 GB - 1 TB"),   RowGrouping::GetCapacityGroup (1024 * kGiB).label);
+        Assert::AreEqual (std::wstring (L">1 TB"),           RowGrouping::GetCapacityGroup (1025 * kGiB).label);
+
+        Assert::AreEqual (std::wstring (L"30% - 39%"),       RowGrouping::GetPercentGroup (35.0, L"").label);
+        Assert::AreEqual (std::wstring (L"60% - 69% free"),  RowGrouping::GetPercentGroup (65.0, L" free").label);
+        Assert::AreEqual (std::wstring (L"100%"),            RowGrouping::GetPercentGroup (100.0, L"").label);
     }
 
     TEST_METHOD (PropertyGroups_ListAValueOfSeveralPartsInEach)

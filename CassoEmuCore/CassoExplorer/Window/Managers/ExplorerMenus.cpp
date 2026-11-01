@@ -1065,6 +1065,12 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
         HRESULT  hr = entry.command ? m_packagedCommands.Invoke (m_context.window.GetHwnd(), entry, paths)
                                     : m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), paths, entry.verb.c_str());
 
+        //  Another program's command faulted, and was stopped.
+        if (hr == E_UNEXPECTED)
+        {
+            m_context.window.ShowMessage (L"\"" + entry.title + L"\" stopped working.", MB_ICONWARNING);
+        }
+
         IGNORE_RETURN_VALUE (hr, S_OK);
     };
 

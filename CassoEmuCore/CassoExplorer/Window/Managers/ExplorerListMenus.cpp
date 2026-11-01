@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
@@ -106,6 +107,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 
             m_pane.GetColumns().RememberFolderColumns();
             m_pane.FillList();
+            m_context.toolbars.SetCommandBarDropDowns();
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
@@ -1031,7 +1033,11 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
         }
     }
 
-    items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupByField)));
+    //  (None) only while grouped, as File Explorer's.
+    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetBrowserModel().GetActiveTab().groupBy != RowGrouping::Field::None)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupByField)));
+    }
 
     more->label    = L"More";
     more->dispatch = [this]() { m_pane.GetColumns().ChooseDetails(); };

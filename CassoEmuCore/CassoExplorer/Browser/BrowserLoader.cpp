@@ -147,7 +147,8 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
     {
         hr = m_browser.m_shellVerbs->ListShellFolder (id, items);
     }
-    else if (!m_browser.m_shellListings.TryTake (CassoExplorerBrowser::s_kListKey + id, id, items, hr))
+    else if (!m_browser.m_shellListings.TryTake (CassoExplorerBrowser::s_kListKey + id, id, items, hr)
+             && !m_browser.m_shellListings.TryGetLatest (CassoExplorerBrowser::s_kListKey + id, items))
     {
         m_listError = CassoExplorerBrowser::s_kWorkingText;
         return S_OK;

@@ -868,6 +868,14 @@ bool BrowserModel::ParseAddress (IFileSystem & fs, const std::wstring & text, Lo
         return true;
     }
 
+    //  This PC by the shell's names for it is the root, with its columns and
+    //  its grouping.
+    if (_wcsicmp (path.c_str(), L"shell:MyComputerFolder") == 0 || _wcsicmp (path.c_str(), L"::{20D04FE0-3AEA-1069-A2D8-08002B30309D}") == 0 || _wcsicmp (path.c_str(), L"shell:::{20D04FE0-3AEA-1069-A2D8-08002B30309D}") == 0)
+    {
+        outLocation = Location::MakeRoot (TreeModel::kThisPcRootId);
+        return true;
+    }
+
     //  Any other folder by the shell's own name for it; what it shows is
     //  asked of the shell when it opens.
     if (Location::IsShellName (path))

@@ -69,6 +69,9 @@ public:
     //  Whether values arrived since the last call.
     bool  TakeArrived ();
 
+    //  Whether no item is waiting to be read.
+    bool  IsQueueEmpty ();
+
     //  Clears every item's values, as a folder's change may have changed them.
     void  Clear ();
 

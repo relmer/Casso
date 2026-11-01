@@ -348,9 +348,10 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
 
         cells[0].tileLines = { meter, free };
     }
-    else if (!row.isDirectory)
+    else if (!row.isDirectory && (row.shellId.empty() || !row.hostPath.empty() || !row.imagePath.empty() || row.sizeBytes != 0))
     {
-        //  Explorer's file tile: its type, then its size.
+        //  Explorer's file tile: its type, then its size. A shell item that is
+        //  not a file, such as a device on the network, has neither.
         cells[0].tileLines = { DxuiListView::Cell { row.typeText, false }, DxuiListView::Cell { FormatSize (row.sizeBytes), false } };
     }
 

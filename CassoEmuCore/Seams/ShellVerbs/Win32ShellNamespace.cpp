@@ -259,6 +259,13 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
         {
             outItems.push_back (std::move (entry));
             children.push_back (GetChildId (item.Get()));
+
+            //  Network has its devices in seconds, then its read waits on the
+            //  network for up to half a minute more.
+            if (IShellItemVerbs::s_listingProgress && id.find (L"F02C1A0D-BE21-4350-88B0-7367FC96EF3C") != std::wstring::npos)
+            {
+                IShellItemVerbs::s_listingProgress (outItems);
+            }
         }
     }
 

@@ -39,6 +39,82 @@ static constexpr const wchar_t *  s_kpszFirstLevelVerbs[] =
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RegistryPropertyBag
+//
+//  A command store entry's values, as a command reads them to initialize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class RegistryPropertyBag : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IPropertyBag>
+{
+public:
+    explicit RegistryPropertyBag (std::wstring key) : m_key (std::move (key)) {}
+
+    IFACEMETHODIMP Read (LPCOLESTR name, VARIANT * value, IErrorLog *) override
+    {
+        DWORD    number     = 0;
+        DWORD    bytes      = sizeof (number);
+        wchar_t  text[1024] = {};
+        LSTATUS  status     = RegGetValueW (HKEY_LOCAL_MACHINE, m_key.c_str(), name, RRF_RT_REG_DWORD, nullptr, &number, &bytes);
+
+        if (status == ERROR_SUCCESS)
+        {
+            value->vt   = VT_UI4;
+            value->ulVal = number;
+            return S_OK;
+        }
+
+        bytes  = sizeof (text);
+        status = RegGetValueW (HKEY_LOCAL_MACHINE, m_key.c_str(), name, RRF_RT_REG_SZ, nullptr, text, &bytes);
+
+        if (status != ERROR_SUCCESS)
+        {
+            return E_INVALIDARG;
+        }
+
+        value->vt      = VT_BSTR;
+        value->bstrVal = SysAllocString (text);
+
+        return S_OK;
+    }
+
+    IFACEMETHODIMP Write (LPCOLESTR, VARIANT *) override { return E_NOTIMPL; }
+
+private:
+    std::wstring  m_key;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandSite
+//
+//  What a command asks its host for: the window to own what it shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class CommandSite : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IServiceProvider, IOleWindow>
+{
+public:
+    explicit CommandSite (HWND owner) : m_owner (owner) {}
+
+    IFACEMETHODIMP QueryService (REFGUID, REFIID riid, void ** ppv) override { return QueryInterface (riid, ppv); }
+    IFACEMETHODIMP GetWindow (HWND * outWindow) override { *outWindow = m_owner; return S_OK; }
+    IFACEMETHODIMP ContextSensitiveHelp (BOOL) override { return E_NOTIMPL; }
+
+private:
+    HWND  m_owner = nullptr;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32PackagedCommands::~Win32PackagedCommands
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1049,11 +1125,13 @@ void Win32PackagedCommands::AddStoreEntry (const wchar_t * name, const wchar_t *
 {
     HRESULT                                    hr      = S_OK;
     std::wstring                               key     = std::wstring (s_kpszCommandStoreKey) + L"\\" + name;
-    std::wstring                               handler;
-    std::wstring                               title;
-    std::wstring                               icon;
-    CLSID                                      clsid   = {};
-    Microsoft::WRL::ComPtr<IExplorerCommand>   command;
+    std::wstring                                 handler;
+    std::wstring                                 title;
+    std::wstring                                 icon;
+    CLSID                                        clsid      = {};
+    Microsoft::WRL::ComPtr<IExplorerCommand>     command;
+    Microsoft::WRL::ComPtr<IInitializeCommand>   initialize;
+    Microsoft::WRL::ComPtr<RegistryPropertyBag>  bag;
 
 
 
@@ -1071,6 +1149,19 @@ void Win32PackagedCommands::AddStoreEntry (const wchar_t * name, const wchar_t *
 
     hr = CoCreateInstance (clsid, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&command));
     CHR (hr);
+
+    //  As File Explorer creates one: Send to My Phone builds what it runs on
+    //  here, and faults on Invoke without it.
+    hr = command.As (&initialize);
+
+    if (SUCCEEDED (hr))
+    {
+        bag = Microsoft::WRL::Make<RegistryPropertyBag> (key);
+        CBREx (bag != nullptr, E_OUTOFMEMORY);
+
+        hr = initialize->Initialize (name, bag.Get());
+        CHR (hr);
+    }
 
     AddEntry (command.Get(), items, 0, title, icon, outEntries);
 
@@ -1655,21 +1746,96 @@ std::wstring Win32PackagedCommands::GetMenuVerb (IContextMenu * menu, UINT id)
 
 HRESULT Win32PackagedCommands::Invoke (HWND owner, const Entry & entry, const std::vector<std::wstring> & paths)
 {
-    HRESULT                                    hr = S_OK;
-    Microsoft::WRL::ComPtr<IShellItemArray>    items;
+    HRESULT                                       hr       = S_OK;
+    Microsoft::WRL::ComPtr<IShellItemArray>       items;
+    Microsoft::WRL::ComPtr<IObjectWithSite>       sited;
+    Microsoft::WRL::ComPtr<IObjectWithSelection>  selected;
+    Microsoft::WRL::ComPtr<CommandSite>           site     = Microsoft::WRL::Make<CommandSite> (owner);
+    HRESULT                                       hrSite   = S_OK;
 
 
-
-    UNREFERENCED_PARAMETER (owner);
 
     CBREx (entry.command != nullptr, E_INVALIDARG);
 
     hr = MakeItems (paths, &items);
     CHR (hr);
 
-    hr = entry.command->Invoke (items.Get(), nullptr);
+    //  As File Explorer hosts a command: some look for their window through the
+    //  site, or take the items from the selection.
+    hrSite = entry.command.As (&selected);
+
+    if (SUCCEEDED (hrSite))
+    {
+        hrSite = selected->SetSelection (items.Get());
+        IGNORE_RETURN_VALUE (hrSite, S_OK);
+    }
+
+    hrSite = entry.command.As (&sited);
+
+    if (SUCCEEDED (hrSite) && site != nullptr)
+    {
+        hrSite = SetSiteGuarded (sited.Get(), static_cast<IServiceProvider *> (site.Get()));
+    }
+
+    hr = SUCCEEDED (hrSite) || hrSite == E_NOINTERFACE ? InvokeGuarded (entry.command.Get(), items.Get()) : hrSite;
+
+    if (SUCCEEDED (hrSite) && sited != nullptr)
+    {
+        hrSite = SetSiteGuarded (sited.Get(), nullptr);
+        IGNORE_RETURN_VALUE (hrSite, S_OK);
+    }
+
     CHR (hr);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::SetSiteGuarded
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PackagedCommands::SetSiteGuarded (IObjectWithSite * sited, IUnknown * site)
+{
+    __try
+    {
+        return sited->SetSite (site);
+    }
+
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return E_UNEXPECTED;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PackagedCommands::InvokeGuarded
+//
+//  A command is another program's code in this process. One that faults, as
+//  Windows' Send to my phone has, fails rather than closing every tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PackagedCommands::InvokeGuarded (IExplorerCommand * command, IShellItemArray * items)
+{
+    __try
+    {
+        return command->Invoke (items, nullptr);
+    }
+
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return E_UNEXPECTED;
+    }
 }

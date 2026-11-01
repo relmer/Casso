@@ -268,6 +268,51 @@ RowGrouping::Group RowGrouping::GetPropertyGroup (const CatalogModel::PropertyKe
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RowGrouping::GetCapacityGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RowGrouping::Group RowGrouping::GetCapacityGroup (uint64_t bytes)
+{
+    if (bytes <= 16 * s_kGiB)   { return { L"0 - 16 GB",       0 }; }
+    if (bytes <= 80 * s_kGiB)   { return { L"16 GB - 80 GB",   1 }; }
+    if (bytes <= 250 * s_kGiB)  { return { L"80 GB - 250 GB",  2 }; }
+    if (bytes <= 500 * s_kGiB)  { return { L"250 GB - 500 GB", 3 }; }
+    if (bytes <= 1024 * s_kGiB) { return { L"500 GB - 1 TB",   4 }; }
+
+    return { L">1 TB", 5 };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RowGrouping::GetPercentGroup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RowGrouping::Group RowGrouping::GetPercentGroup (double percent, const wchar_t * suffix)
+{
+    int  tens = (int) percent / 10;
+
+
+
+    if (tens >= 10)
+    {
+        return { std::format (L"100%{}", suffix), 10 };
+    }
+
+    return { std::format (L"{}% - {}%{}", tens * 10, tens * 10 + 9, suffix), tens };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RowGrouping::GetPropertyGroups
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -137,6 +137,7 @@ private:
     Win32ShellIcons              m_listIcons;
     Win32ContentDetails          m_contentDetails;
     Win32PropertyColumns         m_propertyValues;
+    ULONGLONG                    m_lastRearrangeMs = 0;
     bool                         m_propertiesShown = false;   // a property column is visible for the folder on display
     std::vector<size_t>          m_columnsToFit;   // property columns fitted as their values arrive
     static constexpr uint64_t    s_kArrivalWaitMs  = 10000;

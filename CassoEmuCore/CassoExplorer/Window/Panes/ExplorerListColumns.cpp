@@ -354,7 +354,6 @@ void ExplorerListColumns::ApplyFolderView()
     FolderViews::FolderType  type     = FolderViews::FolderType::Generic;
     std::wstring             key      = GetFolderViewKey (nullptr);
     FolderViewEntry          entry;
-    const Location           location = m_context.browser.GetLocation();
 
 
 
@@ -402,12 +401,32 @@ void ExplorerListColumns::ApplyFolderView()
         entry.sortColumn = 0;
     }
 
-    //  Network opens grouped by category, as File Explorer's does, until the
-    //  user chooses otherwise.
-    if (location.path.find (L"F02C1A0D-BE21-4350-88B0-7367FC96EF3C") != std::wstring::npos && !IsFolderViewSaved (key))
+    //  The groupings File Explorer opens these with, until the user chooses
+    //  otherwise: Network's in Tiles too.
+    if (!IsFolderViewSaved (key))
     {
-        entry.groupBy         = (int) GetPropertyField (L"System.Category");
-        entry.groupDescending = true;
+        GroupChoices::Folder  folder = GetGroupFolder();
+
+        if (folder == GroupChoices::Folder::Network)
+        {
+            entry.groupBy         = (int) GetPropertyField (L"System.Category");
+            entry.groupDescending = true;
+            m_view                = DxuiListView::View::Tiles;
+            m_pane.GetListView()->SetView (m_view);
+            m_context.toolbars.ShowViewOnButton();
+            m_pane.SizeListIcons();
+        }
+        else if (folder == GroupChoices::Folder::Drives)
+        {
+            entry.groupBy = (int) RowGrouping::Field::Type;
+        }
+        else if (IsDownloadsFolder())
+        {
+            entry.groupBy         = (int) RowGrouping::Field::DateModified;
+            entry.groupDescending = true;
+            entry.sortColumn      = (int) CatalogModel::Column::Modified;
+            entry.sortDescending  = true;
+        }
     }
 
     if (entry.groupBy >= RowGrouping::kFirstPropertyField + (int) m_context.prefs.propertyColumns.size())
@@ -795,6 +814,35 @@ RowGrouping::Field ExplorerListColumns::GetPropertyField (const std::wstring & c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListColumns::IsDownloadsFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsDownloadsFolder() const
+{
+    const Location &  location  = m_context.browser.GetLocation();
+    PWSTR             known     = nullptr;
+    bool              downloads = false;
+    HRESULT           hr        = SHGetKnownFolderPath (FOLDERID_Downloads, 0, nullptr, &known);
+
+
+
+    if (SUCCEEDED (hr) && location.kind == Location::Kind::HostFolder)
+    {
+        downloads = _wcsicmp (known, location.path.c_str()) == 0;
+    }
+
+    CoTaskMemFree (known);
+
+    return downloads;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListColumns::GetGroupFolder
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -803,10 +851,7 @@ GroupChoices::Folder ExplorerListColumns::GetGroupFolder() const
 {
     const Location &         location           = m_context.browser.GetLocation();
     FolderViews::FolderType  type               = FolderViews::FolderType::Generic;
-    PWSTR                    known              = nullptr;
     wchar_t                  oneDrive[MAX_PATH] = {};
-    bool                     downloads          = false;
-    HRESULT                  hrKnown            = SHGetKnownFolderPath (FOLDERID_Downloads, 0, nullptr, &known);
 
 
 
@@ -853,14 +898,7 @@ GroupChoices::Folder ExplorerListColumns::GetGroupFolder() const
         return GroupChoices::Folder::Generic;
     }
 
-    if (SUCCEEDED (hrKnown))
-    {
-        downloads = _wcsicmp (known, location.path.c_str()) == 0;
-    }
-
-    CoTaskMemFree (known);
-
-    if (downloads)
+    if (IsDownloadsFolder())
     {
         return GroupChoices::Folder::Documents;
     }
@@ -963,6 +1001,7 @@ void ExplorerListColumns::ChooseDetails()
     //  its values on screen once they are read.
     m_viewKey.clear();
     m_pane.FillList();
+    m_context.toolbars.SetCommandBarDropDowns();
 
     for (size_t added = 0; added < result.added.size(); added++)
     {

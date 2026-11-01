@@ -2,6 +2,7 @@
 
 #include "Core/ThreadName.h"
 #include "Seams/Win32PropertyColumns.h"
+#include "CassoExplorer/Model/RowGrouping.h"
 
 
 
@@ -183,6 +184,25 @@ Win32PropertyColumns::Values Win32PropertyColumns::ReadNow (const std::wstring &
     }
 
     return values;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PropertyColumns::IsQueueEmpty
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32PropertyColumns::IsQueueEmpty()
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    return m_queue.empty();
 }
 
 
@@ -464,7 +484,7 @@ void Win32PropertyColumns::ReadGroup (IPropertyStore & store, const PROPERTYKEY 
     HRESULT                       hr        = PSGetPropertyDescription (key, IID_PPV_ARGS (&description));
     double                        percent   = -1.0;
     std::wstring                  canonical;
-    const wchar_t               * suffix    = L"%";
+    const wchar_t               * suffix    = L"";
 
 
 
@@ -503,7 +523,15 @@ void Win32PropertyColumns::ReadGroup (IPropertyStore & store, const PROPERTYKEY 
         CHR (hr);
 
         percent = (percent > 0.0) ? ioValue.number * 100.0 / percent : -1.0;
-        suffix  = L"% free";
+        suffix  = L" free";
+    }
+    else if (canonical == L"System.Capacity" && ioValue.numeric)
+    {
+        RowGrouping::Group  group = RowGrouping::GetCapacityGroup ((uint64_t) ioValue.number);
+
+        ioValue.groupLabel = group.label;
+        ioValue.groupRank  = group.rank;
+        BAIL_OUT_IF (true, S_OK);
     }
     else if (canonical == L"System.PercentFull" && ioValue.numeric)
     {
@@ -512,10 +540,10 @@ void Win32PropertyColumns::ReadGroup (IPropertyStore & store, const PROPERTYKEY 
 
     if (percent >= 0.0)
     {
-        int  tens = (std::min) ((int) percent / 10, 9);
+        RowGrouping::Group  group = RowGrouping::GetPercentGroup (percent, suffix);
 
-        ioValue.groupLabel = std::format (L"{}% - {}{}", tens * 10, tens * 10 + 9, suffix);
-        ioValue.groupRank  = tens;
+        ioValue.groupLabel = group.label;
+        ioValue.groupRank  = group.rank;
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -533,19 +561,6 @@ void Win32PropertyColumns::ReadGroup (IPropertyStore & store, const PROPERTYKEY 
 
     ioValue.groupLabel = label;
     ioValue.groupRank  = (int) index;
-
-    //  The drive's sizes say "250 GB - 500 GB" where the description has
-    //  "250 - 500 GB".
-    if (canonical == L"System.Capacity")
-    {
-        size_t  dash = ioValue.groupLabel.find (L" - ");
-        size_t  unit = ioValue.groupLabel.rfind (L' ');
-
-        if (dash != std::wstring::npos && unit > dash + 2)
-        {
-            ioValue.groupLabel.insert (dash, ioValue.groupLabel.substr (unit));
-        }
-    }
 
 Error:
     CoTaskMemFree (name);

@@ -1606,6 +1606,52 @@ public:
         Assert::AreEqual (L"",                   CatalogModel::GetFolderColumnText (L"").c_str());
     }
 
+    //  A row listed under two groups is one item: it is selected once, and a
+    //  second regrouping doesn't multiply the copies.
+    TEST_METHOD (GroupedByAValueOfTwoParts_ListsEachRowTwiceAndSelectsItOnce)
+    {
+        Host          host;
+        std::wstring  folder = host.OpenDisksFolder();
+        size_t        rows   = 0;
+        int           first  = -1;
+        int           second = -1;
+
+        AssertSucceeded (host.browser.SelectTreeNode (folder));
+
+        rows = host.browser.GetRows().size();
+
+        host.browser.SetPropertyColumns (1, [] (size_t, size_t)
+        {
+            CatalogModel::PropertyKey  key;
+
+            key.has   = true;
+            key.text  = L"a; b";
+            key.parts = { L"a", L"b" };
+
+            return key;
+        });
+
+        host.browser.SetGroupBy (RowGrouping::MakePropertyField (0), false);
+        Assert::AreEqual (rows * 2, host.browser.GetRows().size());
+
+        host.browser.SetGroupBy (RowGrouping::MakePropertyField (0), false);
+        Assert::AreEqual (rows * 2, host.browser.GetRows().size(), L"Regrouping drops the last copies first");
+
+        for (int row = 0; row < (int) host.browser.GetRows().size(); row++)
+        {
+            if (host.browser.GetRows()[(size_t) row].name == L"readme.txt")
+            {
+                (first < 0 ? first : second) = row;
+            }
+        }
+
+        host.browser.SetSelectedRows ({ first, second });
+        Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
+
+        host.browser.SetGroupBy (RowGrouping::Field::None, false);
+        Assert::AreEqual (rows, host.browser.GetRows().size(), L"Ungrouped, each is listed once");
+    }
+
     TEST_METHOD (SpinnerFrame_ArcLengthGrowsAndShrinks)
     {
         auto  count = [] (int frame)
