@@ -102,7 +102,7 @@ public:
         DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "test", 0, false), DecodeSettings::MakeStandard(), analysis);
         model.SetDisk (1);
         model.SetAnalysis (&analysis);
-        model.SetRotation (-kHeadTurn);
+        model.SetRotation (InspectorViewModel::kHeadSide - kHeadTurn);
 
         context.analysis = &analysis;
         context.model    = &model;
@@ -120,8 +120,8 @@ public:
         context.head = head;
 
         Assert::IsTrue (view.GetHeadPoint (eye));
-        Assert::AreEqual (static_cast<LONG> (kSide / 2), eye.x, L"the head is at 12 o'clock");
-        Assert::IsTrue   (eye.y < kSide / 2);
+        Assert::AreEqual (static_cast<LONG> (kSide / 2), eye.x, L"the head is at 6 o'clock");
+        Assert::IsTrue   (eye.y > kSide / 2);
 
         hit = view.HitTest (eye);
         Assert::IsTrue   (hit.isOnDisk);

@@ -79,7 +79,9 @@ private:
     const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
-    static void  PaintHeadCarriage (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float len, float farW, float line, uint32_t argb);
+    static void  GetHeadPlace   (const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float along, float across, float & outX, float & outY);
+    static void  PaintHeadBlock (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float half, float hole, float len, uint32_t argb);
+    static void  PaintHeadEdges (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float half, float len, float line, uint32_t argb);
     static std::array<float, 4>  GetPlaneMap (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY);
     bool           OnTiltMouse    (const DxuiMouseEvent & ev);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;

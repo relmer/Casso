@@ -499,3 +499,11 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T719 Center Files and heat map shading on recordings through `PlatterOverlays::ShadeTrackField`
 - [X] T720 Add late and early labels, a selection box and a nearest-line cursor to `FluxView`
 - [X] T721 Show RPM first in `InspectorText::FormatMeasureLine`
+- [X] T722 Fix the head marker at 6 o'clock and limit a right drag to tilt
+- [X] T723 Replace the head carriage with a rectangular head block
+- [X] T724 End each recording's field a third of a track from its center
+- [X] T725 Hide the Files chip on a disk without a file map
+- [X] T726 Thin the Reads bands for visited rings without sectors and lessen the overlay dim
+- [X] T727 Draw nibble values on a patch over the timing line in `TrackStripView`
+- [X] T728 Draw cell rules in `FluxView` and track the nearest transition across lines
+- [X] T729 Step `DxuiZoomControl` by 10%

@@ -450,24 +450,6 @@ public:
     }
 
 
-    TEST_METHOD (APlatterTurnedByHandStaysThereUntilTheDriveTurns)
-    {
-        InspectorViewModel  model;
-        constexpr double    kAngle = 0.125;
-
-
-
-        model.FollowDrive (kAngle);
-        model.TurnByHand  (0.25);
-        model.FollowDrive (kAngle);
-        Assert::AreEqual  (InspectorViewModel::kHeadSide - kAngle + 0.25, model.GetRotation(), 1e-9);
-
-        model.StepCoast   (0.0, true);
-        model.FollowDrive (kAngle);
-        Assert::AreEqual  (InspectorViewModel::kHeadSide - kAngle, model.GetRotation(), 1e-9);
-    }
-
-
     TEST_METHOD (RefitCentersTheSelectionOnAZoomedPlatterAndLeavesAPlatterAtFit)
     {
         InspectorViewModel         model;

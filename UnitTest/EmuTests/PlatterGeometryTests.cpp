@@ -156,11 +156,9 @@ public:
     }
 
 
-    TEST_METHOD (GetDragStep_FollowsThePointerOnEverySide)
+    TEST_METHOD (GetDragTilt_FollowsThePointerAboveAndBelowTheCenter)
     {
         PlatterPlacement  view;
-        double            turns = 0;
-        double            tilt  = 0;
 
 
 
@@ -169,24 +167,9 @@ public:
         view.outerRadiusPx = 400.0f;
         view.tilt          = 0.5f;
 
-        //  Over the top, a move right turns clockwise and a move down tilts.
-        PlatterGeometry::GetDragStep (view, { 500, 200 }, { 510, 200 }, turns, tilt);
-        Assert::IsTrue (turns > 0);
-        PlatterGeometry::GetDragStep (view, { 500, 200 }, { 500, 210 }, turns, tilt);
-        Assert::IsTrue (tilt > 0);
-
-        //  Over the bottom, a move right turns counterclockwise and a move
-        //  down flattens.
-        PlatterGeometry::GetDragStep (view, { 500, 750 }, { 510, 750 }, turns, tilt);
-        Assert::IsTrue (turns < 0);
-        PlatterGeometry::GetDragStep (view, { 500, 750 }, { 500, 760 }, turns, tilt);
-        Assert::IsTrue (tilt < 0);
-
-        //  At the sides, a move down turns the way the pointer goes.
-        PlatterGeometry::GetDragStep (view, { 850, 500 }, { 850, 510 }, turns, tilt);
-        Assert::IsTrue (turns > 0);
-        PlatterGeometry::GetDragStep (view, { 150, 500 }, { 150, 510 }, turns, tilt);
-        Assert::IsTrue (turns < 0);
+        Assert::IsTrue (PlatterGeometry::GetDragTilt (view, { 500, 200 }, { 500, 210 }) > 0);
+        Assert::IsTrue (PlatterGeometry::GetDragTilt (view, { 500, 750 }, { 500, 760 }) < 0);
+        Assert::IsTrue (PlatterGeometry::GetDragTilt (view, { 500, 750 }, { 500, 740 }) > 0);
     }
 
 

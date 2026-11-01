@@ -61,6 +61,7 @@ private:
     void  PaintMarks     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void  PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g) const;
     void  PaintCursor    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    void  PaintCellRules (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track) const;
     void  PaintHistogram (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track);
     void  PaintBars      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram);
     void  PaintScope     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram);
@@ -78,6 +79,11 @@ private:
     int            HitInterval   (POINT pointPx) const;
     int            HitBin        (POINT pointPx) const;
     int            GetNearestLine (LONG y) const;
+    bool           IsShowingCells () const;
+    float          GetCellPx      () const;
+    float          GetTurnX       (double turn) const;
+    float          GetIntervalX   (const FluxInterval & interval) const;
+    static int     GetIntervalLine (double ticks);
 
     HistogramScope                                          m_scope     = HistogramScope::WholeTrack;
     mutable const TrackAnalysis                           * m_of        = nullptr;

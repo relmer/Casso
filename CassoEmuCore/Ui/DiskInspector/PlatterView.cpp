@@ -35,13 +35,9 @@ static constexpr float  s_kTickShare        = 0.3f;
 static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr float    s_kHeadEyeDip      = 14.0f;
-static constexpr float    s_kHeadFarShare    = 1.25f;
-static constexpr float    s_kHeadLengthShare = 3.6f;
-static constexpr float    s_kHeadSeamShare   = 0.42f;
-static constexpr float    s_kHeadScrewShare  = 0.72f;
+static constexpr float    s_kHeadLengthShare = 2.1f;
+static constexpr float    s_kHeadScrewAlong  = 1.55f;
 static constexpr float    s_kHeadScrewAcross = 0.6f;
-static constexpr float    s_kHeadCableShare  = 0.7f;
-static constexpr float    s_kHeadCableAcross = 0.35f;
 static constexpr float    s_kHeadMarginDip   = 9.0f;
 static constexpr uint32_t s_kHeadBodyAlpha   = 0x90000000u;
 static constexpr float    s_kHeadSightAlpha  = 0.75f;
@@ -1083,7 +1079,7 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 
 
 
-    PlatterGeometry::ProjectAt (view, m_context.head.turn, radius, x, y);
+    PlatterGeometry::ProjectAt (view, InspectorViewModel::kHeadSide - view.rotation, radius, x, y);
     outPointPx.x = static_cast<LONG> (std::lround (x));
     outPointPx.y = static_cast<LONG> (std::lround (y));
 
@@ -1098,11 +1094,10 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintHead
 //
-//  The head marker, drawn as a drive's head carriage lying on the disk
-//  (FR-064, FR-152): a short translucent carriage with a rounded tip centered
-//  on the head, widening outward along the radius, with a seam where the head
-//  mount joins the carriage, two mounting screws and a ribbon cable trailing
-//  from its far end. In the tip, a ring with a margin of arm around it has a clear
+//  The head marker, drawn as a floppy drive's head block lying on the disk
+//  (FR-064, FR-152), always at 6 o'clock as in a real drive: a short
+//  translucent rectangle around the head with two mounting screws at its far
+//  end. Around the head, a ring with a margin of arm around it has a clear
 //  window over the platter under the head, and a crosshair in the window has
 //  its center exactly on the head's quarter track and angle, its lines along
 //  the radius and across it. The ring and crosshair are a little
@@ -1134,7 +1129,6 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     float                        ux     = 0.0f;
     float                        uy     = 0.0f;
     float                        len    = tip * s_kHeadLengthShare;
-    float                        farW   = tip * s_kHeadFarShare;
     float                        sx     = 0.0f;
     float                        sy     = 0.0f;
     float                        alpha  = painter.GetGlobalAlpha();
@@ -1153,7 +1147,7 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     argb   = (m_context.head.activity == HeadActivity::Reading) ? colors.headReading
            : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
                                                                 : colors.headWriting;
-    angle  = (m_context.head.turn + view.rotation) * s_kTwoPi;
+    angle  = InspectorViewModel::kHeadSide * s_kTwoPi;
     radius = PlatterGeometry::GetRingMiddle (m_context.head.quarterTrack) * view.outerRadiusPx;
 
     //  Outward along the radius, in the disk's plane, and the projection's
@@ -1164,13 +1158,11 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
 
     if (view.tilt != 0.0f)
     {
-        painter.FillTaperedCapsuleOnPlane (sx, sy + drop, map, ux * len, uy * len, tip, farW, hole, 0.0f, s_kHeadShadowArgb);
+        PaintHeadBlock (painter, map, sx, sy + drop, ux, uy, tip, hole, len, s_kHeadShadowArgb);
     }
 
-    painter.FillTaperedCapsuleOnPlane (sx, sy, map, ux * len, uy * len, tip, farW, hole, 0.0f, body);
-    painter.FillTaperedCapsuleOnPlane (sx, sy, map, ux * len, uy * len, tip, farW, 0.0f, line / 2.0f, argb);
-
-    PaintHeadCarriage (painter, map, sx, sy, ux, uy, len, farW, line, argb);
+    PaintHeadBlock (painter, map, sx, sy, ux, uy, tip, hole, len, body);
+    PaintHeadEdges (painter, map, sx, sy, ux, uy, tip, len, line, argb);
 
     //  The window's ring and crosshair are a little translucent too.
     painter.SetGlobalAlpha (alpha * s_kHeadSightAlpha);
@@ -1213,45 +1205,88 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PlatterView::PaintHeadCarriage
+//  PlatterView::GetHeadPlace
 //
-//  The seam, screws and cable, laid out by distance along the carriage and
-//  across it.
+//  A point of the head block, by its distance along the radius and across it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::PaintHeadCarriage (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float len, float farW, float line, uint32_t argb)
+void PlatterView::GetHeadPlace (const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float along, float across, float & outX, float & outY)
 {
-    auto  place = [&] (float along, float across, float & outX, float & outY)
+    float  px = ux * along - uy * across;
+    float  py = uy * along + ux * across;
+
+
+
+    outX = sx + map[0] * px + map[2] * py;
+    outY = sy + map[1] * px + map[3] * py;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintHeadBlock
+//
+//  The block's fill as four strips around a clear square over the head.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintHeadBlock (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float half, float hole, float len, uint32_t argb)
+{
+    const std::array<std::array<float, 4>, 4>  strips = { std::array<float, 4> { -half, -hole, -half,  half },
+                                                          std::array<float, 4> {  hole,   len, -half,  half },
+                                                          std::array<float, 4> { -hole,  hole, -half, -hole },
+                                                          std::array<float, 4> { -hole,  hole,  hole,  half } };
+    std::array<float, 8>                       q      = {};
+
+
+
+    for (const std::array<float, 4> & s : strips)
     {
-        float  px = ux * along - uy * across;
-        float  py = uy * along + ux * across;
-
-        outX = sx + map[0] * px + map[2] * py;
-        outY = sy + map[1] * px + map[3] * py;
-    };
-
-
-
-    float  x0 = 0.0f;
-    float  y0 = 0.0f;
-    float  x1 = 0.0f;
-    float  y1 = 0.0f;
+        GetHeadPlace (map, sx, sy, ux, uy, s[0], s[2], q[0], q[1]);
+        GetHeadPlace (map, sx, sy, ux, uy, s[1], s[2], q[2], q[3]);
+        GetHeadPlace (map, sx, sy, ux, uy, s[1], s[3], q[4], q[5]);
+        GetHeadPlace (map, sx, sy, ux, uy, s[0], s[3], q[6], q[7]);
+        painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
+    }
+}
 
 
 
-    place (len * s_kHeadSeamShare, -farW, x0, y0);
-    place (len * s_kHeadSeamShare,  farW, x1, y1);
-    painter.DrawLine (x0, y0, x1, y1, line / 2.0f, argb);
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintHeadEdges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintHeadEdges (IDxuiPainter & painter, const std::array<float, 4> & map, float sx, float sy, float ux, float uy, float half, float len, float line, uint32_t argb)
+{
+    const std::array<std::array<float, 2>, 4>  corners = { std::array<float, 2> { -half, -half }, std::array<float, 2> { len, -half },
+                                                           std::array<float, 2> {   len,  half }, std::array<float, 2> { -half, half } };
+    float                                      x0      = 0.0f;
+    float                                      y0      = 0.0f;
+    float                                      x1      = 0.0f;
+    float                                      y1      = 0.0f;
+    size_t                                     k       = 0;
+
+
+
+    for (k = 0; k < corners.size(); k++)
+    {
+        GetHeadPlace (map, sx, sy, ux, uy, corners[k][0], corners[k][1], x0, y0);
+        GetHeadPlace (map, sx, sy, ux, uy, corners[(k + 1) % corners.size()][0], corners[(k + 1) % corners.size()][1], x1, y1);
+        painter.DrawLine (x0, y0, x1, y1, line / 2.0f, argb);
+    }
 
     for (float side : { -1.0f, 1.0f })
     {
-        place (len * s_kHeadScrewShare, side * farW * s_kHeadScrewAcross, x0, y0);
+        GetHeadPlace (map, sx, sy, ux, uy, half * s_kHeadScrewAlong, side * half * s_kHeadScrewAcross, x0, y0);
         painter.FillTaperedCapsuleOnPlane (x0, y0, map, ux * s_kDotLength, uy * s_kDotLength, line, line, 0.0f, 0.0f, argb);
-
-        place (len + farW,                          side * farW * s_kHeadCableAcross, x0, y0);
-        place (len + farW + len * s_kHeadCableShare, side * farW * s_kHeadCableAcross, x1, y1);
-        painter.DrawLine (x0, y0, x1, y1, line / 2.0f, argb);
     }
 }
 
@@ -1377,16 +1412,14 @@ void PlatterView::FillDiskCircle (IDxuiPainter & painter, const PlatterPlacement
 //
 //  PlatterView::OnTiltMouse
 //
-//  A right drag moves the disk with the pointer (FR-151), as
-//  PlatterGeometry::GetDragStep calculates.
+//  A right drag tilts the disk with the pointer (FR-151), as
+//  PlatterGeometry::GetDragTilt calculates.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
 {
     POINT    p         = ev.positionDip;
-    double   turns     = 0.0;
-    double   tilt      = 0.0;
     bool     isHandled = false;
 
 
@@ -1407,9 +1440,7 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Move:
             if (m_isTilting)
             {
-                PlatterGeometry::GetDragStep (MakeView(), m_tiltAt, p, turns, tilt);
-                m_context.model->SetTilt     (m_context.model->GetTilt() + tilt);
-                m_context.model->TurnByHand  (turns);
+                m_context.model->SetTilt (m_context.model->GetTilt() + PlatterGeometry::GetDragTilt (MakeView(), m_tiltAt, p));
                 m_tiltAt  = p;
                 isHandled = true;
             }

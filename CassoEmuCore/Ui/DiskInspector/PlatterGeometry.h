@@ -58,9 +58,9 @@ public:
     static double      GetScaleAt        (const PlatterPlacement & view, double dy);
     static double      GetLocalScale     (const PlatterPlacement & view, double turn, double radiusPx);
 
-    //  The turn and tilt that move the disk with a right drag from one pixel
-    //  to another.
-    static void        GetDragStep       (const PlatterPlacement & view, POINT from, POINT to, double & outTurns, double & outTilt);
+    //  The change in tilt that moves the disk with a right drag from one
+    //  pixel to another.
+    static double      GetDragTilt       (const PlatterPlacement & view, POINT from, POINT to);
 
     //  The rings and the stretch of the turn a view shows: every ring the
     //  rectangle reaches, and when it does not contain the center, the turns

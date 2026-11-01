@@ -126,6 +126,16 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     UpdateTurns (track);
 
+    struct StripValue
+    {
+        std::wstring  label;
+        float         x     = 0.0f;
+        float         width = 0.0f;
+        uint32_t      color = 0;
+    };
+
+    vector<StripValue>  values;
+
     //  A value shows wherever its two digits fit, and a divider wherever a
     //  nibble is wide enough to tell from its neighbors, so a run of
     //  nibbles of one kind does not read as one block.
@@ -156,8 +166,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
                     label = std::format (L"{:02X}", framed.nibbles[i].value);
                 }
 
-                text.DrawString (label.c_str(), parts[k].x0, top, w, valueH, DiskInspectorPalette::GetTextColorOn (color), textPx, DxuiTheme::kMonoFace,
-                                 DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                values.push_back ({ label, parts[k].x0, w, color });
             }
         }
     }
@@ -189,6 +198,16 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     else if (isTimed && GetCellPx (track) < m_scaler.ToPxf (s_kCellTimingDip))
     {
         PaintTimingLine (painter, theme, track, g, top + valueH, top + valueH + (height - valueH) / 2);
+    }
+
+    //  Each value on a patch of its nibble's color, so the timing line can't
+    //  run through its digits.
+    for (const StripValue & value : values)
+    {
+        text.MeasureString (value.label.c_str(), textPx, DxuiTheme::kMonoFace, textW, textH);
+        painter.FillRect (value.x + (value.width - textW) / 2, top + (valueH - textH) / 2, textW, textH, value.color);
+        text.DrawString (value.label.c_str(), value.x, top, value.width, valueH, DiskInspectorPalette::GetTextColorOn (value.color), textPx, DxuiTheme::kMonoFace,
+                         DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
     if (m_context.isFileHighlighted)

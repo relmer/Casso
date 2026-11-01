@@ -36,11 +36,11 @@ static constexpr double   s_kMinDiffTurn     = 0.004;
 static constexpr float    s_kMinHitDip       = 3.0f;
 static constexpr float    s_kHitEdgeDip      = 1.0f;
 static constexpr float    s_kHitSolidDip     = 24.0f;
-static constexpr float    s_kReadsMinDip     = 2.0f;
 static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
 static constexpr uint32_t s_kHeatMinAlpha    = 0x50u;
 static constexpr uint32_t s_kHeatMaxAlpha    = 0xB8u;
-static constexpr uint32_t s_kAccessDimAlpha  = 0xA8000000u;
+static constexpr uint32_t s_kAccessDimAlpha  = 0x70000000u;
+static constexpr uint32_t s_kVisitAlpha      = 0x30000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
@@ -1217,15 +1217,15 @@ void PlatterOverlays::ShadeRingArc (IDxuiPainter & painter, const PlatterPlaceme
 
 void PlatterOverlays::ShadeTrackField (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, int ring, uint32_t argb) const
 {
-    static constexpr std::array<float, 4>  kShares = { 0.1f, 0.25f, 1.0f, 0.25f };
-    static constexpr float                 kMean   = (0.1f + 0.25f + 1.0f + 0.25f) / 4.0f;
+    static constexpr std::array<float, 3>  kShares = { 0.25f, 1.0f, 0.25f };
+    static constexpr float                 kMean   = (0.25f + 1.0f + 0.25f) / 3.0f;
 
 
 
     double    width = PlatterGeometry::GetRingWidth() * view.outerRadiusPx;
     uint32_t  rgb   = argb & 0x00FFFFFFu;
     float     alpha = static_cast<float> (argb >> 24);
-    int       first = std::max (ring - 2, 0);
+    int       first = std::max (ring - 1, 0);
     int       end   = std::min (ring + 2, static_cast<int> (PlatterRenderer::kRingCount));
 
 
@@ -1240,7 +1240,7 @@ void PlatterOverlays::ShadeTrackField (IDxuiPainter & painter, const PlatterPlac
         for (int r = first; r < end; r++)
         {
             ShadeRingArc (painter, view, a, b, PlatterGeometry::GetRingOuter (r + 1) * view.outerRadiusPx, PlatterGeometry::GetRingOuter (r) * view.outerRadiusPx,
-                          rgb | (static_cast<uint32_t> (alpha * kShares[static_cast<size_t> (r - ring + 2)]) << 24));
+                          rgb | (static_cast<uint32_t> (alpha * kShares[static_cast<size_t> (r - ring + 1)]) << 24));
         }
     }
 }
@@ -1310,7 +1310,7 @@ void PlatterOverlays::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme &
 //  inserted, as an arc over its fields in the kind's color, more opaque the
 //  more times it was accessed, against the most-accessed sector on the
 //  disk on a log scale. A quarter track with no sectors, visited or
-//  written, gets a band over its whole ring, at least s_kReadsMinDip wide.
+//  written, gets a faint band over its whole ring.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1320,8 +1320,6 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
     const DiskInspectorColors      & colors   = m_view.m_context.palette.colors;
     const DiskAnalysis             & analysis = *m_view.m_context.analysis;
     uint32_t                         rgb      = ((kind == AccessKind::Writes) ? colors.headWriting : (kind == AccessKind::Scans) ? colors.headScanning : colors.headReading) & 0x00FFFFFFu;
-    float                            width    = static_cast<float> (PlatterGeometry::GetRingWidth()) * view.outerRadiusPx;
-    float                            band     = std::max (width, m_view.m_scaler.ToPxf (s_kReadsMinDip));
     uint32_t                         most     = 1;
     static const vector<CellSpan>    s_kNone;
     vector<vector<uint32_t>>         counts (analysis.tracks.size());
@@ -1378,7 +1376,7 @@ void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacemen
 
         if (isWhole)
         {
-            m_view.StrokeDiskCircle (painter, view, static_cast<float> (PlatterGeometry::GetRingMiddle (qt)) * view.outerRadiusPx, band, rgb | (s_kHeatMaxAlpha << 24));
+                        ShadeRingArc (painter, view, 0.0, 1.0, PlatterGeometry::GetRingOuter (qt + 1) * view.outerRadiusPx, PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx, rgb | s_kVisitAlpha);
         }
     }
 }

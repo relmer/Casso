@@ -23,6 +23,7 @@ static constexpr float   s_kPointDip        = 2.0f;
 static constexpr float   s_kPairDip         = 4.0f;
 static constexpr float   s_kHitDip          = 12.0f;
 static constexpr float   s_kCursorPadDip    = 4.0f;
+static constexpr float   s_kCellRuleDip     = 6.0f;
 static constexpr float   s_kCursorThickness = 1.5f;
 static constexpr float   s_kUnderlineDip    = 2.0f;
 static constexpr int     s_kDragThresholdPx = 4;
@@ -171,6 +172,7 @@ void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                          2 * textPx, theme.ForegroundMuted(), textPx * 0.85f, DxuiTheme::kBodyFace, DxuiTextHAlign::Right, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
+    PaintCellRules (painter, theme, track);
     PaintMarks (painter, text, theme, track, g);
     PaintSelection (painter, theme, g);
 
@@ -257,8 +259,10 @@ void FluxView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme,
 //
 //  FluxView::PaintCursor
 //
-//  A thin line at the pointer across only the dots of the nearest cell line,
-//  from the shortest interval around that line to the longest.
+//  A thin line across only the dots of one cell line, from the shortest
+//  interval around that line to the longest. With cells drawn, it marks the
+//  transition nearest the pointer in time, on whichever line that is; zoomed
+//  out, it is at the pointer on the nearest line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -268,13 +272,153 @@ void FluxView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme) co
     int    line = GetNearestLine (m_context.hoverPx.y);
     float  pad  = m_scaler.ToPxf (s_kCursorPadDip);
     float  x    = static_cast<float> (m_context.hoverPx.x);
+    int    hit  = IsShowingCells() ? HitInterval (m_context.hoverPx) : -1;
 
 
+
+    if (hit >= 0)
+    {
+        line = GetIntervalLine (m_intervals[hit].ticks);
+        x    = GetIntervalX (m_intervals[hit]);
+    }
 
     if (PtInRect (&plot, m_context.hoverPx) && m_lineTicks[line].second > 0)
     {
         painter.DrawLine (x, GetPlotY (m_lineTicks[line].second) - pad, x, GetPlotY (m_lineTicks[line].first) + pad, s_kCursorThickness, theme.Accent());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::PaintCellRules
+//
+//  A rule at the start of each cell in view, once cells are at least
+//  s_kCellRuleDip apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FluxView::PaintCellRules (IDxuiPainter & painter, const IDxuiTheme & theme, const TrackAnalysis & track) const
+{
+    RECT      plot  = GetPlotRect();
+    double    start = m_context.model->GetStripStart();
+    uint32_t  count = track.framed.cellCount;
+    uint32_t  cell  = 0;
+    float     x     = 0.0f;
+    float     last  = static_cast<float> (plot.left);
+
+
+
+    if (IsShowingCells())
+    {
+        cell = PlatterGeometry::GetCellAtTurn (track, start - std::floor (start));
+
+        for (uint32_t n = 0; n < count; n++)
+        {
+            x = GetTurnX (m_cellTurns[(cell + 1 + n) % count]);
+
+            if (x < last || x > plot.right)
+            {
+                break;
+            }
+
+            last = x;
+            painter.DrawLine (x, static_cast<float> (plot.top), x, static_cast<float> (plot.bottom) - 3 * m_scaler.ToPxf (kSmallDip), 1.0f, theme.Divider());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::IsShowingCells
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FluxView::IsShowingCells() const
+{
+    return GetCellPx() >= m_scaler.ToPxf (s_kCellRuleDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetCellPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FluxView::GetCellPx() const
+{
+    RECT  plot = GetPlotRect();
+
+
+
+    return (m_cellTurns.size() > 1) ? static_cast<float> ((plot.right - plot.left) / (m_context.model->GetStripSpan() * (m_cellTurns.size() - 1))) : 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetTurnX
+//
+//  Where a turn is across the plot, past the right edge when out of view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FluxView::GetTurnX (double turn) const
+{
+    RECT    plot   = GetPlotRect();
+    double  offset = turn - m_context.model->GetStripStart();
+
+
+
+    offset -= std::floor (offset);
+
+    return static_cast<float> (plot.left + offset / m_context.model->GetStripSpan() * (plot.right - plot.left));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetIntervalX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FluxView::GetIntervalX (const FluxInterval & interval) const
+{
+    return GetTurnX (interval.turn);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FluxView::GetIntervalLine
+//
+//  The index of the cell line nearest an interval, from 0 for 1 cell.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FluxView::GetIntervalLine (double ticks)
+{
+    return std::clamp (static_cast<int> (std::lround (ticks / TrackAnalyzer::kNominalCellTicks)) - 1, 0, 2);
 }
 
 
@@ -719,7 +863,7 @@ void FluxView::Update (const TrackAnalysis & track) const
 
         for (const FluxInterval & interval : m_intervals)
         {
-            auto &  ticks = m_lineTicks[std::clamp (static_cast<int> (std::lround (static_cast<double> (interval.ticks) / TrackAnalyzer::kNominalCellTicks)) - 1, 0, 2)];
+            auto &  ticks = m_lineTicks[GetIntervalLine (static_cast<double> (interval.ticks))];
 
             ticks.first  = std::min<uint32_t> (ticks.first,  static_cast<uint32_t> (interval.ticks));
             ticks.second = std::max<uint32_t> (ticks.second, static_cast<uint32_t> (interval.ticks));
@@ -941,8 +1085,9 @@ float FluxView::GetPlotY (double ticks) const
 //
 //  FluxView::HitInterval
 //
-//  The transition on the cell line nearest the point whose time is nearest
-//  the pointer, within a few pixels, or -1.
+//  The transition whose time is nearest the pointer, within a few pixels or,
+//  with cells drawn, a few cells; zoomed out, only on the cell line nearest
+//  the point. Otherwise -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -952,7 +1097,8 @@ int FluxView::HitInterval (POINT pointPx) const
     double  start  = m_context.model->GetStripStart();
     double  span   = m_context.model->GetStripSpan();
     float   w      = static_cast<float> (plot.right - plot.left);
-    float   reach  = m_scaler.ToPxf (s_kHitDip);
+    bool    isAny  = IsShowingCells();
+    float   reach  = isAny ? 3.0f * GetCellPx() : m_scaler.ToPxf (s_kHitDip);
     float   best   = reach;
     float   dx     = 0;
     int     line   = GetNearestLine (pointPx.y);
@@ -968,7 +1114,7 @@ int FluxView::HitInterval (POINT pointPx) const
         offset -= std::floor (offset);
         dx      = std::abs (static_cast<float> (plot.left) + static_cast<float> (offset / span) * w - pointPx.x);
 
-        if (offset < span && dx <= best && m_intervals[i].ticks >= m_lineTicks[line].first && m_intervals[i].ticks <= m_lineTicks[line].second)
+        if (offset < span && dx <= best && (isAny || (m_intervals[i].ticks >= m_lineTicks[line].first && m_intervals[i].ticks <= m_lineTicks[line].second)))
         {
             best = dx;
             hit  = static_cast<int> (i);

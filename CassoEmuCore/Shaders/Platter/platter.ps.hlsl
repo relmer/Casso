@@ -17,9 +17,9 @@
 //  two pixels, and a darker rim.
 //
 //  Only a recording's center ring is drawn at full strength. A ring between
-//  recordings has the field of the nearest one on each side, falling off with
-//  the inverse square of the distance from its edge, and the two mix where
-//  they overlap at the half track, where a groove runs.
+//  recordings has the field of the nearest one, falling off with the inverse
+//  square of the distance from its edge to nothing a third of a track from
+//  its center. A groove runs at each half track.
 //
 //  In the tilted view (FR-151) the pixel is first taken back to the point
 //  on the disk's plane under it, as PlatterGeometry::Unproject does, and
@@ -42,7 +42,8 @@ static const float kPatternPx    = 6.0;
 static const uint  kTimingFlag   = 0x100;
 static const uint  kEchoFlag     = 0x200;
 static const float kFieldFalloff = 1.2;
-static const uint  kFieldReach   = 3;
+static const uint  kFieldReach   = 2;
+static const float kFieldEnd     = 0.83;
 static const float kFullScale    = 0.25;
 static const float kDimShare     = 0.6;
 
@@ -176,6 +177,17 @@ bool IsCenterRing (uint ring)
 
 
 
+//  The share of a recording's color at a distance from its ring's edge.
+float GetFieldShare (float distance)
+{
+    float  atEnd = 1.0 / pow (1.0 + kFieldFalloff * kFieldEnd, 2.0);
+
+
+    return saturate ((1.0 / pow (1.0 + kFieldFalloff * distance, 2.0) - atEnd) / (1.0 - atEnd));
+}
+
+
+
 //  A ring's color at a distance along the rings: a center ring's data, or the
 //  field of the nearest center ring on each side.
 float4 SampleField (uint ring, float at, float turn, float radiusPx, float2 position, float scale)
@@ -199,7 +211,7 @@ float4 SampleField (uint ring, float at, float turn, float radiusPx, float2 posi
         if (!isOut && ring >= d && IsCenterRing (ring - d))
         {
             isOut   = true;
-            share   = 1.0 / pow (1.0 + kFieldFalloff * max (at - (float) (ring - d + 1), 0.0), 2.0);
+            share   = GetFieldShare (max (at - (float) (ring - d + 1), 0.0));
             sum    += share * SampleRing (ring - d, turn, radiusPx, position, scale);
             weight += share;
         }
@@ -207,7 +219,7 @@ float4 SampleField (uint ring, float at, float turn, float radiusPx, float2 posi
         if (!isIn && ring + d < (uint) ringCount && IsCenterRing (ring + d))
         {
             isIn    = true;
-            share   = 1.0 / pow (1.0 + kFieldFalloff * max ((float) (ring + d) - at, 0.0), 2.0);
+            share   = GetFieldShare (max ((float) (ring + d) - at, 0.0));
             sum    += share * SampleRing (ring + d, turn, radiusPx, position, scale);
             weight += share;
         }

@@ -141,7 +141,6 @@ public:
     //  At fit, turns the platter to put the head at kHeadSide, unless the user
     //  has dragged the platter around since the drive last turned.
     void    FollowDrive     (double angle);
-    void    TurnByHand      (double turns) { m_rotation += turns; m_isHandTurned = true; }
 
     //  A point on a ring at fit, zoom 1 and no pan, as the tilt draws it.
     Point   GetFitPoint     (int quarterTrack, double turn) const;
@@ -222,6 +221,5 @@ private:
     double                m_coastFromMs   = 0.0;
     double                m_coastDoneMs   = 0.0;
     double                m_coastTurns    = 0.0;
-    bool                  m_isHandTurned  = false;
     SelectionHistory      m_history;
 };

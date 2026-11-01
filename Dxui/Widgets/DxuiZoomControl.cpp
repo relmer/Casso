@@ -9,11 +9,11 @@
 
 static constexpr int     s_kButtonDip   = 26;
 static constexpr int     s_kSliderDip   = 140;
-static constexpr float   s_kTickPercent = 5.0f;
+static constexpr float   s_kTickPercent = 25.0f;
 static constexpr int     s_kPercentDip  = 56;
 
 //  The stops a step moves between, as percentages.
-static constexpr int     s_kStops[]     = { 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200 };
+static constexpr int     s_kStops[]     = { 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200 };
 
 
 
@@ -36,7 +36,7 @@ DxuiZoomControl::DxuiZoomControl()
     m_percent = CreateChild<DxuiButton> (FormatZoom (m_zoom));
 
     m_slider->SetRange     (static_cast<float> (kMinZoom * 100), static_cast<float> (kMaxZoom * 100));
-    m_slider->SetStep      (5.0f);
+    m_slider->SetStep      (10.0f);
     m_slider->SetDragStep  (1.0f);
     m_slider->SetTickInterval (s_kTickPercent);
     m_slider->SetShowValue (false);

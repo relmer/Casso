@@ -313,7 +313,8 @@ void PlatterCorners::Update()
     bool  isShown      = m_session.context.hasDisk && !m_session.is35;
     bool  isReads      = isShown && m_session.host->GetDriveCount() > 0 && m_session.IsWindowDiskA();
     bool  isDiffs      = isShown && m_session.comparison.IsComparing();
-    bool  isRelayout   = isReads != m_readsChip->IsVisible() || isDiffs != m_diffsChip->IsVisible();
+    bool  isFiles      = isShown && m_session.GetFileMap() != nullptr && m_session.GetFileMap()->notMapped == NotMappedReason::None;
+    bool  isRelayout   = isReads != m_readsChip->IsVisible() || isDiffs != m_diffsChip->IsVisible() || isFiles != m_filesChip->IsVisible();
     bool  isSliderOut  = isShown && IsSliderWanted();
 
 
@@ -323,6 +324,7 @@ void PlatterCorners::Update()
         group->SetVisible (isShown);
     }
 
+    m_filesChip->SetVisible (isFiles);
     m_readsChip->SetVisible (isReads);
     m_writesChip->SetVisible (isReads);
     m_scansChip->SetVisible  (isReads);
