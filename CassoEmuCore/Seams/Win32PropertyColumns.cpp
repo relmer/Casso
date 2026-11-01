@@ -317,6 +317,8 @@ Win32PropertyColumns::Values Win32PropertyColumns::Read (const std::wstring & pa
     ComPtr<IShellItem2>     item;
     ComPtr<IPropertyStore>  store;
     Values                  values (keys.size());
+    PROPERTYKEY             pathKey   = {};
+    HRESULT                 hrPathKey = PSGetPropertyKeyFromName (L"System.ItemPathDisplay", &pathKey);
 
 
 
@@ -385,6 +387,21 @@ Win32PropertyColumns::Values Win32PropertyColumns::Read (const std::wstring & pa
 
         CoTaskMemFree (shown);
         PropVariantClear (&raw);
+
+        //  An item inside a zip has no path property, but has a path.
+        if (!value.has && SUCCEEDED (hrPathKey) && IsEqualPropertyKey (keys[index], pathKey))
+        {
+            PWSTR    path   = nullptr;
+            HRESULT  hrPath = item->GetDisplayName (SIGDN_DESKTOPABSOLUTEEDITING, &path);
+
+            if (SUCCEEDED (hrPath) && path != nullptr)
+            {
+                value.has  = true;
+                value.text = path;
+            }
+
+            CoTaskMemFree (path);
+        }
     }
 
 Error:
