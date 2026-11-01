@@ -43,7 +43,7 @@ public:
             for (const GroupChoices::Choice & choice : GroupChoices::GetChoices (folder))
             {
                 PROPERTYKEY  key = {};
-                HRESULT      hr  = (choice.property != nullptr) ? PSGetPropertyKeyFromName (choice.property, &key) : S_OK;
+                HRESULT      hr  = (choice.property != nullptr) ? Win32PropertyColumns::GetKey (choice.property, key) : S_OK;
 
                 Assert::IsTrue (SUCCEEDED (hr), choice.label);
             }

@@ -63,7 +63,7 @@ public:
     bool                            ShowScrollbarMenu      (const DxuiMouseEvent & ev);
     void                            AddPackagedCommands    (std::vector<DxuiPopupMenuItem> & items);
     HRESULT                         RunAskCopilot          (const std::wstring & path);
-    void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind, const std::wstring & notOnDiskFolder = std::wstring());
     void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
     bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
     void                            SetCommandItemIds      (std::vector<std::wstring> ids) { m_packagedCommands.SetItemIds (std::move (ids)); }

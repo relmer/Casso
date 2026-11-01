@@ -93,6 +93,7 @@ struct CatalogRow
     std::wstring  folderShown;
     int           searchRank        = 0;   // the index's relevance
     bool          isGroupCopy       = false;   // listed again under another of its groups
+    bool          homeInList        = false;   // Home's item in its grouped list, not in a section
     std::wstring  imagePath;
     size_t        imageCatalogIndex = 0;
     std::string   imageDirectory;

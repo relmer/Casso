@@ -626,7 +626,9 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
-        m_context.menus.AddPackagedCommandsFor (items, { shown.path }, Win32PackagedCommands::ItemKind::Background);
+        //  A folder that isn't on the disk has no item for the commands to act
+        //  on, as File Explorer's menu there asks them with none.
+        m_context.menus.AddPackagedCommandsFor (items, (shown.kind == Location::Kind::HostFolder) ? std::vector<std::wstring> { shown.path } : std::vector<std::wstring>(), Win32PackagedCommands::ItemKind::Background, (shown.kind == Location::Kind::HostFolder) ? std::wstring() : shown.path);
 
         items.push_back (DxuiPopupMenuItem::ForSeparator());
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, shown, screen]()

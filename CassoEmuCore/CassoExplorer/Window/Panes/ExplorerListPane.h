@@ -62,6 +62,7 @@ public:
     void                                     ApplyPropertyCells      (int row, std::vector<DxuiListView::Cell> & cells);
     void                                     RefreshPropertyCells    ();
     Win32PropertyColumns                   & GetPropertyValues       () { return m_propertyValues; }
+    bool                                     GetPropertyPath         (int row, std::wstring & outPath) const;
 
     //  Fits a property column to the values on screen as they are read, until
     //  every one is, or the folder changes.

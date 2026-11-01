@@ -72,7 +72,7 @@ void Win32PropertyColumns::SetProperties (const std::vector<std::wstring> & cano
     for (const std::wstring & name : canonicalNames)
     {
         PROPERTYKEY  key = {};
-        HRESULT      hr  = PSGetPropertyKeyFromName (name.c_str(), &key);
+        HRESULT      hr  = GetKey (name, key);
 
         keys.push_back (SUCCEEDED (hr) ? key : PROPERTYKEY {});
     }
@@ -89,6 +89,21 @@ void Win32PropertyColumns::SetProperties (const std::vector<std::wstring> & cano
     m_values.clear();
     m_queue.clear();
     m_queued.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PropertyColumns::GetKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PropertyColumns::GetKey (const std::wstring & name, PROPERTYKEY & outKey)
+{
+    return (name[0] == L'{') ? PSPropertyKeyFromString (name.c_str(), &outKey) : PSGetPropertyKeyFromName (name.c_str(), &outKey);
 }
 
 
@@ -321,9 +336,23 @@ Win32PropertyColumns::Values Win32PropertyColumns::Read (const std::wstring & pa
         FILETIME                     when    = {};
         HRESULT                      hrValue = store->GetValue (keys[index], &raw);
 
+        //  A folder that answers for its items itself, as Network does, may
+        //  have the value only by asking the item.
+        if (FAILED (hrValue) || raw.vt == VT_EMPTY)
+        {
+            PropVariantClear (&raw);
+            hrValue = item->GetProperty (keys[index], &raw);
+        }
+
         if (SUCCEEDED (hrValue) && raw.vt != VT_EMPTY)
         {
             hrValue = PSFormatForDisplayAlloc (keys[index], raw, PDFF_DEFAULT, &shown);
+
+            //  A property with no description has no format of its own.
+            if (FAILED (hrValue))
+            {
+                hrValue = FormatPlain (raw, &shown);
+            }
         }
 
         if (SUCCEEDED (hrValue) && shown != nullptr && *shown != L'\0')
@@ -360,6 +389,35 @@ Win32PropertyColumns::Values Win32PropertyColumns::Read (const std::wstring & pa
 
 Error:
     return values;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32PropertyColumns::FormatPlain
+//
+//  Six bytes are a MAC address; anything else is its plain text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32PropertyColumns::FormatPlain (const PROPVARIANT & raw, PWSTR * outText)
+{
+    static constexpr ULONG  s_kMacBytes = 6;
+
+
+
+    if (raw.vt == (VT_VECTOR | VT_UI1) && raw.caub.cElems == s_kMacBytes)
+    {
+        const UCHAR  * bytes = raw.caub.pElems;
+        std::wstring   text  = std::format (L"{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
+
+        return SHStrDupW (text.c_str(), outText);
+    }
+
+    return PropVariantToStringAlloc (raw, outText);
 }
 
 
@@ -459,6 +517,19 @@ void Win32PropertyColumns::ReadGroup (IPropertyStore & store, const PROPERTYKEY 
     ioValue.groupLabel = label;
     ioValue.groupRank  = (int) index;
 
+    //  The drive's sizes say "250 GB - 500 GB" where the description has
+    //  "250 - 500 GB".
+    if (canonical == L"System.Capacity")
+    {
+        size_t  dash = ioValue.groupLabel.find (L" - ");
+        size_t  unit = ioValue.groupLabel.rfind (L' ');
+
+        if (dash != std::wstring::npos && unit > dash + 2)
+        {
+            ioValue.groupLabel.insert (dash, ioValue.groupLabel.substr (unit));
+        }
+    }
+
 Error:
     CoTaskMemFree (name);
     CoTaskMemFree (label);
@@ -525,6 +596,14 @@ bool Win32PropertyColumns::TryDescribe (const std::wstring & canonicalName, Prop
     HRESULT                       hr = PSGetPropertyDescriptionByName (canonicalName.c_str(), IID_PPV_ARGS (&description));
 
 
+
+    if (canonicalName == s_kMacAddress)
+    {
+        outProperty.canonicalName = canonicalName;
+        outProperty.title         = L"MAC Address";
+        outProperty.widthDip      = 120;
+        return true;
+    }
 
     return SUCCEEDED (hr) && ReadDescription (*description.Get(), outProperty);
 }

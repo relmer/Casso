@@ -241,6 +241,21 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
             row.sizeBytes = ignored ? 0 : (uint64_t) bytes;
         }
 
+        //  Nor a date for some.
+        if (row.homeGroup != 0 && !row.hasModified && !row.hostPath.empty())
+        {
+            WIN32_FILE_ATTRIBUTE_DATA  data = {};
+
+            if (GetFileAttributesExW (row.hostPath.c_str(), GetFileExInfoStandard, &data))
+            {
+                static constexpr int64_t  s_kTicksPerSecond   = 10000000;
+                static constexpr int64_t  s_kUnixEpochSeconds = 11644473600;
+
+                row.modifiedUnix = (int64_t) (((uint64_t) data.ftLastWriteTime.dwHighDateTime << 32) | data.ftLastWriteTime.dwLowDateTime) / s_kTicksPerSecond - s_kUnixEpochSeconds;
+                row.hasModified  = true;
+            }
+        }
+
         m_browser.m_rows.push_back (std::move (row));
     }
 

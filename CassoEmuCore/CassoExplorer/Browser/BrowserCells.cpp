@@ -356,7 +356,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
 
     //  Home's items: the location under the name, then the tab's columns,
     //  which Shared has more of.
-    if (row.homeGroup > 0)
+    if (row.homeGroup > 0 && !row.homeInList)
     {
         static constexpr int  s_kHomeGroupShared = 4;
 

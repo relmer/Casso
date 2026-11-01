@@ -1861,6 +1861,31 @@ void ExplorerListPane::FitColumnOnceRead (size_t column)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::GetPropertyPath
+//
+//  An item with no file, as a device in Network or a file in a zip, goes by
+//  the shell's id for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListPane::GetPropertyPath (int row, std::wstring & outPath) const
+{
+    if (m_context.browser.TryGetRowPath (row, outPath))
+    {
+        return true;
+    }
+
+    outPath = m_context.browser.GetRows()[(size_t) row].shellId;
+
+    return !outPath.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::FitColumnsRead
 //
 //  Each column waiting for its values is fitted to the rows on screen, which
@@ -1887,7 +1912,7 @@ void ExplorerListPane::FitColumnsRead()
 
     for (int row = top; row < end && allRead; row++)
     {
-        allRead = !m_context.browser.TryGetRowPath (row, path) || m_propertyValues.TryGet (path, GetPropertyStamp (rows[(size_t) row]), values);
+        allRead = !GetPropertyPath (row, path) || m_propertyValues.TryGet (path, GetPropertyStamp (rows[(size_t) row]), values);
     }
 
     for (size_t column : m_columnsToFit)
@@ -1932,7 +1957,7 @@ void ExplorerListPane::ApplyPropertyCells (int row, std::vector<DxuiListView::Ce
 
     cells.resize (CatalogModel::kColumnCount + count);
 
-    if (!m_propertiesShown || !m_context.browser.TryGetRowPath (row, path) || !m_propertyValues.TryGet (path, GetPropertyStamp (rows[(size_t) row]), values))
+    if (!m_propertiesShown || !GetPropertyPath (row, path) || !m_propertyValues.TryGet (path, GetPropertyStamp (rows[(size_t) row]), values))
     {
         return;
     }

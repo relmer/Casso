@@ -35,6 +35,13 @@ public:
         bool          rightAligned = false;
     };
 
+    //  A device's MAC address, as Network's column shows it. Its property has
+    //  no canonical name, so it goes by its key.
+    static constexpr const wchar_t *  s_kMacAddress = L"{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 12294";
+
+    //  A property's key by its canonical name or its key's text.
+    static HRESULT  GetKey (const std::wstring & name, PROPERTYKEY & outKey);
+
     //  One value an item has for each chosen property, in their order.
     using Values = std::vector<CatalogModel::PropertyKey>;
 
@@ -79,8 +86,9 @@ private:
 
     static std::wstring  MakeCacheKey (const std::wstring & path, const std::wstring & stamp) { return path + L'|' + stamp; }
 
-    static bool  ReadDescription (IPropertyDescription & description, Property & outProperty);
-    static void  ReadGroup       (IPropertyStore & store, const PROPERTYKEY & key, const PROPVARIANT & raw, CatalogModel::PropertyKey & ioValue);
+    static bool     ReadDescription (IPropertyDescription & description, Property & outProperty);
+    static HRESULT  FormatPlain     (const PROPVARIANT & raw, PWSTR * outText);
+    static void     ReadGroup       (IPropertyStore & store, const PROPERTYKEY & key, const PROPVARIANT & raw, CatalogModel::PropertyKey & ioValue);
 
     HWND                                      m_hwnd        = nullptr;
     UINT                                      m_message     = 0;

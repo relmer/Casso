@@ -978,11 +978,22 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
+void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind, const std::wstring & notOnDiskFolder)
 {
     std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetEntries (paths, kind);
 
 
+
+    //  A command that takes a folder as its item acts on a folder on the disk,
+    //  so a folder that isn't on it, as Network, doesn't list it, as in File
+    //  Explorer.
+    if (!notOnDiskFolder.empty())
+    {
+        for (const Win32PackagedCommands::Entry & folderEntry : m_packagedCommands.GetEntries ({ notOnDiskFolder }, kind))
+        {
+            std::erase_if (entries, [&folderEntry] (const Win32PackagedCommands::Entry & entry) { return entry.title == folderEntry.title; });
+        }
+    }
 
     if (entries.empty())
     {

@@ -814,10 +814,13 @@ std::vector<Win32PackagedCommands::Entry> Win32PackagedCommands::GetEntries (con
         registrations = m_registrations;
     }
 
-    BAIL_OUT_IF (paths.empty(), S_OK);
+    BAIL_OUT_IF (paths.empty() && kind != ItemKind::Background, S_OK);
 
-    hr = MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
-    CHR (hr);
+    if (!paths.empty())
+    {
+        hr = MakeItems (m_itemIds.empty() ? paths : m_itemIds, &items);
+        CHR (hr);
+    }
 
     //  A package's registrations are read together, so each package's are a
     //  run here.

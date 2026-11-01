@@ -78,7 +78,7 @@ std::vector<GroupChoices::Choice> GroupChoices::GetChoices (Folder folder)
 
         case Folder::Network:
             return { s_kName, { L"Category", Field::None, L"System.Category" }, { L"Workgroup", Field::None, L"System.Computer.Workgroup" }, { L"Network location", Field::None, L"System.NetworkLocation" },
-                     { L"Discovery Method", Field::None, L"System.NetworkProvider" }, { L"IP Address", Field::None, L"System.Devices.IpAddress" } };
+                     { L"Discovery Method", Field::None, L"System.NetworkProvider" }, { L"MAC Address", Field::None, L"{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 12294" }, { L"IP Address", Field::None, L"System.Devices.IpAddress" } };
 
         case Folder::Zip:
             return { s_kName, s_kType, { L"Compressed size", Field::None, L"System.ZipFolder.CompressedSize" }, { L"Password protected", Field::None, L"System.ZipFolder.Encrypted" },

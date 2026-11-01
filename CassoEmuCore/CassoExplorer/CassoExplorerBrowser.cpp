@@ -330,6 +330,7 @@ void CassoExplorerBrowser::SortRows()
             if (seen.insert (row.shellId.empty() ? row.hostPath : row.shellId).second)
             {
                 m_rows.push_back (row);
+                m_rows.back().homeInList = true;
             }
         }
 
@@ -1025,15 +1026,23 @@ std::wstring CassoExplorerBrowser::GetSelectionKey (size_t row) const
 void CassoExplorerBrowser::SetSelectedRows (const std::vector<int> & rows)
 {
     std::vector<std::wstring>  names;
+    std::set<std::wstring>     items;
 
 
 
     m_selectedRows.clear();
 
+    //  An item that several groups list is acted on once, whichever of its
+    //  rows are selected.
     for (int row : rows)
     {
         if (row >= 0 && row < (int) m_rows.size())
         {
+            if (!items.insert (m_rows[(size_t) row].shellId + L"|" + m_rows[(size_t) row].hostPath + L"|" + m_rows[(size_t) row].folderPath + L"|" + m_rows[(size_t) row].name).second)
+            {
+                continue;
+            }
+
             m_selectedRows.push_back (row);
             names.push_back (GetSelectionKey ((size_t) row));
         }
@@ -2132,10 +2141,25 @@ void CassoExplorerBrowser::NavigateToLocation (const Location & location)
 
 bool CassoExplorerBrowser::NavigateToAddress (const std::wstring & text)
 {
-    Location  location;
-    bool      parsed = BrowserModel::ParseAddress (m_fs, RootOnSystemDrive (text), location);
+    Location      location;
+    bool          parsed = BrowserModel::ParseAddress (m_fs, RootOnSystemDrive (text), location);
+    std::wstring  rooted = RootOnSystemDrive (text);
 
 
+
+    //  A zip, or a folder inside one, opens as the shell's folder it is.
+    for (size_t end = rooted.find (L'\\'); !parsed && end != std::wstring::npos; )
+    {
+        size_t  next = rooted.find (L'\\', end + 1);
+
+        if (m_tree.IsArchive (rooted.substr (0, next)))
+        {
+            location = Location::MakeShellFolder (rooted, std::filesystem::path (rooted).filename().wstring());
+            parsed   = true;
+        }
+
+        end = next;
+    }
 
     //  A shell folder typed by the shell's name for it shows the name it has.
     if (parsed && location.kind == Location::Kind::ShellFolder && location.label.empty() && m_shellVerbs != nullptr)
