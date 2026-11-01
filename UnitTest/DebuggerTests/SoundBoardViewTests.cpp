@@ -250,6 +250,31 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (TheEnvelopesR13ValueIsBesideItsPicture)
+        {
+            SoundBoardView         view;
+            DiagnosticsSoundBoard  board   = MakeBoard (false);
+            MockDxuiPainter        painter;
+            MockDxuiTextRenderer   text;
+            CassoTheme             theme   = CassoTheme::MakeSkeuomorphic();
+            bool                   isFound = false;
+
+
+
+            board.halves[0].psg.envelopeRegister = 0x0E;
+            LayOut (view);
+            view.SetBoard (board);
+            view.Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                isFound = isFound || call.text == L"$0E (14)";
+            }
+
+            Assert::IsTrue (isFound);
+        }
+
+
         TEST_METHOD (ABoardThatFitsDoesNotScroll)
         {
             SoundBoardView  view;
