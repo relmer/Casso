@@ -501,7 +501,7 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     static const Cpu s_cpu;
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
     std::string      chipLine = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
-    std::string      text     = std::format ("PROGVER = {}\nSHIMVER = {}\nQUIPCOUNT = {}\n", kProgramVersion, kShimVersion, kQuipCount) + chipLine + source;
+    std::string      text     = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + source;
     AssemblyResult   result   = assembler.Assemble (text);
     bool             placed   = false;
 

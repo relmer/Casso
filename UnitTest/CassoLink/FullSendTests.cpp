@@ -525,7 +525,7 @@ public:
 
         Assert::IsTrue (sending != rig.link.screens.end());
         Assert::IsTrue (sending->drives[1] == FullSendDriveState::OnDeck);
-        Assert::AreNotEqual (0, (int) sending->quip);
+        Assert::AreEqual (0, (int) sending->quip, L"the instruction, the first time");
         Assert::AreNotEqual (0, (int) rig.link.screens.back().quip, L"the pause has a prompt line");
     }
 
@@ -533,7 +533,7 @@ public:
     {
         Rig                                   rig;
         std::vector<int>                      shown;
-        const size_t                          count = LinkProgram::kQuipCount;
+        const size_t                          count = FullSendScreen::kQuipCount;
 
         rig.link.keys.assign (count * 4, FullSendKey::Space);
 
@@ -564,17 +564,72 @@ public:
         }
     }
 
-    TEST_METHOD (Program_PromptLineTable_MatchesTheHostsCount)
+    TEST_METHOD (Screen_PromptLines_FitAfterOnDeck)
     {
-        std::string  source = LinkProgram::GetProgramSource();
-        int          lines  = 0;
-
-        for (size_t at = source.find ("\nfsq"); at != std::string::npos; at = source.find ("\nfsq", at + 1))
+        for (int quip = 1; quip <= FullSendScreen::kQuipCount; quip++)
         {
-            lines += source.compare (at, 7, "\nfsquip") == 0 ? 0 : 1;
+            Assert::IsTrue (strlen (FullSendScreen::GetQuipText ((Byte) quip)) <= 27, TextEncoding::NarrowToWide (FullSendScreen::GetQuipText ((Byte) quip)).c_str());
+        }
+    }
+
+    TEST_METHOD (Screen_Rows_HaveTheCountsALineAndEachDrive)
+    {
+        FullSendScreen  screen;
+
+        screen.drives = { FullSendDriveState::Sending, FullSendDriveState::OnDeck };
+        screen.names  = { "13 GAMES DISK", "" };
+        screen.sent   = 12;
+
+        std::vector<std::string>  rows = screen.GetRows();
+
+        Assert::AreEqual (std::string ("FULL SEND"), rows[0]);
+        Assert::AreEqual (std::string ("SENT 12   DUP 0   BAD 0"), rows[1]);
+        Assert::AreEqual (std::string (40, '-'), rows[2]);
+        Assert::AreEqual (std::string ("D1: SENDING 13 GAMES DISK"), rows[3]);
+        Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rows[5]);
+
+        screen.quip = 6;
+        Assert::AreEqual (std::string ("D2: ON DECK--FEED ME, SEYMOUR!"), screen.GetRows()[5]);
+    }
+
+    TEST_METHOD (Session_ScreenName_HasNoLeadingZeros_AndTheMapMarksABadTrack)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.badDisk    = rig.link.drives[0];
+        rig.link.badSectors = { { 29, 3 } };
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual (std::string ("1 HELLO"), session->GetScreen().names[0]);
+        Assert::AreEqual ('X', session->GetScreen().maps[0][29]);
+        Assert::AreEqual ('.', session->GetScreen().maps[0][28]);
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001 HELLO.dsk"), L"the file keeps its zeros");
+    }
+
+    TEST_METHOD (Session_OnDeck_HasTheInstructionFirst_ThenAPromptLine)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]         = Other (1);
+        rig.link.drives[1]         = Other (2);
+        rig.link.duringDiskRead[2] = [] (ScriptedLink & link) { link.drives[0] = Other (3); };
+
+        rig.Run();
+
+        std::vector<int>  decks;
+
+        for (const FullSendScreen & screen : rig.link.screens)
+        {
+            if (screen.drives[1] == FullSendDriveState::OnDeck)
+            {
+                decks.push_back (screen.quip);
+            }
         }
 
-        Assert::AreEqual ((int) LinkProgram::kQuipCount, lines);
+        Assert::AreEqual (0, decks.front(), L"drive 2's first time on deck");
     }
 
     TEST_METHOD (Session_OneDrive_Sending_HasNoPromptLine)

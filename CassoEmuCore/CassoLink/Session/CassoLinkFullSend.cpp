@@ -38,7 +38,6 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     HRESULT            hr      = S_OK;
     HRESULT            cleared = S_OK;
     FullSendSession    session (*this, m_session.m_fileIo, GetUtcTime, operation.imagePath, operation.newName, operation.imagePrefix);
-    const Byte         off[2]  = { (Byte) FullSendDriveState::Off, (Byte) FullSendDriveState::Off };
 
 
 
@@ -61,7 +60,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     {
         m_session.m_host->SetProgress (0, 100);
 
-        cleared = m_session.m_host->SendSessionScreen (off, 0, 0, 0, (Byte) FullSendTone::None, 0, std::string());
+        cleared = m_session.m_host->SendSessionScreen (false, (Byte) FullSendTone::None, {});
         IGNORE_RETURN_VALUE (cleared, S_OK);
     }
 
@@ -150,7 +149,8 @@ HRESULT CassoLinkFullSend::ReadTrack (int drive, int track, std::vector<Byte> & 
         physicals.push_back ((Byte) physical);
     }
 
-    m_session.m_host->SetProgress (0, 100);
+    //  No share of the operation, so the drive's bar is left as it is.
+    m_session.m_host->SetProgress (0, 0);
 
     hr = m_session.m_host->ReadSectors ((Byte) drive, (Byte) track, physicals, data, status);
     CHR (hr);
@@ -248,15 +248,14 @@ Error:
 
 HRESULT CassoLinkFullSend::ShowScreen (const FullSendScreen & screen)
 {
-    HRESULT     hr       = S_OK;
-    const Byte  drives[] = { (Byte) screen.drives[0], (Byte) screen.drives[1] };
+    HRESULT  hr = S_OK;
 
 
 
     hr = CheckStop();
     CHR (hr);
 
-    hr = m_session.m_host->SendSessionScreen (drives, (Word) screen.sent, (Word) screen.duplicates, (Word) screen.bad, (Byte) screen.tone, screen.quip, screen.name);
+    hr = m_session.m_host->SendSessionScreen (true, (Byte) screen.tone, screen.GetRows());
     CHR (hr);
 
 Error:

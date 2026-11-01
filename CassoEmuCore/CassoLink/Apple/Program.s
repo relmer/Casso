@@ -24,9 +24,9 @@
 ;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
 ;   Exit            CassoLink ends, and control returns to BASIC
-;   Session screen  a full send's drive states, counts, tone and image name:
-;                   drawn over the history's first rows, the tone sounded, and
-;                   Ready again; both states 0 clears them and ends the session
+;   Session screen  whether a full send is active, its tone, and its rows' text,
+;                   each ending in a zero: drawn, the tone sounded, and Ready
+;                   again; not active clears them and ends the session
 ;   Wait for key    a full send's pause, with the prompt's lines, each ending in a
 ;                   zero: drawn with the motor off,
 ;                   Key with its code on Space, Q, 1 or 2, Key with 0 each
@@ -46,10 +46,11 @@
 ; the number in its address field, the physical sector; the host maps DOS 3.3
 ; and ProDOS numbering onto it.
 ;
-; The status screen on the text page has the connection; the PC, connected
-; or how long since its last reply; the drive, the track, the operation and
-; the progress; the last error, until an operation succeeds; the last
-; Label; and the history, the host's Log lines with the newest at the top.
+; The status screen on the text page has the connection and the PC, connected
+; or how long since its last reply; the last Label; each drive's state and its
+; bar, one cell a track, with the track and sector over it; the last error,
+; until an operation succeeds; and the history, the host's Log lines with the
+; newest at the top.
 ; Ready is sent again after each second with no reply.
 ;
 ; The disk routines are Casso's own, from Apple's published description of
@@ -2564,21 +2565,24 @@ dlinner: dey
 ; ---------------------------------------------------------------------------
 
 ROW0 = $0400                    ; the title
-ROW2 = $0500                    ; the connection
-ROW3 = $0580                    ; where the link goes, or the PC
-ROW4 = $0600                    ; the PC, below where the link goes
-ROWST = $0700                   ; row 6: the status, after a blank row
-ROWLB = $0780                   ; row 7: the label of the user's operation
-ROWER = $04A8                   ; row 9: the last error, when there is one
-ROWHIST = $05A8                 ; row 11: the history's title, its lines below
-LOGROWS = 11                    ; the history's lines, rows 12 to 22
+ROW1 = $0480                    ; the connection and the PC
+ROW2 = $0500                    ; where the link goes
+ROWLB = $0600                   ; row 4: the label of the user's operation
+ROWD1 = $0780                   ; row 7: drive 1, its bar and its map
+ROWB1 = $0428
+ROWD2 = $0528                   ; row 10: drive 2, its bar and its map
+ROWB2 = $05A8
+ROWER = $06A8                   ; row 13: the last error, when there is one
+ROWHIST = $0728                 ; row 14: the history's title, its lines below
+LOGROWS = 8                     ; the history's lines, rows 15 to 22
+BARCELLS = 35                   ; one a track
+BARTEXT = 14                    ; the column of the track and sector over the bar
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
 FSKEYSCOL = 10                  ; and in a full send
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
-FIELDLEN = 28
 scr = $13                       ; and $14: the field being drawn
 vtries = $15                    ; seek: address fields left to check
 acky = $16                      ; sendack: its third byte
@@ -2621,43 +2625,14 @@ dstext: lda labels,x
 dsnext: inx
         jmp dsline
 dsdone: jsr fschrome
-        jsr showconn
         jsr showaddr
-        ldx pcrow
-        lda pcrow+1
-        jsr fullrow
-        lda #<pclabel
-        sta ptr
-        lda #>pclabel
-        sta ptr+1
-        jsr puttext
-        jsr showpc
+        jsr showconn
         jmp showstatus
 
 labels: .byte <ROW0, >ROW0
         .text "CASSOLINK"
         .byte 0
-        .byte <ROW2, >ROW2
-        .text "CONNECTION"
-        .byte $3A, 0
-        .byte 0
         .byte 0, 0
-
-; field: scr at the field of the row whose address is in X (low) and A
-; (high), and the field cleared. Y is 0.
-field:  stx scr
-        sta scr+1
-        lda scr
-        clc
-        adc #FIELD
-        sta scr
-        ldy #FIELDLEN-1
-        lda #$A0
-fdclear: sta (scr),y
-        dey
-        bpl fdclear
-        iny
-        rts
 
 ; puttext: the 0-terminated text at (ptr) into the field from Y.
 puttext: sty tmp
@@ -2674,12 +2649,17 @@ pttext: lda (ptr),y
 ptdone: ldy tmp
         rts
 
-; putch: A into the field at Y, and Y on. Nothing is drawn at a Y of 40 or
+; putch: A into the field at Y, and Y on, in inverse left of barcells, so that
+; text over a bar inverts where the bar has passed. Nothing is drawn at a Y of 40 or
 ; more, so a text from a row's start is never drawn on the row below it.
 putch:  cpy #40
         bcs pcnext
-        ora #$80
-        sta (scr),y
+        cpy barcells
+        bcs pcnorm
+        and #$3F
+        bcc pcput
+pcnorm: ora #$80
+pcput:  sta (scr),y
 pcnext: iny
         rts
 
@@ -2728,10 +2708,14 @@ pdu:    lda tmp2
         jmp putch
 
 ; showconn: the port and the speed the 6551 is set to: a //c's port, or a
-; card's slot.
-showconn: ldx #<ROW2
-        lda #>ROW2
-        jsr field
+; card's slot, and the PC after them.
+showconn: jsr conndraw
+        sty pccol
+        jmp showpc
+
+conndraw: ldx #<ROW1
+        lda #>ROW1
+        jsr fullrow
         lda #<conntext
         sta ptr
         lda #>conntext
@@ -2843,11 +2827,11 @@ pwtabhi: .byte >1, >10, >100, >1000, >10000
 conntext: .byte 0
 connssc: .text "SSC, SLOT "
         .byte 0
-connsscm: .text "WI-FI MODEM, SLOT "
+connsscm: .text "WI-FI, SLOT "
         .byte 0
 connport: .text "SERIAL PORT "
         .byte 0
-connportm: .text "WI-FI MODEM, PORT "
+connportm: .text "WI-FI, PORT "
         .byte 0
 conncomma: .text ", "
         .byte 0
@@ -2861,23 +2845,16 @@ connnames: .byte <connssc, >connssc, <connsscm, >connsscm
 ; showaddr: below the connection, where the link goes when it has an
 ; address: DIALED: and the target a Wi-Fi modem dialed, as the command has it
 ; after ATDT and its spaces, or ADDRESS: and the Uthernet II's address and
-; port. The PC's row is below it, or below the connection when there is none.
-showaddr: lda #<ROW3
-        sta pcrow
-        lda #>ROW3
-        sta pcrow+1
+; port.
+showaddr:
         ifndef W5100
         lda SHIMDIAL
         bne sahas
         rts
 sahas:
         endif
-        lda #<ROW4
-        sta pcrow
-        lda #>ROW4
-        sta pcrow+1
-        ldx #<ROW3
-        lda #>ROW3
+        ldx #<ROW2
+        lda #>ROW2
         jsr fullrow
         lda #<addrlabel
         sta ptr
@@ -2923,9 +2900,7 @@ sacaps: jsr putch
 sadone: rts
         endif
 
-pcrow:  .byte <ROW3, >ROW3      ; the PC's row
-pclabel: .text "PC"
-        .byte $3A, 0
+pccol:  .byte 0                  ; the column after the connection
         ifdef W5100
 sacount: .byte 0                ; showaddr: the address's bytes drawn
 addrlabel: .text "ADDRESS"
@@ -2962,95 +2937,178 @@ speedend:
         .byte $FF, <sother, >sother
         endif
 
-; showstatus: the status row: the operation, and while one runs its drive,
-; track and sector and how much of the request is done, as
-; STATUS: READING D2, T17, S5 (45%). Set speed has no drive. The other
-; labels are the points that update it.
+; showstatus: each drive's row and bar. A read or write has its bar, and any
+; other time both are drawn with no text over them. A request with no share of
+; the operation, as a full send's check, leaves its drive's bar as it is. During
+; a full send the host sends the drives' rows.
 showop:
-showdrive:
-showtrack:
-showprog:
 showstatus: jsr percent
         sta pct
-        ldx #<ROWST
-        lda #>ROWST
+        lda fsmode
+        bne stbar
+        ldx #<ROWD1
+        lda #>ROWD1
         jsr fullrow
-        lda #<sttext
+        lda #1
+        jsr stdrive1
+        ldx #<ROWD2
+        lda #>ROWD2
+        jsr fullrow
+        lda #2
+        jsr stdrive1
+        jmp stbar
+
+showdrive:
+showtrack:
+showprog: jsr percent
+        sta pct
+stbar:  lda op
+        beq stplain
+        cmp #OPSPEED
+        beq stplain
+        cmp #OPDISK
+        beq stplain
+        lda phi
+        beq stplain
+        ldx drive
+        dex
+        cpx #2
+        bcs stplain
+        lda pct
+        sta barpct,x
+        lda #1
+        jmp drawbar
+stplain: lda #0
+        ldx #0
+        jsr drawbar
+        lda #0
+        ldx #1
+        jmp drawbar
+
+; stdrive1: the row at scr for the drive in A: its operation, or IDLE.
+stdrive1: sta pcsum+1
+        lda #'D'
+        jsr putch
+        lda pcsum+1
+        ora #'0'
+        jsr putch
+        lda #$3A
+        jsr putch
+        lda #' '
+        jsr putch
+        lda #<oidle
         sta ptr
-        lda #>sttext
+        lda #>oidle
         sta ptr+1
-        jsr puttext
+        lda pcsum+1
+        cmp drive
+        bne sdput
         lda op
+        cmp #OPSPEED
+        bcs sdput
         asl a
         tax
         lda optext,x
         sta ptr
         lda optext+1,x
         sta ptr+1
-        lda op                  ; idle with no PC: waiting for the connection,
-        ora pcflag              ; not for a command
-        bne stverify
-        lda #<onopc
-        sta ptr
-        lda #>onopc
-        sta ptr+1
-        jmp stput
-stverify: lda vflag             ; a written track being read back
-        beq stput
+        lda vflag
+        beq sdput
         lda #<overify
         sta ptr
         lda #>overify
         sta ptr+1
-stput:  jsr puttext
-        lda op
-        beq stdone
-        cmp #OPSPEED
-        beq stdone
-        cmp #OPDISK
-        bne strun
-stdone: rts
-strun:  lda #<stdrive
-        sta ptr
-        lda #>stdrive
-        sta ptr+1
-        jsr puttext
-        lda drive
-        jsr putdec
-        lda #<sttrack
-        sta ptr
-        lda #>sttrack
-        sta ptr+1
-        jsr puttext
+sdput:  jmp puttext
+
+; drawbar: drive X + 1's bar, with the track and sector over it when A is
+; nonzero, and the percentage at the right edge. A drive with no share yet and
+; no text has an empty row.
+drawbar: sta barover
+        stx barx
+        lda barrowlo,x
+        sta scr
+        lda barrowhi,x
+        sta scr+1
+        lda barpct,x
+        ora barover
+        bne dbdraw
+        ldy #39
+        lda #$A0
+dbclear: sta (scr),y
+        dey
+        bpl dbclear
+        rts
+dbdraw: ldy barpct,x
+        lda barcelltab,y
+        sta bartop
+        ldy #0
+dbcell: lda #$AE                ; a period
+        cpy bartop
+        bcs dbput
+        lda #$20                ; an inverse space
+dbput:  sta (scr),y
+        iny
+        cpy #BARCELLS
+        bne dbcell
+        lda barover
+        beq dbpct
+        lda bartop
+        sta barcells
+        ldy #BARTEXT
+        lda #'T'
+        jsr putch
         lda track
         jsr putdec2
-        lda vflag               ; a read-back takes the track's sectors in
-        bne stnosec             ; whatever order they pass, so the row has
-        lda #<stsector          ; no sector while it runs
-        sta ptr
-        lda #>stsector
-        sta ptr+1
-        jsr puttext
+        lda vflag
+        bne dbtext
+        lda #' '
+        jsr putch
+        lda #'S'
+        jsr putch
         lda sector
         jsr putdec2
-        jmp stpct
-stnosec: ldx #5                 ; blanks the width of ", S05", so the
-stblank: lda #' '               ; percentage stays in its column
+dbtext: lda #0
+        sta barcells
+dbpct:  ldy #BARCELLS
+        lda #' '
         jsr putch
-        dex
-        bne stblank
-stpct:  lda #' '
+        lda #' '
         jsr putch
-        lda #'('
+        lda #' '
         jsr putch
-        lda pct
-        jsr putdec
+        lda #' '
+        jsr putch
+        lda #' '
+        jsr putch
+        ldx barx
+        lda barpct,x
+        ldy #38
+        cmp #10
+        bcc dbpct2
+        dey
+        cmp #100
+        bcc dbpct2
+        dey
+dbpct2: jsr putdec
         lda #'%'
-        jsr putch
-        lda #')'
         jmp putch
 
-sttext:   .text "STATUS: "
-          .byte 0
+barrowlo: .byte <ROWB1, <ROWB2
+barrowhi: .byte >ROWB1, >ROWB2
+barpct:  .byte 0, 0             ; each drive's percentage
+barover: .byte 0
+barx:    .byte 0
+bartop:  .byte 0
+barcells: .byte 0               ; putch inverts left of this column
+; The cells filled at each percentage.
+barcelltab:
+        .byte 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6
+        .byte 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12, 13, 13
+        .byte 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 17, 18, 18, 18, 19, 19, 19, 20, 20
+        .byte 21, 21, 21, 22, 22, 22, 23, 23, 23, 24, 24, 24, 25, 25, 25, 26, 26, 26, 27, 27
+        .byte 28, 28, 28, 29, 29, 29, 30, 30, 30, 31, 31, 31, 32, 32, 32, 33, 33, 33, 34, 34
+        .byte 35
+
 stdrive:  .text " D"
           .byte 0
 sttrack:  .byte $2C
@@ -3060,25 +3118,17 @@ stsector: .byte $2C
           .text " S"
           .byte 0
 
-optext: .word oidle, oread, owrite, oformat, ospeed, odisk
+optext: .word oidle, oread, owrite, oformat
 
-oidle:   .text "WAITING FOR A COMMAND"
+oidle:   .text "IDLE"
          .byte 0
-odisk:   .text "WAITING FOR A DISK"
+oread:   .text "READING"
          .byte 0
-onopc:   .text "WAITING FOR CONNECTION"
-         .byte 0
-; A running operation's name is padded to the length of FORMATTING, so the
-; drive and track after it are in the same columns for every operation.
-oread:   .text "READING   "
-         .byte 0
-owrite:  .text "WRITING   "
+owrite:  .text "WRITING"
          .byte 0
 oformat: .text "FORMATTING"
          .byte 0
-overify: .text "VERIFYING "
-         .byte 0
-ospeed:  .text "SETTING SPEED"
+overify: .text "VERIFYING"
          .byte 0
 
 ; percent: the whole operation's percentage in A, plo plus index / count of
@@ -3131,31 +3181,41 @@ frclear: sta (scr),y
 
 ; showpc: the PC: waiting for its first reply, connected, or how long since
 ; its last reply.
-showpc: ldx pcrow
-        lda pcrow+1
-        jsr field
+showpc: lda #<ROW1
+        sta scr
+        lda #>ROW1
+        sta scr+1
+        ldy pccol
+        lda #$A0
+spclear: sta (scr),y
+        iny
+        cpy #40
+        bne spclear
+        ldy pccol
+        lda #$3A
+        jsr putch
+        lda #' '
+        jsr putch
         lda silent
         bne spquiet
-        lda #<pcwait
-        ldx #>pcwait
-        ldy pcflag
-        beq sptext
         lda #<pcconn
-        ldx #>pcconn
-sptext: sta ptr
-        stx ptr+1
-        ldy #0
-        jmp puttext
+        sta ptr
+        lda #>pcconn
+        sta ptr+1
+        lda pcflag
+        bne sptext
+        lda #<pcwait
+        sta ptr
+        lda #>pcwait
+        sta ptr+1
+sptext: jmp puttext
 spquiet: lda #<pcnone
         sta ptr
         lda #>pcnone
         sta ptr+1
-        ldy #0
         jsr puttext
         lda silent
         jsr putdec
-        lda #' '
-        jsr putch
         lda #'S'
         jmp putch
 
@@ -3198,7 +3258,7 @@ pcwait: .text "WAITING"
         .byte 0
 pcconn: .text "CONNECTED"
         .byte 0
-pcnone: .text "NO REPLY FOR "
+pcnone: .text "NO REPLY "
         .byte 0
 
 ; showerr: the last operation's error, as ERROR: WRITE-PROTECTED DISK IN D2 or
@@ -3358,28 +3418,19 @@ p2ones: sta tmp2
         ora #'0'
         jmp putch
 
-; The history's lines, rows 12 to 22 of the text page.
-logrowlo: .byte $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50
-logrowhi: .byte $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07
+; The history's lines, rows 15 to 22 of the text page.
+logrowlo: .byte $A8, $50, $D0, $50, $D0, $50, $D0, $50
+logrowhi: .byte $07, $04, $04, $05, $05, $06, $06, $07
 
 ; ---------------------------------------------------------------------------
 ; A full send
 ; ---------------------------------------------------------------------------
 
-FSDRIVE1 = 0                    ; history rows, by their index in logrowlo
-FSDRIVE2 = 1
-FSIMAGE  = 2
-FSCOUNTS = 3
-FSQUIPROW = 5
-FSROWS   = 6
-FSPROMPT = 6                    ; the first of Wait for key's lines
-FSPROMPTS = 4
-FSTONE   = 8                    ; Session screen's tone, in PKTBUF
-FSQUIP   = 9                    ; its prompt line: 0 none, else any value
-FSNAME   = 10                   ; and its image name
-        ifndef QUIPCOUNT
-QUIPCOUNT = 16                  ; the entries in fsquips, set by the host's build
-        endif
+FSPROMPT = 0                    ; the first of Wait for key's lines, by its index in logrowlo
+FSPROMPTS = 5
+FSROWS   = 7                    ; Session screen's rows
+FSTONE   = 1                    ; its tone, in PKTBUF
+FSTEXT   = 2                    ; and the start of its rows' text
 
 ; sendkey: Key with the code in A. It is sent at the next wait for a byte, or
 ; for a W5100 by flush.
@@ -3405,7 +3456,6 @@ dowaitkey: jsr motoroff
         sta op
         jsr showop
         sta $C010
-        jsr clrlabel
         lda #0
         sta left
         lda #FSPROMPT
@@ -3454,103 +3504,95 @@ wkkey:  jsr sendkey
         ldx #FSPROMPT+FSPROMPTS-1
 wkclear: jsr fsrow
         dex
-        cpx #FSPROMPT
-        bcs wkclear
-        jsr clrlabel
+        bpl wkclear
         jmp main
 
-; doscreen: the Session screen on the history's first rows, its tone, and
-; Ready again.
+; doscreen: the Session screen's rows, its tone, and Ready again.
 doscreen: lda PKTBUF
-        ora PKTBUF+1
+        beq dsstore
+        lda fsmode
+        bne dsstore
+        jsr fsclear
+        lda #0
+        sta barpct
+        sta barpct+1
+dsstore: lda PKTBUF
         sta fsmode
         bne dsdraw
         jsr fsleave
         jmp main
 dsdraw: jsr fschrome
-        ldx #FSDRIVE1
-        jsr fsdrive
-        ldx #FSDRIVE2
-        jsr fsdrive
-        ldx #FSIMAGE
-        jsr fsrow
-        lda #<fsimgtxt
-        sta ptr
-        lda #>fsimgtxt
-        sta ptr+1
-        jsr puttext
-        ldx #FSNAME
-dsname: cpx lenlo
-        bcs dscounts
-        lda PKTBUF,x
-        jsr putch
-        inx
-        bne dsname
-dscounts: ldx #FSCOUNTS
-        jsr fsrow
-        lda #<fssent
-        sta ptr
-        lda #>fssent
-        sta ptr+1
-        ldx #2
-        jsr fscount
-        lda #<fsdups
-        sta ptr
-        lda #>fsdups
-        sta ptr+1
-        ldx #4
-        jsr fscount
-        lda #<fsbad
-        sta ptr
-        lda #>fsbad
-        sta ptr+1
-        ldx #6
-        jsr fscount
-        ldx #FSQUIPROW
-        jsr fsrow
-        lda PKTBUF+FSQUIP
-        beq dssound
-dsqmod: cmp #QUIPCOUNT
-        bcc dsqdraw
-        sbc #QUIPCOUNT
-        bcs dsqmod
-dsqdraw: asl a
+        lda #FSTEXT
+        sta left
+        lda #0
+        sta sbyte
+dsrow:  ldx sbyte
+        lda fsrowhi,x
+        pha
+        lda fsrowlo,x
         tax
-        lda fsquips,x
-        sta ptr
-        lda fsquips+1,x
-        sta ptr+1
-        jsr puttext
+        pla
+        jsr fullrow
+dschar: ldx left
+        cpx lenlo
+        bcs dssound
+        inc left
+        lda PKTBUF,x
+        beq dsrown
+        jsr putch
+        jmp dschar
+dsrown: inc sbyte
+        lda sbyte
+        cmp #FSROWS
+        bne dsrow
 dssound: jsr fssound
         jmp main
 
+; The rows of the Session screen: the title, the counts, a line, and each
+; drive's row and map.
+fsrowlo: .byte <ROWLB, $80, $00, <ROWD1, $A8, <ROWD2, $28
+fsrowhi: .byte >ROWLB, $06, $07, >ROWD1, $04, >ROWD2, $06
+
+; fsclear: the rows a full send draws on cleared, and the label and history's.
+fsclear: ldx #LOGROWS-1
+fcclear: jsr fsrow
+        dex
+        bpl fcclear
+        rts
+
 ; fsleave: back to the standard screen: the session's rows cleared, and the
-; heading and keys drawn.
+; heading, keys and drives drawn.
 fsleave: lda #0
         sta fsmode
-        ldx #FSROWS-1
-flclear: jsr fsrow
-        dex
-        bpl flclear
-        ; falls through
+        sta sbyte
+flrow:  ldx sbyte
+        lda fsrowhi,x
+        pha
+        lda fsrowlo,x
+        tax
+        pla
+        jsr fullrow
+        inc sbyte
+        lda sbyte
+        cmp #FSROWS
+        bne flrow
+        jsr fsclear
+        jsr fschrome
+        jmp showstatus
 
-; fschrome: the heading over the history's rows and the keys on the last row,
-; for the standard screen or a full send.
+; fschrome: the history's heading on the standard screen and the keys on the
+; last row, for either screen.
 fschrome: ldx #<ROWHIST
         lda #>ROWHIST
         jsr fullrow
+        lda fsmode
+        bne fcnohead
         lda #<histtxt
         sta ptr
         lda #>histtxt
         sta ptr+1
-        lda fsmode
-        beq fchead
-        lda #<fsheadtxt
-        sta ptr
-        lda #>fsheadtxt
-        sta ptr+1
-fchead: jsr puttext
-        ldx #<ROWKEYS
+        jsr puttext
+fcnohead: ldx #<ROWKEYS
         lda #>ROWKEYS
         jsr fullrow
         lda #<keystxt
@@ -3568,8 +3610,6 @@ fchead: jsr puttext
 fckeys: jmp puttext
 
 histtxt: .text "HISTORY"
-        .byte $3A, 0
-fsheadtxt: .text "FULL SEND"
         .byte $3A, 0
 keystxt: .text "F"
         .byte $3A
@@ -3592,79 +3632,6 @@ fsrclr: sta (scr),y
         bpl fsrclr
         iny
         rts
-
-; fsdrive: the row of drive X + 1, with the state in PKTBUF,x.
-fsdrive: jsr fsrow
-        lda PKTBUF,x
-        beq fsdnone
-        lda #'D'
-        jsr putch
-        txa
-        clc
-        adc #'1'
-        jsr putch
-        lda #$3A
-        jsr putch
-        lda #' '
-        jsr putch
-        lda PKTBUF,x
-        asl a
-        tax
-        lda fsstates,x
-        sta ptr
-        lda fsstates+1,x
-        sta ptr+1
-        jmp puttext
-fsdnone: rts
-
-; fscount: the text at (ptr), then the count at PKTBUF,x.
-fscount: stx savex
-        jsr puttext
-        ldx savex
-        ; falls through
-
-; putnum: the 16-bit value at PKTBUF,x in decimal into the field at Y, with no
-; leading zeros.
-putnum: lda PKTBUF,x
-        sta crclo
-        lda PKTBUF+1,x
-        sta crchi
-        lda #0
-        sta tmp
-        ldx #4
-pnpow:  lda #0
-        sta tmp2
-pnsub:  lda crclo
-        sec
-        sbc pow10lo,x
-        pha
-        lda crchi
-        sbc pow10hi,x
-        bcc pnshow
-        sta crchi
-        pla
-        sta crclo
-        inc tmp2
-        bne pnsub
-pnshow: pla
-        lda tmp2
-        ora tmp
-        bne pndraw
-        cpx #0
-        bne pnnext
-pndraw: lda tmp2
-        ora #'0'
-        jsr putch
-        lda #1
-        sta tmp
-pnnext: dex
-        bpl pnpow
-        lda #' '
-        jsr putch
-        jmp putch
-
-pow10lo: .byte <1, <10, <100, <1000, <10000
-pow10hi: .byte >1, >10, >100, >1000, >10000
 
 ; fssound: the tone, by $C030, with the request's byte: one note for a finished
 ; disk, two for a duplicate and a low pair for bad sectors. Nothing else is
@@ -3704,62 +3671,4 @@ bpwait: nop
         bne bpcycle
         rts
 
-fsimgtxt: .text "IMAGE "
-        .byte 0
-fssent: .text "SENT "
-        .byte 0
-fsdups: .text "DUPLICATE "
-        .byte 0
-fsbad:  .text "BAD "
-        .byte 0
-fsstates: .word fsoff, fsidle, fscheck, fssend, fsempty, fsrepeat, fsdone, fsdeck
-fsoff:  .byte 0
-fsidle: .text "IDLE"
-        .byte 0
-fscheck: .text "CHECKING"
-        .byte 0
-fssend: .text "SENDING"
-        .byte 0
-fsempty: .text "NO DISK"
-        .byte 0
-fsrepeat: .text "ALREADY SENT"
-        .byte 0
-fsdone: .text "SENT"
-        .byte 0
-fsdeck: .text "ON DECK--INSERT A DISK TO SEND NEXT"
-        .byte 0
-
-; fsquips: the prompt lines, up to 40 characters.
-fsquips: .word fsq0, fsq1, fsq2, fsq3, fsq4, fsq5, fsq6, fsq7, fsq8, fsq9, fsq10, fsq11, fsq12, fsq13, fsq14, fsq15
-fsq0: .text "IS THAT ALL YOU'VE GOT?"
-        .byte 0
-fsq1: .text "ANOTHER!"
-        .byte 0
-fsq2: .text "I CAN HAZ DISK?"
-        .byte 0
-fsq3: .text "THANK YOU, SIR, MAY I HAVE ANOTHER?"
-        .byte 0
-fsq4: .text "MORE! MOOORE!!!"
-        .byte 0
-fsq5: .text "FEED ME, SEYMOUR!"
-        .byte 0
-fsq6: .text "INSERT COIN... ER, DISK"
-        .byte 0
-fsq7: .text "THIS DRIVE IS HUNGRY"
-        .byte 0
-fsq8: .text "NEXT VICTIM, PLEASE"
-        .byte 0
-fsq9: .text "PLEASE, SIR, I WANT SOME MORE"
-        .byte 0
-fsq10: .text "WE'RE GONNA NEED A BIGGER STACK"
-        .byte 0
-fsq11: .text "NEED INPUT!"
-        .byte 0
-fsq12: .text "ME WANT DISK! NOM NOM NOM"
-        .byte 0
-fsq13: .text "HIT ME AGAIN, DEALER"
-        .byte 0
-fsq14: .text "ONE DOES NOT SIMPLY STOP AT ONE DISK"
-        .byte 0
-fsq15: .text "JUST ONE MORE. YOU SAID THAT LAST TIME"
         .byte 0

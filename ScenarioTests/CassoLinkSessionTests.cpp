@@ -255,12 +255,12 @@ public:
     static constexpr Word  kRow2  = 0x0500;
     static constexpr Word  kRow3  = 0x0580;
     static constexpr Word  kRow4  = 0x0600;
-    static constexpr Word  kRow6  = 0x0700;
-    static constexpr Word  kRow7  = 0x0780;
-    static constexpr Word  kRow9  = 0x04A8;
-    static constexpr Word  kRow11 = 0x05A8;
-    static constexpr Word  kRow12 = 0x0628;
-    static constexpr Word  kRow13 = 0x06A8;
+    static constexpr Word  kRow1  = 0x0480;
+    static constexpr Word  kRowDrive1 = 0x0780;
+    static constexpr Word  kRowError  = 0x06A8;
+    static constexpr Word  kRowHistoryTitle = 0x0728;
+    static constexpr Word  kRowHistory1     = 0x07A8;
+    static constexpr Word  kRowHistory2     = 0x0450;
     static constexpr int   kField = 12;
 
     static std::vector<std::string>  Names (const VolumeListing & listing)
@@ -384,10 +384,10 @@ public:
         //  The host's Idle once the operation is over clears the label.
         rig.machine.RunCycles (kFrame * 30);
 
-        Assert::AreEqual (std::string ("CONNECTED"),                     rig.Row (kRow3, kField));
-        Assert::AreEqual (std::string(),                                 rig.Row (kRow7), L"no label after the operation");
-        Assert::AreEqual (std::string(),                                 rig.Row (kRow9), L"no error row yet");
-        Assert::AreEqual (std::string ("STATUS: WAITING FOR A COMMAND"), rig.Row (kRow6));
+        Assert::AreEqual (std::string ("SERIAL PORT 2, 115200: CONNECTED"), rig.Row (kRow1));
+        Assert::AreEqual (std::string(),                                 rig.Row (kRow4), L"no label after the operation");
+        Assert::AreEqual (std::string(),                                 rig.Row (kRowError), L"no error row yet");
+        Assert::AreEqual (std::string ("D1: IDLE"),                      rig.Row (kRowDrive1));
 
         //  A write to a protected disk: the error stays on the screen.
         rig.machine.GetDiskStore().GetImage (6, 0)->SetWriteProtected (true);
@@ -395,7 +395,7 @@ public:
         auto  write = rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("FROMPC"), Binary (Dos33Volume::kTypeBinary, 300, 4)));
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), write->result);
-        Assert::AreEqual (std::string ("ERROR: WRITE-PROTECTED DISK IN D1"), rig.Row (kRow9), L"the disk's drive, not a track");
+        Assert::AreEqual (std::string ("ERROR: WRITE-PROTECTED DISK IN D1"), rig.Row (kRowError), L"the disk's drive, not a track");
     }
 
 
@@ -435,10 +435,10 @@ public:
         AssertSucceeded (rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("FROMPC"), Binary (Dos33Volume::kTypeBinary, 300, 4)))->result);
         rig.machine.RunCycles (kFrame * 30);
 
-        top  = rig.Row (kRow12);
-        next = rig.Row (kRow13);
+        top  = rig.Row (kRowHistory1);
+        next = rig.Row (kRowHistory2);
 
-        Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRow11));
+        Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRowHistoryTitle));
         Assert::IsTrue   (std::regex_match (top, match, s_kLine), L"the newest line has the time");
         Assert::AreEqual (std::string ("OK  COPIED FROMPC TO D1"), match[1].str());
         Assert::IsTrue   (std::regex_match (next, match, s_kLine));
@@ -499,7 +499,7 @@ public:
         auto  again = rig.Finish (rig.session->Enumerate (1, FilePath()));
 
         AssertSucceeded (again->result);
-        Assert::AreEqual (std::string(), rig.Row (kRow9), L"no error row");
+        Assert::AreEqual (std::string(), rig.Row (kRowError), L"no error row");
     }
 
 
@@ -565,7 +565,7 @@ public:
         Rig  rig (true, 115200);
 
         AssertSucceeded (rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
-        Assert::AreEqual (std::string ("CONNECTED"), rig.Row (kRow3, kField));
+        Assert::IsTrue (rig.Row (kRow1).ends_with (": CONNECTED"));
     }
 
 

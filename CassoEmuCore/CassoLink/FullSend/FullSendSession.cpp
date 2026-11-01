@@ -2,7 +2,6 @@
 
 #include "CassoLink/FullSend/FullSendSession.h"
 
-#include "CassoLink/LinkProgram.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -10,6 +9,85 @@
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendScreen::GetRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> FullSendScreen::GetRows() const
+{
+    std::vector<std::string>  rows = { "FULL SEND", std::format ("SENT {}   DUP {}   BAD {}", sent, duplicates, bad), std::string (40, '-') };
+
+
+
+    for (size_t i = 0; i < drives.size(); i++)
+    {
+        std::string  row = std::format ("D{}: ", i + 1);
+
+        switch (drives[i])
+        {
+            case FullSendDriveState::Off:      row.clear();                 break;
+            case FullSendDriveState::Idle:     row += "IDLE";               break;
+            case FullSendDriveState::Checking: row += "CHECKING";           break;
+            case FullSendDriveState::Sending:  row += "SENDING " + names[i]; break;
+            case FullSendDriveState::Empty:    row += "NO DISK";            break;
+            case FullSendDriveState::Repeat:   row += "ALREADY SENT";       break;
+            case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
+            case FullSendDriveState::OnDeck:
+                row += "ON DECK--";
+                row += quip == 0 ? "INSERT A DISK TO SEND NEXT" : GetQuipText (quip);
+                break;
+        }
+
+        rows.push_back (row);
+        rows.push_back (maps[i]);
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendScreen::GetQuipText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * FullSendScreen::GetQuipText (Byte quip)
+{
+    static constexpr std::array<const char *, kQuipCount>  s_kQuips =
+    {
+        "IS THAT ALL YOU'VE GOT?",
+        "ANOTHER!",
+        "I CAN HAZ DISK?",
+        "THANK YOU SIR, ANOTHER?",
+        "MORE! MOOORE!!!",
+        "FEED ME, SEYMOUR!",
+        "INSERT COIN... ER, DISK",
+        "THIS DRIVE IS HUNGRY",
+        "NEXT VICTIM, PLEASE",
+        "PLEASE SIR, SOME MORE",
+        "BIGGER STACK NEEDED",
+        "NEED INPUT!",
+        "ME WANT DISK! NOM NOM NOM",
+        "HIT ME AGAIN, DEALER",
+        "ONE DISK IS NEVER ENOUGH",
+        "JUST ONE MORE, YOU SAID",
+    };
+
+
+
+    return s_kQuips[(size_t) (quip - 1) % s_kQuips.size()];
+}
 
 
 
@@ -230,6 +308,7 @@ HRESULT FullSendSession::Pause()
     std::array<bool, 2>  repeats = { false, false };
     int                  chosen  = 0;
     CheckedDisk          disk;
+    std::vector<std::string>  lines;
 
 
 
@@ -241,7 +320,10 @@ HRESULT FullSendSession::Pause()
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
 
-        hr = m_link.WaitForKey (GetPauseLines (repeats), key);
+        lines = GetPauseLines (repeats);
+        lines.push_back (FullSendScreen::GetQuipText (m_screen.quip));
+
+        hr = m_link.WaitForKey (lines, key);
         CHR (hr);
 
         m_screen.quip = 0;
@@ -368,7 +450,7 @@ Byte FullSendSession::PickQuip()
 {
     if (m_quips.empty())
     {
-        for (int line = 1; line <= LinkProgram::kQuipCount; line++)
+        for (int line = 1; line <= FullSendScreen::kQuipCount; line++)
         {
             m_quips.push_back ((Byte) line);
         }
@@ -553,6 +635,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     HRESULT                             hr               = S_OK;
     int                                 sequence         = m_manifest.GetNextSequence();
     std::string                         title            = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (checked.image), m_prefix);
+    int                                 other            = 3 - drive;
     std::string                         fingerprint      = checked.fingerprint;
     std::vector<Byte>                   image            = checked.image;
     std::vector<Byte>                   after;
@@ -571,13 +654,16 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     m_state       = State::Sending;
     m_lastRead    = drive;
     m_lastSent    = false;
-    m_screen.name = title;
+    m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (checked.image));
+    m_screen.maps[(size_t) drive - 1].clear();
     SetDriveState (drive, FullSendDriveState::Sending);
 
-    if (m_link.HasDrive (3 - drive))
+    //  A drive's first time on deck has the instruction, and later ones a line.
+    if (m_link.HasDrive (other))
     {
-        SetDriveState (3 - drive, FullSendDriveState::OnDeck);
-        m_screen.quip = PickQuip();
+        SetDriveState (other, FullSendDriveState::OnDeck);
+        m_screen.quip = m_deckShown[(size_t) other - 1] ? PickQuip() : (Byte) 0;
+        m_deckShown[(size_t) other - 1] = true;
     }
 
     hr = m_link.ShowScreen (m_screen);
@@ -606,7 +692,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
         m_link.Report (std::format ("The disk in drive {} changed while it was read, so no image was written", drive));
 
         SetDriveState (drive, FullSendDriveState::Idle);
-        m_screen.name.clear();
+        m_screen.names[(size_t) drive - 1].clear();
 
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
@@ -630,7 +716,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
         row.status      = FullSendManifest::kStatusDuplicate;
         row.duplicateOf = earlier->file;
         m_screen.tone   = FullSendTone::Duplicate;
-        m_screen.name   = std::format ("{:04}", sequence);
+        m_screen.names[(size_t) drive - 1] = std::to_string (sequence);
         m_screen.duplicates++;
     }
     else
@@ -642,7 +728,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
 
         row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendManifest::kStatusProtected;
         m_screen.tone = unreadable.empty() ? FullSendTone::Done : FullSendTone::BadSectors;
-        m_screen.name = title;
+        m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image));
         m_screen.sent++;
         m_screen.bad += unreadable.empty() ? 0 : 1;
     }
@@ -655,6 +741,16 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     hr = WriteManifest();
     CHRF (hr, m_fileFailed = true);
 
+    if (!unreadable.empty())
+    {
+        m_screen.maps[(size_t) drive - 1].assign (NibblizationLayer::kTrackCount, '.');
+
+        for (const auto & [track, sector] : unreadable)
+        {
+            m_screen.maps[(size_t) drive - 1][(size_t) track] = 'X';
+        }
+    }
+
     m_lastSent = true;
     SetDriveState (drive, FullSendDriveState::Sent);
 
@@ -664,6 +760,28 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::GetScreenName
+//
+//  The sequence number with no leading zeros and the disk's name, with no
+//  prefix, as the prefix is on every disk and the row is short.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FullSendSession::GetScreenName (int sequence, const std::string & catalogTitle)
+{
+    std::string  title = FullSendDisk::MakeImageTitle (sequence, catalogTitle, std::string());
+
+
+
+    return title.substr (title.find_first_not_of ('0'));
 }
 
 

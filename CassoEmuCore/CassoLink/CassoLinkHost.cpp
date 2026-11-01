@@ -724,20 +724,21 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, Byte quip, const std::string & name)
+HRESULT CassoLinkHost::SendSessionScreen (bool active, Byte tone, const std::vector<std::string> & rows)
 {
     HRESULT            hr     = S_OK;
-    std::vector<Byte>  screen = { drives[0], drives[1],
-                                  (Byte) (sent & 0xFF),       (Byte) (sent >> 8),
-                                  (Byte) (duplicates & 0xFF), (Byte) (duplicates >> 8),
-                                  (Byte) (bad & 0xFF),        (Byte) (bad >> 8),
-                                  tone, quip };
+    std::vector<Byte>  screen = { (Byte) (active ? 1 : 0), tone };
 
 
 
-    for (size_t i = 0; i < name.size() && i < CassoLinkCodec::kSessionNameLength; i++)
+    for (const std::string & row : rows)
     {
-        screen.push_back ((name[i] >= ' ' && name[i] <= '~') ? (Byte) toupper ((unsigned char) name[i]) : (Byte) '?');
+        for (size_t i = 0; i < row.size() && i < CassoLinkCodec::kSessionRowLength; i++)
+        {
+            screen.push_back ((row[i] >= ' ' && row[i] <= '~') ? (Byte) toupper ((unsigned char) row[i]) : (Byte) '?');
+        }
+
+        screen.push_back (0);
     }
 
     hr = AwaitReady();
@@ -792,7 +793,11 @@ HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, B
 
     for (const std::string & line : lines)
     {
-        prompt.insert (prompt.end(), line.begin(), line.end());
+        for (size_t i = 0; i < line.size() && i < CassoLinkCodec::kSessionRowLength; i++)
+        {
+            prompt.push_back ((line[i] >= ' ' && line[i] <= '~') ? (Byte) toupper ((unsigned char) line[i]) : (Byte) '?');
+        }
+
         prompt.push_back (0);
     }
 

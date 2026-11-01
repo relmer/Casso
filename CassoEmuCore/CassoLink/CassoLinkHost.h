@@ -237,10 +237,10 @@ public:
     //  Ready is sent again.
     HRESULT  PromptReady  () { return SendPacket (CassoLinkCodec::kIdle, {}); }
 
-    //  A full send's screen, in the Session screen packet: each drive's state,
-    //  the counts, the tone and the image's name. The program draws it, sounds
-    //  the tone and sends Ready.
-    HRESULT  SendSessionScreen (std::span<const Byte, 2> drives, Word sent, Word duplicates, Word bad, Byte tone, Byte quip, const std::string & name);
+    //  A full send's screen, in the Session screen packet: whether the session
+    //  is active, its tone, and its rows' text. Not active clears the rows and
+    //  ends the session.
+    HRESULT  SendSessionScreen (bool active, Byte tone, const std::vector<std::string> & rows);
 
     //  Space or Q on the Apple, with no drive running there: its code.
     //  Any Cancel ends the wait with ERROR_CANCELLED.

@@ -45,16 +45,15 @@ public:
     static constexpr uint64_t  kFrame       = 17030;
     static constexpr uint64_t  kBudget      = 8'000'000'000;
     static constexpr uint64_t  kCyclesPerS  = 1'020'484;
-    static constexpr Word      kRowLabel    = 0x0780;
-    static constexpr Word      kRowDrive1   = 0x0628;
-    static constexpr Word      kRowDrive2   = 0x06A8;
-    static constexpr Word      kRowImage    = 0x0728;
-    static constexpr Word      kRowCounts   = 0x07A8;
-    static constexpr Word      kRowQuip     = 0x04D0;
-    static constexpr Word      kRowPrompt   = 0x0550;
-    static constexpr Word      kRowPrompt2  = 0x05D0;
-    static constexpr Word      kRowStatus   = 0x0700;
-    static constexpr Word      kRowHeading  = 0x05A8;
+    static constexpr Word      kRowTitle    = 0x0600;
+    static constexpr Word      kRowCounts   = 0x0680;
+    static constexpr Word      kRowDivider  = 0x0700;
+    static constexpr Word      kRowDrive1   = 0x0780;
+    static constexpr Word      kRowBar1     = 0x0428;
+    static constexpr Word      kRowDrive2   = 0x0528;
+    static constexpr Word      kRowPrompt   = 0x07A8;
+    static constexpr Word      kRowPrompt2  = 0x0450;
+    static constexpr Word      kRowHeading  = 0x0728;
     static constexpr Word      kRowKeys     = 0x07D0;
     static constexpr int       kSlot        = 6;
 
@@ -252,9 +251,9 @@ public:
         //  the first row under the heading, once the session's rows are cleared.
         void  AssertSessionLoggedOk()
         {
-            RunUntil ([&] () { return Row (kRowDrive1).find ("FULL SEND") != std::string::npos; }, L"the session has a history line");
+            RunUntil ([&] () { return Row (kRowPrompt).find ("FULL SEND") != std::string::npos; }, L"the session has a history line");
 
-            std::string  line = Row (kRowDrive1);
+            std::string  line = Row (kRowPrompt);
 
             Logger::WriteMessage (line.c_str());
             Assert::IsTrue (line.find ("OK") != std::string::npos && line.find ("ERR") == std::string::npos, TextEncoding::NarrowToWide (line).c_str());
@@ -450,14 +449,14 @@ public:
         rig.Press (' ');
         rig.RunUntil ([&] () { return rig.Row (kRowPrompt2).find ("MAY ALREADY HAVE BEEN SENT") != std::string::npos; }, L"the already-sent prompt");
 
-        Assert::IsTrue (rig.Row (kRowCounts).find ("DUPLICATE 0") != std::string::npos, L"checking a disk doesn't count it");
+        Assert::IsTrue (rig.Row (kRowCounts).find ("DUP 0") != std::string::npos, L"checking a disk doesn't count it");
 
         rig.Press ('2');
         rig.RunUntil ([&] () { return !rig.IsPrompting(); }, L"2 ends the pause");
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the next pause");
         pauses++;
 
-        Assert::IsTrue (rig.Row (kRowCounts).find ("DUPLICATE 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
+        Assert::IsTrue (rig.Row (kRowCounts).find ("DUP 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
 
         //  The next disk has an unreadable sector.
         rig.Mount (1, DiskFormat::Nib, WithUnreadableSector (bad));
@@ -510,7 +509,7 @@ public:
         rig.Finish();
 
         Assert::IsTrue (rig.send->state == LinkOperationState::Canceled);
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).empty() && rig.Row (kRowImage).empty(); }, L"the screen is cleared");
+        rig.RunUntil ([&] () { return rig.Row (kRowCounts).empty() && rig.Row (kRowDrive1) == "D1: IDLE"; }, L"the screen is cleared");
     }
 
 
@@ -556,23 +555,29 @@ public:
 
         Assert::AreEqual (std::string ("    F: FULL SEND   PRESS ESC TO EXIT"), rig.Row (kRowKeys));
         Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRowHeading));
-        Assert::IsTrue (rig.Row (kRowStatus).find ("WAITING FOR A COMMAND") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowStatus)).c_str());
+        Assert::AreEqual (std::string ("D1: IDLE"), rig.Row (kRowDrive1));
 
         rig.Press ('f');
         rig.Begin();
 
-        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING") && rig.Row (kRowStatus).find ("10%") != std::string::npos; }, L"drive 1 is sending, with progress");
+        rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING") && rig.Row (kRowBar1).ends_with (" 10%"); }, L"drive 1 is sending, with progress");
 
         Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rig.Row (kRowDrive2));
-        Assert::IsFalse (rig.Row (kRowQuip).empty(), L"a prompt line shows while the other drive is on deck");
-        Assert::IsTrue (rig.Row (kRowImage).starts_with ("IMAGE 0001"), TextEncoding::NarrowToWide (rig.Row (kRowImage)).c_str());
-        Assert::AreEqual (std::string ("FULL SEND:"), rig.Row (kRowHeading));
+        Assert::IsTrue (rig.Row (kRowDrive1).starts_with ("D1: SENDING 1"), TextEncoding::NarrowToWide (rig.Row (kRowDrive1)).c_str());
+        Assert::AreEqual (std::string ("FULL SEND"), rig.Row (kRowTitle));
+        Assert::AreEqual (std::string (40, '-'), rig.Row (kRowDivider));
+        Assert::AreEqual (std::string(), rig.Row (kRowHeading));
+
+        //  The track over the bar: the cells passed are inverse, and the rest periods.
+        Assert::AreEqual<int> ('T' & 0x3F, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 14)) & 0x3F);
+        Assert::AreEqual<int> (0x20, rig.machine.GetCpu()->ReadByte (kRowBar1), L"the first cell is filled");
+        Assert::AreEqual<int> (0xAE, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 34)), L"the last cell is not");
         Assert::AreEqual (std::string ("          Q: BACK TO CASSOLINK"), rig.Row (kRowKeys));
 
         rig.Press (0x1B);
         rig.machine.RunCycles (kCyclesPerS);
 
-        Assert::AreEqual (std::string ("FULL SEND:"), rig.Row (kRowHeading), L"Esc is ignored during a transfer");
+        Assert::AreEqual (std::string ("FULL SEND"), rig.Row (kRowTitle), L"Esc is ignored during a transfer");
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
 
@@ -580,9 +585,6 @@ public:
         rig.machine.RunCycles (kCyclesPerS);
 
         Assert::IsTrue (rig.IsPrompting(), L"Esc is ignored during the pause");
-
-        Assert::IsTrue (rig.Row (kRowStatus).find ("WAITING FOR A DISK") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowStatus)).c_str());
-        Assert::IsTrue (rig.Row (kRowStatus).find ("COMMAND") == std::string::npos);
 
         rig.Press ('Q');
 

@@ -1539,7 +1539,7 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T351 Stop reading an already-sent disk on Space, and add the prompt that lists drives, keys 1 and 2, and Casso Explorer's status and help, per FR-110
 - [X] T352 Rename the manifest to `manifest.fullsend`, with its # header, parsing past comments, and renaming `full-send.csv`, per FR-114
 - [X] T353 Add track 3 to the fingerprint of a disk with no recognized file system, per FR-109. 0005.dsk from the owner's CP/M disk has E5 on tracks 0 and 17, so all such disks match today
-- [ ] T354 Rearrange the Apple's 40-column screen: drive rows, the bar with its overlay and right-edge percentage, the map row, merged connection rows, the divider and prompt lines after ON DECK--, per FR-128
+- [X] T354 Rearrange the Apple's 40-column screen: drive rows, the bar with its overlay and right-edge percentage, the map row, merged connection rows, the divider and prompt lines after ON DECK--, per FR-128
 - [ ] T355 Add the 80-column layout with its detection, the per-connection Use 40 columns setting and the boot disk option, per FR-128
 - [ ] T356 Add the Apple program's per-sector CRC command and the verified read and vote in `CassoLinkDiskTransfer`, per FR-129
 - [ ] T357 Add verified writes: rewrite up to twice and the final comparison, per FR-129

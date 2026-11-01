@@ -52,7 +52,7 @@ public:
     static constexpr DWORD     kWaitMs      = 120'000;
     static constexpr DWORD     kRetryMs     = 500;
     static constexpr Word      kRow2        = 0x0500;
-    static constexpr Word      kRow3        = 0x0580;
+    static constexpr Word      kRow1        = 0x0480;
     static constexpr Word      kRow4        = 0x0600;
     static constexpr int       kField       = 12;
 
@@ -239,9 +239,8 @@ public:
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the network");
             Assert::AreEqual (catalog.entries[0].name, list->listing.entries[0].name);
             Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (rig.machine.GetCpu()->ReadByte (0x0803) | (rig.machine.GetCpu()->ReadByte (0x0804) << 8)), L"the program was loaded");
-            Assert::AreEqual (std::string ("UTHERNET II, SLOT 3, 26502"), rig.Row (kRow2, kField));
-            Assert::AreEqual (std::format ("ADDRESS:    127.0.0.1:{}", kPort), rig.Row (kRow3));
-            Assert::AreEqual (std::string ("CONNECTED"),          rig.Row (kRow4, kField));
+            Assert::AreEqual (std::string ("UTHERNET II, SLOT 3, 26502: CONNECTED"), rig.Row (kRow1));
+            Assert::AreEqual (std::format ("ADDRESS:    127.0.0.1:{}", kPort), rig.Row (kRow2));
 
             AssertSucceeded (Dos33Volume (dos).Write (FilePath::Parse ("FROMPC"), payload, written));
 
@@ -338,7 +337,7 @@ public:
 
             AssertSucceeded (list->result);
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog through a Casso link");
-            Assert::AreEqual (std::format ("UTHERNET II, SLOT 3, {}", kOtherPort), rig.Row (kRow2, kField), L"the W5100 program's connection row");
+            Assert::IsTrue (rig.Row (kRow1).starts_with (std::format ("UTHERNET II, SLOT 3, {}", kOtherPort)), L"the W5100 program's connection row");
         }
     }
 

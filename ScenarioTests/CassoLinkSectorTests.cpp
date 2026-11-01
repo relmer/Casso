@@ -272,7 +272,7 @@ public:
                 rows.push_back (screen.substr (start, end - start));
             }
 
-            for (size_t row = 12; row < 23 && row < rows.size(); row++)
+            for (size_t row = 15; row < 23 && row < rows.size(); row++)
             {
                 Assert::AreEqual (std::string::npos, rows[row].find_first_not_of (' '), std::format (L"row {} is blank", row).c_str());
             }
@@ -302,9 +302,8 @@ public:
 
         rows = TextScreenScraper::Scrape (rig.machine);
 
-        Assert::AreEqual (std::string::npos, rows[7].find_first_not_of (' '), L"the label row is blank");
-        Assert::AreNotEqual (std::string::npos, rows[3].find ("WAITING"), L"the PC is waited for");
-        Assert::AreNotEqual (std::string::npos, rows[6].find ("STATUS: WAITING FOR CONNECTION"), L"and the status row");
+        Assert::AreEqual (std::string::npos, rows[4].find_first_not_of (' '), L"the label row is blank");
+        Assert::AreNotEqual (std::string::npos, rows[1].find ("WAITING"), L"the PC is waited for");
     }
 
 
@@ -531,7 +530,7 @@ public:
 
         for (const std::string & screen : rig.screens)
         {
-            if (screen.find ("READING") != std::string::npos && screen.find ("(50%)") != std::string::npos)
+            if (screen.find ("D1: READING") != std::string::npos && screen.find (" 50%") != std::string::npos)
             {
                 reading = screen;
                 break;
@@ -539,9 +538,7 @@ public:
         }
 
         Assert::IsFalse (reading.empty(), L"the screen reported the read halfway through");
-        Assert::IsTrue (reading.find ("CONNECTION: SERIAL PORT 2, 115200") != std::string::npos, L"the connection");
-        Assert::IsTrue (reading.find ("STATUS: READING    D1, T17, S") != std::string::npos, L"the drive and track on the status row");
-        Assert::AreEqual ((size_t) 32, reading.find ('(') - reading.find ("STATUS:"), L"two-digit track and sector put the percentage in one column");
+        Assert::IsTrue (reading.find ("SERIAL PORT 2, 115200: CONNECTED") != std::string::npos, L"the connection");
     }
 
 
@@ -560,7 +557,7 @@ public:
         hr = rig.Run ([&] () { return rig.host->ReadSectors (1, 17, AllSectors(), data, status); },
                       [&] ()
                       {
-                          if (!canceled && rig.screens.back().find ("(18%)") != std::string::npos)
+                          if (!canceled && rig.screens.back().find (" 18%") != std::string::npos)
                           {
                               canceled = true;
                               Assert::AreEqual (S_OK, rig.host->Cancel());
@@ -589,7 +586,7 @@ public:
         Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->ReadSectors (1, 0, AllSectors(), data, status); },
                                          [&] ()
                                          {
-                                             if (!paused && rig.screens.back().find ("(25%)") != std::string::npos)
+                                             if (!paused && rig.screens.back().find (" 25%") != std::string::npos)
                                              {
                                                  paused = true;
                                                  std::this_thread::sleep_for (std::chrono::seconds (10));

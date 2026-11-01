@@ -55,7 +55,17 @@ struct FullSendScreen
     int                                bad        = 0;
     FullSendTone                       tone       = FullSendTone::None;
     Byte                               quip       = 0;      // the prompt line: 0 none, else a line from 1
-    std::string                        name;
+    std::array<std::string, 2>         names;               // each drive's latest disk, as 13 GAMES DISK
+    std::array<std::string, 2>         maps;                // each drive's tracks with a problem, or empty
+
+    static constexpr int  kQuipCount = 16;
+
+    //  The rows the Apple draws: the title, the counts, a line, and each drive's
+    //  row and map.
+    std::vector<std::string>  GetRows () const;
+
+    //  A prompt line, from 1. Each fits after ON DECK-- on a 40-column row.
+    static const char *  GetQuipText (Byte quip);
 };
 
 
@@ -196,6 +206,7 @@ private:
     void                             ReportRepeat  (int drive, const CheckedDisk & disk);
     Byte                             PickQuip      ();
     static std::vector<std::string>  GetPauseLines (const std::array<bool, 2> & repeats);
+    static std::string               GetScreenName (int sequence, const std::string & catalogTitle);
     void                             SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
     std::string                      GetPath       (const std::string & file) const;
 
@@ -212,6 +223,7 @@ private:
     std::string              m_message;
     int                      m_lastRead   = 0;
     bool                     m_lastSent   = false;
+    std::array<bool, 2>      m_deckShown  = { false, false };
     uint64_t                 m_commitTag  = 1;
     std::mt19937             m_random     { std::random_device{}() };
     std::vector<Byte>        m_quips;         // the prompt lines left before any repeats

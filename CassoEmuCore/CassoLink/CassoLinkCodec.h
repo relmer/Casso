@@ -108,8 +108,8 @@ public:
     static constexpr Byte  kKeyDrive1     = 0xB1;
     static constexpr Byte  kKeyDrive2     = 0xB2;
 
-    //  The longest image name on the Session screen.
-    static constexpr size_t  kSessionNameLength = 30;
+    //  The longest row on the Session screen.
+    static constexpr size_t  kSessionRowLength = 40;
 
     //  Time drive's marker, one a revolution, outside any packet.
     static constexpr Byte  kTimeMark     = 0xA5;

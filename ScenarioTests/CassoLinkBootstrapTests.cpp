@@ -515,8 +515,8 @@ public:
             Assert::IsFalse (list->listing.entries.empty(), L"drive 2's catalog through the modem");
 
             screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-            Assert::IsTrue (screen[2].starts_with ("CONNECTION: WI-FI MODEM, PORT 2, 115200"), TextEncoding::NarrowToWide (screen[2]).c_str());
-            Assert::IsTrue (screen[3].starts_with ("DIALED:     CASSO.LOCAL:6400"), TextEncoding::NarrowToWide (screen[3]).c_str());
+            Assert::IsTrue (screen[1].starts_with ("WI-FI, PORT 2, 115200"), TextEncoding::NarrowToWide (screen[1]).c_str());
+            Assert::IsTrue (screen[2].starts_with ("DIALED:     CASSO.LOCAL:6400"), TextEncoding::NarrowToWide (screen[2]).c_str());
         }
 
         modem.thread.request_stop();
