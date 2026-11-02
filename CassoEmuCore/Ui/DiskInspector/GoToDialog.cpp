@@ -19,7 +19,7 @@ static constexpr int          s_kMaxPathChars = 64;
 static constexpr GoToKindTip  s_kKindTips[GoToDialog::kTipCount] =
 {
     { GoToKind::PhysicalSector, L"The number in a sector's address field, counting from 0.\nA standard disk has them in order around the track." },
-    { GoToKind::DosOrderSector, L"The sector's index in DOS order, the order of a DOS-order image (.do and most .dsk files).\nIt counts from 0, as the physical sector does, but in another order:" },
+    { GoToKind::DosOrderSector, L"The sector's index in DOS's order, the number DOS uses to read and write it." },
     { GoToKind::ProDosBlock,    L"A 512-byte block, whether or not ProDOS is on the disk." },
 };
 

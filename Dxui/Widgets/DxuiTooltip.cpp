@@ -39,9 +39,9 @@ static constexpr float     s_kSwatchGapDip    = 6.0f;
 static constexpr float     s_kMaxSwatchTextWidthDip = 2000.0f;
 
 //  A table's columns are set apart by this gap, and the table from the text
-//  above it by half a line.
+//  above it by one blank line.
 static constexpr float     s_kTableGapDip     = 8.0f;
-static constexpr float     s_kTableTopLines   = 0.5f;
+static constexpr float     s_kTableTopLines   = 1.0f;
 
 
 
