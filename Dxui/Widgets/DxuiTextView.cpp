@@ -42,6 +42,44 @@ void DxuiTextView::SetRows (std::vector<Row> rows)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::UpdateRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::UpdateRows (std::vector<Row> rows)
+{
+    auto  clamp = [this] (Position & at)
+    {
+        if (m_rows.empty())
+        {
+            at = Position();
+            return;
+        }
+
+        at.row    = std::clamp (at.row, 0, (int) m_rows.size() - 1);
+        at.offset = std::clamp (at.offset, 0, GetRowLength (m_rows[(size_t) at.row]));
+    };
+
+
+
+    m_rows = std::move (rows);
+
+    clamp (m_anchor);
+    clamp (m_caret);
+    clamp (m_userAnchor);
+    clamp (m_userCaret);
+
+    std::erase_if (m_highlights, [this] (const FindMatch & match) { return match.start.row >= (int) m_rows.size(); });
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::SetRowsDroppingFront
 //
 //  A position in a row that went is dropped: a highlight there goes, and a

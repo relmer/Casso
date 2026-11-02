@@ -104,6 +104,36 @@ public:
     }
 
 
+    //  With the same rows set again, as a source view rebuilds them for a new
+    //  mark, the selection and a drag in progress are unaffected; new text
+    //  clears them.
+    TEST_METHOD (UpdateRows_KeepsTheSelectionAndTheDrag)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"A", L"one" }), MakeRow ({ L"B", L"two" }) });
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 4 * 8, 6 + 4);
+
+        view.UpdateRows ({ MakeRow ({ L"A", L"one" }), MakeRow ({ L"B", L"two" }) });
+
+        Assert::IsTrue   (view.IsInteracting(), L"the drag goes on");
+
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 5 * 8, 6 + 16 + 4);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 5 * 8, 6 + 16 + 4);
+
+        Assert::AreEqual (std::wstring (L"one\r\nB\ttw"), view.GetSelectionText());
+
+        view.UpdateRows ({ MakeRow ({ L"A", L"o" }) });
+        Assert::AreEqual (std::wstring (L"o"), view.GetSelectionText(), L"each end is cut back to the rows");
+
+        view.SetRows ({ MakeRow ({ L"A", L"one" }) });
+        Assert::IsFalse  (view.HasSelection());
+    }
+
+
     TEST_METHOD (Drag_SelectsFromTheCharacterPressedToTheOneReleased)
     {
         DxuiTextView  view;

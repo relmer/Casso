@@ -89,6 +89,11 @@ public:
     //  Replaces the text, clearing the selection and scrolling to the top.
     void                      SetRows  (std::vector<Row> rows);
 
+    //  The same document's rows again, as after a change of their colors or
+    //  marks: the selection, a drag in progress, the find highlights and the
+    //  top line are left in place, each end cut back to the new rows.
+    void                      UpdateRows (std::vector<Row> rows);
+
     //  The rows again after `dropped` rows went from the front, as a log's
     //  oldest do, with others perhaps at the end: the selection, the find
     //  highlights and the find scope move up with the text.

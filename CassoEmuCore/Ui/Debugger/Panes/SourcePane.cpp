@@ -489,7 +489,17 @@ void SourcePane::Rebuild()
             AddHeatStrips (rows, m_fileId, *m_state->lineRanges, *heat, *m_heatPalette);
         }
 
-        m_view->SetRows  (std::move (rows));
+        //  For the same file the selection is left in place, so a drag across
+        //  it and a copy survive a snapshot that changes only marks or colors.
+        if (m_rowsFileId == m_fileId)
+        {
+            m_view->UpdateRows (std::move (rows));
+        }
+        else
+        {
+            m_view->SetRows (std::move (rows));
+        }
+
         m_rowsHeatLevels   = heat;
         m_rowLines         = GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
