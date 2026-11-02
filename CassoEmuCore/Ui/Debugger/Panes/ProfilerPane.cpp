@@ -708,6 +708,16 @@ void ProfilerPane::BuildIfDue()
         }
     }
 
+    if (!m_isPeriodRead)
+    {
+        IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+        m_period       = GetPeriodIndex ((host != nullptr) ? host->GetDebuggerProfilerPeriod() : std::string());
+        m_isPeriodRead = true;
+    }
+
     ShowPeriod (m_period);
 }
 
@@ -871,7 +881,7 @@ void ProfilerPane::SetBarEntries()
         entries.push_back (std::move (label));
     }
 
-    command            = add (s_kProfilePeriod, L"Last 60 s", L"Build the profile of a period of history", DxuiToolbar::Kind::DropDown, 0, [] {});
+    command            = add (s_kProfilePeriod, L"Last 5 s", L"Build the profile of a period of history", DxuiToolbar::Kind::DropDown, 0, [] {});
     command->labelText = [this] { return std::wstring (GetPeriods()[m_period].label); };
 
     add (s_kProfileReset, L"Reset",   L"Start the counts over",           DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); }, s_kpszMdl2Refresh);
@@ -915,7 +925,7 @@ void ProfilerPane::SetViewMenu()
     for (size_t period = 0; period < GetPeriods().size(); period++)
     {
         views.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (GetPeriods()[period].label, m_period == period,
-                                                                                  [this, period] { ShowPeriod (period); })));
+                                                                                  [this, period] { ChoosePeriod (period); })));
     }
 
     m_bar.GetBar()->SetDropDownItems (s_kProfilePeriod, std::move (views));
@@ -935,6 +945,7 @@ const std::vector<ProfilerPane::Period> & ProfilerPane::GetPeriods()
 {
     static const std::vector<Period>  periods =
     {
+        { "HISTORY 5",   L"Last 5 s"            },
         { "HISTORY 10",  L"Last 10 s"           },
         { "HISTORY 60",  L"Last 60 s"           },
         { "HISTORY 300", L"Last 5 min"          },
@@ -944,6 +955,63 @@ const std::vector<ProfilerPane::Period> & ProfilerPane::GetPeriods()
 
 
     return periods;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetPeriodIndex
+//
+//  The period whose HISTORY argument is rgument, or the first, the last
+//  5 seconds, for an empty or unknown one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ProfilerPane::GetPeriodIndex (const std::string & argument)
+{
+    const std::vector<Period>  & periods = GetPeriods();
+    std::string                  words   = "HISTORY " + argument;
+
+
+
+    for (size_t period = 0; period < periods.size(); period++)
+    {
+        if (words == periods[period].words)
+        {
+            return period;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::ChoosePeriod
+//
+//  The user's choice from the period menu, saved for the next session.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::ChoosePeriod (size_t period)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+    ShowPeriod (period);
+
+    if (host != nullptr)
+    {
+        host->SetDebuggerProfilerPeriod (std::string (GetPeriods()[m_period].words).substr (std::size ("HISTORY ") - 1));
+    }
 }
 
 

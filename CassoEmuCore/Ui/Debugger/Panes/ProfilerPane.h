@@ -58,6 +58,10 @@ public:
 
     static const std::vector<Period> &  GetPeriods ();
 
+    //  The period whose HISTORY argument is rgument; the first, the last
+    //  5 seconds, for an empty or unknown one.
+    static size_t                       GetPeriodIndex (const std::string & argument);
+
     explicit ProfilerPane (IDebuggerPaneHost & host);
     ~ProfilerPane() override;
 
@@ -70,6 +74,9 @@ public:
     //  which runs PROFILE HISTORY for it; and whether a profile is building,
     //  with the progress bar up.
     void                                ShowPeriod (size_t period);
+
+    //  Builds the profile of the period the user chose, and saves the choice for the next session.
+    void                                ChoosePeriod (size_t period);
     bool                                IsBuilding () const { return m_isBuilding; }
 
     //  The bar's commands, as last built.
@@ -188,7 +195,8 @@ private:
     ProfileProgress                            * m_progress        = nullptr;
     DxuiLabel                                  * m_totals          = nullptr;
     std::unique_ptr<ToolbarLabelEntry>           m_showLabel;
-    size_t                                       m_period          = 1;
+    size_t                                       m_period          = 0;
+    bool                                         m_isPeriodRead    = false;
     bool                                         m_isBuilding      = false;
     bool                                         m_isPaused        = false;
     std::optional<uint64_t>                      m_stopCycle;        // where the machine is stopped, with history

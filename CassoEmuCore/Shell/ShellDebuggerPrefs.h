@@ -61,6 +61,8 @@ public:
     void            SetDebuggerHeatMapOptions     (const std::string & text);
     std::string     GetDebuggerDiskDrives         ();
     void            SetDebuggerDiskDrives         (const std::string & text);
+    std::string     GetDebuggerProfilerPeriod     ();
+    void            SetDebuggerProfilerPeriod     (const std::string & text);
     std::string     GetDebuggerHeatMapRanges      ();
     void            SetDebuggerHeatMapRanges      (const std::string & text);
     std::string     GetDebuggerOpenViews          ();

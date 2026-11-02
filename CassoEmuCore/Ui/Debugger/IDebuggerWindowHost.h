@@ -204,6 +204,10 @@ public:
     virtual void         SetDebuggerDiskDrives (const std::string &)       {}
     virtual void         ResetDebuggerHeatMap      ()                      {}
 
+    //  The profiler's period, as its HISTORY argument.
+    virtual std::string  GetDebuggerProfilerPeriod ()                      { return {}; }
+    virtual void         SetDebuggerProfilerPeriod (const std::string &)   {}
+
     //  A heat map request for the machine, in the words after "heatmap" of
     //  its command: the cell the mouse is over ("hover 2000", "hover none"),
     //  or an access to show or go back to (HeatAccessJump::FormatWords).

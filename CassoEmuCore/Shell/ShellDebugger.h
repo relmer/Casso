@@ -321,6 +321,8 @@ public:
     void         SetDebuggerHeatMapOptions (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
     std::string  GetDebuggerDiskDrives     () override { return m_prefs.GetDebuggerDiskDrives(); }
     void         SetDebuggerDiskDrives     (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
+    std::string  GetDebuggerProfilerPeriod () override { return m_prefs.GetDebuggerProfilerPeriod(); }
+    void         SetDebuggerProfilerPeriod (const std::string & text) override { m_prefs.SetDebuggerProfilerPeriod (text); }
     void         ResetDebuggerHeatMap      () override;
     void         SendDebuggerHeatMapRequest (const std::string & words) override;
     std::string  GetDebuggerHeatMapRanges  () override { return m_prefs.GetDebuggerHeatMapRanges(); }

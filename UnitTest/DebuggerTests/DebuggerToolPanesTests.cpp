@@ -305,7 +305,7 @@ namespace DebuggerToolPanesTests
             snapshot->history.hasHistory = true;
             snapshot->history.cycle      = 100;
             window.TakeSnapshot (snapshot);
-            Assert::IsTrue (host.commands == std::vector<std::string> { "PROFILE HISTORY 60" }, L"the chosen period, built at the stop");
+            Assert::IsTrue (host.commands == std::vector<std::string> { "PROFILE HISTORY 5" }, L"the default period, the last 5 seconds, built at the stop");
 
             window.TakeSnapshot (snapshot);
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"once for the stop");
@@ -324,6 +324,17 @@ namespace DebuggerToolPanesTests
             snapshot->history.cycle = 100;
             window.TakeSnapshot (snapshot);
             Assert::AreEqual ((size_t) 3, host.commands.size(), L"and after a frame's step back");
+        }
+
+
+
+        TEST_METHOD (TheProfilerPeriodDefaultsToFiveSecondsAndReadsTheSetting)
+        {
+            Assert::AreEqual ((size_t) 0, ProfilerPane::GetPeriodIndex (""),    L"no setting is the last 5 seconds");
+            Assert::AreEqual ((size_t) 0, ProfilerPane::GetPeriodIndex ("7"),   L"an unknown setting is the last 5 seconds");
+            Assert::AreEqual ("HISTORY 5", ProfilerPane::GetPeriods()[0].words);
+            Assert::AreEqual ((size_t) 2, ProfilerPane::GetPeriodIndex ("60"));
+            Assert::AreEqual ("HISTORY ALL", ProfilerPane::GetPeriods()[ProfilerPane::GetPeriodIndex ("ALL")].words);
         }
 
 
@@ -347,7 +358,7 @@ namespace DebuggerToolPanesTests
 
             for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerPane().GetCommands())
             {
-                if (command->label == L"Last 60 s") { period = command; }
+                if (command->label == L"Last 5 s")  { period = command; }
                 if (command->label == L"Routines")  { view   = command; }
                 Assert::AreNotEqual (std::wstring (L"Profile"), command->label, L"a Profile switch");
             }
@@ -356,7 +367,7 @@ namespace DebuggerToolPanesTests
             Assert::IsNotNull (view.get(), L"the pane opens on Routines");
             Assert::IsTrue    (window.GetProfilerPane().GetView() == ProfilerPane::View::Routines);
 
-            window.GetProfilerPane().ShowPeriod (0);
+            window.GetProfilerPane().ShowPeriod (1);
             Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE HISTORY 10" });
             Assert::AreEqual (std::wstring (L"Last 10 s"), period->labelText());
 

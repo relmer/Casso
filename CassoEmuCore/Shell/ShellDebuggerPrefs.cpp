@@ -586,6 +586,51 @@ void ShellDebuggerPrefs::SetDebuggerDiskDrives (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDebuggerPrefs::GetDebuggerProfilerPeriod
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDebuggerPrefs::GetDebuggerProfilerPeriod()
+{
+    return m_settings.profilerPeriod;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebuggerPrefs::SetDebuggerProfilerPeriod
+//
+//  UI thread; saved only when it changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebuggerPrefs::SetDebuggerProfilerPeriod (const std::string & text)
+{
+    if (m_settings.profilerPeriod == text)
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.profilerPeriod = text;
+    }
+
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDebuggerPrefs::GetDebuggerHeatMapRanges
 //
 ////////////////////////////////////////////////////////////////////////////////
