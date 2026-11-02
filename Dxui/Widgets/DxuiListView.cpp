@@ -597,12 +597,15 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
             //  above it, so the title's own width is all a header needs --
             //  with room to either side even in a list whose cells are
             //  packed tight, or a column as wide as its title puts the title
-            //  against the next column's separator.
+            //  against the next column's separator. A heading too short for
+            //  the chevron above has room for it at the right end, in every
+            //  column, so a click that sorts doesn't resize the column.
             hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             wpx = std::max (wpx, (int) std::ceil (w) + std::max (0, m_scaler.ToPx (s_kHeaderPadMinDip) - padPx) +
-                                 (m_columns[c].isFiltered ? (int) std::ceil (m_scaler.ToPxf (s_kFilterGlyphDip)) : 0));
+                                 (m_columns[c].isFiltered ? (int) std::ceil (m_scaler.ToPxf (s_kFilterGlyphDip)) : 0) +
+                                 (IsSortAboveTitle ((float) m_scaler.ToPx (m_headerHeightDip), m_scaler.ToPxf (s_kHeaderFontDip)) ? 0 : (int) std::ceil (m_scaler.ToPxf (s_kSortGlyphDip))));
         }
 
         for (const auto & row : m_rows)
@@ -3168,6 +3171,29 @@ void DxuiListView::SetColumnFiltered (size_t idx, bool isFiltered)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsSortAboveTitle
+//
+//  Whether a heading has room above its vertically centered title for the
+//  sort chevron, as a tall one does; a short one has it at the right end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsSortAboveTitle (
+    float  headerPx,
+    float  fontPx) const
+{
+    float  lineH = fontPx * s_kTitleLineEm;
+
+
+
+    return (headerPx - lineH) / 2.0f >= m_scaler.ToPxf (s_kSortAboveDip);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintHeader
 //
 //  Paints the header background, the column titles, the active sort
@@ -3199,8 +3225,10 @@ void DxuiListView::PaintHeader (
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
         bool   hasSort     = ((int) c == m_sortColumn) && m_columns[c].visible && (colWPx[c] > 0);
+        bool   isSortRight = hasSort && !IsSortAboveTitle (headerH, hdrFontPx);
         float  filterW     = m_columns[c].isFiltered ? m_scaler.ToPxf (s_kFilterGlyphDip) : 0.0f;
-        float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - filterW;
+        float  sortW       = isSortRight ? m_scaler.ToPxf (s_kSortGlyphDip) : 0.0f;
+        float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - filterW - sortW;
 
         if (!m_columns[c].visible || colWPx[c] <= 0)
         {
@@ -3226,13 +3254,16 @@ void DxuiListView::PaintHeader (
 
         //  File Explorer's sort indicator: a small chevron centered over the
         //  column title, pointing up for ascending and down for descending.
+        //  A heading too short for it above the title has it at the right
+        //  end instead, left of any funnel, and the title is narrowed to make room.
         if (hasSort)
         {
             float  halfW = (float) m_scaler.ToPxf (3.0f);
             float  halfH = (float) m_scaler.ToPxf (1.5f);
             float  thick = (float) m_scaler.ToPxf (0.75f);
-            float  cx    = x + colOff + (float) colXPx[c] + (float) colWPx[c] / 2.0f;
-            float  cy    = y + (float) m_scaler.ToPxf (6.0f);
+            float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) - cellPadR - filterW;
+            float  cx    = isSortRight ? right - sortW / 2.0f : x + colOff + (float) colXPx[c] + (float) colWPx[c] / 2.0f;
+            float  cy    = isSortRight ? y + headerH / 2.0f : y + (float) m_scaler.ToPxf (6.0f);
             float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
             float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
 

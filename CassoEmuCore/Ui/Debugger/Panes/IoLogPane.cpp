@@ -45,7 +45,7 @@ std::string IoLogPane::GetOptionsText() const
         lanes += isShown ? '1' : '0';
     }
 
-    return std::format ("lanes={};columnLayout={}", lanes, GetColumnsText());
+    return std::format ("lanes={};headings={};columnLayout={}", lanes, kHeadingsVersion, GetColumnsText());
 }
 
 
@@ -67,6 +67,7 @@ void IoLogPane::SetOptionsText (const std::string & text)
     std::string  field;
     std::string  key;
     std::string  value;
+    int          headings = 0;
 
 
 
@@ -86,12 +87,24 @@ void IoLogPane::SetOptionsText (const std::string & text)
                 m_lanes[i] = value[i] == '1';
             }
         }
+        else if (key == "headings")
+        {
+            headings = std::atoi (value.c_str());
+        }
         else if (key == "columnLayout")
         {
             SetColumnsText (value);
         }
 
         start = end + 1;
+    }
+
+    //  The video log's Line and H columns became Scanline and Line cycle; a
+    //  width saved for the old headings is too narrow for the new ones.
+    if (headings < kHeadingsVersion)
+    {
+        GetList()->SetColumnOverrideWidthPx (kLine,       -1);
+        GetList()->SetColumnOverrideWidthPx (kHorizontal, -1);
     }
 
     MarkDirty();
@@ -171,7 +184,7 @@ IoLogPane::ColumnSpecs IoLogPane::GetColumnSpecs() const
              { L"Cycle",      DxuiTextHAlign::Right, 110,   true,       L"The CPU's cycle count since the last power cycle" },
              { L"Frame",      DxuiTextHAlign::Right, 110,   false,      L"The cycle the video frame began at" },
              { L"Scanline",   DxuiTextHAlign::Right,  70,   m_isVideo,  L"The scanline the beam was on, 0 at the top of the frame" },
-             { L"Line cycle", DxuiTextHAlign::Right,  80,   m_isVideo,  L"The CPU cycle within the scanline, 0 to 64: the count Understanding the Apple II calls the horizontal counter" },
+             { L"Line cycle", DxuiTextHAlign::Right,  90,   m_isVideo,  L"The CPU cycle within the scanline, 0 to 64: the count Understanding the Apple II calls the horizontal counter" },
              { L"Since",      DxuiTextHAlign::Right,  80,   !m_isVideo, L"The cycles since the speaker's last toggle, or since the last write to a board" },
              { L"Address",    DxuiTextHAlign::Left,   70,   true,       L"The address the CPU read or wrote" },
              { L"Source",     DxuiTextHAlign::Left,  110,   !m_isVideo, L"The speaker, a Mockingboard's chips, or the SSI-263" },

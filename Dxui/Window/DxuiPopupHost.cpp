@@ -1267,6 +1267,11 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     {
                         onOutside (screen);
                     }
+
+                    if (msg == WM_RBUTTONDOWN)
+                    {
+                        (void) RepostPress (WindowFromPoint (screen), screen, msg, wp);
+                    }
                 }
             }
 
@@ -2417,4 +2422,45 @@ HRESULT DxuiPopupHost::MeasureTextWrapped (const wchar_t  * text,
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHost::RepostPress
+//
+//  The popup has closed, so the window under the press is the one beneath
+//  it. A window of another thread or process is left alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::RepostPress (
+    HWND    target,
+    POINT   screenPx,
+    UINT    msg,
+    WPARAM  wp)
+{
+    HRESULT  hr       = S_OK;
+    POINT    client   = screenPx;
+    bool     isOurs   = target != nullptr && GetWindowThreadProcessId (target, nullptr) == GetCurrentThreadId();
+    BOOL     isPosted = FALSE;
+
+
+
+    BAIL_OUT_IF (!isOurs, S_OK);
+
+    ScreenToClient (target, &client);
+
+    isPosted = PostMessageW (target, msg, wp, MAKELPARAM (client.x, client.y));
+    CWR (isPosted);
+
+Error:
+    return isPosted != FALSE;
+}
+
+
+
+
 

@@ -83,6 +83,10 @@ protected:
     std::optional<uint64_t>  GetSortNumber (const Row & row, size_t index, size_t column) const override;
 
 private:
+    //  The version of the headings the saved options were written with: 2
+    //  from Scanline and Line cycle on.
+    static constexpr int  kHeadingsVersion = 2;
+
     bool                          m_isVideo = false;
     std::array<bool, kLaneCount>  m_lanes   = { true, true, true, true };
 

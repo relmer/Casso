@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Acia6551.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
@@ -663,44 +664,67 @@ namespace EventLogPaneTests
 
         TEST_METHOD (TheMouseButtonOnACIsPressedWhenBitSevenIsClear)
         {
-            DxuiListView   list;
-            InputLogPane   pane (&list, [] (const std::string &) {});
-            std::wstring   address;
-            std::wstring   value;
-            std::wstring   meaning;
-            InputEvent     event = MakeInputRow (10, InputEventType::ButtonRead, 0xC063, 0x00).event;
+            DxuiListView              list;
+            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane::EventText   text;
+            InputEvent                event = MakeInputRow (10, InputEventType::ButtonRead, 0xC063, 0x00).event;
 
 
 
-            pane.FormatEvent (event, address, value, meaning);
-            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=0  Shift / button 2"), meaning);
+            pane.FormatEvent (event, text);
+            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=0  Shift / button 2"), text.meaning);
 
             pane.SetMouseButtonAtC063 (true);
-            pane.FormatEvent (event, address, value, meaning);
-            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=1  mouse button"), meaning);
+            pane.FormatEvent (event, text);
+            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=1  mouse button"), text.meaning);
         }
 
 
         TEST_METHOD (ASerialByteShowsThePortAndTheByte)
         {
-            DxuiListView   list;
-            InputLogPane   pane (&list, [] (const std::string &) {});
-            std::wstring   address;
-            std::wstring   value;
-            std::wstring   meaning;
-            InputEvent     card    = MakeInputRow (10, InputEventType::HostSerialByte, 2, 'A').event;
-            InputEvent     builtIn = MakeInputRow (10, InputEventType::HostSerialByte, Acia6551::kCommPortBuiltIn | 2, 'A').event;
+            DxuiListView              list;
+            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane::EventText   text;
+            InputEvent                card    = MakeInputRow (10, InputEventType::HostSerialByte, 2, 'A').event;
+            InputEvent                builtIn = MakeInputRow (10, InputEventType::HostSerialByte, Acia6551::kCommPortBuiltIn | 2, 'A').event;
 
 
 
-            pane.FormatEvent (card, address, value, meaning);
+            pane.FormatEvent (card, text);
 
-            Assert::AreEqual (std::wstring (L"Slot 2"), address);
-            Assert::AreEqual (L"HOST serial byte " + value, meaning);
+            Assert::AreEqual (std::wstring (L"Slot 2"), text.input);
+            Assert::IsTrue   (text.address.empty(), L"a host row has no address");
+            Assert::AreEqual (L"HOST serial byte " + text.value, text.meaning);
 
-            pane.FormatEvent (builtIn, address, value, meaning);
+            pane.FormatEvent (builtIn, text);
 
-            Assert::AreEqual (std::wstring (L"Port 2"), address);
+            Assert::AreEqual (std::wstring (L"Port 2"), text.input);
+        }
+
+
+        //  The Address column has only hex soft switches; the Input column has
+        //  the key or line for host and guest rows alike, so Open Apple is the
+        //  same value for the press and for the program's read of it.
+        TEST_METHOD (TheInputColumnMatchesAHostPressToTheGuestsRead)
+        {
+            DxuiListView              list;
+            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane::EventText   press;
+            InputLogPane::EventText   read;
+
+
+
+            pane.FormatEvent (MakeInputRow (10, InputEventType::HostButton, (Word) InputLine::OpenApple, 1).event, press);
+            pane.FormatEvent (MakeInputRow (11, InputEventType::ButtonRead, 0xC061, 0x80).event, read);
+
+            Assert::AreEqual (std::wstring (L"Open Apple"), press.input);
+            Assert::AreEqual (press.input, read.input,      L"the guest's read has the same input");
+            Assert::IsTrue   (press.address.empty(),        L"the host's press has no address");
+            Assert::AreEqual (std::wstring (L"$C061"), read.address);
+
+            Assert::AreEqual (std::wstring (L"Return"), InputLogPane::GetKeyName (0x8D));
+            Assert::AreEqual (std::wstring (L"A"),      InputLogPane::GetKeyName ('A'));
+            Assert::AreEqual (std::wstring (L"Ctrl+C"), InputLogPane::GetKeyName (0x03));
         }
 
 
@@ -1087,6 +1111,30 @@ namespace EventLogPaneTests
     TEST_CLASS (IoLogPaneTests)
     {
     public:
+
+        //  Widths saved before the video log's Line and H became Scanline and
+        //  Line cycle are dropped for those two columns, which they were too
+        //  narrow for; the other widths stay, and options saved since have
+        //  every width applied.
+        TEST_METHOD (WidthsSavedForTheOldHeadingsAreDropped)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, true);
+
+
+
+            pane.Configure();
+            pane.SetOptionsText ("lanes=1111;columnLayout=110110101 -1,-1,-1,-1,72,-1,105,-1,866");
+
+            Assert::AreEqual (-1,  list.GetColumnOverrideWidthPx (IoLogPane::kHorizontal), L"the old H width");
+            Assert::AreEqual (105, list.GetColumnOverrideWidthPx (IoLogPane::kAddress),    L"another column's width");
+
+            pane.SetOptionsText ("lanes=1111;headings=2;columnLayout=110110101 -1,-1,-1,-1,72,-1,105,-1,866");
+
+            Assert::AreEqual (72, list.GetColumnOverrideWidthPx (IoLogPane::kHorizontal), L"a width set for Line cycle");
+            Assert::IsTrue   (pane.GetOptionsText().find ("headings=2;") != std::string::npos, L"saved with the version");
+        }
+
 
         TEST_METHOD (AVideoRowHasItsFrameBeamAndModes)
         {

@@ -390,6 +390,14 @@ public:
                                                    const std::vector<RECT>  & workAreas);
     static std::vector<RECT>  GetMonitorWorkAreas ();
 
+    //
+    //  A right press outside the popup that closed it is posted on to the
+    //  window under it, when that window is this thread's, so a right-click
+    //  on another heading opens that heading's menu at once. True when it
+    //  was posted.
+    //
+    static bool  RepostPress (HWND target, POINT screenPx, UINT msg, WPARAM wp);
+
 private:
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
     static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);

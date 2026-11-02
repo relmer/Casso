@@ -441,6 +441,35 @@ TEST_CLASS (DxuiPopupHostDismissPolicyTests)
 {
 public:
 
+    //  A right press that closes a menu is posted on to this thread's window
+    //  under it, in its client coordinates, so a right-click on another
+    //  heading opens that heading's menu; no window has nothing to post to.
+    TEST_METHOD (ARightPressOutsideIsPostedToTheWindowUnderIt)
+    {
+        constexpr POINT  kClientPx = { 7, 5 };
+        HWND             target    = CreateWindowExW (0, L"STATIC", L"", WS_POPUP, 100, 200, 50, 50, nullptr, nullptr, GetModuleHandleW (nullptr), nullptr);
+        POINT            screen    = kClientPx;
+        MSG              msg       = {};
+        BOOL             isFound   = FALSE;
+
+
+
+        Assert::IsNotNull (target);
+        ClientToScreen (target, &screen);
+
+        Assert::IsTrue  (DxuiPopupHost::RepostPress (target, screen, WM_RBUTTONDOWN, MK_RBUTTON), L"posted");
+        Assert::IsFalse (DxuiPopupHost::RepostPress (nullptr, screen, WM_RBUTTONDOWN, MK_RBUTTON), L"no window");
+
+        isFound = PeekMessageW (&msg, target, WM_RBUTTONDOWN, WM_RBUTTONDOWN, PM_REMOVE);
+        DestroyWindow (target);
+
+        Assert::IsTrue   (isFound != FALSE, L"the press is in the window's queue");
+        Assert::AreEqual ((WPARAM) MK_RBUTTON, msg.wParam);
+        Assert::AreEqual ((int) kClientPx.x, (int) (short) LOWORD (msg.lParam), L"at the client x");
+        Assert::AreEqual ((int) kClientPx.y, (int) (short) HIWORD (msg.lParam), L"and y");
+    }
+
+
     TEST_METHOD (OnClickOutside_DismissesOnlyOnOutsideChainClick)
     {
         Assert::IsFalse (DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss::OnClickOutside,

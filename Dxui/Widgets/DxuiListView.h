@@ -608,8 +608,15 @@ private:
     // that values never clip.
     static constexpr float  s_kAutoCharWidthEm   = 0.62f;
 
-    //  The width a heading's filter funnel takes, with room on its left.
+    //  The width a heading's filter funnel takes, with room on its left, and
+    //  the width a sort chevron at a heading's right end takes.
     static constexpr float  s_kFilterGlyphDip    = 12.0f;
+    static constexpr float  s_kSortGlyphDip      = 10.0f;
+
+    //  The space above a vertically centered title that the sort chevron
+    //  above it takes, and the title's line height as a share of its font.
+    static constexpr float  s_kSortAboveDip      = 8.0f;
+    static constexpr float  s_kTitleLineEm       = 1.3f;
 
     // Per-element ARGB colors derived once per paint from the theme.
     struct Palette
@@ -707,6 +714,7 @@ private:
     bool    DispatchMouseUp        (int lx, int ly, bool inside);
     bool    DispatchMouseWheel     (const DxuiMouseEvent & ev, bool inside);
 
+    bool    IsSortAboveTitle        (float headerPx, float fontPx) const;
     void    PaintHeader             (IDxuiPainter           & painter,
                                      IDxuiTextRenderer    & text,
                                      const Palette          & pal,
