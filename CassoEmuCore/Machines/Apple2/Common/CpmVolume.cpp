@@ -795,6 +795,7 @@ HRESULT CpmVolume::Read (const FilePath & path, FilePayload & outPayload) const
     outPayload.textForm = PayloadTextForm::CpmRecords;
     outPayload.access   = (files[index].isReadOnly || files[index].isFixed) ? FilePayload::kAccessLocked : FilePayload::kAccessUnlocked;
     outPayload.hasAccess = true;
+    outPayload.isSystem  = files[index].isSystem;
 
     for (const RawEntry & extent : files[index].extents)
     {
@@ -1094,6 +1095,7 @@ HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, ve
         std::copy_n ((const Byte *) parsed.name.data(), s_kNameBytes, directory.begin() + (ptrdiff_t) (at + s_kOffName));
 
         directory[at + s_kOffType]    = (Byte) (directory[at + s_kOffType] | (payload.IsLocked() ? s_kHighBit : 0));
+        directory[at + s_kOffSystem]  = (Byte) (directory[at + s_kOffSystem] | (payload.isSystem ? s_kHighBit : 0));
         directory[at + s_kOffExtent]  = (Byte) e;
         directory[at + s_kOffRecords] = (Byte) (std::min) (left, (size_t) s_kRecordsMax);
 

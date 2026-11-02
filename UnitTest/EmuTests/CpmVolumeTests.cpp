@@ -1248,7 +1248,7 @@ public:
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::Boot, "TEST.COM");
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("no setting for a startup program") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("no setting for this") != std::string::npos);
     }
 
 

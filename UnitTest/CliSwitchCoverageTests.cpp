@@ -438,6 +438,9 @@ namespace CliSwitchCoverageTests
               [] (const CommandLineOptions & o) { return o.disk.force; },
               "--force removes locked entries with the rest" },
 
+            { "disk", "user", { "CassoCli", "disk", "get", "c.dsk", "A", "--user", "2" },
+              [] (const CommandLineOptions & o) { return o.disk.hasUser && o.disk.user == 2; },
+              "--user selects a CP/M user" },
             { "disk", "yes", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--yes" },
               [] (const CommandLineOptions & o) { return o.disk.yes; },
               "--yes answers the confirmation in advance" },

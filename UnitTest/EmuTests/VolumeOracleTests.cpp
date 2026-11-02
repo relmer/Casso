@@ -459,7 +459,7 @@ public:
     {
         // Refusing to name a filesystem is an answer. Guessing one would send
         // a reader at structures that are not there.
-        vector<Byte>  noise (NibblizationLayer::kImageByteSize, 0xE5);
+        vector<Byte>  noise (NibblizationLayer::kImageByteSize, 0x55);
 
         Assert::IsTrue (VolumeKind::Unknown == VolumeImage::DetectFilesystem (noise));
     }

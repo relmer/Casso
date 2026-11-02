@@ -343,6 +343,9 @@ private:
                                 std::string                          & outPath,
                                 DiskCommandResult                    & result);
 
+    //  Puts --user on a CP/M name. An error on any other file system.
+    HRESULT  ApplyUser (const CommandLineOptions & options, VolumeKind kind, std::string & inOutName, DiskCommandResult & result);
+
     //  The path `get`, `delete` and `boot` act on, and the name used in their
     //  messages: the name as typed, or with --index the entry at that position.
     HRESULT  ResolveEntryPath (const CommandLineOptions             & options,
@@ -392,7 +395,8 @@ private:
     //  produces and what the default has always been.
     static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
 
-    static HRESULT  ResolvePascalKind (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
+    static HRESULT  ResolvePascalKind  (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
+    static bool     ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem);
 
     static HRESULT  ResolveFileType (const CommandLineOptions & options,
                                      VolumeKind                 kind,

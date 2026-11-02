@@ -492,12 +492,15 @@ public:
 
 
 
-    TEST_METHOD (ABlankCpmDisk_NeedsAChoice_UntilAnotherDiskIsInTheDrive)
+    TEST_METHOD (ADamagedCpmDisk_NeedsAChoice_UntilAnotherDiskIsInTheDrive)
     {
         Rig                rig;
         std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, CpmVolume::kFree);
         std::vector<Byte>  expected;
         FilePayload        payload = Binary (0, 2000, 3);
+
+        //  One slot that isn't an entry, so detection doesn't find it empty.
+        disk[CpmVolume::GetSectorOffset (1, 3) + 224] = 0x7F;
 
         rig.apple.drives[1] = disk;
         rig.Start();

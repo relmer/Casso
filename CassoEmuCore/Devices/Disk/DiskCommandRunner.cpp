@@ -508,7 +508,26 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr, VolumeKind kin
 
     if (noBoot)
     {
-        sentence = "this file system has no setting for a startup program";
+        sentence = (kind == VolumeKind::Pascal) ? "Apple Pascal has no setting for this. It runs a code file with the name SYSTEM.STARTUP"
+                 : (kind == VolumeKind::Cpm)    ? "CP/M has no setting for this. Its command processor runs what is typed at it"
+                                                : "this file system has no setting for a startup program";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME) && kind == VolumeKind::Pascal)
+    {
+        sentence = "the name is not valid on this file system. Apple Pascal names are 1 to 15 characters, "
+                   "with no spaces or any of $ = ? , : [ ]";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME) && kind == VolumeKind::Cpm)
+    {
+        sentence = "the name is not valid on this file system. CP/M names are 1 to 8 characters, an optional "
+                   "period and up to 3 more, with no spaces or any of < > , ; : = ? * [ ], in a user of 0 to 15";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND) && (kind == VolumeKind::Pascal || kind == VolumeKind::Cpm))
+    {
+        sentence = std::string (VolumeImage::GetSystemName (kind)) + " has no directories";
     }
 
     for (const auto & row : kSentences)
@@ -859,7 +878,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "create " + options.disk.path,
-                               (opened.kind == VolumeKind::Dos33) ? "this volume is DOS 3.3, which has no directories" : "this volume has no directories"));
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -956,7 +975,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                               (opened.kind == VolumeKind::Dos33) ? "this volume is DOS 3.3, which has no directories" : "this volume has no directories"));
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -1095,6 +1114,14 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
 
         case CommandLineOptions::DiskOptions::Encoding::Basic:
+            if (payload.textForm != PayloadTextForm::AppleHighAscii)
+            {
+                result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Lbasic means nothing on this volume: it has no BASIC programs\n", options.flagPrefix);
+                result.exitStatus   = DiskCommandResult::kNoOutput;
+                hr                  = HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+                break;
+            }
+
             //  An Integer BASIC program lists through its own tokens, as its
             //  preview does.
             if (integer)
@@ -1461,6 +1488,8 @@ HRESULT DiskCommandRunner::ResolveFileType (
     bool         recognized = true;
     size_t       i          = 0;
     std::string  form       = options.disk.typeName;
+    bool         isReadOnly = false;
+    bool         isSystem   = false;
 
 
 
@@ -1474,8 +1503,11 @@ HRESULT DiskCommandRunner::ResolveFileType (
     {
         outType = 0;
 
-        CBRFEx (!named, E_NOTIMPL,
-                (result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype means nothing on this volume: CP/M has no file types\n", options.flagPrefix),
+        //  The attributes are read from the same word in BuildPutPayload.
+        recognized = !named || ParseCpmAttributes (options.disk.typeName, isReadOnly, isSystem);
+
+        CBRFEx (recognized, E_NOTIMPL,
+                (result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype means nothing on this volume: CP/M has no file types, only the attributes RO and SYS\n", options.flagPrefix),
                  result.exitStatus   = DiskCommandResult::kNoOutput));
 
         BAIL_OUT_IF (true, S_OK);
@@ -1544,6 +1576,56 @@ HRESULT DiskCommandRunner::ResolveFileType (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ParseCpmAttributes
+//
+//  RO, R/O or SYS, or two of them with a comma, from what STAT accepts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem)
+{
+    size_t  start = 0;
+
+
+
+    outReadOnly = false;
+    outSystem   = false;
+
+    while (start <= text.size())
+    {
+        size_t       comma = text.find (',', start);
+        std::string  word  = text.substr (start, (comma == std::string::npos) ? std::string::npos : comma - start);
+
+        if (_stricmp (word.c_str(), "RO") == 0 || _stricmp (word.c_str(), "R/O") == 0)
+        {
+            outReadOnly = true;
+        }
+        else if (_stricmp (word.c_str(), "SYS") == 0)
+        {
+            outSystem = true;
+        }
+        else
+        {
+            return false;
+        }
+
+        if (comma == std::string::npos)
+        {
+            break;
+        }
+
+        start = comma + 1;
+    }
+
+    return true;
 }
 
 
@@ -1636,6 +1718,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     std::string            hostText;
     ApplesoftListingError  listingError;
     bool                   hasAddresses = kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos;
+    bool                   isReadOnly   = false;
     bool                   allowed      = hasAddresses || (!options.disk.hasLoadAddress && options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Basic);
 
 
@@ -1650,6 +1733,12 @@ HRESULT DiskCommandRunner::BuildPutPayload (
     outPayload.type           = type;
     outPayload.loadAddress    = options.disk.loadAddress;
     outPayload.hasLoadAddress = options.disk.hasLoadAddress;
+
+    if (kind == VolumeKind::Cpm && !options.disk.typeName.empty() && ParseCpmAttributes (options.disk.typeName, isReadOnly, outPayload.isSystem) && isReadOnly)
+    {
+        outPayload.access    = FilePayload::kAccessLocked;
+        outPayload.hasAccess = true;
+    }
 
     switch (options.disk.encoding)
     {
@@ -1875,6 +1964,9 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
 
+    hr = ApplyUser (options, opened.kind, diskName, result);
+    CHR (hr);
+
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, hostBytes);
 
     CHRF (hr, result.Fail (options.disk.hostFile, "", "cannot be read"));
@@ -2096,6 +2188,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::ApplyUser
+//
+//  --user as the volume layer's U:NAME form, on CP/M alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::ApplyUser (const CommandLineOptions & options, VolumeKind kind, std::string & inOutName, DiskCommandResult & result)
+{
+    HRESULT  hr    = S_OK;
+    bool     isCpm = kind == VolumeKind::Cpm;
+
+
+
+    BAIL_OUT_IF (!options.disk.hasUser, S_OK);
+
+    CBRFEx (isCpm, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            result.Fail (options.disk.imagePath, "", ApplyPrefix ("%Luser means nothing on this volume: only CP/M has user numbers")));
+
+    if (options.disk.user != 0)
+    {
+        inOutName = std::format ("{}:{}", options.disk.user, inOutName);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::ResolveEntryPath
 //
 //  Without --index, the path is the name as typed. With it, the path is the
@@ -2131,6 +2256,9 @@ HRESULT DiskCommandRunner::ResolveEntryPath (
 
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
+    CHR (hr);
+
+    hr = ApplyUser (options, opened.kind, typed, result);
     CHR (hr);
 
     outName = typed;

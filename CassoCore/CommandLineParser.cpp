@@ -252,6 +252,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "physical",
     "block",
     "index",
+    "user",
     "recurse",
     "force",
     "yes",
@@ -1078,7 +1079,7 @@ bool CommandLineParser::IsDiskOptionNeedingValue (const std::string & arg)
 {
     return arg == "--out"  || arg == "--as"   || arg == "--type"
         || arg == "--load" || arg == "--exec" || arg == "--on-change"
-        || arg == "--index" || arg == "--filesystem";
+        || arg == "--index" || arg == "--filesystem" || arg == "--user";
 }
 
 
@@ -1363,6 +1364,30 @@ void CommandLineParser::ParseDiskOptions (
             {
                 options.disk.index    = (size_t) parsed;
                 options.disk.hasIndex = true;
+            }
+
+            continue;
+        }
+
+        if (arg == "--user" && hasValue)
+        {
+            constexpr unsigned long  kMaxUser = 31;
+            std::string              value    = argv[++i];
+            char                   * end      = nullptr;
+            unsigned long            parsed   = strtoul (value.c_str(), &end, 10);
+            bool                     valid    = !value.empty() && end != nullptr && *end == '\0' && parsed <= kMaxUser;
+
+            if (!valid)
+            {
+                Refusal (options) << "Error: illegal " << FormatLongOption ("--user", options.flagPrefix) << " value\n"
+                                  << "       CP/M user numbers are 0 to 31.\n";
+
+                options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            }
+            else
+            {
+                options.disk.user    = (int) parsed;
+                options.disk.hasUser = true;
             }
 
             continue;

@@ -57,8 +57,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Get,
         "get | read",
         "Read a file from the disk",
-        "CassoCli disk get <image> <name> [%Lindex <n>] [%Lout <file>] [%Ltext | %Lbasic]",
+        "CassoCli disk get <image> <name> [%Lindex <n>] [%Luser <n>] [%Lout <file>] [%Ltext | %Lbasic]",
         "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n"
+        "  %Luser <n>              On CP/M, the user the file is in, 0 to 31\n"
         "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead\n"
         "  %Ltext                  Convert Apple high-ASCII encoding and line endings to standard ASCII with Windows line endings\n"
         "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
@@ -76,14 +77,16 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Put,
         "put | write",
         "Write a file from the host to the disk",
-        "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX]\n"
+        "CassoCli disk put <image> <file> [%Las <name>] [%Ltype <t>] [%Lload $XXXX] [%Luser <n>]\n"
         "                                   [%Ltext | %Lbasic] [%Lon-change <action>]",
         "  %Las <name>             Store the file as <name> on the disk. Without it, the file is stored under its host name;"
                                    " a name Casso Explorer writes, such as HELLO.Applesoft BASIC.txt, PROG.Binary.$6000.bin or PROG#062000,"
                                    " is stored under the part before the suffix, with the type, load address and conversion in the suffix\n"
         "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
                                    " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
-                                   " TXT, BIN, BAS and SYS. A file it cannot identify is stored as a binary\n"
+                                   " TXT, BIN, BAS and SYS; for Apple Pascal, BAD, CODE, TEXT, INFO, DATA, GRAF and FOTO; for CP/M, the attributes RO and SYS,"
+                                   " with a comma for both. A file it cannot identify is stored as a binary\n"
+        "  %Luser <n>              On CP/M, the user to store the file in, 0 to 15\n"
         "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"
         "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
         "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n"
@@ -100,8 +103,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Delete,
         "delete | del | rm",
         "Delete a file from the disk",
-        "CassoCli disk delete <image> <name> [%Lindex <n>]",
-        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n",
+        "CassoCli disk delete <image> <name> [%Lindex <n>] [%Luser <n>]",
+        "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n"
+        "  %Luser <n>              On CP/M, the user the file is in, 0 to 31\n",
         nullptr,
         "CassoCli disk delete mydisk.dsk OLDPROG" 
     },
@@ -112,7 +116,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Set the program that runs when the disk is booted",
         "CassoCli disk boot <image> <name> [%Lindex <n>]",
         "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n",
-        "The program has to be on the volume already, and the image must contain the DOS 3.3 or ProDOS operating system; simply"
+        "Apple Pascal and CP/M have no such setting. The program has to be on the volume already, and the image must contain the DOS 3.3 or ProDOS operating system; simply"
         " being formatted as DOS 3.3 or ProDOS is not sufficient. On DOS 3.3 disks, the file must be an Applesoft BASIC (type A)"
         " or Integer BASIC (type I) program. On ProDOS disks, the file must be a system file (type SYS), and cannot be the kernel itself.",
         "CassoCli disk boot mydisk.dsk STARTUP" 
@@ -125,7 +129,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "CassoCli disk mkdir <image> <path>",
         nullptr,
         "Directories along the path are made as well when they are not there yet, so mkdir GAMES/CHESS/SAVES makes all three."
-        " ProDOS disks only: DOS 3.3 has no directories.",
+        " ProDOS disks only: DOS 3.3, Apple Pascal, and CP/M have no directories.",
         "CassoCli disk mkdir mydisk.po GAMES/CHESS"
     },
 

@@ -3028,6 +3028,21 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
+            {
+                ArgVector           args = { "CassoCli", "disk", "put", "c.dsk", "a.com", "--user", "7" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.disk.hasUser);
+                Assert::AreEqual (7, opts.disk.user);
+            }
+
+            {
+                ArgVector           args = { "CassoCli", "disk", "put", "c.dsk", "a.com", "--user", "32" };
+                CommandLineOptions  opts = CommandLineParser::Parse (args.Count(), args.Data(), NoProbe());
+
+                Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
+            }
+
             Assert::AreEqual (size_t (26), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }

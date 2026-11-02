@@ -659,6 +659,217 @@ public:
         Assert::IsTrue (result.diagnostics.find ("no room") != std::string::npos, L"More than is free isn't about fragments");
     }
 
+    static DiskCommandResult  RunOn (FakeDiskFileIo & io, const std::string & image, CommandLineOptions::DiskOptions::Command command, const char * path = "", const char * host = "")
+    {
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+
+        options.disk.command   = command;
+        options.disk.imagePath = image;
+        options.disk.path      = path;
+        options.disk.hostFile  = host;
+
+        return runner.Run (options);
+    }
+
+    //  Every command in the usage, on both file systems: each works or fails
+    //  with a reason, and never a generic one.
+    TEST_METHOD (EveryCommandWorksOrExplainsWhy)
+    {
+        using Command = CommandLineOptions::DiskOptions::Command;
+
+        struct { const char * format; const char * word; }  rows[] = { { "pascal", "Apple Pascal" }, { "cpm", "CP/M" } };
+
+        for (const auto & row : rows)
+        {
+            FakeDiskFileIo     io;
+            std::string        image = "C:\\disks\\audit.dsk";
+            DiskCommandResult  result;
+
+            Assert::AreEqual (DiskCommandResult::kClean, RunCreate (io, image, row.format).exitStatus);
+
+            io.files["C:\\host\\DATA.BIN"].assign (300, 0x41);
+            io.stamps["C:\\host\\DATA.BIN"] = FileStamp { 300, 1 };
+
+            result = RunOn (io, image, Command::Put, "", "C:\\host\\DATA.BIN");
+            Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+            result = RunOn (io, image, Command::List);
+            Assert::IsTrue (result.output.find ("DATA.BIN") != std::string::npos);
+
+            result = RunOn (io, image, Command::List, "SUB");
+            Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+            Assert::IsTrue (result.diagnostics.find ("has no directories") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+            result = RunOn (io, image, Command::Get, "DATA.BIN");
+            Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+            result = RunOn (io, image, Command::Boot, "DATA.BIN");
+            Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+            Assert::IsTrue (result.diagnostics.find ("has no setting for this") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+            result = RunOn (io, image, Command::Mkdir, "SUB");
+            Assert::IsTrue (result.diagnostics.find (std::string (row.word) + ", which has no directories") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+            result = RunOn (io, image, Command::Rmdir, "SUB");
+            Assert::IsTrue (result.diagnostics.find (std::string (row.word) + ", which has no directories") != std::string::npos);
+
+            result = RunOn (io, image, Command::Put, "A NAME IS WRONG", "C:\\host\\DATA.BIN");
+            Assert::IsTrue (result.diagnostics.find (std::string (row.word) + " names are") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+            {
+                DiskCommandRunner   runner (io);
+                CommandLineOptions  options;
+
+                options.disk.command   = Command::BlockRead;
+                options.disk.imagePath = image;
+                options.disk.block     = 2;
+                options.disk.count     = 1;
+
+                result = runner.Run (options);
+                Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+                Assert::AreEqual ((size_t) 512, result.payload.size());
+
+                options                = CommandLineOptions();
+                options.disk.command   = Command::SectorRead;
+                options.disk.imagePath = image;
+                options.disk.numbering = CommandLineOptions::DiskOptions::Numbering::Logical;
+                options.disk.track     = 3;
+                options.disk.sector    = 0;
+                options.disk.count     = 1;
+
+                result = runner.Run (options);
+                Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+                Assert::AreEqual ((size_t) 256, result.payload.size());
+
+                options                = CommandLineOptions();
+                options.disk.command   = Command::Get;
+                options.disk.imagePath = image;
+                options.disk.path      = "DATA.BIN";
+                options.disk.encoding  = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+                result = runner.Run (options);
+                Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+                Assert::IsTrue (result.diagnostics.find ("no BASIC programs") != std::string::npos);
+
+                options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Verbatim;
+                options.disk.hasIndex = true;
+                options.disk.index    = 1;
+
+                result = runner.Run (options);
+                Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"--index is only for a DOS 3.3 name several entries share");
+            }
+
+            result = RunOn (io, image, Command::Delete, "DATA.BIN");
+            Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+            result = RunOn (io, image, Command::Get, "DATA.BIN");
+            Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        }
+    }
+
+    TEST_METHOD (PutTakesAPascalKind)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        std::vector<Byte>   sectors;
+        VolumeListing       listing;
+
+        Assert::AreEqual (DiskCommandResult::kClean, RunCreate (io, "C:\\disks\\p.dsk", "pascal").exitStatus);
+
+        io.files["C:\\host\\TOOL"].assign (100, 1);
+        io.stamps["C:\\host\\TOOL"] = FileStamp { 100, 1 };
+
+        options.disk.command   = CommandLineOptions::DiskOptions::Command::Put;
+        options.disk.imagePath = "C:\\disks\\p.dsk";
+        options.disk.hostFile  = "C:\\host\\TOOL";
+        options.disk.typeName  = "code";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        LoadImage (io, "C:\\disks\\p.dsk", sectors);
+        AssertSucceeded (PascalVolume (sectors).Enumerate (listing));
+        Assert::AreEqual ((int) PascalVolume::kKindCode, (int) listing.entries[0].type);
+    }
+
+    TEST_METHOD (PutTakesACpmUserAndAttributes)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        DiskCommandResult   result;
+        std::vector<Byte>   sectors;
+        VolumeListing       listing;
+
+        Assert::AreEqual (DiskCommandResult::kClean, RunCreate (io, "C:\\disks\\c.dsk", "cpm").exitStatus);
+
+        io.files["C:\\host\\TOOL.COM"].assign (200, 1);
+        io.stamps["C:\\host\\TOOL.COM"] = FileStamp { 200, 1 };
+
+        options.disk.command   = CommandLineOptions::DiskOptions::Command::Put;
+        options.disk.imagePath = "C:\\disks\\c.dsk";
+        options.disk.hostFile  = "C:\\host\\TOOL.COM";
+        options.disk.typeName  = "ro,sys";
+        options.disk.hasUser   = true;
+        options.disk.user      = 2;
+
+        result = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        LoadImage (io, "C:\\disks\\c.dsk", sectors);
+        AssertSucceeded (CpmVolume (sectors).Enumerate (listing));
+
+        Assert::AreEqual (std::string ("2:TOOL.COM"), listing.entries[0].name);
+        Assert::AreEqual (2, listing.entries[0].user);
+        Assert::IsTrue (listing.entries[0].isReadOnly);
+        Assert::IsTrue (listing.entries[0].isSystem);
+
+        result = RunOn (io, "C:\\disks\\c.dsk", CommandLineOptions::DiskOptions::Command::List);
+        Assert::IsTrue (result.output.find ("R/O (A:TOOL.COM)") != std::string::npos, TextEncoding::NarrowToWide (result.output).c_str());
+
+        options.disk.typeName = "B";
+
+        result = runner.Run (options);
+        Assert::IsTrue (result.diagnostics.find ("RO and SYS") != std::string::npos);
+
+        options.disk.typeName.clear();
+        options.disk.user = 20;
+
+        result = runner.Run (options);
+        Assert::IsTrue (result.diagnostics.find ("user of 0 to 15") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options                = CommandLineOptions();
+        options.disk.command   = CommandLineOptions::DiskOptions::Command::Get;
+        options.disk.imagePath = "C:\\disks\\c.dsk";
+        options.disk.path      = "TOOL.COM";
+        options.disk.hasUser   = true;
+        options.disk.user      = 2;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+    }
+
+    TEST_METHOD (UserIsCpmsAlone)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        DiskCommandResult   result;
+
+        Assert::AreEqual (DiskCommandResult::kClean, RunCreate (io, "C:\\disks\\p.dsk", "pascal").exitStatus);
+
+        options.disk.command   = CommandLineOptions::DiskOptions::Command::Get;
+        options.disk.imagePath = "C:\\disks\\p.dsk";
+        options.disk.path      = "A.CODE";
+        options.disk.hasUser   = true;
+        options.disk.user      = 2;
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("only CP/M has user numbers") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+    }
+
     TEST_METHOD (TheNewDiskDialogOffersPascalAndCpm)
     {
         using Choices = CassoExplorerNewDiskChoices;

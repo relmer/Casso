@@ -150,6 +150,8 @@ struct CommandLineOptions
         std::string  path;                             // the file ON the disk
         size_t       index          = 0;               // --index: which entry in catalog order, from 1
         bool         hasIndex       = false;
+        int          user           = 0;               // --user: a CP/M user number
+        bool         hasUser        = false;
 
         //  Directory commands. `recurse` reaches everything below the path,
         //  `force` takes locked entries too, and `yes` answers the question a

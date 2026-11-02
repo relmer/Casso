@@ -187,6 +187,9 @@ struct FilePayload
     static constexpr Byte  kAccessLocked      = 0x01;
     static constexpr Byte  kAccessWriteEnable = 0x02;
 
+    //  CP/M's SYS attribute.
+    bool               isSystem       = false;
+
     bool  IsLocked() const { return hasAccess && (access & kAccessWriteEnable) == 0; }
 };
 
