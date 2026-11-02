@@ -507,6 +507,47 @@ public:
     }
 
 
+    TEST_METHOD (HostedPopupOpenedUnderThePointer_OpensNoSubmenu_UntilThePointerMoves)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        POINT                 onSub = {};
+
+
+        menu.SetSubmenuDelayMs (0);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+        onSub = { 5, RowPx (menu) + 5 };
+
+        menu.MovePopupPointerForTest (onSub);
+        Assert::AreEqual (1, menu.GetHighlight());
+        Assert::IsFalse  (menu.HasOpenChild(), L"the move at the spot the menu opened under");
+
+        menu.MovePopupPointerForTest (onSub);
+        Assert::IsFalse  (menu.HasOpenChild(), L"a repeat of that move");
+
+        menu.MovePopupPointerForTest (POINT { onSub.x + 1, onSub.y });
+        Assert::IsTrue   (menu.HasOpenChild(), L"the pointer's first real move");
+    }
+
+
+    TEST_METHOD (HostedPopupShownUnderAnAnchor_OpensASubmenuOnContact)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+
+
+        menu.SetSubmenuDelayMs (0);
+        menu.ShowAt (0, 0, f.NestedList(), text, MakeHost (800, 600));
+        menu.Hide();
+        menu.ShowUnder (RECT { 0, 0, 40, 20 }, f.NestedList(), text, MakeHost (800, 600));
+
+        menu.MovePopupPointerForTest (POINT { 5, RowPx (menu) + 5 });
+        Assert::IsTrue (menu.HasOpenChild());
+    }
+
+
     //
     //  A submenu opens after the pointer RESTS on its row, which is what
     //  lets a diagonal move to a row below cross a submenu row without

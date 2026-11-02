@@ -288,6 +288,9 @@ public:
     void  HighlightFirst   ()                     { SetHover (FindFirstSelectable()); }
     void  ActivateRow      (int index)            { Commit (index); }
 
+    //  A pointer move inside the hosted popup, in popup-local pixels.
+    void  MovePopupPointerForTest (POINT localPx) { OnPopupMove (localPx); }
+
     //  The reopen guard exists for an opener whose hosted popup dismisses
     //  itself on the click BEFORE the opener sees that click. An opener that
     //  sees the click first, as the menu bar does because its popup takes no
@@ -447,6 +450,8 @@ private:
     int                  m_pendingChild     = -1;
     bool                 m_holdAtPointer    = false;   // opened under the pointer, which hasn't moved since
     POINT                m_pointerAt        = {};
+    bool                 m_popupPointerSeen = false;   // the hosted popup has had its first pointer move
+    POINT                m_popupPointerAt   = {};
     uint64_t             m_pendingAtMs      = 0;
     uint64_t             m_closedAtMs       = 0;
     bool                 m_hasClosed        = false;

@@ -267,6 +267,8 @@ void DxuiPopupMenu::ShowUnder (
     IDxuiTextRenderer              & text,
     const RECT                     & hostClient)
 {
+    m_holdAtPointer = false;
+
     ShowCore (anchor.left, anchor.bottom, anchor, Anchoring::Below, std::move (items), text, hostClient);
 }
 
@@ -396,13 +398,14 @@ void DxuiPopupMenu::ShowCore (
 
     CloseChild();
 
-    m_rows       = std::move (items);
-    m_hover      = -1;
-    m_pressed    = -1;
-    m_visible    = true;
-    m_text       = &text;
-    m_hostClient = hostClient;
-    m_anchor     = anchor;
+    m_rows             = std::move (items);
+    m_hover            = -1;
+    m_pressed          = -1;
+    m_visible          = true;
+    m_text             = &text;
+    m_hostClient       = hostClient;
+    m_anchor           = anchor;
+    m_popupPointerSeen = false;
 
     // Popup DPI follows its host window, folding what used to be an
     // explicit SetDpi push from the consumer into the show path.
@@ -1814,14 +1817,39 @@ void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer &
 //  Pointer-move inside the hosted popup (popup-local physical pixels). Maps
 //  the y to a row and applies the same hover rules as the in-window path.
 //
+//  A popup raised under the pointer receives a move at that spot as soon as
+//  it appears. The popup-local point of that move is unknown until it
+//  arrives, so the first move is stored and doesn't open a submenu; the
+//  first move to a different point does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPopupMenu::OnPopupMove (POINT localPx)
 {
-    int  row    = m_layout.GetRowAtOffset (localPx.y);
-    int  button = GetIconButtonAt (row, localPx.x);
+    int   row        = m_layout.GetRowAtOffset (localPx.y);
+    int   button     = GetIconButtonAt (row, localPx.x);
+    bool  firstMove  = !m_popupPointerSeen;
+    bool  holdingRow = false;
 
 
+
+    m_popupPointerSeen = true;
+
+    if (firstMove)
+    {
+        m_popupPointerAt = localPx;
+    }
+    else if (m_holdAtPointer && (localPx.x != m_popupPointerAt.x || localPx.y != m_popupPointerAt.y))
+    {
+        m_holdAtPointer = false;
+
+        if (row >= 0 && row == m_hover && m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu)
+        {
+            OpenChild (row, false);
+        }
+    }
+
+    holdingRow = m_holdAtPointer;
 
     if (button != m_iconHover)
     {
@@ -1837,7 +1865,7 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
     {
         SetHover (row);
 
-        if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu)
+        if (m_rows[(size_t) row].kind == DxuiPopupMenuItem::Kind::Submenu && !holdingRow)
         {
             OpenChild (row, false);
         }
