@@ -60,10 +60,10 @@ std::string IoLogPane::GetOptionsText() const
 
 void IoLogPane::SetOptionsText (const std::string & text)
 {
-    size_t       start = 0;
-    size_t       end   = 0;
-    size_t       equal = 0;
-    size_t       i     = 0;
+    size_t       start    = 0;
+    size_t       end      = 0;
+    size_t       equal    = 0;
+    size_t       i        = 0;
     std::string  field;
     std::string  key;
     std::string  value;
