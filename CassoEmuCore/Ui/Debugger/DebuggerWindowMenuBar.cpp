@@ -2,6 +2,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -648,6 +649,43 @@ void DebuggerWindow::ResetPaneLayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::PickFileToOpen
+//
+//  The picker opens in the folder of the file picked last for this kind,
+//  saved with the window's state, rather than in the folder of whatever
+//  file Casso opened last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebuggerWindow::PickFileToOpen (const std::string & kind, FileDialogSpec spec, std::filesystem::path & chosen, bool & picked)
+{
+    HRESULT      hr  = S_OK;
+    std::string  key = "folder." + kind;
+
+
+
+    CBRAEx (m_host != nullptr, E_UNEXPECTED);
+
+    spec.initialFolder = SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState (key));
+
+    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    if (picked)
+    {
+        m_host->SetDebuggerWindowState (key, SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OpenSourceFile
 //
 //  A source file the user picks, opened as a dropped source is: matched
@@ -668,7 +706,7 @@ void DebuggerWindow::OpenSourceFile()
 
     spec.filters = { { L"Source files", L"*.s;*.asm;*.a65;*.inc;*.a;*.src;*.mac;*.65s;*.s65" }, { L"All files", L"*.*" } };
 
-    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    hr = PickFileToOpen ("source", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -706,7 +744,7 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 
     spec.filters = { { L"Debug and symbol files", L"*.dbg;*.sym" }, { L"All files", L"*.*" } };
 
-    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    hr = PickFileToOpen ("symbols", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -748,7 +786,7 @@ void DebuggerWindow::LoadFileIntoMemory()
 
     spec.filters = { { L"Binary and hex files", L"*.bin;*.b;*.obj;*.hex;*.ihx;*.s19;*.srec;*.as" }, { L"All files", L"*.*" } };
 
-    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    hr = PickFileToOpen ("load", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);

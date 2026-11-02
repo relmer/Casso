@@ -490,6 +490,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     OpenOptions          ();
     void     OpenSymbolFile       (const std::wstring & thenShow = std::wstring()) override;
     void     LoadFileIntoMemory   ();
+    HRESULT  PickFileToOpen       (const std::string & kind, FileDialogSpec spec, std::filesystem::path & chosen, bool & picked);
 
     //  The window's state a debug project saves with no setting of its own:
     //  the console history, each pane's find history and options, and the
