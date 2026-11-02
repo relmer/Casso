@@ -49,6 +49,20 @@ namespace DebuggerTests
         }
 
 
+        //  Each Applesoft routine a BASIC program's profile lists is in the table.
+        TEST_METHOD (TheApplesoftRoutinesAProfileListsAreInTheTable)
+        {
+            std::string  table = RomSymbols::GetBasic();
+
+
+
+            for (const char * entry : { "EXECUTE_STATEMENT=$D828", "OUTDO=$DB5C", "FRM_ELEMENT=$DE60", "MUL10=$EA39" })
+            {
+                Assert::IsTrue (table.find (entry) != std::string::npos, TextEncoding::NarrowToWide (entry).c_str());
+            }
+        }
+
+
         TEST_METHOD (AnUnknownNameHasNoDescription)
         {
             Assert::IsNull    (SymbolDescriptions::Find ("NOTASYMBOL"));
