@@ -636,6 +636,50 @@ namespace DebugEventLogsTests
         }
 
 
+        //  A machine event's cycle is the CPU's count since the power cycle,
+        //  which history's cycles are not, so a row after a power cycle has
+        //  its time from its position: the //c's beep at power on is a sound
+        //  row with a time.
+        TEST_METHOD (ASoundRowAfterAPowerCycleHasItsTime)
+        {
+            TestMachine          machine    ("Apple2c");
+            ReverseController    controller (machine);
+            DebugEventLogs       logs       (machine);
+            IoLogDelta           delta;
+            size_t               events     = 0;
+            HRESULT              hr         = S_OK;
+
+
+
+            machine.RunCycles (kSliceCycles * 4);
+            machine.PowerCycle();
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+            AssertSucceeded (hr, L"Start");
+
+            logs.Start   (&controller);
+            logs.SetOpen (DebugLogKind::Sound, true);
+
+            machine.RunCycles (kSliceCycles * 30);
+
+            (void) logs.TakeDelta (DebugLogKind::Sound, delta);
+            logs.Stop();
+
+            for (const IoLogRow & each : delta.newer)
+            {
+                if (each.kind != DebugLogRowKind::Event)
+                {
+                    continue;
+                }
+
+                events++;
+                Assert::AreNotEqual<uint64_t> (0, each.wallTime, std::format (L"the row at position {} has a time", each.position).c_str());
+            }
+
+            Assert::IsTrue (events > 0, L"the beep is in the sound log");
+        }
+
+
         //  A pane gets everything when it opens, then each new row once.
         TEST_METHOD (AnOpenPaneGetsEachRowOnce)
         {

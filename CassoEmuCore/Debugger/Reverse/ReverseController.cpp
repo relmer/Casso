@@ -866,6 +866,58 @@ uint64_t ReverseController::GetWallTimeAt (uint64_t cycle) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetWallTimeAtPosition
+//
+//  The host's clock when the machine was at position. Between two keyframes
+//  with no gap, the time is spread between theirs by position, since a
+//  position never starts again and the CPU's cycle count does at a power
+//  cycle. Before the oldest keyframe it is counted back at the pace of the
+//  first stretch. After the newest, or before a gap, it is counted on from
+//  the keyframe by the emulated time to cycle, given in history's cycles.
+//  0 with no keyframe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ReverseController::GetWallTimeAtPosition (
+    uint64_t  position,
+    uint64_t  cycle) const
+{
+    size_t                 count   = m_keyframes.GetCount();
+    size_t                 index   = 0;
+    bool                   isFound = m_keyframes.TryFindByPosition (position, index);
+    const KeyframeInfo   * at      = nullptr;
+    const KeyframeInfo   * next    = nullptr;
+    double                 span    = 0;
+    double                 offset  = 0;
+
+
+
+    if (count == 0)
+    {
+        return 0;
+    }
+
+    index = isFound ? index : 0;
+    at    = &m_keyframes.GetInfo (index);
+    next  = (index + 1 < count) ? &m_keyframes.GetInfo (index + 1) : nullptr;
+
+    if (next == nullptr || next->hasGapBefore || next->position <= at->position || at->wallTime == 0)
+    {
+        return HistoryStatus::GetWallTimeAt (at->wallTime, at->cycle, cycle);
+    }
+
+    span   = (double) next->position - (double) at->position;
+    offset = ((double) next->wallTime - (double) at->wallTime) * ((double) position - (double) at->position) / span;
+
+    return (uint64_t) ((int64_t) at->wallTime + std::llround (offset));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetOldestPosition
 //
 //  The first keyframe is the oldest position any replay can start from.
