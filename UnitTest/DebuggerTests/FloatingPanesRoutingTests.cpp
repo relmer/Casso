@@ -57,10 +57,12 @@ namespace FloatingPanesRoutingTests
         void  OnFloatDocked       (const std::wstring &, DxuiDockedWindow *) override {}
         void  OnFloatsSynced      () override {}
         void  OnFloatTipErased    (const DxuiTooltip *) override {}
+        void  PumpFloatFrame      () override { framePumps++; }
 
         FloatingPanes              * floats       = nullptr;
         std::vector<std::wstring>    routed;
         int                          syncRequests = 0;
+        int                          framePumps   = 0;
 
     private:
         DxuiDpiScaler  m_scaler;
@@ -543,6 +545,44 @@ namespace FloatingPanesRoutingTests
 
             Assert::IsTrue (host.saves > 0, L"the end of a resize saves the layout");
             Assert::IsTrue (EqualRect (&host.savedRect, &rect) != FALSE, L"with the window's final rect");
+        }
+
+
+        //  While the title bar is pressed the system's move loop runs on the
+        //  thread, so each of its ticks runs a frame for the debugger's
+        //  windows, or every pane stops updating until the button is let go.
+        TEST_METHOD (APressedTitleBarRunsAFrameEachTick)
+        {
+            DockingHost          host;
+            FloatingPanes        floats  (host);
+            DxuiDpiScaler        scaler;
+            DxuiDockedWindow   * window  = nullptr;
+            POINT                cursor  = { 500, 300 };
+            bool                 isDown  = true;
+
+
+
+            host.floats = &floats;
+            scaler.SetDpi (96);
+            host.site.Layout (RECT { 0, 0, 1000, 600 }, scaler);
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"regs floats in a window");
+
+            host.isThemed = false;
+            window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
+
+            SendMessageW (window->GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            host.framePumps = 0;
+            window->RunModalLoopTick();
+            window->RunModalLoopTick();
+
+            Assert::AreEqual (2, host.framePumps, L"a frame on each tick of the move loop");
+
+            isDown = false;
+            SendMessageW (window->GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
         }
 
 

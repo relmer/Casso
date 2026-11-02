@@ -458,6 +458,11 @@ void DxuiDockedWindow::OnMoveLoopTick()
 
 
     Report (m_drag.OnTick (buttonDown, GetScreenSize()));
+
+    if (m_onMoveFrame)
+    {
+        m_onMoveFrame();
+    }
 }
 
 

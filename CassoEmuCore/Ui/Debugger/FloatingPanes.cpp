@@ -1161,6 +1161,7 @@ void FloatingPanes::Float (const std::wstring & key)
         m_host.SaveLayout();
     });
     window->SetOnResized           ([this] { m_host.SaveLayout(); });
+    window->SetOnMoveLoopFrame     ([this] { m_host.PumpFloatFrame(); });
     window->SetOnClosed            ([this, key]
     {
         for (const std::wstring & each : m_windowPanes[key])

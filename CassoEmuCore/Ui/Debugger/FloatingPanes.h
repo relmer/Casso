@@ -59,6 +59,10 @@ public:
     virtual void  OnFloatDocked       (const std::wstring & pane, DxuiDockedWindow * window) = 0;
     virtual void  OnFloatsSynced      () = 0;
     virtual void  OnFloatTipErased    (const DxuiTooltip * tip) = 0;
+
+    //  A frame for the debugger's windows, run while a floating window's
+    //  title bar is pressed and the system's move loop runs on the thread.
+    virtual void  PumpFloatFrame      () {}
 };
 
 

@@ -62,6 +62,10 @@ public:
     void  SetOnResized           (ClosedFn fn) { m_onResized    = std::move (fn); }
     void  SetOnClosed            (ClosedFn fn) { m_onClosed     = std::move (fn); }
 
+    //  Each tick of the move loop the system runs while the title bar is
+    //  pressed, so the owner can run a frame for its windows then.
+    void  SetOnMoveLoopFrame     (ClosedFn fn) { m_onMoveFrame  = std::move (fn); }
+
     //  A key the window's key map translates, for an owner that keeps one
     //  set of commands across its windows.
     void  SetOnMappedCommand   (CommandFn fn) { m_onCommand  = std::move (fn); }
@@ -143,6 +147,7 @@ private:
     ClosedFn                  m_onDragCancel;
     ClosedFn                  m_onResized;
     ClosedFn                  m_onClosed;
+    ClosedFn                  m_onMoveFrame;
     CommandFn                 m_onCommand;
     FilesFn                   m_onFiles;
     FocusChangedFn            m_onFocusChanged;

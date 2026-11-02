@@ -524,6 +524,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                           OnFloatsSynced      () override;
     void                           OnFloatTipErased    (const DxuiTooltip * tip) override { m_operandTips->ForgetColorTip (tip); }
     void                           RequestFloatSync    () override;
+    void                           PumpFloatFrame      () override { RunModalLoopTick(); }
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);
     std::vector<std::shared_ptr<DxuiCommand>>  GetConsoleMenuCommands();
