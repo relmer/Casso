@@ -1484,6 +1484,7 @@ void DebugSession::OnReset (bool isPowerCycle)
     }
 
     m_callRecorder.OnReset (pc, PeekByte (pc), isPowerCycle);
+    m_stopPc = pc;
     m_sink.OnReset (isPowerCycle);
 }
 
@@ -2185,6 +2186,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
 
     m_lastStopReason     = event.reason;
     m_lastStopBreakpoint = event.breakpointId;
+    m_stopPc             = event.pc;
 
     if (m_videoBreakHit)
     {
@@ -3016,9 +3018,11 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty()) ? &m_lineTable : nullptr;
     request.stepFilter = (isStep && !m_stepFilter.IsEmpty()) ? &m_stepFilter : nullptr;
 
+    m_runNotice.clear();
+
     if (request.kind == RunKind::StepOut)
     {
-        SetStepOutFrame (request);
+        SetStepOutFrame (request, reply);
     }
 
     //  The run stop hook counts instructions, which is what T n asks for. A
@@ -3124,18 +3128,34 @@ bool DebugSession::TryStartNextStep()
 //  after the stop hook asks about it, so it is settled first, from the
 //  registers the next instruction will run with.
 //
+//  With no frame on record, or with the PC moved since the stop so that the
+//  innermost frame is the stopped code's, the step out ends at the first RTS
+//  or RTI that takes the stack above where it began. That frame may never
+//  end, and a step out waiting for it would run on with no indication. The
+//  console and the status bar have a line about it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::SetStepOutFrame (RunRequest & request)
+void DebugSession::SetStepOutFrame (RunRequest & request, Reply & reply)
 {
+    Word            pc      = m_target.GetRegisters().pc;
+    bool            isMoved = m_stopPc.has_value() && *m_stopPc != pc;
     CallStackFrame  frame;
 
 
 
     SettleCallRecord();
 
-    if (!m_callRecorder.IsActive() || m_callRecorder.GetFrames().empty())
+    if (!m_callRecorder.IsActive())
     {
+        return;
+    }
+
+    if (m_callRecorder.GetFrames().empty() || isMoved)
+    {
+        m_runNotice = std::format ("No call on record was made by the code at ${:04X}, so the step out ends at the first RTS or RTI that raises the stack.", pc);
+        reply.text.push_back (m_runNotice);
+        reply.hasNotice = true;
         return;
     }
 
@@ -3244,6 +3264,7 @@ void DebugSession::SetCallRecording (bool isOn)
     if (isOn)
     {
         m_callRecorder.Begin (pc, PeekByte (pc), m_target.GetCycleCount() == 0);
+        m_stopPc = pc;
         m_target.SetOpcodeWatch (m_callOpcodes.data(), this);
         m_watchpoints.SetStackWriteSink ([this] (Word address, Byte value, std::optional<Byte> previous)
         {
@@ -3285,6 +3306,7 @@ void DebugSession::RestartCallRecording()
 
     m_callRecordGeneration++;
     m_callRecorder.Begin (pc, PeekByte (pc), (m_target.GetCycleCount() == 0) ? CallBreakKind::PowerOn : CallBreakKind::HistoryBegan);
+    m_stopPc = pc;
 }
 
 
@@ -3346,6 +3368,7 @@ void DebugSession::AdoptCallRecord (const CallRecord & record)
     }
 
     m_callRecorder.SetRecord (record);
+    m_stopPc = m_target.GetRegisters().pc;
 }
 
 

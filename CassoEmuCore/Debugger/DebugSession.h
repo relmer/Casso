@@ -354,6 +354,11 @@ public:
     StopReason          GetLastStopReason     () const { return m_lastStopReason; }
     std::optional<int>  GetLastStopBreakpoint () const { return m_lastStopBreakpoint; }
 
+    //  A line about how the last run was made, such as a step out with no
+    //  call on record to return from, empty when there is nothing to report.
+    //  The next run clears it.
+    const std::string &  GetRunNotice         () const { return m_runNotice; }
+
 
     void   SetInstructionObserver (IInstructionObserver * observer) { m_instructionObserver = observer; }
 
@@ -469,7 +474,7 @@ private:
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
     bool   TryStartNextStep      ();
-    void   SetStepOutFrame       (RunRequest & request);
+    void   SetStepOutFrame       (RunRequest & request, Reply & reply);
     void   ExecuteSource         (const DebugCommand & command, Reply & reply);
     void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
@@ -608,4 +613,10 @@ private:
     // stops, even when recording is turned off while it runs.
     bool                                  m_isStepOutOnRecord      = false;
     bool                                  m_isRecordingEndDeferred = false;
+
+    //  The PC at the last stop, or where the record was last put back from
+    //  history. A PC that differs at a step out was moved, so the calls on
+    //  record are the stopped code's, not the code the step out begins in.
+    std::optional<Word>                   m_stopPc;
+    std::string                           m_runNotice;
 };

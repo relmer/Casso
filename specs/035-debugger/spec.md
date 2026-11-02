@@ -1747,7 +1747,11 @@ run something, switch back to the //e: it is where it was left.
   subroutine, and run to a chosen address. Step over MUST run until the stack
   pointer rises back above its value before the call and then stop at the
   next instruction, so a call followed by inline parameters, and a recursive
-  call, both step over correctly.
+  call, both step over correctly. Step out MUST end with the innermost call
+  on record. With no call on record, or with the PC moved since the stop, it
+  MUST end at the first RTS or RTI that raises the stack above its value
+  when the step began, and a line about it MUST be added to the console and
+  the status bar.
 - **FR-003**: Users MUST be able to set, list, enable, disable and clear
   breakpoints by address, by opcode, and by condition on registers or memory.
 - **FR-004**: Users MUST be able to set watchpoints that stop execution on a

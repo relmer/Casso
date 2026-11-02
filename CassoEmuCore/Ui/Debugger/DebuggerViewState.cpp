@@ -131,6 +131,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.isAssembling   = session.IsAssembling();
     snapshot.stopReason     = session.GetLastStopReason();
     snapshot.stopBreakpoint = session.GetLastStopBreakpoint();
+    snapshot.runNotice      = session.GetRunNotice();
     snapshot.mode           = session.GetMode();
     snapshot.goTo           = m_goTo;
     snapshot.showPane       = m_showPane;
@@ -2631,7 +2632,7 @@ void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAc
         lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
     }
 
-    if (action.isEchoed || action.isResult || reply.status != CommandStatus::Ok)
+    if (action.isEchoed || action.isResult || reply.hasNotice || reply.status != CommandStatus::Ok)
     {
         lines.insert (lines.end(), reply.text.begin(), reply.text.end());
     }

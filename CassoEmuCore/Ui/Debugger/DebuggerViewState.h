@@ -260,6 +260,9 @@ struct DebuggerViewSnapshot
     //  Why the machine last stopped, and at which breakpoint, if one.
     StopReason                   stopReason    = StopReason::Pause;
     std::optional<int>           stopBreakpoint;
+
+    //  DebugSession::GetRunNotice at the stop, for the status bar.
+    std::string                  runNotice;
     std::string                  machine;
 
     //  The cards' and ports' bus registers, for the operand tips.

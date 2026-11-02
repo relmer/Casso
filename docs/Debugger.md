@@ -795,6 +795,12 @@ in: `P` on a `JSR` with an interrupt pending runs the handler, then the call,
 and stops after it. A breakpoint in the handler still stops there. A step
 into stops on the handler's first instruction.
 
+A step out ends when the innermost call on record returns. With call
+recording on but no call on record, or with the PC moved since the stop, the
+calls on record were made by other code, so the step out ends at the first
+`RTS` or `RTI` that raises the stack above where it began. The console and
+the status bar have a line about it.
+
 ## The instruction trace
 
 `HISTORY ON` records every instruction the machine runs, keeping the newest

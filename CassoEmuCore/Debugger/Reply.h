@@ -674,6 +674,10 @@ struct Reply
     //  formatted as it ran, errors included, so none is formatted again.
     bool                      isFormatted = false;
 
+    //  The text has a line about how the command ran that is listed in the
+    //  console even for an action that isn't echoed.
+    bool                      hasNotice   = false;
+
     void SetError (CommandStatus errorStatus, const std::string & label, const std::string & detail)
     {
         status       = errorStatus;

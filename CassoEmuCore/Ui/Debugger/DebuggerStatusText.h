@@ -69,6 +69,9 @@ public:
     static std::wstring  GetReplayText   (bool isReplaying);
     static std::wstring  GetReplayText   (const ReplayProgress & progress);
 
+    //  The same, or the run's notice while nothing is replaying.
+    static std::wstring  GetReplayText   (const ReplayProgress & progress, const std::string & runNotice);
+
     //  Emulated time for a cycle count: seconds to a tenth under a minute,
     //  then minutes and seconds, then hours, minutes and seconds, with the
     //  locale's decimal separator.
