@@ -355,8 +355,8 @@ namespace ColorLegendTests
             DiskHeadView         view;
             DxuiDpiScaler        scaler;
             DiagnosticsDiskHead  head;
-            POINT                ruler = { 50, 4 };
-            POINT                lamps = { 50, 30 };
+            POINT                ruler = { DiskHeadView::kDriveDip + 50, 4 };
+            POINT                lamps = { DiskHeadView::kDriveDip + 50, 30 };
 
 
 
@@ -379,6 +379,7 @@ namespace ColorLegendTests
 
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::HeadMoving)), view.GetColorTipAt (ruler));
             Assert::IsTrue   (view.GetColorTipAt (POINT { 400, 4 }).empty(), L"a tip off the view");
+            Assert::IsTrue   (view.GetColorTipAt (POINT { 10, 4 }).empty(),  L"no tip over the drive's name");
         }
 
 

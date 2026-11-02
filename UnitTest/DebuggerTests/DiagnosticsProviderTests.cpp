@@ -164,7 +164,7 @@ namespace DebuggerTests
             Assert::IsNotNull (disk);
             before = Snapshot (*disk);
 
-            Assert::AreEqual (std::string ("off"), FindRow (before, "Motor").value);
+            Assert::AreEqual (std::string ("idle"), FindRow (before, "Activity").value);
             Assert::AreEqual (std::string ("0"),   FindRow (before, "Quarter track").value);
 
             //  Motor on, then phase 1 on: the head steps toward it.
@@ -172,7 +172,7 @@ namespace DebuggerTests
             (void) machine.GetMemoryBus().ReadByte (0xC0E3);
             after = Snapshot (*disk);
 
-            Assert::AreEqual (std::string ("on"), FindRow (after, "Motor").value);
+            Assert::AreEqual (std::string ("reading"), FindRow (after, "Activity").value, L"the motor is on");
             Assert::AreNotEqual (FindRow (before, "Quarter track").value, FindRow (after, "Quarter track").value, L"the head moved");
             Assert::AreEqual (std::format ("{}", disk->GetQuarterTrack()), FindRow (after, "Quarter track").value);
             Assert::IsTrue   (IsBitSet (FindRow (after, "Phases"), "PH1"));

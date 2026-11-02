@@ -67,19 +67,19 @@ namespace DebuggerTests
 
 
 
-            view.Layout  (RECT { 0, 0, 140, 40 }, Scaler96());
+            view.Layout  (RECT { 0, 0, 140 + DiskHeadView::kDriveDip, 40 }, Scaler96());
             view.Tick    (1000);
             view.SetHead ({ 0, 139, 0x01, true, 0 });
             view.Tick    (1000);
             view.SetHead ({ 40, 139, 0x01, true, 0 });
 
-            Assert::AreEqual (0.0f, view.GetHeadX(), L"a seek starts where the head was");
+            Assert::AreEqual ((float) DiskHeadView::kDriveDip, view.GetHeadX(), L"a seek starts where the head was");
 
             view.Tick (1000 + (int64_t) (DiskHeadView::kMsPerQuarter * 10));
-            Assert::AreEqual (10.0f, view.GetHeadX(), 0.01f, L"ten quarter tracks along");
+            Assert::AreEqual (10.0f + DiskHeadView::kDriveDip, view.GetHeadX(), 0.01f, L"ten quarter tracks along");
 
             view.Tick (5000);
-            Assert::AreEqual (40.0f, view.GetHeadX(), L"and arrives");
+            Assert::AreEqual (40.0f + DiskHeadView::kDriveDip, view.GetHeadX(), L"and arrives");
         }
 
 
@@ -90,12 +90,12 @@ namespace DebuggerTests
 
 
 
-            view.Layout  (RECT { 0, 0, 140, 40 }, Scaler96());
+            view.Layout  (RECT { 0, 0, 140 + DiskHeadView::kDriveDip, 40 }, Scaler96());
             view.Tick    (1000);
             view.SetHead ({ 0, 139, 0x01, true, 0 });
             view.SetHead ({ 40, 139, 0x01, true, 1 });
 
-            Assert::AreEqual (40.0f, view.GetHeadX());
+            Assert::AreEqual (40.0f + DiskHeadView::kDriveDip, view.GetHeadX());
         }
 
 
@@ -113,30 +113,30 @@ namespace DebuggerTests
 
 
 
-            view.Layout  (RECT { 0, 0, 140, 40 }, Scaler96());
+            view.Layout  (RECT { 0, 0, 140 + DiskHeadView::kDriveDip, 40 }, Scaler96());
             view.Tick    (kStart);
             view.SetHead ({ 0, 139, 0x01, true, 0 });
             view.SetHead ({ 4, 139, 0x01, true, 0 });
             view.Tick    (arrive);
             view.Paint   (painter, text, theme);
 
-            fills = GetRulerFills (painter, 4.0f);
+            fills = GetRulerFills (painter, 4.0f + DiskHeadView::kDriveDip);
             Assert::IsFalse (fills.empty());
             Assert::AreNotEqual (theme.Accent(), fills.back(), L"a head just arrived is brighter than the accent");
 
-            fills = GetRulerFills (painter, 2.0f);
+            fills = GetRulerFills (painter, 2.0f + DiskHeadView::kDriveDip);
             Assert::IsFalse (fills.empty(), L"the track left behind still shows");
             Assert::IsTrue  ((fills.back() >> 24) < 0xFF, L"and is fading");
 
             painter.Reset();
             view.Tick  (arrive + DiskHeadView::kSettleMs);
             view.Paint (painter, text, theme);
-            Assert::AreEqual (theme.Accent(), GetRulerFills (painter, 4.0f).back(), L"settled");
+            Assert::AreEqual (theme.Accent(), GetRulerFills (painter, 4.0f + DiskHeadView::kDriveDip).back(), L"settled");
 
             painter.Reset();
             view.Tick  (arrive + DiskHeadView::kFadeMs + 1);
             view.Paint (painter, text, theme);
-            Assert::IsTrue (GetRulerFills (painter, 2.0f).empty(), L"the trail is gone");
+            Assert::IsTrue (GetRulerFills (painter, 2.0f + DiskHeadView::kDriveDip).empty(), L"the trail is gone");
         }
 
 
@@ -161,35 +161,56 @@ namespace DebuggerTests
         }
 
 
-        //  The label beside the lamps starts clear of the Motor caption's box.
-        TEST_METHOD (TheLabelBesideTheLampsIsClearOfMotor)
+        //  The drive's name is ahead of the ruler. Under the ruler, from its
+        //  left edge: the track, the word Motor in the accent while the motor
+        //  is on, then the phases 3 2 1 0, the last ending at the ruler's
+        //  right edge.
+        TEST_METHOD (TheRowUnderTheRulerIsTrackMotorAndPhases)
         {
+            constexpr float       kRight  = 900.0f;
             DiskHeadView          view;
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
             MockDxuiTheme         theme;
-            float                 motorEnd = 0.0f;
-            float                 labelX   = 0.0f;
+            float                 driveX  = -1.0f;
+            float                 driveY  = -1.0f;
+            float                 trackX  = -1.0f;
+            float                 motorX  = -1.0f;
+            uint32_t              motor   = 0;
+            std::vector<float>    digitX (4, -1.0f);
+            float                 lampEnd = 0.0f;
 
 
 
-            view.SetHead ({ 0, 139, 0x01, true, 0 });
-            view.Layout  (RECT { 0, 0, 900, 60 }, Scaler96());
+            view.SetHead ({ 69, 139, 0x01, true, 0 });
+            view.Layout  (RECT { 0, 0, (LONG) kRight, 60 }, Scaler96());
             view.Paint   (painter, text, theme);
 
             for (const RecordedTextCall & call : text.Calls())
             {
-                if (call.text == L"Motor")
+                if (call.text == L"Drive 1")       { driveX = call.x; driveY = call.y; }
+                if (call.text == L"Track 17.25")   { trackX = call.x; }
+                if (call.text == L"Motor")         { motorX = call.x; motor = call.argb; }
+
+                for (int phase = 0; phase < 4; phase++)
                 {
-                    motorEnd = call.x + call.width;
-                }
-                else if (call.text.starts_with (L"Drive"))
-                {
-                    labelX = call.x;
+                    digitX[(size_t) phase] = (call.text == std::format (L"{}", phase)) ? call.x : digitX[(size_t) phase];
                 }
             }
 
-            Assert::IsTrue (motorEnd > 0.0f && labelX >= motorEnd + (float) DiskHeadView::kLabelGapDip, L"a gap between Motor and the label");
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                lampEnd = (call.kind == RecordedPaintKind::FillRect && call.y > 18.0f) ? std::max (lampEnd, call.x + call.width) : lampEnd;
+            }
+
+            Assert::AreEqual (0.0f, driveX);
+            Assert::AreEqual (0.0f, driveY, L"the drive's name is on the ruler's row");
+            Assert::AreEqual ((float) DiskHeadView::kDriveDip, trackX, L"the track starts under the ruler's left edge");
+            Assert::IsTrue   (motorX > trackX, L"then Motor");
+            Assert::AreEqual (theme.Accent(), motor, L"lit while the motor is on");
+            Assert::IsTrue   (digitX[3] > motorX && digitX[3] < digitX[2] && digitX[2] < digitX[1] && digitX[1] < digitX[0], L"the phases 3 2 1 0");
+            Assert::IsTrue   (digitX[0] < kRight && kRight - digitX[0] <= (float) DiskHeadView::kLampStepDip, L"ending at the ruler's right edge");
+            Assert::IsTrue   (lampEnd <= kRight);
         }
 
 

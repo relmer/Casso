@@ -1678,9 +1678,13 @@ from the command box.
 
 The Disk II panel's bar chooses the drives it draws: **D1**, **D2** or
 **Both**, the default, which is saved with the debugger's settings. With both,
-each drive has its head and lamps, side by side where the pane is wide enough
-and one over the other where it isn't. Only the selected drive's phases and
-motor are lit.
+each drive is drawn side by side where the pane is wide enough and one over
+the other where it isn't. Each drive's name is ahead of its head's ruler.
+Under the ruler are the head's track, the word Motor, lit while the motor is
+on, and the stepper's phases in the order 3 2 1 0, each digit before its lamp,
+the last ending at the ruler's right edge. Only the selected drive's phases
+and motor are lit. In the rows under the drawing, the Head group lists the
+track, then the quarter track, then the phases in the same order.
 
 The Mockingboard panel is a graphical view of the card's chips, in as many
 columns as fit the pane. On a Mockingboard C, the SSI-263's card is across the

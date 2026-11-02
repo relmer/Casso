@@ -11,9 +11,11 @@
 //
 //  DiskHeadView
 //
-//  The head over the disk's tracks, at quarter-track resolution: a ruler with
-//  a tick for every track, a marker where the head is, and below it the four
-//  stepper phase magnets and the motor, each lit while on.
+//  The head over the disk's tracks, at quarter-track resolution: the drive's
+//  name, then a ruler with a tick for every track and a marker where the head
+//  is. Under the ruler, the head's track, the word Motor, lit while the motor
+//  is on, and the four stepper phase magnets in the order 3 2 1 0, each lit
+//  while on, ending at the ruler's right edge.
 //
 //  The marker sweeps toward the head's track at the drive's stepping speed
 //  rather than jumping a frame at a time. It arrives bright and settles to
@@ -31,6 +33,7 @@ public:
     static constexpr int      kLampStepDip  = 34;
     static constexpr int      kCaptionDip   = 56;
     static constexpr int      kLabelGapDip  = 12;
+    static constexpr int      kDriveDip     = 60;       // the drive's name, ahead of the ruler
     static constexpr int      kQuarters     = 4;
     static constexpr int      kMajorTrack   = 5;
 
@@ -65,11 +68,13 @@ public:
     //  Whether two drives go side by side in a width.
     static bool                  IsSideBySide  (int widthPx, const DxuiDpiScaler & scaler);
 
-    //  A row more where the drive and track do not fit beside the lamps, and
-    //  another where they do not fit on one row.
+    //  The ruler and the row under it; two drives one over the other where
+    //  they don't fit side by side.
     int                          GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
-    //  The head marker's left edge and width, in pixels.
+    //  The ruler's left edge, past the drive's name, and the head marker's
+    //  left edge and width, in pixels.
+    float                        GetRulerLeft () const;
     float                        GetHeadX     () const;
     float                        GetHeadWidth () const;
 
@@ -96,16 +101,12 @@ private:
 
     int   GetQuarterCount () const { return std::max (1, m_head.maxQuarterTrack + 1); }
 
-    //  "Drive 1  track 17.25" and its two halves, whether it goes on a row of
-    //  its own below the lamps at this width, and whether its halves need a
-    //  row each.
-    std::wstring  GetLabel      () const;
+    //  "Drive 1" and "Track 17.25".
     std::wstring  GetDriveText  () const;
     std::wstring  GetTrackText  () const;
-    bool          IsLabelBelow  (float widthPx, const DxuiDpiScaler & scaler) const;
-    bool          IsLabelSplit  (float widthPx, const DxuiDpiScaler & scaler) const;
 
-    //  1 where the lamp row fits the width, less where it has to shrink.
+    //  1 where the row under the ruler fits the ruler's width, less where it
+    //  has to shrink.
     float         GetLampScale  (float widthPx) const;
 
     void  SetDriveHead (const DiagnosticsDiskHead & head);

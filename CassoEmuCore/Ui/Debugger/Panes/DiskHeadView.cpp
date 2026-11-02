@@ -278,6 +278,11 @@ std::wstring DiskHeadView::GetColorTipAt (POINT clientPx) const
         return ColorLegend::GetText (ColorLegend::Meaning::LampLit);
     }
 
+    if ((float) clientPx.x < GetRulerLeft())
+    {
+        return {};
+    }
+
     if (!m_head.motorOn)
     {
         meaning = ColorLegend::Meaning::HeadMotorOff;
@@ -304,11 +309,10 @@ int DiskHeadView::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scale
 {
     int   gap  = scaler.ToPx (kLabelGapDip);
     int   half = (widthPx - gap) / 2;
-    auto  one  = [this, &scaler] (int width)
+    auto  one  = [&scaler] (int width)
     {
-        int  rows = 1 + (IsLabelBelow ((float) width, scaler) ? 1 : 0) + (IsLabelSplit ((float) width, scaler) ? 1 : 0);
-
-        return scaler.ToPx (kRulerDip + kGapDip + kRowDip * rows);
+        (void) width;
+        return scaler.ToPx (kRulerDip + kGapDip + kRowDip);
     };
 
 
@@ -319,21 +323,6 @@ int DiskHeadView::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scale
     }
 
     return IsSideBySide (widthPx, scaler) ? one (half) : one (widthPx) * 2 + gap;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskHeadView::GetLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DiskHeadView::GetLabel() const
-{
-    return std::format (L"{}  {}", GetDriveText(), GetTrackText());
 }
 
 
@@ -367,62 +356,7 @@ std::wstring DiskHeadView::GetTrackText() const
 
 
 
-    return std::format (L"track {}.{:02}", m_head.quarterTrack / kQuarters, (m_head.quarterTrack % kQuarters) * (kHundredths / kQuarters));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskHeadView::IsLabelBelow
-//
-//  The lamps and the label side by side where they fit, measured by the
-//  monospace advance; otherwise the label takes a row of its own rather than
-//  being cut off at the pane's edge. The widest track is assumed, so the
-//  label does not jump between rows as the head moves.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskHeadView::IsLabelBelow (float widthPx, const DxuiDpiScaler & scaler) const
-{
-    static constexpr float  kAdvancePerDip = 0.6f;
-    static constexpr int    kPhases        = 4;
-    static constexpr int    kCaptions      = 2;     // "Phases" and the motor's lamp
-    static constexpr size_t kWidestLabel   = std::size (L"Drive 2  track 39.75") - 1;
-    float                   lamps          = scaler.ToPxf ((float) kLampStepDip) * kPhases + scaler.ToPxf ((float) kCaptionDip) * kCaptions + scaler.ToPxf ((float) kLabelGapDip);
-    float                   label          = scaler.ToPxf (m_fontDip) * kAdvancePerDip * (float) kWidestLabel;
-
-
-
-    return lamps + label > widthPx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskHeadView::IsLabelSplit
-//
-//  Where even a row of its own is too narrow for the whole label, the drive
-//  and the track take a row each. The break falls only between the two, so a
-//  word or a track number is never divided. The widest track is assumed, as
-//  for IsLabelBelow.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskHeadView::IsLabelSplit (float widthPx, const DxuiDpiScaler & scaler) const
-{
-    static constexpr float  kAdvancePerDip = 0.6f;
-    static constexpr size_t kWidestLabel   = std::size (L"Drive 2  track 39.75") - 1;
-    float                   label          = scaler.ToPxf (m_fontDip) * kAdvancePerDip * (float) kWidestLabel;
-
-
-
-    return label > widthPx;
+    return std::format (L"Track {}.{:02}", m_head.quarterTrack / kQuarters, (m_head.quarterTrack % kQuarters) * (kHundredths / kQuarters));
 }
 
 
@@ -433,21 +367,25 @@ bool DiskHeadView::IsLabelSplit (float widthPx, const DxuiDpiScaler & scaler) co
 //
 //  DiskHeadView::GetLampScale
 //
-//  The lamp row never wraps or runs past the pane: where the pane is narrower
-//  than the row, the lamps, their spacing and their captions all shrink by
-//  the same factor to fit.
+//  The row under the ruler never wraps or runs past it: where the ruler is
+//  narrower than the row, the text, the lamps and their spacing all shrink by
+//  the same factor to fit. The widest track is assumed, so the row's size
+//  doesn't change as the head moves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float DiskHeadView::GetLampScale (float widthPx) const
 {
-    constexpr int  kPhases   = 4;
-    constexpr int  kCaptions = 2;     // "Phases" and the motor's lamp
-    float          lamps     = m_scaler.ToPxf ((float) (kLampStepDip * kPhases + kCaptionDip * kCaptions));
+    constexpr int     kPhases        = 4;
+    constexpr float   kAdvancePerDip = 0.6f;
+    constexpr size_t  kWidestTrack   = std::size (L"Track 39.75") - 1;
+    constexpr size_t  kMotor         = std::size (L"Motor") - 1;
+    float             text           = m_fontDip * kAdvancePerDip * (float) (kWidestTrack + kMotor);
+    float             row            = m_scaler.ToPxf (text + (float) (kLabelGapDip * 2 + kCaptionDip + kLampStepDip * kPhases));
 
 
 
-    return std::clamp (widthPx / lamps, 0.0f, 1.0f);
+    return std::clamp (widthPx / row, 0.0f, 1.0f);
 }
 
 
@@ -469,7 +407,22 @@ float DiskHeadView::GetHeadX() const
 
 
 
-    return (float) m_boundsDip.left + GetHeadWidth() * (float) quarter;
+    return GetRulerLeft() + GetHeadWidth() * (float) quarter;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::GetRulerLeft
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DiskHeadView::GetRulerLeft() const
+{
+    return std::min ((float) m_boundsDip.left + std::round (m_scaler.ToPxf ((float) kDriveDip)), (float) m_boundsDip.right);
 }
 
 
@@ -484,7 +437,7 @@ float DiskHeadView::GetHeadX() const
 
 float DiskHeadView::GetHeadWidth() const
 {
-    return (float) (m_boundsDip.right - m_boundsDip.left) / (float) GetQuarterCount();
+    return ((float) m_boundsDip.right - GetRulerLeft()) / (float) GetQuarterCount();
 }
 
 
@@ -576,26 +529,27 @@ void DiskHeadView::PaintRuler (IDxuiPainter & painter, const IDxuiTheme & theme)
     float     ruler = m_scaler.ToPxf ((float) kRulerDip);
     float     line  = std::max (1.0f, std::round (m_scaler.ToPxf (1.0f)));
     float     top   = (float) m_boundsDip.top;
+    float     left  = GetRulerLeft();
     float     width = GetHeadWidth();
     uint32_t  trail = m_head.motorOn ? theme.Accent() : theme.ForegroundMuted();
 
 
 
-    painter.FillRect ((float) m_boundsDip.left, top, (float) (m_boundsDip.right - m_boundsDip.left), ruler, theme.ControlBackground());
+    painter.FillRect (left, top, (float) m_boundsDip.right - left, ruler, theme.ControlBackground());
 
     for (int quarter = 0; quarter < GetQuarterCount(); quarter += kQuarters)
     {
         bool   major = (quarter / kQuarters) % kMajorTrack == 0;
         float  tall  = major ? ruler : ruler / 2;
 
-        painter.FillRect ((float) m_boundsDip.left + width * (float) quarter, top + ruler - tall, line, tall, theme.Divider());
+        painter.FillRect (left + width * (float) quarter, top + ruler - tall, line, tall, theme.Divider());
     }
 
     for (const auto & [quarter, leftMs] : m_trail)
     {
         float  fade = 1.0f - std::clamp ((float) (m_nowMs - leftMs) / (float) kFadeMs, 0.0f, 1.0f);
 
-        painter.FillRect ((float) m_boundsDip.left + width * (float) quarter, top, std::max (line, width), ruler,
+        painter.FillRect (left + width * (float) quarter, top, std::max (line, width), ruler,
                           DxuiColor::ScaleAlpha (trail, fade));
     }
 
@@ -610,28 +564,49 @@ void DiskHeadView::PaintRuler (IDxuiPainter & painter, const IDxuiTheme & theme)
 //
 //  DiskHeadView::PaintLamps
 //
-//  The stepper's four phase magnets under a caption, then the motor, then
-//  the drive and track as text: beside the lamps, or on the row below them
-//  where it would not fit.
+//  The drive's name ahead of the ruler. Under the ruler, from its left edge,
+//  the head's track, then the word Motor in the accent while the motor is on,
+//  then the stepper's phase magnets under a caption, 3 2 1 0, the last
+//  ending at the ruler's right edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
-    constexpr int   kPhases = 4;
-    DxuiFontHandle  font    = theme.MonospaceFont();
-    float           scale   = GetLampScale ((float) (m_boundsDip.right - m_boundsDip.left));
-    float           row     = m_scaler.ToPxf ((float) kRowDip);
-    float           lamp    = m_scaler.ToPxf ((float) kLampDip) * scale;
-    float           step    = m_scaler.ToPxf ((float) kLampStepDip) * scale;
-    float           caption = m_scaler.ToPxf ((float) kCaptionDip) * scale;
-    float           top     = (float) m_boundsDip.top + m_scaler.ToPxf ((float) (kRulerDip + kGapDip));
-    float           x       = (float) m_boundsDip.left;
-    float           size    = m_scaler.ToPxf (font.sizeDip) * scale;
-    std::wstring    label;
-    HRESULT         hr      = S_OK;
+    constexpr int     kPhases        = 4;
+    constexpr float   kAdvancePerDip = 0.6f;
+    constexpr size_t  kWidestTrack   = std::size (L"Track 39.75") - 1;
+    DxuiFontHandle    font           = theme.MonospaceFont();
+    float             left           = GetRulerLeft();
+    float             scale          = GetLampScale ((float) m_boundsDip.right - left);
+    float             row            = m_scaler.ToPxf ((float) kRowDip);
+    float             lamp           = m_scaler.ToPxf ((float) kLampDip) * scale;
+    float             step           = m_scaler.ToPxf ((float) kLampStepDip) * scale;
+    float             caption        = m_scaler.ToPxf ((float) kCaptionDip) * scale;
+    float             gap            = m_scaler.ToPxf ((float) kLabelGapDip) * scale;
+    float             top            = (float) m_boundsDip.top + m_scaler.ToPxf ((float) (kRulerDip + kGapDip));
+    float             size           = m_scaler.ToPxf (font.sizeDip) * scale;
+    float             trackW         = m_scaler.ToPxf (font.sizeDip * kAdvancePerDip * (float) kWidestTrack) * scale;
+    float             x              = (float) m_boundsDip.right - caption - step * kPhases;
+    std::wstring      label;
+    HRESULT           hr             = S_OK;
 
 
+
+    label = GetDriveText();
+    hr    = text.DrawString (label.c_str(), (float) m_boundsDip.left, (float) m_boundsDip.top, left - (float) m_boundsDip.left, m_scaler.ToPxf ((float) kRulerDip),
+                             theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    label = GetTrackText();
+    hr    = text.DrawString (label.c_str(), left, top, trackW, row, theme.Foreground(), size, font.face,
+                             DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (L"Motor", left + trackW + gap, top, std::max (0.0f, x - (left + trackW + gap)), row,
+                          m_head.motorOn ? theme.Accent() : theme.ForegroundDisabled(), size, font.face,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, m_head.motorOn ? DxuiFontWeight::Bold : DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.DrawString (L"Phases", x, top, caption, row, theme.ForegroundMuted(), size, font.face,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
@@ -639,49 +614,18 @@ void DiskHeadView::PaintLamps (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     x += caption;
 
-    for (int phase = 0; phase <= kPhases; phase++)
+    for (int phase = kPhases - 1; phase >= 0; phase--)
     {
-        bool  isMotor = (phase == kPhases);
-        bool  on      = isMotor ? m_head.motorOn : ((m_head.phases >> phase) & 1) != 0;
+        bool  on = ((m_head.phases >> phase) & 1) != 0;
 
-        painter.FillRect (x, top + (row - lamp) / 2, lamp, lamp, on ? theme.Accent() : theme.ControlBackground());
-
-        label = isMotor ? std::wstring (L"Motor") : std::format (L"{}", phase);
-        hr    = text.DrawString (label.c_str(), x + lamp, top, (isMotor ? caption : step) - lamp, row, theme.ForegroundMuted(), size, font.face,
+        //  The digit, then its lamp, so the last lamp ends at the edge.
+        label = std::format (L"{}", phase);
+        hr    = text.DrawString (label.c_str(), x, top, step - lamp, row, theme.ForegroundMuted(), size, font.face,
                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        x += isMotor ? caption : step;
-    }
+        painter.FillRect (x + step - lamp, top + (row - lamp) / 2, lamp, lamp, on ? theme.Accent() : theme.ControlBackground());
 
-    if (IsLabelBelow ((float) (m_boundsDip.right - m_boundsDip.left), m_scaler))
-    {
-        x    = (float) m_boundsDip.left;
-        top += row;
+        x += step;
     }
-    else
-    {
-        x += m_scaler.ToPxf ((float) kLabelGapDip);
-    }
-
-    size = m_scaler.ToPxf (font.sizeDip);
-
-    if (IsLabelSplit ((float) (m_boundsDip.right - m_boundsDip.left), m_scaler))
-    {
-        label = GetDriveText();
-        hr    = text.DrawString (label.c_str(), x, top, std::max (0.0f, (float) m_boundsDip.right - x), row, theme.Foreground(), size, font.face,
-                                 DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        top   += row;
-        label  = GetTrackText();
-    }
-    else
-    {
-        label = GetLabel();
-    }
-
-    hr = text.DrawString (label.c_str(), x, top, std::max (0.0f, (float) m_boundsDip.right - x), row, theme.Foreground(), size, font.face,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 }
