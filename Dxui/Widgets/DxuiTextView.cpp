@@ -24,6 +24,8 @@ void DxuiTextView::SetRows (std::vector<Row> rows)
     m_topLine  = 0;
     m_dragging = false;
 
+    m_leftColumn = 0;
+
     m_charX.clear();
     Rebuild();
 }
@@ -63,6 +65,29 @@ void DxuiTextView::SetProportional (bool proportional)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::SetNoWrap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetNoWrap (bool noWrap)
+{
+    if (noWrap == m_noWrap)
+    {
+        return;
+    }
+
+    m_noWrap     = noWrap;
+    m_leftColumn = 0;
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::SetCellSize
 //
 //  A size set here is kept across DPI changes, as a test's is.
@@ -91,7 +116,7 @@ void DxuiTextView::SetCellSize (int widthPx, int heightPx)
 
 int DxuiTextView::GetLineCap() const
 {
-    int  height = (int) (m_boundsDip.bottom - m_boundsDip.top) - m_scaler.ToPx (s_kPadDip) * 2;
+    int  height = (int) (m_boundsDip.bottom - m_boundsDip.top) - m_scaler.ToPx (s_kPadDip) * 2 - (m_horzVisible ? m_scaler.ToPx (s_kScrollbarWidthDip) : 0);
 
 
 
@@ -117,6 +142,74 @@ void DxuiTextView::SetTopLine (int line)
     m_topLine = (std::max) (0, (std::min) (line, maxTop));
 
     SyncScrollbar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetLeftColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetLeftColumn (int column)
+{
+    int  maxLeft = m_horzVisible ? (std::max) (0, GetContentColumns() - GetTextColumns (IsScrollbarVisible())) : 0;
+
+
+
+    m_leftColumn = (std::max) (0, (std::min) (column, maxLeft));
+
+    SyncScrollbar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetContentColumns
+//
+//  The widest row in character columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetContentColumns() const
+{
+    int  widest = 0;
+
+
+
+    for (const Row & row : m_rows)
+    {
+        if (!row.cells.empty())
+        {
+            widest = (std::max) (widest, GetCellStart (row, (int) row.cells.size() - 1) + (int) row.cells.back().size());
+        }
+    }
+
+    return widest;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetTextLeft
+//
+//  Where a line's first character is drawn, which is off the view's left edge
+//  once a row that doesn't wrap has scrolled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextView::GetTextLeft() const
+{
+    return (float) ((int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip)) - (float) m_leftColumn * m_cellAdvance;
 }
 
 
@@ -255,6 +348,8 @@ void DxuiTextView::Rebuild()
     m_lines.clear();
     m_columnCells.clear();
 
+    m_horzVisible = false;
+
     if (m_cellWidthPx <= 0 || m_cellHeightPx <= 0)
     {
         return;
@@ -297,6 +392,13 @@ void DxuiTextView::Rebuild()
         {
             BuildLines (GetTextColumns (true));
         }
+
+        //  The horizontal bar takes a line of height, which can bring on the
+        //  vertical bar, which takes columns, so this is decided twice.
+        for (int pass = 0; m_noWrap && pass < 2; pass++)
+        {
+            m_horzVisible = GetContentColumns() > GetTextColumns (IsScrollbarVisible());
+        }
     }
 
     //  A new wrap moves every line, so the top is the line that now has the
@@ -308,6 +410,7 @@ void DxuiTextView::Rebuild()
     }
 
     SetTopLine (line);
+    SetLeftColumn (m_leftColumn);
 }
 
 
@@ -319,7 +422,7 @@ void DxuiTextView::Rebuild()
 //  DxuiTextView::BuildLines
 //
 //  Wraps each row's last cell at the last space that fits, or mid-word when
-//  none does.
+//  none does. With no wrap, a row is one line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -332,8 +435,8 @@ void DxuiTextView::BuildLines (int columns)
         const Row &     row    = m_rows[(size_t) r];
         std::wstring    last   = row.cells.empty() ? std::wstring() : row.cells.back();
         int             start  = GetCellStart (row, (int) row.cells.size() - 1);
-        int             avail  = (std::max) (1, columns - start);
         int             length = (int) last.size();
+        int             avail  = m_noWrap ? (std::max) (1, length) : (std::max) (1, columns - start);
         int             pos    = 0;
         bool            first  = true;
 
@@ -586,12 +689,13 @@ int DxuiTextView::GetNearestChar (int row, int cell, int from, int to, float x) 
 void DxuiTextView::SyncScrollbar()
 {
     int         barW = m_scaler.ToPx (s_kScrollbarWidthDip);
+    bool        vert = IsScrollbarVisible();
     SCROLLINFO  info = { sizeof (info) };
 
 
 
     m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, barW, 1);
-    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom });
+    m_vertScroll.SetTrack (RECT { m_boundsDip.right - barW, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom - (m_horzVisible ? barW : 0) });
 
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     info.nMin  = 0;
@@ -599,6 +703,14 @@ void DxuiTextView::SyncScrollbar()
     info.nPage = (UINT) GetLineCap();
     info.nPos  = m_topLine;
     m_vertScroll.SetScrollInfo (info);
+
+    m_horzScroll.Configure (DxuiScrollbar::Orientation::Horizontal, barW, barW, 1);
+    m_horzScroll.SetTrack (RECT { m_boundsDip.left, m_boundsDip.bottom - barW, m_boundsDip.right - (vert ? barW : 0), m_boundsDip.bottom });
+
+    info.nMax  = (std::max) (0, GetContentColumns() - 1);
+    info.nPage = (UINT) GetTextColumns (vert);
+    info.nPos  = m_leftColumn;
+    m_horzScroll.SetScrollInfo (info);
 }
 
 
@@ -619,7 +731,7 @@ DxuiTextView::Position DxuiTextView::HitTest (POINT point) const
     Position  pos;
     int       pad       = m_scaler.ToPx (s_kPadDip);
     int       y         = point.y - (int) m_boundsDip.top - pad;
-    int       x         = point.x - (int) m_boundsDip.left - pad;
+    int       x         = point.x - (int) m_boundsDip.left - pad + (int) ((float) m_leftColumn * m_cellAdvance);
     int       lineIndex = 0;
     int       column    = 0;
     int       last      = 0;
@@ -962,6 +1074,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     HRESULT         hr   = S_OK;
     DxuiFontHandle  font = m_proportional ? theme.BodyFont() : theme.MonospaceFont();
     int             last = 0;
+    int             barW = 0;
 
 
 
@@ -987,8 +1100,11 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     last = (std::min) ((int) m_lines.size(), m_topLine + GetLineCap() + 1);
 
+    barW = m_scaler.ToPx (s_kScrollbarWidthDip);
+
     hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                            (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
+                            (float) (m_boundsDip.right - m_boundsDip.left - ((m_horzVisible && IsScrollbarVisible()) ? barW : 0)),
+                            (float) (m_boundsDip.bottom - m_boundsDip.top - (m_horzVisible ? barW : 0)));
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     for (int lineIndex = m_topLine; lineIndex < last; lineIndex++)
@@ -1002,6 +1118,11 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     if (IsScrollbarVisible())
     {
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
+    }
+
+    if (m_horzVisible)
+    {
+        m_horzScroll.Paint (painter, theme.ForegroundMuted());
     }
 }
 
@@ -1024,7 +1145,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     HRESULT                  hr       = S_OK;
     const Line             & line     = m_lines[(size_t) lineIndex];
     const Row              & row      = m_rows[(size_t) line.row];
-    int                      left     = (int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip);
+    float                    left     = GetTextLeft();
     int                      y        = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + (lineIndex - m_topLine) * m_cellHeightPx;
     int                      last     = (int) row.cells.size() - 1;
     Position                 from     = (std::min) (m_anchor, m_caret);
@@ -1040,7 +1161,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     if (line.first && row.warning)
     {
         hr = text.DrawString (s_kpszMdl2WarningSolid,
-                              (float) left, (float) y, (float) (kWarningCells * m_cellAdvance), (float) m_cellHeightPx,
+                              left, (float) y, (float) (kWarningCells * m_cellAdvance), (float) m_cellHeightPx,
                               theme.WarningAccent(),
                               (float) m_cellHeightPx * 0.8f,
                               m_iconFace,
@@ -1110,7 +1231,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
                             const std::vector<uint32_t> & colors) const
 {
     HRESULT   hr     = S_OK;
-    float     left   = (float) ((int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip)) + GetCellX (m_rows[(size_t) row], cell);
+    float     left   = GetTextLeft() + GetCellX (m_rows[(size_t) row], cell);
     int       count  = (int) chars.size();
     int       first  = selected ? std::clamp (selFrom - flatStart, 0, count) : count;
     int       end    = selected ? std::clamp (selTo - flatStart, first, count) : count;
@@ -1204,7 +1325,7 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
 
 void DxuiTextView::FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const
 {
-    float  left      = (float) ((int) m_boundsDip.left + m_scaler.ToPx (s_kPadDip)) + GetCellX (m_rows[(size_t) row], cell);
+    float  left      = GetTextLeft() + GetCellX (m_rows[(size_t) row], cell);
     int    first     = (std::max) (selFrom, flatStart);
     int    end       = (std::min) (selTo, flatStart + count);
     int    separator = flatStart + count;
@@ -1252,6 +1373,16 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Wheel:
+        //  A horizontal wheel, or Shift with the wheel, scrolls sideways.
+        if (m_horzVisible && (ev.wheelHorizontal || ev.shift))
+        {
+            m_wheelColumns += (ev.wheelHorizontal ? ev.wheelDelta : -ev.wheelDelta) * (float) kWheelColumns;
+            ScrollColumns ((int) m_wheelColumns);
+            m_wheelColumns -= (float) (int) m_wheelColumns;
+            handled = true;
+            break;
+        }
+
         //  A precision touchpad sends part notches, which add up until they
         //  move a whole line.
         m_wheelLines += -ev.wheelDelta * (float) kWheelLines;
@@ -1270,10 +1401,15 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
 
             handled = true;
         }
-        else if (ev.button == DxuiMouseButton::Left && IsScrollbarVisible() && m_vertScroll.HitTest (point.x, point.y))
+        else if (ev.button == DxuiMouseButton::Left && IsOverVertScrollbar (point))
         {
             handled = m_vertScroll.OnMouseDown (point.x, point.y);
             SetTopLine (m_vertScroll.GetScrollPos());
+        }
+        else if (ev.button == DxuiMouseButton::Left && IsOverHorzScrollbar (point))
+        {
+            handled = m_horzScroll.OnMouseDown (point.x, point.y);
+            SetLeftColumn (m_horzScroll.GetScrollPos());
         }
         else if (ev.button == DxuiMouseButton::Left)
         {
@@ -1327,8 +1463,22 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
             handled = m_vertScroll.OnMouseMove (point.x, point.y);
             SetTopLine (m_vertScroll.GetScrollPos());
         }
+        else if (m_horzScroll.IsDragging())
+        {
+            handled = m_horzScroll.OnMouseMove (point.x, point.y);
+            SetLeftColumn (m_horzScroll.GetScrollPos());
+        }
         else if (m_dragging)
         {
+            if (point.x < m_boundsDip.left)
+            {
+                ScrollColumns (-1);
+            }
+            else if (point.x >= m_boundsDip.right)
+            {
+                ScrollColumns (1);
+            }
+
             if (point.y < m_boundsDip.top)
             {
                 ScrollLines (-1);
@@ -1364,6 +1514,10 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         if (m_vertScroll.IsDragging())
         {
             handled = m_vertScroll.OnMouseUp();
+        }
+        else if (m_horzScroll.IsDragging())
+        {
+            handled = m_horzScroll.OnMouseUp();
         }
         else if (m_dragging)
         {
@@ -1411,6 +1565,8 @@ bool DxuiTextView::OnKey (const DxuiKeyEvent & ev)
     case VK_NEXT:  ScrollLines (GetLineCap());   break;
     case VK_HOME:  SetTopLine (0);               break;
     case VK_END:   SetTopLine (GetLineCount());  break;
+    case VK_LEFT:  ScrollColumns (-1);           handled = m_horzVisible; break;
+    case VK_RIGHT: ScrollColumns (1);            handled = m_horzVisible; break;
     default:       handled = false;              break;
     }
 
@@ -1482,6 +1638,46 @@ bool DxuiTextView::InvokeCommand (DxuiStandardCommand command)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::SetScrollbarHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::SetScrollbarHover (POINT pt)
+{
+    bool  vert = m_vertScroll.SetHover (IsOverVertScrollbar (pt), pt);
+    bool  horz = m_horzScroll.SetHover (IsOverHorzScrollbar (pt), pt);
+
+
+
+    return vert || horz;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::TickScrollbars
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::TickScrollbars (int64_t nowMs)
+{
+    bool  vert = m_vertScroll.Tick (nowMs);
+    bool  horz = m_horzScroll.Tick (nowMs);
+
+
+
+    return vert || horz;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::GetScrollbarMenu
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1489,6 +1685,7 @@ bool DxuiTextView::InvokeCommand (DxuiStandardCommand command)
 std::vector<DxuiPopupMenuItem> DxuiTextView::GetScrollbarMenu (POINT pt)
 {
     m_vertScroll.SetOnScroll ([this] (int, int pos) { SetTopLine (pos); });
+    m_horzScroll.SetOnScroll ([this] (int, int pos) { SetLeftColumn (pos); });
 
     if (!IsOverScrollbar (pt))
     {
@@ -1497,5 +1694,5 @@ std::vector<DxuiPopupMenuItem> DxuiTextView::GetScrollbarMenu (POINT pt)
 
     SyncScrollbar();
 
-    return m_vertScroll.BuildContextMenu (pt.x, pt.y);
+    return IsOverVertScrollbar (pt) ? m_vertScroll.BuildContextMenu (pt.x, pt.y) : m_horzScroll.BuildContextMenu (pt.x, pt.y);
 }

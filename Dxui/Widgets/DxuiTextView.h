@@ -27,6 +27,10 @@
 //  Positions count characters in a row's text with its cells joined by tabs, so
 //  a copy has a tab between cells and a line break between rows.
 //
+//  A TABLE DOESN'T WRAP. With SetNoWrap, each row is one line, and a row wider
+//  than the view scrolls sideways by whole characters under a horizontal
+//  scrollbar. Proportional text always wraps.
+//
 //  A row can have a warning, which draws a warning mark before its first cell,
 //  and spans, runs of a cell's characters drawn in colors of their own, as
 //  source code's syntax is colored.
@@ -86,6 +90,7 @@ public:
     //  One character cell, in the same coordinates as the bounds.
     void  SetCellSize      (int widthPx, int heightPx);
     void  SetProportional  (bool proportional);
+    void  SetNoWrap        (bool noWrap);
     void  SetIconFace      (const wchar_t * face) { m_iconFace = face; }
     void  SetOwnerWindow   (HWND hwnd)            { m_hwnd = hwnd; }
     void  SetOnContextMenu (ContextMenuFn fn)     { m_onContextMenu = std::move (fn); }
@@ -103,6 +108,11 @@ public:
     void  SetTopLine   (int line);
     void  ScrollLines  (int delta) { SetTopLine (m_topLine + delta); }
 
+    //  The character column at the view's left edge, when rows don't wrap.
+    int   GetLeftColumn   () const { return m_leftColumn; }
+    void  SetLeftColumn   (int column);
+    void  ScrollColumns   (int delta) { SetLeftColumn (m_leftColumn + delta); }
+
     Position  HitTest (POINT point) const;
 
     void          Select           (Position anchor, Position caret);
@@ -112,13 +122,14 @@ public:
     std::wstring  GetSelectionText () const;
     void          CopySelection    () const;
 
-    bool  IsInteracting      () const { return m_dragging || m_vertScroll.IsDragging(); }
-    bool  IsScrollbarVisible () const { return (int) m_lines.size() > GetLineCap(); }
+    bool  IsInteracting          () const { return m_dragging || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
+    bool  IsScrollbarVisible     () const { return (int) m_lines.size() > GetLineCap(); }
+    bool  IsHorzScrollbarVisible () const { return m_horzVisible; }
 
     //  Whether a point is on the scrollbar, and the hover that widens it.
-    bool  IsOverScrollbar   (POINT pt) const override { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
-    bool  SetScrollbarHover (POINT pt)                { return m_vertScroll.SetHover (IsOverScrollbar (pt), pt); }
-    bool  TickScrollbars    (int64_t nowMs)           { return m_vertScroll.Tick (nowMs); }
+    bool  IsOverScrollbar   (POINT pt) const override { return IsOverVertScrollbar (pt) || IsOverHorzScrollbar (pt); }
+    bool  SetScrollbarHover (POINT pt);
+    bool  TickScrollbars    (int64_t nowMs);
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -137,6 +148,7 @@ public:
     static constexpr int  kColumnGapCells = 2;
     static constexpr int  kWarningCells   = 3;
     static constexpr int  kWheelLines     = 3;
+    static constexpr int  kWheelColumns   = 6;
 
 private:
     //  One drawn line: its row, and the run of the row's last cell it shows.
@@ -160,6 +172,10 @@ private:
     float         GetCharsPx             (int row, int cell, int from, int to) const;
     int           GetNearestChar         (int row, int cell, int from, int to, float x) const;
     int           GetTextColumns         (bool scrollbar) const;
+    int           GetContentColumns      () const;
+    float         GetTextLeft            () const;
+    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
+    bool          IsOverHorzScrollbar    (POINT pt) const { return m_horzVisible && m_horzScroll.HitTest (pt.x, pt.y); }
     int           GetCellStart           (const Row & row, int cell) const;
     int           GetCellBase            (const Row & row, int cell) const;
     int           GetRowLength           (const Row & row) const;
@@ -201,7 +217,11 @@ private:
     float              m_textStrength  = 1.0f;
     UINT               m_measuredDpi   = 0;
     int                m_topLine       = 0;
+    int                m_leftColumn    = 0;
+    bool               m_noWrap        = false;
+    bool               m_horzVisible   = false;
     float              m_wheelLines    = 0.0f;   // a touchpad's part notches, until they make a line
+    float              m_wheelColumns  = 0.0f;   // and until they make a column
     Position           m_anchor;
     Position           m_caret;
     Position           m_lastClick;
@@ -216,4 +236,5 @@ private:
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;
+    DxuiScrollbar      m_horzScroll;
 };

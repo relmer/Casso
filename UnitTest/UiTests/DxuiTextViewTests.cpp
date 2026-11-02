@@ -231,4 +231,91 @@ public:
         Assert::AreEqual (0, view.HitTest (POINT { 6 + DxuiTextView::kWarningCells * 8, 6 + 4 }).offset,
             L"The first character is past the warning mark");
     }
+
+
+    TEST_METHOD (NoWrap_KeepsARowOnOneLine_AndScrollsSideways)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"SYSTEM.APPLE 32 3-Sep-85 Datafile" }) });
+
+        Assert::AreEqual (1, view.GetLineCount());
+        Assert::IsTrue   (view.IsHorzScrollbarVisible());
+
+        view.ScrollColumns (7);
+
+        Assert::AreEqual (7, view.GetLeftColumn());
+        Assert::AreEqual (7, view.HitTest (POINT { 6, 6 + 4 }).offset, L"The character at the left edge is the one scrolled to");
+
+        view.ScrollColumns (1000);
+
+        Assert::AreEqual (33 - 16, view.GetLeftColumn(), L"The row's last character stops at the right edge");
+    }
+
+
+    TEST_METHOD (NoWrap_HasNoHorizontalBar_WhenRowsFit)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 400, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"SHORT" }) });
+
+        view.ScrollColumns (3);
+
+        Assert::IsFalse  (view.IsHorzScrollbarVisible());
+        Assert::AreEqual (0, view.GetLeftColumn());
+    }
+
+
+    //  The horizontal bar takes a line's height, so a view whose rows just fit
+    //  needs the vertical bar as well.
+    TEST_METHOD (NoWrap_HorizontalBar_CanBringOnTheVerticalBar)
+    {
+        DxuiTextView                    view;
+        std::vector<DxuiTextView::Row>  rows (10, MakeRow ({ std::wstring (60, L'X') }));
+
+        LayOut (view, 12 + 16 * 8, 12 + 16 * 10);
+        view.SetNoWrap (true);
+        view.SetRows (std::move (rows));
+
+        Assert::IsTrue (view.IsHorzScrollbarVisible());
+        Assert::IsTrue (view.IsScrollbarVisible());
+    }
+
+
+    TEST_METHOD (NoWrap_Off_WrapsTheRow_AndResetsTheScroll)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"PRINT AAAA BBBB CCCC DDDD" }) });
+        view.ScrollColumns (5);
+        view.SetNoWrap (false);
+
+        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (0, view.GetLeftColumn());
+        Assert::IsFalse  (view.IsHorzScrollbarVisible());
+    }
+
+
+    TEST_METHOD (Wheel_WithShift_ScrollsSideways)
+    {
+        DxuiTextView    view;
+        DxuiMouseEvent  ev;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ std::wstring (60, L'X') }) });
+
+        ev.kind       = DxuiMouseEventKind::Wheel;
+        ev.wheelDelta = -1.0f;
+        ev.shift      = true;
+        view.OnMouse (ev);
+
+        Assert::AreEqual (DxuiTextView::kWheelColumns, view.GetLeftColumn());
+    }
 };

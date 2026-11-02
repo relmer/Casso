@@ -137,6 +137,9 @@ void PreviewTextView::Fill (const PreviewContent & preview)
     //  An image's details are metadata, which reads better in the body face
     //  than in the fixed-width face an Apple's text is drawn in.
     m_text->SetProportional (preview.kind == PreviewContent::Kind::Details);
+
+    //  A catalog is a table, so its rows stay whole and scroll sideways.
+    m_text->SetNoWrap (preview.kind == PreviewContent::Kind::Catalog);
     m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
 }
 
