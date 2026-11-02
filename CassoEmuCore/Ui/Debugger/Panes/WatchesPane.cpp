@@ -43,14 +43,53 @@ WatchesPane::~WatchesPane() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchesPane::RouteContentMouse
+//
+//  A press on the BASIC variables heading expands or collapses it at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchesPane::RouteContentMouse (const DxuiMouseEvent & ev)
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    RECT                          bounds   = m_list->GetBounds();
+    int                           row      = -1;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left || snapshot == nullptr ||
+        !m_list->IsVisible() || !m_host.IsRoutable (m_list) || !DxuiDockSite::Contains (bounds, ev.positionDip))
+    {
+        return false;
+    }
+
+    row = m_list->HitTestRow (ev.positionDip.x - bounds.left, ev.positionDip.y - bounds.top);
+
+    if (row < 0 || row >= (int) m_rows.size() || m_rows[(size_t) row].kind != RowKind::BasicHeading)
+    {
+        return false;
+    }
+
+    m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
+    ApplyRows (*snapshot);
+    m_host.Repaint();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchesPane::Configure
 //
 //  The ID column has "Auto" for what the instruction touches, a watch's
 //  number, or ZPn for a zero-page pointer, with the check that enables or
 //  disables a watch or pointer. A click on a watch's cell edits it in place:
 //  the expression, then the value, which runs to the pane's edge, as Visual
-//  Studio's does. A double-click on the BASIC variables heading expands or
-//  collapses it.
+//  Studio's does. A click on the BASIC variables heading, or Enter on it,
+//  expands or collapses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +101,12 @@ void WatchesPane::Configure()
     {
         const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
 
-        if (snapshot != nullptr && row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::BasicHeading)
+        //  A double-click's press has toggled the heading already.
+        bool  isMouse = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+
+
+        if (!isMouse && snapshot != nullptr && row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::BasicHeading)
         {
             m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
             ApplyRows (*snapshot);
