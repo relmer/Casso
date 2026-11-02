@@ -3034,7 +3034,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
             //  A press on the caption runs the system's wait for a drag, then
             //  its move loop, inside DefWindowProc, before WM_ENTERSIZEMOVE
-            //  arms the keep-alive tick. The tick is armed at the press, so
+            //  arms the modal loop's tick. The tick is armed at the press, so
             //  the window's frames go on through the wait, and disarmed when
             //  the press returns.
             if (wp == HTCAPTION)
@@ -3102,7 +3102,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             }
 
             //  A move started by command, as a torn-off pane's is, waits for
-            //  the drag the same way a caption press does, so the keep-alive
+            //  the drag the same way a caption press does, so the modal loop's
             //  tick is armed for the whole command.
             if ((wp & 0xFFF0) == SC_MOVE)
             {
