@@ -910,6 +910,7 @@
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
     <ClCompile Include="Dxui\DxuiEditableGridTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewCheckTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewFindTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewSelectionContrastTests.cpp" />
     <ClCompile Include="DebuggerTests\ByteChangesTests.cpp" />
     <ClCompile Include="DebuggerTests\FocusAccentOwnerTests.cpp" />

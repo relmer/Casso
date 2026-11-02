@@ -697,7 +697,7 @@ bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstrin
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTextView * DebuggerWindow::GetFindView (const std::wstring & pane) const
+IDxuiFindTarget * DebuggerWindow::GetFindView (const std::wstring & pane) const
 {
     return (FindPane (pane) != nullptr) ? FindPane (pane)->GetFindView() : nullptr;
 }

@@ -459,8 +459,8 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     constexpr int           kButtonDip = 24;
     const DxuiDpiScaler   & scaler     = m_host.GetPaneScaler();
     auto                    px         = [&scaler] (int dip) { return scaler.ToPx (dip); };
-    DxuiTextView          * view       = m_window.GetFindView (pane);
-    bool                    shown      = widget.isOpen && view != nullptr && view->IsVisible();
+    IDxuiFindTarget       * view       = m_window.GetFindView (pane);
+    bool                    shown      = widget.isOpen && view != nullptr && view->IsFindVisible();
     int                     button     = px (kButtonDip);
     RECT                    area       = {};
     RECT                    plate      = {};
@@ -483,7 +483,7 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     //  window.
     Move (widget, m_window.GetFindWindow (pane));
 
-    area         = view->GetBounds();
+    area         = view->GetFindBounds();
     plate.right  = area.right - px (kScrollDip);
     plate.left   = (std::max) (area.left + px (4), plate.right - px (kWidthDip));
     plate.top    = area.top;
@@ -561,7 +561,7 @@ void FindWidgetSet::OnFloatClosed (const DxuiWindow * window)
 void FindWidgetSet::Open (const std::wstring & pane)
 {
     FindWidget         & widget   = Activate (pane);
-    DxuiTextView       * view     = m_window.GetFindView (pane);
+    IDxuiFindTarget    * view     = m_window.GetFindView (pane);
     DebuggerPaneFrame  * frame    = m_window.GetFindFrame (pane);
     std::wstring         selected = (view != nullptr) ? view->GetSelectionText() : std::wstring();
 
@@ -608,7 +608,7 @@ void FindWidgetSet::Open (const std::wstring & pane)
 void FindWidgetSet::Close()
 {
     FindWidget         & widget = *m_active;
-    DxuiTextView       * view   = m_window.GetFindView (m_activePane);
+    IDxuiFindTarget    * view   = m_window.GetFindView (m_activePane);
     DebuggerPaneFrame  * frame  = m_window.GetFindFrame (m_activePane);
 
 
@@ -629,7 +629,7 @@ void FindWidgetSet::Close()
 
     Place();
 
-    m_window.FocusInPane (m_activePane, (m_activePane == DebuggerLayout::kConsole) ? m_window.GetCommandLine() : (IDxuiControl *) view);
+    m_window.FocusInPane (m_activePane, (m_activePane == DebuggerLayout::kConsole) ? m_window.GetCommandLine() : view->GetFindControl());
     m_host.Repaint();
 }
 
@@ -695,7 +695,7 @@ void FindWidgetSet::SetOptions (bool matchCase, bool wholeWord, bool isRegex)
 
 void FindWidgetSet::SetInSelection (bool on)
 {
-    DxuiTextView  * view = m_window.GetFindView (m_activePane);
+    IDxuiFindTarget * view = m_window.GetFindView (m_activePane);
 
 
 
@@ -807,14 +807,14 @@ bool FindWidgetSet::StepHistory (int step)
 
 void FindWidgetSet::Find (bool forward)
 {
-    std::wstring              target   = GetTarget();
-    std::wstring              needle;
-    DxuiTextView            * view     = nullptr;
-    DxuiTextView            * shown    = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
-    bool                      isShown  = m_active != nullptr && m_active->isOpen && shown != nullptr && shown->IsVisible();
-    DxuiTextView::FindResult  result   = DxuiTextView::FindResult::NotFound;
-    int                       index    = 0;
-    int                       count    = 0;
+    std::wstring       target  = GetTarget();
+    std::wstring       needle;
+    IDxuiFindTarget  * view    = nullptr;
+    IDxuiFindTarget  * shown   = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
+    bool               isShown = m_active != nullptr && m_active->isOpen && shown != nullptr && shown->IsFindVisible();
+    DxuiFindResult     result  = DxuiFindResult::NotFound;
+    int                index   = 0;
+    int                count   = 0;
 
 
 
@@ -870,11 +870,11 @@ void FindWidgetSet::Find (bool forward)
 
 void FindWidgetSet::SearchAsTyped()
 {
-    DxuiTextView              * view   = m_window.GetFindView (m_activePane);
-    std::wstring                needle = m_active->box->GetText();
-    DxuiTextView::FindResult    result = DxuiTextView::FindResult::NotFound;
-    int                         index  = 0;
-    int                         count  = 0;
+    IDxuiFindTarget  * view   = m_window.GetFindView (m_activePane);
+    std::wstring       needle = m_active->box->GetText();
+    DxuiFindResult     result = DxuiFindResult::NotFound;
+    int                index  = 0;
+    int                count  = 0;
 
 
 
@@ -940,9 +940,9 @@ void FindWidgetSet::RefindAfterOptionChange()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FindWidgetSet::GetStatusText (DxuiTextView::FindResult result, int index, int count)
+std::wstring FindWidgetSet::GetStatusText (DxuiFindResult result, int index, int count)
 {
-    if (result == DxuiTextView::FindResult::NotFound || count == 0)
+    if (result == DxuiFindResult::NotFound || count == 0)
     {
         return L"No results";
     }

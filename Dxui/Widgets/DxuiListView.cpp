@@ -4,6 +4,7 @@
 #include "Theme/DxuiColor.h"
 
 #include "DxuiListView.h"
+#include "DxuiTextFind.h"
 
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
@@ -1283,6 +1284,204 @@ void DxuiListView::PruneSelection()
     {
         m_anchorRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFindSpots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::FindSpot> DxuiListView::GetFindSpots() const
+{
+    std::vector<FindSpot>  spots;
+
+
+
+    if (m_findNeedle.empty())
+    {
+        return spots;
+    }
+
+    for (int row = 0; row < GetRowCount(); row++)
+    {
+        const std::vector<Cell> &  cells = GetCellsOfRow (row);
+
+        for (size_t c = 0; c < cells.size() && c < m_columns.size(); c++)
+        {
+            if (!m_columns[c].visible)
+            {
+                continue;
+            }
+
+            for (const auto & [start, end] : DxuiTextFind::FindAll (cells[c].text, m_findNeedle, m_findCase, m_findWord, m_findRegex))
+            {
+                spots.push_back ({ row, c, start, end });
+            }
+        }
+    }
+
+    return spots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMatchBands
+//
+//  A cell's match bands: the host's matches on the list's fill, then the
+//  find's on the match fill, the selected match on the current fill, laid
+//  over the text at three quarters so the characters are legible through it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::tuple<int, int, uint32_t>> DxuiListView::GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb) const
+{
+    constexpr uint32_t                           kOverText = 0xC0000000u;
+    std::vector<std::tuple<int, int, uint32_t>>  bands;
+    uint32_t                                     match     = (m_findMatchArgb != 0) ? m_findMatchArgb : listArgb;
+    uint32_t                                     current   = (m_findCurrentArgb != 0) ? ((m_findCurrentArgb & 0x00FFFFFFu) | kOverText) : listArgb;
+
+
+
+    if (m_columns[column].align == DxuiTextHAlign::Left)
+    {
+        for (const std::pair<int, int> & range : cell.matches)
+        {
+            bands.push_back ({ range.first, range.second, listArgb });
+        }
+    }
+
+    if (m_findNeedle.empty() || !m_columns[column].visible)
+    {
+        return bands;
+    }
+
+    for (const auto & [start, end] : DxuiTextFind::FindAll (cell.text, m_findNeedle, m_findCase, m_findWord, m_findRegex))
+    {
+        bool  isCurrent = m_findCurrent.has_value() && m_findCurrent->row == row && m_findCurrent->column == column && m_findCurrent->start == start;
+
+        bands.push_back ({ start, end, isCurrent ? current : match });
+    }
+
+    return bands;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectMatch
+//
+//  The match after the current one, or before it, going round past the end.
+//  With none current, the search starts at the selected row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult DxuiListView::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount)
+{
+    std::vector<FindSpot>  spots;
+    FindSpot               from;
+    int                    at    = -1;
+    bool                   isNew = needle != m_findNeedle || matchCase != m_findCase || wholeWord != m_findWord || isRegex != m_findRegex;
+
+
+
+    m_findNeedle = needle;
+    m_findCase   = matchCase;
+    m_findWord   = wholeWord;
+    m_findRegex  = isRegex;
+    spots        = GetFindSpots();
+    outIndex     = 0;
+    outCount     = (int) spots.size();
+
+    if (spots.empty())
+    {
+        m_findCurrent.reset();
+        return DxuiFindResult::NotFound;
+    }
+
+    from = (m_findCurrent.has_value() && !isNew) ? *m_findCurrent : FindSpot { std::max (0, m_selectedRow), 0, forward ? -1 : INT_MAX, 0 };
+
+    for (int i = 0; i < (int) spots.size(); i++)
+    {
+        if (forward && spots[(size_t) i] > from && at < 0)
+        {
+            at = i;
+        }
+
+        if (!forward && spots[(size_t) i] < from)
+        {
+            at = i;
+        }
+    }
+
+    outIndex = (at < 0) ? (forward ? 1 : (int) spots.size()) : at + 1;
+
+    m_findCurrent = spots[(size_t) outIndex - 1];
+    SetSelectedRow (m_findCurrent->row);
+
+    return (at < 0) ? DxuiFindResult::Wrapped : DxuiFindResult::Found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectMatchInView
+//
+//  The first match on a row in view, or with none there, the first after the
+//  top of the view, scrolled to; with none after it, the first of all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult DxuiListView::SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount)
+{
+    std::vector<FindSpot>  spots;
+
+
+
+    m_findNeedle = needle;
+    m_findCase   = matchCase;
+    m_findWord   = wholeWord;
+    m_findRegex  = isRegex;
+    spots        = GetFindSpots();
+    outIndex     = 0;
+    outCount     = (int) spots.size();
+
+    m_findCurrent.reset();
+
+    if (spots.empty())
+    {
+        return DxuiFindResult::NotFound;
+    }
+
+    for (size_t i = 0; i < spots.size(); i++)
+    {
+        if (spots[i].row >= m_topRow)
+        {
+            outIndex      = (int) i + 1;
+            m_findCurrent = spots[i];
+            SetSelectedRow (spots[i].row);
+            return DxuiFindResult::Found;
+        }
+    }
+
+    outIndex      = 1;
+    m_findCurrent = spots.front();
+    SetSelectedRow (spots.front().row);
+    return DxuiFindResult::Wrapped;
 }
 
 
@@ -3624,19 +3823,31 @@ void DxuiListView::PaintDataRows (
             }
 
             // Search-match highlight: an accent band behind each matched
-            // character range, painted before the text. Left-aligned columns
-            // only -- the offset math measures prefixes from the cell's left.
-            if (!cells[c].matches.empty() && m_columns[c].align == DxuiTextHAlign::Left)
+            // character range, painted before the text, and the find's
+            // matches, the selected one on a separate fill. A right-aligned
+            // or centered cell's text starts after the space its width spares.
+            if (std::vector<std::tuple<int, int, uint32_t>> bands = GetMatchBands (r, c, cells[c], pal.matchBg); !bands.empty())
             {
                 const std::wstring &  cellText  = cells[c].text;
                 float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
                 float                 cellMaxW  = cellW - cellPadL - cellPadR - iconShift;
                 float                 bandInset = rowH * 0.14f;
+                float                 fullW     = 0.0f;
+                float                 fullH     = 0.0f;
+                HRESULT               hrF       = S_OK;
 
-                for (const std::pair<int, int> & mr : cells[c].matches)
+                if (m_columns[c].align != DxuiTextHAlign::Left)
                 {
-                    int      s       = std::clamp (mr.first,  0, (int) cellText.size());
-                    int      e       = std::clamp (mr.second, s, (int) cellText.size());
+                    hrF = text.MeasureString (cellText.c_str(), fontPx, cellFace, fullW, fullH);
+                    IGNORE_RETURN_VALUE (hrF, S_OK);
+
+                    cellX += (m_columns[c].align == DxuiTextHAlign::Right) ? std::max (0.0f, cellMaxW - fullW) : std::max (0.0f, (cellMaxW - fullW) * 0.5f);
+                }
+
+                for (const auto & [first, last, bandArgb] : bands)
+                {
+                    int      s       = std::clamp (first, 0, (int) cellText.size());
+                    int      e       = std::clamp (last,  s, (int) cellText.size());
                     float    wS      = 0.0f;
                     float    wE      = 0.0f;
                     float    hIgnore = 0.0f;
@@ -3663,7 +3874,7 @@ void DxuiListView::PaintDataRows (
 
                     if (hw > 0.0f)
                     {
-                        painter.FillRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, pal.matchBg);
+                        painter.FillRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, bandArgb);
                     }
                 }
             }

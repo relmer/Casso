@@ -547,6 +547,8 @@ void DiskLogController::SetBarEntries()
         entries.push_back (std::move (box));
     }
 
+    entries.push_back (m_host.GetFindEntry (m_id));
+
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
 
@@ -1009,6 +1011,8 @@ void InputLogController::SetBarEntries()
     AddEntry (entries, s_kInputPair0, GetPairLabel (0).c_str(), L"View paddles 0 and 1 as joystick 0 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
     AddEntry (entries, s_kInputPair1, GetPairLabel (1).c_str(), L"View paddles 2 and 3 as joystick 1 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
 
+    entries.push_back (m_host.GetFindEntry (m_id));
+
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
 
@@ -1337,6 +1341,8 @@ void IoLogController::SetBarEntries()
     command->glyph    = s_kpszMdl2Save;
     command->dispatch = [this] { Save(); };
     entries.back().iconOnly = true;
+
+    entries.push_back (m_host.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }

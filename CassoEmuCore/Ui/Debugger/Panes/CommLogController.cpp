@@ -168,6 +168,8 @@ void CommLogController::SetBarEntries()
     command->dispatch = [this] { Zoom (false); };
     entries.back().iconOnly = true;
 
+    entries.push_back (m_host.GetFindEntry (m_id));
+
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
 

@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
+#include "IDxuiFindTarget.h"
 
 struct DxuiIconImage;
 
@@ -37,7 +38,7 @@ struct DxuiIconImage;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextView : public IDxuiControl
+class DxuiTextView : public IDxuiControl, public IDxuiFindTarget
 {
 public:
     //  A run of a cell's characters drawn in a color of their own.
@@ -178,12 +179,12 @@ public:
     void          SelectAll        ();
     void          ClearSelection   ();
     bool          HasSelection     () const { return !(m_anchor == m_caret); }
-    std::wstring  GetSelectionText () const;
+    std::wstring  GetSelectionText () const override;
     void          CopySelection    () const;
 
     //  How a search ended: no match, a match, or a match reached only by
     //  going round past the end of the text (the start, searching backward).
-    enum class FindResult { NotFound, Found, Wrapped };
+    using FindResult = DxuiFindResult;
 
     //  Selects the next match after the selection, or the one before it, and
     //  scrolls it into view. A match is always searched for all the way round.
@@ -201,25 +202,25 @@ public:
     //  and the match's place among all of them: outIndex counts from 1, and
     //  both are 0 with no match. A needle that is not a valid expression
     //  matches nothing.
-    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount);
+    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override;
 
     //  Find in selection: while set, SelectMatch takes only a match that lies
     //  wholly inside the selection this was set from. Setting it with nothing
     //  selected leaves the search the whole text.
-    void  SetFindScopeToSelection ();
-    void  ClearFindScope          ()       { m_scoped = false; }
+    void  SetFindScopeToSelection () override;
+    void  ClearFindScope          () override { m_scoped = false; }
     bool  IsFindScoped            () const { return m_scoped; }
 
     //  The search as it is typed: every match is highlighted, and the first
     //  one on screen is selected; with none on screen, the first after the
     //  top of the view is, scrolled into view. outIndex and outCount are as
     //  SelectMatch gives them.
-    FindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount);
+    FindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
 
     //  Every match of the last search, each drawn on a fill that stands out
     //  from the text around it.
     const std::vector<FindMatch> &  GetFindHighlights   () const { return m_highlights; }
-    void                            ClearFindHighlights ()       { m_highlights.clear(); }
+    void                            ClearFindHighlights () override { m_highlights.clear(); }
 
     //  The fill under a match: the theme's warning accent, made darker or
     //  lighter until it has at least 3:1 contrast with the text's background,
@@ -231,7 +232,11 @@ public:
     //  Colors of the owner's own for the marks: one under every match and
     //  one under the match the search is at, the selected one. 0 for either
     //  keeps the theme's fill above for it.
-    void      SetFindColors  (uint32_t matchArgb, uint32_t currentArgb) { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
+    void      SetFindColors  (uint32_t matchArgb, uint32_t currentArgb) override { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
+
+    IDxuiControl * GetFindControl () override { return this; }
+    RECT      GetFindBounds  () const override { return GetBounds(); }
+    bool      IsFindVisible  () const override { return IsVisible(); }
     bool      IsCurrentMatch (const FindMatch & match) const;
     uint32_t  GetFindFillOf  (const FindMatch & match, const IDxuiTheme & theme) const;
 

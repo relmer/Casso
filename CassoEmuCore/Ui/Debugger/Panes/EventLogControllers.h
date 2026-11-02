@@ -39,6 +39,8 @@ public:
     IDxuiControl               * GetContent         () const override;
     std::vector<DxuiListView *>  GetLists           () const override { return { m_list }; }
     std::vector<DxuiToolbar *>   GetBars            () const override { return { m_bar.GetBar() }; }
+    IDxuiFindTarget            * GetFindView        () const override { return m_list; }
+    DebuggerPaneFrame          * GetFindFrame       () const override { return m_frame.get(); }
     bool                         HasOwnColumnWidths () const override { return true; }
     void                         Apply              (const DebuggerViewSnapshot & snapshot) override;
     void                         OnProjectSwitched  () override;

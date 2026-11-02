@@ -423,7 +423,7 @@ public:
 
     //  The text a find widget searches in the pane, and the frame the widget
     //  is drawn in; null for a pane with no find widget.
-    virtual DxuiTextView               * GetFindView    () const { return nullptr; }
+    virtual IDxuiFindTarget            * GetFindView    () const { return nullptr; }
     virtual DebuggerPaneFrame          * GetFindFrame   () const { return nullptr; }
 
     //  The pane's lists, which the window makes dense, sets in the text face

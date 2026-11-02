@@ -710,7 +710,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     ConsolePane                           * m_consolePane = nullptr;
 
     //  The window's parts the find widgets reach (IFindWidgetHost).
-    DxuiTextView         * GetFindView      (const std::wstring & pane) const override;
+    IDxuiFindTarget      * GetFindView      (const std::wstring & pane) const override;
     DebuggerPaneFrame    * GetFindFrame     (const std::wstring & pane) const override;
     DxuiWindow           * GetFindWindow    (const std::wstring & pane) override { return GetPaneHost (pane); }
     DxuiWindow           & GetMainWindow    () override { return *this; }

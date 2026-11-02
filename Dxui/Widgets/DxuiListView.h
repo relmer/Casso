@@ -6,6 +6,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
 #include "DxuiScrollbar.h"
+#include "IDxuiFindTarget.h"
 
 
 
@@ -29,7 +30,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiListView : public IDxuiControl
+class DxuiListView : public IDxuiControl, public IDxuiFindTarget
 {
 public:
     struct Column
@@ -298,7 +299,7 @@ public:
     void                      SetTextSelection   (bool enabled);
     bool                      HasTextSelection   () const   { return m_hasTextSel; }
     void                      ClearTextSelection ();
-    std::wstring              GetSelectionText () const;
+    std::wstring              GetSelectionText () const override;
 
     //  Whether any of a cell's characters are in the text selection.
     bool                      IsCellTextSelected (int row, size_t col) const;
@@ -348,6 +349,37 @@ public:
     // Scroll just enough to bring `row` into the visible window, without
     // changing selection (SetSelectedRow does the same but also selects).
     void  EnsureVisible         (int row);
+
+    //  Find, over the text of the visible columns of every row: each match is
+    //  drawn on the match fill, the selected one on the current fill, and the
+    //  selected match's row is selected.
+    struct FindSpot
+    {
+        int     row    = -1;
+        size_t  column = 0;
+        int     start  = 0;
+        int     end    = 0;
+
+        auto operator<=> (const FindSpot & other) const = default;
+    };
+
+    IDxuiControl  * GetFindControl   () override { return this; }
+    RECT            GetFindBounds    () const override { return GetBounds(); }
+    bool            IsFindVisible    () const override { return IsVisible(); }
+
+    DxuiFindResult  SelectMatch      (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override;
+    DxuiFindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
+    void            SetFindScopeToSelection () override {}
+    void            ClearFindScope   () override {}
+    void            ClearFindHighlights () override { m_findNeedle.clear(); m_findCurrent.reset(); }
+    void            SetFindColors    (uint32_t matchArgb, uint32_t currentArgb) override { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
+
+    //  Every match of the last search, in row, column and character order.
+    std::vector<FindSpot>          GetFindSpots   () const;
+    const std::optional<FindSpot> & GetFindCurrent () const { return m_findCurrent; }
+
+    //  A cell's highlight bands, each a range and its fill.
+    std::vector<std::tuple<int, int, uint32_t>>  GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb) const;
     // Scrolls to the first row whose key the last call did not have, as when
     // a row was added. The first call only takes note of the keys.
     void  ShowNewRow            (const std::vector<std::wstring> & keys);
@@ -828,6 +860,13 @@ private:
     mutable std::vector<Cell>  m_providerScratch;
     int                        m_hovered           = -1;
     int                        m_selectedRow       = -1;
+    std::wstring               m_findNeedle;
+    bool                       m_findCase          = false;
+    bool                       m_findWord          = false;
+    bool                       m_findRegex         = false;
+    uint32_t                   m_findMatchArgb     = 0;
+    uint32_t                   m_findCurrentArgb   = 0;
+    std::optional<FindSpot>    m_findCurrent;
     bool                       m_multiSelect       = false;
     int                        m_anchorRow         = -1;
     std::vector<int>           m_selectedRows;

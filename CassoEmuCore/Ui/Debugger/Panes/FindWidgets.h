@@ -27,7 +27,7 @@ public:
 
     //  The text a pane's widget searches and the frame it lies in; none for
     //  a pane that is not text to search.
-    virtual DxuiTextView         * GetFindView      (const std::wstring & pane) const = 0;
+    virtual IDxuiFindTarget      * GetFindView      (const std::wstring & pane) const = 0;
     virtual DebuggerPaneFrame    * GetFindFrame     (const std::wstring & pane) const = 0;
 
     //  The window a pane is in now, and the main window.
@@ -223,7 +223,7 @@ private:
     void                 SearchAsTyped  ();
     void                 RefindAfterOptionChange ();
 
-    static std::wstring  GetStatusText  (DxuiTextView::FindResult result, int index, int count);
+    static std::wstring  GetStatusText  (DxuiFindResult result, int index, int count);
 
     IDebuggerPaneHost                     & m_host;
     IFindWidgetHost                       & m_window;

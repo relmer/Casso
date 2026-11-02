@@ -183,6 +183,8 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiMarquee.h"
 #include "Widgets/DxuiPaneFrame.h"
 #include "Widgets/DxuiTabGroup.h"
+#include "Widgets/IDxuiFindTarget.h"
+#include "Widgets/DxuiTextFind.h"
 #include "Widgets/DxuiTextView.h"
 #include "Widgets/DxuiToolbarEditBox.h"
 #include "Widgets/IDxuiImageStripSource.h"
