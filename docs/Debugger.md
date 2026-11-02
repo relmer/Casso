@@ -731,6 +731,57 @@ source view.
   theme's result color: cyan, amber in Retro terminal, and maroon on a light
   theme such as System light.
 
+### Trying the symbol tips and the source pane
+
+`Apple2/Demos/symbols-demo.dsk` is a small program for trying both. It clears
+the text screen, draws a title, then counts from 0 to 39 over and over,
+drawing the count in hex and one `*` per count in a bar across the screen. The
+source is `Apple2/Demos/SymbolsDemo/symbols-demo.a65`. The debug file
+`symbols-demo.dbg`, written by `CassoCli as65 -g`, is beside it, and
+`Apple2/Demos/SymbolsDemo/Build.ps1` rebuilds the disk and the debug file
+together. The subroutines `clear_screen`, `print_text`, `draw_counter`,
+`hex_digit`, `draw_bar` and `wait` are called with `JSR`, and every label has a
+comment on its defining line.
+
+1. Boot the disk with `Casso.exe --disk1 Apple2\Demos\symbols-demo.dsk`. The
+   title appears and the bar starts to fill.
+2. Open the debugger with **Debug > Debugger...** and break.
+3. Choose **File > Open symbol or debug file...** and pick
+   `Apple2\Demos\SymbolsDemo\symbols-demo.dbg`. Typing
+   `SYM LOAD "Apple2\Demos\SymbolsDemo\symbols-demo.dbg"` in the console, or
+   dropping the file on the debugger, does the same. The source pane opens
+   beside the disassembly. The source is found because the debug file has the
+   path of `symbols-demo.a65` relative to itself. When the pane reports that the
+   source is not found, drag `symbols-demo.a65` onto the debugger.
+4. To start from the source instead, choose **File > Open source file...** and
+   pick `symbols-demo.a65`. With no debug file loaded, Casso loads
+   `symbols-demo.dbg` beside it first.
+5. Go to `$6000` in the disassembly, where the program starts. With source
+   displayed in the disassembly, each source line is on a row above the code
+   it produced.
+
+To see a symbol's comment tip, hover an operand in the disassembly:
+
+- The operand of `JSR clear_screen` at `$6001`. The tip has the symbol's
+  description and its comment, "fill the text page with spaces". The `JSR`
+  operands `print_text`, `draw_counter`, `draw_bar` and `wait` have theirs.
+- The operand of `LDA count` or `INC count` in the loop at `$6042`. The tip has
+  the data label's comment, "loop counter, 0 to BAR_LENGTH-1".
+- `BAR_LENGTH` is an equate, so `SYM BAR_LENGTH` marks it `constant` and
+  `CMP #$28` stays a number in the disassembly.
+
+To see the source pane's annotations while stepping:
+
+1. Set a breakpoint on the top of the loop with `BP symbols-demo.a65:71` and
+   run. The program stops at `main_loop`, `$6042`, once per count.
+2. Click in the source pane and step. With the source pane focused, a step
+   runs one source line; in the disassembly it runs one instruction. `SRC ON`
+   makes every step command step by source line.
+3. The PC's row is marked in the source pane, and a stepped instruction's row
+   has its operand, in the comment color, and `Result: `, in the result color,
+   after the code. Step over `JSR draw_counter` with `P`, or into it with `T`
+   and out again with `RTS`, and watch the row of `inc count` and of
+   `sta ROW_BAR,x` in `draw_bar`.
 ## The call stack
 
 `CALLS` shows the chain of calls to the PC, innermost first. Each frame has
