@@ -2,6 +2,7 @@
 
 #include "Debugger/RomSymbols.h"
 #include "Debugger/SymbolDescriptions.h"
+#include "Ui/Debugger/SymbolComments.h"
 #include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -60,6 +61,29 @@ namespace DebuggerTests
             {
                 Assert::IsTrue (table.find (entry) != std::string::npos, TextEncoding::NarrowToWide (entry).c_str());
             }
+        }
+
+
+        //  A label's source comment is on the first line whose code starts at
+        //  its address, or on the line above when that line is the label
+        //  alone; a semicolon in quotes is not a comment.
+        TEST_METHOD (ALabelsCommentIsOnItsDefiningLine)
+        {
+            std::map<std::pair<int, int>, Word>  lines  = { { { 0, 3 }, 0x0300 }, { { 0, 5 }, 0x0302 }, { { 1, 2 }, 0x0300 } };
+            std::vector<std::string>             source = { "        ORG $300",
+                                                            "WAIT    ; until a key",
+                                                            "        LDA KBD      ; the key",
+                                                            "        LDA #';'",
+                                                            "DONE    RTS          ; back" };
+
+            Assert::IsTrue   (SymbolComments::FindDefiningLine (lines, 0x0300) == std::optional<std::pair<int, int>> ({ 0, 3 }), L"the earliest line");
+            Assert::IsFalse  (SymbolComments::FindDefiningLine (lines, 0x0400).has_value());
+
+            Assert::AreEqual (std::string ("until a key"), SymbolComments::GetDefiningComment (source, 3, "WAIT"), L"the label alone above");
+            Assert::AreEqual (std::string ("the key"),     SymbolComments::GetDefiningComment (source, 3, "OTHER"), L"the code's line");
+            Assert::AreEqual (std::string ("back"),        SymbolComments::GetDefiningComment (source, 5, "DONE"));
+            Assert::AreEqual (std::string(),               SymbolComments::GetLineComment ("        LDA #';'"), L"in quotes");
+            Assert::AreEqual (std::string(),               SymbolComments::GetDefiningComment (source, 9, "WAIT"), L"past the end");
         }
 
 

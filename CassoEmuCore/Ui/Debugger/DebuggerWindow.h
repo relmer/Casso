@@ -26,6 +26,7 @@
 #include "Ui/Debugger/KeyHintLine.h"
 #include "Ui/Debugger/OpeningFocusDeferral.h"
 #include "Ui/Debugger/StopFocus.h"
+#include "Ui/Debugger/SymbolComments.h"
 #include "Ui/Debugger/FocusAccentOwner.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
@@ -646,6 +647,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiTextInput *              GetFocusedBox     () const;
 
     DxuiDpiScaler                           m_scaler;
+    SymbolComments                          m_symbolComments;
     int                                     m_widthDip           = 0;
     int                                     m_heightDip          = 0;
     DxuiFocusManager                        m_focusMgr;
@@ -846,6 +848,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                 UpdateWindowMenus      () override { SetWindowMenus(); }
     void                 ShowPopupMenu          (const PaneMenuItems & items, POINT clientPx) override;
     void                 ShowListAbove          (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) override;
+    std::string          GetSymbolComment       (Word address, const std::string & name) override;
     void                 MarkPaneTab            (const std::wstring & pane) override;
     DxuiToolbar::Entry   GetFindEntry           (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                 SaveOpenViews          () override { KeepOpenViews(); }

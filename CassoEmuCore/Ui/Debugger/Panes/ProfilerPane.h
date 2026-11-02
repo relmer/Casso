@@ -105,7 +105,14 @@ public:
     static const wchar_t *  GetTotalTip   ();
     static const wchar_t *  GetCallsTip   ();
 
-    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn);
+    //  A routine's tip head: GetTipHead, or the window's, which adds the
+    //  source comment of the routine's label.
+    using TipHeadFn = std::function<std::string (const ProfileRoutineEntry & routine)>;
+
+    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn, const TipHeadFn & tipHead = {});
+
+    //  GetTipHead with the source comment of the routine's label after it.
+    std::string  GetTipHeadWithComment (const ProfileRoutineEntry & routine) const;
 
     //  The line above the list: the profile's totals and the time its cycles
     //  span; empty with no profile.

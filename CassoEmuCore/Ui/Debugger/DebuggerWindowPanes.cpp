@@ -915,6 +915,31 @@ void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & an
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetSymbolComment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerWindow::GetSymbolComment (Word address, const std::string & name)
+{
+    if (m_snapshot == nullptr || !m_snapshot->source.has_value() || m_host == nullptr)
+    {
+        return {};
+    }
+
+    m_symbolComments.SetSource (*m_snapshot->source);
+
+    return m_symbolComments.GetComment (address, name, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
+    {
+        return m_host->FindDebuggerSource (record, path, key);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::MarkPaneTab
 //
 ////////////////////////////////////////////////////////////////////////////////

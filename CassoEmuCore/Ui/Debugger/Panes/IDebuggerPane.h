@@ -247,6 +247,10 @@ public:
     //  A list of rows over a control, at exactly its width, rising from its
     //  top edge in the look given.
     virtual void                   ShowListAbove    (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) = 0;
+
+    //  The comment on the defining line of the label at an address, from its
+    //  source file (SymbolComments); empty with none.
+    virtual std::string            GetSymbolComment (Word address, const std::string & name) = 0;
     virtual void                   MarkPaneTab      (const std::wstring & pane) = 0;
 
     //  The Find entry for a pane's toolbar, which opens the pane's find

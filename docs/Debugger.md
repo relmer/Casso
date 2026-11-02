@@ -252,6 +252,11 @@ ports have no symbols. Hover over an operand at one of them in the
 disassembly for a tip with the register's description, under the card's name
 and slot: "Super Serial Card, slot 2: 6551 status register".
 
+The tip over a symbol in the disassembly, and the Profiler's tips on a
+routine, have the symbol's description and, for a label in a loaded program's
+source, the comment on the line that defines it: the first line whose code
+starts at the label, or the label alone on the line above it.
+
 ```
 SYM LOAD "game.dbg"       load into the User table
 SYMUSER2 LOAD "lib.sym",4000   load another table, with a hex offset

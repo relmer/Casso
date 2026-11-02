@@ -68,6 +68,9 @@ public:
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
 
+    //  A routine's tip head in place of GetTipHead, as the Profiler's lists have it.
+    void                SetTipHead        (std::function<std::string (const ProfileRoutineEntry & routine)> tipHead) { m_tipHead = std::move (tipHead); }
+
     //  Takes the time the clicked bar's dashes march to; true while they do.
     bool                Animate           (int64_t nowMs);
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -90,6 +93,7 @@ private:
     std::vector<ProfileTreeEntry>     m_tree;
     std::vector<ProfileRoutineEntry>  m_routines;
     std::string                       m_topTip;
+    std::function<std::string (const ProfileRoutineEntry & routine)>  m_tipHead;
     std::vector<Bar>                  m_bars;
     size_t                            m_zoom  = 0;
     std::optional<size_t>             m_selected;

@@ -73,6 +73,7 @@ void ProfilerPane::CreateControls()
     m_timeline   = m_host.GetControlParent().CreateChild<ProfileTimeline>();
     m_totals     = m_host.GetControlParent().CreateChild<DxuiLabel>();
     m_flameGraph = m_host.GetControlParent().CreateChild<FlameGraphView>();
+    m_flameGraph->SetTipHead ([this] (const ProfileRoutineEntry & routine) { return GetTipHeadWithComment (routine); });
     m_progress   = m_host.GetControlParent().CreateChild<ProfileProgress>();
     m_bar.Create();
 
@@ -725,7 +726,7 @@ void ProfilerPane::Refresh()
     const std::optional<ProfileData>              & profile  = (m_view == View::Addresses) ? m_byAddress : m_byOpcode;
     const Sort                                    & sort     = m_sorts[(size_t) m_view];
     bool                                            wasShown = !m_totals->GetText().empty();
-    std::vector<std::vector<DxuiListView::Cell>>    cells    = GetCells (profile, m_view, m_isOn);
+    std::vector<std::vector<DxuiListView::Cell>>    cells    = GetCells (profile, m_view, m_isOn, [this] (const ProfileRoutineEntry & routine) { return GetTipHeadWithComment (routine); });
     std::vector<std::vector<DxuiListView::Cell>>    sorted;
 
 
@@ -1647,6 +1648,26 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProfilerPane::GetTipHeadWithComment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfilerPane::GetTipHeadWithComment (const ProfileRoutineEntry & routine) const
+{
+    std::string  head    = routine.GetTipHead();
+    std::string  comment = (routine.kind != RoutineKind::Top && !routine.symbol.empty()) ? m_host.GetSymbolComment (routine.address, routine.symbol) : std::string();
+
+
+
+    return comment.empty() ? head : head + "\n" + comment;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProfilerPane::GetCells
 //
 //  A row an opcode, an address, a routine or a node of the call tree; an
@@ -1656,7 +1677,7 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, View view, bool isOn)
+std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, View view, bool isOn, const TipHeadFn & tipHead)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
     auto                                          share = [&profile] (uint64_t cycles)
@@ -1664,6 +1685,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
         return std::format (L"{:.1f}%", 100.0 * (double) cycles / (double) std::max<uint64_t> (profile->cycles, 1));
     };
     auto                                          count = [] (uint64_t value) { return DebuggerStatusText::FormatCount (value); };
+    auto                                          head  = [&tipHead] (const ProfileRoutineEntry & routine) { return tipHead ? tipHead (routine) : routine.GetTipHead(); };
 
 
 
@@ -1693,7 +1715,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
                                { count (entry.total) }, { share (entry.total) }, { count (entry.calls) },
                                { (entry.calls != 0) ? count (entry.total / entry.calls) : std::wstring (L"-") } });
             cells.back()[0].swatch = ProfileTimeline::GetShareColor (i, 0);
-            cells.back()[0].tip    = TextEncoding::NarrowToWide ((entry.kind == RoutineKind::Top) ? profile->GetTopLevelTip() : entry.GetTipHead());
+            cells.back()[0].tip    = TextEncoding::NarrowToWide ((entry.kind == RoutineKind::Top) ? profile->GetTopLevelTip() : head (entry));
         }
     }
     else if (view == View::Tree)
@@ -1703,7 +1725,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
             cells.push_back ({ { std::wstring ((size_t) entry.depth * 2, L' ') + TextEncoding::NarrowToWide (profile->routines[entry.routine].GetName()) },
                                { count (entry.self) }, { count (entry.total) }, { share (entry.total) }, { count (entry.calls) } });
             cells.back()[0].swatch = ProfileTimeline::GetShareColor (entry.routine, 0);
-            cells.back()[0].tip    = TextEncoding::NarrowToWide ((profile->routines[entry.routine].kind == RoutineKind::Top) ? profile->GetTopLevelTip() : profile->routines[entry.routine].GetTipHead());
+            cells.back()[0].tip    = TextEncoding::NarrowToWide ((profile->routines[entry.routine].kind == RoutineKind::Top) ? profile->GetTopLevelTip() : head (profile->routines[entry.routine]));
         }
     }
     else if (view == View::Opcodes)

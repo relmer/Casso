@@ -1583,6 +1583,7 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
     std::string    name;
     Word           address = 0;
     const char   * about   = nullptr;
+    std::string    comment;
 
 
 
@@ -1666,6 +1667,13 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
     if (about != nullptr)
     {
         text += L"\n" + TextEncoding::NarrowToWide (about);
+    }
+
+    comment = m_host.GetSymbolComment (address, name);
+
+    if (!comment.empty())
+    {
+        text += L"\n" + TextEncoding::NarrowToWide (comment);
     }
 
     OffsetRect (&anchor, bounds.left, bounds.top);
