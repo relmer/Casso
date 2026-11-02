@@ -153,6 +153,7 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
     int           invalid   = 0;
     int           sector    = 0;
     bool          allFree   = true;
+    int           limit     = 0;
 
 
 
@@ -168,6 +169,8 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
         sector++;
     }
 
+    limit = GetSlotLimit (directory);
+
     for (int slot = 0; slot < kEntries; slot++)
     {
         std::span<const Byte>  entry = std::span<const Byte> (directory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
@@ -177,7 +180,7 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
         if (entry[0] != kFree)
         {
             valid   += IsPlausibleEntry (entry) ? 1 : 0;
-            invalid += IsPlausibleEntry (entry) ? 0 : 1;
+            invalid += (!IsPlausibleEntry (entry) && slot < limit) ? 1 : 0;
         }
     }
 
@@ -397,6 +400,10 @@ void CpmVolume::ReadDirectory (vector<Byte> & outDirectory) const
 
 void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & outFiles, int & outInvalid)
 {
+    int  limit = GetSlotLimit (directory);
+
+
+
     outFiles.clear();
     outInvalid = 0;
 
@@ -416,7 +423,7 @@ void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & 
 
         if (!IsPlausibleEntry (bytes))
         {
-            outInvalid++;
+            outInvalid += (slot < limit) ? 1 : 0;
             continue;
         }
 
@@ -464,6 +471,71 @@ void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & 
     {
         std::stable_sort (file.extents.begin(), file.extents.end(), [] (const RawEntry & a, const RawEntry & b) { return a.extent < b.extent; });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::GetSlotLimit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CpmVolume::GetSlotLimit (const vector<Byte> & directory)
+{
+    for (int slot = kCompatibleEntries; slot < kEntries; slot++)
+    {
+        std::span<const Byte>  bytes = std::span<const Byte> (directory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
+
+        if (bytes[0] != kFree && IsPlausibleEntry (bytes))
+        {
+            return kEntries;
+        }
+    }
+
+    return kCompatibleEntries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::CollectStrayBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<Byte> CpmVolume::CollectStrayBlocks (const vector<Byte> & directory)
+{
+    int             limit = GetSlotLimit (directory);
+    std::set<Byte>  blocks;
+
+
+
+    for (int slot = 0; slot < limit; slot++)
+    {
+        std::span<const Byte>  bytes = std::span<const Byte> (directory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
+
+        if (bytes[0] > s_kUserMax || IsPlausibleEntry (bytes))
+        {
+            continue;
+        }
+
+        for (size_t i = 0; i < (size_t) s_kBlocksPerEntry; i++)
+        {
+            Byte  block = bytes[s_kOffBlocks + i];
+
+            if (block >= kDirectoryBlocks && block < kVolumeBlocks)
+            {
+                blocks.insert (block);
+            }
+        }
+    }
+
+    return blocks;
 }
 
 
@@ -569,6 +641,7 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
     bool                   whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
     int                    invalid = 0;
     uint32_t               used    = 0;
+    uint32_t               wrapped = 0;
     vector<Byte>           directory;
     vector<RawFile>        files;
     VolumeIntegrityReport  report;
@@ -592,7 +665,8 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
 
     if (invalid != 0)
     {
-        outListing.damage.push_back (std::format ("{} directory entries aren't valid CP/M entries", invalid));
+        outListing.damage.push_back ((invalid == 1) ? std::string ("1 directory entry isn't a valid CP/M entry")
+                                                    : std::format ("{} directory entries aren't valid CP/M entries", invalid));
     }
 
     hr = BuildIntegrityReport (report);
@@ -603,7 +677,12 @@ HRESULT CpmVolume::Enumerate (VolumeListing & outListing) const
         used += report.IsClaimed (unit) ? 1u : 0u;
     }
 
-    outListing.totalUnits = kVolumeBlocks;
+    for (uint32_t unit = kVolumeBlocks; unit < kUnitCount; unit++)
+    {
+        wrapped += report.IsClaimed (unit) ? 1u : 0u;
+    }
+
+    outListing.totalUnits = kVolumeBlocks + wrapped;
     outListing.freeUnits  = kVolumeBlocks - used;
 
 Error:
@@ -681,7 +760,8 @@ Error:
 //
 //  CpmVolume::BuildIntegrityReport
 //
-//  With no free map, an allocated block is one the directory lists.
+//  With no free map, an allocated block is one the directory lists, including
+//  in an invalid entry real CP/M would read as a file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -706,6 +786,11 @@ HRESULT CpmVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) cons
     for (uint32_t unit = 0; unit < (uint32_t) kDirectoryBlocks; unit++)
     {
         outReport.AddClaim (unit, VolumeIntegrityReport::kVolumeOwner);
+    }
+
+    for (Byte block : CollectStrayBlocks (directory))
+    {
+        outReport.AddClaim (block, VolumeIntegrityReport::kVolumeOwner);
     }
 
     for (size_t i = 0; i < files.size(); i++)
@@ -820,6 +905,11 @@ void CpmVolume::WriteDirectory (vector<Byte> & buffer, const vector<Byte> & dire
 //  first. A file's last record and block are padded with $1A, CP/M's end of
 //  text, which a program that isn't reading text doesn't look at.
 //
+//  A slot with invalid bytes isn't free, and blocks past kVolumeBlocks, tracks 0
+//  to 2, are never allocated. Slots stop at the disk's limit: CP/AM's parameter
+//  block has 48 directory entries, so an entry past that would be invisible to
+//  it, and a disk with a valid entry past that is one that reads them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
@@ -845,6 +935,7 @@ HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, ve
     vector<int>            freeBlocks;
     VolumeIntegrityReport  report;
     vector<bool>           used (kVolumeBlocks, false);
+    int                    slotLimit  = 0;
 
 
 
@@ -858,6 +949,13 @@ HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, ve
 
     hr = BuildIntegrityReport (report);
     CHR (hr);
+
+    slotLimit = GetSlotLimit (directory);
+
+    for (Byte block : CollectStrayBlocks (directory))
+    {
+        used[block] = true;
+    }
 
     if (TryFindFile (files, MakeName (parsed), index))
     {
@@ -894,7 +992,7 @@ HRESULT CpmVolume::Write (const FilePath & path, const FilePayload & payload, ve
         }
     }
 
-    for (int slot = 0; slot < kEntries; slot++)
+    for (int slot = 0; slot < slotLimit; slot++)
     {
         if (directory[(size_t) slot * kEntryBytes] == kFree)
         {

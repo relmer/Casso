@@ -35,6 +35,35 @@ uint64_t CatalogModel::GetUnitBytes (VolumeKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CatalogModel::DescribeDamage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::DescribeDamage (const VolumeListing & listing)
+{
+    std::wstring  text;
+
+
+
+    for (const std::string & note : listing.damage)
+    {
+        text += (text.empty() ? L"" : L". ") + TextEncoding::NarrowToWide (note);
+    }
+
+    if (!text.empty())
+    {
+        text[0] = towupper (text[0]);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CatalogModel::GetPascalKindText
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -1552,4 +1552,6 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T364 Draw the preview's catalog heading in the theme's muted text color, carried in `PreviewContent::heading`, per FR-132
 - [X] T365 List Apple Pascal as the Filer's Extended list and CP/M as `STAT *.*`, in the preview and in `disk list`, per FR-132
 - [X] T366 Add `pascal` and `cpm` to `--format`, the New disk dialog and formatting an Apple drive, in every container, with detection of an empty CP/M directory, per FR-132
+- [X] T367 Limit CP/M directory writes to 48 slots unless a valid entry past slot 47 is present, keep blocks 128 to 139 unallocated, and add blocks that entries list past 127 to the listing total, per FR-132
+- [X] T368 Add the directory damage note to the preview pane and status text, and count blocks that invalid entries with a user byte of 0 to $1F list, per FR-132
 

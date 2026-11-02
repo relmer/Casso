@@ -198,6 +198,10 @@ public:
     //  An entry's type as the list has it, which on CP/M is its name's suffix.
     static std::wstring  GetEntryTypeText (const FileEntry & entry, VolumeKind kind);
 
+    //  What a listing could not read, as a sentence for the preview and status
+    //  bar, and empty for a clean read.
+    static std::wstring  DescribeDamage (const VolumeListing & listing);
+
     static std::wstring  GetPascalKindText (Byte kind);
 
     static std::wstring  FormatAddress (Word address);

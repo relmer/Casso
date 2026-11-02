@@ -191,6 +191,7 @@ public:
         Assert::AreEqual (std::string ("31:cp/am.sys"), listing.entries[0].name);
         Assert::IsTrue (listing.entries[0].isLocked);
         Assert::AreEqual ((uint32_t) 3, listing.freeUnits, L"Blocks 2 to 124 are in use");
+        Assert::AreEqual ((uint32_t) 140, listing.totalUnits, L"The system entry claims the 12 blocks past 127");
 
         std::vector<std::string>  lines;
 

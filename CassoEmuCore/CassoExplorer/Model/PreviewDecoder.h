@@ -65,7 +65,8 @@ struct PreviewContent
     //  the lines below it.
     std::wstring               heading;
 
-    //  Why a listing that is shown is not a valid program, shown after it.
+    //  Why a listing that is shown is not a valid program, or what a catalog
+    //  could not read, shown after it.
     std::wstring               warning;
     std::vector<uint32_t>      bgra;
     int                        width  = 0;

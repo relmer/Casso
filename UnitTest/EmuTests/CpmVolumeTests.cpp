@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
+#include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/AppleFileProperties.h"
 #include "CassoExplorer/Model/BasicConversion.h"
@@ -520,6 +521,141 @@ public:
     }
 
 
+
+    TEST_METHOD (WriteStopsAt48SlotsOnADiskWithNothingPastThem)
+    {
+        std::vector<Byte>  image = BuildBlank();
+        std::vector<Byte>  edited;
+
+        for (int slot = 0; slot < CpmVolume::kCompatibleEntries; slot++)
+        {
+            PutEntry (image, slot, 0, std::format ("F{:<7}COM", slot).c_str(), 0, 0, {});
+        }
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), CpmVolume (image).Write (FilePath::Parse ("A.COM"), MakePayload (10, 0), edited));
+    }
+
+    TEST_METHOD (WriteUsesSlotsPast48WhenAValidEntryIsThere)
+    {
+        std::vector<Byte>  image = BuildBlank();
+        std::vector<Byte>  edited;
+
+        for (int slot = 0; slot < CpmVolume::kCompatibleEntries; slot++)
+        {
+            PutEntry (image, slot, 0, std::format ("F{:<7}COM", slot).c_str(), 0, 0, {});
+        }
+
+        PutEntry (image, 50, 0, "HIGH    COM", 0, 0, {});
+
+        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("A.COM"), MakePayload (10, 0), edited));
+
+        Assert::AreEqual ((int) 'A', (int) edited[GetOffset (1, 48 * kEntryBytes - kBlockBytes + 1)], L"The lowest free slot past 48");
+    }
+
+    TEST_METHOD (ReadsListEntriesInAll64Slots)
+    {
+        std::vector<Byte>  image = BuildBlank();
+        VolumeListing      listing;
+
+        PutEntry (image, 63, 0, "LAST    COM", 0, 0, {});
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+
+        Assert::AreEqual ((size_t) 1, listing.entries.size());
+        Assert::IsTrue (listing.damage.empty());
+    }
+
+    static void  PutGarbage (std::vector<Byte> & image, int slot, Byte first)
+    {
+        size_t  at = (size_t) slot * kEntryBytes;
+
+        for (size_t i = 0; i < kEntryBytes; i++)
+        {
+            image[GetOffset ((int) ((at + i) / kBlockBytes), (at + i) % kBlockBytes)] = (i == 0) ? first : 0x01;
+        }
+
+        image[GetOffset ((int) (at / kBlockBytes), at % kBlockBytes + 16)] = 40;
+    }
+
+    TEST_METHOD (GarbagePast48IsNotDamageWithoutAValidEntryThere)
+    {
+        std::vector<Byte>  image = BuildSample();
+        VolumeListing      listing;
+
+        PutGarbage (image, 50, 0x09);
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+        Assert::IsTrue (listing.damage.empty(), L"A 48-entry system never reads it");
+
+        PutEntry (image, 51, 0, "HIGH    COM", 0, 0, {});
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+        Assert::AreEqual ((size_t) 1, listing.damage.size(), L"A disk with an entry past 48 reads the garbage too");
+
+        PutGarbage (image, 51, 0xAA);
+        PutGarbage (image, 10, 0xAA);
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+        Assert::AreEqual (std::string ("1 directory entry isn't a valid CP/M entry"), listing.damage[0], L"Below 48 reports as before");
+    }
+
+    TEST_METHOD (BlocksInAnInvalidEntryWithAUserNumberAreUsed)
+    {
+        std::vector<Byte>  image = BuildBlank();
+        std::vector<Byte>  edited;
+        VolumeListing      listing;
+
+        PutGarbage (image, 0, 0x09);
+        PutGarbage (image, 1, 0xAA);
+
+        //  Block 40 in the first, and block 50 in the second, whose first byte
+        //  CP/M doesn't read as a user.
+        image[GetOffset (0, kEntryBytes + 16)] = 50;
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+
+        Assert::AreEqual ((uint32_t) 125, listing.freeUnits);
+
+        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("BIG.COM"), MakePayload (39 * kBlockBytes, 0), edited));
+        
+        //  With 125 blocks free, one more than that doesn't fit.
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), CpmVolume (image).Write (FilePath::Parse ("FULL.COM"), MakePayload (126 * kBlockBytes, 0), edited));
+    }
+
+    TEST_METHOD (WritesNeverAllocateTheBootTracksAndTotalsCountWhatIsClaimedThere)
+    {
+        std::vector<Byte>  image = BuildBlank();
+        std::vector<Byte>  edited;
+        VolumeListing      listing;
+
+        PutEntry (image, 0, 31, "cp/am   sys", 0, 96, { 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139 });
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+
+        Assert::AreEqual ((uint32_t) 140, listing.totalUnits);
+        Assert::AreEqual ((uint32_t) 126, listing.freeUnits);
+
+        AssertSucceeded (CpmVolume (image).Write (FilePath::Parse ("A.COM"), MakePayload (126 * kBlockBytes, 0), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), CpmVolume (image).Write (FilePath::Parse ("A.COM"), MakePayload (127 * kBlockBytes, 0), edited));
+    }
+
+    TEST_METHOD (TheListingReportsDamageInThePreviewAndStatus)
+    {
+        std::vector<Byte>  image = BuildSample();
+        VolumeListing      listing;
+        PreviewContent     content;
+        BrowserStatus      status;
+
+        PutGarbage (image, 10, 0xAA);
+
+        AssertSucceeded (CpmVolume (image).Enumerate (listing));
+
+        PreviewDecoder::RenderCatalog (listing, VolumeKind::Cpm, content);
+        Assert::AreEqual (std::wstring (L"1 directory entry isn't a valid CP/M entry"), content.warning);
+
+        BrowserCells::DescribeVolumeSpace (L"C:\\disks\\cpm.dsk", listing, VolumeKind::Cpm, status);
+        Assert::IsTrue (status.freeSpace.find (L"isn't a valid CP/M entry") != std::wstring::npos);
+    }
 
     TEST_METHOD (WriteRefusesWhenSlotsRunOut)
     {

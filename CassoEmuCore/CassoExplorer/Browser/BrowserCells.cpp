@@ -161,6 +161,12 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
 
 
     outStatus.freeSpace    = FormatSize ((uint64_t) listing.freeUnits * unit) + L" free of " + FormatSize ((uint64_t) listing.totalUnits * unit);
+
+    if (!listing.damage.empty())
+    {
+        outStatus.freeSpace += L". " + CatalogModel::DescribeDamage (listing);
+    }
+
     outStatus.freeSpaceTip = std::filesystem::path (imagePath).filename().wstring();
 
     if (kind == VolumeKind::Dos33)

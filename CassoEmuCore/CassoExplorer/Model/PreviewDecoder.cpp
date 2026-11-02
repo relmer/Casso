@@ -476,6 +476,8 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
     {
         outContent.heading = TextEncoding::NarrowToWide (VolumeImage::GetSystemName (kind)) + L" disk";
     }
+
+    outContent.warning = CatalogModel::DescribeDamage (listing);
 }
 
 

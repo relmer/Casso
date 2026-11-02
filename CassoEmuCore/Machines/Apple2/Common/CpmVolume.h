@@ -41,6 +41,7 @@ public:
     static constexpr int       kDirectoryBlocks  = 2;
     static constexpr int       kSectorsPerBlock  = 4;
     static constexpr int       kEntries          = 64;
+    static constexpr int       kCompatibleEntries = 48;
     static constexpr size_t    kEntryBytes       = 32;
     static constexpr size_t    kBlockBytes       = 1024;
     static constexpr size_t    kRecordBytes      = 128;
@@ -143,8 +144,18 @@ private:
     void  ReadBlock     (int block, std::span<Byte> outBytes) const;
 
     //  The files in order of each one's first entry, and how many entries
-    //  aren't free or valid.
+    //  aren't free or valid. Invalid bytes past kCompatibleEntries aren't
+    //  counted unless the disk is one with more entries than that.
     static void  CollectFiles (const vector<Byte> & directory, vector<RawFile> & outFiles, int & outInvalid);
+
+    //  How many slots this disk's system reads: kEntries when a valid entry is
+    //  past kCompatibleEntries, which only a system that reads them could have
+    //  written, and kCompatibleEntries otherwise.
+    static int   GetSlotLimit (const vector<Byte> & directory);
+
+    //  The blocks below kVolumeBlocks that invalid entries list, when their first
+    //  byte is a user number, so real CP/M reads them as files.
+    static std::set<Byte>  CollectStrayBlocks (const vector<Byte> & directory);
 
     static bool  TryFindFile  (const vector<RawFile> & files, const std::string & name, size_t & outIndex);
     static void  FillEntry    (const RawFile & file, size_t index, FileEntry & outEntry);
