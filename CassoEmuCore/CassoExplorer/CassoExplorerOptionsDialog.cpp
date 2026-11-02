@@ -24,15 +24,17 @@ struct FullSendFormat
     const char     * extension;
 };
 
+//  The common types first, then the rest under a heading. The first
+//  CassoExplorerFullSendPage::kCommonFormatCount entries are the common ones.
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
-    { L"Automatic: .po for ProDOS disks, .dsk for others",                 ""     },
-    { L".dsk: DOS-order sectors",                                         ".dsk" },
-    { L".do: DOS-order sectors",                                          ".do"  },
-    { L".po: ProDOS-order sectors",                                       ".po"  },
-    { L".woz: WOZ 2 bit stream, as Applesauce and current emulators use", ".woz" },
-    { L".nib: Nibbles, 6,656 bytes a track, the common nibble format",    ".nib" },
-    { L".nb2: Nibbles, 6,384 bytes a track, for emulators that read .nb2", ".nb2" },
+    { L"Automatic: .po for ProDOS disks, .dsk for everything else",                                   ""     },
+    { L".dsk: DOS-order sectors, the type every emulator opens",                                      ".dsk" },
+    { L".woz: WOZ 2 bit stream, as Applesauce and current emulators use",                             ".woz" },
+    { L".do: The same bytes as .dsk, with an extension that settles the sector-order debate",         ".do"  },
+    { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",                    ".po"  },
+    { L".nib: Nibbles, 6,656 bytes a track, padded past a real track's length",                       ".nib" },
+    { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream", ".nb2" },
 };
 
 
@@ -180,16 +182,17 @@ bool CassoExplorerHostNamesPage::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & prefixLabel, DxuiTextInput & prefix, DxuiLabel & formatLabel, DxuiRadioGroup & format)
+void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & prefixLabel, DxuiTextInput & prefix, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel)
 {
-    m_folderLabel = &folderLabel;
-    m_formatLabel = &formatLabel;
-    m_prefixLabel = &prefixLabel;
-    m_prefix = &prefix;
-    m_note   = &note;
-    m_folder = &folder;
-    m_browse = &browse;
-    m_format = &format;
+    m_folderLabel    = &folderLabel;
+    m_formatLabel    = &formatLabel;
+    m_prefixLabel    = &prefixLabel;
+    m_esotericaLabel = &esotericaLabel;
+    m_prefix         = &prefix;
+    m_note           = &note;
+    m_folder         = &folder;
+    m_browse         = &browse;
+    m_format         = &format;
 
     Adopt (note);
     Adopt (folderLabel);
@@ -199,6 +202,7 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
     Adopt (prefixLabel);
     Adopt (prefix);
     Adopt (format);
+    Adopt (esotericaLabel);
 }
 
 
@@ -225,16 +229,23 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int                           formatLabelTop = prefixEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int                           formatTop      = formatLabelTop + labelH;
     int                           optionH        = scaler.ToPx (kOptionHeightDip);
-    int                           formatEnd      = formatTop + optionH * kOptionCount;
+    int                           esotericaTop   = formatTop + optionH * kCommonFormatCount + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int                           esotericaEnd   = esotericaTop + labelH;
     std::vector<DxuiRadioOption>  options        = m_format->GetOptions();
+    int                           formatEnd      = esotericaEnd + optionH * ((int) options.size() - kCommonFormatCount);
+    int                           top            = formatTop;
 
 
 
     SetBounds (boundsDip);
 
+    //  The common types, then the heading, then the rest.
     for (size_t i = 0; i < options.size(); i++)
     {
-        options[i].rect = RECT { boundsDip.left, formatTop + optionH * (int) i, boundsDip.right, formatTop + optionH * (int) (i + 1) };
+        top = (i == kCommonFormatCount) ? esotericaEnd : top;
+
+        options[i].rect = RECT { boundsDip.left, top, boundsDip.right, top + optionH };
+        top            += optionH;
     }
 
     m_format->SetOptions (std::move (options));
@@ -248,6 +259,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     m_prefixLabel->Layout (RECT { boundsDip.left, prefixLabelTop, boundsDip.right, prefixTop }, scaler);
     m_prefix->Layout (RECT { boundsDip.left, prefixTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), prefixEnd }, scaler);
     m_format->Layout (RECT { boundsDip.left, formatTop, boundsDip.right, formatEnd }, scaler);
+    m_esotericaLabel->Layout (RECT { boundsDip.left, esotericaTop, boundsDip.right, esotericaEnd }, scaler);
 
     SetContentHeightPx (formatEnd - boundsDip.top);
 }
@@ -483,7 +495,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     WireFullSend();
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full Send");
-    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendPrefixLabel, m_fullSendPrefix, m_fullSendFormatLabel, m_fullSendFormat);
+    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendPrefixLabel, m_fullSendPrefix, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel);
 
     WireVerify();
 
@@ -543,6 +555,9 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormatLabel.SetText (L"Image type");
     ExplorerTextStyles::Apply (m_fullSendFormatLabel, ExplorerTextStyles::kFormLabel);
 
+    m_fullSendEsotericaLabel.SetText (L"Esoterica, for the disk image format enthusiast");
+    ExplorerTextStyles::Apply (m_fullSendEsotericaLabel, ExplorerTextStyles::kFormLabel);
+
     m_fullSendPrefixLabel.SetText (L"File name prefix");
     ExplorerTextStyles::Apply (m_fullSendPrefixLabel, ExplorerTextStyles::kFormLabel);
 
@@ -598,7 +613,8 @@ void CassoExplorerOptionsDialog::WireVerify()
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
     }
 
-    m_verifyIntro.SetText (L"Old disks can read differently from one pass to the next. Each sector has a checksum, but it is not a rigorous test and misses many "
+    m_verifyIntro.SetText (L"Old disks can read differently from one pass to the next. The magnetic signal weakens with age, the oxide coating wears, "
+                           L"and a drive can spin off speed or have its head out of alignment. Each sector has a checksum, but it is not a rigorous test and misses many "
                            L"errors, so a read can pass it with the wrong data. Verified transfers read and write disks more than once to catch a damaged copy. "
                            L"Verification applies to whole disks: Full Send, Create image and Write image. The trade-off for this additional rigor is speed; "
                            L"additional checks take a bit longer.");

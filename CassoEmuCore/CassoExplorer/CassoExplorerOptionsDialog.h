@@ -91,25 +91,26 @@ class CassoExplorerFullSendPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & prefixLabel, DxuiTextInput & prefix, DxuiLabel & formatLabel, DxuiRadioGroup & format);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & prefixLabel, DxuiTextInput & prefix, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kNoteHeightDip   = 60;
-    static constexpr int  kBrowseWidthDip  = 100;
-    static constexpr int  kLabelHeightDip  = 24;
-    static constexpr int  kOptionHeightDip = 26;
-    static constexpr int  kOptionCount     = 6;
+    static constexpr int  kNoteHeightDip     = 60;
+    static constexpr int  kBrowseWidthDip    = 100;
+    static constexpr int  kLabelHeightDip    = 24;
+    static constexpr int  kOptionHeightDip   = 26;
+    static constexpr int  kCommonFormatCount = 3;
 
 private:
-    DxuiLabel       * m_note        = nullptr;
-    DxuiLabel       * m_folderLabel = nullptr;
-    DxuiLabel       * m_formatLabel = nullptr;
-    DxuiLabel       * m_prefixLabel = nullptr;
-    DxuiLabel       * m_folder      = nullptr;
-    DxuiButton      * m_browse      = nullptr;
-    DxuiTextInput   * m_prefix      = nullptr;
-    DxuiRadioGroup  * m_format      = nullptr;
+    DxuiLabel       * m_note           = nullptr;
+    DxuiLabel       * m_folderLabel    = nullptr;
+    DxuiLabel       * m_esotericaLabel = nullptr;
+    DxuiLabel       * m_formatLabel    = nullptr;
+    DxuiLabel       * m_prefixLabel    = nullptr;
+    DxuiLabel       * m_folder         = nullptr;
+    DxuiButton      * m_browse         = nullptr;
+    DxuiTextInput   * m_prefix         = nullptr;
+    DxuiRadioGroup  * m_format         = nullptr;
 };
 
 
@@ -275,6 +276,7 @@ private:
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;
     DxuiLabel                                      m_fullSendFormatLabel;
+    DxuiLabel                                      m_fullSendEsotericaLabel;
     DxuiLabel                                      m_fullSendPrefixLabel;
     DxuiTextInput                                  m_fullSendPrefix;
     DxuiLabel                                      m_fullSendFolder;
