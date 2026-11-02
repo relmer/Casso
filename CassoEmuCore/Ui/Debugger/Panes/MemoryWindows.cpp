@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -493,7 +494,9 @@ void MemoryWindowGroup::Configure()
     m_bar->SetPaneTextInset (true);
     m_bar->SetBottomEdge    (false);
     m_bar->EnableSeeMore    (s_kpszMdl2More, L"See more");
-    m_bar->SetEntries       (m_commands->BuildEntries (m_addressEntry.get()));
+    m_findCount    = std::make_unique<ToolbarLabelEntry> (std::wstring());
+    m_findCount->SetTip (L"The match selected and the number of matches, after Find and each F3 or Shift+F3");
+    SetBarEntries();
     m_bar->SetVisible       (false);
 
     m_box->SetHwnd        (m_host.GetOwnerHwnd());
@@ -1633,6 +1636,7 @@ void MemoryWindowGroup::StepFind (bool forward)
     if (count == 0 || GetWindow (m_find.window) == nullptr)
     {
         m_host.AppendConsole ({ "No matches in memory." });
+        ShowFindCount (L"No matches");
         return;
     }
 
@@ -1646,7 +1650,52 @@ void MemoryWindowGroup::StepFind (bool forward)
     }
 
     GetWindow (m_find.window)->GetModel().SelectRange (m_searchHits[(size_t) m_find.at], m_find.length);
+    ShowFindCount (std::format (L"{} of {}", m_find.at + 1, count));
     m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::SetBarEntries
+//
+//  The bar's commands, then the Find count at its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::SetBarEntries()
+{
+    std::vector<DxuiToolbar::Entry>  entries = m_commands->BuildEntries (m_addressEntry.get());
+    DxuiToolbar::Entry               count;
+
+
+
+    count.command       = m_findCount->GetCommand();
+    count.custom        = m_findCount.get();
+    count.trailing      = true;
+    count.neverOverflow = true;
+    entries.push_back (std::move (count));
+
+    m_bar->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::ShowFindCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::ShowFindCount (const std::wstring & text)
+{
+    m_findCount->SetLabel (text);
+    SetBarEntries();
 }
 
 

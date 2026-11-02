@@ -49,7 +49,11 @@ namespace DebuggerCodeMenuTests
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
         void  RunDebuggerAction       (const DebuggerAction & action)   override { commands.push_back (action.echo); }
 
+        bool  IsDebuggerSkipNoticeShown()          override { return isNoticeOn; }
+        void  SetDebuggerSkipNoticeShown (bool on) override { isNoticeOn = on; }
+
         std::vector<int>  scrolls;
+        bool              isNoticeOn = false;
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -116,10 +120,19 @@ namespace DebuggerCodeMenuTests
             return answer;
         }
 
+        int ShowCheckMessageBox (HWND, const std::wstring & text, const wchar_t *, UINT, const std::wstring &, bool & ioChecked) override
+        {
+            notices.push_back (text);
+            ioChecked = isNoticeTurnedOff;
+            return IDOK;
+        }
+
         std::wstring               typed;
         std::wstring               shownPlaceholder;
         std::vector<std::wstring>  messages;
-        int                        answer   = IDYES;
+        std::vector<std::wstring>  notices;
+        bool                       isNoticeTurnedOff = false;
+        int                        answer            = IDYES;
     };
 
 
@@ -226,6 +239,51 @@ namespace DebuggerCodeMenuTests
             Assert::AreEqual (-1, host.scrolls[0]);
             Assert::IsTrue   (host.scrolls[1] < -1, L"a page up");
             Assert::AreEqual (1, host.scrolls[2]);
+        }
+
+
+
+        //  A routine the step filter has is a checked row whose click takes
+        //  it out; adding one opens a notice of how to take it out again, until the
+        //  notice's check box turns the notice off.
+        TEST_METHOD (NeverStepIntoIsCheckedWhileTheFilterHasTheRoutine)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               filtered = MakeSnapshot();
+            auto               plain    = MakeSnapshot();
+            Items              items;
+
+
+
+            filtered->stepFilters = { { "COUT", 0xFDED, 0xFDED } };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (filtered);
+
+            window.GetCodeEdits().AddItems (0, filtered->code[1], 1, items);
+            Run (items, PaneMenu::MakeChecked (L"Never step into this routine"));
+            Assert::AreEqual (std::string ("SKIP -COUT"), host.commands.back(), L"a click on the checked row takes it out");
+
+            window.TakeSnapshot (plain);
+            items.clear();
+            host.isNoticeOn          = true;
+            window.isNoticeTurnedOff = true;
+
+            window.GetCodeEdits().AddItems (0, plain->code[1], 1, items);
+            Run (items, L"Never step into this routine");
+
+            Assert::AreEqual (std::string ("SKIP COUT"), host.commands.back(), L"a click on the plain row adds it");
+            Assert::AreEqual ((size_t) 1, window.notices.size(), L"with the notice");
+            Assert::IsTrue   (window.notices.front().find (L"SKIP - COUT") != std::wstring::npos, L"with the command that takes it out");
+            Assert::IsFalse  (host.isNoticeOn, L"its check box turned it off");
+
+            Run (items, L"Never step into this routine");
+            Assert::AreEqual ((size_t) 1, window.notices.size(), L"no notice once it is off");
         }
 
 

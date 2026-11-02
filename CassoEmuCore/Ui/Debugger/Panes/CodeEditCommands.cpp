@@ -112,7 +112,7 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
 
     items.push_back ({ L"Clear data marking", [this, range] { m_host.RunAction (DebuggerActions::GetClearData (range.first, range.second, m_host.GetMode())); } });
     items.push_back ({ L"Add symbol here...", [this, at]    { AddSymbolDialog::Run (m_host, at); } });
-    items.push_back ({ L"Never step into this routine", [this, name, routine] { m_host.RunAction (DebuggerActions::GetSkipRoutine (name, routine, m_host.GetMode())); } });
+    m_host.AddSkipItem (name, routine, items);
 
     if (bookmark != snapshot.bookmarks.end())
     {

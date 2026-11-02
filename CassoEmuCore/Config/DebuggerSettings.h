@@ -98,6 +98,10 @@ struct DebuggerSettings
     // failed action's error and the result of an action that produces one.
     bool         echoActions              = false;
 
+    // Whether a notice of how to take a routine out of the step filter opens
+    // when a menu adds it; the notice's check box turns it off.
+    bool         skipNoticeShown          = true;
+
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one
     // following the PC, memory windows 2 to 4, and device panels. The layout

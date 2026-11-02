@@ -24,6 +24,8 @@ public:
     //  The command a toolbar entry carries: the label, and nothing to run.
     std::shared_ptr<const DxuiCommand>  GetCommand () const { return m_command; }
     const std::wstring               &  GetLabel   () const { return m_label; }
+    void                                SetLabel   (const std::wstring & label);
+    void                                SetTip     (const std::wstring & tip) { m_tip = tip; }
 
     int              GetWidthPx    (bool labeled, const DxuiDpiScaler & scaler, IDxuiTextRenderer * text) const override;
     void             Layout        (const RECT & rc, bool labeled, const DxuiDpiScaler & scaler) override;
@@ -43,6 +45,7 @@ private:
     static constexpr int    kLabelGuess = 7;
 
     std::wstring                  m_label;
+    std::wstring                  m_tip;
     std::shared_ptr<DxuiCommand>  m_command;
     RECT                          m_rc     = {};
     DxuiDpiScaler                 m_scaler;

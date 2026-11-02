@@ -243,13 +243,102 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     {
         bool  isEnabled = (bool) action;
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
         m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddSkipItem
+//
+//  A routine is in the step filter by its name, or by an address its range
+//  has when it has no name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMenuItems & items)
+{
+    constexpr const wchar_t  * kpszLabel = L"Never step into this routine";
+    auto                       found     = m_snapshot == nullptr ? std::vector<StepFilterEntry>::const_iterator()
+                                                                 : std::ranges::find_if (m_snapshot->stepFilters, [&name, address] (const StepFilterEntry & entry)
+                                                                   {
+                                                                       return !name.empty() ? _stricmp (entry.name.c_str(), name.c_str()) == 0
+                                                                                            : entry.name.empty() && address >= entry.first && address <= entry.last;
+                                                                   });
+
+
+
+    if (m_snapshot != nullptr && found != m_snapshot->stepFilters.end())
+    {
+        items.push_back ({ PaneMenu::MakeChecked (kpszLabel), [this, entry = *found] { RunAction (DebuggerActions::GetRemoveSkip (entry, GetMode())); } });
+        return;
+    }
+
+    items.push_back ({ kpszLabel, [this, name, address]
+    {
+        RunAction (DebuggerActions::GetSkipRoutine (name, address, GetMode()));
+        ShowSkipNotice (name.empty() ? std::format ("{:04X}", address) : name);
+    } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowSkipNotice
+//
+//  How to take a routine out of the step filter again, until the notice's
+//  check box turns it off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowSkipNotice (const std::string & routine)
+{
+    bool          isOff = false;
+    std::wstring  text;
+
+
+
+    if (m_host == nullptr || !m_host->IsDebuggerSkipNoticeShown())
+    {
+        return;
+    }
+
+    text = std::format (L"A step into {0} now steps over it.\n\nTo step into it again, click the checked Never step into this routine on its menu, "
+                        L"remove it in Debug > Step filters..., or type SKIP - {0}.", TextEncoding::NarrowToWide (routine));
+
+    (void) ShowCheckMessageBox (GetRoutingHwnd(), text, L"Step filter", MB_OK | MB_ICONINFORMATION, L"Don't show this message again", isOff);
+
+    if (isOff)
+    {
+        m_host->SetDebuggerSkipNoticeShown (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowCheckMessageBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::ShowCheckMessageBox (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type, const std::wstring & checkLabel, bool & ioChecked)
+{
+    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type, checkLabel, ioChecked);
 }
 
 

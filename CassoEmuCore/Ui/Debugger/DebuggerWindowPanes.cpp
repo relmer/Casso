@@ -874,7 +874,7 @@ void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 

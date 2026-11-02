@@ -51,6 +51,8 @@ public:
     void            SetDebuggerFocusedPane        (const std::string & text);
     bool            IsDebuggerEchoingActions      ();
     void            SetDebuggerEchoingActions     (bool isEchoing);
+    bool            IsDebuggerSkipNoticeShown     ();
+    void            SetDebuggerSkipNoticeShown    (bool isShown);
     int             GetDebuggerTextZoomPercent    ();
     void            SetDebuggerTextZoomPercent    (int percent);
     std::string     GetDebuggerDisassemblyOptions ();

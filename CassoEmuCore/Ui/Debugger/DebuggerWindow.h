@@ -251,6 +251,7 @@ protected:
     //  A question put to the user in a message box centered on owner, as
     //  DxuiMessageBox puts it, with its answer; a test answers it instead.
     int                        ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type) override;
+    virtual int                ShowCheckMessageBox    (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type, const std::wstring & checkLabel, bool & ioChecked);
     int                        ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type,
                                                        const std::vector<DxuiMessageBoxButton> & buttons, int defaultId) override;
 
@@ -812,6 +813,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                 ShowPcCode             () override { ShowCode (std::nullopt); }
     void                 GoToMemory             (Word address) override;
     void                 AddShowInMemoryItems   (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) override { AddShowInMemory (what, goTo, items); }
+    void                 AddSkipItem            (const std::string & name, Word address, PaneMenuItems & items) override;
+    void                 ShowSkipNotice         (const std::string & routine);
     void                 GoLive                 () override { GoLiveFromBand(); }
     const StopChanges  & GetStopChanges         () const override { return m_stopChanges; }
     POINT                GetLastPressPx         () const override { return m_lastPressPx; }

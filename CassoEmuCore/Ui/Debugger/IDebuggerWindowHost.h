@@ -128,6 +128,10 @@ public:
 
     //  The panes' text size as a whole percentage, kept the same way. A host
     //  that keeps no preferences, as a test's is, has 100%.
+    //  Whether a notice of how to take a routine out of the step filter opens
+    //  when a menu adds it; off for a host with no preferences, as a test's is.
+    virtual bool            IsDebuggerSkipNoticeShown  ()               { return false; }
+    virtual void            SetDebuggerSkipNoticeShown (bool isShown)   { (void) isShown; }
     virtual int             GetDebuggerTextZoomPercent ()               { return 100; }
     virtual void            SetDebuggerTextZoomPercent (int percent)    { (void) percent; }
 

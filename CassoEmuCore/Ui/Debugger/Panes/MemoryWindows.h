@@ -6,6 +6,7 @@ class MemoryAddressEntry;
 class MemoryBarCommands;
 class MemoryPane;
 class MemoryWindowGroup;
+class ToolbarLabelEntry;
 
 
 
@@ -162,6 +163,8 @@ private:
     void              ApplyResults     (const DebuggerViewSnapshot & snapshot);
     void              FindIn           (MemoryWindowPane * window);
     void              StepFind         (bool forward);
+    void              SetBarEntries    ();
+    void              ShowFindCount    (const std::wstring & text);
     void              FillSelection    (MemoryWindowPane * window);
     void              CopySelection    (MemoryWindowPane * window);
     void              CompareSelection (MemoryWindowPane * window);
@@ -172,6 +175,7 @@ private:
     DxuiTextInput                                                       * m_box       = nullptr;
     std::unique_ptr<MemoryBarCommands>                                    m_commands;
     std::unique_ptr<MemoryAddressEntry>                                   m_addressEntry;
+    std::unique_ptr<ToolbarLabelEntry>                                    m_findCount;      // "3 of 12" after a Find, at the bar's end
     std::vector<std::wstring>                                             m_history;
     MemoryWindowPane                                                    * m_active    = nullptr;
     std::wstring                                                          m_barPane;

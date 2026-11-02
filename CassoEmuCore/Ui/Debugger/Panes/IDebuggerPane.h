@@ -22,6 +22,17 @@ class DebuggerPaneFrame;
 //  A context menu's rows: each its label and what choosing it does.
 using PaneMenuItems = std::vector<std::pair<std::wstring, std::function<void()>>>;
 
+//  A menu row drawn with a check: its label starts with kChecked, which the
+//  menu takes off.
+struct PaneMenu
+{
+    static constexpr wchar_t  kChecked = L'\x1F';
+
+    static std::wstring  MakeChecked (const std::wstring & label) { return std::wstring (1, kChecked) + label; }
+    static bool          IsChecked   (const std::wstring & label) { return !label.empty() && label[0] == kChecked; }
+    static std::wstring  GetText     (const std::wstring & label) { return IsChecked (label) ? label.substr (1) : label; }
+};
+
 
 
 
@@ -120,6 +131,11 @@ public:
     //  The rows a menu gets to show an address or a Go to text in each open
     //  memory window.
     virtual void                   AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) = 0;
+
+    //  A routine's Never step into this routine row: checked while the step
+    //  filter has it, a click then taking it out; otherwise a click adds it
+    //  and opens a notice of how to take it out again.
+    virtual void                   AddSkipItem          (const std::string & name, Word address, PaneMenuItems & items) = 0;
 
     //  Goes back to the machine's present from a point in its history.
     virtual void                   GoLive           () = 0;

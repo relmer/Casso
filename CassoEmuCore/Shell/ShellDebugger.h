@@ -311,6 +311,8 @@ public:
     std::map<std::string, std::string>  GetProjectWindowStrings () const;
     void         SetProjectWindowStrings (const std::map<std::string, std::string> & strings);
     void         SetDebuggerWindowState (const std::string & name, const std::string & text) override { m_prefs.SetDebuggerWindowState (name, text); }
+    bool         IsDebuggerSkipNoticeShown  () override { return m_prefs.IsDebuggerSkipNoticeShown(); }
+    void         SetDebuggerSkipNoticeShown (bool isShown) override { m_prefs.SetDebuggerSkipNoticeShown (isShown); }
     int          GetDebuggerTextZoomPercent () override { return m_prefs.GetDebuggerTextZoomPercent(); }
     void         SetDebuggerTextZoomPercent (int percent) override { m_prefs.SetDebuggerTextZoomPercent (percent); }
     std::string  GetDebuggerDisassemblyOptions () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
