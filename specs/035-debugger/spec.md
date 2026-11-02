@@ -2458,7 +2458,8 @@ run something, switch back to the //e: it is where it was left.
   state; changes go through commands.
 - **FR-050**: The first release MUST publish panels for: the Disk II
   controller (phase magnets, quarter track, motor state and spin-up, the read
-  state), the //e MMU and soft switches (every switch, and for each page which
+  state, with a D1, D2 or both choice on its bar, both by default and saved,
+  the two drives side by side or stacked on a narrow pane), the //e MMU and soft switches (every switch, and for each page which
   bank it reads and writes from), the video mode, the keyboard (latch, strobe,
   modifiers), the Mockingboard (each 6522's ports, timers and interrupt
   registers; each sound chip's registers), the printer (head position and

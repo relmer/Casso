@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/DevicePanelController.h"
 
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
@@ -78,7 +79,10 @@ void DevicePanelController::CreateControls()
 
 
 
-    m_model = std::make_unique<DiagnosticsPane> (m_panelId, m_title, list, map, head, meters, board);
+    m_bar = std::make_unique<PaneBarSlot> (m_host, GetId(), m_title + L" toolbar");
+    m_bar->Create();
+
+    m_model = std::make_unique<DiagnosticsPane> (m_panelId, m_title, list, map, head, meters, board, m_bar->GetSlot());
     list->SetVisible (false);
 
     board->SetOnMute ([this] (int channel, bool isMuted)
@@ -102,7 +106,198 @@ void DevicePanelController::CreateControls()
 
 void DevicePanelController::Configure()
 {
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
     m_model->Configure();
+    m_bar->Configure();
+
+    m_model->GetHead()->SetChoice (FromText ((host != nullptr) ? host->GetDebuggerDiskDrives() : std::string()));
+    SetDriveBarEntries();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::SetDriveBarEntries
+//
+//  The Disk II panel's drives: D1, D2 or both, one of them checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DevicePanelController::SetDriveBarEntries()
+{
+    using Choice = DiskHeadView::DriveChoice;
+
+    static constexpr std::tuple<int, const wchar_t *, const wchar_t *, Choice>  s_kChoices[] =
+    {
+        { 1, L"D1",   L"Show drive 1",          Choice::Drive1 },
+        { 2, L"D2",   L"Show drive 2",          Choice::Drive2 },
+        { 3, L"Both", L"Show both drives",      Choice::Both   },
+    };
+
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    m_commands.clear();
+
+    for (const auto & [id, label, tip, choice] : s_kChoices)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        DxuiToolbar::Entry            entry;
+        Choice                        each    = choice;
+
+        command->id        = id;
+        command->label     = label;
+        command->tip       = tip;
+        command->isChecked = [this, each] { return m_model->GetHead()->GetChoice() == each; };
+        command->dispatch  = [this, each] { SetDrives (each); };
+
+        entry.command = command;
+        entry.kind    = DxuiToolbar::Kind::Toggle;
+
+        m_commands.push_back (command);
+        entries.push_back (std::move (entry));
+    }
+
+    m_bar->GetBar()->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::SetDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DevicePanelController::SetDrives (DiskHeadView::DriveChoice choice)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+    m_model->GetHead()->SetChoice (choice);
+
+    if (host != nullptr)
+    {
+        host->SetDebuggerDiskDrives (ToText (choice));
+    }
+
+    m_host.RelayoutDock();
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::ToText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DevicePanelController::ToText (DiskHeadView::DriveChoice choice)
+{
+    switch (choice)
+    {
+    case DiskHeadView::DriveChoice::Drive1:  return "1";
+    case DiskHeadView::DriveChoice::Drive2:  return "2";
+    default:                                 return "both";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::FromText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskHeadView::DriveChoice DevicePanelController::FromText (const std::string & text)
+{
+    if (text == "1")
+    {
+        return DiskHeadView::DriveChoice::Drive1;
+    }
+
+    if (text == "2")
+    {
+        return DiskHeadView::DriveChoice::Drive2;
+    }
+
+    return DiskHeadView::DriveChoice::Both;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::GetBars
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar *> DevicePanelController::GetBars() const
+{
+    return { m_bar->GetBar() };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::PlaceBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DevicePanelController::PlaceBar()
+{
+    m_bar->Place();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::RouteBarMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DevicePanelController::RouteBarMouse (const DxuiMouseEvent & ev)
+{
+    return m_bar->RouteMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::GetBarTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DevicePanelController::GetBarTip (POINT clientPx, RECT & anchor) const
+{
+    return m_bar->GetTip (clientPx, anchor);
 }
 
 
@@ -210,7 +405,12 @@ IDxuiControl * DevicePanelController::GetContent() const
 
 std::vector<IDxuiControl *> DevicePanelController::GetControls() const
 {
-    return m_model->GetControls();
+    std::vector<IDxuiControl *>  controls = m_model->GetControls();
+
+
+
+    controls.insert (controls.begin(), { m_bar->GetSlot(), m_bar->GetBar() });
+    return controls;
 }
 
 

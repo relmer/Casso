@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
@@ -30,7 +31,8 @@ DiagnosticsPane::DiagnosticsPane (
     MemoryMapBar   * map,
     DiskHeadView   * head,
     MeterBar       * meters,
-    SoundBoardView * board) :
+    SoundBoardView * board,
+    IDxuiControl   * driveBar) :
     m_id      (std::move (id)),
     m_title   (std::move (title)),
     m_list    (list),
@@ -40,6 +42,11 @@ DiagnosticsPane::DiagnosticsPane (
     m_board   (board),
     m_frame   (std::make_unique<DebuggerPaneFrame> (m_title))
 {
+    if (driveBar != nullptr)
+    {
+        m_frame->AddPart (driveBar, PaneBarSlot::GetHeightPx, [this] { return m_visual == Visual::DiskHead; });
+    }
+
     //  The memory map's strips run down the pane beside the list.
     m_frame->AddPart (m_map, nullptr, [this] { return m_visual == Visual::MemoryMap; });
     m_frame->AddPart (m_head,

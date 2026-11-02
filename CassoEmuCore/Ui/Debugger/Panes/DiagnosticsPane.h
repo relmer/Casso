@@ -34,7 +34,10 @@ class SoundBoardView;
 class DiagnosticsPane
 {
 public:
-    DiagnosticsPane (std::string id, std::wstring title, DxuiListView * list, MemoryMapBar * map, DiskHeadView * head, MeterBar * meters, SoundBoardView * board);
+    //  The bar, when given, is visible over a disk head alone, for its choice
+    //  of drives.
+    DiagnosticsPane (std::string id, std::wstring title, DxuiListView * list, MemoryMapBar * map, DiskHeadView * head, MeterBar * meters, SoundBoardView * board,
+                     IDxuiControl * driveBar = nullptr);
 
     DiagnosticsPane (const DiagnosticsPane &)             = delete;
     DiagnosticsPane & operator= (const DiagnosticsPane &) = delete;

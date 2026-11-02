@@ -69,6 +69,9 @@ struct DebuggerSettings
     // default.
     std::string  heatMapOptions;
 
+    // The Disk II panel's drives, "1", "2" or "both"; empty means both.
+    std::string  diskDrives;
+
     // The heat map's sets of ranges and the set it shows, in
     // HeatMapRangeSets' text; empty until the ranges pane first opens.
     std::string  heatMapRanges;

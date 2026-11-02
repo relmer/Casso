@@ -1661,6 +1661,12 @@ device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same
 from the command box.
 
+The Disk II panel's bar chooses the drives it draws: **D1**, **D2** or
+**Both**, the default, which is saved with the debugger's settings. With both,
+each drive has its head and lamps, side by side where the pane is wide enough
+and one over the other where it isn't. Only the selected drive's phases and
+motor are lit.
+
 The Mockingboard panel is a graphical view of the card's chips, in as many
 columns as fit the pane. On a Mockingboard C, the SSI-263's card is across the
 top: the phoneme by name, its waveform, its three formants over the pitch's

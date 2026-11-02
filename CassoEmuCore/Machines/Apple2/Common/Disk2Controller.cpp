@@ -1328,7 +1328,7 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     snapshot.groups.push_back (std::move (drive));
     snapshot.groups.push_back (std::move (head));
     snapshot.groups.push_back (std::move (sequencer));
-    snapshot.visual = DiagnosticsDiskHead { GetQuarterTrack(), kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
+    snapshot.visual = DiagnosticsDiskHead { GetQuarterTrack(), kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive, { GetQuarterTrack (0), GetQuarterTrack (1) } };
 }
 
 

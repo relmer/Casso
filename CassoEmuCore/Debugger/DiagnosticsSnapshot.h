@@ -91,6 +91,10 @@ struct DiagnosticsDiskHead
     Byte  phases          = 0;      // bit n is phase magnet n
     bool  motorOn         = false;
     int   drive           = 0;
+
+    //  Each drive's quarter track: the selected drive's is quarterTrack,
+    //  and the other's is where its head was left.
+    std::array<int, 2>  quarterTracks = {};
 };
 
 struct DiagnosticsMeters

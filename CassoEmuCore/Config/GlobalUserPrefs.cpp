@@ -108,6 +108,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerPlacements",
     "debuggerDisassemblyOptions",
     "debuggerHeatMapOptions",
+    "debuggerDiskDrives",
     "debuggerHeatMapRanges",
     "debuggerDiskLogOptions",
     "debuggerInputLogOptions",
@@ -1305,6 +1306,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerFocusedPane", JsonValue (debugger.focusedPane));
     root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debugger.disassemblyOptions));
     root.emplace_back ("debuggerHeatMapOptions",     JsonValue (debugger.heatMapOptions));
+    root.emplace_back ("debuggerDiskDrives",         JsonValue (debugger.diskDrives));
     root.emplace_back ("debuggerHeatMapRanges",      JsonValue (debugger.heatMapRanges));
     root.emplace_back ("debuggerDiskLogOptions",     JsonValue (debugger.diskLogOptions));
     root.emplace_back ("debuggerInputLogOptions",    JsonValue (debugger.inputLogOptions));
@@ -1589,6 +1591,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     debugger.disassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debugger.disassemblyOptions);
     debugger.heatMapOptions     = GetStringOpt (v, "debuggerHeatMapOptions",     debugger.heatMapOptions);
+    debugger.diskDrives         = GetStringOpt (v, "debuggerDiskDrives",         debugger.diskDrives);
     debugger.heatMapRanges      = GetStringOpt (v, "debuggerHeatMapRanges",      debugger.heatMapRanges);
     debugger.diskLogOptions     = GetStringOpt (v, "debuggerDiskLogOptions",     debugger.diskLogOptions);
     debugger.inputLogOptions    = GetStringOpt (v, "debuggerInputLogOptions",    debugger.inputLogOptions);

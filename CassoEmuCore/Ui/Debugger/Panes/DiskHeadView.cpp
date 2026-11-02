@@ -11,12 +11,114 @@
 //
 //  DiskHeadView::SetHead
 //
+//  The payload's drives as the choice has them: the drive this view draws,
+//  and with both chosen, drive 2 on the view beside or under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskHeadView::SetHead (const DiagnosticsDiskHead & head)
+{
+    int  drive = head.drive;
+
+
+
+    m_payload = head;
+
+    switch (m_choice)
+    {
+    case DriveChoice::Drive1:  drive = 0; break;
+    case DriveChoice::Both:    drive = 0; break;
+    case DriveChoice::Drive2:  drive = 1; break;
+    default:                   break;
+    }
+
+    SetDriveHead (MakeDriveHead (head, drive));
+
+    if (m_choice == DriveChoice::Both && m_other != nullptr)
+    {
+        m_other->SetHead (MakeDriveHead (head, 1));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::SetChoice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskHeadView::SetChoice (DriveChoice choice)
+{
+    m_choice = choice;
+
+    if (choice == DriveChoice::Both && m_other == nullptr)
+    {
+        m_other = std::make_unique<DiskHeadView>();
+    }
+
+    SetHead (m_payload);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::MakeDriveHead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiagnosticsDiskHead DiskHeadView::MakeDriveHead (const DiagnosticsDiskHead & payload, int drive)
+{
+    DiagnosticsDiskHead  head = payload;
+
+
+
+    if (drive == payload.drive || drive < 0 || drive >= (int) payload.quarterTracks.size())
+    {
+        return head;
+    }
+
+    head.drive        = drive;
+    head.quarterTrack = payload.quarterTracks[(size_t) drive];
+    head.phases       = 0;
+    head.motorOn      = false;
+    return head;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::IsSideBySide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskHeadView::IsSideBySide (int widthPx, const DxuiDpiScaler & scaler)
+{
+    return widthPx >= scaler.ToPx (kSideBySideDip) * 2 + scaler.ToPx (kLabelGapDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskHeadView::SetDriveHead
+//
 //  The first head, or another drive's, places the marker at once; a seek on
 //  the same drive leaves it to sweep there on the ticks that follow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskHeadView::SetHead (const DiagnosticsDiskHead & head)
+void DiskHeadView::SetDriveHead (const DiagnosticsDiskHead & head)
 {
     if (!m_placed || head.drive != m_head.drive)
     {
@@ -76,6 +178,11 @@ void DiskHeadView::Tick (int64_t nowMs)
     }
 
     std::erase_if (m_trail, [nowMs] (const auto & left) { return nowMs - left.second > kFadeMs; });
+
+    if (m_choice == DriveChoice::Both && m_other != nullptr)
+    {
+        m_other->Tick (nowMs);
+    }
 }
 
 
@@ -156,6 +263,11 @@ std::wstring DiskHeadView::GetColorTipAt (POINT clientPx) const
 
 
 
+    if (m_choice == DriveChoice::Both && m_other != nullptr && !inside)
+    {
+        return m_visible ? m_other->GetColorTipAt (clientPx) : std::wstring();
+    }
+
     if (!m_visible || !inside)
     {
         return {};
@@ -190,11 +302,23 @@ std::wstring DiskHeadView::GetColorTipAt (POINT clientPx) const
 
 int DiskHeadView::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
 {
-    int  rows = 1 + (IsLabelBelow ((float) widthPx, scaler) ? 1 : 0) + (IsLabelSplit ((float) widthPx, scaler) ? 1 : 0);
+    int   gap  = scaler.ToPx (kLabelGapDip);
+    int   half = (widthPx - gap) / 2;
+    auto  one  = [this, &scaler] (int width)
+    {
+        int  rows = 1 + (IsLabelBelow ((float) width, scaler) ? 1 : 0) + (IsLabelSplit ((float) width, scaler) ? 1 : 0);
+
+        return scaler.ToPx (kRulerDip + kGapDip + kRowDip * rows);
+    };
 
 
 
-    return scaler.ToPx (kRulerDip + kGapDip + kRowDip * rows);
+    if (m_choice != DriveChoice::Both)
+    {
+        return one (widthPx);
+    }
+
+    return IsSideBySide (widthPx, scaler) ? one (half) : one (widthPx) * 2 + gap;
 }
 
 
@@ -375,8 +499,33 @@ float DiskHeadView::GetHeadWidth() const
 
 void DiskHeadView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
+    int   width = (int) (boundsPx.right - boundsPx.left);
+    int   gap   = scaler.ToPx (kLabelGapDip);
+    RECT  other = boundsPx;
+
+
+
     m_boundsDip = boundsPx;
     m_scaler    = scaler;
+
+    if (m_choice != DriveChoice::Both || m_other == nullptr)
+    {
+        return;
+    }
+
+    if (IsSideBySide (width, scaler))
+    {
+        m_boundsDip.right = boundsPx.left + (width - gap) / 2;
+        other.left        = m_boundsDip.right + gap;
+    }
+    else
+    {
+        m_boundsDip.bottom = boundsPx.top + (int) (boundsPx.bottom - boundsPx.top - gap) / 2;
+        other.top          = m_boundsDip.bottom + gap;
+    }
+
+    m_other->SetVisible (true);
+    m_other->Layout     (other, scaler);
 }
 
 
@@ -402,6 +551,11 @@ void DiskHeadView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     PaintRuler (painter, theme);
     PaintLamps (painter, text, theme);
+
+    if (m_choice == DriveChoice::Both && m_other != nullptr)
+    {
+        m_other->Paint (painter, text, theme);
+    }
 }
 
 

@@ -319,6 +319,8 @@ public:
     void         SetDebuggerDisassemblyOptions (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
     std::string  GetDebuggerHeatMapOptions () override { return m_prefs.GetDebuggerHeatMapOptions(); }
     void         SetDebuggerHeatMapOptions (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
+    std::string  GetDebuggerDiskDrives     () override { return m_prefs.GetDebuggerDiskDrives(); }
+    void         SetDebuggerDiskDrives     (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
     void         ResetDebuggerHeatMap      () override;
     void         SendDebuggerHeatMapRequest (const std::string & words) override;
     std::string  GetDebuggerHeatMapRanges  () override { return m_prefs.GetDebuggerHeatMapRanges(); }

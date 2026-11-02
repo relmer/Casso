@@ -39,8 +39,31 @@ public:
     static constexpr int64_t  kSettleMs     = 500;      // arrival flash down to the accent
     static constexpr int64_t  kFadeMs       = 1500;     // a track left behind, to gone
 
-    void                         SetHead (const DiagnosticsDiskHead & head);
-    const DiagnosticsDiskHead &  GetHead () const                           { return m_head; }
+    static constexpr int      kSideBySideDip = 300;    // the narrowest a drive is drawn beside the other
+
+    //  Which drive the view draws: the selected one, drive 1, drive 2, or
+    //  both, side by side where each has kSideBySideDip and one over the
+    //  other where not.
+    enum class DriveChoice
+    {
+        Selected,
+        Drive1,
+        Drive2,
+        Both,
+    };
+
+    void                         SetHead   (const DiagnosticsDiskHead & head);
+    const DiagnosticsDiskHead &  GetHead   () const                         { return m_head; }
+    void                         SetChoice (DriveChoice choice);
+    DriveChoice                  GetChoice () const                         { return m_choice; }
+    const DiskHeadView         * GetOther  () const                         { return m_other.get(); }
+
+    //  One drive's head from the payload: the selected drive's as it is, the
+    //  other's at its quarter track with its phases and motor off.
+    static DiagnosticsDiskHead   MakeDriveHead (const DiagnosticsDiskHead & payload, int drive);
+
+    //  Whether two drives go side by side in a width.
+    static bool                  IsSideBySide  (int widthPx, const DxuiDpiScaler & scaler);
 
     //  A row more where the drive and track do not fit beside the lamps, and
     //  another where they do not fit on one row.
@@ -85,9 +108,14 @@ private:
     //  1 where the lamp row fits the width, less where it has to shrink.
     float         GetLampScale  (float widthPx) const;
 
-    DiagnosticsDiskHead  m_head;
-    DxuiDpiScaler        m_scaler;
-    float                m_fontDip = 12.0f;     // the label's font, as last painted
+    void  SetDriveHead (const DiagnosticsDiskHead & head);
+
+    DiagnosticsDiskHead            m_head;
+    DiagnosticsDiskHead            m_payload;
+    DriveChoice                    m_choice  = DriveChoice::Selected;
+    std::unique_ptr<DiskHeadView>  m_other;
+    DxuiDpiScaler                  m_scaler;
+    float                          m_fontDip = 12.0f;   // the label's font, as last painted
 
     bool                         m_placed    = false;               // the marker has a position yet
     double                       m_shown     = 0.0;                 // the marker's quarter track, on its way to the head's

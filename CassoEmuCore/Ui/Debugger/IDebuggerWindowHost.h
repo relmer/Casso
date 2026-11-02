@@ -198,6 +198,10 @@ public:
     //  counted. A host with no machine, as a test's is, keeps nothing.
     virtual std::string  GetDebuggerHeatMapOptions ()                      { return {}; }
     virtual void         SetDebuggerHeatMapOptions (const std::string &)   {}
+
+    //  The Disk II panel's choice of drives, saved as the other options are.
+    virtual std::string  GetDebuggerDiskDrives ()                          { return {}; }
+    virtual void         SetDebuggerDiskDrives (const std::string &)       {}
     virtual void         ResetDebuggerHeatMap      ()                      {}
 
     //  A heat map request for the machine, in the words after "heatmap" of

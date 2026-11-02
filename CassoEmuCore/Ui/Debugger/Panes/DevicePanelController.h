@@ -1,8 +1,10 @@
 #pragma once
 
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
+#include "Ui/Debugger/Panes/DiskHeadView.h"
 
 class DiagnosticsPane;
+class PaneBarSlot;
 
 
 
@@ -48,10 +50,24 @@ public:
     //  the sound log.
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
     bool                             RouteContentMouse (const DxuiMouseEvent & ev) override;
+    std::vector<DxuiToolbar *>       GetBars        () const override;
+    void                             PlaceBar       () override;
+    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override;
+    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override;
+
+    //  The Disk II panel's choice of drives as it is saved, "1", "2" or
+    //  "both", and back; anything else reads as both.
+    static std::string                   ToText   (DiskHeadView::DriveChoice choice);
+    static DiskHeadView::DriveChoice     FromText (const std::string & text);
 
 private:
-    std::string                         m_panelId;
-    std::wstring                        m_title;
-    std::unique_ptr<DiagnosticsPane>    m_model;
-    bool                                m_isOpen = false;
+    void  SetDriveBarEntries ();
+    void  SetDrives          (DiskHeadView::DriveChoice choice);
+
+    std::string                                m_panelId;
+    std::wstring                               m_title;
+    std::unique_ptr<DiagnosticsPane>           m_model;
+    std::unique_ptr<PaneBarSlot>               m_bar;
+    std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
+    bool                                       m_isOpen   = false;
 };

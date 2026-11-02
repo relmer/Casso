@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/DiskHeadView.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
@@ -189,6 +190,58 @@ namespace DebuggerTests
             }
 
             Assert::IsTrue (motorEnd > 0.0f && labelX >= motorEnd + (float) DiskHeadView::kLabelGapDip, L"a gap between Motor and the label");
+        }
+
+
+
+        //  With both drives chosen, drive 2's head is drawn beside drive 1's
+        //  where the width has room for two, and under it where it does not.
+        //  The drive not selected has its track, with its phases and motor off.
+        TEST_METHOD (BothDrivesAreDrawnSideBySideOrStacked)
+        {
+            DiskHeadView         view;
+            DiagnosticsDiskHead  payload { 40, 139, 0x03, true, 0, { 40, 68 } };
+            int                  wide    = (DiskHeadView::kSideBySideDip + DiskHeadView::kLabelGapDip) * 2;
+            int                  single  = 0;
+
+
+
+            view.SetHead   (payload);
+            view.SetChoice (DiskHeadView::DriveChoice::Both);
+
+            Assert::IsNotNull (view.GetOther());
+            Assert::AreEqual  (40, view.GetHead().quarterTrack);
+            Assert::AreEqual  (68, view.GetOther()->GetHead().quarterTrack);
+            Assert::AreEqual  (1,  view.GetOther()->GetHead().drive);
+            Assert::IsFalse   (view.GetOther()->GetHead().motorOn, L"the motor is drive 1's");
+            Assert::AreEqual  ((int) (Byte) 0, (int) view.GetOther()->GetHead().phases);
+
+            view.Layout (RECT { 0, 0, wide, 100 }, Scaler96());
+            Assert::IsTrue  (view.GetOther()->GetBounds().left > view.GetBounds().right, L"beside");
+            Assert::AreEqual (view.GetBounds().top, view.GetOther()->GetBounds().top);
+
+            view.Layout (RECT { 0, 0, 300, 100 }, Scaler96());
+            Assert::IsTrue  (view.GetOther()->GetBounds().top > view.GetBounds().bottom, L"under");
+
+            single = DiskHeadView().GetPreferredHeightPx (300, Scaler96());
+            Assert::IsTrue  (view.GetPreferredHeightPx (300, Scaler96()) > single * 2, L"two stacked and a gap");
+
+            view.SetChoice (DiskHeadView::DriveChoice::Drive2);
+            Assert::AreEqual (68, view.GetHead().quarterTrack, L"drive 2 alone");
+            Assert::AreEqual (single, view.GetPreferredHeightPx (300, Scaler96()));
+        }
+
+
+
+        //  The choice is saved as text and read back; anything else is both.
+        TEST_METHOD (TheDriveChoiceIsSavedAsText)
+        {
+            for (DiskHeadView::DriveChoice choice : { DiskHeadView::DriveChoice::Drive1, DiskHeadView::DriveChoice::Drive2, DiskHeadView::DriveChoice::Both })
+            {
+                Assert::IsTrue (choice == DevicePanelController::FromText (DevicePanelController::ToText (choice)));
+            }
+
+            Assert::IsTrue (DiskHeadView::DriveChoice::Both == DevicePanelController::FromText (""));
         }
     };
 }
