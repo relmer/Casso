@@ -64,6 +64,8 @@ struct IoEvent
     Byte         command      = 0;
     Byte         lines        = 0;
     uint16_t     length       = 0;
+
+    bool  operator== (const IoEvent & other) const = default;
 };
 
 
