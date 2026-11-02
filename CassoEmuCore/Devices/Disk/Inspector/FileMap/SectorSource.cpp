@@ -114,7 +114,7 @@ bool SectorSource::ReadBlock (int block, std::array<Byte, 2 * kBytes> & outBytes
 //
 //  SectorSource::GetDos33Physical
 //
-//  The inverse of the analyzer's physical-to-DOS 3.3 table.
+//  The inverse of the analyzer's physical-to-DOS-order table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

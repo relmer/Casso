@@ -106,7 +106,7 @@ private:
 //  GoToKind / GoToTarget
 //
 //  What "Go to" selects (FR-055), each read in the base the inspector shows
-//  it in: a track as 17.25, a physical or DOS 3.3 sector in hex, a ProDOS
+//  it in: a track as 17.25, a physical sector or DOS-order sector index in hex, a ProDOS
 //  block and a cell in decimal, a nibble offset in hex; or a file of a
 //  mapped volume by its path (FR-095).
 //
@@ -116,7 +116,7 @@ enum class GoToKind
 {
     Track,
     PhysicalSector,
-    Dos33Sector,
+    DosOrderSector,
     ProDosBlock,
     NibbleOffset,
     Cell,

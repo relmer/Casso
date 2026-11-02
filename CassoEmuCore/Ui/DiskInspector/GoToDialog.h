@@ -14,7 +14,7 @@ class GoToBody;
 //
 //  GoToDialog
 //
-//  "Go to" (FR-055): a track, a physical or DOS 3.3 sector, a ProDOS block,
+//  "Go to" (FR-055): a track, a physical sector or DOS-order sector index, a ProDOS block,
 //  a nibble offset or a cell, each entered in the base the inspector shows
 //  it in, or a file chosen from a list. A sector, offset or cell is entered with its track. OK selects
 //  it; an entry that finds nothing has the reason under it as it is typed,
@@ -49,7 +49,8 @@ private:
     GoToKind  GetChosenKind   () const;
     int       GetEnteredTrack () const;
 
-    static LPCWSTR  GetEntryLabel (GoToKind kind);
+    static LPCWSTR                          GetEntryLabel      (GoToKind kind);
+    static vector<vector<std::wstring>>     BuildDosOrderTable ();
 
     const IDxuiTheme *    m_theme        = nullptr;   // non-owning
     const DiskAnalysis *  m_analysis     = nullptr;   // non-owning

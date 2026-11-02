@@ -70,20 +70,20 @@ enum class TrackClass
 
 struct AnalyzedSector
 {
-    int            addressField    = -1;
-    int            dataField       = -1;
-    Byte           sector          = 0;
-    DiskFieldKind  kind            = DiskFieldKind::Sixteen;
-    SectorState    state           = SectorState::Good;
-    bool           isAddressGood   = false;
-    bool           isAddressCheck  = true;
-    bool           isDataGood      = false;
-    bool           isDataCheck     = true;
-    int            passingIndex    = 0;
-    int            dos33Logical    = -1;
-    int            prodosBlock     = -1;
-    int            prodosHalf      = -1;
-    EditBlock      editBlock       = EditBlock::None;
+    int            addressField   = -1;
+    int            dataField      = -1;
+    Byte           sector         = 0;
+    DiskFieldKind  kind           = DiskFieldKind::Sixteen;
+    SectorState    state          = SectorState::Good;
+    bool           isAddressGood  = false;
+    bool           isAddressCheck = true;
+    bool           isDataGood     = false;
+    bool           isDataCheck    = true;
+    int            passingIndex   = 0;
+    int            dosOrderIndex  = -1;
+    int            prodosBlock    = -1;
+    int            prodosHalf     = -1;
+    EditBlock      editBlock      = EditBlock::None;
 };
 
 

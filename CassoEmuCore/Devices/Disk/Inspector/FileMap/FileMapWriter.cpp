@@ -27,7 +27,7 @@ int MappedFile::GetUsedCount() const
 //
 //  FileMapWriter::FileMapWriter
 //
-//  A cell per DOS 3.3 logical sector, ProDOS or Pascal block, or CP/M
+//  A cell per DOS-order sector index, ProDOS or Pascal block, or CP/M
 //  sector; a block's result is the worse of its two halves (FR-086).
 //
 ////////////////////////////////////////////////////////////////////////////////

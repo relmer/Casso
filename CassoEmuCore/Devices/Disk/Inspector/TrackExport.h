@@ -21,7 +21,7 @@
 enum class SectorOrder
 {
     Physical,
-    Dos33,
+    DosOrder,
     ProDos,
 };
 

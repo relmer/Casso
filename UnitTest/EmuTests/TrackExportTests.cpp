@@ -77,8 +77,8 @@ public:
         Assert::IsTrue   (problems.empty());
         Assert::IsTrue   (Chunk (bytes, 5) == Pattern (5));
 
-        TrackExport::ExportSectors (analysis, 2, 2, SectorOrder::Dos33, bytes, problems);
-        Assert::IsTrue   (Chunk (bytes, 1) == Pattern (0xD), L"DOS 3.3 logical sector 1 is physical sector $D");
+        TrackExport::ExportSectors (analysis, 2, 2, SectorOrder::DosOrder, bytes, problems);
+        Assert::IsTrue   (Chunk (bytes, 1) == Pattern (0xD), L"DOS-order sector index 1 is physical sector $D");
 
         TrackExport::ExportSectors (analysis, 2, 2, SectorOrder::ProDos, bytes, problems);
 

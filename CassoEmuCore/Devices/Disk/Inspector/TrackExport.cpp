@@ -96,7 +96,7 @@ void TrackExport::ExportTrackSectors (const TrackAnalysis * track, int wholeTrac
         {
             inOutBytes.insert (inOutBytes.end(), DiskFieldFormat::kSectorBytes, Byte (0));
             inOutProblems.push_back ({ wholeTrack, -1, std::format (L"{} {} is missing; written as zeros",
-                                                                    used == SectorOrder::Dos33  ? L"DOS 3.3 sector" :
+                                                                    used == SectorOrder::DosOrder  ? L"DOS-order sector index" :
                                                                     used == SectorOrder::ProDos ? L"ProDOS sector"  : L"sector",
                                                                     InspectorFormat::FormatSector (position)) });
         }
@@ -286,7 +286,7 @@ int TrackExport::FindSector (const TrackAnalysis & track, int wholeTrack, Sector
     {
         const AnalyzedSector &  sector = track.sectors[s];
 
-        if ((order == SectorOrder::Physical && sector.sector == position) || (order == SectorOrder::Dos33 && sector.dos33Logical == position) ||
+        if ((order == SectorOrder::Physical && sector.sector == position) || (order == SectorOrder::DosOrder && sector.dosOrderIndex == position) ||
             (order == SectorOrder::ProDos && sector.prodosBlock == wholeTrack * s_kBlocksPerTrack + position / s_kHalvesPerBlock &&
              sector.prodosHalf == position % s_kHalvesPerBlock))
         {

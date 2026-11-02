@@ -384,7 +384,7 @@ public:
 
         Assert::AreEqual (std::wstring (L"HELLO, data sector 2 of 3"), FileMapText::FormatOwners (map, DosCell (18, 13)));
         Assert::AreEqual (std::wstring (L"HELLO, track/sector list"),  FileMapText::FormatOwners (map, DosCell (18, 15)));
-        Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (17, 0)).starts_with (L"Track 17, DOS 3.3 sector $0 (physical sector $0)"));
+        Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (17, 0)).starts_with (L"Track 17, DOS-order sector index $0 (physical sector $0)"));
         Assert::IsTrue   (FileMapText::FormatTooltip (map, DosCell (18, 13)).ends_with (L" \x00B7 Good\nUsed by HELLO, data sector 2 of 3"));
         Assert::AreEqual (L"Selected: HELLO, data sector 2 of 3 at track 18, sector " + InspectorFormat::FormatSector (static_cast<Byte> (physical.sectors[0].sector)),
                           InspectorText::FormatSelection (&physical, 72, 0, -1, 0, &map));

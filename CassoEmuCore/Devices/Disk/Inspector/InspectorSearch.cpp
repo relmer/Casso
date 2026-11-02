@@ -583,7 +583,7 @@ bool InspectorGoTo::IsPartial (GoToKind kind, const std::wstring & text)
     {
         isPartial = text.find (L'.') != std::wstring::npos && (InspectorFormat::TryParseQuarterTrack (text + L"0", value) || InspectorFormat::TryParseQuarterTrack (text + L"5", value));
     }
-    else if (kind == GoToKind::PhysicalSector || kind == GoToKind::Dos33Sector || kind == GoToKind::NibbleOffset)
+    else if (kind == GoToKind::PhysicalSector || kind == GoToKind::DosOrderSector || kind == GoToKind::NibbleOffset)
     {
         isPartial = text == L"$";
     }
@@ -690,7 +690,7 @@ LPCWSTR InspectorGoTo::GetLabel (GoToKind kind)
     switch (kind)
     {
         case GoToKind::PhysicalSector: label = L"Physical sector"; break;
-        case GoToKind::Dos33Sector:    label = L"DOS 3.3 sector";  break;
+        case GoToKind::DosOrderSector:    label = L"DOS-order sector index";  break;
         case GoToKind::ProDosBlock:    label = L"ProDOS block";    break;
         case GoToKind::NibbleOffset:   label = L"Nibble offset";   break;
         case GoToKind::Cell:           label = L"Cell";            break;
@@ -713,7 +713,7 @@ LPCWSTR InspectorGoTo::GetLabel (GoToKind kind)
 
 bool InspectorGoTo::IsOnTrack (GoToKind kind)
 {
-    return kind == GoToKind::PhysicalSector || kind == GoToKind::Dos33Sector || kind == GoToKind::NibbleOffset || kind == GoToKind::Cell;
+    return kind == GoToKind::PhysicalSector || kind == GoToKind::DosOrderSector || kind == GoToKind::NibbleOffset || kind == GoToKind::Cell;
 }
 
 
@@ -728,7 +728,7 @@ bool InspectorGoTo::IsOnTrack (GoToKind kind)
 
 vector<GoToKind> InspectorGoTo::GetKinds (const DiskAnalysis & analysis)
 {
-    vector<GoToKind>  kinds = { GoToKind::Track, GoToKind::PhysicalSector, GoToKind::Dos33Sector, GoToKind::ProDosBlock, GoToKind::NibbleOffset, GoToKind::Cell, GoToKind::File };
+    vector<GoToKind>  kinds = { GoToKind::Track, GoToKind::PhysicalSector, GoToKind::DosOrderSector, GoToKind::ProDosBlock, GoToKind::NibbleOffset, GoToKind::Cell, GoToKind::File };
     int               low   = 0;
     int               high  = 0;
 
@@ -770,7 +770,7 @@ std::wstring InspectorGoTo::GetRangeHint (const DiskAnalysis & analysis, int qua
 
     for (const AnalyzedSector & sector : (track != nullptr) ? track->sectors : vector<AnalyzedSector>())
     {
-        int  number = (kind == GoToKind::Dos33Sector) ? sector.dos33Logical : sector.sector;
+        int  number = (kind == GoToKind::DosOrderSector) ? sector.dosOrderIndex : sector.sector;
 
         low  = std::min (low,  number);
         high = std::max (high, number);
@@ -783,7 +783,7 @@ std::wstring InspectorGoTo::GetRangeHint (const DiskAnalysis & analysis, int qua
             break;
 
         case GoToKind::PhysicalSector:
-        case GoToKind::Dos33Sector:
+        case GoToKind::DosOrderSector:
             hint = (high >= 0) ? L"A sector from " + InspectorFormat::FormatSector (static_cast<Byte> (low)) + L" to " + InspectorFormat::FormatSector (static_cast<Byte> (high)) + where
                                : L"No sectors" + where;
             break;
@@ -851,7 +851,7 @@ int InspectorGoTo::FindSector (const TrackAnalysis & track, GoToKind kind, int v
     {
         const AnalyzedSector &  sector = track.sectors[s];
 
-        if ((kind == GoToKind::PhysicalSector && sector.sector == value) || (kind == GoToKind::Dos33Sector && sector.dos33Logical == value) ||
+        if ((kind == GoToKind::PhysicalSector && sector.sector == value) || (kind == GoToKind::DosOrderSector && sector.dosOrderIndex == value) ||
             (kind == GoToKind::ProDosBlock && sector.prodosBlock == value && sector.prodosHalf == 0))
         {
             found = static_cast<int> (s);

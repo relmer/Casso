@@ -3,6 +3,7 @@
 #include "Ui/DiskInspector/GoToDialog.h"
 
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 
@@ -18,7 +19,7 @@ static constexpr int          s_kMaxPathChars = 64;
 static constexpr GoToKindTip  s_kKindTips[GoToDialog::kTipCount] =
 {
     { GoToKind::PhysicalSector, L"The number in a sector's address field, counting from 0.\nA standard disk has them in order around the track." },
-    { GoToKind::Dos33Sector,    L"The number DOS 3.3 uses for a sector, also counting from 0 but in another order:\nDOS sector 1 is physical sector 13, DOS 2 is physical 11, and so on.\nIt's the sector's position in a .dsk image." },
+    { GoToKind::DosOrderSector, L"The sector's index in DOS order, the order of a DOS-order image (.do and most .dsk files).\nIt counts from 0, as the physical sector does, but in another order:" },
     { GoToKind::ProDosBlock,    L"A 512-byte block, whether or not ProDOS is on the disk." },
 };
 
@@ -282,6 +283,11 @@ void GoToDialog::OnCreate()
     {
         m_tips[i].SetText      (s_kKindTips[i].pszText);
         m_tips[i].SetPopupHost (GetPopupHost());
+
+        if (s_kKindTips[i].kind == GoToKind::DosOrderSector)
+        {
+            m_tips[i].SetTable (BuildDosOrderTable());
+        }
     }
 
     m_trackLabel.SetText      (L"Track");
@@ -534,6 +540,45 @@ void GoToDialog::ShowHint (GoToKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GoToDialog::BuildDosOrderTable
+//
+//  Each DOS-order sector index over the physical sector it is, in hex.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<vector<std::wstring>> GoToDialog::BuildDosOrderTable()
+{
+    static constexpr int  kSectors = 16;
+
+
+
+    vector<vector<std::wstring>>  rows = { { L"DOS-order index" }, { L"Physical sector" } };
+    int                           p    = 0;
+
+
+
+    for (int index = 0; index < kSectors; index++)
+    {
+        p = 0;
+
+        while (p < kSectors && NibblizationLayer::GetDosFileIndexForPhysicalSector (p) != index)
+        {
+            p++;
+        }
+
+        rows[0].push_back (std::format (L"{:X}", index));
+        rows[1].push_back (std::format (L"{:X}", p));
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GoToDialog::GetEntryLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -547,7 +592,7 @@ LPCWSTR GoToDialog::GetEntryLabel (GoToKind kind)
     switch (kind)
     {
         case GoToKind::PhysicalSector: label = L"Sector"; break;
-        case GoToKind::Dos33Sector:    label = L"Sector"; break;
+        case GoToKind::DosOrderSector: label = L"Index";  break;
         case GoToKind::ProDosBlock:    label = L"Block";  break;
         case GoToKind::NibbleOffset:   label = L"Offset"; break;
         case GoToKind::Cell:           label = L"Cell";   break;

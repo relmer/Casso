@@ -14,7 +14,7 @@
 //  FileMapGridView
 //
 //  The File map tab's grid (FR-089): a row per track, 0 to 34, and a cell
-//  per DOS 3.3 logical sector, ProDOS or Pascal block or CP/M sector, each
+//  per DOS-order sector index, ProDOS or Pascal block or CP/M sector, each
 //  in its role's color with a word for the role, or its letter where the
 //  word does not fit, and its result
 //  marked apart from the color: a cross for bad, an outline for missing, a

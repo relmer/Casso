@@ -12,7 +12,7 @@ static constexpr int  s_kLastTrack     = DiskImage::kQuarterTrackCount / DiskIma
 
 static constexpr LPCWSTR  s_kpszForms[]  = { L"Sectors", L"Track nibbles", L"Track bits (WOZ)" };
 static constexpr LPCWSTR  s_kpszScopes[] = { L"Selected sector", L"Selected track", L"Tracks" };
-static constexpr LPCWSTR  s_kpszOrders[] = { L"Physical", L"DOS 3.3", L"ProDOS" };
+static constexpr LPCWSTR  s_kpszOrders[] = { L"Physical", L"DOS order", L"ProDOS order" };
 
 
 

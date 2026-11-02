@@ -224,7 +224,7 @@ std::wstring FileMapText::FormatCell (const FileMap & map, int cell)
     switch (map.fileSystem)
     {
         case MapFileSystem::Dos33:
-            text = std::format (L"Track {}, DOS 3.3 sector {} (physical sector {})", track, InspectorFormat::FormatSector (column), InspectorFormat::FormatSector (map.GetPhysical (cell)));
+            text = std::format (L"Track {}, DOS-order sector index {} (physical sector {})", track, InspectorFormat::FormatSector (column), InspectorFormat::FormatSector (map.GetPhysical (cell)));
             break;
 
         case MapFileSystem::ProDos:
@@ -268,7 +268,7 @@ std::wstring FileMapText::FormatColumnAxis (const FileMap & map)
     {
         switch (map.fileSystem)
         {
-            case MapFileSystem::Dos33:  text = L"DOS 3.3 sector";                                                       break;
+            case MapFileSystem::Dos33:  text = L"DOS-order sector index";                                                       break;
             case MapFileSystem::ProDos: text = std::wstring (L"Block within the track (block = track ") + s_kpszMultiplyX + L" 8 + column)"; break;
             case MapFileSystem::Pascal: text = std::wstring (L"Block within the track (block = track ") + s_kpszMultiplyX + L" 8 + column)"; break;
             case MapFileSystem::Cpm:    text = L"CP/M sector";                                                          break;

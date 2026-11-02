@@ -137,7 +137,7 @@ wrap), `prologueFound`, `epilogueFound`, address `volume`, `track`, `sector`,
 ### Sector
 
 `addressField`, `dataField` (or none), `bytes[256]` (decoded, even when bad),
-`state` (Good, BadAddress, BadData, NotChecked, NoDataField), `dos33Logical`,
+`state` (Good, BadAddress, BadData, NotChecked, NoDataField), `dosOrderIndex`,
 `prodosBlock` and half (16-sector only), `cpmSector` and `allocationBlock` (on a
 mapped CP/M volume), `passingIndex`, `isEditable` and the reason when not
 (FR-096).

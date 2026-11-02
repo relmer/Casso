@@ -47,7 +47,7 @@ public:
 
     //  Types a line, then runs the guest one instruction at a time until
     //  the line has had its cycles, adding each RWTS read and write to the
-    //  traced sets as a whole track and DOS 3.3 sector.
+    //  traced sets as a whole track and DOS-order sector index.
     static void RunTraced (MachineHost & machine, const std::string & line, std::set<SectorKey> & outReads, std::set<SectorKey> & outWrites)
     {
         EmuCpu &           cpu    = *machine.GetCpu();
@@ -80,7 +80,7 @@ public:
 
 
     //  The sectors whose count went up between the two logs, by whole track
-    //  and DOS 3.3 sector, as the inspector counts them on the disk now.
+    //  and DOS-order sector index, as the inspector counts them on the disk now.
     static std::set<SectorKey> GetMarked (const DiskAnalysis & analysis, const DiskAccessLog::Spans & before, const DiskAccessLog::Spans & after, bool isWrite)
     {
         std::set<SectorKey>  marked;
@@ -106,7 +106,7 @@ public:
             {
                 if (now[s] > was[s])
                 {
-                    marked.insert ({ track, analyzed.sectors[s].dos33Logical });
+                    marked.insert ({ track, analyzed.sectors[s].dosOrderIndex });
                 }
             }
         }

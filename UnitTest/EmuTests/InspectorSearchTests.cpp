@@ -208,7 +208,7 @@ public:
         AnalyzeDisk (analysis);
 
         Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"),       InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::PhysicalSector));
-        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"),       InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Dos33Sector));
+        Assert::AreEqual (std::wstring (L"A sector from $0 to $F on track 0"),       InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::DosOrderSector));
         Assert::AreEqual (std::wstring (L"A block from 0 to 279"),                   InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::ProDosBlock));
         Assert::IsTrue   (InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Cell).starts_with (L"A cell from 0 to "));
         Assert::AreEqual (std::wstring (L"A track from 0 to 39.75, such as 17.25"), InspectorGoTo::GetRangeHint (analysis, 0, GoToKind::Track));
@@ -257,7 +257,7 @@ public:
 
         AnalyzeDisk (analysis);
 
-        Assert::IsTrue   (InspectorGoTo::Resolve (analysis, 68, GoToKind::Dos33Sector, L"F", target, error));
+        Assert::IsTrue   (InspectorGoTo::Resolve (analysis, 68, GoToKind::DosOrderSector, L"F", target, error));
         Assert::AreEqual (68, target.quarterTrack);
         Assert::IsTrue   (target.sectorIndex >= 0);
 
@@ -283,8 +283,8 @@ public:
         Assert::IsTrue  (InspectorGoTo::Resolve (analysis, 8, GoToKind::PhysicalSector, L"$A", target, error));
         Assert::AreEqual (0xA, static_cast<int> (analysis.tracks[analysis.entries[8].slot]->sectors[target.sectorIndex].sector));
 
-        Assert::IsTrue  (InspectorGoTo::Resolve (analysis, 8, GoToKind::Dos33Sector, L"E", target, error));
-        Assert::AreEqual (0xE, analysis.tracks[analysis.entries[8].slot]->sectors[target.sectorIndex].dos33Logical);
+        Assert::IsTrue  (InspectorGoTo::Resolve (analysis, 8, GoToKind::DosOrderSector, L"E", target, error));
+        Assert::AreEqual (0xE, analysis.tracks[analysis.entries[8].slot]->sectors[target.sectorIndex].dosOrderIndex);
 
         Assert::IsTrue  (InspectorGoTo::Resolve (analysis, 0, GoToKind::ProDosBlock, L"21", target, error));
         Assert::AreEqual (8, target.quarterTrack, L"block 21 is on track 2");

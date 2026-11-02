@@ -83,7 +83,7 @@ enum class NotMappedReason
 //
 //  MapCell / FilePlace / MappedFile / FileMap
 //
-//  A volume's sectors, one cell each: a DOS 3.3 logical sector, a ProDOS or
+//  A volume's sectors, one cell each: a DOS-order sector index, a ProDOS or
 //  Pascal block, or a CP/M sector, by track and column, with its role, its
 //  result and the files that own it. A file's sectors in file order, a hole
 //  being a place with no cell; its chain's end; and for a deleted file how

@@ -299,7 +299,7 @@ void TrackAnalyzer::BuildSectors (TrackAnalysis & inOut, const DecodeChecks & ch
 //
 //  TrackAnalyzer::MapLogical
 //
-//  On a 16-sector track, the DOS 3.3 logical sector and the ProDOS block and
+//  On a 16-sector track, the DOS-order sector index and the ProDOS block and
 //  half the physical sector has under the standard skew.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,8 +320,8 @@ void TrackAnalyzer::MapLogical (int physicalTrack, AnalyzedSector & inOut)
         return;
     }
 
-    inOut.dos33Logical = NibblizationLayer::GetDosFileIndexForPhysicalSector (inOut.sector);
-    po                 = NibblizationLayer::GetPoFileIndexForDosLogicalSector (inOut.dos33Logical);
+    inOut.dosOrderIndex = NibblizationLayer::GetDosFileIndexForPhysicalSector (inOut.sector);
+    po                 = NibblizationLayer::GetPoFileIndexForDosLogicalSector (inOut.dosOrderIndex);
     inOut.prodosBlock  = physicalTrack * kBlocksPerTrack + po / kHalvesPerBlock;
     inOut.prodosHalf   = po % kHalvesPerBlock;
 }

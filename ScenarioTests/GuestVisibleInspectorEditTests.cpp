@@ -172,7 +172,7 @@ public:
 
 
     //  An edit for every sector in which `target` differs from the disk in
-    //  the drive, found on the drive's tracks by its DOS 3.3 sector number,
+    //  the drive, found on the drive's tracks by its DOS-order sector index,
     //  as the inspector's editor finds the field it draws.
     static std::vector<SectorWrite> MakeWrites (const DiskImage & drive, const std::vector<Byte> & current, const std::vector<Byte> & target)
     {
@@ -200,7 +200,7 @@ public:
 
             for (const AnalyzedSector & sector : analyzed.sectors)
             {
-                if (sector.dos33Logical == logical && sector.dataField >= 0)
+                if (sector.dosOrderIndex == logical && sector.dataField >= 0)
                 {
                     SectorWrite  write;
 
