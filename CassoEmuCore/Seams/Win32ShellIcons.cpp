@@ -308,7 +308,7 @@ void Win32ShellIcons::RunLoader()
 
         if (image != nullptr && overlay > 0)
         {
-            AddOverlay (*image, overlay, request.plain);
+            AddOverlay (*image, overlay, request.plain, m_dpi);
         }
 
         if (image != nullptr && !request.isDirectory && RunsElevated (request.path))
@@ -441,26 +441,32 @@ void Win32ShellIcons::AddShield (DxuiIconImage & image)
 //
 //  Win32ShellIcons::AddOverlay
 //
-//  The shell's overlay image, a badge in a corner of an icon's square, from
-//  its small image list scaled to the image's size, as Explorer's list draws
-//  it over a row's icon rather than scaled down with the icon.
+//  The shell's overlay image, a badge in a corner of an icon's square. On an
+//  icon up to the small icon's size it is the small image list's, scaled to
+//  the icon. On a bigger icon Explorer draws the large list's at the large
+//  icon's size, so the badge stays in the corner rather than growing with
+//  the art.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay, bool smallMark)
+void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay, bool smallMark, UINT dpi)
 {
-    HRESULT               hr      = S_OK;
+    HRESULT               hr        = S_OK;
     ComPtr<IImageList>    list;
-    int                   index   = -1;
-    HICON                 icon    = nullptr;
-    ICONINFO              info    = {};
-    BITMAP                art     = {};
-    BOOL                  hasInfo = FALSE;
+    int                   index     = -1;
+    HICON                 icon      = nullptr;
+    ICONINFO              info      = {};
+    BITMAP                art       = {};
+    BOOL                  hasInfo   = FALSE;
     DxuiIconImage         badge;
+    UINT                  sizeDpi   = (dpi > 0) ? dpi : GetDpiForSystem();
+    int                   smallIcon = GetSystemMetricsForDpi (SM_CXSMICON, sizeDpi);
+    int                   largeIcon = GetSystemMetricsForDpi (SM_CXICON,   sizeDpi);
+    bool                  onLarge   = !smallMark && smallIcon > 0 && largeIcon > 0 && image.width > smallIcon;
 
 
 
-    hr = SHGetImageList (SHIL_SMALL, IID_PPV_ARGS (&list));
+    hr = SHGetImageList (onLarge ? SHIL_LARGE : SHIL_SMALL, IID_PPV_ARGS (&list));
     CHR (hr);
 
     hr = list->GetOverlayImage (overlay, &index);
@@ -493,7 +499,9 @@ void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay, bool small
     }
     else
     {
-        DrawOver (image, DxuiIconImage::Resample (badge, image.width), 0, 0);
+        int  side = onLarge ? (std::min) (largeIcon, image.width) : image.width;
+
+        DrawOver (image, DxuiIconImage::Resample (badge, side), 0, image.height - side);
     }
 
 Error:
@@ -880,7 +888,7 @@ HICON Win32ShellIcons::LoadSized (const std::wstring & path, bool isDirectory, i
 
     if (sizePx > s_kLargeIconPx)
     {
-        return LoadLargerForPath (path, isDirectory, sizePx);
+        return LoadLargerForPath (path, isDirectory, sizePx, overlays ? outOverlay : nullptr);
     }
 
     return LoadForPath (path, SHGFI_LARGEICON, overlays, outOverlay);
@@ -1167,7 +1175,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDirectory, int sizePx)
+HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDirectory, int sizePx, int * outOverlay)
 {
     SHFILEINFOW          info       = {};
     DWORD                attributes = isDirectory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
@@ -1217,8 +1225,15 @@ HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDire
         //  The overlay sits where the full image's corner is, so it is added
         //  only to an image the crop left whole.
         //  A folder's image already has a sync client's mark, so only Windows' own
-        //  overlays are added to one: shared, shortcut and shield.
-        if (SUCCEEDED (hr) && overlay != 0 && !cropped && (!isDirectory || overlay <= s_kLastWindowsOverlay))
+        //  overlays are added to one: shared, shortcut and shield. With
+        //  `outOverlay` its index is returned for AddOverlay, which draws it
+        //  at Explorer's size; the image list draws it at the list's
+        //  proportion, scaled with the art.
+        if (SUCCEEDED (hr) && overlay != 0 && !cropped && (!isDirectory || overlay <= s_kLastWindowsOverlay) && outOverlay != nullptr)
+        {
+            *outOverlay = overlay;
+        }
+        else if (SUCCEEDED (hr) && overlay != 0 && !cropped && (!isDirectory || overlay <= s_kLastWindowsOverlay))
         {
             DestroyIcon (icon);
             icon = nullptr;
@@ -1686,7 +1701,7 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::Remember (const std::wstri
 
     if (image != nullptr && overlay > 0)
     {
-        AddOverlay (*image, overlay);
+        AddOverlay (*image, overlay, false, m_dpi);
     }
 
     StoreIcon (key, image);

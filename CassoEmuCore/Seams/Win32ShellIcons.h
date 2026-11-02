@@ -122,7 +122,7 @@ private:
 
     static std::wstring                    GetCacheKey            (const std::wstring & path, bool isDirectory);
     static HICON                           LoadForPath            (const std::wstring & path, UINT sizeFlag, bool overlays = true, int * outOverlay = nullptr);
-    static HICON                           LoadLargerForPath      (const std::wstring & path, bool isDirectory, int sizePx);
+    static HICON                           LoadLargerForPath      (const std::wstring & path, bool isDirectory, int sizePx, int * outOverlay = nullptr);
     static HICON                           LoadSized              (const std::wstring & path, bool isDirectory, int sizePx, bool overlays = true, int * outOverlay = nullptr);
     static HICON                           LoadByAttributes       (const std::wstring & path, bool isDirectory, int sizePx);
     static HICON                           LoadLargerByAttributes (bool isDirectory, int sizePx);
@@ -136,7 +136,7 @@ private:
     static void                            DeleteIconBitmaps      (const ICONINFO & info);
     static bool                            RunsElevated           (const std::wstring & path);
     static void                            AddShield              (DxuiIconImage & image);
-    static void                            AddOverlay             (DxuiIconImage & image, int overlay, bool smallMark = false);
+    static void                            AddOverlay             (DxuiIconImage & image, int overlay, bool smallMark, UINT dpi);
     static void                            DrawOver               (DxuiIconImage & image, const DxuiIconImage & top, int left, int topY);
     static UINT                            GetOverlayFlags        (bool overlays, const int * outOverlay);
 
