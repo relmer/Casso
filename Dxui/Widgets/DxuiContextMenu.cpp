@@ -150,9 +150,26 @@ void DxuiContextMenu::ShowAboveAtWidth (DxuiHwndSource & host, const RECT & anch
     menu.SetMinWidthPx  (width);
     menu.SetMaxWidthPx  (width);
     menu.SetMaxHeightPx (look.maxHeightPx);
+    menu.SetCutTipShown (look.isCutTipShown);
     menu.SetFace        (look.face);
     menu.SetMetrics     (look.metrics);
-    menu.ShowAbove      (anchor, std::move (items), *text, client);
+    menu.ShowAbove      (anchor, items, *text, client);
+
+    //  The label column is known once the menu is laid out, so a menu that
+    //  has to line its labels up is closed and opened again, moved along by
+    //  the gap. ShowAbove on a menu that is open doesn't move it.
+    if (look.labelLeftAtPx >= 0 && anchor.left + menu.GetLabelLeftPx() != look.labelLeftAtPx)
+    {
+        RECT  moved = anchor;
+
+        moved.left  = std::max<LONG> (client.left, look.labelLeftAtPx - menu.GetLabelLeftPx());
+        moved.right = std::max<LONG> (moved.left, anchor.right);
+
+        menu.Hide();
+        menu.SetMinWidthPx (moved.right - moved.left);
+        menu.SetMaxWidthPx (moved.right - moved.left);
+        menu.ShowAbove     (moved, std::move (items), *text, client);
+    }
 
 Error:
     return;
@@ -175,6 +192,7 @@ void DxuiContextMenu::ClearListLook (DxuiPopupMenu & menu)
 {
     menu.SetMaxWidthPx  (0);
     menu.SetMaxHeightPx (0);
+    menu.SetCutTipShown (true);
     menu.SetFace        (nullptr);
     menu.ClearMetrics();
 }

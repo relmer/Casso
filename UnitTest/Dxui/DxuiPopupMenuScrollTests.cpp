@@ -144,6 +144,21 @@ public:
 
 
 
+    TEST_METHOD (HomeAndEnd_GoToTheFirstAndLastRows)
+    {
+        Fixture  f;
+
+        f.menu.OnKey (VK_END);
+        Assert::AreEqual (s_kRows - 1, f.menu.GetHighlight());
+        Assert::AreEqual (s_kRows - s_kVisible, f.menu.GetScrollRow(), L"The last row is in view");
+
+        f.menu.OnKey (VK_HOME);
+        Assert::AreEqual (0, f.menu.GetHighlight());
+        Assert::AreEqual (0, f.menu.GetScrollRow(), L"The first row is in view");
+    }
+
+
+
     TEST_METHOD (UpFromTheTop_WrapsToTheLastRowInView)
     {
         Fixture  f;

@@ -1723,7 +1723,11 @@ void DxuiPopupMenu::SetHover (int index)
     //  A highlight moved past the menu's edge by a key brings its row into
     //  view; the pointer can only rest on a row already in view.
     EnsureRowVisible (index);
-    ShowCutTip (index);
+
+    if (m_isCutTipShown)
+    {
+        ShowCutTip (index);
+    }
 
     if (index >= 0 && m_onHighlight)
     {
@@ -2278,6 +2282,14 @@ bool DxuiPopupMenu::OnKey (WPARAM vk)
 
     case VK_UP:
         SetHover (FindNextSelectable (m_hover, -1));
+        break;
+
+    case VK_HOME:
+        SetHover (FindNextSelectable (-1, 1));
+        break;
+
+    case VK_END:
+        SetHover (FindNextSelectable (-1, -1));
         break;
 
     case VK_RIGHT:

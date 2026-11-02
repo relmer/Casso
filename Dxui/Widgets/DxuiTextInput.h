@@ -98,6 +98,10 @@ public:
     //  Fixed text ahead of what is typed, as a command prompt shows: drawn in
     //  the field, never part of the text, and out of the caret's reach.
     void  SetPrompt      (const std::wstring & text)  { m_prompt = text; }
+
+    //  From the field's left to where the typed text starts, past the prompt,
+    //  as last painted, in pixels.
+    int   GetTypedTextLeftPx () const { return m_scaler.ToPx (kPadLeftDip) + (int) std::lround (m_promptPx); }
     void  SetGhostText   (const std::wstring & text)  { m_ghost = text; }
 
     //  Whether the placeholder is drawn in italics and the disabled color, as

@@ -213,6 +213,13 @@ public:
     //  it has no monitor.
     void  SetMaxHeightPx (int px)               { m_maxHeightPx = (px > 0) ? px : 0; }
 
+    //  Whether a highlighted row whose label was cut has its whole label laid
+    //  over it; on unless turned off, as for a list where every row is cut.
+    void  SetCutTipShown (bool isShown)          { m_isCutTipShown = isShown; }
+
+    //  From the menu's left edge to its labels, as laid out when it last opened.
+    int   GetLabelLeftPx () const                { return m_labelLeftPx; }
+
     //  The widest the menu may be, in pixels, the next time it is opened. A
     //  label too long for it is cut off with an ellipsis, and the whole label
     //  is drawn over its row while the highlight is on it. With zero, the
@@ -476,6 +483,7 @@ private:
     bool                 m_grabsCapture     = true;
     int                  m_minWidthPx       = 0;
     int                  m_maxHeightPx      = 0;
+    bool                 m_isCutTipShown    = true;
     int                  m_maxWidthPx       = 0;
     const wchar_t      * m_face             = nullptr;
     std::vector<bool>    m_cutRows;

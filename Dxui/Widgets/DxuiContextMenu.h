@@ -40,9 +40,15 @@ public:
     //  tallest it may be.
     struct ListLook
     {
-        const wchar_t    * face        = nullptr;
+        const wchar_t    * face          = nullptr;
         DxuiMenuMetrics    metrics;
-        int                maxHeightPx = 0;
+        int                maxHeightPx   = 0;
+        bool               isCutTipShown = true;
+
+        //  Where the labels start, in the host's client pixels: the menu is
+        //  moved along so its label column starts there. With a negative
+        //  value, the menu is at the anchor's left.
+        int                labelLeftAtPx = -1;
     };
 
     //  Over the anchor at exactly its width, rising from its top edge with

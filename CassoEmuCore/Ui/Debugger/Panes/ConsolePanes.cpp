@@ -493,9 +493,11 @@ void CommandLine::RefreshGhost()
 //
 //  CommandLine::ShowHistoryList
 //
-//  The earlier lines in a list rising from the command line at the console's
-//  width, in the console's face and row height, with the newest nearest the
-//  box. Picking one puts it in the box to edit or run.
+//  The earlier lines in a list rising from the command line, from where the
+//  typed text starts to the console's right edge, in the console's face and
+//  row height, with the newest nearest the box. A long line is cut, with no
+//  tip of the whole line. Home and End go to the oldest and newest. Picking
+//  one puts it in the box to edit or run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -551,7 +553,12 @@ void CommandLine::ShowHistoryList()
         look.metrics.lineHeightPx = view->GetCellHeightPx() - 2 * view->GetTextTopPx();
     }
 
-    look.maxHeightPx = look.metrics.rowHeightPx * s_kShownRows;
+    look.maxHeightPx   = look.metrics.rowHeightPx * s_kShownRows;
+    look.isCutTipShown = false;
+
+    //  Each command's text starts where the typed text does after the
+    //  prompt, so the list's edge is apart from the console's beneath it.
+    look.labelLeftAtPx = box.left + m_box->GetTypedTextLeftPx();
 
     m_host.ShowListAbove (items, RECT { pane.left, box.top, pane.right, box.bottom }, look);
 }
