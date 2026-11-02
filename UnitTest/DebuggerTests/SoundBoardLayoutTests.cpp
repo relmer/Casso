@@ -204,6 +204,17 @@ namespace DebuggerTests
 
         //  The history row has as many of the newest labels as fit, counted
         //  from the end.
+        TEST_METHOD (AFilledStripSharesTheWidthByDuration)
+        {
+            auto  placed = SoundBoardLayout::FillStrip ({ 0.1f, 0.3f }, { 2.0f, 2.0f }, 102.0f, 2.0f);
+
+            Assert::AreEqual ((size_t) 2, placed.size(), L"every phoneme has a block");
+            Assert::AreEqual (25.0f, placed[0].width, 0.01f);
+            Assert::AreEqual (75.0f, placed[1].width, 0.01f);
+            Assert::AreEqual (0.0f,  placed[0].x,     0.01f, L"from the left edge");
+        }
+
+
         TEST_METHOD (TheHistoryRowHasTheNewestLabelsThatFit)
         {
             Assert::AreEqual ((size_t) 3, SoundBoardLayout::FitHistory ({ 20.0f, 20.0f, 20.0f }, 80.0f, 10.0f), L"60 and two gaps");

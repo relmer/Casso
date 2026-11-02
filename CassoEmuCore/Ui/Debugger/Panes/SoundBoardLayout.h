@@ -80,6 +80,10 @@ public:
     //  do not fit are left out. `leastWidths` has one entry per entry of `seconds`.
     static std::vector<StripPlace>  PlaceStrip (const std::vector<float> & seconds, const std::vector<float> & leastWidths, float width, float gap);
 
+    //  The same with all the phonemes sharing the width in proportion to
+    //  their seconds, for a strip that has the phonemes of the history row.
+    static std::vector<StripPlace>  FillStrip  (const std::vector<float> & seconds, const std::vector<float> & leastWidths, float width, float gap);
+
     //  How many of the newest labels, each as wide as `widths` has it with
     //  `gap` between them, fit on a row of `width`, counted from the end.
     static size_t  FitHistory (const std::vector<float> & widths, float width, float gap);
@@ -92,4 +96,7 @@ public:
     static std::vector<RECT>  PlaceCards (const std::vector<int> & heights, int columns, int width, int gap, int & outHeight);
 
     static constexpr int  kMaxColumns = 3;
+
+private:
+    static std::vector<StripPlace>  PlaceAtScale (const std::vector<float> & seconds, const std::vector<float> & leastWidths, float width, float gap, float scale);
 };

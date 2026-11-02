@@ -341,7 +341,61 @@ std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::PlaceStrip (
 {
     constexpr float          kFullSeconds    = 0.25f;
     constexpr float          kFullWidthShare = 0.3f;
-    float                    scale           = width * kFullWidthShare / kFullSeconds;
+
+
+
+    return PlaceAtScale (seconds, leastWidths, width, gap, width * kFullWidthShare / kFullSeconds);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardLayout::FillStrip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::FillStrip (
+    const std::vector<float>  & seconds,
+    const std::vector<float>  & leastWidths,
+    float                       width,
+    float                       gap)
+{
+    float  total = 0.0f;
+    float  room  = width - gap * (float) (seconds.empty() ? 0 : seconds.size() - 1);
+
+
+
+    for (float each : seconds)
+    {
+        total += each;
+    }
+
+    return PlaceAtScale (seconds, leastWidths, width, gap, (total > 0.0f) ? std::max (0.0f, room) / total : 0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardLayout::PlaceAtScale
+//
+//  Newest at the right, each block its seconds at the scale or its least
+//  width; the oldest that do not fit are left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::PlaceAtScale (
+    const std::vector<float>  & seconds,
+    const std::vector<float>  & leastWidths,
+    float                       width,
+    float                       gap,
+    float                       scale)
+{
     float                    right           = width;
     std::vector<StripPlace>  placed;
     size_t                   i               = seconds.size();

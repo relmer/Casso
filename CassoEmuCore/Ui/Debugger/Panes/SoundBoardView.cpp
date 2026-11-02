@@ -1175,14 +1175,16 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
 
 void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect, size_t count) const
 {
-    constexpr float            kRadiusDip   = 4.0f;
-    constexpr float            kGapDip2     = 3.0f;
-    constexpr float            kLabelPadDip = 8.0f;
-    constexpr float            kOldest      = 0.10f;
-    constexpr float            kNewest      = 0.45f;
-    const DxuiFontHandle       font         = p.theme.CaptionFont();
+    constexpr float            kRadiusDip     = 4.0f;
+    constexpr float            kGapDip2       = 3.0f;
+    constexpr float            kLabelPadDip   = 8.0f;
+    constexpr float            kLeastBlockDip = 3.0f;
+    constexpr float            kOldest        = 0.10f;
+    constexpr float            kNewest        = 0.45f;
+    const DxuiFontHandle       font           = p.theme.CaptionFont();
     std::vector<float>         seconds;
     std::vector<float>         least;
+    std::vector<float>         labels;
     std::vector<std::wstring>  names;
 
 
@@ -1199,14 +1201,17 @@ void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice
 
         IGNORE_RETURN_VALUE (hr, S_OK);
 
+        //  A block can be narrow enough for every phoneme of the history row to
+        //  have one; its label is drawn only where it fits.
         seconds.push_back (phoneme.seconds);
-        least.push_back (wide + m_scaler.ToPxf (kLabelPadDip));
+        least.push_back (m_scaler.ToPxf (kLeastBlockDip));
+        labels.push_back (wide + m_scaler.ToPxf (kLabelPadDip));
         names.push_back (std::move (name));
     }
 
     p.painter.FillRoundedRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), p.screen);
 
-    auto  placed = SoundBoardLayout::PlaceStrip (seconds, least, (float) (rect.right - rect.left), m_scaler.ToPxf (kGapDip2));
+    auto  placed = SoundBoardLayout::FillStrip (seconds, least, (float) (rect.right - rect.left), m_scaler.ToPxf (kGapDip2));
 
     for (size_t i = 0; i < placed.size(); i++)
     {
@@ -1219,7 +1224,11 @@ void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice
         uint32_t                              ink    = (isLast && voice.isSounding) ? p.theme.Background() : p.theme.Foreground();
 
         p.painter.FillRoundedRect (x, (float) rect.top, place.width, (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), fill);
-        PaintString (p, names[place.index], { (long) x, rect.top, (long) (x + place.width), rect.bottom }, ink, font, DxuiTextHAlign::Center);
+
+        if (place.width >= labels[place.index])
+        {
+            PaintString (p, names[place.index], { (long) x, rect.top, (long) (x + place.width), rect.bottom }, ink, font, DxuiTextHAlign::Center);
+        }
     }
 }
 
