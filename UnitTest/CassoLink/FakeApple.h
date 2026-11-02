@@ -61,8 +61,10 @@ public:
     std::atomic<int>                  readyEveryMs   { 3000 };
     std::atomic<int>                  dropped        { 0 };
 
-    //  Sectors the drive cannot read, as track and physical sector.
+    //  Sectors the drive cannot read, as track and physical sector, and
+    //  sectors that read on a full read but fail every re-read.
     std::set<std::pair<int, int>>     badSectors;
+    std::set<std::pair<int, int>>     onceSectors;
 
     //  Written tracks to fail as not reading back, and the writes received.
     std::atomic<int>                  writeFailures  { 0 };
@@ -75,7 +77,7 @@ public:
     //  the shim running.
     std::atomic<bool>                 typedLoader    { false };
     std::vector<Byte>                 loadedShim;
-    //  A full send: each Session screen's payload, the keys to answer Wait for
+    //  A Full Send: each Session screen's payload, the keys to answer Wait for
     //  key with, the Waits for key received, and Q to press before the next
     //  Ready. With no key left, a wait goes on until the host sends a byte.
     std::vector<std::vector<Byte>>  screens;
@@ -453,7 +455,7 @@ private:
         {
             Byte  physical = request.at (3 + i);
 
-            if (drive < 1 || drive > 2 || drives[(size_t) drive - 1].empty() || badSectors.contains ({ track, physical }))
+            if (drive < 1 || drive > 2 || drives[(size_t) drive - 1].empty() || badSectors.contains ({ track, physical }) || onceSectors.contains ({ track, physical }))
             {
                 reply.insert (reply.end(), { 0, 0, 0 });
                 continue;

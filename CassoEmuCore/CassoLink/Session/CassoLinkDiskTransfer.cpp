@@ -102,8 +102,9 @@ Error:
 //  CassoLinkDiskTransfer::SaveUnreadableList
 //
 //  A blank sector in an image is indistinguishable from one read as zeros, so
-//  the sectors written as zeros are listed beside the image. A read with every
-//  sector removes a list from an earlier read of the same image.
+//  the sectors written as zeros are listed beside the image, followed by the
+//  sectors a verified read recovered or found unreliable. A clean read of
+//  every sector removes a list from an earlier read of the same image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +118,7 @@ HRESULT CassoLinkDiskTransfer::SaveUnreadableList (const LinkOperation & operati
 
 
 
-    if (operation.unreadable.empty())
+    if (operation.unreadable.empty() && operation.marks.empty())
     {
         stale = m_session.m_fileIo.Exists (path);
 
@@ -129,7 +130,7 @@ HRESULT CassoLinkDiskTransfer::SaveUnreadableList (const LinkOperation & operati
     }
     else
     {
-        text = FormatUnreadableList (operation.unreadable);
+        text = FormatUnreadableList (operation.unreadable, operation.marks);
 
         hr = DurableCommit::Commit (m_session.m_fileIo, path, std::vector<Byte> (text.begin(), text.end()), m_commitTag++, CommitMode::Replace, progress);
         CHR (hr);

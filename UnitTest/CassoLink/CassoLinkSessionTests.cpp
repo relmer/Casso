@@ -737,6 +737,28 @@ public:
 
 
 
+    TEST_METHOD (VerifiedReadDisk_WithASectorReadOnce_ListsItAsUnreliable)
+    {
+        Rig  rig;
+
+        rig.apple.onceSectors = { { 4, 2 } };
+        rig.Start();
+
+        auto  read = rig.Finish (rig.session->ReadDisk (1, "once.dsk", true, true));
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue (read->unreadable.empty());
+        Assert::IsTrue (rig.fileIo.files["once.dsk"] == rig.Drive (1), L"the image has the one good read");
+
+        const std::vector<Byte> &  list = rig.fileIo.files["once.dsk.unreadable.txt"];
+
+        Assert::AreEqual (CassoLinkDiskTransfer::FormatUnreadableList ({}, { SectorMark { 4, CassoLinkSession::GetLogicalSector (2), 'U' } }),
+                          std::string (list.begin(), list.end()), L"the unreliable sector, listed beside the image");
+    }
+
+
+
+
     TEST_METHOD (UnreadableList_IsATrackAndDos33SectorALine_AfterComments)
     {
         std::string  text = CassoLinkDiskTransfer::FormatUnreadableList ({ { 3, 7 }, { 20, 0 } });
@@ -848,7 +870,7 @@ public:
 
 
 
-    //  A full send through the link, ended by Q at its pause: drive 1 and
+    //  A Full Send through the link, ended by Q at its pause: drive 1 and
     //  then drive 2, the screens on the Apple, and the screen cleared at the end.
     TEST_METHOD (VerifiedWrite_RewritesATrackUpToTwice)
     {
