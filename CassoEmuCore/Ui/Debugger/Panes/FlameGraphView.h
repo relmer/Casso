@@ -39,6 +39,9 @@ public:
     static constexpr int  kRowDip   = 20;
     static constexpr int  kLabelDip = 24;
 
+    //  The width of the accent ring around the clicked routine's other bars.
+    static constexpr float  kOtherRingDip = 2.5f;
+
     void  SetData       (const std::optional<ProfileData> & profile);
     void  SetOnActivate (ActivateFn activate) { m_activate = std::move (activate); }
     void  SetOnSelect   (SelectFn select)     { m_select   = std::move (select); }

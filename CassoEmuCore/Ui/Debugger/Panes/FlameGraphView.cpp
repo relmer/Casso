@@ -453,15 +453,24 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    //  The clicked routine's other bars in a plain outline in the ink that
-    //  reads on each bar, then the clicked bar in marching dashes over them.
+    //  The clicked routine's other bars in a ring of the theme's focus accent,
+    //  with a line of the ink that reads on each bar inside it, so the ring is
+    //  visible on a bar of the accent's hue; then the clicked bar in marching
+    //  dashes over them.
     for (const Bar & bar : m_bars)
     {
-        bool  isOther = m_selected.has_value() && *m_selected != bar.node && m_tree[bar.node].routine == m_tree[*m_selected].routine;
+        bool   isOther = m_selected.has_value() && *m_selected != bar.node && m_tree[bar.node].routine == m_tree[*m_selected].routine;
+        float  ring    = std::max (1.0f, std::round (m_scaler.ToPxf (kOtherRingDip)));
+        float  inner   = std::max (1.0f, std::round (m_scaler.ToPxf (1.0f)));
+        float  width   = std::max (1.0f, bar.width - 1.0f);
+
+
 
         if (isOther)
         {
-            painter.OutlineRect (bar.x, GetRowTop (bar.row), std::max (1.0f, bar.width - 1.0f), row - 1.0f, m_scaler.ToPxf (1.5f),
+            painter.OutlineRect (bar.x + ring * 0.5f, GetRowTop (bar.row) + ring * 0.5f, std::max (1.0f, width - ring), row - 1.0f - ring, ring, theme.FocusAccent());
+            painter.OutlineRect (bar.x + ring + inner * 0.5f, GetRowTop (bar.row) + ring + inner * 0.5f, std::max (1.0f, width - 2.0f * ring - inner),
+                                 std::max (1.0f, row - 1.0f - 2.0f * ring - inner), inner,
                                  DxuiColor::ChooseInkFor (GetRoutineColor (m_tree[bar.node].routine), 0xFF101010, 0xFFF8F8F8));
         }
     }

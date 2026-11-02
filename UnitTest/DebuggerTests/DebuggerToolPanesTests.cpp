@@ -826,7 +826,7 @@ namespace DebuggerToolPanesTests
 
         //  The clicked bar is drawn in marching dashes, light and dark so one
         //  of them reads on any bar, and the clicked routine's other bars in a
-        //  plain outline; the dashes march with time.
+        //  ring of the focus accent; the dashes march with time.
         TEST_METHOD (TheClickedBarMarchesAndItsRoutinesOtherBarsAreOutlined)
         {
             ProfileData                  profile  = MakeRoutineProfile();
@@ -873,11 +873,13 @@ namespace DebuggerToolPanesTests
             {
                 light    += (call.kind == RecordedPaintKind::DrawLine && call.argb == DxuiMarquee::kLightArgb) ? 1 : 0;
                 dark     += (call.kind == RecordedPaintKind::DrawLine && call.argb == DxuiMarquee::kDarkArgb)  ? 1 : 0;
-                outlined += (call.kind == RecordedPaintKind::OutlineRect && std::abs (call.x - second->x) < 0.5f) ? 1 : 0;
+                outlined += (call.kind == RecordedPaintKind::OutlineRect && std::abs (call.x - second->x) < 6.0f) ? 1 : 0;
             }
 
             Assert::IsTrue   (light > 0 && dark > 0, L"dashes in both colors");
-            Assert::AreEqual (1, outlined, L"PLOT's other bar has a plain outline");
+            Assert::AreEqual (2, outlined, L"PLOT's other bar has an accent ring and an ink line inside it");
+            Assert::IsTrue   (std::ranges::any_of (painter.Calls(), [&theme] (const RecordedPaintCall & call) { return call.kind == RecordedPaintKind::OutlineRect && call.argb == theme.FocusAccent(); }),
+                              L"the ring is in the theme's focus accent");
             Assert::AreNotEqual (DxuiMarquee::GetPhasePx (4.0f, 0), DxuiMarquee::GetPhasePx (4.0f, DxuiMarquee::kStepMs), L"a step later the dashes have moved");
         }
 
