@@ -3208,7 +3208,8 @@ run something, switch back to the //e: it is where it was left.
 - **FR-234**: In both event logs the columns MUST be chosen from the column
   headings' context menu, a check for each column, and Copy MUST be on the
   rows' context menu only. The Disk II log's Event column MUST fit the widest
-  label drawn in it. A log's selection, its anchor and its keyboard row MUST
+  label drawn in it, and the log MUST have Track, Sector and Volume columns,
+  filled where the event has a value. A log's selection, its anchor and its keyboard row MUST
   be the same rows through each refresh, so Shift+arrow and a drag extend the
   range they began; a right-click on a selected row MUST NOT change the
   selection, and a mouse release with no press in the list MUST select

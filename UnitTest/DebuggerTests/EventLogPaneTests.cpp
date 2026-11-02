@@ -599,10 +599,56 @@ namespace EventLogPaneTests
             pane.SetColumnShown (DiskLogPane::kTime,  false);
             pane.SetColumnShown (DiskLogPane::kCycle, true);
 
-            Assert::AreEqual (std::wstring (L"1,000\t1\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\t1\t0\t\t\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
 
-            pane.SetColumnShown (DiskLogPane::kDrive, false);
-            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
+            pane.SetColumnShown (DiskLogPane::kDrive,  false);
+            pane.SetColumnShown (DiskLogPane::kSector, false);
+            pane.SetColumnShown (DiskLogPane::kVolume, false);
+            Assert::AreEqual (std::wstring (L"1,000\t0\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
+        }
+
+
+        //  The Track, Sector and Volume columns have an event's place: a
+        //  step's or a bump's quarter track, an address or data field's
+        //  numbers with "?" for one not read yet, and nothing for an event
+        //  without one. A layout saved before them is dropped.
+        TEST_METHOD (TheTrackSectorAndVolumeColumnsHaveTheEventsPlace)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+            Disk2Event     event;
+            std::wstring   track;
+            std::wstring   sector;
+            std::wstring   volume;
+
+
+
+            event.type                     = Disk2EventType::AddrMark;
+            event.payload.addrMark.track   = 17;
+            event.payload.addrMark.sector  = 5;
+            event.payload.addrMark.volume  = 254;
+            DiskLogPane::GetPlace (event, track, sector, volume);
+            Assert::AreEqual (std::wstring (L"17"),  track);
+            Assert::AreEqual (std::wstring (L"5"),   sector);
+            Assert::AreEqual (std::wstring (L"254"), volume);
+
+            event.type                     = Disk2EventType::DataRead;
+            event.payload.dataMark.track   = -1;
+            event.payload.dataMark.sector  = 3;
+            event.payload.dataMark.volume  = -1;
+            DiskLogPane::GetPlace (event, track, sector, volume);
+            Assert::AreEqual (std::wstring (L"?"), track, L"a data field read before any address field");
+            Assert::AreEqual (std::wstring (L"3"), sector);
+
+            event.type                    = Disk2EventType::HeadStep;
+            event.payload.step.newQt      = 69;
+            DiskLogPane::GetPlace (event, track, sector, volume);
+            Assert::AreEqual (std::wstring (L"17.25"), track);
+            Assert::IsTrue   (sector.empty() && volume.empty());
+
+            pane.Configure();
+            pane.SetOptionsText ("columnLayout=011111 0,0,0,0,0,0");
+            Assert::IsTrue   (pane.IsColumnShown (DiskLogPane::kTime), L"the old layout is dropped");
         }
 
 

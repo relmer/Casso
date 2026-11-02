@@ -891,6 +891,15 @@ stops timing and keeps them.
 To time between two breakpoints instead, stop at the first, run `RCC`, run to
 the second, and `CYCLES PART` gives the cycles in between.
 
+## Disk II log
+
+The Disk II log has an entry for each thing the controller does: the motor,
+a head step or bump, an address field, a sector read or written, the door
+and the drive selected, with a Severity of Info, Warning or Error. Its Track,
+Sector and Volume columns have the event's place: the quarter track a step or
+a bump is at, an address or data field's numbers, and `?` for a number not
+read yet.
+
 ## Video and sound logs
 
 The video log has an entry for each change of video mode -- `TEXT`, `MIXED`,

@@ -190,7 +190,7 @@ std::wstring DiskLogPane::ListRejected (
 //
 //  GetOptionsText
 //
-//  kinds=11111111;severity=111;drive=0;track=...;sector=...;columnLayout=101111 0,0,0,0,0,0
+//  kinds=11111111;severity=111;drive=0;track=...;sector=...;headings=2;columnLayout=101111111 0,0,0,0,0,0,0,0,0
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,8 +211,8 @@ std::string DiskLogPane::GetOptionsText() const
         severities += isShown ? '1' : '0';
     }
 
-    return std::format ("kinds={};severity={};drive={};track={};sector={};columnLayout={}", kinds, severities, m_drive,
-                        TextEncoding::WideToUtf8 (CleanForOptions (m_trackText)), TextEncoding::WideToUtf8 (CleanForOptions (m_sectorText)),
+    return std::format ("kinds={};severity={};drive={};track={};sector={};headings={};columnLayout={}", kinds, severities, m_drive,
+                        TextEncoding::WideToUtf8 (CleanForOptions (m_trackText)), TextEncoding::WideToUtf8 (CleanForOptions (m_sectorText)), kHeadingsVersion,
                         GetColumnsText());
 }
 
@@ -230,13 +230,15 @@ std::string DiskLogPane::GetOptionsText() const
 
 void DiskLogPane::SetOptionsText (const std::string & text)
 {
-    size_t       start = 0;
-    size_t       end   = 0;
-    size_t       equal = 0;
-    size_t       i     = 0;
+    size_t       start    = 0;
+    size_t       end      = 0;
+    size_t       equal    = 0;
+    size_t       i        = 0;
     std::string  field;
     std::string  key;
     std::string  value;
+    std::string  layout;
+    int          headings = 1;
 
 
 
@@ -275,12 +277,22 @@ void DiskLogPane::SetOptionsText (const std::string & text)
         {
             m_sectorText = TextEncoding::Utf8ToWide (value);
         }
+        else if (key == "headings" && !value.empty() && value.find_first_not_of ("0123456789") == std::string::npos)
+        {
+            headings = std::stoi (value);
+        }
         else if (key == "columnLayout")
         {
-            SetColumnsText (value);
+            layout = value;
         }
 
         start = end + 1;
+    }
+
+    //  A layout saved before the place columns is for other columns.
+    if (!layout.empty() && headings >= kHeadingsVersion)
+    {
+        SetColumnsText (layout);
     }
 
     m_sector = TrackSectorPredicate::Parse (m_sectorText, TrackSectorPredicate::Mode::Sector);
@@ -541,6 +553,60 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetPlace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskLogPane::GetPlace (const Disk2Event & event, std::wstring & track, std::wstring & sector, std::wstring & volume)
+{
+    auto  field = [] (int value) { return (value < 0) ? std::wstring (L"?") : std::format (L"{}", value); };
+    auto  qt    = [] (int quarterTrack) { return TextEncoding::NarrowToWide (DiskImage::FormatQuarterTrack (quarterTrack)); };
+
+
+
+    track.clear();
+    sector.clear();
+    volume.clear();
+
+    switch (event.type)
+    {
+        case Disk2EventType::HeadStep:
+            track = qt (event.payload.step.newQt);
+            break;
+
+        case Disk2EventType::HeadBump:
+        case Disk2EventType::ReadStall:
+            track = qt (event.payload.bump.atQt);
+            break;
+
+        case Disk2EventType::AddrMark:
+        case Disk2EventType::AddrChecksumError:
+        case Disk2EventType::DataCutOff:
+            track  = field (event.payload.addrMark.track);
+            sector = field (event.payload.addrMark.sector);
+            volume = field (event.payload.addrMark.volume);
+            break;
+
+        case Disk2EventType::DataRead:
+        case Disk2EventType::DataWrite:
+        case Disk2EventType::DataChecksumError:
+        case Disk2EventType::DataNoAddress:
+            track  = field (event.payload.dataMark.track);
+            sector = field (event.payload.dataMark.sector);
+            volume = field (event.payload.dataMark.volume);
+            break;
+
+        default:
+            break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetColumnSpecs
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -550,6 +616,9 @@ DiskLogPane::ColumnSpecs DiskLogPane::GetColumnSpecs() const
     return { { L"Time",      DxuiTextHAlign::Left,  kFit, true  },
              { L"Cycle",     DxuiTextHAlign::Right,  110, false },
              { L"Drive",     DxuiTextHAlign::Right,   48, true  },
+             { L"Track",     DxuiTextHAlign::Right,   56, true  },
+             { L"Sector",    DxuiTextHAlign::Right,   56, true  },
+             { L"Volume",    DxuiTextHAlign::Right,   60, true  },
              { L"Severity",  DxuiTextHAlign::Left,  kFit, true  },
              { L"Event",     DxuiTextHAlign::Left,  kFit, true  },
              { L"Detail",    DxuiTextHAlign::Left,     0, true  } };
@@ -678,6 +747,9 @@ void DiskLogPane::MakeCells (
 
 
     out[kDrive].text    = (row.event.drive >= 0) ? std::format (L"{}", row.event.drive + 1) : std::wstring();
+
+    GetPlace (row.event, out[kTrack].text, out[kSector].text, out[kVolume].text);
+
     out[kSeverity].text = GetSeverityLabel (severity);
     out[kEvent].text    = GetEventLabel (row.event.type);
     out[kDetail].text   = GetDetail (row.event, row.data.get());
