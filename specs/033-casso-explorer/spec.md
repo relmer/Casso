@@ -540,6 +540,7 @@ hardware.
 - Q: What is on the top row of the Apple's screen, and what moves a drive's bar? -> A: The top row is CASSOLINK: and the PC's state. In 80 columns the port and speed are at its right edge, and in 40 columns they are on the row below, where both don't fit. Only a whole-disk transfer moves a bar, as the bar has a cell for each track, and a new connection starts with empty bars.
 - Q: How does a catalog fit a narrow preview pane? -> A: A catalog is a table, so its rows don't wrap. A row wider than the pane scrolls sideways under a horizontal scrollbar, by the bar, Shift with the wheel, a horizontal wheel and the left and right arrow keys.
 - Q: What is on a drive's row when it has no disk? -> A: NO READABLE DISK, after an operation on that drive found no address field for eight revolutions in a row, until an operation on it succeeds. A Disk II has no disk sensor, so an empty drive and an unformatted disk look the same. The Full Send screen has the same words.
+- Q: Are catalog reads and protocol commands added to the Apple's history? -> A: No. The history has the user's operations only, as a whole-disk read alone sends at least 35 requests and the history has 8 rows.
 
 ## User Scenarios & Testing *(mandatory)*
 
