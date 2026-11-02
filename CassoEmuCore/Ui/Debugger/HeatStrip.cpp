@@ -106,7 +106,7 @@ std::array<uint32_t, 3> HeatStrip::GetScaleStops (Kind kind)
     {
     case Kind::Read:   return { 0xFF2462B4, 0xFF33AAE6, 0xFF9AEEFF };
     case Kind::Write:  return { 0xFF8A35B0, 0xFFD24CC2, 0xFFFFA6E8 };
-    default:           return { 0xFFB0301F, 0xFFF0841C, 0xFFFFE45C };
+    default:           return { 0xFFD8C060, 0xFFEC7A22, 0xFFE0201C };
     }
 }
 
@@ -238,7 +238,7 @@ HeatStrip::Tip HeatStrip::GetTip (const DebuggerViewSnapshot::HeatColumnLevels &
         return tip;
     }
 
-    tip.text    += std::format (L"\n\n{}, brighter the hotter. This one is {}% of the way up.", GetScaleName (strip.hottestKind), std::lround ((float) strip.hottestLevel * 100.0f / kTop));
+    tip.text    += std::format (L"\n\n{}, from least to most. This one is {}% of the way up.", GetScaleName (strip.hottestKind), std::lround ((float) strip.hottestLevel * 100.0f / kTop));
     tip.mark     = (float) strip.hottestLevel / kTop;
 
     for (uint32_t stop : GetScaleStops (strip.hottestKind))
@@ -265,7 +265,7 @@ std::wstring HeatStrip::GetScaleName (Kind kind)
     {
     case Kind::Read:   return L"Read: blue to pale cyan";
     case Kind::Write:  return L"Written: purple to pink";
-    default:           return L"Run: red to yellow";
+    default:           return L"Run: yellow to red";
     }
 }
 
@@ -279,10 +279,34 @@ std::wstring HeatStrip::GetScaleName (Kind kind)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring HeatStrip::GetHeadingTip()
+HeatStrip::HeadingTip HeatStrip::GetHeadingTip (bool isTokens)
 {
-    return std::format (L"How hot the line's bytes are, as the heat map counts them: each block is a byte, or a share of a long line's bytes, in the scale of what touched it most.\n{}\n{}\n{}\nBrighter is hotter, and gray is a byte nothing touched.",
-                        GetScaleName (Kind::Run), GetScaleName (Kind::Read), GetScaleName (Kind::Write));
+    HeadingTip         tip;
+    std::vector<Kind>  kinds = isTokens ? std::vector<Kind> { Kind::Run, Kind::Write } : std::vector<Kind> { Kind::Run, Kind::Read, Kind::Write };
+
+
+
+    tip.text = isTokens ? L"How often BASIC ran the line's statements, from its reads\n"
+                          L"of the line's tokens, and how often the tokens were written.\n"
+                          L"A line that hasn't run has no color.\n"
+                        : L"How often the line's bytes were run, read or written.\n"
+                          L"Each block is a byte, or a share of a long line's bytes,\n"
+                          L"in the color of what was done to it most.\n"
+                          L"A byte that nothing touched has no color.\n";
+
+    tip.lineScales.resize ((size_t) std::ranges::count (tip.text, L'\n'));
+
+    for (size_t i = 0; i < kinds.size(); i++)
+    {
+        const std::array<uint32_t, 3>  stops = GetScaleStops (kinds[i]);
+
+
+
+        tip.text += ((i > 0) ? L"\n" : L"") + GetScaleName (kinds[i]) + L", least to most";
+        tip.lineScales.push_back (std::vector<uint32_t> (stops.begin(), stops.end()));
+    }
+
+    return tip;
 }
 
 

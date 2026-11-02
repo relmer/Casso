@@ -68,7 +68,8 @@ void BasicProgramPane::Configure (int gutterDip)
 
 
 
-    columns[kHeatColumn].tip = HeatStrip::GetHeadingTip();
+    columns[kHeatColumn].tip           = HeatStrip::GetHeadingTip (true).text;
+    columns[kHeatColumn].tipLineScales = HeatStrip::GetHeadingTip (true).lineScales;
 
     m_list->SetColumns (std::move (columns));
 

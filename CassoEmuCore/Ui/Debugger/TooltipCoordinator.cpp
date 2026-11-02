@@ -37,6 +37,7 @@ void TooltipCoordinator::Update (POINT clientPx)
     //  swatches was indented by the swatches' width.
     tip.SetLineColors   ({});
     tip.SetLineSwatches ({});
+    tip.SetLineScales   ({});
     tip.SetGradient     ({}, -1.0f);
 
     if (m_sources.IsAnyMenuOpen())
@@ -258,6 +259,7 @@ bool TooltipCoordinator::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstr
         text   = list->GetColumnAt ((size_t) column).tip;
         anchor = GetPointerAnchor (clientPx);
 
+        m_sources.GetRoutedTooltip().SetLineScales (list->GetColumnAt ((size_t) column).tipLineScales);
         return !text.empty();
     }
 

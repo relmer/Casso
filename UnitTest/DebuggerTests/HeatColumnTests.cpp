@@ -152,12 +152,13 @@ namespace DebuggerTests
 
         //  Each kind has a separate scale: no color is on two scales, a scale
         //  starts at its first stop and ends at its last, and a hotter level
-        //  is a brighter color.
+        //  is redder on the run scale and brighter on the others.
         TEST_METHOD (RunReadAndWriteHaveSeparateScales)
         {
             const HeatStrip::Kind  kinds[] = { HeatStrip::Kind::Run, HeatStrip::Kind::Read, HeatStrip::Kind::Write };
             std::set<uint32_t>     colors;
             auto                   bright  = [] (uint32_t argb) { return ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF); };
+            auto                   green   = [] (uint32_t argb) { return (argb >> 8) & 0xFF; };
 
 
 
@@ -168,12 +169,47 @@ namespace DebuggerTests
                 Assert::AreEqual (stops[0], HeatStrip::GetScaleColor (kind, 1,   MakePalette()));
                 Assert::AreEqual (stops[2], HeatStrip::GetScaleColor (kind, 255, MakePalette()));
                 Assert::AreEqual (kCold,    HeatStrip::GetScaleColor (kind, 0,   MakePalette()), L"an untouched byte");
-                Assert::IsTrue   (bright (HeatStrip::GetScaleColor (kind, 200, MakePalette())) > bright (HeatStrip::GetScaleColor (kind, 20, MakePalette())));
+                if (kind == HeatStrip::Kind::Run)
+                {
+                    Assert::IsTrue (green (HeatStrip::GetScaleColor (kind, 200, MakePalette())) < green (HeatStrip::GetScaleColor (kind, 20, MakePalette())), L"hotter is redder");
+                }
+                else
+                {
+                    Assert::IsTrue (bright (HeatStrip::GetScaleColor (kind, 200, MakePalette())) > bright (HeatStrip::GetScaleColor (kind, 20, MakePalette())));
+                }
 
                 colors.insert (stops.begin(), stops.end());
             }
 
             Assert::AreEqual ((size_t) 9, colors.size(), L"no stop is shared");
+        }
+
+
+
+        //  A heading's tip has a line for each scale with that scale's colors,
+        //  under lines short enough for a tip that doesn't wrap; a BASIC
+        //  program's has no read scale.
+        TEST_METHOD (AHeadingsTipDrawsEachScale)
+        {
+            for (bool isTokens : { false, true })
+            {
+                HeatStrip::HeadingTip  tip   = HeatStrip::GetHeadingTip (isTokens);
+                size_t                 lines = (size_t) std::ranges::count (tip.text, L'\n') + 1;
+                size_t                 drawn = (size_t) std::ranges::count_if (tip.lineScales, [] (const std::vector<uint32_t> & stops) { return !stops.empty(); });
+
+
+
+                Assert::AreEqual (lines, tip.lineScales.size(), L"an entry for every line");
+                Assert::AreEqual (isTokens ? (size_t) 2 : (size_t) 3, drawn);
+                Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[2], tip.lineScales[lines - drawn].back(), L"the first scale is the run scale, ending at its hottest");
+                Assert::IsTrue   (tip.text.find (L"gray") == std::wstring::npos, L"an untouched byte has no color");
+
+                for (size_t from = 0, end = 0; from <= tip.text.size(); from = end + 1)
+                {
+                    end = std::min (tip.text.find (L'\n', from), tip.text.size());
+                    Assert::IsTrue (end - from <= 64, tip.text.substr (from, end - from).c_str());
+                }
+            }
         }
 
 

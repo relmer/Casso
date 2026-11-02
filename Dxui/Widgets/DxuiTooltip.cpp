@@ -467,7 +467,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
     if (m_visible)
     {
         bool  isNewText = text != m_text;
-        bool  changed   = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
+        bool  changed   = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches || m_lineScales != m_shownLineScales ||
                           m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark ||
                           anchor.left   != m_anchor.left  ||
                           anchor.top    != m_anchor.top   ||
@@ -490,12 +490,13 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         //  not close one window and open another, which flickered.
         if (changed && m_popupHost != nullptr && m_activePopup != nullptr && wasAtPointer == isAtPointer)
         {
-            bool  isNewLook = isNewText || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
+            bool  isNewLook = isNewText || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches || m_lineScales != m_shownLineScales ||
                               m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark;
 
             m_hideAtMs          = isNewText ? GetHoverHideAtMs (nowMs) : m_hideAtMs;
             m_shownLineArgbs    = m_lineArgbs;
             m_shownLineSwatches = m_lineSwatches;
+            m_shownLineScales   = m_lineScales;
             m_shownGradient     = m_gradient;
             m_shownGradientMark = m_gradientMark;
 
@@ -880,6 +881,7 @@ void DxuiTooltip::ShowPopup()
     {
         m_shownLineArgbs            = m_lineArgbs;
         m_shownLineSwatches         = m_lineSwatches;
+        m_shownLineScales           = m_lineScales;
         m_shownGradient             = m_gradient;
         m_shownGradientMark         = m_gradientMark;
         showParams.ownerHwnd        = owner;
@@ -990,7 +992,7 @@ void DxuiTooltip::MeasureBoxPx (
             return m_activePopup->MeasureTextWrapped (part.c_str(), fontPx, GetFace(), s_kNoWrapPx, w, h);
         }, table);
 
-        textWPx = table.width + GetSwatchIndentPx (table.lineHeight);
+        textWPx = table.width + GetLineIndentPx (table.lineHeight);
         textHPx = table.lineHeight * (float) table.lines.size();
     }
     else
@@ -1633,11 +1635,19 @@ void DxuiTooltip::DrawTable (
     {
         const std::vector<std::wstring>  & parts = table.lines[line];
         uint32_t                           argb  = (line < m_lineArgbs.size() && m_lineArgbs[line] != 0) ? m_lineArgbs[line] : m_textArgb;
+        bool                               scale = line < m_lineScales.size() && !m_lineScales[line].empty();
+
+        indent = scale ? GetLineIndentPx (table.lineHeight) : GetSwatchIndentPx (table.lineHeight);
 
         if (line < m_lineSwatches.size() && m_lineSwatches[line] != 0)
         {
             painter.FillRect    (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, m_lineSwatches[line]);
             painter.OutlineRect (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, 1.0f, m_borderArgb);
+        }
+
+        if (scale)
+        {
+            DrawLineScale (painter, m_lineScales[line], left, y + std::round ((table.lineHeight - side) / 2.0f), side);
         }
 
         for (size_t c = 0; c < parts.size(); c++)
@@ -1652,6 +1662,56 @@ void DxuiTooltip::DrawTable (
 
         y += table.lineHeight;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawLineScale
+//
+//  A line's scale in thin slices from its first color on the left to its
+//  last on the right, heightPx high, outlined in the tip's border color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::DrawLineScale (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const
+{
+    float  width = std::round (m_scaler.ToPxf (kLineScaleWidthDip));
+    float  slice = width / (float) kGradientSlices;
+
+
+
+    for (int i = 0; i < kGradientSlices; i++)
+    {
+        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, heightPx, GetGradientColor (stops, ((float) i + 0.5f) / (float) kGradientSlices));
+    }
+
+    painter.OutlineRect (left, top, width, heightPx, 1.0f, m_borderArgb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLineIndentPx
+//
+//  The room before a line with a scale: the scale's width and a gap of half
+//  a line. With no scales, a swatch's indent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetLineIndentPx (float lineHeight) const
+{
+    bool  hasScales = std::ranges::any_of (m_lineScales, [] (const std::vector<uint32_t> & stops) { return !stops.empty(); });
+
+
+
+    return hasScales ? std::round (m_scaler.ToPxf (kLineScaleWidthDip) + lineHeight * 0.5f) : GetSwatchIndentPx (lineHeight);
 }
 
 

@@ -41,9 +41,11 @@ public:
         DxuiTextHAlign  align    = DxuiTextHAlign::Left;
         bool            visible  = true;
 
-        //  Tip text for the heading, put up by the host. The list never
-        //  draws it.
-        std::wstring    tip;
+        //  Tip text for the heading, put up by the host, and a color scale for
+        //  each of its lines that has one (DxuiTooltip::SetLineScales). The
+        //  list never draws them.
+        std::wstring                        tip;
+        std::vector<std::vector<uint32_t>>  tipLineScales;
 
         //  A filter of the host's is in force on the column: a funnel is
         //  drawn at the right end of its heading.
