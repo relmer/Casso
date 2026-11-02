@@ -3274,8 +3274,13 @@ run something, switch back to the //e: it is where it was left.
   disassembly to it.
 - **FR-246**: A disassembly view MUST offer Show heat on its bar, off by
   default and saved with its options: a strip with a block per byte of the
-  line, in the heat map's color for that byte, and `r` or `w` in place of the
-  block for a byte read or written as data more than it is run.
+  line, filled from a separate color scale for run, read and write, each
+  distinct from the others and bright across its range in every theme, by
+  what touched the byte most. The tip on a heat cell in the disassembly, the
+  source view and the BASIC program pane MUST list the run, read and write
+  counts of the line's bytes and the color's meaning, and draw the scale as
+  a gradient with an arrow at the cell's level. The column's heading tip
+  MUST have the scales' definitions.
 - **FR-247**: While Show heat is on in any disassembly view, the source view
   MUST have the heat strip over the bytes its line assembled to, up to four
   blocks, and the BASIC program pane over the bytes of the line's tokens, the

@@ -400,6 +400,13 @@ struct DebuggerViewSnapshot
         std::vector<Byte>  execute;
         std::vector<Byte>  read;
         std::vector<Byte>  write;
+
+        //  Each address's count of runs, reads and writes since counting
+        //  began, for a heat cell's tip; a count past the largest 32-bit
+        //  value reads as that value.
+        std::vector<uint32_t>  executeCount;
+        std::vector<uint32_t>  readCount;
+        std::vector<uint32_t>  writeCount;
     };
 
     std::shared_ptr<const HeatColumnLevels>  heatColumns;

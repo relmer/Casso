@@ -9,6 +9,7 @@
 #include "EmuTests/KeystrokeInjector.h"
 #include "EmuTests/MachineIdle.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 
@@ -121,12 +122,11 @@ namespace DebuggerTests
             heat.read.assign    (0x10000, 0);
             heat.write.assign   (0x10000, 0);
             heat.read[0x0805]  = 255;
-            palette.execute    = 0xFF0000FF;
 
             cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
 
             Assert::AreEqual ((size_t) 3, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"three bytes of tokens, a fill each");
-            Assert::AreEqual (0xFF0000FFu, cells[0][BasicProgramPane::kHeatColumn].background, L"the token read is the line running");
+            Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[2], cells[0][BasicProgramPane::kHeatColumn].background, L"the token read is the line running");
             Assert::AreEqual ((size_t) 3, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line has its own tokens, too");
             Assert::IsTrue   (BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style())[0][BasicProgramPane::kHeatColumn].text.empty(), L"no levels, no strip");
         }

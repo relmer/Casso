@@ -14,10 +14,10 @@
 //
 //  The heat columns' strip over a run of bytes in the CPU's address space: a
 //  space per byte, or for a longer run up to kMaxBlocks of them, each filled
-//  with the heat map's color for the hottest of its bytes: the code color
-//  for a byte run, the read or write color for one read or written as data
-//  more than it is run, as the heat map colors a byte by the kind that
-//  touched it most. A list cell, which has one fill, takes the hottest.
+//  from a scale for the kind that touched its hottest byte most: the run
+//  scale for a byte run, the read or write scale for one read or written as
+//  data more than it is run. A byte nothing touched is the heat map's cold
+//  gray. A list cell, which has one fill, takes the hottest.
 //
 //  A BASIC line's bytes are its tokens, which the interpreter reads as the
 //  line runs, so for tokens a read is drawn as the line running, in the code
@@ -28,14 +28,44 @@
 class HeatStrip
 {
 public:
+    static constexpr size_t  kMaxBlocks   = 4;
+    static constexpr size_t  kMaxTipBytes = 8;
+
+    //  The kind of access a scale is for.
+    enum class Kind
+    {
+        Run,
+        Read,
+        Write,
+    };
+
     struct Strip
     {
         std::wstring                                 text;
         std::vector<std::tuple<int, int, uint32_t>>  colors;      // each space's fill
-        uint32_t                                     hottest = 0;
+        uint32_t                                     hottest      = 0;
+        Kind                                         hottestKind  = Kind::Run;
+        Byte                                         hottestLevel = 0;
     };
 
-    static constexpr size_t  kMaxBlocks = 4;
+    //  A heat cell's tip: each byte's counts of runs, reads and writes, or for
+    //  a run longer than kMaxTipBytes the sums over all of them, then what the
+    //  cell's color means; and the cell's scale with the mark at its level.
+    struct Tip
+    {
+        std::wstring           text;
+        std::vector<uint32_t>  gradient;
+        float                  mark = -1.0f;
+    };
+
+    //  A scale's colors at level 1, the middle and level 255. The run scale is
+    //  red through orange to yellow, read blue through sky to pale cyan, and
+    //  write purple through magenta to pink: three hues apart from end to end,
+    //  each bright enough at its low end to be seen on a light or dark page.
+    static std::array<uint32_t, 3>  GetScaleStops (Kind kind);
+
+    //  A level's color on a kind's scale; level 0 is the palette's cold gray.
+    static uint32_t  GetScaleColor (Kind kind, Byte level, const HeatMapView::Palette & palette);
 
     static Strip  Get (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word first, size_t count,
                        const HeatMapView::Palette & palette, bool isTokens);
@@ -46,4 +76,13 @@ public:
 
     //  The bytes a disassembly line's code bytes text lists, as "A9 00".
     static size_t  CountBytes (const std::string & bytes);
+
+    static Tip           GetTip        (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word first, size_t count, bool isTokens);
+
+    //  What a heat column is and what each scale's colors mean, for its
+    //  heading.
+    static std::wstring  GetHeadingTip ();
+
+    //  A scale's meaning in one line, as "Run: red to yellow".
+    static std::wstring  GetScaleName  (Kind kind);
 };

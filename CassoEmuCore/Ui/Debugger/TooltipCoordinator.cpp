@@ -32,8 +32,10 @@ void TooltipCoordinator::Update (POINT clientPx)
 
     operandTips.SetColorTip (nullptr);
 
-    //  Only the P register's flags color their lines.
+    //  Only the P register's flags color their lines, and only a heat cell
+    //  has a scale.
     tip.SetLineColors ({});
+    tip.SetGradient   ({}, -1.0f);
 
     if (m_sources.IsAnyMenuOpen())
     {
@@ -183,6 +185,7 @@ bool TooltipCoordinator::TryShowPaneTip (POINT clientPx, DxuiTooltip & tip, int6
         }
 
         tip.SetLineSwatches (std::move (paneTip.lineSwatches));
+        tip.SetGradient     (std::move (paneTip.gradient), paneTip.gradientMark);
 
         if (paneTip.kind == PaneTip::Kind::Control)
         {
@@ -277,5 +280,11 @@ bool TooltipCoordinator::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstr
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     text = (*cells)[(size_t) column].tip;
+
+    if (!(*cells)[(size_t) column].tipGradient.empty())
+    {
+        m_sources.GetRoutedTooltip().SetGradient ((*cells)[(size_t) column].tipGradient, (*cells)[(size_t) column].tipGradientMark);
+    }
+
     return true;
 }

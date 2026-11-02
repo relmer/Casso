@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
 
@@ -33,7 +34,7 @@ void DisassemblyCells::Configure (DxuiListView & list)
 
 
     columns.back().tip         = L"The values each instruction reads, then on the PC's line the registers, memory and flags it changes";
-    columns[kHeatColumn].tip   = L"How hot the line's bytes are, in the heat map's colors: the code color for bytes run, the read or write color for bytes read or written as data";
+    columns[kHeatColumn].tip   = HeatStrip::GetHeadingTip();
 
     list.SetColumns         (std::move (columns));
     list.SetGlyphCenterDip  (kGlyphCenterDip);

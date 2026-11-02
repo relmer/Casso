@@ -68,6 +68,11 @@ struct PaneTip
     //  A swatch of color before each line, 0 for none (DxuiTooltip::
     //  SetLineSwatches).
     std::vector<uint32_t>  lineSwatches;
+
+    //  A color scale under the text and a mark on it (DxuiTooltip::
+    //  SetGradient); no stops for none.
+    std::vector<uint32_t>  gradient;
+    float                  gradientMark = -1.0f;
 };
 
 

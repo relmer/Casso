@@ -1585,9 +1585,13 @@ the keyframes where any of them changed, it packs to about 64 bytes each.
 ### Heat columns
 
 **Show heat** on a disassembly view's bar adds a column after the margin,
-filled with the heat map's color for the line's hottest byte: the code color
-for a byte run, the read or write color for one read or written as data more
-than it is run. With **Show heat** on, the source view fills a space for each
+filled from a scale for what touched the line's hottest byte most: red to
+yellow for a byte run, blue to pale cyan for one read and purple to pink for
+one written as data more than it is run, brighter the hotter. A byte nothing
+touched is gray. The tip over a heat cell lists the run, read and write
+counts of the line's bytes and draws the cell's scale with an arrow at its
+level. The heading's tip has the scales' definitions. With the option on, the
+source view fills a space for each
 byte, up to four, ahead of each line's number, over the first range of bytes
 the line assembled to, and the BASIC program pane has a **Heat** column over
 each line's tokens, where the interpreter's reads of them count as the line

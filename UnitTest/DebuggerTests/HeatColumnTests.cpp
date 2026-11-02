@@ -32,6 +32,10 @@ namespace DebuggerTests
         static constexpr uint32_t  kRead    = 0xFF00FF00;
         static constexpr uint32_t  kWrite   = 0xFFFF0000;
 
+        static inline const uint32_t  kRunTop   = HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[2];
+        static inline const uint32_t  kReadTop  = HeatStrip::GetScaleStops (HeatStrip::Kind::Read)[2];
+        static inline const uint32_t  kWriteTop = HeatStrip::GetScaleStops (HeatStrip::Kind::Write)[2];
+
         static HeatMapView::Palette MakePalette()
         {
             HeatMapView::Palette  palette;
@@ -73,17 +77,17 @@ namespace DebuggerTests
             strip = HeatStrip::Get (levels, 0x0300, 4, MakePalette(), false);
 
             Assert::AreEqual (std::wstring (L"    "), strip.text, L"run, read, written, untouched, as fills");
-            Assert::AreEqual (kExecute, strip.hottest, L"the first of the hottest");
+            Assert::AreEqual (kRunTop, strip.hottest, L"the first of the hottest");
             Assert::AreEqual ((size_t) 4, strip.colors.size());
-            Assert::AreEqual (kExecute, std::get<2> (strip.colors[0]), L"the hottest is the hue itself");
-            Assert::AreEqual (kRead,    std::get<2> (strip.colors[1]));
-            Assert::AreEqual (kWrite,   std::get<2> (strip.colors[2]));
-            Assert::AreEqual (kCold,    std::get<2> (strip.colors[3]), L"an untouched byte is the cold gray");
+            Assert::AreEqual (kRunTop,   std::get<2> (strip.colors[0]), L"the hottest is the top of its scale");
+            Assert::AreEqual (kReadTop,  std::get<2> (strip.colors[1]));
+            Assert::AreEqual (kWriteTop, std::get<2> (strip.colors[2]));
+            Assert::AreEqual (kCold,     std::get<2> (strip.colors[3]), L"an untouched byte is the cold gray");
 
             //  Code written once when it was loaded, then run, is code.
             levels.write[0x0300] = 10;
-            Assert::AreEqual (kExecute, std::get<2> (HeatStrip::Get (levels, 0x0300, 1, MakePalette(), false).colors.at (0)), L"run more than written");
-            Assert::AreEqual (kExecute, HeatStrip::GetCell (levels, 0x0300, 1, MakePalette(), false).background, L"a cell's fill is the hottest");
+            Assert::AreEqual (kRunTop, std::get<2> (HeatStrip::Get (levels, 0x0300, 1, MakePalette(), false).colors.at (0)), L"run more than written");
+            Assert::AreEqual (kRunTop, HeatStrip::GetCell (levels, 0x0300, 1, MakePalette(), false).background, L"a cell's fill is the hottest");
         }
 
 
@@ -100,7 +104,7 @@ namespace DebuggerTests
             strip = HeatStrip::Get (levels, 0x2000, 16, MakePalette(), false);
 
             Assert::AreEqual ((size_t) HeatStrip::kMaxBlocks, strip.text.size());
-            Assert::AreEqual (HeatMapView::GetColor (HeatMapView::Mode::Data, 0, 0, 10, MakePalette()), std::get<2> (strip.colors[1]), L"$2005 is in the second block of four bytes");
+            Assert::AreEqual (HeatStrip::GetScaleColor (HeatStrip::Kind::Write, 10, MakePalette()), std::get<2> (strip.colors[1]), L"$2005 is in the second block of four bytes");
         }
 
 
@@ -123,7 +127,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring (L"     1"), rows[0].cells[1]);
             Assert::AreEqual (std::wstring (L"     2"), rows[1].cells[1]);
-            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.cell == 1 && span.start == 1 && span.background == kRead; }));
+            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.cell == 1 && span.start == 1 && span.background == kReadTop; }));
         }
 
 
@@ -146,6 +150,34 @@ namespace DebuggerTests
 
 
 
+        //  Each kind has a separate scale: no color is on two scales, a scale
+        //  starts at its first stop and ends at its last, and a hotter level
+        //  is a brighter color.
+        TEST_METHOD (RunReadAndWriteHaveSeparateScales)
+        {
+            const HeatStrip::Kind  kinds[] = { HeatStrip::Kind::Run, HeatStrip::Kind::Read, HeatStrip::Kind::Write };
+            std::set<uint32_t>     colors;
+            auto                   bright  = [] (uint32_t argb) { return ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF); };
+
+
+
+            for (HeatStrip::Kind kind : kinds)
+            {
+                std::array<uint32_t, 3>  stops = HeatStrip::GetScaleStops (kind);
+
+                Assert::AreEqual (stops[0], HeatStrip::GetScaleColor (kind, 1,   MakePalette()));
+                Assert::AreEqual (stops[2], HeatStrip::GetScaleColor (kind, 255, MakePalette()));
+                Assert::AreEqual (kCold,    HeatStrip::GetScaleColor (kind, 0,   MakePalette()), L"an untouched byte");
+                Assert::IsTrue   (bright (HeatStrip::GetScaleColor (kind, 200, MakePalette())) > bright (HeatStrip::GetScaleColor (kind, 20, MakePalette())));
+
+                colors.insert (stops.begin(), stops.end());
+            }
+
+            Assert::AreEqual ((size_t) 9, colors.size(), L"no stop is shared");
+        }
+
+
+
         //  The interpreter reads a line's tokens as it runs it, so a read is a
         //  block in the code color, and only a write is a letter.
         TEST_METHOD (ATokensReadIsTheLineRunning)
@@ -160,10 +192,65 @@ namespace DebuggerTests
             strip = HeatStrip::Get (levels, 0x0801, 1, MakePalette(), true);
 
             Assert::AreEqual (std::wstring (L" "), strip.text);
-            Assert::AreEqual (kExecute, std::get<2> (strip.colors[0]));
+            Assert::AreEqual (kRunTop, std::get<2> (strip.colors[0]));
             Assert::AreEqual ((size_t) 0, HeatStrip::Get (DebuggerViewSnapshot::HeatColumnLevels(), 0x0801, 1, MakePalette(), true).text.size(),
                               L"no levels, no strip");
             Assert::AreEqual ((size_t) 3, HeatStrip::CountBytes ("BD 9A 1C"));
+        }
+
+
+
+        //  A heat cell's tip lists each byte's counts, then what its color
+        //  means, with the scale drawn under it and a mark at the cell's level.
+        TEST_METHOD (AHeatCellsTipHasEachBytesCountsAndItsScale)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
+            HeatStrip::Tip                          tip;
+            DxuiListView::Cell                      cell;
+
+
+
+            levels.executeCount.assign (0x10000, 0);
+            levels.readCount.assign    (0x10000, 0);
+            levels.writeCount.assign   (0x10000, 0);
+            levels.execute[0x0300]      = 255;
+            levels.executeCount[0x0300] = 12345;
+            levels.readCount[0x0301]    = 7;
+
+            tip = HeatStrip::GetTip (levels, 0x0300, 2, false);
+
+            Assert::IsTrue   (tip.text.starts_with (L"Byte\tRun\tRead\tWritten\n$0300\t12,345\t0\t0\n$0301\t0\t7\t0\n\n"), tip.text.c_str());
+            Assert::IsTrue   (tip.text.find (HeatStrip::GetScaleName (HeatStrip::Kind::Run)) != std::wstring::npos);
+            Assert::AreEqual (1.0f, tip.mark);
+            Assert::AreEqual ((size_t) 3, tip.gradient.size());
+            Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[0], tip.gradient[0]);
+
+            cell = HeatStrip::GetCell (levels, 0x0300, 2, MakePalette(), false);
+            Assert::AreEqual (tip.text, cell.tip, L"a list cell has the same tip");
+            Assert::AreEqual (tip.mark, cell.tipGradientMark);
+
+            tip = HeatStrip::GetTip (levels, 0x0300, HeatStrip::kMaxTipBytes + 1, false);
+            Assert::IsTrue   (tip.text.find (L"$0300-$0308\t12,345\t7\t0") != std::wstring::npos, L"a long line has the sums");
+
+            tip = HeatStrip::GetTip (levels, 0x0400, 1, false);
+            Assert::IsTrue   (tip.gradient.empty(), L"an untouched byte has no scale");
+            Assert::IsTrue   (HeatStrip::GetTip (MakeLevels(), 0x0300, 1, false).text.empty(), L"no counts, no tip");
+        }
+
+
+
+        //  The tip's scale runs through its stops evenly from left to right.
+        TEST_METHOD (TheTipsScaleRunsThroughItsStops)
+        {
+            std::vector<uint32_t>  stops = { 0xFF000000, 0xFF808080, 0xFFFFFFFF };
+
+
+
+            Assert::AreEqual (stops[0], DxuiTooltip::GetGradientColor (stops, 0.0f));
+            Assert::AreEqual (stops[1], DxuiTooltip::GetGradientColor (stops, 0.5f));
+            Assert::AreEqual (stops[2], DxuiTooltip::GetGradientColor (stops, 1.0f));
+            Assert::AreEqual (stops[2], DxuiTooltip::GetGradientColor (stops, 2.0f), L"past the end is the last stop");
+            Assert::AreEqual (0u,       DxuiTooltip::GetGradientColor ({}, 0.5f));
         }
     };
 }

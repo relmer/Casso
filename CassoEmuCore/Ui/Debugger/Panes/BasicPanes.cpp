@@ -62,9 +62,15 @@ BasicProgramPane::BasicProgramPane (DxuiListView * list, ToggleFn toggle) :
 
 void BasicProgramPane::Configure (int gutterDip)
 {
-    m_list->SetColumns ({ { L"",        gutterDip, false, DxuiTextHAlign::Left },
-                          { L"Heat",    0,         false, DxuiTextHAlign::Left },
-                          { L"Listing", 0,         true,  DxuiTextHAlign::Left } });
+    std::vector<DxuiListView::Column>  columns = { { L"",        gutterDip, false, DxuiTextHAlign::Left },
+                                                   { L"Heat",    0,         false, DxuiTextHAlign::Left },
+                                                   { L"Listing", 0,         true,  DxuiTextHAlign::Left } };
+
+
+
+    columns[kHeatColumn].tip = HeatStrip::GetHeadingTip();
+
+    m_list->SetColumns (std::move (columns));
 
     m_list->SetColumnVisible (kHeatColumn, false);
 

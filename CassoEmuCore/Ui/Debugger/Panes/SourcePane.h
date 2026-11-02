@@ -3,6 +3,7 @@
 #include "Debugger/Source/SourceService.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/DebuggerActions.h"
@@ -131,6 +132,10 @@ public:
     //  click toggles a breakpoint on it.
     void  OnClick       (POINT atDip);
     void  OnDoubleClick (POINT atDip);
+
+    //  The tip of the heat strip under a point, and where to put it: by the
+    //  start of the strip on its row. False off a strip, or while heat is off.
+    bool  TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const;
 
     //  A file the user dropped, as the host matched it.
     void  ShowDropped   (const SourceLookup & lookup, int recordIndex);

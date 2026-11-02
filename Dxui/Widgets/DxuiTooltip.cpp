@@ -450,6 +450,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
     if (m_visible)
     {
         bool  changed = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
+                        m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark ||
                         anchor.left   != m_anchor.left  ||
                         anchor.top    != m_anchor.top   ||
                         anchor.right  != m_anchor.right ||
@@ -833,6 +834,8 @@ void DxuiTooltip::ShowPopup()
     {
         m_shownLineArgbs            = m_lineArgbs;
         m_shownLineSwatches         = m_lineSwatches;
+        m_shownGradient             = m_gradient;
+        m_shownGradientMark         = m_gradientMark;
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = GetScreenAnchor();
         showParams.placement        = DxuiPopupPlacement::Below;
@@ -967,6 +970,106 @@ void DxuiTooltip::MeasureBoxPx (
 
     widthPx  = std::ceil (textWPx) + GetPadXPx() * 2.0f;
     heightPx = std::ceil (textHPx) + GetPadYPx() * 2.0f;
+
+    if (!m_shownGradient.empty())
+    {
+        widthPx   = std::max (widthPx, std::ceil (m_scaler.ToPxf (kGradientWidthDip)) + GetPadXPx() * 2.0f);
+        heightPx += GetGradientExtraPx();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGradientExtraPx
+//
+//  The height a scale adds under the text: a gap, the scale, and the arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetGradientExtraPx() const
+{
+    return std::ceil (m_scaler.ToPxf (kGradientGapDip + kGradientHeightDip + kGradientArrowDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGradientColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTooltip::GetGradientColor (const std::vector<uint32_t> & stops, float at)
+{
+    float   scaled = 0.0f;
+    size_t  low    = 0;
+
+
+
+    if (stops.empty())
+    {
+        return 0;
+    }
+
+    if (stops.size() == 1)
+    {
+        return stops[0];
+    }
+
+    scaled = std::clamp (at, 0.0f, 1.0f) * (float) (stops.size() - 1);
+    low    = std::min ((size_t) scaled, stops.size() - 2);
+
+    return DxuiColor::Mix (stops[low], stops[low + 1], scaled - (float) low);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawGradient
+//
+//  The scale in thin slices across the width, and under it an arrow whose
+//  point touches the scale at the mark, in the tip's text color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::DrawGradient (IDxuiPainter & painter, float left, float width, float bottom) const
+{
+    float  arrowPx = m_scaler.ToPxf (kGradientArrowDip);
+    float  barPx   = m_scaler.ToPxf (kGradientHeightDip);
+    float  top     = bottom - arrowPx - barPx;
+    float  slice   = width / (float) kGradientSlices;
+    float  tipX    = left + width * m_shownGradientMark;
+
+
+
+    for (int i = 0; i < kGradientSlices; i++)
+    {
+        float  at = ((float) i + 0.5f) / (float) kGradientSlices;
+
+        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, barPx, GetGradientColor (m_shownGradient, at));
+    }
+
+    painter.OutlineRect (left, top, width, barPx, 1.0f, m_borderArgb);
+
+    if (m_shownGradientMark < 0.0f || m_shownGradientMark > 1.0f)
+    {
+        return;
+    }
+
+    painter.FillConvexQuad (tipX,           top + barPx,
+                            tipX + arrowPx, bottom,
+                            tipX - arrowPx, bottom,
+                            tipX,           top + barPx,
+                            m_textArgb);
 }
 
 
@@ -1302,6 +1405,12 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
     height = (float) (placed.bottom - placed.top);
 
     painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, m_borderArgb);
+
+    if (!m_shownGradient.empty())
+    {
+        DrawGradient (painter, padX, width - padX * 2.0f, height - padY);
+        height -= GetGradientExtraPx();
+    }
 
     if (IsTableTip())
     {

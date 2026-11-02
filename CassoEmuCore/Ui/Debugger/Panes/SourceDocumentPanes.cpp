@@ -246,6 +246,36 @@ bool SourceDocumentPane::Contains (POINT atDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourceDocumentPane::TryGetTip
+//
+//  Over a line's heat strip, its bytes' counts and the scale of its color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceDocumentPane::TryGetTip (POINT clientPx, PaneTip & tip)
+{
+    HeatStrip::Tip  heat;
+
+
+
+    if (!m_isShown || !m_view->IsVisible() || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_model->TryGetHeatTip (clientPx, heat, tip.anchor))
+    {
+        return false;
+    }
+
+    tip.kind         = PaneTip::Kind::Control;
+    tip.text         = std::move (heat.text);
+    tip.gradient     = std::move (heat.gradient);
+    tip.gradientMark = heat.mark;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourceDocumentPane::ApplyDocument
 //
 //  The document the PC is in has the PC's own marker ahead of its title, as

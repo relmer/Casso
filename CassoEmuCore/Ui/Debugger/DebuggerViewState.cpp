@@ -590,6 +590,19 @@ std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> DebuggerViewState:
         map.GetLevels (HeatSpace::Cpu, write,             levels->write);
     }
 
+    levels->executeCount.resize (0x10000);
+    levels->readCount.resize    (0x10000);
+    levels->writeCount.resize   (0x10000);
+
+    for (size_t address = 0; address < 0x10000; address++)
+    {
+        auto  clamp = [] (uint64_t count) { return (uint32_t) std::min<uint64_t> (count, UINT32_MAX); };
+
+        levels->executeCount[address] = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Execute, (Word) address));
+        levels->readCount[address]    = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Read,    (Word) address));
+        levels->writeCount[address]   = clamp (map.GetTotal (HeatSpace::Cpu, write,             (Word) address));
+    }
+
     return levels;
 }
 

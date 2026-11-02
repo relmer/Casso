@@ -659,6 +659,62 @@ std::optional<int> SourcePane::GetLineAt (POINT atDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::TryGetHeatTip
+//
+//  A row's text is its cells joined by tabs, so the strip, at the start of
+//  the line number's cell, begins one past the end of the cell before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const
+{
+    constexpr int                    kNumberCell = 1;
+    DxuiTextView::Position           at          = m_view->HitTest (atDip);
+    const DxuiTextView::Row        * row         = nullptr;
+    const std::pair<Word, Word>    * range       = nullptr;
+    int                              start       = 0;
+    float                            x           = 0.0f;
+    float                            y           = 0.0f;
+
+
+
+    if (m_rowsHeatLevels == nullptr || !m_state.has_value() || m_state->lineRanges == nullptr || at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    {
+        return false;
+    }
+
+    row = &m_view->GetRows()[(size_t) at.row];
+
+    if (row->cells.size() <= (size_t) kNumberCell)
+    {
+        return false;
+    }
+
+    start = (int) row->cells[0].size() + 1;
+
+    if (!m_state->lineRanges->contains ({ m_fileId, at.row + 1 }) || at.offset < start || at.offset >= start + (int) HeatStrip::kMaxBlocks)
+    {
+        return false;
+    }
+
+    range = &m_state->lineRanges->at ({ m_fileId, at.row + 1 });
+    tip   = HeatStrip::GetTip (*m_rowsHeatLevels, range->first, (size_t) (range->second - range->first) + 1, false);
+
+    if (tip.text.empty() || !m_view->GetCellAnchorPx (at.row, kNumberCell, x, y))
+    {
+        return false;
+    }
+
+    anchor = RECT { (LONG) x, (LONG) y, (LONG) x + 1, (LONG) y + 1 };
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::OnClick
 //
 ////////////////////////////////////////////////////////////////////////////////

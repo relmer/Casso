@@ -119,6 +119,15 @@ public:
     //  is indented by the squares' width, and the tip is laid out as a
     //  table. Set before the request it goes with, as the line colors are.
     void  SetLineSwatches (std::vector<uint32_t> argbs) { m_lineSwatches = std::move (argbs); }
+
+    //  A color scale drawn under the text, its stops spread evenly from left
+    //  to right, with an arrow under it at `mark`, from 0 at the left to 1 at
+    //  the right; a mark outside that range has no arrow. No stops, no scale.
+    //  Set before the request it goes with, as the line colors are.
+    void  SetGradient     (std::vector<uint32_t> stops, float mark) { m_gradient = std::move (stops); m_gradientMark = mark; }
+
+    //  The scale's color at a fraction of its width, 0 to 1.
+    static uint32_t  GetGradientColor (const std::vector<uint32_t> & stops, float at);
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -225,7 +234,15 @@ public:
 
 private:
     //  The room between a tip that follows the pointer and the pointer.
-    static constexpr int  kPointerGapDip = 4;
+    static constexpr int    kPointerGapDip     = 4;
+    static constexpr float  kGradientGapDip    = 6.0f;
+    static constexpr float  kGradientHeightDip = 10.0f;
+    static constexpr float  kGradientArrowDip  = 6.0f;
+    static constexpr float  kGradientWidthDip  = 200.0f;
+    static constexpr int    kGradientSlices    = 64;
+
+    float  GetGradientExtraPx () const;
+    void   DrawGradient       (IDxuiPainter & painter, float left, float width, float bottom) const;
 
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
@@ -311,4 +328,8 @@ private:
     std::vector<uint32_t>    m_shownLineArgbs;
     std::vector<uint32_t>    m_lineSwatches;
     std::vector<uint32_t>    m_shownLineSwatches;
+    std::vector<uint32_t>    m_gradient;
+    std::vector<uint32_t>    m_shownGradient;
+    float                    m_gradientMark      = -1.0f;
+    float                    m_shownGradientMark = -1.0f;
 };
