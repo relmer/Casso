@@ -131,6 +131,19 @@ public:
     //  below the text. 1 by default; ignored while the cell size is pinned.
     void   SetLineSpacing  (float spacing);
 
+    //  The widest a column but the last lines up at, in characters; zero for
+    //  no limit. A row's longer cell pushes only that row's next cell along.
+    void   SetColumnCap    (int column, int cells);
+
+    //  With it on, the last cell is one line, not wrapped, and a bar along the
+    //  bottom, or Shift with the wheel, scrolls the text sideways. Off by
+    //  default.
+    void   SetNoWrap       (bool noWrap);
+    bool   IsNoWrap        () const               { return m_noWrap; }
+    int    GetLeftColumn   () const               { return m_leftColumn; }
+    void   SetLeftColumn   (int column);
+    bool   IsHorzScrollbarVisible () const;
+
     //  A line's height and the space above its text, in pixels, once the
     //  view has been painted; zero before.
     int    GetCellHeightPx () const               { return m_cellHeightPx; }
@@ -247,13 +260,13 @@ public:
     //  Scrolls as little as it takes to show the line a position is drawn on.
     void  ScrollToPosition (Position pos);
 
-    bool  IsInteracting      () const { return m_dragging || m_vertScroll.IsDragging(); }
+    bool  IsInteracting      () const { return m_dragging || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
     bool  IsScrollbarVisible () const { return (int) m_lines.size() > GetLineCap(); }
 
     //  Whether a point is on the scrollbar, and the hover that widens it.
-    bool  IsOverScrollbar   (POINT pt) const override { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
-    bool  SetScrollbarHover (POINT pt)                { return m_vertScroll.SetHover (IsOverScrollbar (pt), pt); }
-    bool  TickScrollbars    (int64_t nowMs)           { return m_vertScroll.Tick (nowMs); }
+    bool  IsOverScrollbar   (POINT pt) const override { return (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y)) || (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y)); }
+    bool  SetScrollbarHover (POINT pt)                { bool  vert = m_vertScroll.SetHover (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y), pt); return m_horzScroll.SetHover (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y), pt) || vert; }
+    bool  TickScrollbars    (int64_t nowMs)           { bool  vert = m_vertScroll.Tick (nowMs); return m_horzScroll.Tick (nowMs) || vert; }
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -267,6 +280,7 @@ public:
     static constexpr int  kColumnGapCells = 2;
     static constexpr int  kWarningCells   = 3;
     static constexpr int  kWheelLines     = 3;
+    static constexpr int  kWheelColumns   = 8;
 
 private:
     //  One drawn line: its row, and the run of the row's last cell it shows.
@@ -315,6 +329,9 @@ private:
                                      const std::vector<uint32_t> & colors, const std::vector<bool> & lit, uint32_t litArgb) const;
     int           GetTextLeft       () const;
     int           GetPadLeftPx      () const;
+    int           GetTextBaseLeft   () const;
+    int           GetHorzBarPx      () const;
+    void          PaintLineGutter   (IDxuiPainter & painter, IDxuiTextRenderer & text, int lineIndex);
 
     //  A drawn line's height, a line's top counted from the first line shown,
     //  and the first line to show for a given line to be the last that fits.
@@ -370,4 +387,9 @@ private:
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;
+    DxuiScrollbar      m_horzScroll;
+    std::map<int, int> m_columnCaps;
+    bool               m_noWrap        = false;
+    int                m_leftColumn    = 0;
+    int                m_widestColumns = 0;
 };

@@ -39,6 +39,8 @@ SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn f
 void SourcePane::Configure (HWND hwnd)
 {
     m_view->SetOwnerWindow (hwnd);
+    m_view->SetNoWrap      (true);
+    m_view->SetColumnCap   (kTextCell, kAnnotationColumn);
     m_banner->SetSeverity  (DxuiInfoBanner::Severity::Info);
     m_banner->SetOnAction  ([this] (size_t)
     {

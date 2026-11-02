@@ -673,6 +673,10 @@ source view.
 
 - `SYM LOAD file.dbg` loads the symbols and the line table. The window opens a
   source pane beside the disassembly and follows the PC.
+- The source pane has an instruction line's operand and `Result: ` on the
+  same row after the code, starting 40 columns in, or after a longer line's
+  end. Lines don't wrap: a bar along the bottom, or Shift with the wheel,
+  scrolls the text sideways.
 - Dropping a debug or symbol file (`.dbg`, `.sym`, `.lbl`, `.vs`) on the
   debugger window, or on one of its floating panes, loads it as `SYM LOAD`
   would. A dropped source (`.a65`, `.s`, `.asm`, `.inc` and the like, Merlin's

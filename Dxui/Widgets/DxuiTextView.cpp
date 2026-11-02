@@ -148,7 +148,7 @@ void DxuiTextView::SetCellSize (int widthPx, int heightPx)
 
 int DxuiTextView::GetLineCap() const
 {
-    int  height = (int) (m_boundsDip.bottom - m_boundsDip.top) - m_scaler.ToPx (s_kPadDip) * 2;
+    int  height = (int) (m_boundsDip.bottom - m_boundsDip.top) - m_scaler.ToPx (s_kPadDip) * 2 - GetHorzBarPx();
     int  used   = 0;
     int  count  = 0;
     int  line   = m_topLine;
@@ -404,9 +404,12 @@ int DxuiTextView::GetCellStart (const Row & row, int cell) const
 
 
 
+    //  A cell longer than its capped column pushes the cells after it along.
     for (int c = 0; c < cell && c < (int) m_columnCells.size(); c++)
     {
-        column += m_columnCells[(size_t) c] + kColumnGapCells;
+        int  length = (c < (int) row.cells.size()) ? (int) row.cells[(size_t) c].size() : 0;
+
+        column += (std::max) (m_columnCells[(size_t) c], length) + kColumnGapCells;
     }
 
     return column;
@@ -513,12 +516,22 @@ void DxuiTextView::Rebuild()
         }
     }
 
+    for (const auto & [column, cells] : m_columnCaps)
+    {
+        if (column < (int) m_columnCells.size() && cells > 0)
+        {
+            m_columnCells[(size_t) column] = (std::min) (m_columnCells[(size_t) column], cells);
+        }
+    }
+
     BuildLines (GetTextColumns (false));
 
     if (IsScrollbarVisible())
     {
         BuildLines (GetTextColumns (true));
     }
+
+    m_leftColumn = std::clamp (m_leftColumn, 0, (std::max) (0, m_widestColumns - GetTextColumns (IsScrollbarVisible())));
 
     SetTopLine ((m_followEnd && m_atEnd) ? INT_MAX : m_topLine);
 }
@@ -557,6 +570,7 @@ int DxuiTextView::GetLineColumn (const Row & row, const Line & line) const
 void DxuiTextView::BuildLines (int columns)
 {
     m_lines.clear();
+    m_widestColumns = 0;
 
     for (int r = 0; r < (int) m_rows.size(); r++)
     {
@@ -564,10 +578,12 @@ void DxuiTextView::BuildLines (int columns)
         std::wstring    last   = row.cells.empty() ? std::wstring() : row.cells.back();
         int             start  = GetCellStart (row, (int) row.cells.size() - 1);
         int             indent = (std::max) (0, row.wrapIndent);
-        int             avail  = (std::max) (1, columns - start);
+        int             avail  = m_noWrap ? INT_MAX : (std::max) (1, columns - start);
         int             length = (int) last.size();
         int             pos    = 0;
         bool            first  = true;
+
+        m_widestColumns = (std::max) (m_widestColumns, start + length);
 
         do
         {
@@ -584,7 +600,7 @@ void DxuiTextView::BuildLines (int columns)
 
             pos  += take;
             first = false;
-            avail = (std::max) (1, columns - start - indent);
+            avail = m_noWrap ? INT_MAX : (std::max) (1, columns - start - indent);
         }
         while (pos < length);
     }
@@ -616,6 +632,19 @@ void DxuiTextView::SyncScrollbar()
     info.nPage = (UINT) GetLineCap();
     info.nPos  = m_topLine;
     m_vertScroll.SetScrollInfo (info);
+
+    if (!IsHorzScrollbarVisible())
+    {
+        return;
+    }
+
+    m_horzScroll.Configure (DxuiScrollbar::Orientation::Horizontal, barW, barW, 1);
+    m_horzScroll.SetTrack (RECT { GetTextBaseLeft(), m_boundsDip.bottom - barW, m_boundsDip.right - (IsScrollbarVisible() ? barW : 0), m_boundsDip.bottom });
+
+    info.nMax  = (std::max) (0, m_widestColumns - 1);
+    info.nPage = (UINT) GetTextColumns (IsScrollbarVisible());
+    info.nPos  = m_leftColumn;
+    m_horzScroll.SetScrollInfo (info);
 }
 
 
@@ -1568,6 +1597,32 @@ void DxuiTextView::ScrollToPosition (Position pos)
     {
         SetTopLine (GetTopForLast (line));
     }
+
+    //  Without wrapping, the position's column is brought into view too.
+    if (m_noWrap && pos.row >= 0 && pos.row < (int) m_rows.size())
+    {
+        const Row &  row     = m_rows[(size_t) pos.row];
+        int          column  = 0;
+        int          visible = GetTextColumns (IsScrollbarVisible());
+
+        for (int c = 0; c < (int) row.cells.size(); c++)
+        {
+            if (c + 1 == (int) row.cells.size() || pos.offset < GetCellBase (row, c + 1))
+            {
+                column = GetCellStart (row, c) + pos.offset - GetCellBase (row, c);
+                break;
+            }
+        }
+
+        if (column < m_leftColumn)
+        {
+            SetLeftColumn (column);
+        }
+        else if (column >= m_leftColumn + visible)
+        {
+            SetLeftColumn (column - visible + 1);
+        }
+    }
 }
 
 
@@ -1707,9 +1762,10 @@ void DxuiTextView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & 
 
 void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT         hr   = S_OK;
-    DxuiFontHandle  font = theme.MonospaceFont();
-    int             last = 0;
+    HRESULT         hr       = S_OK;
+    DxuiFontHandle  font     = theme.MonospaceFont();
+    int             last     = 0;
+    float           clipLeft = 0.0f;
 
 
 
@@ -1729,14 +1785,26 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     font.sizeDip = m_scaler.ToPxf (font.sizeDip);
     last         = (std::min) ((int) m_lines.size(), m_topLine + GetLineCap() + 1);
 
-    hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                            (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top));
+    //  The rows' fills and the gutter's icons, which do not scroll sideways,
+    //  then the text, clipped to the text area once it has scrolled.
+    for (int lineIndex = m_topLine; lineIndex < last; lineIndex++)
+    {
+        PaintLineGutter (painter, text, lineIndex);
+    }
+
+    clipLeft = (m_leftColumn > 0) ? (float) GetTextBaseLeft() : (float) m_boundsDip.left;
+
+    hr = text.PushClipRect (clipLeft, (float) m_boundsDip.top, (float) m_boundsDip.right - clipLeft, (float) (m_boundsDip.bottom - m_boundsDip.top - GetHorzBarPx()));
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    painter.PushClip (clipLeft, (float) m_boundsDip.top, (float) m_boundsDip.right - clipLeft, (float) (m_boundsDip.bottom - m_boundsDip.top - GetHorzBarPx()));
 
     for (int lineIndex = m_topLine; lineIndex < last; lineIndex++)
     {
         PaintLine (painter, text, theme, lineIndex, font);
     }
+
+    painter.PopClip();
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1745,6 +1813,61 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     {
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
     }
+
+    if (IsHorzScrollbarVisible())
+    {
+        m_horzScroll.Paint (painter, theme.ForegroundMuted());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::PaintLineGutter
+//
+//  A row's fill, which runs across the view on each of its lines, gutter and
+//  all, and on its first line the gutter's icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & text, int lineIndex)
+{
+    HRESULT       hr     = S_OK;
+    const Line  & line   = m_lines[(size_t) lineIndex];
+    const Row   & row    = m_rows[(size_t) line.row];
+    int           left   = GetTextBaseLeft();
+    int           y      = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + GetLineOffsetPx (lineIndex);
+    int           gutter = GetGutterPx();
+    float         iconPx = m_scaler.ToPxf ((float) m_gutterIconDip);
+    float         iconX  = (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f;
+
+
+
+    if (row.background != 0)
+    {
+        painter.FillRect ((float) m_boundsDip.left, (float) y, (float) (m_boundsDip.right - m_boundsDip.left), (float) GetLineHeightPx (lineIndex),
+                          row.background);
+    }
+
+    if (!line.first || row.icon == nullptr || row.icon->bgraPremul.empty() || gutter <= 0)
+    {
+        return;
+    }
+
+    //  A glyph margin centers its icon on a set line.
+    if (m_glyphCenterDip > 0.0f)
+    {
+        iconX = (float) m_boundsDip.left + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
+    }
+
+    hr = text.DrawIconBitmap (row.icon->bgraPremul.data(), row.icon->width, row.icon->height,
+                              iconX,
+                              (float) y + ((float) m_cellHeightPx - iconPx) * 0.5f,
+                              iconPx, iconPx);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -1784,31 +1907,6 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     std::vector<bool>        lit;
 
 
-
-    //  A row's fill runs across the view on each of its lines, gutter and all.
-    if (row.background != 0)
-    {
-        painter.FillRect ((float) m_boundsDip.left, (float) y, (float) (m_boundsDip.right - m_boundsDip.left), (float) GetLineHeightPx (lineIndex),
-                          row.background);
-    }
-
-    if (line.first && row.icon != nullptr && !row.icon->bgraPremul.empty() && gutter > 0)
-    {
-        float  iconPx = m_scaler.ToPxf ((float) m_gutterIconDip);
-        float  iconX  = (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f;
-
-        //  A glyph margin centers its icon on a set line.
-        if (m_glyphCenterDip > 0.0f)
-        {
-            iconX = (float) m_boundsDip.left + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
-        }
-
-        hr = text.DrawIconBitmap (row.icon->bgraPremul.data(), row.icon->width, row.icon->height,
-                                  iconX,
-                                  (float) y + ((float) m_cellHeightPx - iconPx) * 0.5f,
-                                  iconPx, iconPx);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
 
     if (line.first && row.warning)
     {
@@ -1975,13 +2073,126 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer    & text,
 //
 //  DxuiTextView::GetTextLeft
 //
-//  Where the text's first column starts: past the pad and the gutter.
+//  Where the text's first column is drawn: past the pad and the gutter, and
+//  left by the columns scrolled past.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiTextView::GetTextLeft() const
 {
+    return GetTextBaseLeft() - (int) std::lround ((float) m_leftColumn * m_cellAdvance);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetTextBaseLeft
+//
+//  The left of the text area, which does not scroll.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetTextBaseLeft() const
+{
     return (int) m_boundsDip.left + GetPadLeftPx() + GetGutterPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetHorzBarPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetHorzBarPx() const
+{
+    return IsHorzScrollbarVisible() ? m_scaler.ToPx (s_kScrollbarWidthDip) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::IsHorzScrollbarVisible
+//
+//  Measured against the width left beside a vertical bar, so the answer does
+//  not depend on whether that bar is visible, which depends on this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::IsHorzScrollbarVisible() const
+{
+    return m_noWrap && m_cellWidthPx > 0 && m_widestColumns > GetTextColumns (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetLeftColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetLeftColumn (int column)
+{
+    int  most = (std::max) (0, m_widestColumns - GetTextColumns (IsScrollbarVisible()));
+
+
+
+    m_leftColumn = m_noWrap ? std::clamp (column, 0, most) : 0;
+    SyncScrollbar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetColumnCap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetColumnCap (int column, int cells)
+{
+    if (cells > 0)
+    {
+        m_columnCaps[column] = cells;
+    }
+    else
+    {
+        m_columnCaps.erase (column);
+    }
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetNoWrap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetNoWrap (bool noWrap)
+{
+    m_noWrap     = noWrap;
+    m_leftColumn = noWrap ? m_leftColumn : 0;
+
+    Rebuild();
 }
 
 
@@ -2146,7 +2357,15 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Wheel:
-        ScrollLines ((int) (-ev.wheelDelta * (float) kWheelLines));
+        if (ev.shift && m_noWrap)
+        {
+            SetLeftColumn (m_leftColumn + (int) (-ev.wheelDelta * (float) kWheelColumns));
+        }
+        else
+        {
+            ScrollLines ((int) (-ev.wheelDelta * (float) kWheelLines));
+        }
+
         handled = true;
         break;
 
@@ -2164,6 +2383,11 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         {
             handled = m_vertScroll.OnMouseDown (point.x, point.y);
             SetTopLine (m_vertScroll.GetScrollPos());
+        }
+        else if (ev.button == DxuiMouseButton::Left && IsHorzScrollbarVisible() && m_horzScroll.HitTest (point.x, point.y))
+        {
+            handled = m_horzScroll.OnMouseDown (point.x, point.y);
+            SetLeftColumn (m_horzScroll.GetScrollPos());
         }
         else if (ev.button == DxuiMouseButton::Left)
         {
@@ -2208,6 +2432,11 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
             handled = m_vertScroll.OnMouseMove (point.x, point.y);
             SetTopLine (m_vertScroll.GetScrollPos());
         }
+        else if (m_horzScroll.IsDragging())
+        {
+            handled = m_horzScroll.OnMouseMove (point.x, point.y);
+            SetLeftColumn (m_horzScroll.GetScrollPos());
+        }
         else if (m_dragging)
         {
             if (point.y < m_boundsDip.top)
@@ -2217,6 +2446,15 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
             else if (point.y >= m_boundsDip.bottom)
             {
                 ScrollLines (1);
+            }
+
+            if (m_noWrap && point.x < GetTextBaseLeft())
+            {
+                SetLeftColumn (m_leftColumn - 1);
+            }
+            else if (m_noWrap && point.x >= m_boundsDip.right)
+            {
+                SetLeftColumn (m_leftColumn + 1);
             }
 
             pos = HitTest (point);
@@ -2245,6 +2483,10 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         if (m_vertScroll.IsDragging())
         {
             handled = m_vertScroll.OnMouseUp();
+        }
+        else if (m_horzScroll.IsDragging())
+        {
+            handled = m_horzScroll.OnMouseUp();
         }
         else if (m_dragging)
         {

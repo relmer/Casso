@@ -134,6 +134,56 @@ public:
     }
 
 
+    //  A capped column lines its cells up at the cap; a longer cell pushes
+    //  only the next cell of that row along.
+    TEST_METHOD (ColumnCap_ALongCellPushesOnlyItsRowsNextCell)
+    {
+        DxuiTextView  view;
+        float         shortX = 0.0f;
+        float         longX  = 0.0f;
+        float         y      = 0.0f;
+
+        LayOut (view, 800, 400);
+        view.SetColumnCap (0, 6);
+        view.SetRows ({ MakeRow ({ L"ab", L"one" }), MakeRow ({ L"abcdefghijkl", L"two" }) });
+
+        Assert::IsTrue   (view.GetCellAnchorPx (0, 1, shortX, y));
+        Assert::IsTrue   (view.GetCellAnchorPx (1, 1, longX,  y));
+        Assert::AreEqual (6.0f + 8.0f * 8.0f,  shortX, 0.5f, L"the cap and the gap");
+        Assert::AreEqual (6.0f + 14.0f * 8.0f, longX,  0.5f, L"its own cell and the gap");
+    }
+
+
+    //  Without wrapping, a long last cell is one line, a bar along the bottom
+    //  scrolls it, and a point maps to the column scrolled to.
+    TEST_METHOD (NoWrap_ALongLineIsOneLineScrolledSideways)
+    {
+        DxuiTextView  view;
+        std::wstring  text (200, L'x');
+        int           unscrolled = 0;
+
+        LayOut (view, 200, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"A", text }) });
+
+        Assert::AreEqual (1, view.GetLineCount(), L"not wrapped");
+        Assert::IsTrue   (view.IsHorzScrollbarVisible());
+
+        unscrolled = view.HitTest (POINT { 100, 6 + 4 }).offset;
+
+        view.SetLeftColumn (10);
+        Assert::AreEqual (10, view.GetLeftColumn());
+        Assert::AreEqual (unscrolled + 10, view.HitTest (POINT { 100, 6 + 4 }).offset, L"ten columns along");
+
+        view.SetLeftColumn (100000);
+        Assert::IsTrue   (view.GetLeftColumn() < 202, L"no further than the end");
+
+        view.SetNoWrap (false);
+        Assert::AreEqual (0, view.GetLeftColumn());
+        Assert::IsTrue   (view.GetLineCount() > 1, L"wrapped again");
+    }
+
+
     TEST_METHOD (Drag_SelectsFromTheCharacterPressedToTheOneReleased)
     {
         DxuiTextView  view;

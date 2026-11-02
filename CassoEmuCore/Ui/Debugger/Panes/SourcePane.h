@@ -66,6 +66,13 @@ public:
     //  What an operand's result is shown after, here and in the disassembly.
     static constexpr const wchar_t * kpszResultPrefix = L"Result: ";
 
+    //  A row's cells: the marker, the line number, the source text, and the
+    //  annotation. The text's column is no wider than kAnnotationColumn, so
+    //  the annotations start near the code, and only a longer line pushes
+    //  that line's annotation along.
+    static constexpr int  kTextCell         = 2;
+    static constexpr int  kAnnotationColumn = 40;
+
     SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run, GoToFn goTo);
 
     SourcePane (const SourcePane &)             = delete;
