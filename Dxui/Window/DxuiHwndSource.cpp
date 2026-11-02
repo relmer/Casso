@@ -3022,12 +3022,33 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
         case WM_NCLBUTTONDOWN:
             WindowTrace::Log ("caption.press", "window", std::format ("hit {}", (int) wp));
-            result = IsClaimed (m_client != nullptr
-                                  ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
-                                  : DxuiMessageResult::NotHandled,
-                                RepaintOnClaim::No)
-                         ? 0
-                         : HandleNcMouse (msg, wp, lp);
+
+            if (IsClaimed (m_client != nullptr
+                             ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                             : DxuiMessageResult::NotHandled,
+                           RepaintOnClaim::No))
+            {
+                result = 0;
+                break;
+            }
+
+            //  A press on the caption runs the system's wait for a drag, then
+            //  its move loop, inside DefWindowProc, before WM_ENTERSIZEMOVE
+            //  arms the keep-alive tick. The tick is armed at the press, so
+            //  the window's frames go on through the wait, and disarmed when
+            //  the press returns.
+            if (wp == HTCAPTION)
+            {
+                ArmModalKeepAlive();
+            }
+
+            result = HandleNcMouse (msg, wp, lp);
+
+            if (wp == HTCAPTION)
+            {
+                EndModalKeepAlive();
+            }
+
             break;
 
         case WM_NCLBUTTONUP:
@@ -3078,6 +3099,18 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             if ((wp & 0xFFF0) == SC_MAXIMIZE || (wp & 0xFFF0) == SC_RESTORE)
             {
                 if (m_client != nullptr) { m_client->OnUserWindowStateCommand(); }
+            }
+
+            //  A move started by command, as a torn-off pane's is, waits for
+            //  the drag the same way a caption press does, so the keep-alive
+            //  tick is armed for the whole command.
+            if ((wp & 0xFFF0) == SC_MOVE)
+            {
+                WindowTrace::Log ("move.command", "window", "");
+                ArmModalKeepAlive();
+                result = DefWindowProcW (m_hwnd, msg, wp, lp);
+                EndModalKeepAlive();
+                break;
             }
 
             isHandled = false;
