@@ -630,6 +630,7 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, ProfileList list, 
     data.isOn         = m_profile.IsOn();
     data.list         = list;
     data.historyRange = m_historyRange;
+    data.isFromHistoryStart = m_isFromHistoryStart;
     data.historyBuild = m_historyBuilds;
     data.instructions = m_profile.GetInstructionCount();
     data.cycles       = m_profile.GetTotalCycles();
@@ -1118,6 +1119,7 @@ void ExecutionHandlers::InstallProfile (const ProfileCounts & counts)
     m_profile      = counts.table;
     m_routines     = counts.routines;
     m_historyRange = counts.historyRange;
+    m_isFromHistoryStart = counts.isFromHistoryStart;
     m_historyBuilds++;
     m_profile.SetOn (isOn);
     m_profilePending.reset();

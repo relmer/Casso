@@ -106,6 +106,44 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RoutineProfile::Seed
+//
+//  A frame's level is the stack pointer before its return address was
+//  pushed, so it ends once the stack has risen that far above the stack
+//  pointer here. A call already open is not counted as a call again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::Seed (const std::vector<CallStackFrame> & frames, Byte sp)
+{
+    m_stack.clear();
+    m_pending.reset();
+    m_lastSp = sp;
+    m_depth  = 0;
+
+    for (const CallStackFrame & frame : frames)
+    {
+        RoutineKind  kind    = (frame.kind == CallFrameKind::Call) ? RoutineKind::Call
+                             : (frame.kind == CallFrameKind::Brk)  ? RoutineKind::Brk
+                                                                   : RoutineKind::Interrupt;
+        int          parent  = m_stack.empty() ? 0 : m_stack.back().node;
+        int          node    = FindChild (parent, FindRoutine (frame.target, kind));
+
+        if (m_stack.size() >= kMaxDepth)
+        {
+            break;
+        }
+
+        m_stack.push_back (Active { node, (int64_t) sp - (int64_t) frame.stackLevel });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RoutineProfile::OnInterrupt
 //
 //  The interrupt returns to the stack pointer after the last instruction.
@@ -622,6 +660,12 @@ std::string ProfileData::GetTopLevelTip() const
     std::string  tip = "Top level: the cycles in code outside every call seen during the period.";
 
 
+
+    if (historyRange.has_value())
+    {
+        tip = isFromHistoryStart ? "Top level: the cycles in code outside every call in history. The period begins where history does, so a call made before then is counted here."
+                                 : "Top level: the cycles in code outside every call in history.";
+    }
 
     if (topAddresses.empty())
     {

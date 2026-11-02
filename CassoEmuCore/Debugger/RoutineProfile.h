@@ -1,5 +1,7 @@
 #pragma once
 
+struct CallStackFrame;
+
 
 
 
@@ -92,6 +94,11 @@ public:
     //  An interrupt is taken in place of the instruction at pc, and the
     //  next instruction starts its routine.
     void  OnInterrupt (Word pc);
+
+    //  The calls open where counting starts, outermost first, with the stack
+    //  pointer there: each is entered under the one before it, and ends when
+    //  the stack rises to its level, so its cycles are not Top level's.
+    void  Seed        (const std::vector<CallStackFrame> & frames, Byte sp);
 
     void  Reset       ();
 

@@ -433,6 +433,10 @@ struct ProfileData
     //  symbol at or before it.
     std::vector<ProfileAddressEntry>  topAddresses;
 
+    //  A profile from history whose period begins where history does, so the
+    //  calls open before then are unknown and their cycles are Top level's.
+    bool                              isFromHistoryStart = false;
+
     //  Top level's definition and its hottest addresses, for its tip.
     std::string                       GetTopLevelTip () const;
 

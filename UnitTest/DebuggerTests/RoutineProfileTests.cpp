@@ -413,6 +413,55 @@ namespace DebuggerTests
 
 
 
+        //  A profile started inside a call bills the call's cycles to it, not
+        //  to Top level, until its RTS takes the stack to the frame's level.
+        TEST_METHOD (AProfileSeededInsideACallBillsItUntilItReturns)
+        {
+            Feed            feed;
+            CallStackFrame  frame;
+            int             node = 0;
+
+
+
+            frame.callSite   = 0x0300;
+            frame.target     = 0x0400;
+            frame.kind       = CallFrameKind::Call;
+            frame.stackLevel = 0xFF;
+
+            // At $0402, inside the call, SP $FD: LDA, RTS, then $0303: LDA
+            feed.profile.Seed ({ frame }, 0xFD);
+            feed.Run (0x0402, kLda, 2, 0xFD);
+            feed.Run (0x0404, kRts, 6, 0xFF);
+            feed.Run (0x0303, kLda, 2, 0xFF);
+
+            node = FindNode (feed.profile, 0x0400);
+
+            Assert::IsTrue   (node > 0, L"the open call is a node");
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[(size_t) node].self, L"its LDA and RTS");
+            Assert::AreEqual ((uint64_t) 2, feed.profile.GetNodes()[0].self, L"only the LDA after the return is Top level's");
+            Assert::AreEqual ((uint64_t) 0, feed.profile.GetNodes()[(size_t) node].calls, L"a call already open is not counted again");
+        }
+
+
+
+        //  A profile from history whose period begins where history does has a
+        //  note in its tip, as a call made before then is counted as Top level.
+        TEST_METHOD (TopLevelsTipNotesAPeriodThatBeginsWithHistory)
+        {
+            ProfileData  data;
+
+
+
+            data.historyRange = CycleRange { 0, 1000 };
+            Assert::IsTrue (data.GetTopLevelTip().find ("outside every call in history.") != std::string::npos);
+            Assert::IsTrue (data.GetTopLevelTip().find ("begins where history does") == std::string::npos);
+
+            data.isFromHistoryStart = true;
+            Assert::IsTrue (data.GetTopLevelTip().find ("begins where history does") != std::string::npos);
+        }
+
+
+
         //  The tip lists Top level's hottest addresses with the nearest symbol,
         //  and a symbol a few bytes back reads as an offset from it.
         TEST_METHOD (TopLevelsTipListsItsHottestAddresses)
