@@ -965,7 +965,7 @@ const std::vector<ProfilerPane::Period> & ProfilerPane::GetPeriods()
 //
 //  ProfilerPane::GetPeriodIndex
 //
-//  The period whose HISTORY argument is rgument, or the first, the last
+//  The period whose HISTORY argument is `argument`, or the first, the last
 //  5 seconds, for an empty or unknown one.
 //
 ////////////////////////////////////////////////////////////////////////////////

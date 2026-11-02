@@ -443,7 +443,7 @@ struct CommandLineOptions
         bool                      writeDisks    = false;         // --write-disks
 
         //  A running Casso instead of a machine built here. list prints the
-        //  instances with a debug channel open; ttachPid runs the script
+        //  instances with a debug channel open; `attachPid` runs the script
         //  against one of them, waiting at most 	imeoutSeconds for a run.
         bool                      list           = false;                 // --list
         uint32_t                  attachPid      = 0;                     // --attach <pid>

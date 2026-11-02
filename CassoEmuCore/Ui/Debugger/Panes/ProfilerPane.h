@@ -58,7 +58,7 @@ public:
 
     static const std::vector<Period> &  GetPeriods ();
 
-    //  The period whose HISTORY argument is rgument; the first, the last
+    //  The period whose HISTORY argument is `argument`; the first, the last
     //  5 seconds, for an empty or unknown one.
     static size_t                       GetPeriodIndex (const std::string & argument);
 

@@ -499,7 +499,7 @@ private:
     void  PaintSlot      (Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintEntryIcon (const Slot & slot, IDxuiPainter & painter, IDxuiTextRenderer & text, const DxuiToolbarIconBox & icon, uint32_t ink);
 
-    //  A translucent ink as the opaque color it looks like over ehind.
+    //  A translucent ink as the opaque color it looks like over `behind`.
     static uint32_t  Flatten (uint32_t ink, uint32_t behind);
     void  PaintFlyout    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 

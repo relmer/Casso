@@ -91,7 +91,7 @@ struct DxuiToolbarDock
     //  pointer.
     static DxuiToolbarDock  SlideAlong (POINT pointer, POINT grab, const DxuiToolbarDock & current, const RECT & area, int dpi);
 
-    //  Whether a drag of a bar docked on dge has pulled far enough away
+    //  Whether a drag of a bar docked on `edge` has pulled far enough away
     //  to tear it off: more than `bandPx + pullPx` in from that edge, or
     //  more than `pullPx` outside it or past either end of it.
     static bool            IsPulledOut (POINT pointer, Edge edge, const RECT & area, int bandPx, int pullPx);
