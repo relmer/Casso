@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "CassoExplorer/Model/CrossVolumeCopy.h"
+
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -844,6 +846,7 @@ void ActionsCopy::CopyEntry (
     DiskOperations::Result  result;
     FilePayload             payload;
     DiskOperations::Result  listedResult;
+    std::wstring            note;
 
 
 
@@ -895,8 +898,21 @@ void ActionsCopy::CopyEntry (
                                                   result.unreadSectors, result.unreadSectors == 1 ? L"sector" : L"sectors", result.unreadSectors == 1 ? L"is" : L"are"));
     }
 
-    //  The type means the same thing on the other file system.
-    HostFileNaming::ConvertPayloadType (sourceKind, targetKind, payload);
+    //  The type means the same thing on the other file system, and text is text
+    //  in that file system's form, under a name its programs expect.
+    if (CrossVolumeCopy::IsText (sourceKind, leaf, payload) && sourceKind != targetKind)
+    {
+        name   = (depth == 0) ? CassoExplorerActions::MakeFreeEntryName (CrossVolumeCopy::FitTextName (fitted, targetKind), m_actions.GetEntryNames (targetImage, directory), targetKind, beside)
+                              : CrossVolumeCopy::FitTextName (fitted, targetKind);
+        target = directory.empty() ? name : directory + "/" + name;
+    }
+
+    CrossVolumeCopy::Convert (sourceKind, targetKind, leaf, payload, note);
+
+    if (!note.empty())
+    {
+        AppendWarning (inOutOutcome, note);
+    }
 
     Record (inOutOutcome, m_actions.m_browser.GetOperations().WritePayload (targetImage, target, payload), target);
 }

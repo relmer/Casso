@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "CassoExplorer/Model/CrossVolumeCopy.h"
+
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoLink/LinkAudioBootstrap.h"
@@ -273,6 +275,7 @@ ActionsTypes::Outcome ActionsAppleDrive::CopyEntriesToAppleDrive (const std::str
         std::string  name  = CassoExplorerActions::MakeFreeEntryName (CassoExplorerActions::FitEntryName (leaf, sourceKind, targetKind), taken, targetKind, false);
         std::string             path = directory.empty() ? name : directory + "/" + name;
         FilePayload             payload;
+        std::wstring            note;
         DiskOperations::Result  result = m_actions.m_browser.GetOperations().Read (sourceImage, catalogPath, payload);
 
         if (!result.Succeeded())
@@ -281,7 +284,18 @@ ActionsTypes::Outcome ActionsAppleDrive::CopyEntriesToAppleDrive (const std::str
             continue;
         }
 
-        HostFileNaming::ConvertPayloadType (sourceKind, targetKind, payload);
+        if (CrossVolumeCopy::IsText (sourceKind, leaf, payload) && sourceKind != targetKind)
+        {
+            name = CassoExplorerActions::MakeFreeEntryName (CrossVolumeCopy::FitTextName (name, targetKind), taken, targetKind, false);
+            path = directory.empty() ? name : directory + "/" + name;
+        }
+
+        CrossVolumeCopy::Convert (sourceKind, targetKind, leaf, payload, note);
+
+        if (!note.empty())
+        {
+            ActionsCopy::AppendWarning (outcome, note);
+        }
 
         taken.push_back (name);
         SubmitWrite (link, drive, [drive, path, payload] (CassoLinkSession & session) { return session.WriteFile (drive, FilePath::Parse (path), payload); }, outcome);

@@ -98,6 +98,7 @@ public:
     static constexpr Byte  kTypeInteger     = 0x01;
     static constexpr Byte  kTypeApplesoft   = 0x02;
     static constexpr Byte  kTypeBinary      = 0x04;
+    static constexpr Byte  kTypeSpecial     = 0x08;
     static constexpr Byte  kTypeRelocatable = 0x10;
 
     //

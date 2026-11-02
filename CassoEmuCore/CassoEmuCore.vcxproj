@@ -352,6 +352,7 @@
     <ClCompile Include="CassoExplorer\Model\FolderOptions.cpp" />
     <ClCompile Include="CassoExplorer\Model\FolderViews.cpp" />
     <ClCompile Include="CassoExplorer\Model\ContentSniffer.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CrossVolumeCopy.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskOperations.cpp" />
     <ClCompile Include="CassoExplorer\Model\DragPayload.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostFileNaming.cpp" />
@@ -854,6 +855,7 @@
     <ClInclude Include="CassoExplorer\Model\FolderOptions.h" />
     <ClInclude Include="CassoExplorer\Model\FolderViews.h" />
     <ClInclude Include="CassoExplorer\Model\ContentSniffer.h" />
+    <ClInclude Include="CassoExplorer\Model\CrossVolumeCopy.h" />
     <ClInclude Include="CassoExplorer\Model\DiskOperations.h" />
     <ClInclude Include="CassoExplorer\Model\DragPayload.h" />
     <ClInclude Include="CassoExplorer\Model\HostFileNaming.h" />

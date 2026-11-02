@@ -1556,4 +1556,5 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T368 Add the directory damage note to the preview pane and status text, and count blocks that invalid entries with a user byte of 0 to $1F list, per FR-132
 - [X] T369 Add `--bootable` for Apple Pascal and CP/M, with a stock disk table, a download prompt in the New disk dialog and `softcard`, per FR-132
 - [X] T370 Add `disk krunch` and a Casso Explorer command on a Pascal image's menu, and a put message for fragmented free space, per FR-132. Not offered over the link, since files are unreadable after a failed write partway
+- [X] T371 Convert text and map types in copies among Apple Pascal, DOS 3.3, ProDOS and CP/M, and to and from the host, per FR-132
 

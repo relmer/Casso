@@ -1370,11 +1370,18 @@ Error:
 
 void CpmVolume::DecodeText (std::span<const Byte> bytes, std::string & outText)
 {
-    auto  end = std::find (bytes.begin(), bytes.end(), kTextEnd);
+    constexpr Byte  kCharacterBits = 0x7F;
+    auto            end            = std::find (bytes.begin(), bytes.end(), kTextEnd);
 
 
 
-    outText.assign (bytes.begin(), end);
+    outText.clear();
+
+    //  A word processor's high bits on a CP/M text file aren't characters.
+    for (auto at = bytes.begin(); at != end; ++at)
+    {
+        outText.push_back ((char) (*at & kCharacterBits));
+    }
 }
 
 
@@ -1416,4 +1423,6 @@ void CpmVolume::EncodeText (const std::string & text, vector<Byte> & outBytes)
     {
         outBytes.push_back ('\n');
     }
+
+    outBytes.push_back (kTextEnd);
 }

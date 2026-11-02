@@ -359,10 +359,12 @@ ActionsTypes::Encoding CassoExplorerActions::GetEncoding (const FileEntry & entr
         return (entry.type == PascalVolume::kKindText) ? Encoding::Text : Encoding::Verbatim;
     }
 
-    //  CP/M has no file types, and its text is plain ASCII.
+    //  CP/M has no file types, so a .TXT name is text on the host, without its
+    //  $1A end. Any other file keeps its bytes, since this is decided before they
+    //  are read.
     if (kind == VolumeKind::Cpm)
     {
-        return Encoding::Verbatim;
+        return (entry.name.size() > 4 && _stricmp (entry.name.c_str() + (entry.name.size() - 4), ".TXT") == 0) ? Encoding::Text : Encoding::Verbatim;
     }
 
     if (isDos ?(entry.type == Dos33Volume::kTypeApplesoft || entry.type == Dos33Volume::kTypeInteger)

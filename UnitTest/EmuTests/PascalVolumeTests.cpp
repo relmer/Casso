@@ -7,6 +7,7 @@
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/DragPayload.h"
+#include "CassoExplorer/Model/CrossVolumeCopy.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
@@ -887,9 +888,11 @@ public:
 
         payload = FilePayload();
         payload.type = PascalVolume::kKindCode;
-        HostFileNaming::ConvertPayloadType (VolumeKind::Pascal, VolumeKind::Dos33, payload);
-        Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) payload.type);
-        Assert::IsTrue (payload.hasLoadAddress, L"A DOS 3.3 binary has to record an address");
+        std::wstring  note;
+
+        CrossVolumeCopy::Convert (VolumeKind::Pascal, VolumeKind::Dos33, "A.CODE", payload, note);
+        Assert::AreEqual ((int) Dos33Volume::kTypeSpecial, (int) payload.type, L"Not a type that claims to be runnable");
+        Assert::IsFalse (payload.hasLoadAddress);
 
         payload = FilePayload();
         payload.type = ProDosVolume::kTypeText;

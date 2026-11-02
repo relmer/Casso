@@ -106,10 +106,10 @@ public:
     //  optional period and up to 3 more, with no space or any of < > , ; : = ? * [ ].
     static bool  IsValidName (const std::string & name);
 
-    //  A text file's bytes up to its first $1A.
+    //  A text file's bytes up to its first $1A, in seven bits.
     static void  DecodeText (std::span<const Byte> bytes, std::string & outText);
 
-    //  Host text with each line ending in CR LF.
+    //  Host text with each line ending in CR LF, and a $1A at the end.
     static void  EncodeText (const std::string & text, vector<Byte> & outBytes);
 
 private:

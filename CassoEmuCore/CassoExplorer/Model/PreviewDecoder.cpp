@@ -171,16 +171,13 @@ PreviewContent::Kind PreviewDecoder::Decide (
 
 PreviewContent::Kind PreviewDecoder::DecideCpm (const FilePayload & payload)
 {
-    std::string  text;
-    bool         isAscii = false;
+    auto                   end     = std::find (payload.bytes.begin(), payload.bytes.end(), CpmVolume::kTextEnd);
+    std::span<const Byte>  bytes   (payload.bytes.data(), (size_t) (end - payload.bytes.begin()));
+    bool                   isAscii = std::all_of (bytes.begin(), bytes.end(), [] (Byte value) { return value < 0x80; });
 
 
 
-    CpmVolume::DecodeText (payload.bytes, text);
-
-    isAscii = std::all_of (text.begin(), text.end(), [] (char ch) { return (Byte) ch < 0x80; });
-
-    return (isAscii && LooksLikeText (std::span<const Byte> ((const Byte *) text.data(), text.size()))) ? PreviewContent::Kind::Text : PreviewContent::Kind::Hex;
+    return (isAscii && LooksLikeText (bytes)) ? PreviewContent::Kind::Text : PreviewContent::Kind::Hex;
 }
 
 

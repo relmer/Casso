@@ -132,7 +132,6 @@ Byte HostFileNaming::MapPascalToProDosType (Byte kind)
 {
     static constexpr Byte  kBadBlocks = 0x01;
     static constexpr Byte  kCode      = 0x02;
-    static constexpr Byte  kText      = 0x03;
     static constexpr Byte  kData      = 0x05;
     static constexpr Byte  kGraphics  = 0x08;
 
@@ -142,7 +141,7 @@ Byte HostFileNaming::MapPascalToProDosType (Byte kind)
     {
         case PascalVolume::kKindBad:  return kBadBlocks;
         case PascalVolume::kKindCode: return kCode;
-        case PascalVolume::kKindText: return kText;
+        case PascalVolume::kKindText: return ProDosVolume::kTypeText;
         case PascalVolume::kKindGraf: return kGraphics;
         case PascalVolume::kKindFoto: return kGraphics;
         default:                      return kData;

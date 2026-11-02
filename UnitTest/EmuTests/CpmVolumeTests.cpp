@@ -10,6 +10,7 @@
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
+#include "CassoExplorer/Model/CrossVolumeCopy.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
@@ -878,7 +879,7 @@ public:
 
         CpmVolume::EncodeText ("A\nB\r\nC\rD", bytes);
 
-        Assert::AreEqual (std::string ("A\r\nB\r\nC\r\nD"), std::string (bytes.begin(), bytes.end()));
+        Assert::AreEqual (std::string ("A\r\nB\r\nC\r\nD\x1A"), std::string (bytes.begin(), bytes.end()));
     }
 
 
@@ -971,10 +972,13 @@ public:
         HostFileNaming::ConvertPayloadType (VolumeKind::ProDos, VolumeKind::Cpm, payload);
         Assert::AreEqual ((int) 0, (int) payload.type);
 
+        std::wstring  note;
+
         payload = FilePayload();
-        HostFileNaming::ConvertPayloadType (VolumeKind::Cpm, VolumeKind::Dos33, payload);
-        Assert::AreEqual ((int) Dos33Volume::kTypeBinary, (int) payload.type);
-        Assert::IsTrue (payload.hasLoadAddress);
+        payload.bytes = { 0xC3, 0x00, 0x01 };
+        CrossVolumeCopy::Convert (VolumeKind::Cpm, VolumeKind::Dos33, "A.COM", payload, note);
+        Assert::AreEqual ((int) Dos33Volume::kTypeSpecial, (int) payload.type, L"Not a type that claims to be runnable");
+        Assert::IsFalse (payload.hasLoadAddress);
 
         payload = FilePayload();
         HostFileNaming::ConvertPayloadType (VolumeKind::Cpm, VolumeKind::ProDos, payload);
