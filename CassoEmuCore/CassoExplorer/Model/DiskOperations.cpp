@@ -76,6 +76,7 @@ std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))            { return "the name is not valid on this file system"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))           { return "it is locked"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))               { return "the volume has no room for it"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_TOO_FRAGMENTED))     { return "the volume has enough free blocks, but in pieces, and an Apple Pascal file has to be contiguous. Use Krunch on the disk's menu to combine the free space"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE))             { return "the volume directory is full, with room for 51 entries"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))          { return "it is larger than this file system can record"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED)) { return "it is a directory, and this operation is for files only"; }
@@ -614,6 +615,21 @@ DiskOperations::Result DiskOperations::Boot (const std::string & imagePath, cons
     ApplyIndex (catalogIndex, options);
 
     return RunCommand (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::Krunch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Krunch (const std::string & imagePath)
+{
+    return RunCommand (MakeOptions (Command::Krunch, imagePath));
 }
 
 

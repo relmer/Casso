@@ -1233,6 +1233,11 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
             break;
 
+        case CassoExplorerActions::Verb::Krunch:
+            ReportOutcome (m_context.actions.KrunchImage(), L"Krunch");
+            m_context.listPane.FillList();
+            break;
+
         case CassoExplorerActions::Verb::Refresh:
             Dispatch (CassoExplorerCommands::kRefresh);
             break;

@@ -164,6 +164,10 @@ public:
     //  shows. Everything on it is lost.
     Outcome  FormatImage (const DiskOperations::NewDiskRequest & request);
 
+    //  Combines the free space of the Apple Pascal disk the format verb acts on.
+    Outcome  KrunchImage    ();
+    bool     IsTargetPascal () const;
+
     //  The image a format would act on, or empty. The raw sector and block
     //  verbs act on the same image.
     std::wstring  GetFormatTarget() const;

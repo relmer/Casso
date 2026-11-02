@@ -450,7 +450,7 @@ public:
         AddFile (image, 2, "B.DATA", 102, 200, PascalVolume::kKindData, 512, 0, 0);
         AddFile (image, 3, "C.DATA", 202, 280, PascalVolume::kKindData, 512, 0, 0);
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), volume.Write (FilePath::Parse ("D.DATA"), MakePayload (3 * kBlockBytes, 1), edited));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_TOO_FRAGMENTED), volume.Write (FilePath::Parse ("D.DATA"), MakePayload (3 * kBlockBytes, 1), edited));
 
         AssertSucceeded (volume.Write (FilePath::Parse ("D.DATA"), MakePayload (2 * kBlockBytes, 1), edited));
     }

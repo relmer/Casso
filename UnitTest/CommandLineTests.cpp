@@ -3012,6 +3012,7 @@ namespace CommandLineTests
                 { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
                 { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
                 { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
+                { "krunch",      CommandLineOptions::DiskOptions::Command::Krunch      },
             };
 
             for (const auto & form : kSpellings)
@@ -3027,7 +3028,7 @@ namespace CommandLineTests
                     L"the image is still the first positional after any form");
             }
 
-            Assert::AreEqual (size_t (25), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (26), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

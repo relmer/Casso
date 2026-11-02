@@ -499,6 +499,166 @@ public:
         Assert::IsTrue (result.output.find ("Not bootable: it has no boot loader") != std::string::npos);
     }
 
+    static DiskCommandResult  RunKrunch (FakeDiskFileIo & io, const std::string & path)
+    {
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+
+        options.disk.command   = CommandLineOptions::DiskOptions::Command::Krunch;
+        options.disk.imagePath = path;
+
+        return runner.Run (options);
+    }
+
+    static void  SeedImage (FakeDiskFileIo & io, const std::string & path, const std::vector<Byte> & sectors)
+    {
+        io.files[path]  = sectors;
+        io.stamps[path] = FileStamp { sectors.size(), 1 };
+    }
+
+    //  A, B and C of the given blocks, with B deleted, so the free space is in
+    //  two pieces.
+    static std::vector<Byte>  BuildGappedPascal (int a, int b, int c)
+    {
+        std::vector<Byte>  image (kImageBytes, 0);
+        std::vector<Byte>  next;
+        int                sizes[] = { a, b, c };
+        const char *       names[] = { "A.DATA", "B.DATA", "C.DATA" };
+
+        PascalVolume::WriteBlank ("GAPPED", 0, image);
+
+        for (int i = 0; i < 3; i++)
+        {
+            FilePayload  payload;
+
+            payload.bytes.resize ((size_t) sizes[i] * 512 - 100);
+
+            for (size_t j = 0; j < payload.bytes.size(); j++)
+            {
+                payload.bytes[j] = (Byte) (i + j * 3);
+            }
+
+            AssertSucceeded (PascalVolume (image).Write (FilePath::Parse (names[i]), payload, next));
+
+            image = next;
+        }
+
+        AssertSucceeded (PascalVolume (image).Delete (FilePath::Parse ("B.DATA"), next));
+
+        return next;
+    }
+
+    TEST_METHOD (KrunchMovesFilesTowardTheStartAndKeepsTheirBytes)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  image = BuildGappedPascal (5, 10, 8);
+        std::vector<Byte>  sectors;
+        VolumeListing      listing;
+        FilePayload        before;
+        FilePayload        after;
+        DiskCommandResult  result;
+
+        AssertSucceeded (PascalVolume (image).Read (FilePath::Parse ("C.DATA"), before));
+
+        SeedImage (io, "C:\\disks\\gap.dsk", image);
+
+        result = RunKrunch (io, "C:\\disks\\gap.dsk");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue (result.output.find ("1 file moved") != std::string::npos);
+
+        LoadImage (io, "C:\\disks\\gap.dsk", sectors);
+
+        PascalVolume  volume (sectors);
+
+        AssertSucceeded (volume.Enumerate (listing));
+        Assert::AreEqual (6,  listing.entries[0].firstBlock);
+        Assert::AreEqual (11, listing.entries[1].firstBlock, L"C follows A");
+
+        AssertSucceeded (volume.Read (FilePath::Parse ("C.DATA"), after));
+        Assert::IsTrue (before.bytes == after.bytes);
+    }
+
+    TEST_METHOD (KrunchOfADiskWithNoGapsLeavesTheImageAlone)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  image (kImageBytes, 0);
+        std::vector<Byte>  fileBefore;
+        DiskCommandResult  result;
+
+        PascalVolume::WriteBlank ("EMPTY", 0, image);
+        SeedImage (io, "C:\\disks\\e.dsk", image);
+
+        fileBefore = io.files["C:\\disks\\e.dsk"];
+        result     = RunKrunch (io, "C:\\disks\\e.dsk");
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (result.output.find ("0 files moved") != std::string::npos);
+        Assert::IsTrue (fileBefore == io.files["C:\\disks\\e.dsk"]);
+    }
+
+    TEST_METHOD (KrunchRefusesOtherFileSystemsAndDamage)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  image;
+        std::vector<Byte>  damaged = BuildGappedPascal (5, 10, 8);
+        std::vector<Byte>  unchanged;
+        DiskCommandResult  result;
+
+        CpmVolume::WriteBlank (image);
+        SeedImage (io, "C:\\disks\\c.dsk", image);
+
+        result = RunKrunch (io, "C:\\disks\\c.dsk");
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("Apple Pascal disks") != std::string::npos);
+
+        //  The second file starts inside the first.
+        damaged[ProDosSkeleton::GetBlockByteOffset (2, 2 * 26)] = 7;
+
+        SeedImage (io, "C:\\disks\\d.dsk", damaged);
+
+        unchanged = io.files["C:\\disks\\d.dsk"];
+        result    = RunKrunch (io, "C:\\disks\\d.dsk");
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("damaged") != std::string::npos);
+        Assert::IsTrue (unchanged == io.files["C:\\disks\\d.dsk"], L"All or nothing");
+    }
+
+    TEST_METHOD (APutThatFailsOnFragmentsPointsToKrunch)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        DiskCommandResult   result;
+        std::vector<Byte>   image = BuildGappedPascal (5, 140, 120);
+
+        //  149 blocks free in two pieces of 140 and 9.
+        SeedImage (io, "C:\\disks\\f.dsk", image);
+
+        io.stamps["C:\\host\\BIG.DATA"] = FileStamp { 1, 1 };
+        options.disk.command   = CommandLineOptions::DiskOptions::Command::Put;
+        options.disk.imagePath = "C:\\disks\\f.dsk";
+        options.disk.hostFile  = "C:\\host\\BIG.DATA";
+
+
+        io.files["C:\\host\\BIG.DATA"].assign (142 * 512, 1);
+
+        result = runner.Run (options);
+
+        //  The 140 block gap can't take 142, though 149 are free.
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("disk krunch") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        io.files["C:\\host\\BIG.DATA"].assign (200 * 512, 1);
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
+        Assert::IsTrue (result.diagnostics.find ("no room") != std::string::npos, L"More than is free isn't about fragments");
+    }
+
     TEST_METHOD (TheNewDiskDialogOffersPascalAndCpm)
     {
         using Choices = CassoExplorerNewDiskChoices;

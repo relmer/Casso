@@ -102,6 +102,7 @@ const wchar_t * ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb verb)
         case CassoExplorerActions::Verb::NewDisk:        return L"&Disk image...";
         case CassoExplorerActions::Verb::NewFolder:      return L"&Folder";
         case CassoExplorerActions::Verb::Format:         return L"&Format disk image...";
+        case CassoExplorerActions::Verb::Krunch:         return L"&Krunch disk";
         case CassoExplorerActions::Verb::ReadSectors:    return L"Read &sectors to file...";
         case CassoExplorerActions::Verb::WriteSectors:   return L"&Write sectors from file...";
         case CassoExplorerActions::Verb::ReadBlocks:     return L"Read &blocks to file...";

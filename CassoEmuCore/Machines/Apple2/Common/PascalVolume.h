@@ -91,6 +91,11 @@ public:
     //  the name in upper case and `date` as the volume's date.
     static void  WriteBlank (const std::string & volumeName, Word date, vector<Byte> & ioSectors);
 
+    //  Moves every file toward the start of the volume in directory order, which
+    //  combines the free space, as the Filer's K does. A directory with damage
+    //  returns ERROR_INVALID_DATA and nothing is moved.
+    HRESULT  Krunch (vector<Byte> & outBuffer, int & outMoved) const;
+
     //  Why a disk can't supply the system for a bootable disk, or empty when it
     //  can: it needs a boot loader in blocks 0 and 1, SYSTEM.APPLE and
     //  SYSTEM.PASCAL.

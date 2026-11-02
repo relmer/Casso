@@ -104,6 +104,7 @@ public:
                       const std::string & typeName, bool hasLoadAddress, Word loadAddress, Encoding encoding);
     Result  Delete   (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
     Result  Boot     (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
+    Result  Krunch   (const std::string & imagePath);
     Result  Create   (const std::string & imagePath, const NewDiskRequest & request);
 
     //  Directories, on the volumes that have them. Mkdir makes the directories

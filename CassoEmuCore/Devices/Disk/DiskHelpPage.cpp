@@ -239,6 +239,16 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         " block, the remaining bytes from the original block are preserved.",
         "CassoCli disk blockwrite boot.po boot.bin %Lblock 0"
     },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Krunch,
+        "krunch",
+        "Combine an Apple Pascal disk's free space",
+        "CassoCli disk krunch <image>",
+        nullptr,
+        "Moves the files toward the start of the volume in directory order, as the Filer's K command does. Apple Pascal disks only.",
+        "CassoCli disk krunch apple1.dsk"
+    },
 };
 
 

@@ -109,6 +109,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (!nested && writable)
         {
             verbs.push_back (Verb::Format);
+
+            if (m_browser.GetVolumeKind() == VolumeKind::Pascal)
+            {
+                verbs.push_back (Verb::Krunch);
+            }
         }
     }
     else if (m_browser.IsAppleDriveLocation())
@@ -137,6 +142,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         verbs.push_back (Verb::OpenInNewCasso);
         verbs.push_back (Verb::ExtractFiles);
         verbs.push_back (Verb::Format);
+
+        if (IsTargetPascal())
+        {
+            verbs.push_back (Verb::Krunch);
+        }
     }
 
     AddFilesystemVerbs (verbs);
@@ -1936,6 +1946,48 @@ std::wstring CassoExplorerActions::GetFormatTarget() const
     }
 
     return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::IsTargetPascal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::IsTargetPascal() const
+{
+    VolumeListing  listing;
+    VolumeKind     kind = VolumeKind::Unknown;
+    bool           read = m_browser.GetOperations().List (TextEncoding::WideToNarrow (GetFormatTarget()), listing, kind).Succeeded();
+
+
+
+    return read && kind == VolumeKind::Pascal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::KrunchImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome CassoExplorerActions::KrunchImage()
+{
+    Outcome  outcome;
+
+
+
+    Append (outcome, m_browser.GetOperations().Krunch (TextEncoding::WideToNarrow (GetFormatTarget())));
+
+    return outcome;
 }
 
 

@@ -62,6 +62,7 @@ struct ActionsTypes
 
         //  Every file on a disk image, copied into a folder beside it.
         ExtractFiles,
+        Krunch,
         ReadAsCpm,
         DetectFilesystem,
 

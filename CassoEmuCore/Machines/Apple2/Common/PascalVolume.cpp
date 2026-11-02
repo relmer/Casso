@@ -867,6 +867,83 @@ int PascalVolume::FindGap (const vector<RawEntry> & entries, int total, int bloc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PascalVolume::Krunch
+//
+//  Blocks are copied out of the unchanged source into the result, so a file
+//  moved onto where the file ahead of it was reads as it did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PascalVolume::Krunch (vector<Byte> & outBuffer, int & outMoved) const
+{
+    HRESULT                hr       = S_OK;
+    bool                   whole    = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   isClean  = false;
+    int                    at       = kFirstDataBlock;
+    vector<Byte>           directory;
+    vector<Byte>           result;
+    vector<RawEntry>       entries;
+    vector<std::string>    damage;
+    VolumeIntegrityReport  report;
+
+
+
+    outMoved = 0;
+
+    CBREx (whole, E_INVALIDARG);
+
+    ReadDirectory (directory);
+    ReadEntries   (directory, entries, damage);
+
+    isClean = damage.empty();
+    CBREx (isClean, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    hr = BuildIntegrityReport (report);
+    CHR (hr);
+
+    result = m_sectors;
+
+    for (RawEntry & entry : entries)
+    {
+        int  blocks = entry.next - entry.first;
+
+        if (entry.first != at)
+        {
+            for (int i = 0; i < blocks; i++)
+            {
+                std::array<Byte, kBlockBytes>  block = {};
+
+                ReadBlock (entry.first + i, block);
+                WriteBlockPart (result, at + i, 0, block);
+            }
+
+            SetWord (entry.bytes, s_kOffFirst, (Word) at);
+            SetWord (entry.bytes, s_kOffNext,  (Word) (at + blocks));
+
+            entry.first = at;
+            entry.next  = at + blocks;
+
+            outMoved++;
+        }
+
+        at += blocks;
+    }
+
+    WriteDirectory (result, directory, entries, (int) entries.size());
+
+    hr = HandBackResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PascalVolume::SetName
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -901,18 +978,19 @@ void PascalVolume::SetName (RawEntry & entry, const std::string & name)
 
 HRESULT PascalVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
 {
-    HRESULT                hr       = S_OK;
-    std::string            name     = path.ToString();
-    bool                   whole    = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
-    bool                   nameOk   = IsValidName (name);
-    bool                   hasRoom  = false;
-    size_t                 size     = payload.bytes.size();
-    int                    blocks   = (std::max) (1, (int) ((size + kBlockBytes - 1) / kBlockBytes));
-    int                    total    = 0;
-    int                    first    = -1;
-    int                    previous = 0;
-    size_t                 index    = 0;
-    Byte                   kind     = (payload.type >= kKindBad && payload.type <= kKindSecureDir) ? payload.type : GetKindFromName (name);
+    HRESULT                hr         = S_OK;
+    std::string            name       = path.ToString();
+    bool                   whole      = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   nameOk     = IsValidName (name);
+    bool                   hasRoom    = false;
+    size_t                 size       = payload.bytes.size();
+    int                    blocks     = (std::max) (1, (int) ((size + kBlockBytes - 1) / kBlockBytes));
+    int                    total      = 0;
+    int                    first      = -1;
+    int                    previous   = 0;
+    int                    freeBlocks = 0;
+    size_t                 index      = 0;
+    Byte                   kind       = (payload.type >= kKindBad && payload.type <= kKindSecureDir) ? payload.type : GetKindFromName (name);
     vector<Byte>           directory;
     vector<Byte>           result;
     vector<RawEntry>       entries;
@@ -944,7 +1022,15 @@ HRESULT PascalVolume::Write (const FilePath & path, const FilePayload & payload,
 
     first   = FindGap (entries, total, blocks);
     hasRoom = first >= 0;
-    CBREx (hasRoom, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    for (const RawEntry & other : entries)
+    {
+        freeBlocks -= other.isValid ? other.next - other.first : 0;
+    }
+
+    freeBlocks += total - kFirstDataBlock;
+
+    CBREx (hasRoom, HRESULT_FROM_WIN32 ((freeBlocks >= blocks) ? ERROR_DISK_TOO_FRAGMENTED : ERROR_DISK_FULL));
 
     entry.first = first;
     entry.next  = first + blocks;

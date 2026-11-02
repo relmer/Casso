@@ -308,6 +308,7 @@ private:
     void  RunPut    (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunBoot   (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunKrunch (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunMkdir  (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunRmdir  (const CommandLineOptions & options, DiskCommandResult & result);
 

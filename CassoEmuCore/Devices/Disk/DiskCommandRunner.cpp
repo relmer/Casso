@@ -474,6 +474,9 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr, VolumeKind kin
         { HRESULT_FROM_WIN32 (ERROR_DISK_FULL),
           "the volume has no room for the file's contents or for another "
           "catalog entry" },
+        { HRESULT_FROM_WIN32 (ERROR_DISK_TOO_FRAGMENTED),
+          "the volume has enough free blocks, but in pieces, and an Apple Pascal "
+          "file has to be contiguous. Run 'disk krunch' to combine the free space" },
         { HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE),
           "the volume directory is full. ProDOS has room for 51 entries "
           "there, so put it in a subdirectory" },
@@ -1976,6 +1979,55 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::RunKrunch
+//
+//  All or nothing: the moved files and the new directory reach the image in one
+//  commit, or the image stays as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunKrunch (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    HRESULT                        hr       = S_OK;
+    bool                           isPascal = false;
+    int                            moved    = 0;
+    DiskImageSession::OpenedImage  opened;
+    vector<Byte>                   edited;
+
+
+
+    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+    CHR (hr);
+
+    isPascal = opened.kind == VolumeKind::Pascal;
+
+    CBRFEx (isPascal, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+            result.FailAction (options.disk.imagePath, "krunch the disk", "krunch applies to Apple Pascal disks, the only file system here that needs its free space combined"));
+
+    hr = PascalVolume (opened.sectors).Krunch (edited, moved);
+
+    CHRF (hr, result.FailAction (options.disk.imagePath, "krunch the disk",
+                                 (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA)) ? std::string ("the directory is damaged, so moving files could overwrite one")
+                                                                                 : DescribeVolumeRefusal (hr, opened.kind)));
+
+    if (moved > 0)
+    {
+        hr = m_session.SaveAndCommit (opened, edited, result);
+        CHR (hr);
+    }
+
+    result.output += std::format ("{}: {} {} moved\n", options.disk.imagePath, moved, Utils::GetSingularOrPluralForm (moved, "file", "files"));
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::ResolveVolumePath
 //
 //  `/MYDISK/GAMES/CHESS` is a whole ProDOS path: the volume, then the way down
@@ -2369,6 +2421,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
             RunBlockWrite (options, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Krunch:
+            RunKrunch (options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::SectorRead:
@@ -4289,7 +4345,8 @@ bool DiskCommandRunner::WritesTheImage (CommandLineOptions::DiskOptions::Command
         || command == Command::Create
         || command == Command::Init
         || command == Command::SectorWrite
-        || command == Command::BlockWrite;
+        || command == Command::BlockWrite
+        || command == Command::Krunch;
 }
 
 
