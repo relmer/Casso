@@ -219,7 +219,7 @@ public:
 
     //  The part of the user's operation the requests that follow cover, as
     //  percentages of the whole, for the bar on the program's status row; 0 and
-    //  0, which leave the bar as it is, until set. Only a whole-disk transfer
+    //  0, with which the bar is not redrawn, until set. Only a whole-disk transfer
     //  sets them, as the bar has a cell for each track.
     void     SetProgress  (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
 
