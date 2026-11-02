@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Render/DxuiShadow.h"
+#include "Window/DxuiPopupHost.h"
 #include "Theme/DxuiTheme.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiTheme.h"
@@ -183,6 +184,14 @@ public:
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
     void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
+
+    //  Which side of its anchor a balloon opens on; below unless set.
+    void  SetPlacement    (DxuiPopupPlacement placement) { m_placement = placement; }
+
+    //  Opens at once against the anchor, not the pointer, with no hide time, as
+    //  a label that follows a mark. A repeat with new text or a new anchor
+    //  moves the balloon that is up rather than opening another.
+    void  ShowAt          (const RECT & anchor, const std::wstring & text);
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
@@ -351,6 +360,7 @@ private:
     PointerMeasurer                       m_pfnMeasurePointer = MeasurePointerExtent;
     PointerLocator                        m_pfnLocatePointer  = LocatePointer;
     ActiveTest                            m_pfnIsActive       = IsAppActive;
+    DxuiPopupPlacement                    m_placement         = DxuiPopupPlacement::Below;
     bool                                  m_hasLifetime       = false;
     PointerExtent                         m_pointerExtent     = {};
     bool                                  m_hasPointerExtent  = false;

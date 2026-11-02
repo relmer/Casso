@@ -609,6 +609,47 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShowAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::ShowAt (const RECT & anchor, const std::wstring & text)
+{
+    bool  isUp  = m_visible && !m_fadingOut && !m_isPointerTip && m_activePopup != nullptr;
+    bool  isNew = text != m_text;
+
+
+
+    if (isUp && !isNew && EqualRect (&anchor, &m_anchor) != FALSE)
+    {
+        return;
+    }
+
+    m_anchor       = anchor;
+    m_text         = text;
+    m_pending      = false;
+    m_visible      = true;
+    m_fadingOut    = false;
+    m_isInstant    = true;
+    m_isPointerTip = false;
+    m_hideAtMs     = 0;
+
+    if (isUp)
+    {
+        MovePopup (isNew);
+        return;
+    }
+
+    ReleaseActivePopup();
+    ShowPopup();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShowTimed
 //
 //  Shows the tooltip immediately and schedules an auto-hide durationMs
@@ -886,7 +927,7 @@ void DxuiTooltip::ShowPopup()
         m_shownGradientMark         = m_gradientMark;
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = GetScreenAnchor();
-        showParams.placement        = DxuiPopupPlacement::Below;
+        showParams.placement        = m_placement;
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;

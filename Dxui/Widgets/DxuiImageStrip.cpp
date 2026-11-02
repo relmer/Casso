@@ -38,9 +38,16 @@ void DxuiImageStrip::SetPopupHost (DxuiHwndSource * host)
     if (host != m_popupHost)
     {
         HidePreview();
+        m_topLabel.HideImmediate();
+        m_bottomLabel.HideImmediate();
     }
 
     m_popupHost = host;
+
+    m_topLabel.SetPopupHost    (host);
+    m_topLabel.SetPlacement    (DxuiPopupPlacement::Above);
+    m_bottomLabel.SetPopupHost (host);
+    m_bottomLabel.SetPlacement (DxuiPopupPlacement::Below);
 }
 
 
@@ -249,7 +256,7 @@ void DxuiImageStrip::Layout (
 
     //  Lying down, the pictures keep out of the label room above and below,
     //  and the end labels sit beside them, each centered on the pictures.
-    if (!m_vertical && m_labelRoomDp > 0.0f)
+    if (!m_vertical && (m_labelRoomDp > 0.0f || m_isLabelsOutside))
     {
         room         = (LONG) std::lround (scaler.ToPxf (m_labelRoomDp));
         room         = std::min (room, (LONG) ((height - kMinThicknessPx) / 2));
@@ -348,6 +355,8 @@ void DxuiImageStrip::Paint (
 
     UNREFERENCED_PARAMETER (hovered);
     UNREFERENCED_PARAMETER (pressed);
+
+    m_isLabelPairPending = false;
     UNREFERENCED_PARAMETER (labeled);
 
     //  The playhead line takes the place of the marked cell's bar; while it
@@ -433,6 +442,8 @@ void DxuiImageStrip::Paint (
     {
         PaintLabelPair (painter, text, theme, cellTop, cellBottom, hoverX);
     }
+
+    ShowOutsideLabels (theme);
 }
 
 
@@ -1381,6 +1392,17 @@ void DxuiImageStrip::PaintLabelPair (
 
 
 
+    //  Outside the strip, the last pair passed in the paint goes in the
+    //  balloons: the pointer's over the playhead's.
+    if (!m_vertical && m_isLabelsOutside)
+    {
+        m_pendingTop         = top;
+        m_pendingBottom      = bottom;
+        m_pendingCenterX     = centerX;
+        m_isLabelPairPending = true;
+        return;
+    }
+
     if (m_vertical || room <= 0.0f)
     {
         return;
@@ -1388,6 +1410,50 @@ void DxuiImageStrip::PaintLabelPair (
 
     PaintLabel (painter, text, theme, top,    centerX, (float) m_outer.top,          room - reach);
     PaintLabel (painter, text, theme, bottom, centerX, (float) m_rc.bottom + reach, room - reach);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::ShowOutsideLabels
+//
+//  The pair passed in this paint goes in a balloon above the strip and one
+//  below it, each centered on the point it labels. With no pair passed, both
+//  balloons are hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::ShowOutsideLabels (const IDxuiTheme & theme)
+{
+    RECT  anchor = { (LONG) m_pendingCenterX - 1, m_outer.top, (LONG) m_pendingCenterX + 1, m_outer.bottom };
+
+
+
+    if (!m_isLabelsOutside)
+    {
+        return;
+    }
+
+    for (DxuiTooltip * label : { &m_topLabel, &m_bottomLabel })
+    {
+        const std::wstring  & text = (label == &m_topLabel) ? m_pendingTop : m_pendingBottom;
+
+        if (!m_isLabelPairPending || text.empty())
+        {
+            if (label->IsVisible())
+            {
+                label->HideImmediate();
+            }
+
+            continue;
+        }
+
+        label->SetTheme (theme);
+        label->ShowAt   (anchor, text);
+    }
 }
 
 
