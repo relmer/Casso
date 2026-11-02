@@ -373,6 +373,39 @@ std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::PlaceStrip (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SoundBoardLayout::FitHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t SoundBoardLayout::FitHistory (const std::vector<float> & widths, float width, float gap)
+{
+    float   used  = 0.0f;
+    size_t  count = 0;
+
+
+
+    for (size_t i = widths.size(); i > 0; i--)
+    {
+        float  next = used + ((count > 0) ? gap : 0.0f) + widths[i - 1];
+
+        if (next > width)
+        {
+            break;
+        }
+
+        used = next;
+        count++;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SoundBoardLayout::GetColumnCount
 //
 ////////////////////////////////////////////////////////////////////////////////

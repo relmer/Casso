@@ -93,6 +93,8 @@ private:
     static constexpr int  kLeastCardDip    = 440;
     static constexpr int  kPhonemeDip      = 128;
     static constexpr int  kStripDip        = 30;
+    static constexpr int  kStripHeadDip    = 18;
+    static constexpr int  kHistoryDip      = 30;
     static constexpr int  kValueRows       = 2;
     static constexpr int  kLabelDip        = 44;
     static constexpr int  kVoiceLabelDip   = 78;
@@ -119,7 +121,9 @@ private:
     void  PaintEnvelope     (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const;
     void  PaintVia          (const Painting & p, const DiagnosticsSoundHalf & half, const RECT & rect) const;
     void  PaintVoice        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & card) const;
-    void  PaintStrip        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
+    void  PaintStrip        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect, size_t count) const;
+    size_t  PaintHistory    (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
+    RECT  GetStripArea      (const RECT & card) const;
     void  PaintFormants     (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
     void  PaintScope        (const Painting & p, const std::vector<float> & scope, const RECT & rect, uint32_t color, double hz, bool isBipolar) const;
     void  PaintTrace        (const Painting & p, const std::vector<std::pair<float, float>> & points, uint32_t color) const;

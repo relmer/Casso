@@ -56,7 +56,7 @@ void SoundBoardView::SetBoard (const DiagnosticsSoundBoard & board)
 
 int SoundBoardView::GetVoiceHeight() const
 {
-    return m_scaler.ToPx (kPadDip + kTitleDip + kPhonemeDip + kGapDip + kStripDip + kGapDip + kValueRows * kRegisterDip + kPadDip);
+    return m_scaler.ToPx (kPadDip + kTitleDip + kPhonemeDip + kGapDip + kStripHeadDip + kStripDip + kHistoryDip + kGapDip + kValueRows * kRegisterDip + kPadDip);
 }
 
 
@@ -403,6 +403,8 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
 void SoundBoardView::BuildVoiceRegions (const DiagnosticsSoundVoice & voice, const RECT & card)
 {
     AddRegion (GetMuteOfVoice (card), voice.isMuted ? L"Unmute the speech chip" : L"Mute the speech chip", kVoiceMuteChannel);
+
+    AddRegion (GetStripArea (card), L"Recent phonemes: the ones before the one playing, oldest at the left. Each block is as wide as the phoneme lasted, and the row under it has their labels, with an arrow under the one playing.");
 
     AddRegion (card, std::format (L"Phoneme ${:02X}, duration ${:X}, rate ${:X}, inflection ${:03X}, articulation ${:X}, amplitude ${:X}, filter ${:02X}",
                                   voice.phonemeCode, voice.durationSelect, voice.rateSelect, voice.inflection, voice.articulation, voice.amplitude, voice.filterRegister));
@@ -1171,7 +1173,7 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const
+void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect, size_t count) const
 {
     constexpr float            kRadiusDip   = 4.0f;
     constexpr float            kGapDip2     = 3.0f;
@@ -1185,12 +1187,15 @@ void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice
 
 
 
-    for (const DiagnosticsSoundVoice::Phoneme & phoneme : voice.recent)
+    //  The phonemes the history row has labels for, so the two cover the same
+    //  stretch of speech.
+    for (size_t i = voice.recent.size() - std::min (count, voice.recent.size()); i < voice.recent.size(); i++)
     {
-        std::wstring  name = TextEncoding::NarrowToWide (phoneme.name.substr (0, phoneme.name.find (' ')));
-        float         wide = 0.0f;
-        float         high = 0.0f;
-        HRESULT       hr   = p.text.MeasureString (name.c_str(), m_scaler.ToPxf (font.sizeDip), font.face, wide, high);
+        const DiagnosticsSoundVoice::Phoneme  & phoneme = voice.recent[i];
+        std::wstring                            name    = TextEncoding::NarrowToWide (phoneme.name.substr (0, phoneme.name.find (' ')));
+        float                                   wide    = 0.0f;
+        float                                   high    = 0.0f;
+        HRESULT                                 hr      = p.text.MeasureString (name.c_str(), m_scaler.ToPxf (font.sizeDip), font.face, wide, high);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1216,6 +1221,98 @@ void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice
         p.painter.FillRoundedRect (x, (float) rect.top, place.width, (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), fill);
         PaintString (p, names[place.index], { (long) x, rect.top, (long) (x + place.width), rect.bottom }, ink, font, DxuiTextHAlign::Center);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::PaintHistory
+//
+//  The recent phonemes' labels in order along a row, newest at the right, as
+//  many as fit, with an arrow under the newest while it sounds, so a
+//  consonant can be read after it has passed. Returns how many are drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t SoundBoardView::PaintHistory (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const
+{
+    constexpr float            kGapDip2   = 10.0f;
+    constexpr float            kArrowDip  = 5.0f;
+    const DxuiFontHandle       font       = p.theme.MonospaceFont();
+    float                      gap        = m_scaler.ToPxf (kGapDip2);
+    float                      arrow      = m_scaler.ToPxf (kArrowDip);
+    float                      textBottom = (float) rect.bottom - arrow * 2.0f;
+    std::vector<std::wstring>  names;
+    std::vector<float>         widths;
+    size_t                     count      = 0;
+    float                      x          = (float) rect.right;
+
+
+
+    for (const DiagnosticsSoundVoice::Phoneme & phoneme : voice.recent)
+    {
+        std::wstring  name = TextEncoding::NarrowToWide (phoneme.name.substr (0, phoneme.name.find (' ')));
+        float         wide = 0.0f;
+        float         high = 0.0f;
+        HRESULT       hr   = p.text.MeasureString (name.c_str(), m_scaler.ToPxf (font.sizeDip), font.face, wide, high);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        names.push_back (std::move (name));
+        widths.push_back (wide);
+    }
+
+    count = SoundBoardLayout::FitHistory (widths, (float) (rect.right - rect.left), gap);
+
+    for (size_t i = names.size(); i > names.size() - count; i--)
+    {
+        bool      isActive = i == names.size() && voice.isSounding;
+        uint32_t  ink      = isActive ? m_palette.voice : p.theme.Foreground();
+        float     left     = x - widths[i - 1];
+
+        PaintString (p, names[i - 1], { (long) left, rect.top, (long) x + 1, (long) textBottom }, ink, font, DxuiTextHAlign::Left);
+
+        if (isActive)
+        {
+            float  mid = left + widths[i - 1] * 0.5f;
+
+            p.painter.FillConvexQuad (mid,         textBottom,
+                                      mid + arrow, textBottom + arrow * 1.5f,
+                                      mid - arrow, textBottom + arrow * 1.5f,
+                                      mid,         textBottom,
+                                      m_palette.voice);
+        }
+
+        x = left - gap;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::GetStripArea
+//
+//  The strip's heading, the strip and the history row under it, as
+//  PaintVoice places them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT SoundBoardView::GetStripArea (const RECT & card) const
+{
+    int  pad    = m_scaler.ToPx (kPadDip);
+    int  top    = card.top + pad + m_scaler.ToPx (kTitleDip) + m_scaler.ToPx (kPhonemeDip) + m_scaler.ToPx (kGapDip);
+
+
+
+    return RECT { card.left + pad, top, card.right - pad, top + m_scaler.ToPx (kStripHeadDip + kStripDip + kHistoryDip) };
 }
 
 
@@ -1327,7 +1424,10 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     int               gap          = m_scaler.ToPx (kGapDip);
     int               top          = card.top + pad + m_scaler.ToPx (kTitleDip);
     int               mainBottom   = top + m_scaler.ToPx (kPhonemeDip);
-    int               stripBottom  = mainBottom + gap + m_scaler.ToPx (kStripDip);
+    int               stripTop     = mainBottom + gap + m_scaler.ToPx (kStripHeadDip);
+    int               stripBottom  = stripTop + m_scaler.ToPx (kStripDip);
+    int               historyEnd   = stripBottom + m_scaler.ToPx (kHistoryDip);
+    size_t            shown        = 0;
     int               left         = card.left + pad;
     int               right        = card.right - pad;
     int               inner        = right - left;
@@ -1337,7 +1437,7 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     int               scopeRight   = scopeLeft + (rest - gap) / 2;
     int               rowHigh      = m_scaler.ToPx (kRegisterDip);
     int               wide         = inner / kColumns;
-    int               valuesTop    = stripBottom + gap;
+    int               valuesTop    = historyEnd + gap;
     RECT              mute         = GetMuteOfVoice (card);
     size_t            space        = voice.phoneme.find (' ');
     std::wstring      name         = TextEncoding::NarrowToWide (voice.phoneme.substr (0, space));
@@ -1395,7 +1495,10 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
 
     PaintScope    (p, voice.scope, { scopeLeft, top, scopeRight, mainBottom }, color, 0.0, true);
     PaintFormants (p, voice, { scopeRight + gap, top, right, mainBottom });
-    PaintStrip    (p, voice, { left, mainBottom + gap, right, stripBottom });
+    PaintString (p, L"Recent phonemes", { left, mainBottom + gap, right, stripTop }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
+
+    shown = PaintHistory (p, voice, { left, stripBottom, right, historyEnd });
+    PaintStrip (p, voice, { left, stripTop, right, stripBottom }, shown);
 
     PaintValue (p, cell (0, 0), L"Mode",         TextEncoding::NarrowToWide (voice.mode), kVoiceLabelDip);
     PaintValue (p, cell (0, 1), L"Duration",     std::format (L"{:.1f} ms", voice.durationMs), kVoiceLabelDip);

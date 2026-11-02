@@ -200,5 +200,16 @@ namespace DebuggerTests
             Assert::AreEqual (60L,  places[2].top);
             Assert::AreEqual (100,  height);
         }
+
+
+        //  The history row has as many of the newest labels as fit, counted
+        //  from the end.
+        TEST_METHOD (TheHistoryRowHasTheNewestLabelsThatFit)
+        {
+            Assert::AreEqual ((size_t) 3, SoundBoardLayout::FitHistory ({ 20.0f, 20.0f, 20.0f }, 80.0f, 10.0f), L"60 and two gaps");
+            Assert::AreEqual ((size_t) 2, SoundBoardLayout::FitHistory ({ 20.0f, 20.0f, 20.0f }, 79.0f, 10.0f), L"the oldest is left off");
+            Assert::AreEqual ((size_t) 1, SoundBoardLayout::FitHistory ({ 90.0f, 20.0f },        50.0f, 10.0f), L"a long old label ends the row");
+            Assert::AreEqual ((size_t) 0, SoundBoardLayout::FitHistory ({},                      50.0f, 10.0f));
+        }
     };
 }

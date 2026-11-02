@@ -80,6 +80,10 @@ public:
     //  do not fit are left out. `leastWidths` has one entry per entry of `seconds`.
     static std::vector<StripPlace>  PlaceStrip (const std::vector<float> & seconds, const std::vector<float> & leastWidths, float width, float gap);
 
+    //  How many of the newest labels, each as wide as `widths` has it with
+    //  `gap` between them, fit on a row of `width`, counted from the end.
+    static size_t  FitHistory (const std::vector<float> & widths, float width, float gap);
+
     //  How many columns of cards fit in a width, from 1 to kMaxColumns.
     static int  GetColumnCount (int width, int leastCardWidth, int gap);
 
