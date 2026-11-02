@@ -527,6 +527,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozLoader::IsWriteProtectFlagSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozLoader::IsWriteProtectFlagSet (const vector<Byte> & fileBytes)
+{
+    HRESULT   hr         = S_OK;
+    size_t    infoOffset = 0;
+    uint32_t  infoSize   = 0;
+    bool      isWoz      = fileBytes.size() >= kHeaderSize && (MatchSig (fileBytes.data(), kSigV2) || MatchSig (fileBytes.data(), kSigV1));
+
+
+
+    if (!isWoz)
+    {
+        return false;
+    }
+
+    hr = FindChunkPayload (fileBytes, kInfoMagic, infoOffset, infoSize);
+
+    return SUCCEEDED (hr) && infoSize >= kInfoChunkSize && fileBytes[infoOffset + kInfoWriteProtectOff] != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozLoader::Load
 //
 //  Parse a WOZ v1 or v2 image. Validates the signature, walks chunks,

@@ -918,6 +918,11 @@ HRESULT DiskImageSession::CommitImage (
     CBRFEx (!held, HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION),
             RefuseCommit (opened.imagePath, kInUseRefusalText, result));
 
+    //  A WOZ marked write-protected is one the emulated drive won't write
+    //  either.
+    CBRFEx (opened.isNew || !WozLoader::IsWriteProtectFlagSet (opened.fileBytes), HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT),
+            RefuseCommit (opened.imagePath, "is write-protected by the flag in its WOZ file, so nothing was written", result));
+
     progress.furthestAttempted = CommitPlan::Step::Reverify;
 
     //  A disk being made for the first time has nothing to have changed, so

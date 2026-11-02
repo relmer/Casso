@@ -3,6 +3,7 @@
 #include "FixtureProvider.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -4678,5 +4679,131 @@ public:
         Assert::AreEqual (std::string ("the track/sector list is damaged"), DiskCommandRunner::DescribeDamage (broken, VolumeKind::Dos33));
         Assert::AreEqual (std::string ("the index block is damaged"),       DiskCommandRunner::DescribeDamage (broken, VolumeKind::ProDos));
         Assert::IsTrue   (DiskCommandRunner::DescribeDamage (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), VolumeKind::Dos33).empty());
+    }
+
+
+    //  Every 4-and-4 address field on a track, as their volumes. The track's
+    //  bits are read into nibbles as the drive reads them, since a self-sync
+    //  byte has ten bits and leaves the nibbles off byte boundaries.
+    static vector<Byte> GetAddressVolumes (const DiskImage & image, int track)
+    {
+        const vector<Byte> &  bits    = image.GetTrackBits (track);
+        size_t                count   = image.GetTrackBitCount (track);
+        Byte                  nibble  = 0;
+        vector<Byte>          nibbles;
+        vector<Byte>          volumes;
+
+        for (size_t i = 0; i < count; i++)
+        {
+            nibble = (Byte) ((nibble << 1) | ((bits[i >> 3] >> (7 - (i & 7))) & 1));
+
+            if (nibble & 0x80)
+            {
+                nibbles.push_back (nibble);
+                nibble = 0;
+            }
+        }
+
+        for (size_t i = 0; i + 4 < nibbles.size(); i++)
+        {
+            if (nibbles[i] == 0xD5 && nibbles[i + 1] == 0xAA && nibbles[i + 2] == 0x96)
+            {
+                volumes.push_back ((Byte) (((nibbles[i + 3] << 1) | 1) & nibbles[i + 4]));
+            }
+        }
+
+        return volumes;
+    }
+
+
+    CommandLineOptions MakeBinaryPutOptions (const char * image)
+    {
+        CommandLineOptions  options = MakePutOptions (image, kHostFile, "PROG");
+
+        options.disk.loadAddress    = kLoadAddress;
+        options.disk.hasLoadAddress = true;
+
+        return options;
+    }
+
+
+    //  A DOS 3.3 volume number is in every address field, as INIT writes it,
+    //  and a write afterward keeps it.
+    TEST_METHOD (Create_ADosVolumeNumber_IsInEveryAddressField)
+    {
+        constexpr const char *  kImage = "C:\\disks\\v100.woz";
+        FakeDiskFileIo          io;
+        DiskCommandRunner       runner (io);
+        CommandLineOptions      options;
+        DiskImage               image;
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath  = kImage;
+        options.disk.formatName = "dos";
+        options.disk.volumeName = "100";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        SeedFile (io, kHostFile, MakePayload());
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (MakeBinaryPutOptions (kImage)).exitStatus);
+
+        AssertSucceeded (WozLoader::Load (io.files[kImage], image));
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            vector<Byte>  volumes = GetAddressVolumes (image, track);
+
+            Assert::AreEqual ((size_t) NibblizationLayer::kSectorsPerTrack, volumes.size());
+            Assert::IsTrue   (std::all_of (volumes.begin(), volumes.end(), [] (Byte v) { return v == 100; }), std::format (L"track {}", track).c_str());
+        }
+    }
+
+
+    //  A disk with no DOS 3.3 VTOC keeps 254.
+    TEST_METHOD (Create_AProDosVolume_Has254InItsAddressFields)
+    {
+        constexpr const char *  kImage = "C:\\disks\\p.woz";
+        FakeDiskFileIo          io;
+        DiskCommandRunner       runner (io);
+        CommandLineOptions      options;
+        DiskImage               image;
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath  = kImage;
+        options.disk.formatName = "prodos";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (WozLoader::Load (io.files[kImage], image));
+
+        Assert::IsTrue (GetAddressVolumes (image, 0) == vector<Byte> ((size_t) NibblizationLayer::kSectorsPerTrack, NibblizationLayer::kDefaultVolume));
+    }
+
+
+    //  A WOZ whose INFO marks it write-protected isn't written, as the
+    //  emulated drive won't write it.
+    TEST_METHOD (Put_OnAWriteProtectedWoz_IsRefused_AndChangesNothing)
+    {
+        constexpr const char *  kImage = "C:\\disks\\wp.woz";
+        FakeDiskFileIo          io;
+        DiskCommandRunner       runner (io);
+        CommandLineOptions      options;
+        DiskCommandResult       result;
+        vector<Byte>            before;
+
+        options.disk.command    = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath  = kImage;
+        options.disk.formatName = "dos";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+        AssertSucceeded (WozLoader::SetWriteProtectFlag (io.files[kImage], true));
+
+        before = io.files[kImage];
+
+        SeedFile (io, kHostFile, MakePayload());
+        result = runner.Run (MakeBinaryPutOptions (kImage));
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue      (result.diagnostics.find ("write-protected") != std::string::npos, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue      (io.files[kImage] == before, L"and the image is untouched");
     }
 };

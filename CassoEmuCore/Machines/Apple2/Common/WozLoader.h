@@ -162,6 +162,10 @@ public:
     // if the bytes are not a WOZ or carry no usable INFO chunk.
     static HRESULT  SetWriteProtectFlag (vector<Byte> & fileBytes, bool writeProtected);
 
+    // Whether a WOZ file's INFO chunk marks it write-protected. False for
+    // bytes that are not a WOZ or carry no usable INFO chunk.
+    static bool     IsWriteProtectFlagSet (const vector<Byte> & fileBytes);
+
     static HRESULT  BuildSyntheticV2 (
         Byte                  diskType,
         bool                  writeProtected,
