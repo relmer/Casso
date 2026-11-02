@@ -38,6 +38,11 @@ static constexpr float     s_kSwatchGapDip    = 6.0f;
 //  a line must stay one line.
 static constexpr float     s_kMaxSwatchTextWidthDip = 2000.0f;
 
+//  A table's columns are set apart by this gap, and the table from the text
+//  above it by half a line.
+static constexpr float     s_kTableGapDip     = 8.0f;
+static constexpr float     s_kTableTopLines   = 0.5f;
+
 
 
 
@@ -816,6 +821,18 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
     hr = m_activePopup->MeasureTextWrapped (L"Ag", fontPx, GetFace(), maxWPx, lineWPx, m_lineHeightPx);
     m_lineHeightPx = (FAILED (hr) || m_lineHeightPx <= 0.0f) ? fontPx * s_kEstLineHeightEm : m_lineHeightPx;
 
+    if (!m_table.empty())
+    {
+        float  tableWPx = 0.0f;
+        float  tableHPx = 0.0f;
+
+        MeasureTable (fontPx, tableWPx, tableHPx);
+
+        m_tableTopPx = padYPx + std::ceil (textHPx) + m_lineHeightPx * s_kTableTopLines;
+        textWPx      = std::max (textWPx, tableWPx);
+        textHPx      = std::ceil (textHPx) + m_lineHeightPx * s_kTableTopLines + tableHPx;
+    }
+
     boxWPx = std::ceil (textWPx) + padXPx * 2.0f + GetSwatchColumnPx();
     boxHPx = std::ceil (textHPx) + padYPx * 2.0f;
 
@@ -830,6 +847,54 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
     // measurement above exists to keep.
     outSizeDip.cx = (int) std::ceil (boxWPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
     outSizeDip.cy = (int) std::ceil (boxHPx * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureTable
+//
+//  Each column's width, its widest cell's, and the table's size with the
+//  gaps between columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::MeasureTable (float fontPx, float & outWidthPx, float & outHeightPx)
+{
+    HRESULT  hr    = S_OK;
+    float    gapPx = m_scaler.ToPxf (s_kTableGapDip);
+    float    cellW = 0.0f;
+    float    cellH = 0.0f;
+
+
+
+    m_tableColumnsPx.clear();
+
+    for (const std::vector<std::wstring> & row : m_table)
+    {
+        m_tableColumnsPx.resize (std::max (m_tableColumnsPx.size(), row.size()), 0.0f);
+
+        for (size_t c = 0; c < row.size(); c++)
+        {
+            hr    = m_activePopup->MeasureTextWrapped (row[c].c_str(), fontPx, GetFace(), m_scaler.ToPxf (s_kMaxSwatchTextWidthDip), cellW, cellH);
+            cellW = SUCCEEDED (hr) ? cellW : static_cast<float> (row[c].size()) * fontPx * s_kEstCharWidthEm;
+
+            m_tableColumnsPx[c] = std::max (m_tableColumnsPx[c], std::ceil (cellW));
+        }
+    }
+
+    outWidthPx = 0.0f;
+
+    for (float column : m_tableColumnsPx)
+    {
+        outWidthPx += column;
+    }
+
+    outWidthPx  += gapPx * static_cast<float> (std::max<size_t> (m_tableColumnsPx.size(), 1) - 1);
+    outHeightPx  = m_lineHeightPx * static_cast<float> (m_table.size());
 }
 
 
@@ -911,6 +976,24 @@ void DxuiTooltip::SetLineColors (const std::vector<uint32_t> & argbs)
 {
     m_isSwatchChanged = m_isSwatchChanged || argbs != m_lineArgbs;
     m_lineArgbs       = argbs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTable
+//
+//  A change raises the tip again, as a change of swatches does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::SetTable (const std::vector<std::vector<std::wstring>> & rows)
+{
+    m_isSwatchChanged = m_isSwatchChanged || rows != m_table;
+    m_table           = rows;
 }
 
 
@@ -1134,11 +1217,26 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                               padX + GetSwatchColumnPx(),
                               padY,
                               width  - padX * 2.0f - GetSwatchColumnPx(),
-                              height - padY * 2.0f,
+                              (m_table.empty() ? height - padY : m_tableTopPx) - padY,
                               m_textArgb,
                               fontPx,
                               GetFace());
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    for (size_t r = 0; r < m_table.size(); r++)
+    {
+        float  x = padX + GetSwatchColumnPx();
+
+        for (size_t c = 0; c < m_table[r].size() && c < m_tableColumnsPx.size(); c++)
+        {
+            hr = text.DrawString (m_table[r][c].c_str(), x, m_tableTopPx + static_cast<float> (r) * m_lineHeightPx, m_tableColumnsPx[c], m_lineHeightPx,
+                                  m_textArgb, fontPx, GetFace(), (c == 0) ? DxuiTextHAlign::Left : DxuiTextHAlign::Center, DxuiTextVAlign::Top,
+                                  DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            x += m_tableColumnsPx[c] + m_scaler.ToPxf (s_kTableGapDip);
+        }
     }
 
     //  With swatches or line colors, each line is drawn alone and unwrapped,
