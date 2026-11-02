@@ -153,8 +153,11 @@ public:
     static constexpr int  kHeadHeightDip   = 24;
     static constexpr int  kOverrideDip     = 64;
     static constexpr int  kLimitDip        = 64;
+    static constexpr int  kNoteGapDip      = 8;
 
 private:
+    static int  GetNoteHeightPx (const DxuiLabel & note, int widthPx, const DxuiDpiScaler & scaler, int minDip);
+
     DxuiLabel           * m_intro        = nullptr;
     std::array<Row, 3>  * m_rows         = nullptr;
     DxuiLabel           * m_overrideHead = nullptr;

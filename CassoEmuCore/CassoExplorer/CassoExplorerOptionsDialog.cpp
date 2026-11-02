@@ -308,6 +308,37 @@ void CassoExplorerVerifyPage::Init (DxuiLabel & intro, std::array<Row, 3> & rows
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerVerifyPage::GetNoteHeightPx
+//
+//  A note's wrapped height at the page's width plus a gap below it, and no
+//  less than its minimum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerVerifyPage::GetNoteHeightPx (const DxuiLabel & note, int widthPx, const DxuiDpiScaler & scaler, int minDip)
+{
+    HRESULT  hr       = S_OK;
+    float    widthDip = (float) widthPx * (float) DxuiDpiScaler::kBaseDpi / (float) scaler.GetDpi();
+    float    textDip  = 0.0f;
+    int      heightPx = scaler.ToPx (minDip);
+
+
+
+    hr = note.MeasureWrappedDip (widthDip, textDip);
+
+    if (SUCCEEDED (hr))
+    {
+        heightPx = std::max (heightPx, scaler.ToPx ((int) std::ceil (textDip) + kNoteGapDip));
+    }
+
+    return heightPx;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerVerifyPage::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,7 +346,8 @@ void CassoExplorerVerifyPage::Init (DxuiLabel & intro, std::array<Row, 3> & rows
 void CassoExplorerVerifyPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     int  gap     = scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int  y       = boundsDip.top + scaler.ToPx (kIntroHeightDip);
+    int  width   = boundsDip.right - boundsDip.left;
+    int  y       = boundsDip.top + GetNoteHeightPx (*m_intro, width, scaler, kIntroHeightDip);
     int  rowH    = scaler.ToPx (kRowHeightDip);
     int  noteH   = scaler.ToPx (kNoteHeightDip);
     int  headH   = scaler.ToPx (kHeadHeightDip);
@@ -331,7 +363,7 @@ void CassoExplorerVerifyPage::Layout (const RECT & boundsDip, const DxuiDpiScale
 
     for (Row & row : *m_rows)
     {
-        noteH = scaler.ToPx (&row == &m_rows->back() ? kShortNoteDip : kNoteHeightDip);
+        noteH = GetNoteHeightPx (row.note, width, scaler, &row == &m_rows->back() ? kShortNoteDip : kNoteHeightDip);
 
         row.label.Layout (RECT { boundsDip.left, y, toggleX, y + rowH }, scaler);
         row.toggle.SetDpi (scaler.GetDpi());
@@ -347,12 +379,14 @@ void CassoExplorerVerifyPage::Layout (const RECT & boundsDip, const DxuiDpiScale
 
     m_overrideHead->Layout (RECT { boundsDip.left, y, boundsDip.right, y + headH }, scaler);
     y += headH;
-    m_overrideNote->Layout (RECT { boundsDip.left, y, boundsDip.right, y + scaler.ToPx (kOverrideDip) }, scaler);
-    y += scaler.ToPx (kOverrideDip) + gap;
+    noteH = GetNoteHeightPx (*m_overrideNote, width, scaler, kOverrideDip);
+    m_overrideNote->Layout (RECT { boundsDip.left, y, boundsDip.right, y + noteH }, scaler);
+    y += noteH + gap;
     m_limitHead->Layout (RECT { boundsDip.left, y, boundsDip.right, y + headH }, scaler);
     y += headH;
-    m_limitNote->Layout (RECT { boundsDip.left, y, boundsDip.right, y + scaler.ToPx (kLimitDip) }, scaler);
-    y += scaler.ToPx (kLimitDip);
+    noteH = GetNoteHeightPx (*m_limitNote, width, scaler, kLimitDip);
+    m_limitNote->Layout (RECT { boundsDip.left, y, boundsDip.right, y + noteH }, scaler);
+    y += noteH;
 
     SetContentHeightPx (y - boundsDip.top);
 }
