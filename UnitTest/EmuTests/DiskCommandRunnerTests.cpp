@@ -706,7 +706,7 @@ public:
         FakeDiskFileIo     io;
         DiskCommandRunner  runner (io);
         DiskCommandResult  result;
-        vector<Byte>       noise (NibblizationLayer::kImageByteSize, 0xE5);
+        vector<Byte>       noise (NibblizationLayer::kImageByteSize, 0x55);
 
         io.files[kImage]  = noise;
         io.stamps[kImage] = FileStamp { noise.size(), 1 };

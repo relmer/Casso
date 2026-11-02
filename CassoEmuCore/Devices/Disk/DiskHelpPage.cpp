@@ -153,8 +153,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
                                    "If the name has no extension, the default extension for the type is appended. "
                                    "Valid types are: %C\n"
-        "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
-        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
+        "  %Lformat <f>            The filesystem: dos33, prodos, pascal, cpm, or none. Defaults to dos33\n"
+        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS or Apple Pascal, the volume name"
+                                   " (default NEWDISK). CP/M has no volume\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
                                    " for the selected format, but this can be overridden by supplying an image of your own\n"
         "  %Lboot <file>           Loads and executes the binary <file> directly without copying or relying on operating system files\n"
@@ -171,8 +172,9 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "init | format",
         "Format an existing disk, erasing any existing files",
         "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]] [%Lflux [<tracks>]]",
-        "  %Lformat <f>            The filesystem: dos33, prodos, or none. Defaults to dos33\n"
-        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, the volume name (default NEWDISK)\n"
+        "  %Lformat <f>            The filesystem: dos33, prodos, pascal, cpm, or none. Defaults to dos33\n"
+        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS or Apple Pascal, the volume name"
+                                   " (default NEWDISK). CP/M has no volume\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
                                    " for the selected format, but this can be overridden by supplying an image of your own\n"
         "  %Lflux [<tracks>]       Stores tracks as flux rather than bits, in a WOZ image only. Every track by default, or only"

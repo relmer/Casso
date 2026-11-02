@@ -69,6 +69,17 @@ public:
         return std::vector<Byte> (kImageBytes, CpmVolume::kFree);
     }
 
+    //  A disk detection doesn't find, for what needs the manual choice: a free
+    //  directory but for one slot that isn't a valid entry.
+    static std::vector<Byte>  BuildDamaged()
+    {
+        std::vector<Byte>  image = BuildBlank();
+
+        image[GetOffset (1, 63 * kEntryBytes - kBlockBytes)] = 0x7F;
+
+        return image;
+    }
+
     static void  PutEntry (std::vector<Byte> & image, int slot, int user, const char * name11, int extent, int records, std::initializer_list<int> blocks, bool readOnly = false)
     {
         size_t  at = (size_t) slot * kEntryBytes;
@@ -195,12 +206,12 @@ public:
 
 
 
-    TEST_METHOD (ABlankDirectoryIsNotDetected)
+    TEST_METHOD (ABlankDirectoryIsAnEmptyCpmDisk)
     {
         std::vector<Byte>  image = BuildBlank();
 
-        Assert::IsFalse (CpmVolume::IsFound (image), L"Only the user's choice makes this CP/M");
-        Assert::IsTrue (VolumeImage::DetectFilesystem (image) == VolumeKind::Unknown);
+        Assert::IsTrue (CpmVolume::IsFound (image));
+        Assert::IsTrue (VolumeImage::DetectFilesystem (image) == VolumeKind::Cpm);
     }
 
 
@@ -935,7 +946,7 @@ public:
         VolumeKind              kind = VolumeKind::Unknown;
         DiskOperations::Result  result;
 
-        Seed (io, BuildBlank());
+        Seed (io, BuildDamaged());
 
         operations.SetFilesystemChoices (&choices);
 
@@ -1022,13 +1033,13 @@ public:
         FakeDiskFileIo     io;
         DiskCommandResult  result;
 
-        Seed (io, BuildBlank());
+        Seed (io, BuildDamaged());
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "");
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "cpm");
-        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::AreNotEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::IsTrue (result.output.find ("Bytes Remaining On A: ") != std::string::npos);
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "nonsense");
@@ -1191,14 +1202,27 @@ public:
         Assert::AreEqual ((size_t) 9, drive.written.size(), L"Two blocks of four sectors, and the directory's one");
     }
 
-    TEST_METHOD (ALinkedBlankDiskNeedsAChoice)
+    TEST_METHOD (ALinkedBlankDiskIsFound)
+    {
+        FakeDrive      drive;
+        LinkedDisk     disk (drive);
+        VolumeListing  listing;
+
+        drive.image = BuildBlank();
+
+        AssertSucceeded (disk.Run ([&] (const IVolume & volume) { return volume.Enumerate (listing); }));
+        Assert::IsTrue (disk.GetKind() == VolumeKind::Cpm);
+        Assert::AreEqual ((uint32_t) 126, listing.freeUnits);
+    }
+
+    TEST_METHOD (ALinkedDamagedDiskNeedsAChoice)
     {
         FakeDrive      drive;
         LinkedDisk     disk (drive);
         VolumeListing  listing;
         FilePayload    payload = MakePayload (10, 0);
 
-        drive.image = BuildBlank();
+        drive.image = BuildDamaged();
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), disk.Run ([&] (const IVolume & volume) { return volume.Enumerate (listing); }));
 
@@ -1216,7 +1240,5 @@ public:
 
             AssertSucceeded (disk.Write ([&] (const IVolume & volume, std::vector<Byte> & outBuffer) { return volume.Write (FilePath::Parse ("A.COM"), payload, outBuffer); }, sent));
         }
-
-        Assert::IsTrue (VolumeImage::DetectFilesystem (drive.image) == VolumeKind::Cpm);
     }
 };

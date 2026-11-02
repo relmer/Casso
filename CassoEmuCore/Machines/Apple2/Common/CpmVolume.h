@@ -79,9 +79,13 @@ public:
     //  Whether the directory looks like CP/M's, from its entries alone, since
     //  CP/M has no signature. A file entry and nothing invalid is enough. On a
     //  disk with leftover data in part of its directory, a few plausible entries
-    //  are required. A directory with only free entries isn't found, as
-    //  any disk with $E5 on track 3 has one: that takes the user's choice.
+    //  are required. A directory where every slot is free, each one all $E5 or
+    //  the remains of an erased entry, is an empty CP/M disk, which is what
+    //  CP/M's FORMAT and `disk create` make.
     static bool  IsFound (const vector<Byte> & sectors);
+
+    //  A blank disk as CP/M's FORMAT leaves it: $E5 in every byte.
+    static void  WriteBlank (vector<Byte> & outSectors);
 
     //  The buffer offset of a block's nth 256-byte sector.
     static size_t  GetSectorOffset (int block, int sector);
@@ -133,6 +137,7 @@ private:
     static bool         TryParseName     (const std::string & name, ParsedName & outParsed);
     static std::string  MakeName         (const ParsedName & parsed);
     static bool         IsPlausibleEntry (std::span<const Byte> entry);
+    static bool         IsFreeSlot       (std::span<const Byte> entry);
 
     void  ReadDirectory (vector<Byte> & outDirectory) const;
     void  ReadBlock     (int block, std::span<Byte> outBytes) const;

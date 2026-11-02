@@ -29,9 +29,11 @@ public:
 
     static constexpr Choice  kFormats[] =
     {
-        { L"DOS 3.3",     "dos33"  },
-        { L"ProDOS",      "prodos" },
-        { L"Unformatted", "none"   },
+        { L"DOS 3.3",      "dos33"  },
+        { L"ProDOS",       "prodos" },
+        { L"Apple Pascal", "pascal" },
+        { L"CP/M",         "cpm"    },
+        { L"Unformatted",  "none"   },
     };
 
     static constexpr Choice  kContainers[] =
@@ -72,10 +74,13 @@ public:
 
     static constexpr int     kFormatDos33           = 0;   // indices into kFormats
     static constexpr int     kFormatProDos          = 1;
-    static constexpr int     kFormatNone            = 2;
+    static constexpr int     kFormatPascal          = 2;
+    static constexpr int     kFormatCpm             = 3;
+    static constexpr int     kFormatNone            = 4;
     static constexpr size_t  kMaxFileNameLength     = 200;
     static constexpr size_t  kMaxDos33VolumeLength  = 3;
     static constexpr size_t  kMaxProDosVolumeLength = 15;
+    static constexpr size_t  kMaxPascalVolumeLength = 7;
 };
 
 

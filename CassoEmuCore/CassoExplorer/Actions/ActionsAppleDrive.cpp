@@ -1441,6 +1441,9 @@ ActionsTypes::Outcome ActionsAppleDrive::FormatAppleDrive (const std::string & l
     ActionsTypes::Outcome           outcome;
     DiskOperations::NewDiskRequest  disk    = request;
     bool                            prodos   = request.formatName == "prodos";
+    bool                            isPascal = request.formatName == "pascal";
+    bool                            cpm      = request.formatName == "cpm";
+    bool                            blocks   = prodos || isPascal;
     std::string                     path;
     std::string                     volume;
     VolumeListing                   listing;
@@ -1450,15 +1453,15 @@ ActionsTypes::Outcome ActionsAppleDrive::FormatAppleDrive (const std::string & l
 
 
 
-    if (request.formatName != "dos33" && !prodos)
+    if (request.formatName != "dos33" && !blocks && !cpm)
     {
         outcome.hr      = E_INVALIDARG;
-        outcome.message = L"A disk on the Apple can be formatted as DOS 3.3 or ProDOS.";
+        outcome.message = L"A disk on the Apple can be formatted as DOS 3.3, ProDOS, Apple Pascal or CP/M.";
         return outcome;
     }
 
-    disk.containerType = prodos ? "po" : "dsk";
-    path               = TextEncoding::WideToNarrow (std::format (L"{}\\casso-format-{}.{}", tempFolder, drive, prodos ? L"po" : L"dsk"));
+    disk.containerType = blocks ? "po" : "dsk";
+    path               = TextEncoding::WideToNarrow (std::format (L"{}\\casso-format-{}.{}", tempFolder, drive, blocks ? L"po" : L"dsk"));
 
     hr = m_actions.m_browser.GetOperations().GetFileIo().WriteAllBytes (path, blank);
 
@@ -1480,7 +1483,9 @@ ActionsTypes::Outcome ActionsAppleDrive::FormatAppleDrive (const std::string & l
     //  The new volume, as the Apple's label and history have it.
     CassoExplorerActions::Append (outcome, m_actions.m_browser.GetOperations().List (path, listing, kind));
 
-    volume = listing.hasVolumeName   ? "/" + listing.volumeName
+    volume = isPascal                ? listing.volumeName + ":"
+           : cpm                     ? std::string ("CP/M")
+           : listing.hasVolumeName   ? "/" + listing.volumeName
            : listing.hasVolumeNumber ? std::format ("VOL {}", listing.volumeNumber)
                                      : std::string (prodos ? "PRODOS" : "DOS 3.3");
 

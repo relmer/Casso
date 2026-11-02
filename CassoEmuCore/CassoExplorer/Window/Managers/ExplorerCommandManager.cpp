@@ -1339,6 +1339,16 @@ int ExplorerCommandManager::ChooseFormatDefault (const std::wstring & image)
         {
             return CassoExplorerNewDiskChoices::kFormatDos33;
         }
+
+        if (kind == VolumeKind::Pascal)
+        {
+            return CassoExplorerNewDiskChoices::kFormatPascal;
+        }
+
+        if (kind == VolumeKind::Cpm)
+        {
+            return CassoExplorerNewDiskChoices::kFormatCpm;
+        }
     }
 
     if (GetFileAttributesExW (image.c_str(), GetFileExInfoStandard, &data))

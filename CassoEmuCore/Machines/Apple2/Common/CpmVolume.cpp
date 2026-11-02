@@ -152,6 +152,7 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
     int           valid     = 0;
     int           invalid   = 0;
     int           sector    = 0;
+    bool          allFree   = true;
 
 
 
@@ -171,6 +172,8 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
     {
         std::span<const Byte>  entry = std::span<const Byte> (directory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
 
+        allFree = allFree && IsFreeSlot (entry);
+
         if (entry[0] != kFree)
         {
             valid   += IsPlausibleEntry (entry) ? 1 : 0;
@@ -178,7 +181,56 @@ bool CpmVolume::IsFound (const vector<Byte> & sectors)
         }
     }
 
-    return (valid >= 1 && invalid == 0) || valid >= s_kMinWithInvalid;
+    return allFree || (valid >= 1 && invalid == 0) || valid >= s_kMinWithInvalid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::IsFreeSlot
+//
+//  All $E5, as FORMAT writes it, or an entry ERA erased, which has $E5 for its
+//  user and the rest of the entry as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmVolume::IsFreeSlot (std::span<const Byte> entry)
+{
+    std::array<Byte, kEntryBytes>  erased = {};
+
+
+
+    if (entry[0] != kFree)
+    {
+        return false;
+    }
+
+    if (std::all_of (entry.begin(), entry.end(), [] (Byte value) { return value == kFree; }))
+    {
+        return true;
+    }
+
+    std::copy (entry.begin() + 1, entry.end(), erased.begin() + 1);
+
+    return IsPlausibleEntry (erased);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::WriteBlank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpmVolume::WriteBlank (vector<Byte> & outSectors)
+{
+    outSectors.assign ((size_t) NibblizationLayer::kImageByteSize, kFree);
 }
 
 

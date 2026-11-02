@@ -1047,7 +1047,7 @@ public:
         Assert::AreEqual (std::string ("MYVOL"),  request.volumeName);
         Assert::IsTrue   (request.bootable);
 
-        request = CassoExplorerNewDiskChoices::MakeRequest (2, 99, L"", true);
+        request = CassoExplorerNewDiskChoices::MakeRequest (CassoExplorerNewDiskChoices::kFormatNone, 99, L"", true);
         Assert::AreEqual (std::string ("none"), request.formatName);
         Assert::AreEqual (std::string ("woz"),  request.containerType);
         Assert::IsFalse  (request.bootable);

@@ -1551,4 +1551,5 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T363 Start each catalog listing with its file system (`CP/M disk`, `Apple Pascal disk`, `ProDOS disk`, `DOS 3.3 disk`), in the preview pane and in `disk list`, through `VolumeImage::GetSystemName`. DOS 3.2 gets the heading when Casso can open those images (GitHub issue 164).
 - [X] T364 Draw the preview's catalog heading in the theme's muted text color, carried in `PreviewContent::heading`, per FR-132
 - [X] T365 List Apple Pascal as the Filer's Extended list and CP/M as `STAT *.*`, in the preview and in `disk list`, per FR-132
+- [X] T366 Add `pascal` and `cpm` to `--format`, the New disk dialog and formatting an Apple drive, in every container, with detection of an empty CP/M directory, per FR-132
 

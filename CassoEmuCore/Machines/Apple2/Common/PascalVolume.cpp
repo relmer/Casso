@@ -19,6 +19,7 @@ static constexpr size_t  s_kOffVolumeBlocks = 14;
 static constexpr size_t  s_kOffFileCount    = 16;
 static constexpr size_t  s_kOffLastBytes    = 22;
 static constexpr size_t  s_kOffDate         = 24;
+static constexpr size_t  s_kOffVolumeDate   = 20;
 static constexpr size_t  s_kVolumeNameMax   = 7;
 static constexpr size_t  s_kFileNameMax     = 15;
 static constexpr size_t  s_kDirectoryBytes  = 4 * PascalVolume::kBlockBytes;
@@ -139,6 +140,76 @@ bool PascalVolume::IsValidName (const std::string & name)
     }
 
     return isValid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalVolume::IsValidVolumeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PascalVolume::IsValidVolumeName (const std::string & name)
+{
+    return name.size() <= s_kVolumeNameMax && IsValidName (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalVolume::MakeDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word PascalVolume::MakeDate (int year, int month, int day)
+{
+    constexpr int  kCentury = 100;
+
+
+
+    return (Word) (((year % kCentury) << 9) | (day << 4) | month);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalVolume::WriteBlank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PascalVolume::WriteBlank (const std::string & volumeName, Word date, vector<Byte> & ioSectors)
+{
+    std::array<Byte, kBlockBytes>  header = {};
+    std::array<Byte, kBlockBytes>  empty  = {};
+
+
+
+    SetWord (header, s_kOffNext,         (Word) kFirstDataBlock);
+    SetWord (header, s_kOffVolumeBlocks, (Word) kUnitCount);
+    SetWord (header, s_kOffVolumeDate,   date);
+
+    header[s_kOffNameLength] = (Byte) volumeName.size();
+
+    for (size_t i = 0; i < volumeName.size(); i++)
+    {
+        header[s_kOffName + i] = (Byte) toupper ((unsigned char) volumeName[i]);
+    }
+
+    WriteBlockPart (ioSectors, kFirstDirectoryBlock, 0, header);
+
+    for (int block = kFirstDirectoryBlock + 1; block < kFirstDataBlock; block++)
+    {
+        WriteBlockPart (ioSectors, block, 0, empty);
+    }
 }
 
 

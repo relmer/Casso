@@ -67,6 +67,27 @@ DiskCommandRunner::DiskCommandRunner (IDiskFileIo & fileIo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::GetLocalDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SYSTEMTIME DiskCommandRunner::GetLocalDate()
+{
+    SYSTEMTIME  now = {};
+
+
+
+    GetLocalTime (&now);
+
+    return now;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::SetBanner
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2527,7 +2548,7 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
         case BlankDiskVerdict::ContentsNotInContainer:
             text = "Error: illegal container and filesystem combination\n"
                    "       .dsk and .do hold DOS 3.3, .po holds ProDOS, and .woz and\n"
-                   "       .nib hold either.\n";
+                   "       .nib hold either. Apple Pascal and CP/M go in any of them.\n";
             break;
 
         case BlankDiskVerdict::FluxNeedsWoz:
@@ -2537,13 +2558,19 @@ std::string DiskCommandRunner::DescribeSpecRefusal (const BlankDiskSpec & spec)
 
         case BlankDiskVerdict::BootableNeedsFilesystem:            text = "Error: cannot make an unformatted disk bootable\n"
                    "       There is no filesystem to copy an operating system into.\n"
-                   "       Format the disk as dos33 or prodos.\n";
+                   "       Format the disk as dos33, prodos, pascal, or cpm.\n";
             break;
 
         case BlankDiskVerdict::ProDosNameUnusable:
             text = "Error: illegal volume name\n"
                    "       ProDOS volume names are 1-15 characters, starting with a\n"
                    "       letter, and can include letters, digits, and periods.\n";
+            break;
+
+        case BlankDiskVerdict::PascalNameUnusable:
+            text = "Error: illegal volume name\n"
+                   "       Apple Pascal volume names are 1-7 characters, with no spaces\n"
+                   "       or any of $ = ? , : [ ].\n";
             break;
 
         default:
@@ -2678,6 +2705,14 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
     {
         outContents = BlankDiskContents::ProDos;
     }
+    else if (asked == "pascal")
+    {
+        outContents = BlankDiskContents::Pascal;
+    }
+    else if (asked == "cpm" || asked == "cp/m")
+    {
+        outContents = BlankDiskContents::Cpm;
+    }
     else if (asked == "none" || asked == "raw" || asked == "unformatted")
     {
         outContents = BlankDiskContents::Unformatted;
@@ -2689,7 +2724,7 @@ HRESULT DiskCommandRunner::ResolveContents (const CommandLineOptions & options,
 
     CBRFEx (recognized, E_INVALIDARG,
             (result.diagnostics    += "Error: unknown format: " + options.disk.formatName + "\n"
-                                      "       Valid formats are dos33, prodos, and none.\n",
+                                      "       Valid formats are dos33, prodos, pascal, cpm, and none.\n",
              result.exitStatus      = DiskCommandResult::kNoOutput,
              result.badCommandLine  = true));
 
@@ -2730,6 +2765,12 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
     //  failure of anything.
     BAIL_OUT_IF (!named, S_OK);
 
+    CBRFEx (inOutSpec.contents != BlankDiskContents::Cpm, E_INVALIDARG,
+            (result.diagnostics    += ApplyPrefix ("Error: CP/M has no volume name or number\n"
+                                                   "       Leave out %Lvolume for a CP/M disk.\n"),
+             result.exitStatus      = DiskCommandResult::kNoOutput,
+             result.badCommandLine  = true));
+
     //  UPPERCASED HERE, WHERE IT IS ACCEPTED, and not only where it is
     //  written. ProDOS holds a volume name in upper case and compares without
     //  regard to case, so `--volume mydisk` is a perfectly good way to ask for
@@ -2737,7 +2778,7 @@ HRESULT DiskCommandRunner::ResolveVolume (const CommandLineOptions & options,
     //  was tell the spec, so the line confirming the disk read back the name
     //  that was typed while `disk list` read back the name that is there, and
     //  the two disagreed over a disk that was right all along.
-    if (inOutSpec.contents == BlankDiskContents::ProDos)
+    if (inOutSpec.contents == BlankDiskContents::ProDos || inOutSpec.contents == BlankDiskContents::Pascal)
     {
         inOutSpec.volumeName = asked;
 
@@ -2891,6 +2932,8 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
     {
         case BlankDiskContents::Dos33:       text = "DOS 3.3";      break;
         case BlankDiskContents::ProDos:      text = "ProDOS";       break;
+        case BlankDiskContents::Pascal:      text = "Apple Pascal"; break;
+        case BlankDiskContents::Cpm:         text = "CP/M";         break;
         default:                             text = "unformatted";  break;
     }
 
@@ -2898,7 +2941,7 @@ std::string DiskCommandRunner::DescribeNewDisk (const BlankDiskSpec & spec)
     {
         text += ", volume " + std::to_string ((int) spec.volumeNumber);
     }
-    else if (spec.contents == BlankDiskContents::ProDos)
+    else if (spec.contents == BlankDiskContents::ProDos || spec.contents == BlankDiskContents::Pascal)
     {
         text += ", volume " + spec.volumeName;
     }
@@ -2961,6 +3004,7 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
     DiskImageSession::OpenedImage  target;
     std::string                    refusal;
     bool                           pairingHolds = false;
+    SYSTEMTIME                     now          = {};
 
 
 
@@ -2972,6 +3016,9 @@ void DiskCommandRunner::BuildAndWrite (const CommandLineOptions & options,
 
     hr = ResolveVolume (options, spec, result);
     CHR (hr);
+
+    now             = m_clock();
+    spec.pascalDate = PascalVolume::MakeDate (now.wYear, now.wMonth, now.wDay);
 
     hr = ResolveBoot (options, spec, payload, result);
     CHR (hr);

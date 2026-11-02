@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Ui/FileBrowseModel.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -12,6 +13,7 @@
 static constexpr const wchar_t *  s_kpszNameTip         = L"The new image's file name. The image type's extension is added when you do not type one.";
 static constexpr const wchar_t *  s_kpszDos33VolumeTip  = L"DOS 3.3: a volume number from 1 to 254. Leave it blank for 254.";
 static constexpr const wchar_t *  s_kpszProDosVolumeTip = L"ProDOS: up to 15 letters, digits and periods, starting with a letter. Leave it blank for NEWDISK.";
+static constexpr const wchar_t *  s_kpszPascalVolumeTip = L"Apple Pascal: up to 7 characters, with no spaces or any of $ = ? , : [ ]. Leave it blank for NEWDISK.";
 
 
 
@@ -206,7 +208,8 @@ std::wstring CassoExplorerNewDiskChoices::ValidateFileName (const std::wstring &
 //  Blank takes the runner's default for the format. A DOS 3.3 volume is a
 //  number from 1 to 254; a ProDOS volume is a name of up to 15 letters, digits
 //  and periods, starting with a letter, matched without regard to case. An
-//  unformatted image has no volume.
+//  Apple Pascal volume is a name of up to 7 characters. CP/M and an unformatted
+//  image have no volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,9 +223,16 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
 
 
 
-    if (volume.empty() || formatIndex == kFormatNone)
+    if (volume.empty() || formatIndex == kFormatNone || formatIndex == kFormatCpm)
     {
         return error;
+    }
+
+    if (formatIndex == kFormatPascal)
+    {
+        return PascalVolume::IsValidVolumeName (TextEncoding::WideToNarrow (volume))
+             ? error
+             : std::wstring (L"Use up to 7 characters, with no spaces or any of $ = ? , : [ ], or leave it blank for NEWDISK.");
     }
 
     for (i = 0; i < volume.size(); i++)
@@ -264,7 +274,9 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
 
 size_t CassoExplorerNewDiskChoices::GetVolumeMaxLength (int formatIndex)
 {
-    return (formatIndex == kFormatProDos) ? kMaxProDosVolumeLength : kMaxDos33VolumeLength;
+    return (formatIndex == kFormatProDos) ? kMaxProDosVolumeLength
+         : (formatIndex == kFormatPascal) ? kMaxPascalVolumeLength
+                                          : kMaxDos33VolumeLength;
 }
 
 
@@ -661,7 +673,11 @@ void CassoExplorerNewDiskDialog::OnCreate()
         }
         else if (field == &m_volume)
         {
-            tip = (m_format.GetSelectedIndex() == CassoExplorerNewDiskChoices::kFormatProDos) ? s_kpszProDosVolumeTip : s_kpszDos33VolumeTip;
+            int  format = m_format.GetSelectedIndex();
+
+            tip = (format == CassoExplorerNewDiskChoices::kFormatProDos) ? s_kpszProDosVolumeTip
+                : (format == CassoExplorerNewDiskChoices::kFormatPascal) ? s_kpszPascalVolumeTip
+                                                                         : s_kpszDos33VolumeTip;
         }
 
         return tip;
@@ -772,14 +788,15 @@ CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner,
 void CassoExplorerNewDiskDialog::Revalidate()
 {
     int   format    = m_format.GetSelectedIndex();
-    bool  hasVolume = format != CassoExplorerNewDiskChoices::kFormatNone;
+    bool  hasVolume = format != CassoExplorerNewDiskChoices::kFormatNone && format != CassoExplorerNewDiskChoices::kFormatCpm;
+    bool  hasName   = format == CassoExplorerNewDiskChoices::kFormatProDos || format == CassoExplorerNewDiskChoices::kFormatPascal;
     bool  valid     = false;
 
 
 
     m_volumeLabel.SetEnabled (hasVolume);
     m_volume.SetEnabled      (hasVolume);
-    m_volume.SetPlaceholder  ((format == CassoExplorerNewDiskChoices::kFormatProDos) ? L"NEWDISK"
+    m_volume.SetPlaceholder  (hasName                                                ? L"NEWDISK"
                             : (format == CassoExplorerNewDiskChoices::kFormatDos33)  ? L"254"
                                                                                 : L"");
 

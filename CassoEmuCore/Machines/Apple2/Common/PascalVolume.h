@@ -84,6 +84,16 @@ public:
     //  1 to 15 printable characters with no space or any of $ = ? , : [ ].
     static bool  IsValidName (const std::string & name);
 
+    //  The same rule at the 7 characters a volume name has.
+    static bool  IsValidVolumeName (const std::string & name);
+
+    //  An empty directory in blocks 2 to 5, as the Filer's Zero writes it, with
+    //  the name in upper case and `date` as the volume's date.
+    static void  WriteBlank (const std::string & volumeName, Word date, vector<Byte> & ioSectors);
+
+    //  A date word from a year, month and day. The year is reduced to two digits.
+    static Word  MakeDate (int year, int month, int day);
+
     //  The kind the name's suffix selects, as the Filer does; data otherwise.
     static Byte  GetKindFromName (const std::string & name);
 

@@ -91,6 +91,12 @@ public:
 
     void  SetConfirmAsker (ConfirmFn asker) { m_confirm = std::move (asker); }
 
+    //  Where a new Apple Pascal disk's date comes from: today, unless a test
+    //  sets another clock.
+    using ClockFn = std::function<SYSTEMTIME()>;
+
+    void  SetClock (ClockFn clock) { m_clock = std::move (clock); }
+
     DiskCommandResult  Run (const CommandLineOptions & options);
 
 
@@ -437,6 +443,8 @@ public:
                                    DiskCommandResult        & result);
 
 private:
+    static SYSTEMTIME  GetLocalDate ();
+
     //  Whether a command puts bytes into the image it was given.
     static bool  WritesTheImage (CommandLineOptions::DiskOptions::Command command);
 
@@ -450,6 +458,7 @@ private:
 
     //  Caller-owned as well; none means no terminal.
     ConfirmFn           m_confirm;
+    ClockFn             m_clock = GetLocalDate;
 
     IDiskFileIo       & m_fileIo;
     DiskImageSession    m_session;
