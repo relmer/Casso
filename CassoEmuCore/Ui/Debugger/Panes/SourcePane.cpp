@@ -1450,8 +1450,8 @@ std::wstring SourcePane::GetFoundElsewhereText (const std::string & fileName, co
         return std::wstring();
     }
 
-    return std::format (L"{} is not beside the debug file. Showing the copy in {}.",
-                        SourcePathList::Utf8ToWide (fileName), SourceService::GetFolder (foundPath));
+    return std::format (L"Source file {} was not found with the debug file {}. Showing the copy in {}.",
+                        SourcePathList::Utf8ToWide (fileName), debugFilePath, SourceService::GetFolder (foundPath));
 }
 
 

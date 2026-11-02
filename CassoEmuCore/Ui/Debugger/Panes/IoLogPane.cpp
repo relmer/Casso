@@ -167,15 +167,15 @@ std::optional<uint64_t> IoLogPane::GetSince (size_t index) const
 
 IoLogPane::ColumnSpecs IoLogPane::GetColumnSpecs() const
 {
-    return { { L"Time",    DxuiTextHAlign::Left,  kFit,  true       },
-             { L"Cycle",   DxuiTextHAlign::Right, 110,   true       },
-             { L"Frame",   DxuiTextHAlign::Right, 110,   false      },
-             { L"Line",    DxuiTextHAlign::Right,  50,   m_isVideo  },
-             { L"H",       DxuiTextHAlign::Right,  40,   m_isVideo  },
-             { L"Since",   DxuiTextHAlign::Right,  80,   !m_isVideo },
-             { L"Address", DxuiTextHAlign::Left,   70,   true       },
-             { L"Source",  DxuiTextHAlign::Left,  110,   !m_isVideo },
-             { L"Event",   DxuiTextHAlign::Left,    0,   true       } };
+    return { { L"Time",       DxuiTextHAlign::Left,  kFit,  true,       L"The host's clock at the entry" },
+             { L"Cycle",      DxuiTextHAlign::Right, 110,   true,       L"The CPU's cycle count since the last power cycle" },
+             { L"Frame",      DxuiTextHAlign::Right, 110,   false,      L"The cycle the video frame began at" },
+             { L"Scanline",   DxuiTextHAlign::Right,  70,   m_isVideo,  L"The scanline the beam was on, 0 at the top of the frame" },
+             { L"Line cycle", DxuiTextHAlign::Right,  80,   m_isVideo,  L"The CPU cycle within the scanline, 0 to 64: the count Understanding the Apple II calls the horizontal counter" },
+             { L"Since",      DxuiTextHAlign::Right,  80,   !m_isVideo, L"The cycles since the speaker's last toggle, or since the last write to a board" },
+             { L"Address",    DxuiTextHAlign::Left,   70,   true,       L"The address the CPU read or wrote" },
+             { L"Source",     DxuiTextHAlign::Left,  110,   !m_isVideo, L"The speaker, a Mockingboard's chips, or the SSI-263" },
+             { L"Event",      DxuiTextHAlign::Left,    0,   true,       L"What the access did" } };
 }
 
 

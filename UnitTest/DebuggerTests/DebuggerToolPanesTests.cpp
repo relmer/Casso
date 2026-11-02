@@ -283,7 +283,8 @@ namespace DebuggerToolPanesTests
         //  the snapshot has the build under way. The view drop-down's label
         //  follows the view.
         //  Open on a stopped machine with history, the pane builds the chosen
-        //  period's profile once for each stop, with no period chosen again.
+        //  period's profile at a stop, with no period chosen again. A step, or
+        //  steps that add up to less than a frame, don't build it again.
         TEST_METHOD (TheOpenPaneBuildsTheProfileAtEachStop)
         {
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
@@ -312,7 +313,17 @@ namespace DebuggerToolPanesTests
             snapshot                = std::make_shared<DebuggerViewSnapshot> (*snapshot);
             snapshot->history.cycle = 200;
             window.TakeSnapshot (snapshot);
-            Assert::AreEqual ((size_t) 2, host.commands.size(), L"and again at the next");
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"not again after a step");
+
+            snapshot                = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            snapshot->history.cycle = 100 + ProfilerPane::kRebuildCycles;
+            window.TakeSnapshot (snapshot);
+            Assert::AreEqual ((size_t) 2, host.commands.size(), L"and again after a frame's run");
+
+            snapshot                = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            snapshot->history.cycle = 100;
+            window.TakeSnapshot (snapshot);
+            Assert::AreEqual ((size_t) 3, host.commands.size(), L"and after a frame's step back");
         }
 
 
@@ -540,9 +551,9 @@ namespace DebuggerToolPanesTests
 
         //  Each bar is as wide as its total's share of its caller's; zoomed,
         //  the routine spans the width under its callers.
-        //  Each view opens sorted the way it is most read: routines and the
-        //  call tree by total, most first; any column sorts both ways, by
-        //  number or by name.
+        //  Each view opens sorted the way it is most read: the routines by
+        //  self, the call tree by total, most first; any column sorts both
+        //  ways, by number or by name.
         TEST_METHOD (TheProfilerListSortsByAnyColumn)
         {
             using View = ProfilerPane::View;
@@ -552,8 +563,9 @@ namespace DebuggerToolPanesTests
 
 
 
-            Assert::AreEqual (3, sort.column, L"Total");
+            Assert::AreEqual (1, sort.column, L"Self");
             Assert::IsTrue   (sort.descending);
+            Assert::AreEqual (2, ProfilerPane::GetDefaultSort (View::Tree).column, L"the call tree by Total");
             Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 3, true)  == std::vector<size_t> { 2, 3, 0, 1 }, L"Top level, DRAW, PLOT, FILL");
             Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, true)  == std::vector<size_t> { 0, 2, 1, 3 }, L"by self");
             Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, false) == std::vector<size_t> { 3, 1, 2, 0 }, L"by self, least first");
@@ -590,7 +602,7 @@ namespace DebuggerToolPanesTests
             DxuiDpiScaler                  scaler;
             auto                           snapshot = std::make_shared<DebuggerViewSnapshot>();
             PaneMenuItems                  top;
-            PaneMenuItems                  draw;
+            PaneMenuItems                  plot;
             const std::function<void()>  * add      = nullptr;
 
 
@@ -602,23 +614,23 @@ namespace DebuggerToolPanesTests
             snapshot->profile = MakeRoutineProfile();
             window.TakeSnapshot (snapshot);
 
-            //  Sorted by total: Top level, then DRAW.
-            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 0, top);
-            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 1, draw);
+            //  Sorted by self: PLOT, then Top level.
+            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 1, top);
+            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 0, plot);
 
-            for (const auto & [label, run] : draw)
+            for (const auto & [label, run] : plot)
             {
                 add = (label == L"Add symbol here...") ? &run : add;
             }
 
             Assert::IsTrue    (std::ranges::none_of (top, [] (const auto & item) { return item.first == L"Add symbol here..."; }), L"Top level has no address");
-            Assert::IsNotNull (add, L"DRAW's row has it");
+            Assert::IsNotNull (add, L"PLOT's row has it");
 
             window.typed = L"DRAWLINE";
             (*add)();
 
             Assert::IsFalse (host.commands.empty());
-            Assert::AreEqual (std::string ("SYM DRAWLINE = 6200"), host.commands.back());
+            Assert::AreEqual (std::string ("SYM DRAWLINE = 6000"), host.commands.back());
         }
 
 

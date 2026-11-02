@@ -824,7 +824,7 @@ The trace costs nothing while it is off.
 
 The window's trace pane lists its keys above its rows, and a click on a key
 there does what the key does. With the pane focused, `Space`, `O` and `R` step
-into, over and out, `Return` runs, `T` turns the trace off and on, `B` turns
+into, over and out, `Enter` runs, `T` turns the trace off and on, `B` turns
 the bytes column off and on, and `S` saves the trace to a file you pick, as
 `HISTORY SAVE` does. While the machine is
 stopped, the next few instructions from the PC follow the last entry, taking
@@ -840,7 +840,8 @@ down, and the finished counts become the profile the lists below read. The
 Profiler pane's **Show** drop-down runs it for the last 10 seconds,
 60 seconds, 5 minutes or since history began, with "Loading profile... (n%)"
 over the list while the profile builds, and while the pane is open the
-chosen period's profile is built again at each stop. The history is cut into
+chosen period's profile is built again at a stop a frame or more from the
+last build, so a step doesn't rebuild it. The history is cut into
 blocks at keyframes and the blocks are replayed on several scratch machines
 at once; each block's counts are cached, so a longer period, or the same one
 built again, replays only the blocks not counted before.
@@ -907,8 +908,9 @@ are those at the access.
 The debugger window shows each log in a pane of its own, **Video log** and
 **Sound log**, opened from the View menu or from the Video and Mockingboard
 panels' menus. A row is an entry, with the same text the command lists, in
-columns that can be sorted, shown or hidden: the video log has the frame, line
-and position in the line; the sound log has the cycles since the last entry of
+columns that can be sorted, shown or hidden: the video log has the frame, the
+scanline and the line cycle (the CPU cycle within the scanline); the sound log
+has the cycles since the last entry of
 its kind and its source, which the Source column's Filter narrows to the
 speaker, the 6522s, the AY-3-8910s or the SSI-263. Scrolling to the top rebuilds older
 entries from history. Clear and Save on the pane's bar do what `CLEAR` and
@@ -1148,7 +1150,7 @@ menu also opens these, which stay closed until first opened:
   the Save glyph, and chooses **Routines**, the view it opens on, **Call
   tree**, **Flame graph**, **Addresses** or **Opcodes**. A click on a
   column's heading sorts the list by it, and a second click turns the order
-  around; each view opens sorted by cycles, or by total for the routines and
+  around; each view opens sorted by cycles, by self for the routines, or by total for
   the call tree, most first, and the call tree sorts each routine's callees
   under it. The routines and the call tree have a square of each routine's
   timeline color before its name. A line above the list has the totals and the time

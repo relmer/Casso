@@ -1139,7 +1139,7 @@ trace, with the next instructions shown below it.
 1. **Given** the trace pane, **Then** a line above its rows lists its keys.
 2. **Given** the trace pane has focus and the machine is stopped, **When** the
    user presses Space, O or R, **Then** the machine steps into, over or out;
-   Return runs it; T turns tracing off and on; B shows and hides the bytes
+   Enter runs it; T turns tracing off and on; B shows and hides the bytes
    column.
 3. **Given** the machine is stopped, **Then** the next several instructions
    from PC are shown below the trace, following a branch whose outcome the
@@ -1889,7 +1889,7 @@ run something, switch back to the //e: it is where it was left.
   reply MUST quote the command as the user typed it, never another mode's
   form. 035 does not ship without this.
 - **FR-136**: The trace pane MUST show a line listing its keys, and while it
-  has focus MUST take Space (step into), O (step over), R (step out), Return
+  has focus MUST take Space (step into), O (step over), R (step out), Enter
   (run), T (tracing on and off) and B (bytes column on and off).
 - **FR-137**: While the machine is stopped, the trace pane MUST show the next
   several instructions from PC below the last traced row, following each
@@ -2420,7 +2420,7 @@ run something, switch back to the //e: it is where it was left.
   returning past inline parameters and MUST NOT be treated as a break.
 
 - **FR-099**: Each frame MUST state its source in plain words (for example,
-  "recorded" or "found on the stack"), and the marker for the point below
+  "found during execution" or "found by stack walk"), and the marker for the point below
   which the recorder has no history MUST say that the recorder began there,
   when the debugger attached, and that nothing below it is known -- worded so
   it cannot be read as a reference to the trace pane.

@@ -1326,14 +1326,14 @@ void IoLogController::SetBarEntries()
 
     m_commands.clear();
 
-    command           = AddEntry (entries, s_kIoLogClear, L"Clear", IsVideo() ? L"Clear: hide the video log's entries until now"
-                                                                              : L"Clear: hide the sound log's entries until now",
+    command           = AddEntry (entries, s_kIoLogClear, L"Clear", IsVideo() ? L"Hide the video log's entries up to now"
+                                                                              : L"Hide the sound log's entries up to now",
                                   DxuiToolbar::Kind::Command, 0);
     command->glyph    = s_kpszMdl2Broom;
     command->dispatch = [this] { Clear(); };
     entries.back().iconOnly = true;
 
-    command           = AddEntry (entries, s_kIoLogSave, L"Save...", L"Save...: save the log's entries to a text file", DxuiToolbar::Kind::Command, 0);
+    command           = AddEntry (entries, s_kIoLogSave, L"Save...", L"Save the log's entries to a text file", DxuiToolbar::Kind::Command, 0);
     command->glyph    = s_kpszMdl2Save;
     command->dispatch = [this] { Save(); };
     entries.back().iconOnly = true;

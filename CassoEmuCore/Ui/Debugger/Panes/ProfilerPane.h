@@ -43,9 +43,10 @@ public:
         Opcodes,
     };
 
-    static constexpr int  kViewCount        = 5;
-    static constexpr int  kTotalsHeightDip  = 22;
-    static constexpr int  kProgressWidthDip = 280;
+    static constexpr int       kViewCount        = 5;
+    static constexpr int       kTotalsHeightDip  = 22;
+    static constexpr int       kProgressWidthDip = 280;
+    static constexpr uint64_t  kRebuildCycles    = 17030;   // a frame: a stop nearer than this to the last build doesn't rebuild the profile
 
     //  The periods in the Show profile drop-down: the words PROFILE HISTORY
     //  takes, and the drop-down's.
@@ -96,8 +97,13 @@ public:
     bool                         AddMenuItems        (DxuiListView * list, int row, PaneMenuItems & items) override;
     void                         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
-    //  The drop-down's words for a view.
-    static const wchar_t *  GetViewLabel (View view);
+    //  The drop-down's words for a view, and the heading tips the routines
+    //  and the call tree share.
+    static const wchar_t *  GetViewLabel  (View view);
+    static const wchar_t *  GetRoutineTip ();
+    static const wchar_t *  GetSelfTip    ();
+    static const wchar_t *  GetTotalTip   ();
+    static const wchar_t *  GetCallsTip   ();
 
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn);
 
@@ -119,7 +125,7 @@ public:
     };
 
     //  The sort a view opens with: the opcodes and the addresses by cycles,
-    //  the routines and the call tree by total, most first.
+    //  the routines by self and the call tree by total, most first.
     static Sort                 GetDefaultSort (View view);
 
     //  The order of a view's rows as indexes in the profile's entries, by a

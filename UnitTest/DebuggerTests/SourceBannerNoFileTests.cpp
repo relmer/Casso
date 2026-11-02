@@ -96,7 +96,7 @@ namespace DebuggerTests
             pane.SetFile (0);
             pane.Apply   (rig.view.Build (rig.controller.GetSession()));
 
-            Assert::IsTrue (banner.GetText().find (L"main.a65 is not beside the debug file. Showing the copy in C:\\Other") != std::wstring::npos,
+            Assert::IsTrue (banner.GetText().find (L"Source file main.a65 was not found with the debug file ") != std::wstring::npos && banner.GetText().find (L". Showing the copy in C:\\Other.") != std::wstring::npos,
                             banner.GetText().c_str());
         }
 

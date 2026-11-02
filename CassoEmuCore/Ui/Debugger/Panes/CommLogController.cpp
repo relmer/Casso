@@ -158,12 +158,12 @@ void CommLogController::SetBarEntries()
         command->dispatch  = [this, lane] { ShowLane (lane, !m_model->IsLaneShown (lane)); };
     }
 
-    command           = AddEntry (entries, s_kCommZoomIn, L"Zoom in", L"Zoom in: show half as many cycles", DxuiToolbar::Kind::Command, 1);
+    command           = AddEntry (entries, s_kCommZoomIn, L"Zoom in", L"Zoom in to half as many cycles across the graph", DxuiToolbar::Kind::Command, 1);
     command->glyph    = s_kpszMdl2ZoomIn;
     command->dispatch = [this] { Zoom (true); };
     entries.back().iconOnly = true;
 
-    command           = AddEntry (entries, s_kCommZoomOut, L"Zoom out", L"Zoom out: show twice as many cycles", DxuiToolbar::Kind::Command, 1);
+    command           = AddEntry (entries, s_kCommZoomOut, L"Zoom out", L"Zoom out to twice as many cycles across the graph", DxuiToolbar::Kind::Command, 1);
     command->glyph    = s_kpszMdl2ZoomOut;
     command->dispatch = [this] { Zoom (false); };
     entries.back().iconOnly = true;
