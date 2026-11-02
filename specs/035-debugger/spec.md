@@ -2314,8 +2314,10 @@ run something, switch back to the //e: it is where it was left.
   replaces the expression with what is typed, and double-clicking its value
   writes what is typed to the watched address. A manual watch MUST be
   removable with Delete and from its context menu.
-- **FR-097**: The watch pane MUST keep an undo history of its own value and
-  expression edits, separate from every memory window's.
+- **FR-097**: The watch pane MUST keep an undo history of its value and
+  expression edits, of each watch added or removed, and of each zero-page
+  pointer removed, separate from every memory window's. An undone removal
+  MUST put the watch back under the id it had, in its place in the list.
 - **FR-098**: The watch pane MUST highlight each value that changed since the
   previous update.
 

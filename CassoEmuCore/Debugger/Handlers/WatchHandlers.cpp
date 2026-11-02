@@ -153,7 +153,8 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 //
 //  ZP0-ZP7 and P0-P4 carry a slot in their name and fill it. ZP and ZPA
 //  take the lowest free slot, since only ZP0-ZP7 exist to replay a saved
-//  pointer; watches and bookmarks take the next id. The reply lists the
+//  pointer; watches and bookmarks take the next id, or for a watch the id
+//  one less than the count, when the count is set. The reply lists the
 //  entry. With no address nothing is added, and the reply is the list; a
 //  watch list then carries the verb a list of watches has.
 //
@@ -223,6 +224,15 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
     {
         reply.SetError (CommandStatus::Error, "no free zero-page pointer", "All eight zero-page pointers are in use.");
         return;
+    }
+
+    //  An undone removal adds the watch back under the id it had, which
+    //  returns it to its place; ids are never reused, so that one is free
+    //  unless the list was cleared since.
+    if (kind == WatchListKind::Watch && command.count > 0 && table.TryChangeId (id, (int) command.count - 1))
+    {
+        id = (int) command.count - 1;
+        table.SetNextId (std::max (table.GetNextId(), id + 1));
     }
 
     list     = MakeList (session, kind);

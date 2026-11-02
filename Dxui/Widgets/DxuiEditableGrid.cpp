@@ -548,8 +548,11 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next, bool i
 
     m_addFromCount = GetDataRowCount();
 
+    m_wasAdded = false;
+
     if (isComplete && m_add && m_add (m_pending, error))
     {
+        m_wasAdded = true;
         m_pending.assign (m_columns.size(), std::wstring());
         m_missing.clear();
         m_editRow    = -1;
@@ -1285,9 +1288,18 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
 
             if (text.find_first_not_of (L" \t") != std::wstring::npos)
             {
+                int  column = m_editColumn;
+
+
+
                 m_isTabCommit = ev.vk == VK_TAB;
                 (void) CommitAddRow (text, -1);
                 m_isTabCommit = false;
+
+                if (m_wasAdded && m_isReopened && ev.vk == VK_RETURN)
+                {
+                    (void) BeginEdit (GetDataRowCount(), column);
+                }
             }
 
             return true;

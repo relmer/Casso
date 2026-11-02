@@ -79,6 +79,10 @@ public:
     //  and when the add callback returns false the edit stays where it is.
     //  IsTabCommit is true while the add callback runs for a Tab.
     void  SetAddsOnFirstField (bool isFirst)         { m_isAddOnFirst = isFirst; }
+
+    //  After Enter adds a row, the hint row opens for the next one, so a
+    //  list is typed with no click between its rows. Esc ends it.
+    void  SetReopensAddRow    (bool isReopened)      { m_isReopened = isReopened; }
     bool  IsTabCommit         () const               { return m_isTabCommit; }
 
     //  Text in the hint row's cell in a column, in a color of its own, as
@@ -172,6 +176,8 @@ private:
     uint32_t                   m_noteArgb     = 0;
     bool                       m_isAddOnFirst = false;
     bool                       m_isTabCommit  = false;
+    bool                       m_isReopened   = false;
+    bool                       m_wasAdded     = false;     // the last CommitAddRow added a row
     std::wstring               m_addRowText;
     DxuiTextInput              m_editor;
     DxuiDpiScaler              m_gridScaler;
