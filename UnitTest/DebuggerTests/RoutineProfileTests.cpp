@@ -453,7 +453,7 @@ namespace DebuggerTests
 
 
             data.historyRange = CycleRange { 0, 1000 };
-            Assert::IsTrue (data.GetTopLevelTip().find ("outside every call in history.") != std::string::npos);
+            Assert::IsTrue (data.GetTopLevelTip().find ("no JSR in the period called") != std::string::npos);
             Assert::IsTrue (data.GetTopLevelTip().find ("begins where history does") == std::string::npos);
 
             data.isFromHistoryStart = true;
@@ -482,7 +482,7 @@ namespace DebuggerTests
 
             data.topAddresses = { { 0xD7D5, "NEWSTT+3", 12345 } };
 
-            Assert::IsTrue (data.GetTopLevelTip().starts_with ("Top level: the cycles in code outside every call seen during the period."));
+            Assert::IsTrue (data.GetTopLevelTip().starts_with ("Top level: the cycles in code that no JSR in the period called, such as code entered by a jump"));
             Assert::IsTrue (data.GetTopLevelTip().find ("$D7D5 NEWSTT+3: 12,345 cycles") != std::string::npos, TextEncoding::NarrowToWide (data.GetTopLevelTip()).c_str());
         }
     };

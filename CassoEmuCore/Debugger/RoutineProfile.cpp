@@ -657,14 +657,14 @@ std::string ProfileRoutineEntry::GetTipHead() const
 
 std::string ProfileData::GetTopLevelTip() const
 {
-    std::string  tip = "Top level: the cycles in code outside every call seen during the period.";
+    std::string  tip = "Top level: the cycles in code that no JSR in the period called, such as code entered by a jump, "
+                       "a reset or an interrupt: the boot ROM, a program's main loop, or BASIC's loop that runs each statement.";
 
 
 
-    if (historyRange.has_value())
+    if (historyRange.has_value() && isFromHistoryStart)
     {
-        tip = isFromHistoryStart ? "Top level: the cycles in code outside every call in history. The period begins where history does, so a call made before then is counted here."
-                                 : "Top level: the cycles in code outside every call in history.";
+        tip += " The period begins where history does, so a routine called before then is counted here, as its JSR is not in history.";
     }
 
     if (topAddresses.empty())
