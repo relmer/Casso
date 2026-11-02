@@ -248,6 +248,9 @@ public:
 
     static constexpr int    kGripDp         = 12;
 
+    //  How long the band of dots is, centered along the handle.
+    static constexpr float  kGripLengthDip  = 16.0f;
+
     //  One dot of the grab handle, in pixels.
     struct GripDot
     {

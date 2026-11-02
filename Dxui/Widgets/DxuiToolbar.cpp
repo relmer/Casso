@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Theme/DxuiColor.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiPaneMetrics.h"
 
@@ -2314,17 +2315,19 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 //
 //  DxuiToolbar::PaintGrip
 //
-//  Visual Studio's grab handle: a narrow band of small dots across the
-//  strip's leading end, in the theme's disabled ink, or its muted ink while
-//  the strip is dragged. The hit area is the whole grip rect.
+//  Visual Studio's grab handle: a short band of single-pixel dots, centered
+//  across the strip's leading end, in the theme's disabled ink faded halfway
+//  to the background, or its muted ink while the strip is dragged. The hit
+//  area is the whole grip rect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbar::PaintGrip (IDxuiPainter & painter, const IDxuiTheme & theme)
 {
-    float     dot    = (std::max) (1.0f, std::round (m_scaler.ToPxf (1.0f)));
-    float     margin = (float) m_scaler.ToPx (GetSpacingDp (Spacing::BtnMarginY)) + dot;
-    uint32_t  ink    = m_lifted ? theme.ForegroundMuted() : theme.ForegroundDisabled();
+    float     dot    = 1.0f;
+    float     length = (float) (m_vertical ? m_gripRect.right - m_gripRect.left : m_gripRect.bottom - m_gripRect.top);
+    float     margin = (std::max) ((float) m_scaler.ToPx (GetSpacingDp (Spacing::BtnMarginY)) + dot, (length - m_scaler.ToPxf (kGripLengthDip)) * 0.5f);
+    uint32_t  ink    = m_lifted ? theme.ForegroundMuted() : DxuiColor::Mix (theme.ForegroundDisabled(), theme.Background(), 0.5f);
 
 
 
