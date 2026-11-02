@@ -6,6 +6,7 @@
 #include "Ui/Debugger/InstructionEffect.h"
 
 #include "Debugger/AccessHeatMap.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -2514,11 +2515,15 @@ std::string DebuggerViewState::GetPanelLine (const std::string & id, bool open)
 //
 //  DebuggerViewState::ExecuteLine
 //
+//  A help listing's rows come back tabbed, for the console to lay out at
+//  its width.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string & line, CommandMode mode)
 {
-    Reply  reply = session.ExecuteLine (line, mode);
+    CommandModeHelp::TabbedRows  tabbed (true);
+    Reply                        reply = session.ExecuteLine (line, mode);
 
 
 

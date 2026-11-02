@@ -42,6 +42,10 @@ public:
     void                 Clear          ();
     void                 ScrollToEnd    ();
 
+    //  The text laid out again once the view's width has changed, so a help
+    //  listing's rows fit the width as it is now.
+    void                 Reflow         ();
+
     //  The text takes a press or the wheel inside it, and everything while a
     //  selection drag or its scrollbar is under way; the keys go to `keys`,
     //  as they do in a terminal.
@@ -57,9 +61,12 @@ private:
     static constexpr float   kLineSpacing     = 1.2f;
     static constexpr size_t  kWrapIndentLimit = 48;
 
+    std::vector<DxuiTextView::Row>  GetRows () const;
+
     IDebuggerPaneHost         & m_host;
-    DxuiTextView              * m_view = nullptr;
+    DxuiTextView              * m_view    = nullptr;
     std::vector<std::string>    m_lines;
+    int                         m_columns = 0;     // the view's width the rows were laid out for
 };
 
 
@@ -220,6 +227,7 @@ public:
     std::vector<DxuiToolbar *>       GetBars        () const override { return { m_modeBar.GetSlot().GetBar() }; }
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     void                             SetTextZoom    (float zoom) override;
+    bool                             Tick           (int64_t nowMs) override;
     bool                             RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
     bool                             SubmitTextBox  (DxuiTextInput * box) override;
     void                             PlaceBar       () override { m_modeBar.GetSlot().Place(); }

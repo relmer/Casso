@@ -273,6 +273,40 @@ namespace DebuggerTests
         }
 
 
+        //  The console lays a listing's tabbed rows out again at each width:
+        //  wide enough, every syntax in one column; narrower, the column is
+        //  capped and a longer syntax is a row by itself.
+        TEST_METHOD (TabbedRowsAreLaidOutAtTheConsolesWidth)
+        {
+            std::string               longSyntax (30, 'S');
+            std::vector<std::string>  lines = { "Commands:", "    BP addr\tSet a breakpoint", "    " + longSyntax + "\tA long one" };
+            std::vector<std::string>  wide;
+            std::vector<std::string>  narrow;
+
+
+
+            {
+                CommandModeHelp::TabbedRows  tabbed (true);
+
+                Assert::IsTrue (CommandModeHelp::BuildHelp (CommandMode::Casso)[2].find ('\t') != std::string::npos, L"rows are tabbed in scope");
+            }
+
+            Assert::IsTrue (CommandModeHelp::BuildHelp (CommandMode::Casso)[2].find ('\t') == std::string::npos, L"and laid out out of it");
+
+            wide   = CommandModeHelp::LayOutTabbedRows (lines, 200);
+            narrow = CommandModeHelp::LayOutTabbedRows (lines, 50);
+
+            Assert::AreEqual ((size_t) 3, wide.size());
+            Assert::AreEqual (std::string ("Commands:"), wide[0], L"a line without a tab is as it was");
+            Assert::AreEqual ("    " + std::string ("BP addr") + std::string (30 - 7, ' ') + "  Set a breakpoint", wide[1]);
+
+            Assert::AreEqual ((size_t) 4, narrow.size(), L"the long syntax is a row by itself");
+            Assert::AreEqual ("    BP addr" + std::string (CommandModeHelp::kMaxSyntaxColumn - 7, ' ') + "  Set a breakpoint", narrow[1]);
+            Assert::AreEqual ("    " + longSyntax, narrow[2]);
+            Assert::AreEqual (std::string (4 + CommandModeHelp::kMaxSyntaxColumn + 2, ' ') + "A long one", narrow[3]);
+        }
+
+
         TEST_METHOD (HelpIsByCategory_AndAlphabeticalWithinEach)
         {
             std::vector<std::string>  lines    = CommandModeHelp::BuildHelp (CommandMode::Casso);

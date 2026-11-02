@@ -76,11 +76,10 @@ void ConsoleOutput::Configure()
 
 void ConsoleOutput::Append (const std::vector<std::string> & lines)
 {
-    std::vector<DxuiTextView::Row>  rows;
-    bool                            atEnd   = m_view->IsAtEnd();
-    int                             top     = m_view->GetTopLine();
-    int                             dropped = 0;
-    auto                            first   = lines.begin();
+    bool  atEnd   = m_view->IsAtEnd();
+    int   top     = m_view->GetTopLine();
+    int   dropped = 0;
+    auto  first   = lines.begin();
 
 
 
@@ -102,31 +101,92 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
         m_lines.erase (m_lines.begin(), m_lines.begin() + dropped);
     }
 
-    for (const std::string & line : m_lines)
-    {
-        DxuiTextView::Row  row;
-
-        if (DebuggerViewState::IsCommandGap (line))
-        {
-            row.cells  = { std::wstring() };
-            row.height = DebuggerViewState::kCommandGapHeight;
-        }
-        else
-        {
-            row.cells      = { TextEncoding::NarrowToWide (line) };
-            row.wrapIndent = GetWrapIndent (line);
-        }
-
-        rows.push_back (std::move (row));
-    }
-
-    m_view->SetRowsDroppingFront (std::move (rows), dropped);
+    m_columns = m_view->GetVisibleColumns();
+    m_view->SetRowsDroppingFront (GetRows(), dropped);
     m_view->SetTopLine (atEnd ? m_view->GetLineCount() : top - dropped);
 
     if (!m_view->IsVisible())
     {
         m_host.MarkPaneTab (DebuggerLayout::kConsole);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::Reflow
+//
+//  A console at its end remains at its end; otherwise the top line is the same.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::Reflow()
+{
+    int   columns = m_view->GetVisibleColumns();
+    bool  atEnd   = m_view->IsAtEnd();
+    int   top     = m_view->GetTopLine();
+
+
+
+    if (columns <= 0 || columns == m_columns || m_lines.empty())
+    {
+        return;
+    }
+
+    m_columns = columns;
+    m_view->UpdateRows (GetRows());
+    m_view->SetTopLine (atEnd ? m_view->GetLineCount() : top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetRows
+//
+//  Each command's output is laid out apart from the rest, so a help
+//  listing's syntax column fits its rows at the view's width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> ConsoleOutput::GetRows() const
+{
+    std::vector<DxuiTextView::Row>  rows;
+    auto                            start = m_lines.begin();
+
+
+
+    while (start != m_lines.end())
+    {
+        auto  end = std::find_if (start + 1, m_lines.end(), [] (const std::string & line) { return DebuggerViewState::IsCommandGap (line); });
+
+        for (const std::string & line : CommandModeHelp::LayOutTabbedRows (std::vector<std::string> (start, end), m_columns))
+        {
+            DxuiTextView::Row  row;
+
+            if (DebuggerViewState::IsCommandGap (line))
+            {
+                row.cells  = { std::wstring() };
+                row.height = DebuggerViewState::kCommandGapHeight;
+            }
+            else
+            {
+                row.cells      = { TextEncoding::NarrowToWide (line) };
+                row.wrapIndent = GetWrapIndent (line);
+            }
+
+            rows.push_back (std::move (row));
+        }
+
+        start = end;
+    }
+
+    return rows;
 }
 
 
@@ -343,9 +403,6 @@ void CommandLine::Submit()
 
     BAIL_OUT_IF (host == nullptr, S_OK);
 
-    //  HELP lays its rows out for the console's width as it is now.
-    CommandModeHelp::SetConsoleColumns (m_output.GetView()->GetVisibleColumns());
-
     fileVerb = DebuggerViewState::GetMissingFileVerb (line,
                                                       snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,
                                                       snapshot != nullptr && snapshot->isAssembling);
@@ -494,27 +551,28 @@ void CommandLine::RefreshGhost()
 //  CommandLine::ShowHistoryList
 //
 //  The earlier lines in a list rising from the command line, from where the
-//  typed text starts to the console's right edge, in the console's face and
-//  row height, with the newest nearest the box. A long line is cut, with no
-//  tip of the whole line. Home and End go to the oldest and newest. Picking
-//  one puts it in the box to edit or run.
+//  typed text starts to a little short of the console's right edge, in the
+//  console's face and row height, with the newest nearest the box. A long
+//  line is cut, with no tip of the whole line. Home and End go to the oldest
+//  and newest. Picking one puts it in the box to edit or run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLine::ShowHistoryList()
 {
-    static constexpr size_t           s_kMaxRows   = 200;
-    static constexpr int              s_kShownRows = 10;
-    const std::vector<std::wstring> & lines        = m_history.GetLines();
-    const DxuiTheme                 * theme        = m_host.GetTheme();
-    const DxuiDpiScaler             & scaler       = m_host.GetPaneScaler();
-    DxuiTextView                    * view         = m_output.GetView();
+    static constexpr size_t           s_kMaxRows     = 200;
+    static constexpr int              s_kShownRows   = 10;
+    static constexpr int              s_kRightGapDip = 24;   // between the list's right edge and the console's
+    const std::vector<std::wstring> & lines          = m_history.GetLines();
+    const DxuiTheme                 * theme          = m_host.GetTheme();
+    const DxuiDpiScaler             & scaler         = m_host.GetPaneScaler();
+    DxuiTextView                    * view           = m_output.GetView();
     PaneMenuItems                     items;
-    RECT                              box          = m_box->GetBounds();
-    RECT                              pane         = view->GetBounds();
+    RECT                              box            = m_box->GetBounds();
+    RECT                              pane           = view->GetBounds();
     DxuiContextMenu::ListLook         look;
     DxuiFontHandle                    font;
-    size_t                            first        = 0;
+    size_t                            first          = 0;
 
 
 
@@ -560,7 +618,7 @@ void CommandLine::ShowHistoryList()
     //  prompt, so the list's edge is apart from the console's beneath it.
     look.labelLeftAtPx = box.left + m_box->GetTypedTextLeftPx();
 
-    m_host.ShowListAbove (items, RECT { pane.left, box.top, pane.right, box.bottom }, look);
+    m_host.ShowListAbove (items, RECT { pane.left, box.top, pane.right - scaler.ToPx (s_kRightGapDip), box.bottom }, look);
 }
 
 
@@ -967,6 +1025,24 @@ void ConsolePane::Apply (const DebuggerViewSnapshot & snapshot)
 void ConsolePane::SetTextZoom (float zoom)
 {
     m_output.GetView()->SetZoom (zoom);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsolePane::Tick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsolePane::Tick (int64_t nowMs)
+{
+    (void) nowMs;
+
+    m_output.Reflow();
+    return false;
 }
 
 

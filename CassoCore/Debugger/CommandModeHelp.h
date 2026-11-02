@@ -69,10 +69,28 @@ public:
     //  HELP ALL: every command the mode can type, the lines it prints.
     static std::vector<std::string>  BuildHelp    (CommandMode mode);
 
-    //  The width in characters of the console the help goes to, set before a
-    //  command runs; zero, as for a script or the command line, caps the
-    //  syntax column.
-    static void  SetConsoleColumns (int columns) { s_consoleColumns = columns; }
+    //  While one is in scope, the listings built on its thread have rows of
+    //  the indent, the syntax, a tab and the description, for a console that
+    //  lays them out again each time its width changes (LayOutTabbedRows).
+    //  Otherwise, as for a script's file or the command line, the rows are
+    //  laid out with the syntax column capped.
+    class TabbedRows
+    {
+    public:
+        explicit TabbedRows (bool isOn) : m_saved (s_isTabbed) { s_isTabbed = isOn; }
+        ~TabbedRows () { s_isTabbed = m_saved; }
+
+        TabbedRows (const TabbedRows &)             = delete;
+        TabbedRows & operator= (const TabbedRows &) = delete;
+
+    private:
+        bool  m_saved;
+    };
+
+    //  Lines with tabbed rows laid out for a console this many characters
+    //  wide, one syntax column for every row among them; other lines as
+    //  they are.
+    static std::vector<std::string>  LayOutTabbedRows (const std::vector<std::string> & lines, int consoleColumns);
 
     //  The syntax column's width for rows of this syntax and description
     //  width: the widest syntax where every row fits the console unwrapped,
@@ -127,7 +145,11 @@ private:
     static std::vector<std::string>  BuildListing (CommandMode mode, const std::function<bool (const Row &)> & keep);
     static const char * GetSectionWord    (HelpCategory category);
     static void         AppendSection     (const std::string & heading, std::vector<Row> rows, size_t width, std::vector<std::string> & lines);
+    static void         AppendRow         (const std::string & syntax, const std::string & description, size_t width, std::vector<std::string> & lines);
     static std::string  ToUpper           (const std::string & text);
 
-    static inline std::atomic<int>  s_consoleColumns = 0;
+    static constexpr size_t  kRowIndent = 4;
+    static constexpr size_t  kRowGap    = 2;
+
+    static inline thread_local bool  s_isTabbed = false;
 };
