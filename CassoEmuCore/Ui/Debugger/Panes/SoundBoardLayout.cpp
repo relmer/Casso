@@ -464,9 +464,9 @@ size_t SoundBoardLayout::FitHistory (const std::vector<float> & widths, float wi
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SoundBoardLayout::GetColumnCount (int width, int leastCardWidth, int gap)
+int SoundBoardLayout::GetColumnCount (int width, int leastCardWidth, int gap, int cards)
 {
-    return std::clamp ((width + gap) / std::max (leastCardWidth + gap, 1), 1, kMaxColumns);
+    return std::clamp ((width + gap) / std::max (leastCardWidth + gap, 1), 1, std::clamp (cards, 1, kMaxColumns));
 }
 
 

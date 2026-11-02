@@ -88,8 +88,9 @@ public:
     //  `gap` between them, fit on a row of `width`, counted from the end.
     static size_t  FitHistory (const std::vector<float> & widths, float width, float gap);
 
-    //  How many columns of cards fit in a width, from 1 to kMaxColumns.
-    static int  GetColumnCount (int width, int leastCardWidth, int gap);
+    //  How many columns of cards fit in a width, from 1 to kMaxColumns and no
+    //  more than there are cards, so a wide pane has no empty column.
+    static int  GetColumnCount (int width, int leastCardWidth, int gap, int cards);
 
     //  Each card's place in `columns` columns, the next in the shortest column,
     //  in coordinates from (0, 0); the total height is returned in `outHeight`.

@@ -593,6 +593,35 @@ namespace DebuggerTests
         }
 
 
+        //  The same phoneme written again while it sounds is one entry, as
+        //  long as its sound so far plus the new duration; another phoneme
+        //  between makes a new one.
+        TEST_METHOD (APhonemeRewrittenWhileItSoundsIsOneEntry)
+        {
+            Ssi263                 chip;
+            DiagnosticsSoundVoice  voice;
+            float                  one = 0.0f;
+
+
+
+            chip.WriteRegister (Ssi263::kRegCtlArtAmp, 0x5C);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x05);
+            chip.AppendSoundBoard (voice);
+            one = voice.recent.back().seconds;
+
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x05);
+            chip.AppendSoundBoard (voice);
+
+            Assert::AreEqual ((size_t) 1, voice.recent.size(), L"a rewrite is the same entry");
+            Assert::AreEqual (one, voice.recent.back().seconds, one * 0.01f, L"no sound so far, plus the new duration");
+
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x06);
+            chip.WriteRegister (Ssi263::kRegDurationPhoneme, 0x05);
+            chip.AppendSoundBoard (voice);
+            Assert::AreEqual ((size_t) 3, voice.recent.size(), L"another phoneme between is a new entry");
+        }
+
+
         //  A muted source is silent and the chip renders as it would otherwise.
         TEST_METHOD (AMutedSpeechSourceIsSilentAndTheChipRendersOn)
         {

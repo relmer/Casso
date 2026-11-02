@@ -1355,7 +1355,10 @@ void Ssi263::LatchMode()
 
 void Ssi263::BeginPhoneme()
 {
-    double   seconds = GetPhonemeDurationSec();
+    double   seconds   = GetPhonemeDurationSec();
+    int      last      = (m_recentAt + kRecentCount - 1) % kRecentCount;
+    bool     isRewrite = m_sounding && m_recentCount > 0 && m_recent[last].code == GetPhoneme();
+    double   played    = isRewrite ? (double) m_recent[last].seconds - m_phonemeCycles / GetTickClockHz() : 0.0;
 
 
 
@@ -1374,6 +1377,16 @@ void Ssi263::BeginPhoneme()
     m_phonemeCycles = seconds * GetTickClockHz();
     m_sounding      = (m_phonemeCycles > 0.0);
     m_request       = false;
+
+    //  The same phoneme written again while it sounds is listed as one: a
+    //  driver writes it again to sustain a sung note, or to have the chip
+    //  sounding through its wait. The entry already listed gets the length of
+    //  its sound so far plus the new duration.
+    if (isRewrite)
+    {
+        m_recent[last].seconds = static_cast<float> (std::max (0.0, played) + seconds);
+        return;
+    }
 
     m_recent[m_recentAt] = { GetPhoneme(), static_cast<float> (seconds) };
     m_recentAt           = (m_recentAt + 1) % kRecentCount;

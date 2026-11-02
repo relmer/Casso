@@ -179,10 +179,11 @@ namespace DebuggerTests
 
         TEST_METHOD (TheColumnsFollowTheWidth)
         {
-            Assert::AreEqual (1, SoundBoardLayout::GetColumnCount (300,  460, 10), L"always one");
-            Assert::AreEqual (1, SoundBoardLayout::GetColumnCount (900,  460, 10));
-            Assert::AreEqual (2, SoundBoardLayout::GetColumnCount (930,  460, 10));
-            Assert::AreEqual (3, SoundBoardLayout::GetColumnCount (9000, 460, 10), L"at most three");
+            Assert::AreEqual (1, SoundBoardLayout::GetColumnCount (300,  460, 10, 3), L"always one");
+            Assert::AreEqual (1, SoundBoardLayout::GetColumnCount (900,  460, 10, 3));
+            Assert::AreEqual (2, SoundBoardLayout::GetColumnCount (930,  460, 10, 3));
+            Assert::AreEqual (3, SoundBoardLayout::GetColumnCount (9000, 460, 10, 3), L"at most three");
+            Assert::AreEqual (2, SoundBoardLayout::GetColumnCount (9000, 460, 10, 2), L"no column more than the cards");
         }
 
 
