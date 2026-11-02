@@ -1309,15 +1309,20 @@ bool ProfilerPane::GoForward()
 //
 //  ProfilerPane::Tick
 //
-//  The profile of a zoomed view is built once the wheel has stopped.
+//  The profile of a zoomed view is built once the wheel has stopped, and the
+//  flame graph's clicked bar marches.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ProfilerPane::Tick (int64_t nowMs)
 {
+    bool  isMarching = m_flameGraph != nullptr && m_host.IsRoutable (m_flameGraph) && m_flameGraph->Animate (nowMs);
+
+
+
     if (!m_zoomDueMs.has_value())
     {
-        return false;
+        return isMarching;
     }
 
     if (nowMs < *m_zoomDueMs)
@@ -1327,7 +1332,7 @@ bool ProfilerPane::Tick (int64_t nowMs)
 
     m_zoomDueMs.reset();
     ApplyState (false);
-    return false;
+    return isMarching;
 }
 
 

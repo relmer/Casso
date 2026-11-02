@@ -180,6 +180,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiFieldError.h"
 #include "Widgets/DxuiHexView.h"
 #include "Widgets/DxuiInPlaceTip.h"
+#include "Widgets/DxuiMarquee.h"
 #include "Widgets/DxuiPaneFrame.h"
 #include "Widgets/DxuiTabGroup.h"
 #include "Widgets/DxuiTextView.h"

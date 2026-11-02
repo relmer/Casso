@@ -813,6 +813,64 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  The clicked bar is drawn in marching dashes, light and dark so one
+        //  of them reads on any bar, and the clicked routine's other bars in a
+        //  plain outline; the dashes march with time.
+        TEST_METHOD (TheClickedBarMarchesAndItsRoutinesOtherBarsAreOutlined)
+        {
+            ProfileData                  profile  = MakeRoutineProfile();
+            FlameGraphView               flame;
+            DxuiDpiScaler                scaler;
+            DxuiMouseEvent               click;
+            MockDxuiPainter              painter;
+            MockDxuiTextRenderer         text;
+            MockDxuiTheme                theme;
+            const FlameGraphView::Bar  * first    = nullptr;
+            const FlameGraphView::Bar  * second   = nullptr;
+            int                          light    = 0;
+            int                          dark     = 0;
+            int                          outlined = 0;
+
+
+
+            //  PLOT is called from DRAW and from FILL.
+            profile.tree = { { 2, 0, 30, 100, 0 }, { 3, 1, 10, 50, 1 }, { 0, 2, 40, 40, 4 }, { 1, 1, 10, 20, 2 }, { 0, 2, 10, 10, 4 } };
+
+            scaler.SetDpi (96);
+            flame.SetData (profile);
+            flame.Layout  (RECT { 0, 0, 1000, 200 }, scaler);
+
+            for (const FlameGraphView::Bar & bar : flame.GetBars())
+            {
+                first  = (bar.node == 2) ? &bar : first;
+                second = (bar.node == 4) ? &bar : second;
+            }
+
+            Assert::IsNotNull (first);
+            Assert::IsNotNull (second);
+
+            click.kind        = DxuiMouseEventKind::Up;
+            click.button      = DxuiMouseButton::Left;
+            click.positionDip = POINT { (LONG) (first->x + first->width / 2.0f), (LONG) (first->row * FlameGraphView::kRowDip + FlameGraphView::kRowDip / 2) };
+
+            Assert::IsTrue (flame.OnMouse (click));
+            Assert::IsTrue (flame.Animate (1000), L"the dashes march while a bar is clicked");
+
+            flame.Paint (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                light    += (call.kind == RecordedPaintKind::DrawLine && call.argb == DxuiMarquee::kLightArgb) ? 1 : 0;
+                dark     += (call.kind == RecordedPaintKind::DrawLine && call.argb == DxuiMarquee::kDarkArgb)  ? 1 : 0;
+                outlined += (call.kind == RecordedPaintKind::OutlineRect && std::abs (call.x - second->x) < 0.5f) ? 1 : 0;
+            }
+
+            Assert::IsTrue   (light > 0 && dark > 0, L"dashes in both colors");
+            Assert::AreEqual (1, outlined, L"PLOT's other bar has a plain outline");
+            Assert::AreNotEqual (DxuiMarquee::GetPhasePx (4.0f, 0), DxuiMarquee::GetPhasePx (4.0f, DxuiMarquee::kStepMs), L"a step later the dashes have moved");
+        }
+
+
         //  A routine's tip starts with its name, its address and its symbol's
         //  description, on a flame bar, a list row and a timeline line alike.
         TEST_METHOD (ARoutinesTipHasItsAddressAndDescription)

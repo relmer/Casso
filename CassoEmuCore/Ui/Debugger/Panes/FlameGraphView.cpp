@@ -453,11 +453,27 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    //  The clicked routine's other bars in a plain outline in the ink that
+    //  reads on each bar, then the clicked bar in marching dashes over them.
     for (const Bar & bar : m_bars)
     {
+        bool  isOther = m_selected.has_value() && *m_selected != bar.node && m_tree[bar.node].routine == m_tree[*m_selected].routine;
+
+        if (isOther)
+        {
+            painter.OutlineRect (bar.x, GetRowTop (bar.row), std::max (1.0f, bar.width - 1.0f), row - 1.0f, m_scaler.ToPxf (1.5f),
+                                 DxuiColor::ChooseInkFor (GetRoutineColor (m_tree[bar.node].routine), 0xFF101010, 0xFFF8F8F8));
+        }
+    }
+
+    for (const Bar & bar : m_bars)
+    {
+        float  thick = std::max (1.0f, std::round (m_scaler.ToPxf (2.0f)));
+
         if (m_selected == bar.node)
         {
-            painter.OutlineRect (bar.x, GetRowTop (bar.row), std::max (1.0f, bar.width - 1.0f), row - 1.0f, m_scaler.ToPxf (2.0f), theme.FocusAccent());
+            (void) DxuiMarquee::DrawRect (painter, bar.x + thick * 0.5f, GetRowTop (bar.row) + thick * 0.5f, std::max (1.0f, bar.width - 1.0f - thick), row - 1.0f - thick,
+                                          m_scaler.ToPxf (DxuiMarquee::kDashDip), thick, m_nowMs);
         }
     }
 
@@ -469,6 +485,25 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+//  FlameGraphView::Animate
+//
+//  The clicked bar's dashes march while it is in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FlameGraphView::Animate (int64_t nowMs)
+{
+    m_nowMs = nowMs;
+
+    return m_visible && m_selected.has_value();
+}
+
+
+
+
+
+
 //
 //  FlameGraphView::OnMouse
 //

@@ -67,6 +67,9 @@ public:
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+
+    //  Takes the time the clicked bar's dashes march to; true while they do.
+    bool                Animate           (int64_t nowMs);
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Flame graph"; }
 
@@ -90,6 +93,7 @@ private:
     std::vector<Bar>                  m_bars;
     size_t                            m_zoom  = 0;
     std::optional<size_t>             m_selected;
+    int64_t                           m_nowMs = 0;
     std::optional<Click>              m_click;
     ActivateFn                        m_activate;
     SelectFn                          m_select;
