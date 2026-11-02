@@ -207,6 +207,7 @@
     <ClCompile Include="Ui\Debugger\OpeningFocusDeferral.cpp" />
     <ClCompile Include="Ui\Debugger\StopFocus.cpp" />
     <ClCompile Include="Debugger\Events\DebugEventHistory.cpp" />
+    <ClCompile Include="Debugger\Events\KeyframeStretches.cpp" />
     <ClCompile Include="Debugger\Events\IoEventDecoder.cpp" />
     <ClCompile Include="Debugger\Events\MachineEventFeed.cpp" />
     <ClCompile Include="Shell\DebugEventLogs.cpp" />
@@ -896,6 +897,7 @@
     <ClInclude Include="Debugger\Events\DebugEventCache.h" />
     <ClInclude Include="Debugger\Events\DebugEventJob.h" />
     <ClInclude Include="Debugger\Events\DebugEventHistory.h" />
+    <ClInclude Include="Debugger\Events\KeyframeStretches.h" />
     <ClInclude Include="Debugger\Events\DebugEventReplayer.h" />
     <ClInclude Include="Debugger\Events\DebugLogDelta.h" />
     <ClInclude Include="Debugger\Events\ICommEventSink.h" />

@@ -606,6 +606,21 @@ void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerTraceShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerTraceShown (bool shown)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("trace on") : std::string ("trace off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebuggerSoundMuted
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1066,6 +1081,26 @@ void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebugTraceShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugTraceShown (bool shown)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    m_debugViewState.SetTraceShown (shown);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebugHeatMapShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1451,7 +1486,7 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
 
     first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
 
-    DebugViewCapture::Take (target, CallRecord(), (size_t) first, DebuggerViewState::kTraceRows, *capture);
+    DebugViewCapture::Take (target, CallRecord(), (size_t) first, m_debugViewState.IsTraceShown() ? DebuggerViewState::kTraceRows : 0, *capture);
     session.TakeView (m_debugSessionView);
 
     input.capture  = std::move (capture);

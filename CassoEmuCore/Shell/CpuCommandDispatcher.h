@@ -64,6 +64,7 @@ public:
     virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
     virtual void     SetDebugSoundMuted       (int channel, bool isMuted)                       { (void) channel; (void) isMuted; }
     virtual void     SetDebugHeatColumnsShown (bool shown)                                      { (void) shown; }
+    virtual void     SetDebugTraceShown       (bool shown)                                      { (void) shown; }
 
     //  Whether a BASIC pane is open and visible, which is when each
     //  snapshot includes the Applesoft program.

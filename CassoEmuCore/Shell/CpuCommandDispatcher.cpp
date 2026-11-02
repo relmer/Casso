@@ -683,7 +683,8 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCo
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
 //  "memory2" to "memory4" with a hex address or "close" for the others, which
 //  is passed on as no address. "lines <hex>" is how many lines the code pane
-//  has room for. "trace <decimal>" and "trace end" place the trace pane.
+//  has room for. "trace <decimal>" and "trace end" place the trace pane, and
+//  "trace on" and "trace off" indicate whether it is on screen.
 //  "goto <window> <text>" is a memory window's Go to, as typed. "heatmap on"
 //  and "heatmap off" say whether the heat map pane is shown, "heatmap options
 //  <text>" sets its options and "heatmap reset" zeroes its counts; "heatmap
@@ -773,7 +774,11 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
 
     if (view == "trace")
     {
-        if (where == "end")
+        if (TryGetHeatMapShown (where, isShown))
+        {
+            target.SetDebugTraceShown (isShown);
+        }
+        else if (where == "end")
         {
             target.SetDebugTraceView (std::nullopt);
         }

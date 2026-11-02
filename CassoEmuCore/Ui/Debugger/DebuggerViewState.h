@@ -591,6 +591,10 @@ public:
     void                     SetTraceTop  (std::optional<uint64_t> first) { m_traceTop = first; }
     std::optional<uint64_t>  GetTraceTop  () const                        { return m_traceTop; }
 
+    //  Whether the trace pane is on screen; hidden, its rows are not read.
+    void                     SetTraceShown (bool shown)                   { m_isTraceShown = shown; }
+    bool                     IsTraceShown  () const                       { return m_isTraceShown; }
+
     //  The first entry of the window read for a pane scrolled to top, or at
     //  the end when top is empty: the window ends at the newest entry at the
     //  latest, so a pane at the end never reads past it.
@@ -972,6 +976,7 @@ private:
     int                                            m_follow                 = 0;
     Word                                           m_memoryAddress          = 0x0000;
     std::optional<uint64_t>                        m_traceTop;
+    bool                                           m_isTraceShown           = true;
     bool                                           m_isHeatMapShown         = false;
     bool                                           m_isHeatColumnsShown     = false;
     bool                                           m_isBasicShown           = false;

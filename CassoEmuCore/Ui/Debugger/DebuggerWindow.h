@@ -774,6 +774,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     uint32_t                                     m_shownPaneSerial        = 0;
     bool                                         m_isHeatMapRecording     = false;
     bool                                         m_isHeatColumnsRecording = false;
+    std::optional<bool>                          m_isTraceShownSent;
     int64_t                                      m_framePaintedAt         = 0;
 
     //  The BASIC program pane and the tool panes, each closed until the user

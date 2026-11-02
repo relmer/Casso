@@ -1302,12 +1302,21 @@ void DebuggerWindow::SyncHeatMapRecording()
 {
     bool  isWanted        = IsPaneShown (DebuggerLayout::kHeatMap) && m_heatMapPane->GetView()->IsVisible();
     bool  isColumnsWanted = IsAnyHeatColumnOn();
+    bool  isTraceShown    = m_tracePane != nullptr && IsPaneShown (DebuggerLayout::kTrace) && m_tracePane->GetList()->IsVisible();
 
 
 
     if (m_host == nullptr)
     {
         return;
+    }
+
+    //  The trace's rows are read from history for each snapshot only while
+    //  its pane is on screen.
+    if (!m_isTraceShownSent.has_value() || *m_isTraceShownSent != isTraceShown)
+    {
+        m_isTraceShownSent = isTraceShown;
+        m_host->SetDebuggerTraceShown (isTraceShown);
     }
 
     if (isColumnsWanted != m_isHeatColumnsRecording)
