@@ -615,12 +615,12 @@ DiskLogPane::ColumnSpecs DiskLogPane::GetColumnSpecs() const
 {
     return { { L"Time",      DxuiTextHAlign::Left,  kFit, true  },
              { L"Cycle",     DxuiTextHAlign::Right,  110, false },
-             { L"Drive",     DxuiTextHAlign::Right,   48, true  },
-             { L"Track",     DxuiTextHAlign::Right,   56, true  },
-             { L"Sector",    DxuiTextHAlign::Right,   56, true  },
-             { L"Volume",    DxuiTextHAlign::Right,   60, true  },
              { L"Severity",  DxuiTextHAlign::Left,  kFit, true  },
              { L"Event",     DxuiTextHAlign::Left,  kFit, true  },
+             { L"Drive",     DxuiTextHAlign::Right,   48, true  },
+             { L"Volume",    DxuiTextHAlign::Right,   60, true  },
+             { L"Track",     DxuiTextHAlign::Right,   56, true  },
+             { L"Sector",    DxuiTextHAlign::Right,   56, true  },
              { L"Detail",    DxuiTextHAlign::Left,     0, true  } };
 }
 

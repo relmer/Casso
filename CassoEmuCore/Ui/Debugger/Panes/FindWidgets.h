@@ -225,6 +225,9 @@ private:
 
     static std::wstring  GetStatusText  (DxuiFindResult result, int index, int count);
 
+    //  The find box's hint: where the text is looked for in the pane.
+    static std::wstring  GetPlaceholder (const std::wstring & pane);
+
     IDebuggerPaneHost                     & m_host;
     IFindWidgetHost                       & m_window;
     std::map<std::wstring, FindWidget>      m_widgets;

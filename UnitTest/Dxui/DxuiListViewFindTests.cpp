@@ -81,25 +81,36 @@ public:
 
     TEST_METHOD (TheSelectedMatchHasAFillApartFromTheOthers)
     {
-        DxuiListView                                  list;
-        int                                           index   = 0;
-        int                                           count   = 0;
-        std::vector<std::tuple<int, int, uint32_t>>   first;
-        std::vector<std::tuple<int, int, uint32_t>>   other;
+        constexpr uint32_t                           kDarkBack = 0xFF1A2333u;
+        DxuiListView                                 list;
+        int                                          index     = 0;
+        int                                          count     = 0;
+        std::vector<std::tuple<int, int, uint32_t>>  first;
+        std::vector<std::tuple<int, int, uint32_t>>  other;
 
         ConfigureList (list);
-        list.SetFindColors (0x40FFFF00, 0xFF0080FF);
+        list.SetFindColors (0xFF4A3A10, 0xFFF0C000);
 
         Assert::IsTrue (DxuiFindResult::Found == list.SelectMatchInView (L"step", false, false, false, index, count));
 
-        first = list.GetMatchBands (0, 1, list.GetCellsOfRow (0)[1], 0);
-        other = list.GetMatchBands (2, 1, list.GetCellsOfRow (2)[1], 0);
+        first = list.GetMatchBands (0, 1, list.GetCellsOfRow (0)[1], 0, kDarkBack);
+        other = list.GetMatchBands (2, 1, list.GetCellsOfRow (2)[1], 0, kDarkBack);
 
         Assert::AreEqual ((size_t) 1, first.size());
-        Assert::AreEqual (0xC00080FFu, std::get<2> (first[0]), L"the selected match");
-        Assert::AreEqual (0x40FFFF00u, std::get<2> (other[0]), L"another match");
+        Assert::AreNotEqual (std::get<2> (first[0]), std::get<2> (other[0]), L"the selected match's fill differs from the others'");
+
+        //  Each fill is opaque with a contrast of 3:1 against the background, and the
+        //  ink chosen for it reads at 4.5:1.
+        for (uint32_t fill : { std::get<2> (first[0]), std::get<2> (other[0]) })
+        {
+            uint32_t  ink = DxuiColor::ChooseInkFor (fill, 0xFF101010u, 0xFFF8F8F8u);
+
+            Assert::AreEqual (0xFF000000u, fill & 0xFF000000u, L"opaque");
+            Assert::IsTrue   (DxuiColor::ComputeContrastRatio (fill, kDarkBack) >= 3.0f, L"apart from the background");
+            Assert::IsTrue   (DxuiColor::ComputeContrastRatio (ink,  fill)      >= 4.5f, L"the matched text reads on it");
+        }
 
         list.ClearFindHighlights();
-        Assert::IsTrue (list.GetMatchBands (0, 1, list.GetCellsOfRow (0)[1], 0).empty());
+        Assert::IsTrue (list.GetMatchBands (0, 1, list.GetCellsOfRow (0)[1], 0, kDarkBack).empty());
     }
 };

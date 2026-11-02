@@ -1337,17 +1337,19 @@ std::vector<DxuiListView::FindSpot> DxuiListView::GetFindSpots() const
 //  GetMatchBands
 //
 //  A cell's match bands: the host's matches on the list's fill, then the
-//  find's on the match fill, the selected match on the current fill, laid
-//  over the text at three quarters so the characters are legible through it.
+//  find's on the match fill, the selected match on the current fill. Each
+//  fill is opaque, with a contrast of at least 3:1 against what is under the
+//  cell, the WCAG minimum for a mark that isn't text; the matched characters
+//  are drawn in the ink that reads on their band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::tuple<int, int, uint32_t>> DxuiListView::GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb) const
+std::vector<std::tuple<int, int, uint32_t>> DxuiListView::GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb, uint32_t under) const
 {
-    constexpr uint32_t                           kOverText = 0xC0000000u;
+    constexpr float                              kMinRatio = 3.0f;
     std::vector<std::tuple<int, int, uint32_t>>  bands;
-    uint32_t                                     match     = (m_findMatchArgb != 0) ? m_findMatchArgb : listArgb;
-    uint32_t                                     current   = (m_findCurrentArgb != 0) ? ((m_findCurrentArgb & 0x00FFFFFFu) | kOverText) : listArgb;
+    uint32_t                                     match     = DxuiColor::ComputeFillForContrast (((m_findMatchArgb != 0) ? m_findMatchArgb : listArgb) | 0xFF000000u, under | 0xFF000000u, kMinRatio);
+    uint32_t                                     current   = DxuiColor::ComputeFillForContrast (((m_findCurrentArgb != 0) ? m_findCurrentArgb : listArgb) | 0xFF000000u, under | 0xFF000000u, kMinRatio);
 
 
 
@@ -3716,6 +3718,8 @@ void DxuiListView::PaintDataRows (
             float     iconShift = 0.0f;
             float     cellW     = (float) colWPx[c];
 
+            std::vector<std::tuple<int, int, uint32_t>>  bands;
+
             //  Whatever the row is filled with, the text reads on it.
             argb = GetReadableInk (argb, under);
 
@@ -3826,7 +3830,9 @@ void DxuiListView::PaintDataRows (
             // character range, painted before the text, and the find's
             // matches, the selected one on a separate fill. A right-aligned
             // or centered cell's text starts after the space its width spares.
-            if (std::vector<std::tuple<int, int, uint32_t>> bands = GetMatchBands (r, c, cells[c], pal.matchBg); !bands.empty())
+            bands = GetMatchBands (r, c, cells[c], pal.matchBg, under);
+
+            if (!bands.empty())
             {
                 const std::wstring &  cellText  = cells[c].text;
                 float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
@@ -3879,9 +3885,10 @@ void DxuiListView::PaintDataRows (
                 }
             }
 
-            // Muted ranges: the text is drawn a run at a time, each run placed
-            // by measuring the text before it, the way a match band is placed.
-            if ((!cells[c].dimRanges.empty() || !cells[c].colorRanges.empty()) && m_columns[c].align == DxuiTextHAlign::Left)
+            // Muted ranges, colored ranges and matches: the text is drawn a run
+            // at a time, each run placed by measuring the text before it, the
+            // way a match band is placed.
+            if ((!cells[c].dimRanges.empty() || !cells[c].colorRanges.empty() || !bands.empty()) && m_columns[c].align == DxuiTextHAlign::Left)
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
@@ -3908,6 +3915,14 @@ void DxuiListView::PaintDataRows (
                 for (uint32_t & each : colors)
                 {
                     each = GetReadableInk (each, under);
+                }
+
+                for (const auto & [first, last, bandArgb] : bands)
+                {
+                    for (int k = (std::max) (0, first); k < last && k < (int) colors.size(); k++)
+                    {
+                        colors[(size_t) k] = DxuiColor::ChooseInkFor (bandArgb, 0xFF101010u, 0xFFF8F8F8u);
+                    }
                 }
 
                 while (pos < (int) cellText.size())

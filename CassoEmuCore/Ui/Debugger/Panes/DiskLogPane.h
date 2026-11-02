@@ -36,19 +36,19 @@ public:
     {
         kTime,
         kCycle,
-        kDrive,
-        kTrack,
-        kSector,
-        kVolume,
         kSeverity,
         kEvent,
+        kDrive,
+        kVolume,
+        kTrack,
+        kSector,
         kDetail,
         kColumnCount,
     };
 
     //  The column headings' version in the saved options: widths saved for
     //  older headings are for other columns, and are dropped.
-    static constexpr int  kHeadingsVersion = 2;
+    static constexpr int  kHeadingsVersion = 3;
 
     enum Kind : size_t
     {

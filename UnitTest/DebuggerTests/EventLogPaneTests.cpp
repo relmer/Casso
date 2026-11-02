@@ -599,12 +599,12 @@ namespace EventLogPaneTests
             pane.SetColumnShown (DiskLogPane::kTime,  false);
             pane.SetColumnShown (DiskLogPane::kCycle, true);
 
-            Assert::AreEqual (std::wstring (L"1,000\t1\t0\t\t\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t1\t\t0\t\tat track 0\r\n"), pane.GetText (false));
 
             pane.SetColumnShown (DiskLogPane::kDrive,  false);
             pane.SetColumnShown (DiskLogPane::kSector, false);
             pane.SetColumnShown (DiskLogPane::kVolume, false);
-            Assert::AreEqual (std::wstring (L"1,000\t0\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t0\tat track 0\r\n"), pane.GetText (false));
         }
 
 

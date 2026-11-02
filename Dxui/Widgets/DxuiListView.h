@@ -379,7 +379,7 @@ public:
     const std::optional<FindSpot> & GetFindCurrent () const { return m_findCurrent; }
 
     //  A cell's highlight bands, each a range and its fill.
-    std::vector<std::tuple<int, int, uint32_t>>  GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb) const;
+    std::vector<std::tuple<int, int, uint32_t>>  GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb, uint32_t under) const;
     // Scrolls to the first row whose key the last call did not have, as when
     // a row was added. The first call only takes note of the keys.
     void  ShowNewRow            (const std::vector<std::wstring> & keys);
