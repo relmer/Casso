@@ -4,6 +4,7 @@
 #include "FixtureProvider.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
+#include "Core/TextEncoding.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkProgram.h"
@@ -514,6 +515,42 @@ public:
         Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->WriteSectors (1, 9, sectors, data, status); }));
         Assert::AreEqual<int> (CassoLinkHost::kErrorWriteProtected, status.error);
         Assert::IsTrue (rig.Image (0) == rig.dos, L"and the image is untouched");
+    }
+
+
+
+
+    //  A Disk II can't tell an empty drive from an unformatted disk, so a read
+    //  that finds no sector at all is shown as no readable disk, until a read
+    //  of that drive succeeds.
+    TEST_METHOD (AReadThatFindsNoSector_ShowsNoReadableDisk_UntilAReadSucceeds)
+    {
+        Rig                       rig;
+        const Byte                sectors[] = { 0 };
+        std::vector<std::string>  rows;
+
+        rig.Connect();
+        rig.machine.GetDiskStore().Eject (6, 1);
+        rig.Read (2, 0, sectors, CassoLinkHost::kErrorNotFound);
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+        Assert::IsTrue (rows[10].starts_with ("D2: NO READABLE DISK"), TextEncoding::NarrowToWide (rows[10]).c_str());
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, rig.prodos));
+        rig.Read (2, 0, sectors);
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+        Assert::IsTrue (rows[10].starts_with ("D2: IDLE"), TextEncoding::NarrowToWide (rows[10]).c_str());
     }
 
 

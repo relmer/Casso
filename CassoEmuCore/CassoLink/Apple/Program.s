@@ -674,9 +674,30 @@ rdnext: jsr showprog
         jsr showprog
 ; The motor runs on after an operation, so the next track's read does not wait
 ; for it to spin up again; Idle, with nothing more to do, stops it.
-opdone: jsr showerr
+opdone: jsr notedisk
+        jsr showerr
         jsr sendstatus
         jmp main
+
+; notedisk: the drive's NO READABLE DISK, set by an operation that found no
+; address field for eight revolutions in a row, which is no disk or an
+; unformatted one, and cleared by one that succeeded.
+notedisk: ldx drive
+        dex
+        cpx #2
+        bcs nddone
+        lda misses
+        cmp #8
+        bcc ndok
+        lda #1
+        sta nodisk,x
+        rts
+ndok:   lda err
+        bne nddone
+        sta nodisk,x
+nddone: rts
+
+nodisk: .byte 0, 0
 
 ; Read CRCs: the requested sectors read as for Read sectors, and each one's CRC
 ; sent with a flag for whether it was read. A sector not read isn't an error here,
@@ -1019,6 +1040,7 @@ begin:  sta op
         lda #0
         sta index
         sta idles
+        sta misses
         lda PKTBUF
         sta drive
         lda PKTBUF+1
@@ -3235,10 +3257,18 @@ stdrive1: sta pcsum+1
         sta ptr
         lda #>oidle
         sta ptr+1
-        lda pcsum+1
+        ldx pcsum+1
+        lda nodisk-1,x
+        beq sdidle
+        lda #<onodisk
+        sta ptr
+        lda #>onodisk
+        sta ptr+1
+sdidle: lda pcsum+1
         cmp drive
         bne sdput
         lda op
+        beq sdput
         cmp #OPSPEED
         bcs sdput
         asl a
@@ -3370,6 +3400,8 @@ stsector: .byte $2C
 optext: .word oidle, oread, owrite, oformat
 
 oidle:   .text "IDLE"
+         .byte 0
+onodisk: .text "NO READABLE DISK"
          .byte 0
 oread:   .text "READING"
          .byte 0

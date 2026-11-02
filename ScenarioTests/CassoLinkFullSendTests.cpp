@@ -557,7 +557,7 @@ public:
         rig.Begin();
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause");
-        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: NO DISK"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
+        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: NO READABLE DISK"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
 
         rig.machine.RunCycles (2ULL * kCyclesPerS);
         Assert::IsFalse (rig.machine.GetRefs().diskController->IsMotorOn(), L"no drive spins during the pause");
