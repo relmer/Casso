@@ -813,6 +813,48 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  A selected range is framed in the theme's text color, unlike every
+        //  routine color, and the bars on either side of it are dimmed.
+        TEST_METHOD (TheSelectionIsFramedInTheTextColorAndTheRestDimmed)
+        {
+            constexpr int64_t     kFrame   = (int64_t) RoutineProfile::kCyclesPerFrame;
+            ProfileTimeline       timeline;
+            ProfileData           profile  = MakeRoutineProfile();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            float                 from     = 0.0f;
+            int                   edges    = 0;
+            int                   dimmed   = 0;
+
+
+
+            scaler.SetDpi (96);
+            timeline.SetData (profile);
+            timeline.Layout  (RECT { 0, 0, 600, 40 }, scaler);
+            timeline.SetView (0, 10 * kFrame);
+            timeline.SetSelection (ProfileTimeline::Range { 4 * kFrame, 6 * kFrame });
+            timeline.Paint   (painter, text, theme);
+
+            from = 240.0f;
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                edges  += (call.argb == theme.Foreground() && std::abs (call.x - from) < 0.5f) ? 1 : 0;
+                dimmed += ((call.argb & 0x00FFFFFF) == (theme.Background() & 0x00FFFFFF) && call.argb != theme.Background()) ? 1 : 0;
+            }
+
+            for (size_t i = 0; i < ProfileTimeline::kColoredRoutines; i++)
+            {
+                Assert::AreNotEqual (theme.Foreground(), FlameGraphView::GetRoutineColor (i));
+            }
+
+            Assert::IsTrue   (edges >= 3, L"the left edge, top and bottom start at the selection");
+            Assert::AreEqual (2, dimmed, L"a scrim on each side");
+        }
+
+
         //  A bar that covers several frames, once the frames are joined into
         //  wider bars, is as tall as its cycles are a share of those frames'.
         TEST_METHOD (ABarOfSeveralFramesIsScaledByThem)

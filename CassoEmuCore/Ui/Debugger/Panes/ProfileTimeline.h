@@ -26,8 +26,9 @@
 class ProfileTimeline : public IDxuiControl
 {
 public:
-    static constexpr int     kHeightDip       = 40;
-    static constexpr size_t  kColoredRoutines = 8;
+    static constexpr int     kHeightDip        = 40;
+    static constexpr size_t  kColoredRoutines  = 8;
+    static constexpr float   kSelectionEdgeDip = 2.0f;
 
     void  SetData (const std::optional<ProfileData> & profile);
 
