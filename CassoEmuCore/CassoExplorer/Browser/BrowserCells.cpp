@@ -632,20 +632,34 @@ std::wstring BrowserCells::FormatSize (uint64_t bytes)
 //
 //  BrowserCells::FormatSizeColumn
 //
-//  A size as Explorer's Size column shows one: whole kilobytes rounded up,
-//  with the user's thousands separator, so a 187-byte file is "1 KB".
+//  A size in the format of Explorer's Size column: the property system's
+//  display text for System.Size, which matches File Explorer's on the same
+//  Windows build. The byte-size format is the fallback.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring BrowserCells::FormatSizeColumn (uint64_t bytes)
 {
-    wchar_t  text[64] = {};
+    HRESULT      hr       = S_OK;
+    PROPERTYKEY  key      = {};
+    PROPVARIANT  value    = {};
+    wchar_t      text[64] = {};
 
 
 
-    if (StrFormatKBSizeW ((LONGLONG) bytes, text, (UINT) std::size (text)) == nullptr)
+    value.vt             = VT_UI8;
+    value.uhVal.QuadPart = bytes;
+
+    hr = PSGetPropertyKeyFromName (L"System.Size", &key);
+
+    if (SUCCEEDED (hr))
     {
-        return std::format (L"{} KB", (bytes + 1023) / 1024);
+        hr = PSFormatForDisplay (key, value, PDFF_DEFAULT, text, (DWORD) std::size (text));
+    }
+
+    if (FAILED (hr))
+    {
+        return FormatSize (bytes);
     }
 
     return text;

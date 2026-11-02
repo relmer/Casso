@@ -1910,10 +1910,29 @@ public:
         Assert::AreEqual (std::wstring (L"777 bytes"), BrowserCells::FormatSize (777));
         Assert::AreEqual (std::wstring (L"8.00 KB"),   BrowserCells::FormatSize (8192));
 
-        //  The Size column, as Explorer's: whole kilobytes, rounded up.
-        Assert::AreEqual (std::wstring (L"0 KB"),   BrowserCells::FormatSizeColumn (0));
-        Assert::AreEqual (std::wstring (L"1 KB"),   BrowserCells::FormatSizeColumn (187));
-        Assert::AreEqual (std::wstring (L"110 KB"), BrowserCells::FormatSizeColumn (112537));
+        //  The Size column, as the property system formats System.Size, which
+        //  varies by Windows build.
+        auto shellSize = [] (uint64_t bytes)
+        {
+            PROPERTYKEY  key   = {};
+            PROPVARIANT  value = {};
+            PWSTR        shown = nullptr;
+            std::wstring text;
+
+            value.vt             = VT_UI8;
+            value.uhVal.QuadPart = bytes;
+
+            Assert::IsTrue (SUCCEEDED (PSGetPropertyKeyFromName (L"System.Size", &key)));
+            Assert::IsTrue (SUCCEEDED (PSFormatForDisplayAlloc (key, value, PDFF_DEFAULT, &shown)));
+
+            text = shown;
+            CoTaskMemFree (shown);
+            return text;
+        };
+
+        Assert::AreEqual (shellSize (187),    BrowserCells::FormatSizeColumn (187));
+        Assert::AreEqual (shellSize (5539),   BrowserCells::FormatSizeColumn (5539));
+        Assert::AreEqual (shellSize (933616), BrowserCells::FormatSizeColumn (933616));
         Assert::AreEqual (std::wstring (L"1 item"),    BrowserCells::FormatSelection (0, 1));
         Assert::AreEqual (std::wstring (L"7 items, 3 selected"), BrowserCells::FormatSelection (3, 7));
 
