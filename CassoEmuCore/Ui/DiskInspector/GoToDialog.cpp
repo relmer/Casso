@@ -17,8 +17,8 @@ struct GoToKindTip
 static constexpr int          s_kMaxPathChars = 64;
 static constexpr GoToKindTip  s_kKindTips[GoToDialog::kTipCount] =
 {
-    { GoToKind::PhysicalSector, L"The number in a sector's address field on the disk.\nDOS 3.3 numbers the same sector differently." },
-    { GoToKind::Dos33Sector,    L"The number DOS 3.3 uses for a sector, which is also the sector's position in a .dsk image." },
+    { GoToKind::PhysicalSector, L"The number in a sector's address field, counting from 0.\nA standard disk has them in order around the track." },
+    { GoToKind::Dos33Sector,    L"The number DOS 3.3 uses for a sector, also counting from 0 but in another order:\nDOS sector 1 is physical sector 13, DOS 2 is physical 11, and so on.\nIt's the sector's position in a .dsk image." },
     { GoToKind::ProDosBlock,    L"A 512-byte block, whether or not ProDOS is on the disk." },
 };
 
