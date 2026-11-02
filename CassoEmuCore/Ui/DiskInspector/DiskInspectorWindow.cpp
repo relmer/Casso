@@ -707,7 +707,7 @@ void DiskInspectorWindow::BuildCommands()
     c.structure->isEnabled      = hasDisk;
     c.structure->isChecked      = [this] () { return !m_session.context.isTimingMode; };
     c.timing                    = make (L"&Timing", L"", [this] () { m_toolbar->SetTimingMode (true); });
-    c.timing->isEnabled         = hasDisk;
+    c.timing->isEnabled         = [this] () { return m_session.context.hasDisk && m_toolbar->HasTiming(); };
     c.timing->isChecked         = [this] () { return m_session.context.isTimingMode; };
     c.widerRange                = make (L"&Wider timing range", L"", [this] () { m_toolbar->StepRange (1); });
     c.widerRange->isEnabled     = [this] () { return m_session.context.isTimingMode && m_toolbar->CanStepRange (1); };

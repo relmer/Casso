@@ -72,7 +72,7 @@ void InspectorToolbar::Create()
     m_drives->SetSegments  (std::move (drives));
     m_drives->SetOnChange  ([this] (int index) { (void) m_host.ShowDrive (index); });
     m_modes->SetSegments   ({ L"Structure", L"Timing" });
-    m_modes->SetOnChange   ([this] (int index) { m_session.context.isTimingMode = (index == 1); });
+    m_modes->SetOnChange   ([this] (int index) { SetTimingMode (index == 1); });
     m_rangeDown->SetOnClick ([this] () { StepRange (-1); });
     m_rangeUp->SetOnClick   ([this] () { StepRange (1); });
 
@@ -188,14 +188,18 @@ bool InspectorToolbar::IsDriveShown() const
 
 void InspectorToolbar::Update()
 {
-    bool  hasDisk  = m_session.context.hasDisk;
-    bool  isTiming = m_session.context.isTimingMode;
+    bool  hasDisk   = m_session.context.hasDisk;
+    bool  hasTiming = HasTiming();
+    bool  isTiming  = m_isTimingChosen && hasTiming;
 
 
+
+    m_session.context.isTimingMode = isTiming;
 
     m_drives->SetVisible   (IsDriveShown());
     m_drives->SetSelected  (m_session.drive, true);
     m_modes->SetVisible    (hasDisk);
+    m_modes->SetSegmentEnabled (1, hasTiming);
     m_modes->SetSelected   (isTiming ? 1 : 0, true);
     m_rangeDown->SetVisible  (hasDisk && isTiming);
     m_rangeUp->SetVisible    (hasDisk && isTiming);
@@ -314,8 +318,11 @@ std::wstring InspectorToolbar::GetTip (POINT pointPx, RECT & outAnchorPx) const
     }
     else if (m_modes->IsVisible() && PtInRect (&modes, pointPx))
     {
-        tip         = (m_modes->HitTest (pointPx.x, pointPx.y) == 0) ? L"Structure: color the platter by what each cell contains"
-                                                                     : L"Timing: color flux tracks by how fast or slow each cell runs";
+        int  segment = m_modes->HitTest (pointPx.x, pointPx.y);
+
+        tip         = (segment == 0)                      ? L"Structure: color the platter by what each cell contains"
+                    : m_modes->IsSegmentEnabled (segment) ? L"Timing: color flux tracks by how fast or slow each cell runs"
+                                                          : L"Timing is only available for WOZ 2.1 images that include flux data";
         outAnchorPx = modes;
     }
     else if (m_rangeLabel->IsVisible() && PtInRect (&range, pointPx))
@@ -387,12 +394,33 @@ bool InspectorToolbar::CanStepRange (int delta) const
 //
 //  InspectorToolbar::SetTimingMode
 //
+//  m_isTimingChosen is set even on a disk with no flux tracks, whose platter
+//  is in Structure mode.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InspectorToolbar::SetTimingMode (bool isTiming)
 {
-    m_session.context.isTimingMode = isTiming;
-    m_modes->SetSelected (isTiming ? 1 : 0, true);
+    m_isTimingChosen               = isTiming;
+    m_session.context.isTimingMode = isTiming && HasTiming();
+    m_modes->SetSelected (m_session.context.isTimingMode ? 1 : 0, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorToolbar::HasTiming
+//
+//  Only flux tracks record timing, and only WOZ 2.1 images have them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorToolbar::HasTiming() const
+{
+    return m_session.analysis.summary.fluxTracks > 0;
 }
 
 
@@ -407,7 +435,7 @@ void InspectorToolbar::SetTimingMode (bool isTiming)
 
 void InspectorToolbar::GetPrefs (DiskInspectorPrefs & inOut) const
 {
-    inOut.isTimingMode = m_session.context.isTimingMode;
+    inOut.isTimingMode = m_isTimingChosen;
     inOut.timingRange  = m_session.context.timingRange;
 }
 
@@ -434,7 +462,8 @@ void InspectorToolbar::ApplyPrefs (const DiskInspectorPrefs & prefs)
         m_rangeStep = (std::abs (s_kRanges[step] - prefs.timingRange) < std::abs (s_kRanges[m_rangeStep] - prefs.timingRange)) ? step : m_rangeStep;
     }
 
-    m_session.context.isTimingMode = prefs.isTimingMode;
+    m_isTimingChosen               = prefs.isTimingMode;
+    m_session.context.isTimingMode = prefs.isTimingMode && HasTiming();
     m_session.context.timingRange  = s_kRanges[m_rangeStep];
-    m_modes->SetSelected (prefs.isTimingMode ? 1 : 0);
+    m_modes->SetSelected (m_session.context.isTimingMode ? 1 : 0);
 }

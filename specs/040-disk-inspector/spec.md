@@ -1855,6 +1855,10 @@ legend, and tilt the platter and back.
   from the index.
 - **FR-023**: The platter MUST switch between "Structure" and "Timing" modes,
   chosen with a segmented control (FR-159) and from the View menu.
+  On a disk with no flux tracks, Timing MUST be disabled in both, with the
+  tooltip "Timing is only available for WOZ 2.1 images that include flux
+  data", and a choice of Timing made on another disk MUST apply again on the
+  next disk that has flux tracks.
   In Structure mode it MUST color each stretch by kind: sync, address marks,
   address field, data marks, data field, failed checksum, other, noise,
   random-bit region, and nothing recorded. In both modes, a damaged quarter

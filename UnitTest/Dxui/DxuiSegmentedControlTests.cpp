@@ -194,4 +194,36 @@ public:
         Assert::AreEqual (1, control.GetSelected());
         Assert::IsFalse  (control.OnKey (static_cast<WPARAM> (VK_SPACE)));
     }
+
+
+    TEST_METHOD (ADisabledSegmentCantBeChosenByClickOrKey)
+    {
+        DxuiSegmentedControl  control;
+        int                   changes = 0;
+
+
+
+        MakeControl (control, false);
+        control.SetOnChange       ([&changes] (int) { changes++; });
+        control.SetSegmentEnabled (1, false);
+        control.SetFocused        (true);
+
+        Assert::IsFalse  (control.IsSegmentEnabled (1));
+        Assert::AreEqual (1, control.HitTest (150, 15), L"the disabled segment is hit too, for its tooltip");
+
+        Click (control, 150);
+        Assert::AreEqual (0, control.GetSelected(), L"a click on the disabled segment selects nothing");
+
+        Assert::IsTrue   (control.OnKey (static_cast<WPARAM> (VK_RIGHT)));
+        Assert::AreEqual (0, control.GetSelected(), L"Right skips the disabled segment");
+        Assert::IsTrue   (control.OnKey (static_cast<WPARAM> (VK_END)));
+        Assert::AreEqual (0, control.GetSelected(), L"End stops at the last enabled segment");
+        Assert::AreEqual (0, changes);
+
+        control.SetSelected (1);
+        Assert::AreEqual (1, control.GetSelected(), L"SetSelected selects a disabled segment");
+
+        control.SetSegments ({ L"A", L"B" });
+        Assert::IsTrue (control.IsSegmentEnabled (1), L"new segments start enabled");
+    }
 };

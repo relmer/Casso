@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Components/InspectorMenus.h"
+#include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
+#include "Ui/DiskInspector/Components/InspectorToolbar.h"
 #include "Ui/DiskInspector/Components/PlatterCorners.h"
 #include "Ui/DiskInspector/Components/TrackColumn.h"
 #include "Ui/DiskInspector/PlatterView.h"
@@ -19,9 +21,27 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The disk inspector's components, each created on a fake window (FR-162):
 //  the view selector's views and order (FR-160), the overlay chips
-//  (FR-031, FR-163) and the Go menu's rows (FR-158, FR-164).
+//  (FR-031, FR-163), the Go menu's rows (FR-158, FR-164) and the Timing
+//  mode on a disk with no flux tracks (FR-023).
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+//  A host with no drives, as Casso Explorer is.
+class FakeDrivelessHost : public IDiskInspectorHost
+{
+public:
+    uint64_t  PostInspectorRequest (const InspectorRequest &) override         { return 0; }
+    void      TakeInspectorReplies (vector<InspectorReply> & outReplies) override { outReplies.clear(); }
+    int       GetDriveCount        () const override                         { return 0; }
+    void      OnInspectorClosed    () override                               {}
+
+    std::shared_ptr<const DriveHeadState>  GetHeadState       (int) const override { return nullptr; }
+    void                                   SetHeadStateWanted (bool) override      {}
+};
 
 TEST_CLASS (InspectorComponentTests)
 {
@@ -179,5 +199,45 @@ public:
         Assert::AreEqual (0, back);
         Assert::AreEqual (1, forward);
         Assert::AreEqual (3, goTo, L"after a separator");
+    }
+
+
+
+    TEST_METHOD (TimingIsDisabledOnADiskWithNoFluxTracks)
+    {
+        InspectorSession    session;
+        FakeInspectorHost   host;
+        FakeDrivelessHost   drives;
+        InspectorCommands   commands;
+        DiskInspectorPrefs  prefs;
+        DxuiDpiScaler       scaler;
+        RECT                anchor = {};
+        int                 margin = scaler.ToPx (InspectorMetrics::kMarginDip);
+
+
+
+        commands.goTo = MakeCommand (L"&Go to...");
+        commands.find = MakeCommand (L"&Find...");
+        session.host  = &drives;
+
+        InspectorToolbar  toolbar (session, host, commands);
+
+        toolbar.Create();
+        toolbar.Layout ({ 0, 0, 800, 40 }, scaler);
+        session.context.hasDisk = true;
+
+        toolbar.SetTimingMode (true);
+        toolbar.Update();
+        Assert::IsFalse  (toolbar.HasTiming());
+        Assert::IsFalse  (session.context.isTimingMode, L"no flux tracks, so the platter stays in Structure mode");
+        Assert::AreEqual (std::wstring (L"Timing is only available for WOZ 2.1 images that include flux data"),
+                          toolbar.GetTip ({ margin + 120, 20 }, anchor));
+
+        toolbar.GetPrefs (prefs);
+        Assert::IsTrue (prefs.isTimingMode, L"the prefs have Timing");
+
+        session.analysis.summary.fluxTracks = 3;
+        toolbar.Update();
+        Assert::IsTrue (session.context.isTimingMode, L"Timing mode for a disk with flux tracks");
     }
 };

@@ -44,11 +44,72 @@ DxuiSegmentedControl::DxuiSegmentedControl()
 void DxuiSegmentedControl::SetSegments (std::vector<std::wstring> labels)
 {
     m_labels    = std::move (labels);
+    m_isSegmentEnabled.assign (m_labels.size(), true);
     m_selected  = m_labels.empty() ? -1 : 0;
     m_hover     = -1;
     m_pressed   = -1;
     m_pillPos   = 0.0f;
     m_isSliding = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSegmentedControl::SetSegmentEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiSegmentedControl::SetSegmentEnabled (int index, bool isEnabled)
+{
+    if (index >= 0 && index < static_cast<int> (m_isSegmentEnabled.size()))
+    {
+        m_isSegmentEnabled[static_cast<size_t> (index)] = isEnabled;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSegmentedControl::IsSegmentEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiSegmentedControl::IsSegmentEnabled (int index) const
+{
+    return index >= 0 && index < static_cast<int> (m_isSegmentEnabled.size()) && m_isSegmentEnabled[static_cast<size_t> (index)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSegmentedControl::FindEnabled
+//
+//  The first enabled segment from `from` on in the direction of `step`, or
+//  -1 when none is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiSegmentedControl::FindEnabled (int from, int step) const
+{
+    int  found = -1;
+
+
+
+    for (int i = from; found < 0 && i >= 0 && i < static_cast<int> (m_labels.size()); i += step)
+    {
+        found = IsSegmentEnabled (i) ? i : -1;
+    }
+
+    return found;
 }
 
 
@@ -186,8 +247,8 @@ float DxuiSegmentedControl::GetSegmentWidth() const
 //
 //  DxuiSegmentedControl::HitTest
 //
-//  The segment under a point, or -1. A disabled control is transparent to
-//  the mouse.
+//  The segment under a point, enabled or not, or -1. A disabled control is
+//  transparent to the mouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,7 +305,7 @@ bool DxuiSegmentedControl::OnLButtonDown (int x, int y)
 
 
 
-    if (hit >= 0)
+    if (IsSegmentEnabled (hit))
     {
         m_pressed = hit;
     }
@@ -287,8 +348,9 @@ bool DxuiSegmentedControl::OnLButtonUp (int x, int y)
 //
 //  DxuiSegmentedControl::OnKey
 //
-//  Left and Right move one segment and stop at the ends, as a radio group's
-//  arrows do across two choices; Home and End go to the ends.
+//  Left and Right move to the next enabled segment and stop at the ends, as
+//  a radio group's arrows do across two choices; Home and End go to the
+//  enabled segments nearest the ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -304,15 +366,15 @@ bool DxuiSegmentedControl::OnKey (WPARAM vk)
     {
         switch (vk)
         {
-            case VK_LEFT:  next = std::max (m_selected - 1, 0);         break;
-            case VK_RIGHT: next = std::min (m_selected + 1, count - 1); break;
-            case VK_HOME:  next = 0;                                    break;
-            case VK_END:   next = count - 1;                            break;
-            default:       handled = false;                             break;
+            case VK_LEFT:  next = FindEnabled (m_selected - 1, -1); break;
+            case VK_RIGHT: next = FindEnabled (m_selected + 1, 1);  break;
+            case VK_HOME:  next = FindEnabled (0, 1);               break;
+            case VK_END:   next = FindEnabled (count - 1, -1);      break;
+            default:       handled = false;                         break;
         }
     }
 
-    if (handled)
+    if (handled && next >= 0)
     {
         Commit (next);
     }
@@ -399,7 +461,7 @@ void DxuiSegmentedControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
         painter.FillRoundedRect    (left, top, width, height, height / 2.0f, theme.BackgroundElevated());
         painter.OutlineRoundedRect (left, top, width, height, height / 2.0f, m_scaler.ToPxf (s_kRingDip), theme.ButtonBorder());
 
-        if (m_hover >= 0 && m_hover != m_selected && m_enabled)
+        if (m_hover >= 0 && m_hover != m_selected && m_enabled && IsSegmentEnabled (m_hover))
         {
             painter.FillRoundedRect (left + inset + segment * static_cast<float> (m_hover), top + inset, segment, inner, inner / 2.0f,
                                      m_pressed == m_hover ? DxuiColor::Darken (theme.HoverBackground(), s_kPressedScale) : theme.HoverBackground());
@@ -413,7 +475,7 @@ void DxuiSegmentedControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
         for (i = 0; i < static_cast<int> (m_labels.size()); i++)
         {
-            uint32_t  color = !m_enabled ? theme.ForegroundDisabled()
+            uint32_t  color = (!m_enabled || !IsSegmentEnabled (i)) ? theme.ForegroundDisabled()
                             : (i == m_selected || i == m_hover) ? theme.Foreground()
                             : theme.ForegroundMuted();
 

@@ -16,7 +16,8 @@
 //  new selection slides the pill from where it is to the new segment; with
 //  the system's animations off it jumps. A click selects the segment under
 //  it, and Left, Right, Home and End move the selection while the control
-//  has focus. The host calls Tick each frame while WantsTick is true.
+//  has focus. A disabled segment is drawn dimmed and can't be selected by a
+//  click or a key. The host calls Tick each frame while WantsTick is true.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +32,13 @@ public:
     DxuiSegmentedControl();
     ~DxuiSegmentedControl() override = default;
 
-    // Replaces the segments and selects the first, with no slide.
+    // Replaces the segments, all enabled, and selects the first, with no
+    // slide.
     void  SetSegments (std::vector<std::wstring> labels);
+
+    // SetSelected selects a disabled segment too.
+    void  SetSegmentEnabled (int index, bool isEnabled);
+    bool  IsSegmentEnabled  (int index) const;
 
     // A selection made by the host jumps the pill unless isAnimated.
     void  SetSelected (int index, bool isAnimated = false);
@@ -72,11 +78,13 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TabStrip; }
 
 private:
-    void   Commit      (int newIndex);
-    void   StartSlide  ();
+    void   Commit          (int newIndex);
+    void   StartSlide      ();
     float  GetSegmentWidth () const;
+    int    FindEnabled     (int from, int step) const;
 
     std::vector<std::wstring>  m_labels;
+    std::vector<bool>          m_isSegmentEnabled;
     ChangeFn                   m_change;
     int                        m_selected          = -1;
     int                        m_hover             = -1;
