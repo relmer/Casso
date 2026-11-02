@@ -872,9 +872,9 @@ void DisassemblyGroup::ApplyView (int view)
                                                                          IsOptionEnabled (DisassemblyOptions::Option::Source);
     bool                                                 numbers       = m_options.IsOn (DisassemblyOptions::Option::LineNumbers) &&
                                                                          IsOptionEnabled (DisassemblyOptions::Option::LineNumbers);
-    bool                                                 hasSourceRows = false;
     std::wstring                                         text;
     std::optional<HeatMapView::Palette>                  heatPalette;
+    int                                                  pcSourceRow   = -1;
 
 
 
@@ -896,7 +896,10 @@ void DisassemblyGroup::ApplyView (int view)
     built = DisassemblyOptions::BuildRows (lines, source, [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
     m_views[(size_t) view]->SetRows (built);
 
-    hasSourceRows = std::ranges::any_of (built, [] (const DisassemblyOptions::Row & row) { return row.codeLine < 0; });
+    //  With source lines on, the PC's marker and row color are on its source
+    //  line, and its instruction is dimmed under it as the others are.
+    pcSourceRow = (m_gutter.GetDragRow (view) < 0) ? FindPcSourceRow (lines, built) : -1;
+
 
     for (const DisassemblyOptions::Row & each : built)
     {
@@ -915,9 +918,20 @@ void DisassemblyGroup::ApplyView (int view)
 
             DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (theme != nullptr) ? theme->ForegroundMuted() : 0u);
 
-            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, hasSourceRows, true, false))
+            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source, true, (int) rows.size() == pcSourceRow))
             {
                 DisassemblyCells::DimRow (cells, theme->Foreground(), theme->TextViewBackground());
+            }
+
+            if ((int) rows.size() == pcSourceRow)
+            {
+                cells[DisassemblyCells::kGutterColumn].icon = m_host.GetPcMarker (cells[DisassemblyCells::kGutterColumn].icon);
+                cells[DisassemblyCells::kGutterColumn].tip  = ColorLegend::GetText (ColorLegend::Meaning::PcMarker);
+
+                for (DxuiListView::Cell & cell : cells)
+                {
+                    cell.background = (cell.background != 0) ? cell.background : m_host.GetPcRowArgb();
+                }
             }
 
             rows.push_back (std::move (cells));
@@ -945,7 +959,7 @@ void DisassemblyGroup::ApplyView (int view)
         //  the line under the pointer instead.
         current = line->isCurrent ? (int) rows.size() : current;
 
-        if ((m_gutter.GetDragRow (view) >= 0) ? (int) rows.size() == m_gutter.GetDragRow (view) : line->isCurrent)
+        if ((m_gutter.GetDragRow (view) >= 0) ? (int) rows.size() == m_gutter.GetDragRow (view) : line->isCurrent && pcSourceRow < 0)
         {
             cells[DisassemblyCells::kGutterColumn].icon = m_host.GetPcMarker (cells[DisassemblyCells::kGutterColumn].icon);
             cells[DisassemblyCells::kGutterColumn].tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), cells[DisassemblyCells::kGutterColumn].tip });
@@ -970,7 +984,9 @@ void DisassemblyGroup::ApplyView (int view)
             cells[DisassemblyCells::kHeatColumn] = HeatStrip::GetCell (*snapshot->heatColumns, line->address, std::max<size_t> (1, HeatStrip::CountBytes (line->bytes)), *heatPalette, false);
         }
 
-        if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, hasSourceRows, false, line->isCurrent))
+        //  An instruction with a source line is dimmed under it, whatever else
+        //  is in view, so the dimming doesn't change as the view scrolls.
+        if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source && line->sourceFileId >= 0, false, line->isCurrent && pcSourceRow < 0))
         {
             DisassemblyCells::DimRow (cells, theme->Foreground(), theme->TextViewBackground());
         }
@@ -1002,6 +1018,12 @@ void DisassemblyGroup::ApplyView (int view)
     }
 
     list->SetRows (std::move (rows));
+
+    if (SelectScrolledEdge (view, built))
+    {
+        m_host.CheckOperandTip (view);
+        return;
+    }
 
     //  The selection is an instruction, not a row: new rows move it to the
     //  row with its address, or clear it when none has it, so F9 and run to
@@ -1137,6 +1159,125 @@ void DisassemblyGroup::ShowCode (std::optional<Word> address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyGroup::FindPcSourceRow
+//
+//  The source row above the PC's instruction that the instruction came from,
+//  or -1 when no source row in view is the PC's line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyGroup::FindPcSourceRow (
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines,
+    const std::vector<DisassemblyOptions::Row>         & built)
+{
+    int  lastSource = -1;
+
+
+
+    for (size_t r = 0; r < built.size(); r++)
+    {
+        const DisassemblyOptions::Row  & row = built[r];
+
+
+
+        if (row.codeLine < 0)
+        {
+            lastSource = (int) r;
+            continue;
+        }
+
+        if (lastSource >= 0 && (built[(size_t) lastSource].fileId != row.fileId || built[(size_t) lastSource].sourceLine != row.sourceLine))
+        {
+            lastSource = -1;
+        }
+
+        if (lines[(size_t) row.codeLine].isCurrent)
+        {
+            return lastSource;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::SelectEdgeAfterScroll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::SelectEdgeAfterScroll (int view, bool isTop)
+{
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines = GetCodeLines (view);
+
+
+
+    m_edgeAfterScroll[(size_t) view]  = isTop;
+    m_edgeScrolledFrom[(size_t) view] = lines.empty() ? std::nullopt : std::optional<Word> (lines.front().address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::SelectScrolledEdge
+//
+//  Once a view's rows start at another line than when a key scrolled it,
+//  the instruction at that edge is selected: the first, or the last one in
+//  view. Rows from before the scroll don't change the selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built)
+{
+    const std::vector<DebuggerViewSnapshot::CodeLine>  & lines = GetCodeLines (view);
+    DxuiListView                                       * list  = GetCodeList (view);
+    std::optional<bool>                                  isTop = m_edgeAfterScroll[(size_t) view];
+    int                                                  row   = 0;
+    int                                                  line  = -1;
+
+
+
+    if (!isTop.has_value() || lines.empty() || built.empty() || m_edgeScrolledFrom[(size_t) view] == lines.front().address)
+    {
+        return false;
+    }
+
+    m_edgeAfterScroll[(size_t) view] = std::nullopt;
+
+    row = *isTop ? 0 : std::min ((int) built.size(), std::max (1, list->GetVisibleRowCapacity())) - 1;
+
+    //  A source row has no instruction; the nearest code row toward the
+    //  middle is selected.
+    while (row >= 0 && row < (int) built.size() && built[(size_t) row].codeLine < 0)
+    {
+        row += *isTop ? 1 : -1;
+    }
+
+    line = (row >= 0 && row < (int) built.size()) ? built[(size_t) row].codeLine : -1;
+
+    if (line < 0)
+    {
+        return false;
+    }
+
+    m_selected[(size_t) view] = lines[(size_t) line].address;
+    list->SetSelectedRow (row);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyGroup::OnRowSelected
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1148,8 +1289,9 @@ void DisassemblyGroup::OnRowSelected (int view, int row)
 
 
 
-    m_active                  = view;
-    m_selected[(size_t) view] = std::nullopt;
+    m_active                         = view;
+    m_selected[(size_t) view]        = std::nullopt;
+    m_edgeAfterScroll[(size_t) view] = std::nullopt;
 
     if (index >= 0)
     {

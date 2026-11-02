@@ -98,6 +98,13 @@ void OperandTipController::Place (const DxuiMouseEvent & ev, bool isPressed, con
     isOver = ev.kind == DxuiMouseEventKind::Move && !isPressed && !m_host.IsTipBlocked() &&
              TryGet (ev.positionDip, scaler, text, screen, layout, cell);
 
+    //  A tip that wraps below its row stays up while the pointer moves from
+    //  the row into it.
+    if (!isOver && ev.kind == DxuiMouseEventKind::Move && !isPressed && IsOverTipArea (ev.positionDip))
+    {
+        return;
+    }
+
     if (!isOver)
     {
         Hide();
@@ -247,17 +254,46 @@ void OperandTipController::Check (int view)
 //
 //  OperandTipController::CheckPointer
 //
-//  The pointer anywhere but on the part of the cell the tip was put up for
-//  takes the tip down, however it got there.
+//  The pointer anywhere but on the part of the cell the tip was put up for,
+//  or on the tip itself, takes the tip down, however it got there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void OperandTipController::CheckPointer (POINT clientPx)
 {
-    if (m_hasTip && !DxuiDockSite::Contains (m_cell.area, clientPx))
+    if (m_hasTip && !IsOverTipArea (clientPx))
     {
         Hide();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::IsOverTipArea
+//
+//  The cell the tip was put up for and the tip's rect, joined into one
+//  area, so the pointer can move from the row down into a tip that wraps
+//  below it without crossing a gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool OperandTipController::IsOverTipArea (POINT clientPx) const
+{
+    RECT  area = m_cell.area;
+
+
+
+    if (!m_hasTip)
+    {
+        return false;
+    }
+
+    UnionRect (&area, &m_cell.area, &m_layout.rect);
+    return DxuiDockSite::Contains (area, clientPx);
 }
 
 

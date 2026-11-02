@@ -39,7 +39,7 @@ namespace DebuggerCodeMenuTests
         void  SetDebuggerMemoryWindow (int, std::optional<Word>)                 override {}
         void  SetDebuggerTraceTop     (std::optional<uint64_t>)                  override {}
         void  GoToDebuggerMemory      (int, const std::string & text)            override { goTos.push_back (text); }
-        void  ScrollDebuggerCode      (int, int)                                 override {}
+        void  ScrollDebuggerCode      (int lines, int)                           override { scrolls.push_back (lines); }
         void  OnDebuggerWindowClosed  ()                                         override {}
         void  SetDebuggerKeyScheme    (const std::string &)                      override {}
         void  SetDebuggerLayout       (const std::string &)                      override {}
@@ -48,6 +48,8 @@ namespace DebuggerCodeMenuTests
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
         void  RunDebuggerAction       (const DebuggerAction & action)   override { commands.push_back (action.echo); }
+
+        std::vector<int>  scrolls;
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -96,6 +98,7 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetCodeEdits;
         using DebuggerWindow::GetCodeGroup;
+        using DebuggerWindow::ScrollCodeAtEdge;
 
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
         {
@@ -184,6 +187,45 @@ namespace DebuggerCodeMenuTests
         static bool Has (const Items & items, const std::wstring & label)
         {
             return std::ranges::any_of (items, [&label] (const auto & item) { return item.first == label; });
+        }
+
+
+
+        //  The view's rows are only the lines in view, so an arrow at the first or
+        //  last of them scrolls the view through memory, as do Page Up and
+        //  Page Down there; elsewhere the list moves its selection.
+        TEST_METHOD (AnArrowAtTheEdgeScrollsTheView)
+        {
+            CassoTheme         theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window  (theme, host);
+            DxuiDpiScaler      scaler;
+            DxuiListView     * code    = nullptr;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (MakeSnapshot());
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            code = window.GetCodeList (0);
+            Assert::IsTrue (code->GetRowCount() > 1, L"the view has its lines");
+            code->SetSelectedRow (0);
+
+            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_UP, code),    L"Up on the first line");
+            Assert::IsFalse (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the first line moves the selection");
+            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_PRIOR, code), L"Page Up on the first line");
+            Assert::IsFalse (window.ScrollCodeAtEdge (VK_UP, nullptr), L"only for the focused view");
+
+            code->SetSelectedRow (code->GetRowCount() - 1);
+            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the last line");
+
+            Assert::AreEqual ((size_t) 3, host.scrolls.size());
+            Assert::AreEqual (-1, host.scrolls[0]);
+            Assert::IsTrue   (host.scrolls[1] < -1, L"a page up");
+            Assert::AreEqual (1, host.scrolls[2]);
         }
 
 

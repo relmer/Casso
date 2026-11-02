@@ -113,6 +113,62 @@ std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ScrollCodeAtEdge
+//
+//  A disassembly view's rows are only the lines in view, so an arrow at its first
+//  or last visible line, or Page Up or Page Down there, scrolls the view
+//  through memory rather than stopping; the selected row stays at the edge,
+//  on the line scrolled into view. True when the key scrolled a view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ScrollCodeAtEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code  = m_code->GetCodeList (view);
+        int             row   = 0;
+        int             last  = 0;
+        int             page  = 0;
+        int             lines = 0;
+
+
+
+        if (code == nullptr || code != focused || m_host == nullptr)
+        {
+            continue;
+        }
+
+        row   = code->GetSelectedRow();
+        page  = std::max (1, code->GetVisibleRowCapacity());
+        last  = std::min (code->GetRowCount(), page) - 1;
+        lines = (vk == VK_UP    && row <= 0)    ? -1
+              : (vk == VK_DOWN  && row >= last) ?  1
+              : (vk == VK_PRIOR && row <= 0)    ? -page
+              : (vk == VK_NEXT  && row >= last) ?  page
+              :                                    0;
+
+        if (lines == 0 || row < 0)
+        {
+            return false;
+        }
+
+        m_code->SelectEdgeAfterScroll (view, lines < 0);
+        m_host->ScrollDebuggerCode (lines, view);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetPressTargets
 //
 //  Every control a mouse press is offered to before the lists.
@@ -1414,6 +1470,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         case '0':          case VK_NUMPAD0:   ApplyTextZoom (1.0f);              return true;
         default:                                                                 break;
         }
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && ScrollCodeAtEdge (ev.vk, focused))
+    {
+        return true;
     }
 
     if (ev.kind == DxuiKeyEventKind::Down)

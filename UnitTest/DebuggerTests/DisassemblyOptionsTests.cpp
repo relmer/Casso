@@ -9,6 +9,7 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 
@@ -288,6 +289,36 @@ namespace DisassemblyOptionsTests
 
             rows = DisassemblyOptions::BuildRows (snapshot->codeViews[0], false, always);
             Assert::AreEqual ((size_t) 3, rows.size(), L"source off lists the instructions alone");
+        }
+
+
+
+        //  With source lines on, the PC's marker goes on the source row its
+        //  instruction came from; an instruction with no source row has it.
+        TEST_METHOD (ThePcsSourceRowIsTheOneAboveItsInstruction)
+        {
+            std::shared_ptr<const DebuggerViewSnapshot>   snapshot = MakeSnapshot (true);
+            std::vector<DebuggerViewSnapshot::CodeLine>   lines    = snapshot->codeViews[0];
+            std::vector<DisassemblyOptions::Row>          rows;
+            auto                                          always   = [] (int, int) { return true; };
+
+
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always);
+
+            for (size_t i = 0; i < lines.size(); i++)
+            {
+                lines[i].isCurrent = i == 1;
+            }
+
+            Assert::AreEqual (2, DisassemblyGroup::FindPcSourceRow (lines, rows), L"the second instruction's source row");
+
+            for (size_t i = 0; i < lines.size(); i++)
+            {
+                lines[i].isCurrent = i == 2;
+            }
+
+            Assert::AreEqual (-1, DisassemblyGroup::FindPcSourceRow (lines, rows), L"the data byte has no source row");
         }
 
 

@@ -110,6 +110,7 @@ public:
     void                 Hide           ();
     void                 Check          (int view);
     void                 CheckPointer   (POINT clientPx);
+    bool                 IsOverTipArea  (POINT clientPx) const;
     void                 FollowPointer  ();
 
     //  A floating window closed, which takes down a tip up in it.

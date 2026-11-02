@@ -616,6 +616,34 @@ namespace OperandResultTipTests
         }
 
 
+        //  A point on another row's operand that the tip up now doesn't
+        //  cover, or just below the tip when it covers every row below: a
+        //  tip that wraps below its row is the pointer's to move into.
+        static POINT  GetPointOffTip (TipWindow & window)
+        {
+            RECT   tip   = window.GetOperandTips().GetLayout().rect;
+            POINT  first = GetOperandPoint (window, 0);
+            int    row   = 0;
+            RECT   cell  = {};
+
+
+
+            for (row = 1; window.GetCodeList (0)->GetCellTextRectPx (row, DisassemblyCells::kOperandColumn, cell); row++)
+            {
+                POINT  at = GetOperandPoint (window, row);
+
+
+
+                if (PtInRect (&tip, at) == FALSE)
+                {
+                    return at;
+                }
+            }
+
+            return POINT { first.x, tip.bottom + 1 };
+        }
+
+
         static void  Send (TipWindow & window, DxuiMouseEventKind kind, POINT at)
         {
             DxuiMouseEvent  ev;
@@ -769,7 +797,7 @@ namespace OperandResultTipTests
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsTrue  (window.GetOperandTips().HasTip());
 
-            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
+            Send (window, DxuiMouseEventKind::Move, GetPointOffTip (window));
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"a move onto an operand that fits leaves the tip up");
         }
 
@@ -859,8 +887,14 @@ namespace OperandResultTipTests
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"a pointer off the window leaves the tip up");
 
             Send (window, DxuiMouseEventKind::Move, at);
-            window.GetOperandTips().CheckPointer (GetOperandPoint (window, 2));
+            window.GetOperandTips().CheckPointer (GetPointOffTip (window));
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"a pointer on another row leaves the tip up");
+
+            //  The tip stays up for a pointer moved from the row down into a tip
+            //  that wraps below it.
+            Send (window, DxuiMouseEventKind::Move, at);
+            window.GetOperandTips().CheckPointer (POINT { at.x, window.GetOperandTips().GetLayout().rect.bottom - 1 });
+            Assert::IsTrue  (window.GetOperandTips().HasTip(), L"a pointer on the tip takes it down");
         }
 
 
@@ -1055,7 +1089,7 @@ namespace OperandResultTipTests
 
             //  A plain row's operand has neither tip: the operand's colors are
             //  on the column's heading.
-            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
+            Send (window, DxuiMouseEventKind::Move, GetPointOffTip (window));
 
             Assert::IsFalse (window.GetOperandTips().HasTip());
             Assert::IsFalse (window.GetTooltip().WantsTick(), L"a color tip over a plain row's operand");

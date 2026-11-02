@@ -204,6 +204,7 @@ protected:
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const override;
+    bool            ScrollCodeAtEdge  (WPARAM vk, IDxuiControl * focused);
 
     //  Protected so a test can read the rows a view shows.
     int                          GetCodeLineOfRow    (int view, int row) const override;

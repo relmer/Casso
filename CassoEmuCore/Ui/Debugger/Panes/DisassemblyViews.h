@@ -154,6 +154,11 @@ public:
     //  row's source line is selected in its document.
     void                             OnRowSelected  (int view, int row);
 
+    //  The view was scrolled by a key at its first or last row: once rows
+    //  from the new place come in, the row at that edge is selected, so the
+    //  selection moves onto the line scrolled into view.
+    void                             SelectEdgeAfterScroll (int view, bool isTop);
+
     //  The PC's branch arrow in a view, a view past the code views being a
     //  source document's; drawn, clicked to go where it points and back, and
     //  its tip.
@@ -167,8 +172,13 @@ public:
     bool                             TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     static bool                      TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegister> & registers, Word address, std::wstring & text);
 
+    //  The source row above the PC's instruction that it came from, which
+    //  has the PC's marker with source lines on; -1 for none in view.
+    static int                       FindPcSourceRow     (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, const std::vector<DisassemblyOptions::Row> & built);
+
 private:
     void                             UpdateChanges  (const DebuggerViewSnapshot & snapshot);
+    bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);
     bool                             TryGetSourceText (int fileId, int line, std::wstring & text);
 
     IDebuggerPaneHost                                   & m_host;
@@ -182,6 +192,8 @@ private:
     std::array<bool, DebuggerViewState::kMaxCodeViews>    m_isOpen       = { true };
     std::array<int, DebuggerViewState::kMaxCodeViews>     m_linesSentTo  = {};
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_selected;
+    std::array<std::optional<bool>, DebuggerViewState::kMaxCodeViews>     m_edgeAfterScroll;     // true for the top row
+    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_edgeScrolledFrom;    // the first line when the key scrolled
     std::optional<Word>                                   m_navigatedTo;
     int                                                   m_navigatedView = 0;
     bool                                                  m_isArrowAtTarget = false;
