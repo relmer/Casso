@@ -3,6 +3,7 @@
 #include "Debugger/RoutineProfile.h"
 
 #include "Debugger/Reply.h"
+#include "Debugger/HeatAccessJump.h"
 
 
 
@@ -39,6 +40,7 @@ void RoutineProfile::Reset()
     m_children.clear();
     m_stack.clear();
     m_frames.clear();
+    m_topCycles.clear();
     m_pending.reset();
     m_lastSp = 0xFF;
     m_depth  = 0;
@@ -77,6 +79,11 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
 
     m_nodes[(size_t) node].self += cycles;
     AddToFrame (m_nodes[(size_t) node].routine, cycles, startCycle, cyclesPerFrame);
+
+    if (node == 0)
+    {
+        m_topCycles[pc] += cycles;
+    }
 
     m_depth += GetSpDrop (m_lastSp, spAfter);
     EndReturned();
@@ -236,6 +243,11 @@ void RoutineProfile::Merge (const RoutineProfile & later)
         {
             m_nodes[(size_t) index].calls += node.calls;
         }
+    }
+
+    for (const auto & [address, cycles] : later.m_topCycles)
+    {
+        m_topCycles[address] += cycles;
     }
 
     m_bucket = std::max (m_bucket, later.m_bucket);
@@ -593,4 +605,35 @@ std::string ProfileRoutineEntry::GetTipHead() const
     }
 
     return head;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileData::GetTopLevelTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfileData::GetTopLevelTip() const
+{
+    std::string  tip = "Top level: the cycles in code outside every call seen during the period.";
+
+
+
+    if (topAddresses.empty())
+    {
+        return tip;
+    }
+
+    tip += "\nIts hottest addresses:";
+
+    for (const ProfileAddressEntry & entry : topAddresses)
+    {
+        tip += std::format ("\n${:04X} {}: {} cycles", entry.address, entry.symbol.empty() ? std::string ("(no symbol)") : entry.symbol, HeatAccessJump::GroupDigits (entry.cycles));
+    }
+
+    return tip;
 }

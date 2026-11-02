@@ -429,6 +429,13 @@ struct ProfileData
     std::vector<ProfileTreeEntry>     tree;
     std::vector<ProfileFrameEntry>    frames;
 
+    //  Top level's hottest addresses, most first, each with the nearest
+    //  symbol at or before it.
+    std::vector<ProfileAddressEntry>  topAddresses;
+
+    //  Top level's definition and its hottest addresses, for its tip.
+    std::string                       GetTopLevelTip () const;
+
     //  The first and last cycles requested of the build from history that
     //  made the profile; none for a profile counted as the machine ran.
     std::optional<CycleRange>         historyRange;

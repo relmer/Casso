@@ -1,6 +1,9 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
+#include "Debugger/Reply.h"
 #include "Debugger/RoutineProfile.h"
+#include "Debugger/SymbolTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -384,6 +387,54 @@ namespace DebuggerTests
             Assert::IsTrue   (FindNode (first.profile, 0x0500) > 0);
             Assert::AreEqual ((size_t) 2,  first.profile.GetFrames().size(), L"frame 0 and frame 10");
             Assert::AreEqual ((uint64_t) 10, first.profile.GetFrames().back().index);
+        }
+
+
+
+        //  Top level's cycles are counted by address, so its tip can list
+        //  where they went; a call's cycles are not among them.
+        TEST_METHOD (TopLevelsCyclesAreCountedByAddress)
+        {
+            Feed  feed;
+
+
+
+            // $0300: LDA #0, JSR $0400, $0400: LDA #0, RTS, then $0300 again
+            feed.Run (0x0300, kLda, 2, 0xFF);
+            feed.Run (0x0302, RoutineProfile::kJsr, 6, 0xFD);
+            feed.Run (0x0400, kLda, 2, 0xFD);
+            feed.Run (0x0402, kRts, 6, 0xFF);
+            feed.Run (0x0300, kLda, 2, 0xFF);
+
+            Assert::AreEqual ((uint64_t) 4, feed.profile.GetTopCycles().at (0x0300));
+            Assert::AreEqual ((uint64_t) 6, feed.profile.GetTopCycles().at (0x0302));
+            Assert::IsFalse  (feed.profile.GetTopCycles().contains (0x0400), L"the call's own");
+        }
+
+
+
+        //  The tip lists Top level's hottest addresses with the nearest symbol,
+        //  and a symbol a few bytes back reads as an offset from it.
+        TEST_METHOD (TopLevelsTipListsItsHottestAddresses)
+        {
+            ProfileData  data;
+            SymbolTable  symbols;
+            std::string  name;
+
+
+
+            symbols.Add (SymbolTableId::User, "NEWSTT", 0xD7D2);
+
+            Assert::IsTrue   (symbols.TryFindNearestName (0xD7D5, 64, name));
+            Assert::AreEqual (std::string ("NEWSTT+3"), name);
+            Assert::IsTrue   (symbols.TryFindNearestName (0xD7D2, 64, name));
+            Assert::AreEqual (std::string ("NEWSTT"), name);
+            Assert::IsFalse  (symbols.TryFindNearestName (0xD900, 64, name), L"too far past it");
+
+            data.topAddresses = { { 0xD7D5, "NEWSTT+3", 12345 } };
+
+            Assert::IsTrue (data.GetTopLevelTip().starts_with ("Top level: the cycles in code outside every call seen during the period."));
+            Assert::IsTrue (data.GetTopLevelTip().find ("$D7D5 NEWSTT+3: 12,345 cycles") != std::string::npos, TextEncoding::NarrowToWide (data.GetTopLevelTip()).c_str());
         }
     };
 }

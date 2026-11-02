@@ -40,6 +40,10 @@ public:
     bool     TryResolve   (const std::string & name, Word & address, SymbolTableId & table) const;
     bool     TryFindName  (Word address, std::string & name, SymbolTableId & table) const;
 
+    //  The symbol at the address, or the nearest one up to maxBack bytes
+    //  before it, as "NEWSTT+3"; false with none in that span.
+    bool     TryFindNearestName (Word address, Word maxBack, std::string & name) const;
+
     //  Every enabled table's name for one address, in table order. One
     //  address carries two names wherever reading it and writing it operate
     //  different soft switches ($C000 is KBD read, 80STOREOFF written).

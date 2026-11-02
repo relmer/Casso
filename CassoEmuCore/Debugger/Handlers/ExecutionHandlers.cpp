@@ -699,6 +699,49 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, ProfileList list, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExecutionHandlers::BuildTopAddresses
+//
+//  The symbol is the nearest up to kMaxBack bytes before, so an address in the
+//  middle of a loop is read as the routine it is in, as NEWSTT's loop is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BuildTopAddresses (DebugSession & session, ProfileData & data) const
+{
+    static constexpr size_t  kTopAddresses = 5;
+    static constexpr Word    kMaxBack      = 64;
+
+
+
+    data.topAddresses.clear();
+
+    for (const auto & [address, cycles] : m_routines.GetTopCycles())
+    {
+        data.topAddresses.push_back ({ address, std::string(), cycles });
+    }
+
+    std::sort (data.topAddresses.begin(), data.topAddresses.end(), [] (const ProfileAddressEntry & a, const ProfileAddressEntry & b)
+    {
+        return a.cycles != b.cycles ? a.cycles > b.cycles : a.address < b.address;
+    });
+
+    if (data.topAddresses.size() > kTopAddresses)
+    {
+        data.topAddresses.resize (kTopAddresses);
+    }
+
+    for (ProfileAddressEntry & entry : data.topAddresses)
+    {
+        (void) session.GetSymbols().TryFindNearestName (entry.address, kMaxBack, entry.symbol);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecutionHandlers::BuildRoutines
 //
 //  The routines by their own cycles, each with its symbol; the call tree
@@ -740,6 +783,8 @@ void ExecutionHandlers::BuildRoutines (DebugSession & session, ProfileData & dat
             entry.description = (description != nullptr) ? description : "";
         }
     }
+
+    BuildTopAddresses (session, data);
 
     for (size_t i = 0; i < nodes.size(); i++)
     {

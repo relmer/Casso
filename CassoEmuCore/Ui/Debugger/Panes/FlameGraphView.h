@@ -86,6 +86,7 @@ private:
 
     std::vector<ProfileTreeEntry>     m_tree;
     std::vector<ProfileRoutineEntry>  m_routines;
+    std::string                       m_topTip;
     std::vector<Bar>                  m_bars;
     size_t                            m_zoom  = 0;
     std::optional<size_t>             m_selected;

@@ -305,6 +305,35 @@ bool SymbolTable::TryResolve (const std::string & name, Word & address, SymbolTa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SymbolTable::TryFindNearestName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolTable::TryFindNearestName (Word address, Word maxBack, std::string & name) const
+{
+    SymbolTableId  table = SymbolTableId::Main;
+    std::string    found;
+
+
+
+    for (int back = 0; back <= (int) maxBack && back <= (int) address; back++)
+    {
+        if (TryFindName ((Word) (address - back), found, table))
+        {
+            name = (back == 0) ? found : std::format ("{}+{}", found, back);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolTable::TryFindName
 //
 ////////////////////////////////////////////////////////////////////////////////

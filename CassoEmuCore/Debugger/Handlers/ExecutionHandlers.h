@@ -118,6 +118,7 @@ private:
     void         RecordProfile     (DebugSession & session, Word pc);
     void         BillProfile       (DebugSession & session);
     void         BuildRoutines     (DebugSession & session, ProfileData & data) const;
+    void         BuildTopAddresses (DebugSession & session, ProfileData & data) const;
     void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
     void         RecordTrace       (DebugSession & session, Word pc);
     HRESULT      FlushTrace        (DebugSession & session);
