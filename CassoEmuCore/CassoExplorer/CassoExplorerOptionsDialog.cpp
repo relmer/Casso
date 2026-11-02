@@ -337,6 +337,7 @@ int CassoExplorerVerifyPage::GetNoteHeightPx (const DxuiLabel & note, int widthP
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CassoExplorerVerifyPage::Layout
