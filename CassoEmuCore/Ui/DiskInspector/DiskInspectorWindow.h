@@ -147,6 +147,7 @@ private:
     void  SetZoom              (double zoom);
     void  LayoutContent        (const RECT & boundsPx, const DxuiDpiScaler & scaler);
     static bool  IsZoomKey     (WPARAM vk);
+    int   StepRecording        (int quarterTrack, int step) const;
     std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;
     void  ShowDiskTab      (int tab) override;
     void  UpdateTooltip    (POINT pointPx);

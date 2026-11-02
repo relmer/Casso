@@ -295,28 +295,90 @@ void PlatterCells::BuildLevels (const vector<Byte> & cells, vector<vector<Byte>>
 
 bool PlatterCells::IsEchoRing (std::span<const int> slots, int ring)
 {
+    return slots[ring] >= 0 && ring != GetCenterRing (slots, ring);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterCells::GetCenterRing
+//
+//  The center ring of the recording on a ring: the whole track in the run
+//  of rings with its slot, or the run's middle ring when the run has no whole
+//  track.
+//  A ring with no recording is returned as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PlatterCells::GetCenterRing (std::span<const int> slots, int ring)
+{
     static constexpr int  kPerTrack = DiskImage::kQuarterTracksPerWholeTrack;
 
 
 
-    int  count = static_cast<int> (slots.size());
-    int  first = ring;
-    int  last  = ring;
-    int  whole = 0;
+    int  count  = static_cast<int> (slots.size());
+    int  first  = ring;
+    int  last   = ring;
+    int  whole  = 0;
+    int  center = ring;
 
 
 
-    while (first > 0 && slots[first - 1] == slots[ring])
+    if (ring >= 0 && ring < count && slots[ring] >= 0)
     {
-        first--;
+        while (first > 0 && slots[first - 1] == slots[ring])
+        {
+            first--;
+        }
+
+        while (last + 1 < count && slots[last + 1] == slots[ring])
+        {
+            last++;
+        }
+
+        whole  = (first + kPerTrack - 1) / kPerTrack * kPerTrack;
+        center = (whole <= last) ? std::max (ring - ring % kPerTrack, whole) : (first + last) / 2;
     }
 
-    while (last + 1 < count && slots[last + 1] == slots[ring])
+    return center;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterCells::StepRecording
+//
+//  The center ring of the next recording from a ring in the direction of
+//  `step`, past rings that repeat a recording and rings with none; from a
+//  ring that repeats a recording, that recording's center when it lies in
+//  that direction. The ring itself when there is no next recording.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PlatterCells::StepRecording (std::span<const int> slots, int ring, int step)
+{
+    int  count  = static_cast<int> (slots.size());
+    int  from   = GetCenterRing (slots, ring);
+    int  next   = ring + step;
+    int  result = ring;
+
+
+
+    while (next >= 0 && next < count && result == ring)
     {
-        last++;
+        if (slots[next] >= 0 && !IsEchoRing (slots, next) && (next != from || ring != from))
+        {
+            result = next;
+        }
+
+        next += step;
     }
 
-    whole = (first + kPerTrack - 1) / kPerTrack * kPerTrack;
-
-    return slots[ring] >= 0 && ring != ((whole <= last) ? ring - ring % kPerTrack : (first + last) / 2);
+    return result;
 }

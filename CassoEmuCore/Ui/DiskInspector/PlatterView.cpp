@@ -258,7 +258,8 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
 //  Zoomed in, along each ring in view whose nibbles are long enough: each
 //  nibble's hex value, upright, with a divider at its start; and once cells
 //  are far enough apart, a tick for each 1 cell (FR-026). Rings too short
-//  for either are skipped before any nibble is looked at.
+//  for either are skipped before any nibble is looked at, as are rings that
+//  repeat a recording, which are drawn as its field alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,7 +285,7 @@ void PlatterView::PaintNibbles (IDxuiPainter & painter, IDxuiTextRenderer & text
         slot = m_context.analysis->entries[qt].slot;
 
         if (slot >= 0 && slot < static_cast<int> (m_context.analysis->tracks.size()) && m_context.analysis->tracks[slot] != nullptr &&
-            (IsShowingValues (view, qt) || IsShowingTicks (view, qt)))
+            !IsEcho (qt) && (IsShowingValues (view, qt) || IsShowingTicks (view, qt)))
         {
             PaintRing (painter, text, theme, view, qt, *m_context.analysis->tracks[slot], GetRingTurns (slot, *m_context.analysis->tracks[slot]), start, end);
         }
@@ -860,11 +861,37 @@ bool PlatterView::BuildTip (POINT pointPx, InspectorTip & outTip) const
 //
 //  PlatterView::HitTest
 //
+//  A ring that repeats a recording is hit as the recording's center ring.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 PlatterHit PlatterView::HitTest (POINT pointPx) const
 {
-    return PlatterGeometry::HitTest (MakeView(), pointPx);
+    PlatterHit  hit = PlatterGeometry::HitTest (MakeView(), pointPx);
+
+
+
+    if (hit.isOnDisk && m_context.analysis != nullptr && m_context.analysis->copy != nullptr)
+    {
+        hit.quarterTrack = PlatterCells::GetCenterRing (m_context.analysis->copy->playedSlot, hit.quarterTrack);
+    }
+
+    return hit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::IsEcho
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::IsEcho (int quarterTrack) const
+{
+    return m_context.analysis != nullptr && m_context.analysis->copy != nullptr && PlatterCells::IsEchoRing (m_context.analysis->copy->playedSlot, quarterTrack);
 }
 
 

@@ -457,4 +457,26 @@ public:
         Assert::IsTrue  (PlatterCells::IsEchoRing (kSlots, 11));
         Assert::IsFalse (PlatterCells::IsEchoRing (kSlots, 14));
     }
+
+
+
+    TEST_METHOD (UpAndDownStepFromRecordingToRecording)
+    {
+        constexpr int  kSlots[] = { 0, 0, 0, 0, 1, 1, 1, 1, -1, 2, 2, 2, -1, -1, 3, -1 };
+
+
+
+        Assert::AreEqual (0,  PlatterCells::GetCenterRing (kSlots, 3));
+        Assert::AreEqual (4,  PlatterCells::GetCenterRing (kSlots, 7));
+        Assert::AreEqual (10, PlatterCells::GetCenterRing (kSlots, 9), L"a run with no whole track is centered on its middle ring");
+        Assert::AreEqual (8,  PlatterCells::GetCenterRing (kSlots, 8), L"a ring with no recording is returned as it is");
+
+        Assert::AreEqual (4,  PlatterCells::StepRecording (kSlots, 0, 1));
+        Assert::AreEqual (10, PlatterCells::StepRecording (kSlots, 4, 1), L"past repeats and the ring with no recording");
+        Assert::AreEqual (14, PlatterCells::StepRecording (kSlots, 10, 1));
+        Assert::AreEqual (14, PlatterCells::StepRecording (kSlots, 14, 1), L"no recording past the last");
+        Assert::AreEqual (4,  PlatterCells::StepRecording (kSlots, 5, -1), L"from a repeat of track 1, Up goes to track 1");
+        Assert::AreEqual (10, PlatterCells::StepRecording (kSlots, 5, 1),  L"and Down to the next recording");
+        Assert::AreEqual (0,  PlatterCells::StepRecording (kSlots, 4, -1));
+    }
 };

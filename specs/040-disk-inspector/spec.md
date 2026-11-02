@@ -566,7 +566,7 @@ its known contents.
    view.
 3. **Given** keyboard focus on the platter with track 17.25 selected,
    **When** the user presses each of Up, Down, Page Up and Page Down from
-   there, **Then** Up selects 17, Down selects 17.5, Page Up selects 17 and
+   there, **Then** Up selects 17, Down selects 18, Page Up selects 17 and
    Page Down selects 18; **When** the user presses Left and Right, **Then**
    the previous and next sector in passing order are selected.
 4. **Given** a disk, **When** the user goes to sector $5 on track 17,
@@ -1851,7 +1851,13 @@ legend, and tilt the platter and back.
   the rim, a groove at each whole-track boundary, the hub, and an index mark
   where each track starts, at 12 o'clock while the platter has not turned
   (FR-064). The index mark and its label MUST be drawn only while the disk is
-  stationary on screen. The angle around the platter MUST be the position along the track
+  stationary on screen. A recording's cells, values and bits MUST be drawn
+  only on its center ring: its whole track, or the middle of the quarter
+  tracks mapped to it when none of them is a whole track. On quarter tracks
+  that repeat it, only its fading field MUST be drawn, and a click or hover
+  there MUST act on the center ring. A quarter track mapped to a recording
+  that no neighbor is mapped to, as on some copy-protected disks, is that
+  recording's center. The angle around the platter MUST be the position along the track
   as Casso's drive plays it, as a fraction of one turn, increasing clockwise
   from the index.
 - **FR-023**: The platter MUST switch between "Structure" and "Timing" modes,
@@ -1913,8 +1919,9 @@ legend, and tilt the platter and back.
   sector whose field is under the pointer, not the first sector with the
   same number.
 - **FR-029**: With focus on the platter, Up and Page Up MUST move toward
-  track 0 and Down and Page Down toward 39.75: Up and Down by one quarter
-  track, and Page Up and Page Down to the next whole track in that direction
+  track 0 and Down and Page Down toward 39.75: Up and Down to the next
+  recording's center ring (FR-022), past quarter tracks that repeat a
+  recording and quarter tracks with none, and Page Up and Page Down to the next whole track in that direction
   (from 17.25, Page Down selects 18 and Page Up selects 17), stopping at 0
   and 39.75. With focus on the platter or the sector row, Left and Right MUST
   select the previous and next sector in passing order, wrapping at the

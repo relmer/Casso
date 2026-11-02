@@ -1451,8 +1451,8 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_OEM_PLUS:  case VK_ADD:      m_session.views.platter->StepZoom (1);  break;
                 case VK_OEM_MINUS: case VK_SUBTRACT: m_session.views.platter->StepZoom (-1); break;
                 case '0':          case VK_NUMPAD0:  m_session.model.Fit();                                    break;
-                case VK_UP:    m_session.model.SelectQuarterTrack (qt - 1);                           OnSelection(); break;
-                case VK_DOWN:  m_session.model.SelectQuarterTrack (qt + 1);                           OnSelection(); break;
+                case VK_UP:    m_session.model.SelectQuarterTrack (StepRecording (qt, -1));           OnSelection(); break;
+                case VK_DOWN:  m_session.model.SelectQuarterTrack (StepRecording (qt, 1));            OnSelection(); break;
                 case VK_PRIOR: m_session.model.SelectQuarterTrack ((qt - 1) / kPerTrack * kPerTrack); OnSelection(); break;
                 case VK_NEXT:  m_session.model.SelectQuarterTrack ((qt / kPerTrack + 1) * kPerTrack); OnSelection(); break;
                 case VK_LEFT:  m_selection->StepSector (-1, false); break;
@@ -1474,6 +1474,33 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
     }
 
     return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StepRecording
+//
+//  Up and Down go to the next recording's center ring, past rings that repeat
+//  a recording and rings with none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::StepRecording (int quarterTrack, int step) const
+{
+    int  next = std::clamp (quarterTrack + step, 0, DiskImage::kQuarterTrackCount - 1);
+
+
+
+    if (m_session.analysis.copy != nullptr)
+    {
+        next = PlatterCells::StepRecording (m_session.analysis.copy->playedSlot, quarterTrack, step);
+    }
+
+    return next;
 }
 
 

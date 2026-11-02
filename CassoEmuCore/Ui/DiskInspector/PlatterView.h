@@ -42,6 +42,7 @@ public:
 
     PlatterRenderer &  GetRenderer ()       { return m_renderer; }
     PlatterHit         HitTest     (POINT pointPx) const;
+    bool               IsEcho      (int quarterTrack) const;
     bool               IsDragging  () const { return m_isPanning || m_isTilting; }
     void               ZoomBy      (double factor, POINT anchorPx);
     void               ZoomAboutCenter (double factor);

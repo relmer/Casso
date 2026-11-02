@@ -36,5 +36,7 @@ public:
     static void         BuildEdges  (const TrackAnalysis & analysis, const vector<Byte> & cells, vector<Byte> & outEdges);
     static void         BuildLevels (const vector<Byte> & cells, vector<vector<Byte>> & outLevels);
     static bool         IsEchoRing  (std::span<const int> slots, int ring);
+    static int          GetCenterRing (std::span<const int> slots, int ring);
+    static int          StepRecording (std::span<const int> slots, int ring, int step);
     static PlatterKind  GetKindOf   (NibbleKind kind);
 };
