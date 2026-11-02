@@ -150,6 +150,7 @@ const wchar_t * ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb verb
         case CassoExplorerActions::Verb::InsertDrive2:   return s_kpszMdl2Save;
         case CassoExplorerActions::Verb::OpenInNewCasso: return s_kpszMdl2Play;
         case CassoExplorerActions::Verb::Format:         return s_kpszMdl2HardDrive;
+        case CassoExplorerActions::Verb::Krunch:         return s_kpszMdl2BackToWindow;
         case CassoExplorerActions::Verb::Refresh:        return s_kpszMdl2Refresh;
         case CassoExplorerActions::Verb::MoreOptions:    return s_kpszMdl2OpenInNewWindow;
         case CassoExplorerActions::Verb::Lock:           return s_kpszMdl2Lock;

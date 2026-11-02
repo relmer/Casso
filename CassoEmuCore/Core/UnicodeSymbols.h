@@ -72,6 +72,7 @@ static constexpr LPCWSTR s_kpszMdl2Unlock          = L"\xE785";       // U+E785 
 static constexpr LPCWSTR s_kpszMdl2OpenInNewWindow = L"\xE8A7";       // U+E8A7 OpenInNewWindow
 static constexpr LPCWSTR s_kpszMdl2Save            = L"\xE74E";       // U+E74E Save (a floppy disk)
 static constexpr LPCWSTR s_kpszMdl2HardDrive       = L"\xEDA2";       // U+EDA2 HardDrive
+static constexpr LPCWSTR s_kpszMdl2BackToWindow    = L"\xE73F";       // U+E73F BackToWindow (arrows pointing in), Krunch
 static constexpr LPCWSTR s_kpszMdl2Setting         = L"\xE713";       // U+E713 Setting (gear)
 static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe MDL2 PreviewLink
 static constexpr LPCWSTR s_kpszMdl2Search = L"\xE721";       // U+E721 Segoe MDL2 Search (magnifying glass)

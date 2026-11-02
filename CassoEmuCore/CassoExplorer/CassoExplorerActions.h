@@ -167,6 +167,7 @@ public:
     //  Combines the free space of the Apple Pascal disk the format verb acts on.
     Outcome  KrunchImage    ();
     bool     IsTargetPascal () const;
+    bool     IsImagePascal  (const std::wstring & image) const;
 
     //  The image a format would act on, or empty. The raw sector and block
     //  verbs act on the same image.

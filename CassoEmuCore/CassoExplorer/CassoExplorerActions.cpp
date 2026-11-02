@@ -1962,9 +1962,24 @@ std::wstring CassoExplorerActions::GetFormatTarget() const
 
 bool CassoExplorerActions::IsTargetPascal() const
 {
+    return IsImagePascal (GetFormatTarget());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::IsImagePascal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::IsImagePascal (const std::wstring & image) const
+{
     VolumeListing  listing;
     VolumeKind     kind = VolumeKind::Unknown;
-    bool           read = m_browser.GetOperations().List (TextEncoding::WideToNarrow (GetFormatTarget()), listing, kind).Succeeded();
+    bool           read = !image.empty() && m_browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded();
 
 
 

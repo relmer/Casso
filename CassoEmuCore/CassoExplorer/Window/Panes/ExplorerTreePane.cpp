@@ -893,6 +893,24 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.commandManager.ExtractImageFiles (image); });
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
 
+        //  Format and Krunch act on the image the list shows, so the image is
+        //  opened first.
+        m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Format), [this, location]()
+        {
+            m_context.addressBar.GoToLocation (location);
+            m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Format);
+        }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Format));
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::Format));
+
+        if (m_context.actions.IsImagePascal (image))
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]()
+            {
+                m_context.addressBar.GoToLocation (location);
+                m_context.commandManager.RunVerb (CassoExplorerActions::Verb::Krunch);
+            }, L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));
+        }
+
         if (m_context.actions.CanChooseFilesystem (image))
         {
             bool  chosen = m_context.browser.GetFilesystemChoices()->GetChoice (image) != VolumeKind::Unknown;
