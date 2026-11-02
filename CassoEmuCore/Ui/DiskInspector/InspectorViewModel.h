@@ -28,7 +28,7 @@
 class InspectorViewModel
 {
 public:
-    static constexpr double  kMaxZoom          = 640.0;
+    static constexpr double  kMaxZoom          = 4096.0;
     static constexpr double  kViewMargin       = 0.1;
     static constexpr double  kDefaultStripSpan = 0.125;
 

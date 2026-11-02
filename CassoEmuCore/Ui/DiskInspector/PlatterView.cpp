@@ -1004,8 +1004,8 @@ void PlatterView::StepZoomAt (int steps, POINT anchorPx)
 //
 //  The platter's zooms, from the selected track's ring: by quarters up to
 //  where its nibbles are a DIP wide, then doubling twice, then where their
-//  values fit, where cell ticks fit, where each cell's 1 or 0 fits and a
-//  step past it.
+//  values fit, where cell ticks fit, where each cell's 1 or 0 fits, a step
+//  past it, and doubling twice more.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1021,7 +1021,9 @@ vector<double> PlatterView::GetZoomStops() const
                                          m_scaler.ToPxf (s_kValueMinDip)   * nibbles / ring,
                                          m_scaler.ToPxf (s_kTickMinDip)    * cells   / ring,
                                          m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring,
-                                         m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring * s_kFineRatio };
+                                         m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring * s_kFineRatio,
+                                         m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring * 2,
+                                         m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring * 4 };
 
 
 
