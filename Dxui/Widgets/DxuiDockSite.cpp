@@ -1422,6 +1422,37 @@ IDxuiControl * DxuiDockSite::GetPaneContent (const std::wstring & pane) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::GetTabNeighbor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDockSite::GetTabNeighbor (const std::wstring & pane) const
+{
+    IDxuiControl  * content = GetPaneContent (pane);
+
+
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        int  index = (content != nullptr && group->IsVisible()) ? group->IndexOf (content) : -1;
+
+
+
+        if (index >= 0 && group->GetTabCount() > 1)
+        {
+            return GetPaneOf (group->GetContent ((index + 1 < (int) group->GetTabCount()) ? index + 1 : index - 1));
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::GetPaneAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1442,11 +1473,17 @@ std::wstring DxuiDockSite::GetPaneAt (POINT pointDip) const
         return m_edgeTabs[(size_t) tab].pane;
     }
 
+    //  Over a tab, the tab's pane, so a right click on a tab that isn't active
+    //  targets that tab.
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
+        int  index = group->IsVisible() ? group->HitTestTab (pointDip) : -1;
+
+
+
         if (Contains (group->GetBounds(), pointDip))
         {
-            return GetPaneOf (group->GetActiveContent());
+            return GetPaneOf ((index >= 0) ? group->GetContent (index) : group->GetActiveContent());
         }
     }
 

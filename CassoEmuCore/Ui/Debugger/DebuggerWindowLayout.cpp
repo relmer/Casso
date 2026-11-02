@@ -966,7 +966,9 @@ void DebuggerWindow::ShowPendingPane()
 
 void DebuggerWindow::ClosePane (const std::wstring & pane)
 {
-    int  slot = GetSourceSlotOf (pane);
+    int           slot      = GetSourceSlotOf (pane);
+    bool          isFocused = GetPaneOfFocus() == pane;
+    std::wstring  neighbor  = m_dockSite->GetTabNeighbor (pane);
 
 
 
@@ -977,6 +979,14 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
         m_dockSite->Relayout();
         SetWindowMenus();
         SaveLayout();
+
+        //  The keys go to the tab that takes the closed one's place in its
+        //  group, not to a pane in another group.
+        if (isFocused && !neighbor.empty())
+        {
+            FocusPane (neighbor);
+        }
+
         Invalidate();
         return;
     }
@@ -984,17 +994,15 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
     if (slot >= 0)
     {
         m_sources->Close (slot);
-        return;
     }
-
-    if (m_host == nullptr)
+    else if (m_host == nullptr || FindPane (pane) == nullptr || !FindPane (pane)->RequestClose())
     {
         return;
     }
 
-    if (FindPane (pane) != nullptr && FindPane (pane)->RequestClose())
+    if (isFocused && !neighbor.empty() && IsPaneShown (neighbor))
     {
-        return;
+        FocusPane (neighbor);
     }
 }
 
