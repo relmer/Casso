@@ -32,10 +32,12 @@ void TooltipCoordinator::Update (POINT clientPx)
 
     operandTips.SetColorTip (nullptr);
 
-    //  Only the P register's flags color their lines, and only a heat cell
-    //  has a scale.
-    tip.SetLineColors ({});
-    tip.SetGradient   ({}, -1.0f);
+    //  Only the P register's flags color their lines, only a heat cell has a
+    //  scale, and only a pane's tip has swatches. A bar's tip after a tip with
+    //  swatches was indented by the swatches' width.
+    tip.SetLineColors   ({});
+    tip.SetLineSwatches ({});
+    tip.SetGradient     ({}, -1.0f);
 
     if (m_sources.IsAnyMenuOpen())
     {
