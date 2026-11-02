@@ -2089,6 +2089,34 @@ int DxuiTextView::GetTextLeft() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::GetCursorForPoint
+//
+//  The I-beam over the text, where a press selects; the arrow over the
+//  gutter and the scroll bars.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiTextView::GetCursorForPoint (POINT clientPx) const
+{
+    const RECT  & bounds = GetBounds();
+    bool          inside = clientPx.x >= bounds.left && clientPx.x < bounds.right && clientPx.y >= bounds.top && clientPx.y < bounds.bottom;
+
+
+
+    if (!inside || clientPx.x < GetTextBaseLeft() || IsOverScrollbar (clientPx))
+    {
+        return nullptr;
+    }
+
+    return IDC_IBEAM;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::GetTextBaseLeft
 //
 //  The left of the text area, which does not scroll.
