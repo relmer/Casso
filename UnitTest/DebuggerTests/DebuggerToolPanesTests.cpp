@@ -813,6 +813,31 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  A routine's tip starts with its name, its address and its symbol's
+        //  description, on a flame bar, a list row and a timeline line alike.
+        TEST_METHOD (ARoutinesTipHasItsAddressAndDescription)
+        {
+            ProfileRoutineEntry  named;
+            ProfileRoutineEntry  bare;
+            ProfileRoutineEntry  top;
+
+
+
+            named.kind        = RoutineKind::Call;
+            named.address     = 0xDB5C;
+            named.symbol      = "OUTDO";
+            named.description = "Applesoft: print the character in A";
+            bare.kind         = RoutineKind::Call;
+            bare.address      = 0x0300;
+
+            Assert::AreEqual (std::string ("OUTDO at $DB5C\nApplesoft: print the character in A"), named.GetTipHead());
+            Assert::AreEqual (std::string ("$0300"), bare.GetTipHead(), L"an address alone is the name");
+            Assert::AreEqual (std::string ("Top level"), top.GetTipHead());
+            Assert::AreEqual (std::string ("OUTDO ($DB5C, Applesoft: print the character in A)"), ProfileTimeline::GetTimelineName (named));
+            Assert::AreEqual (std::string ("$0300"), ProfileTimeline::GetTimelineName (bare));
+        }
+
+
         //  A selected range is framed in the theme's text color, unlike every
         //  routine color, and the bars on either side of it are dimmed.
         TEST_METHOD (TheSelectionIsFramedInTheTextColorAndTheRestDimmed)
@@ -896,7 +921,7 @@ namespace DebuggerToolPanesTests
             ProfileData            profile  = MakeRoutineProfile();
             std::vector<uint32_t>  swatches;
             std::wstring           tip      = ProfileTimeline::GetFrameTip (profile.frames[0], profile.routines, 0xFF808080, swatches);
-            std::wstring  head    = std::format (L"Frame 9: {} cycles\nPLOT: {} cycles (74.4%)\nTop level: {} cycles", DebuggerStatusText::FormatCount (4030),
+            std::wstring  head    = std::format (L"Frame 9: {} cycles\nPLOT ($6000): {} cycles (74.4%)\nTop level: {} cycles", DebuggerStatusText::FormatCount (4030),
                                                  DebuggerStatusText::FormatCount (3000), DebuggerStatusText::FormatCount (1000));
 
 

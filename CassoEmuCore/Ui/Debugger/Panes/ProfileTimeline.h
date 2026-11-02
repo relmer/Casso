@@ -61,6 +61,10 @@ public:
     //  The color of a routine's share of a bar.
     static uint32_t      GetShareColor (size_t routine, uint32_t otherArgb);
 
+    //  A routine on one line of a frame's tip: its name, with the address
+    //  and the description of a routine that has a symbol.
+    static std::string   GetTimelineName (const ProfileRoutineEntry & routine);
+
     bool  TryGetTipAt (POINT point, std::wstring & text, std::vector<uint32_t> & swatches) const;
 
     //  The pointer's x while it is over the timeline, for the line drawn

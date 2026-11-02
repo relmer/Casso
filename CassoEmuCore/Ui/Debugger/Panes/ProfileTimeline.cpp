@@ -210,7 +210,7 @@ std::wstring ProfileTimeline::GetFrameTip (
             continue;
         }
 
-        text += std::format (L"\n{}: {} cycles ({:.1f}%)", TextEncoding::NarrowToWide (routines[shares[i].first].GetName()),
+        text += std::format (L"\n{}: {} cycles ({:.1f}%)", TextEncoding::NarrowToWide (GetTimelineName (routines[shares[i].first])),
                              DebuggerStatusText::FormatCount (shares[i].second), 100.0 * (double) shares[i].second / (double) std::max<uint64_t> (total, 1));
         swatches.push_back (GetShareColor (shares[i].first, otherArgb));
     }
@@ -222,6 +222,31 @@ std::wstring ProfileTimeline::GetFrameTip (
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::GetTimelineName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfileTimeline::GetTimelineName (const ProfileRoutineEntry & routine)
+{
+    if (routine.kind == RoutineKind::Top || routine.symbol.empty())
+    {
+        return routine.GetName();
+    }
+
+    if (routine.description.empty())
+    {
+        return std::format ("{} (${:04X})", routine.GetName(), routine.address);
+    }
+
+    return std::format ("{} (${:04X}, {})", routine.GetName(), routine.address, routine.description);
 }
 
 

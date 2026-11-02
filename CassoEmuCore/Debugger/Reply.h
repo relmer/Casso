@@ -365,9 +365,16 @@ struct ProfileRoutineEntry
     uint64_t     total   = 0;
     uint64_t     calls   = 0;
 
+    //  The symbol's line from SymbolDescriptions, empty for none.
+    std::string  description;
+
     //  Top level, the symbol or the address, with BRK or Interrupt ahead of
     //  a routine entered that way.
     std::string  GetName () const;
+
+    //  The first lines of a tip on the routine: its name and, for a routine
+    //  with a symbol, its address, then its description when it has one.
+    std::string  GetTipHead () const;
 };
 
 // One node of the call tree: its routine, an index in ProfileData::routines,

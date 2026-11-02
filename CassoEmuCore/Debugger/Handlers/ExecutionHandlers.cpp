@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/SymbolDescriptions.h"
 #include "Debugger/Reverse/HistoryStatus.h"
 
 #include "Config/IFileSystem.h"
@@ -732,9 +733,11 @@ void ExecutionHandlers::BuildRoutines (DebugSession & session, ProfileData & dat
         entry.kind    = routines[i].kind;
         entry.total   = routineTotal[i];
 
-        if (entry.kind != RoutineKind::Top)
+        if (entry.kind != RoutineKind::Top && session.GetSymbols().TryFindName (entry.address, entry.symbol, table))
         {
-            session.GetSymbols().TryFindName (entry.address, entry.symbol, table);
+            const char *  description = SymbolDescriptions::Find (entry.symbol);
+
+            entry.description = (description != nullptr) ? description : "";
         }
     }
 

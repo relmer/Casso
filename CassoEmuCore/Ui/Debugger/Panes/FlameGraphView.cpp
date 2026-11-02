@@ -317,7 +317,7 @@ bool FlameGraphView::TryGetTipAt (POINT point, std::wstring & text) const
     all  = std::max (1.0, (double) m_tree[0].total);
 
     text = std::format (L"{}\nSelf: {} cycles ({:.1f}%)\nTotal: {} cycles ({:.1f}%)\nCalls: {}",
-                        TextEncoding::NarrowToWide (m_routines[node->routine].GetName()),
+                        TextEncoding::NarrowToWide (m_routines[node->routine].GetTipHead()),
                         DebuggerStatusText::FormatCount (node->self), 100.0 * (double) node->self / all,
                         DebuggerStatusText::FormatCount (node->total), 100.0 * (double) node->total / all, DebuggerStatusText::FormatCount (node->calls));
     return true;

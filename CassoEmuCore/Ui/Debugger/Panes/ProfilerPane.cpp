@@ -1688,6 +1688,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
                                { count (entry.total) }, { share (entry.total) }, { count (entry.calls) },
                                { (entry.calls != 0) ? count (entry.total / entry.calls) : std::wstring (L"-") } });
             cells.back()[0].swatch = ProfileTimeline::GetShareColor (i, 0);
+            cells.back()[0].tip    = TextEncoding::NarrowToWide (entry.GetTipHead());
         }
     }
     else if (view == View::Tree)
@@ -1697,6 +1698,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
             cells.push_back ({ { std::wstring ((size_t) entry.depth * 2, L' ') + TextEncoding::NarrowToWide (profile->routines[entry.routine].GetName()) },
                                { count (entry.self) }, { count (entry.total) }, { share (entry.total) }, { count (entry.calls) } });
             cells.back()[0].swatch = ProfileTimeline::GetShareColor (entry.routine, 0);
+            cells.back()[0].tip    = TextEncoding::NarrowToWide (profile->routines[entry.routine].GetTipHead());
         }
     }
     else if (view == View::Opcodes)

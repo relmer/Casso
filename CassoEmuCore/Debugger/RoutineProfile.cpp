@@ -565,3 +565,32 @@ std::string ProfileRoutineEntry::GetName() const
     default:                     return name;
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileRoutineEntry::GetTipHead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfileRoutineEntry::GetTipHead() const
+{
+    std::string  head = GetName();
+
+
+
+    if (kind != RoutineKind::Top && !symbol.empty())
+    {
+        head += std::format (" at ${:04X}", address);
+    }
+
+    if (!description.empty())
+    {
+        head += "\n" + description;
+    }
+
+    return head;
+}
