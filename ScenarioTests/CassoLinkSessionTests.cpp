@@ -257,7 +257,9 @@ public:
     static constexpr Word  kRow2            = 0x0500;
     static constexpr Word  kRow3            = 0x0580;
     static constexpr Word  kRow4            = 0x0600;
+    static constexpr Word  kRow0            = 0x0400;
     static constexpr Word  kRow1            = 0x0480;
+    static constexpr Word  kRowBar2         = 0x05A8;
     static constexpr Word  kRowDrive1       = 0x0780;
     static constexpr Word  kRowError        = 0x06A8;
     static constexpr Word  kRowHistoryTitle = 0x0728;
@@ -386,7 +388,8 @@ public:
         //  The host's Idle once the operation is over clears the label.
         rig.machine.RunCycles (kFrame * 30);
 
-        Assert::AreEqual (std::string ("SERIAL PORT 2, 115200: CONNECTED"), rig.Row (kRow1));
+        Assert::AreEqual (std::string ("CASSOLINK: CONNECTED"),  rig.Row (kRow0));
+        Assert::AreEqual (std::string ("SERIAL PORT 2, 115200"), rig.Row (kRow1));
         Assert::AreEqual (std::string(),                                 rig.Row (kRow4), L"no label after the operation");
         Assert::AreEqual (std::string(),                                 rig.Row (kRowError), L"no error row yet");
         Assert::AreEqual (std::string ("D1: IDLE"),                      rig.Row (kRowDrive1));
@@ -567,7 +570,18 @@ public:
         Rig  rig (true, 115200);
 
         AssertSucceeded (rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
-        Assert::IsTrue (rig.Row (kRow1).ends_with (": CONNECTED"));
+        Assert::AreEqual (std::string ("CASSOLINK: CONNECTED"), rig.Row (kRow0));
+    }
+
+
+
+    //  The bar has a cell for each track, so a listing's reads don't fill it.
+    TEST_METHOD (AListing_LeavesTheDrivesBarEmpty)
+    {
+        Rig  rig (true, 115200);
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
+        Assert::AreEqual (std::string (""), rig.Row (kRowBar2));
     }
 
 

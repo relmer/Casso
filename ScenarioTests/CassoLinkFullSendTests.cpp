@@ -410,6 +410,9 @@ public:
 
         Assert::AreEqual<int> ('A' | 0x80, rig.machine.GetCpu()->ReadByte (0x0400), L"column 1 of CASSOLINK");
         Assert::AreEqual<int> ('S' | 0x80, rig.machine.GetCpu()->ReadByte (0x0401), L"column 3");
+        Assert::AreEqual<int> ('N' | 0x80, rig.machine.GetCpu()->ReadByte (0x0406), L"column 13, in CONNECTED");
+        Assert::AreEqual<int> ('2' | 0x80, rig.machine.GetCpu()->ReadByte (0x0426), L"column 77, in the connection at the right edge");
+        Assert::AreEqual<int> ('0' | 0x80, rig.machine.GetCpu()->ReadByte (0x0427), L"column 79, the speed's last digit");
 
         rig.send = rig.session->FullSend ("C:\\Box", "", "");
         rig.machine.RunCycles (kCyclesPerS);
@@ -531,7 +534,7 @@ public:
         Assert::AreEqual (std::string ("duplicate"), rows[1].status);
         Assert::AreEqual (rows[0].file, rows[1].duplicateOf);
         Assert::IsTrue (rows[1].file.empty());
-        Assert::AreEqual (std::string ("possibly-protected"), rows[2].status);
+        Assert::AreEqual (std::string ("likely-damaged"), rows[2].status);
         Assert::AreEqual (1, rows[2].unreadable);
 
         //  The two images, the manifest and the unreadable list, and no duplicate.

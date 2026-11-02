@@ -218,8 +218,9 @@ public:
     static constexpr double  kCpuCyclesPerMs = 1020.484;
 
     //  The part of the user's operation the requests that follow cover, as
-    //  percentages of the whole, for the program's status row; 0 and 100
-    //  until set.
+    //  percentages of the whole, for the bar on the program's status row; 0 and
+    //  0, which leave the bar as it is, until set. Only a whole-disk transfer
+    //  sets them, as the bar has a cell for each track.
     void     SetProgress  (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
 
     //  The client acknowledges at the old speed and then switches; the
@@ -342,7 +343,7 @@ private:
     bool                            m_awaitingKey     = false;
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
     Byte                            m_progressStart   = 0;
-    Byte                            m_progressEnd     = 100;
+    Byte                            m_progressEnd     = 0;
 
     //  The host's parts, each with the state it uses.
     friend class           CassoLinkAdtProServer;

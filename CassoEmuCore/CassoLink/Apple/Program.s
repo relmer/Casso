@@ -2698,8 +2698,8 @@ dlinner: dey
 ; The status screen
 ; ---------------------------------------------------------------------------
 
-ROW0 = $0400                    ; the title
-ROW1 = $0480                    ; the connection and the PC
+ROW0 = $0400                    ; the title and the PC, and in 80 columns the connection
+ROW1 = $0480                    ; the connection in 40 columns
 ROW2 = $0500                    ; where the link goes
 ROWLB = $0600                   ; row 4: the label of the user's operation
 ROWD1 = $0780                   ; row 7: drive 1, its bar and its map
@@ -2751,15 +2751,7 @@ dsaux:  sta $0400,y
         iny
         bne dsaux
         sta PAGE2OFF
-dsmain: lda #<ROW0
-        sta scr
-        lda #>ROW0
-        sta scr+1
-        lda #<titletxt
-        sta ptr
-        lda #>titletxt
-        sta ptr+1
-        jsr puttext
+dsmain:
 dsdone: jsr fschrome
         jsr showaddr
         jsr showconn
@@ -2924,16 +2916,42 @@ pdu:    lda tmp2
         ora #'0'
         jmp putch
 
-; showconn: the port and the speed the 6551 is set to: a //c's port, or a
-; card's slot, and the PC after them.
-showconn: jsr conndraw
-        sty pccol
-        jmp showpc
-
-conndraw: ldx #<ROW1
+; showconn: the title and the PC on the top row, and the port and the speed the
+; 6551 is set to: a //c's port, or a card's slot. They are at the top row's right
+; edge in 80 columns, and on the row below in 40, where both don't fit.
+showconn: ldx #<ROW0
+        lda #>ROW0
+        jsr fullrow
+        ldx #<ROW1
         lda #>ROW1
         jsr fullrow
-        lda #<conntext
+        lda rowwidth
+        sta pcend
+        bit wide
+        bmi scwide
+        jsr conndraw
+        jmp showpc
+scwide: pha                     ; with a row width of 0 nothing is drawn, and Y
+        lda #0                  ; ends at the connection's length
+        sta rowwidth
+        ldy #0
+        jsr conndraw
+        sty pcend
+        pla
+        sta rowwidth
+        sec
+        sbc pcend
+        sta pcend
+        tay
+        lda #<ROW0
+        sta scr
+        lda #>ROW0
+        sta scr+1
+        jsr conndraw
+        jmp showpc
+
+; conndraw: the connection into the row at scr from Y.
+conndraw: lda #<conntext
         sta ptr
         lda #>conntext
         sta ptr+1
@@ -3117,7 +3135,7 @@ sacaps: jsr putch
 sadone: rts
         endif
 
-pccol:  .byte 0                  ; the column after the connection
+pcend:  .byte 0                  ; the top row's column where the PC's blanks end
         ifdef W5100
 sacount: .byte 0                ; showaddr: the address's bytes drawn
 addrlabel: .text "ADDRESS"
@@ -3421,14 +3439,18 @@ fraux:  sta (scr),y
 frdone: ldy #0
         rts
 
-; showpc: the PC: waiting for its first reply, connected, or how long since
-; its last reply.
-showpc: lda #<ROW1
+; showpc: the title and the PC: waiting for its first reply, connected, or how
+; long since its last reply.
+showpc: lda #<ROW0
         sta scr
-        lda #>ROW1
+        lda #>ROW0
         sta scr+1
-        jsr spblank
-        ldy pccol
+        ldy #0
+        lda #<titletxt
+        sta ptr
+        lda #>titletxt
+        sta ptr+1
+        jsr puttext
         lda #$3A
         jsr putch
         lda #' '
@@ -3445,14 +3467,14 @@ showpc: lda #<ROW1
         sta ptr
         lda #>pcwait
         sta ptr+1
-sptext: jmp puttext
-; spblank: the row at scr blank from the connection's end.
-spblank: ldy pccol
-spclear: lda #' '
+sptext: jsr puttext
+; spblank: the row at scr blank from Y to pcend.
+spblank: cpy pcend
+        bcs spdone
+        lda #' '
         jsr putch
-        cpy rowwidth
-        bcc spclear
-        rts
+        jmp spblank
+spdone: rts
 
 spquiet: lda #<pcnone
         sta ptr
@@ -3462,14 +3484,21 @@ spquiet: lda #<pcnone
         lda silent
         jsr putdec
         lda #'S'
-        jmp putch
+        jsr putch
+        jmp spblank
 
 ; pcok: a reply arrived. The line is drawn again only when it changes, as a
 ; command's reply follows. A first reply, or one after a silence, is a new
-; connection, which starts with no error.
+; connection, which starts with no error. A first reply also starts with empty
+; bars, as the last PC's percentages no longer apply.
 pcok:   lda pcflag
-        beq pcnew
-        lda silent
+        bne pcback
+        lda #0
+        sta barpct
+        sta barpct+1
+        jsr stplain
+        jmp pcnew
+pcback: lda silent
         beq pcsame
 pcnew:  lda #1
         sta pcflag

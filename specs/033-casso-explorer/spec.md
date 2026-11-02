@@ -537,6 +537,7 @@ hardware.
 - Q: Which disk does the stock Apple Pascal download fetch? -> A: Apple Pascal 1.3's APPLE1:, part 680-0283-A. APPLE0: has no SYSTEM.APPLE, and APPLE1: boots. A disk made from it boots to the Pascal command line in the emulator, and the real Filer's Extended list sets the listing's format.
 - Q: Do other CP/M disks have 48 directory entries too? -> A: Yes. The disk parameter blocks on the stock CP/AM 5.1 and CP/M 2.23 disks both specify 48 entries. CP/AM has 140 blocks and CP/M 2.23 has 128.
 - Q: How would krunch work over the link? -> A: The Apple-side program runs the moves and rewrites the directory after each file, so a link failure doesn't stop it partway. A power failure can damage the file being moved. The listing's `unused` and `in largest` totals already report how fragmented free space is, so no analysis command is added.
+- Q: What is on the top row of the Apple's screen, and what moves a drive's bar? -> A: The top row is CASSOLINK: and the PC's state. In 80 columns the port and speed are at its right edge, and in 40 columns they are on the row below, where both don't fit. Only a whole-disk transfer moves a bar, as the bar has a cell for each track, and a new connection starts with empty bars.
 
 ## User Scenarios & Testing *(mandatory)*
 

@@ -52,6 +52,7 @@ public:
     static constexpr DWORD     kWaitMs      = 120'000;
     static constexpr DWORD     kRetryMs     = 500;
     static constexpr Word      kRow2        = 0x0500;
+    static constexpr Word      kRow0        = 0x0400;
     static constexpr Word      kRow1        = 0x0480;
     static constexpr Word      kRow4        = 0x0600;
     static constexpr int       kField       = 12;
@@ -240,7 +241,8 @@ public:
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the network");
             Assert::AreEqual (catalog.entries[0].name, list->listing.entries[0].name);
             Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (rig.machine.GetCpu()->ReadByte (0x0803) | (rig.machine.GetCpu()->ReadByte (0x0804) << 8)), L"the program was loaded");
-            Assert::AreEqual (std::string ("UTHERNET II, SLOT 3, 26502: CONNECTED"), rig.Row (kRow1));
+            Assert::AreEqual (std::string ("CASSOLINK: CONNECTED"),  rig.Row (kRow0));
+            Assert::AreEqual (std::string ("UTHERNET II, SLOT 3, 26502"), rig.Row (kRow1));
             Assert::AreEqual (std::format ("ADDRESS:    127.0.0.1:{}", kPort), rig.Row (kRow2));
 
             AssertSucceeded (Dos33Volume (dos).Write (FilePath::Parse ("FROMPC"), payload, written));

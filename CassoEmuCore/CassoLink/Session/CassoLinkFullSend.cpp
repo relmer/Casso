@@ -61,7 +61,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 
     if (!CassoLinkSession::IsLineLost (hr))
     {
-        m_session.m_host->SetProgress (0, 100);
+        m_session.m_host->SetProgress (0, 0);
 
         cleared = m_session.m_host->SendSessionScreen (false, (Byte) FullSendTone::None, {});
         IGNORE_RETURN_VALUE (cleared, S_OK);

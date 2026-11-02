@@ -303,7 +303,7 @@ public:
         rows = TextScreenScraper::Scrape (rig.machine);
 
         Assert::AreEqual (std::string::npos, rows[4].find_first_not_of (' '), L"the label row is blank");
-        Assert::AreNotEqual (std::string::npos, rows[1].find ("WAITING"), L"the PC is waited for");
+        Assert::AreNotEqual (std::string::npos, rows[0].find ("WAITING"), L"the PC is waited for");
     }
 
 
@@ -525,6 +525,7 @@ public:
         std::string  reading;
 
         rig.Connect();
+        rig.host->SetProgress (0, 100);
         rig.screens.clear();
         rig.Read (1, 17, AllSectors());
 
@@ -538,7 +539,8 @@ public:
         }
 
         Assert::IsFalse (reading.empty(), L"the screen reported the read halfway through");
-        Assert::IsTrue (reading.find ("SERIAL PORT 2, 115200: CONNECTED") != std::string::npos, L"the connection");
+        Assert::IsTrue (reading.find ("CASSOLINK: CONNECTED") != std::string::npos, L"the PC");
+        Assert::IsTrue (reading.find ("SERIAL PORT 2, 115200") != std::string::npos, L"the connection");
     }
 
 
@@ -553,6 +555,7 @@ public:
         HRESULT            hr       = S_OK;
 
         rig.Connect();
+        rig.host->SetProgress (0, 100);
 
         hr = rig.Run ([&] () { return rig.host->ReadSectors (1, 17, AllSectors(), data, status); },
                       [&] ()
@@ -608,6 +611,7 @@ public:
         bool               paused = false;
 
         rig.Connect();
+        rig.host->SetProgress (0, 100);
 
         Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->ReadSectors (1, 0, AllSectors(), data, status); },
                                          [&] ()

@@ -1039,7 +1039,7 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
             break;
     }
 
-    m_host->SetProgress (0, 100);
+    m_host->SetProgress (0, 0);
     CHR (hr);
 
 Error:
