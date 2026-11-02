@@ -160,7 +160,9 @@ from the current mode's commands, and pressing it again steps through the
 other matches; Shift+Tab steps back. The newest earlier line that starts with
 what is typed shows in gray, and Right arrow at the end of the line takes it.
 F8 steps back through the earlier lines that start with what is typed, and F7
-lists the earlier lines to pick from.
+lists the earlier lines to pick from, above the command line with the newest
+at the bottom. A line too long for the list ends in an ellipsis and is drawn
+whole while it is highlighted.
 
 Every command that changes breakpoints, watches, memory, registers, flags,
 symbols, disks or settings prints one line saying what changed, such as

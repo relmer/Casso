@@ -845,6 +845,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                 SetPaneTabMark         (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) override;
     void                 UpdateWindowMenus      () override { SetWindowMenus(); }
     void                 ShowPopupMenu          (const PaneMenuItems & items, POINT clientPx) override;
+    void                 ShowListAbove          (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) override;
     void                 MarkPaneTab            (const std::wstring & pane) override;
     DxuiToolbar::Entry   GetFindEntry           (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                 SaveOpenViews          () override { KeepOpenViews(); }

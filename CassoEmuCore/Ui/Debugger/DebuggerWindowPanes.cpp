@@ -887,6 +887,34 @@ void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ShowListAbove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look)
+{
+    std::vector<DxuiPopupMenuItem>  menu;
+
+
+
+    m_menuCommands.clear();
+    SetWindowMenus();
+
+    for (const auto & [label, action] : items)
+    {
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::ShowAboveAtWidth (*GetMenuHost(), anchorPx, std::move (menu), look);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::MarkPaneTab
 //
 ////////////////////////////////////////////////////////////////////////////////

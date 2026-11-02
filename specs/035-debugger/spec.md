@@ -1869,7 +1869,11 @@ run something, switch back to the //e: it is where it was left.
   newest earlier line starting with the typed text MUST appear in gray, and
   Right arrow at the end of the line MUST accept it; F8 MUST step back through
   earlier lines starting with the typed text; F7 MUST open a list of earlier
-  lines to pick from.
+  lines to pick from, directly above the command line at the console's width,
+  in the console's face and row height, about ten rows tall with a scroll
+  bar, with the newest line nearest the command line. A line too long for
+  the list MUST be cut off with an ellipsis and drawn whole over its row
+  while it is highlighted.
 - **FR-132**: A Monitor-mode slot command (`n` Ctrl+P, `n` Ctrl+K) whose slot
   is out of range MUST keep the ROM's behavior and print one line saying
   which slot was used, such as "Slot 10 is out of range; the ROM uses slot

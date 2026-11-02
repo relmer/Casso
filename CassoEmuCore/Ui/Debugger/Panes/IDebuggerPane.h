@@ -238,6 +238,10 @@ public:
     //  new output while the pane is out of sight.
     virtual void                   UpdateWindowMenus () = 0;
     virtual void                   ShowPopupMenu    (const PaneMenuItems & items, POINT clientPx) = 0;
+
+    //  A list of rows over a control, at exactly its width, rising from its
+    //  top edge in the look given.
+    virtual void                   ShowListAbove    (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) = 0;
     virtual void                   MarkPaneTab      (const std::wstring & pane) = 0;
 
     //  The Find entry for a pane's toolbar, which opens the pane's find

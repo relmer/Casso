@@ -36,7 +36,22 @@ public:
     //  a field is.
     static void  ShowUnderMatchingWidth (DxuiHwndSource & host, const RECT & anchor, std::vector<DxuiPopupMenuItem> items, DxuiPopupMenu::ClosedFn onClosed = nullptr);
 
+    //  How a list differs from a menu: its face, its row metrics, and the
+    //  tallest it may be.
+    struct ListLook
+    {
+        const wchar_t    * face        = nullptr;
+        DxuiMenuMetrics    metrics;
+        int                maxHeightPx = 0;
+    };
+
+    //  Over the anchor at exactly its width, rising from its top edge with
+    //  the last row nearest it, as a command line's history list is.
+    static void  ShowAboveAtWidth (DxuiHwndSource & host, const RECT & anchor, std::vector<DxuiPopupMenuItem> items, const ListLook & look);
+
 private:
+    static void  ClearListLook (DxuiPopupMenu & menu);
+
     //  Both of the above: the width floor is set on every show, since the
     //  menu is shared and one caller's width would otherwise carry into the
     //  next.

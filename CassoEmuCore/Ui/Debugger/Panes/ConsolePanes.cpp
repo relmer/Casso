@@ -489,28 +489,39 @@ void CommandLine::RefreshGhost()
 //
 //  CommandLine::ShowHistoryList
 //
-//  The earlier lines, newest first, in a menu over the command line; picking
-//  one puts it in the box to edit or run.
+//  The earlier lines in a list rising from the command line at the console's
+//  width, in the console's face and row height, with the newest nearest the
+//  box. Picking one puts it in the box to edit or run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLine::ShowHistoryList()
 {
-    static constexpr size_t           s_kMaxRows = 30;
-    const std::vector<std::wstring> & lines      = m_history.GetLines();
+    static constexpr size_t           s_kMaxRows   = 200;
+    static constexpr int              s_kShownRows = 10;
+    const std::vector<std::wstring> & lines        = m_history.GetLines();
+    const DxuiTheme                 * theme        = m_host.GetTheme();
+    const DxuiDpiScaler             & scaler       = m_host.GetPaneScaler();
+    DxuiTextView                    * view         = m_output.GetView();
     PaneMenuItems                     items;
-    RECT                              box        = m_box->GetBounds();
+    RECT                              box          = m_box->GetBounds();
+    RECT                              pane         = view->GetBounds();
+    DxuiContextMenu::ListLook         look;
+    DxuiFontHandle                    font;
+    size_t                            first        = 0;
 
 
 
-    if (lines.empty())
+    if (lines.empty() || theme == nullptr)
     {
         return;
     }
 
-    for (auto it = lines.rbegin(); it != lines.rend() && items.size() < s_kMaxRows; ++it)
+    first = (lines.size() > s_kMaxRows) ? lines.size() - s_kMaxRows : 0;
+
+    for (size_t i = first; i < lines.size(); i++)
     {
-        std::wstring  line = *it;
+        std::wstring  line = lines[i];
 
         items.push_back ({ line, [this, line]
         {
@@ -522,7 +533,23 @@ void CommandLine::ShowHistoryList()
         } });
     }
 
-    m_host.ShowPopupMenu (items, POINT { box.left, box.top });
+    font                      = theme->MonospaceFont();
+    look.face                 = font.face;
+    look.metrics              = DxuiMenuMetrics::FromSystem (scaler.GetDpi());
+    look.metrics.fontPx       = scaler.ToPxf (font.sizeDip * view->GetZoom());
+    look.metrics.minWidthPx   = 0;
+
+    //  Before the console is painted, its rows have no height yet, so the
+    //  menu's row height is used.
+    if (view->GetCellHeightPx() > 0)
+    {
+        look.metrics.rowHeightPx  = view->GetCellHeightPx();
+        look.metrics.lineHeightPx = view->GetCellHeightPx() - 2 * view->GetTextTopPx();
+    }
+
+    look.maxHeightPx = look.metrics.rowHeightPx * s_kShownRows;
+
+    m_host.ShowListAbove (items, RECT { pane.left, box.top, pane.right, box.bottom }, look);
 }
 
 

@@ -41,6 +41,7 @@ void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<Dxu
 
     //  The menu is shared, so a width floor a drop-down set is cleared.
     menu.SetMinWidthPx (0);
+    ClearListLook      (menu);
     menu.ShowAt        (x, y, std::move (items), *text, client);
 
 Error:
@@ -108,8 +109,72 @@ void DxuiContextMenu::ShowBelow (DxuiHwndSource & host, const RECT & anchor, std
     menu.SetDpi        (host.GetScaler().GetDpi());
     menu.SetOnClosed   (std::move (onClosed));
     menu.SetMinWidthPx (minWidthPx);
+    ClearListLook      (menu);
     menu.ShowUnder     (anchor, std::move (items), *text, client);
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiContextMenu::ShowAboveAtWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiContextMenu::ShowAboveAtWidth (DxuiHwndSource & host, const RECT & anchor, std::vector<DxuiPopupMenuItem> items, const ListLook & look)
+{
+    HRESULT              hr        = S_OK;
+    HWND                 hwnd      = host.GetHwnd();
+    IDxuiTextRenderer  * text      = host.GetTextRenderer();
+    DxuiPopupMenu      & menu      = host.GetContextMenu();
+    RECT                 client    = {};
+    BOOL                 gotClient = FALSE;
+    int                  width     = anchor.right - anchor.left;
+
+
+
+    BAIL_OUT_IF (hwnd == nullptr || text == nullptr, S_OK);
+
+    gotClient = GetClientRect (hwnd, &client);
+    CWRA (gotClient);
+
+    menu.SetPopupHost   (&host);
+    menu.SetTheme       (host.GetTheme());
+    menu.SetDpi         (host.GetScaler().GetDpi());
+    menu.SetOnClosed    (nullptr);
+    menu.SetMinWidthPx  (width);
+    menu.SetMaxWidthPx  (width);
+    menu.SetMaxHeightPx (look.maxHeightPx);
+    menu.SetFace        (look.face);
+    menu.SetMetrics     (look.metrics);
+    menu.ShowAbove      (anchor, std::move (items), *text, client);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiContextMenu::ClearListLook
+//
+//  The menu is shared, so the face, metrics and limits a list set are put
+//  back for the next menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiContextMenu::ClearListLook (DxuiPopupMenu & menu)
+{
+    menu.SetMaxWidthPx  (0);
+    menu.SetMaxHeightPx (0);
+    menu.SetFace        (nullptr);
+    menu.ClearMetrics();
 }

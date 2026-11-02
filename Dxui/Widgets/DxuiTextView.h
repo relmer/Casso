@@ -126,6 +126,11 @@ public:
     //  below the text. 1 by default; ignored while the cell size is pinned.
     void   SetLineSpacing  (float spacing);
 
+    //  A line's height and the space above its text, in pixels, once the
+    //  view has been painted; zero before.
+    int    GetCellHeightPx () const               { return m_cellHeightPx; }
+    int    GetTextTopPx    () const               { return m_textTopPx; }
+
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
     int   GetTopLine   () const { return m_topLine; }
