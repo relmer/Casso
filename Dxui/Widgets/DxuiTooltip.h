@@ -33,9 +33,8 @@ class DxuiTooltip : public IDxuiControl
 public:
     ~DxuiTooltip() override = default;
 
-    // How long a hover tip stays up before dismissing itself. Matches the
-    // OS default: long enough to read two lines, short enough that a parked
-    // pointer does not leave a panel sitting over the control it describes.
+    // How long a tip with a lifetime stays up before dismissing itself.
+    // Matches the OS default: long enough to read two lines.
     static constexpr int  kMaxVisibleMs = 5000;
 
     // A long tip stays up long enough to read: the system's tip lifetime, or
@@ -75,6 +74,16 @@ public:
     //  Replaces LocatePointer, so a test can put the pointer anywhere.
     void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
 
+    //  Whether a window of this process is in the foreground, as the last
+    //  WM_ACTIVATEAPP to a DxuiHwndSource indicated.
+    using ActiveTest = bool (*) ();
+
+    static bool  IsAppActive  ()              { return s_isAppActive; }
+    static void  SetAppActive (bool isActive) { s_isAppActive = isActive; }
+
+    //  Replaces IsAppActive for a test.
+    void  SetActiveTest      (ActiveTest test)          { m_pfnIsActive = test; }
+
     //  The rect the tip is placed against: the anchor, or for a tip that
     //  follows the pointer, the anchor grown to clear the pointer's image.
     RECT  GetPlacementAnchor () const;
@@ -91,6 +100,11 @@ public:
     //  A fixed-width face, for a tip of code or bytes. A tip whose columns
     //  are separated by tabs lines them up in either face (TableLayout).
     void  SetMonospace    (bool mono) { m_monospace = mono; }
+
+    //  Whether a hover tip is hidden after a set time. Off by default, so a tip
+    //  is up until the pointer is out of its area or another app is in the
+    //  foreground.
+    void  SetHasLifetime  (bool hasLifetime) { m_hasLifetime = hasLifetime; }
 
     //  A tip with a tab in its text is a table: the tab-separated parts of
     //  each line start at the same columns, one em apart at the widest, so
@@ -237,9 +251,11 @@ private:
     static constexpr int    kPointerGapDip     = 4;
     static constexpr float  kGradientGapDip    = 6.0f;
     static constexpr float  kGradientHeightDip = 10.0f;
-    static constexpr float  kGradientArrowDip  = 6.0f;
-    static constexpr float  kGradientWidthDip  = 200.0f;
-    static constexpr int    kGradientSlices    = 64;
+
+    static inline bool      s_isAppActive     = true;
+    static constexpr float  kGradientArrowDip = 6.0f;
+    static constexpr float  kGradientWidthDip = 200.0f;
+    static constexpr int    kGradientSlices   = 64;
 
     float  GetGradientExtraPx () const;
     void   DrawGradient       (IDxuiPainter & painter, float left, float width, float bottom) const;
@@ -257,6 +273,9 @@ private:
 
     //  The pointer's image, read once as a tip comes up.
     void  MeasurePointerForPlacement ();
+
+    //  A hover tip's hide time: zero, for none, unless it has a lifetime.
+    int64_t  GetHoverHideAtMs (int64_t nowMs) const;
 
     //  The balloon's size for the current text, the anchor in screen
     //  pixels, and the balloon that is up moved to the anchor in place.
@@ -321,6 +340,8 @@ private:
     DxuiPopupHost          * m_activePopup       = nullptr;
     PointerMeasurer          m_pfnMeasurePointer = MeasurePointerExtent;
     PointerLocator           m_pfnLocatePointer  = LocatePointer;
+    ActiveTest               m_pfnIsActive       = IsAppActive;
+    bool                     m_hasLifetime       = false;
     PointerExtent            m_pointerExtent     = {};
     bool                     m_hasPointerExtent  = false;
     int                      m_showCount         = 0;

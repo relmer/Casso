@@ -107,14 +107,55 @@ public:
     }
 
     //
-    //  A tip left alone dismisses itself. Without this a pointer parked on a
-    //  control -- or captured by the guest, which parks it by force -- left
-    //  the balloon on screen for the rest of the session.
+    //  A hover tip has no lifetime: a consumer that requests it on every frame
+    //  closed it at the deadline and raised it again a dwell later, with the
+    //  pointer at rest.
+    //
+    TEST_METHOD (Visible_HoverTipStaysUpWhileThePointerRests)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (100);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (100);
+
+        for (int64_t now = 110; now < 100 + DxuiTooltip::kMaxReadMs * 2; now += 1000)
+        {
+            t.RequestShow (MakeRect (0, 0, 50, 20), L"x", now);
+            t.Tick (now);
+            Assert::IsTrue (t.IsVisible(), L"A hover tip must stay up while the pointer rests on its area.");
+        }
+    }
+
+    //
+    //  A hover tip is hidden once another app is in the foreground, since no
+    //  pointer message dismisses it then.
+    //
+    TEST_METHOD (Visible_HoverTipHidesWhenTheAppIsInactive)
+    {
+        static bool  s_isActive = true;
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (100);
+        t.SetActiveTest ([] () { return s_isActive; });
+
+        s_isActive = true;
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (100);
+        Assert::IsTrue (t.IsVisible());
+
+        s_isActive = false;
+        t.Tick (200);
+        Assert::IsFalse (t.IsVisible(), L"A hover tip must hide when another app is in the foreground.");
+    }
+
+    //
+    //  A tip with a lifetime dismisses itself.
     //
     TEST_METHOD (Visible_DismissesAfterMaxLifetime)
     {
         DxuiTooltip  t;
         t.SetDwellOpenMs (100);
+        t.SetHasLifetime (true);
 
         t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
         t.Tick (100);
@@ -138,6 +179,7 @@ public:
     {
         DxuiTooltip  t;
         t.SetDwellOpenMs (100);
+        t.SetHasLifetime (true);
 
         t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
         t.Tick (100);

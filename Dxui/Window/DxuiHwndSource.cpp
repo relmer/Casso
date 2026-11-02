@@ -4,6 +4,7 @@
 #include "DxuiCaptionBar.h"
 #include "DxuiPopupHost.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiTooltip.h"
 #include "Core/DxuiSystemSettings.h"
 #include "DxuiSystemButton.h"
 #include "IDxuiHostClient.h"
@@ -3244,7 +3245,13 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_XBUTTONUP:     isHandled = IsClaimed (m_client->OnXButtonUp   (wp, lp), RepaintOnClaim::No); break;
         case WM_MOUSEMOVE:     isHandled = IsClaimed (m_client->OnMouseMove   (wp, lp), RepaintOnClaim::No); break;
         case WM_MOUSELEAVE:    isHandled = IsClaimed (m_client->OnMouseLeave(),   RepaintOnClaim::No); break;
-        case WM_ACTIVATEAPP:   isHandled = IsClaimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No); break;
+        case WM_ACTIVATEAPP:
+            //  A hover tip is hidden on the next tick once another app is in
+            //  the foreground, since pointer messages stop arriving then.
+            DxuiTooltip::SetAppActive (wp != 0);
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+            isHandled = IsClaimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No);
+            break;
         case WM_SETFOCUS:      isHandled = IsClaimed (m_client->OnSetFocus(),     RepaintOnClaim::No); break;
         case WM_KILLFOCUS:     isHandled = IsClaimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
         case WM_CANCELMODE:    isHandled = IsClaimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;

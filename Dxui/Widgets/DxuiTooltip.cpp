@@ -399,6 +399,23 @@ bool DxuiTooltip::LocatePointer (HWND owner, POINT & outClientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetHoverHideAtMs
+//
+//  Zero, for no hide time, unless SetHasLifetime turned the lifetime on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiTooltip::GetHoverHideAtMs (int64_t nowMs) const
+{
+    return m_hasLifetime ? nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs()) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetSystemVisibleMs
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -476,7 +493,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
             bool  isNewLook = isNewText || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
                               m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark;
 
-            m_hideAtMs          = isNewText ? nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs()) : m_hideAtMs;
+            m_hideAtMs          = isNewText ? GetHoverHideAtMs (nowMs) : m_hideAtMs;
             m_shownLineArgbs    = m_lineArgbs;
             m_shownLineSwatches = m_lineSwatches;
             m_shownGradient     = m_gradient;
@@ -488,7 +505,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
         if (changed && m_popupHost != nullptr)
         {
-            m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+            m_hideAtMs = GetHoverHideAtMs (nowMs);
 
             MeasurePointerForPlacement();
             ReleaseActivePopup();
@@ -569,7 +586,7 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
 
     if (!isUp || isNew)
     {
-        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+        m_hideAtMs = GetHoverHideAtMs (nowMs);
     }
 
     if (isMoved)
@@ -654,6 +671,15 @@ void DxuiTooltip::RequestHide (int64_t nowMs)
 
 void DxuiTooltip::Tick (int64_t nowMs)
 {
+    //  A hover tip is hidden when another app is in the foreground, since the
+    //  app's windows don't get the pointer messages that dismiss it. A timed notice
+    //  ends at its set time.
+    if (m_isPointerTip && (m_pending || m_visible) && m_pfnIsActive != nullptr && !m_pfnIsActive())
+    {
+        m_pending = false;
+        FinishHide();
+    }
+
     if (m_pending && nowMs >= m_showAtMs)
     {
         m_anchor       = m_pendingAnchor;
@@ -664,13 +690,13 @@ void DxuiTooltip::Tick (int64_t nowMs)
 
         MeasurePointerForPlacement();
 
-        // A TOOLTIP HAS A LIFETIME. A hover tip used to set no hide time at
-        // all, so it stayed up for as long as the pointer rested -- and a
-        // pointer that has been captured, or simply parked, rests forever.
-        // The OS dismisses its own after a few seconds for the same reason:
-        // the tip has been read by then, and what is left is an obstruction
-        // sitting over the thing it was explaining.
-        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+        // A hover tip has no hide time unless SetHasLifetime turned that on.
+        // With one, a consumer that requests the tip again on every frame
+        // closed it at the deadline and opened it again a dwell later, with
+        // the pointer at rest. A caller that captures the pointer calls
+        // HideImmediate as the capture starts, since no later move dismisses
+        // the tip.
+        m_hideAtMs = GetHoverHideAtMs (nowMs);
 
         ShowPopup();
 
