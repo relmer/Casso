@@ -76,10 +76,11 @@ public:
     void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
 
     //  Whether a window of this process is in the foreground, as the last
-    //  WM_ACTIVATEAPP to a DxuiHwndSource indicated.
+    //  WM_ACTIVATEAPP to a DxuiHwndSource indicated or the foreground window
+    //  is one of this process's.
     using ActiveTest = bool (*) ();
 
-    static bool  IsAppActive  ()              { return s_isAppActive; }
+    static bool  IsAppActive  ();
     static void  SetAppActive (bool isActive) { s_isAppActive = isActive; }
 
     //  Replaces IsAppActive for a test.

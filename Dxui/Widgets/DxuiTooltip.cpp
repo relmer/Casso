@@ -707,6 +707,35 @@ void DxuiTooltip::RequestHide (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsAppActive
+//
+//  A WM_ACTIVATEAPP can be missed, which left every tip hidden while the
+//  app was in front, so a foreground window of this process counts too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTooltip::IsAppActive()
+{
+    HWND   foreground = GetForegroundWindow();
+    DWORD  processId  = 0;
+
+
+
+    if (s_isAppActive || foreground == nullptr)
+    {
+        return s_isAppActive;
+    }
+
+    GetWindowThreadProcessId (foreground, &processId);
+    return processId == GetCurrentProcessId();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Tick
 //
 ////////////////////////////////////////////////////////////////////////////////
