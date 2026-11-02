@@ -104,7 +104,8 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
 //
 //  SourcePane::AddHeatStrips
 //
-//  A line that produced no code gets spaces in the strip's place.
+//  A line that produced no code, or whose bytes nothing touched, gets spaces
+//  in the strip's place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +134,7 @@ void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileI
             strip = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false);
         }
 
-        prefix = strip.text + std::wstring (HeatStrip::kMaxBlocks + 1 - strip.text.size(), L' ');
+        prefix = std::wstring (HeatStrip::kMaxBlocks + 1, L' ');
 
         for (DxuiTextView::Span & span : row.spans)
         {
@@ -143,9 +144,11 @@ void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileI
             }
         }
 
-        for (const auto & [start, end, argb] : strip.colors)
+        //  One fill of the hottest byte's color, the same width on every
+        //  line, as the disassembly and the BASIC program draw a heat cell.
+        if (strip.hottest != 0)
         {
-            row.spans.push_back ({ kNumberCell, start, end - start, 0, argb });
+            row.spans.push_back ({ kNumberCell, 0, (int) HeatStrip::kMaxBlocks, 0, strip.hottest });
         }
 
         row.cells[kNumberCell] = prefix + row.cells[kNumberCell];

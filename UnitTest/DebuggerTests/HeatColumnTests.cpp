@@ -109,9 +109,9 @@ namespace DebuggerTests
 
 
 
-        //  A source line's number has the strip of the first range it
-        //  produced ahead of it, and a line with no code spaces, so the
-        //  numbers stay in a column.
+        //  A source line's number has a fill of its bytes' hottest color ahead
+        //  of it, and a line with no code spaces, so the numbers stay in a
+        //  column.
         TEST_METHOD (ASourceLinesNumberHasItsBytesStripAheadOfIt)
         {
             DebuggerViewSnapshot::HeatColumnLevels                levels = MakeLevels();
@@ -127,7 +127,13 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring (L"     1"), rows[0].cells[1]);
             Assert::AreEqual (std::wstring (L"     2"), rows[1].cells[1]);
-            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.cell == 1 && span.start == 1 && span.background == kReadTop; }));
+            uint32_t  hottest = HeatStrip::Get (levels, 0x0300, 2, MakePalette(), false).hottest;
+
+            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [hottest] (const DxuiTextView::Span & span)
+            {
+                return span.cell == 1 && span.start == 0 && span.length == (int) HeatStrip::kMaxBlocks && span.background == hottest;
+            }), L"one fill of the hottest byte's color, the same width on every line");
+            Assert::IsFalse  (std::ranges::any_of (rows[1].spans, [] (const DxuiTextView::Span & span) { return span.background != 0; }), L"a line with no code has no fill");
         }
 
 
