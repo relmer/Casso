@@ -95,11 +95,13 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    static constexpr int  kNoteHeightDip     = 60;
-    static constexpr int  kBrowseWidthDip    = 100;
-    static constexpr int  kLabelHeightDip    = 24;
-    static constexpr int  kOptionHeightDip   = 26;
-    static constexpr int  kCommonFormatCount = 3;
+    static constexpr int  kNoteHeightDip         = 60;
+    static constexpr int  kBrowseWidthDip        = 100;
+    static constexpr int  kLabelHeightDip        = 24;
+    static constexpr int  kOptionLabelHeightDip  = 20;
+    static constexpr int  kOptionDescHeightDip   = 18;
+    static constexpr int  kOptionGapDip          = 4;
+    static constexpr int  kCommonFormatCount     = 3;
 
 private:
     DxuiLabel       * m_note           = nullptr;

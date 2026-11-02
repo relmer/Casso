@@ -11,7 +11,7 @@
 
 
 static constexpr int  s_kSheetWidthDip  = 720;   // Casso's own Settings sheet's width, which the Display page is laid out for
-static constexpr int  s_kSheetHeightDip = 640;
+static constexpr int  s_kSheetHeightDip = 700;
 static constexpr int  s_kSheetMinHeight = 320;
 
 
@@ -21,20 +21,29 @@ static constexpr int  s_kSheetMinHeight = 320;
 struct FullSendFormat
 {
     const wchar_t  * label;
+    const wchar_t  * car;
     const char     * extension;
 };
 
 //  The common types first, then the rest under a heading. The first
 //  CassoExplorerFullSendPage::kCommonFormatCount entries are the common ones.
+//  Each type's second line is the car it would be.
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
-    { L"Automatic: .po for ProDOS disks, .dsk for everything else",                                   ""     },
-    { L".dsk: DOS-order sectors, the type every emulator opens",                                      ".dsk" },
-    { L".woz: WOZ 2 bit stream, as Applesauce and current emulators use",                             ".woz" },
-    { L".do: The same bytes as .dsk, with an extension that settles the sector-order debate",         ".do"  },
-    { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",                    ".po"  },
-    { L".nib: Nibbles, 6,656 bytes a track, padded past a real track's length",                       ".nib" },
-    { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream", ".nb2" },
+    { L"Automatic: .po for ProDOS disks, .dsk for everything else",
+      L"A silver Camry on cruise control. Always arrives, and nobody remembers the trip.",                         ""     },
+    { L".dsk: DOS-order sectors, the type every emulator opens",
+      L"A '94 Civic with 400,000 miles on it. Every mechanic on Earth has parts for it.",                          ".dsk" },
+    { L".woz: WOZ 2 bit stream, as Applesauce and current emulators use",
+      L"A Volvo with a dashcam on every window, recording the road, the potholes and the weather.",                ".woz" },
+    { L".do: The same bytes as .dsk, with an extension that settles the sector-order debate",
+      L"The same Civic with Acura badges glued on. Same engine, better standing at the car show.",                 ".do"  },
+    { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",
+      L"A right-hand-drive import in Ohio. Everything works, but the drive-through window is on the wrong side.", ".po"  },
+    { L".nib: Nibbles, 6,656 bytes a track, padded past a real track's length",
+      L"A '78 Lincoln Continental. Three feet of chrome bumper past where the car ends.",                          ".nib" },
+    { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream",
+      L"The same Lincoln, bumper trimmed to factory spec. Its driver brings this up at every stoplight.",          ".nb2" },
 };
 
 
@@ -228,7 +237,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int                           prefixEnd      = prefixTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int                           formatLabelTop = prefixEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int                           formatTop      = formatLabelTop + labelH;
-    int                           optionH        = scaler.ToPx (kOptionHeightDip);
+    int                           optionH        = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip + kOptionGapDip);
     int                           esotericaTop   = formatTop + optionH * kCommonFormatCount + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int                           esotericaEnd   = esotericaTop + labelH;
     std::vector<DxuiRadioOption>  options        = m_format->GetOptions();
@@ -535,7 +544,8 @@ void CassoExplorerOptionsDialog::WireFullSend()
     {
         DxuiRadioOption  option;
 
-        option.label = s_kFullSendFormats[i].label;
+        option.label       = s_kFullSendFormats[i].label;
+        option.description = s_kFullSendFormats[i].car;
         options.push_back (option);
 
         selected = m_choices.fullSendExtension == s_kFullSendFormats[i].extension ? (int) i : selected;
