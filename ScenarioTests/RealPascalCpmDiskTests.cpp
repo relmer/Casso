@@ -3,7 +3,9 @@
 #include "EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
 #include "GuestSession.h"
+#include "KeystrokeInjector.h"
 #include "TestMachine.h"
+#include "AssetBootstrap.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
@@ -109,8 +111,8 @@ public:
         NativeListing::FormatPascal (listing, lines);
 
         Assert::AreEqual (std::string ("APPLE0:"), lines[0]);
-        Assert::AreEqual (std::string ("SYSTEM.PASCAL     44 ") + lines[1].substr (21, 9) + "     6   512  Codefile", lines[1]);
-        Assert::IsTrue   (lines.back().starts_with ("8/8 files<listed/in-dir>, 261 blocks used, 19 unused, 19 in largest"));
+        Assert::AreEqual (std::string ("SYSTEM.PASCAL       44   ") + lines[1].substr (25, 9) + "     6   512   Codefile", lines[1]);
+        Assert::IsTrue   (lines.back().starts_with ("8/8 files <listed/in dir>, 261 blocks used, 19 unused, 19 in largest"));
         Logger::WriteMessage ((lines[0] + "\n" + lines[1] + "\n" + lines.back() + "\n").c_str());
 
         //  The syntax errors are text in the compiler's format.
@@ -228,6 +230,75 @@ public:
         GuestSession::CollectRows (machine, rows);
 
         Assert::IsTrue (std::any_of (rows.begin(), rows.end(), [&kMessage] (const std::string & row) { return row.find (kMessage) != std::string::npos; }), L"The stand-in ran");
+    }
+
+
+
+    //  The real system from the stock boot disk, on a disk from `disk create
+    //  --bootable`, boots to the Pascal command line, and each row of the real
+    //  Filer's Extended list matches the listing's format.
+    TEST_METHOD (ADiskMadeFromTheStockBootDiskBootsAndItsFilerListMatches)
+    {
+        std::filesystem::path     path = AssetBootstrap::GetStockBootDiskPath (AssetBootstrap::StockBootDisk::PascalBootDisk);
+        std::ifstream             file (path, std::ios::binary);
+        std::vector<Byte>         source;
+        std::vector<std::string>  rows;
+        FakeDiskFileIo            io;
+        DiskCommandRunner         runner (io);
+        CommandLineOptions        options;
+        DiskCommandResult         result;
+        TestMachine               machine ("Apple2e");
+        std::string               screen;
+        std::vector<Byte>         sectors;
+        SectorDecodeReport        report;
+        VolumeListing             listing;
+        std::vector<std::string>  lines;
+
+        if (!file.is_open())
+        {
+            Logger::WriteMessage ("SKIPPED: the stock Apple Pascal boot disk is not on this machine\n");
+            return;
+        }
+
+        source.assign (std::istreambuf_iterator<char> (file), std::istreambuf_iterator<char>());
+
+        io.files["C:\\src\\system.dsk"] = source;
+
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath    = "C:\\disks\\boot.dsk";
+        options.disk.formatName   = "pascal";
+        options.disk.volumeName   = "WORK";
+        options.disk.bootable     = true;
+        options.disk.bootableFrom = "C:\\src\\system.dsk";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        GuestSession::MountAndBoot (machine, io.files["C:\\disks\\boot.dsk"]);
+        GuestSession::CollectRows (machine, rows);
+
+        for (const std::string & row : rows)
+        {
+            screen += row + "\n";
+        }
+
+        Logger::WriteMessage (screen.c_str());
+        Assert::IsTrue (screen.find ("Command:") != std::string::npos, TextEncoding::NarrowToWide (screen).c_str());
+
+        KeystrokeInjector::InjectLine (machine, "FE:", 40000000);
+        rows.clear();
+        GuestSession::CollectRows (machine, rows);
+
+        AssertSucceeded (VolumeImage::Load (io.files["C:\\disks\\boot.dsk"], "boot.dsk", sectors, report));
+        AssertSucceeded (PascalVolume (sectors).Enumerate (listing));
+
+        NativeListing::FormatPascal (listing, lines);
+
+        for (const std::string & line : lines)
+        {
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, line), TextEncoding::NarrowToWide (line).c_str());
+        }
     }
 
 

@@ -203,10 +203,10 @@ static constexpr LPCWSTR  s_kpszBootDiskMirrorHost = L"mirrors.apple2.org.za";
 static constexpr BootDiskSpec s_kPascalDisk =
 {
     StockBootDisks::kpszPascalBootDiskFile,
-    L"/ftp.apple.asimov.net/images/programming/pascal/ucsd/UCSD%20Pascal%201.2_1.DSK",
+    L"/Apple%20II%20Diskware/Pascal/Apple%20II%20Pascal%201.3%20APPLE1%3A%20680-0283-A.dsk",
     143360,
     "Apple Pascal",
-    "Apple Pascal 1.2, boot disk.",
+    "Apple Pascal 1.3, APPLE1: boot disk (680-0283-A).",
     s_kpszBootDiskMirrorHost
 };
 

@@ -93,7 +93,7 @@ void NativeListing::FormatPascal (const VolumeListing & listing, std::vector<std
     {
         if (next > at)
         {
-            outLines.push_back (std::format ("{:<16}{:>4}{:>{}}{:>6}", "< UNUSED >", next - at, "", kDateWidth + 1, at));
+            outLines.push_back (std::format ("{:<16}{:>6}{:>{}}{:>6}", "< UNUSED >", next - at, "", kDateWidth + 3, at));
             largest = (std::max) (largest, next - at);
         }
     };
@@ -105,7 +105,7 @@ void NativeListing::FormatPascal (const VolumeListing & listing, std::vector<std
     {
         addUnused (entry.firstBlock);
 
-        outLines.push_back (std::format ("{:<16}{:>4} {}{:>6}{:>6}  {}",
+        outLines.push_back (std::format ("{:<16}{:>6}   {}{:>6}{:>6}   {}",
                                          entry.name,
                                          entry.sizeUnits,
                                          FormatPascalDate (entry),
@@ -118,7 +118,7 @@ void NativeListing::FormatPascal (const VolumeListing & listing, std::vector<std
 
     addUnused (total);
 
-    outLines.push_back (std::format ("{}/{} files<listed/in-dir>, {} blocks used, {} unused, {} in largest",
+    outLines.push_back (std::format ("{}/{} files <listed/in dir>, {} blocks used, {} unused, {} in largest",
                                      listing.entries.size(),
                                      listing.directoryFiles,
                                      listing.totalUnits - listing.freeUnits,

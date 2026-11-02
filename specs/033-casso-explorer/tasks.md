@@ -1558,4 +1558,6 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T370 Add `disk krunch` and a Casso Explorer command on a Pascal image's menu, and a put message for fragmented free space, per FR-132. Not offered over the link, since files are unreadable after a failed write partway
 - [X] T371 Convert text and map types in copies among Apple Pascal, DOS 3.3, ProDOS and CP/M, and to and from the host, per FR-132
 - [X] T372 Audit every `disk` command on Apple Pascal and CP/M, with `--user`, CP/M attributes on `--type`, and a reason for each command that does not apply, per FR-132
+- [X] T373 Use Apple Pascal 1.3's APPLE1: as the stock boot disk in `CassoEmuCore/AssetBootstrap.cpp`, and match `NativeListing::FormatPascal` to the real Filer's Extended list, with a boot of a created disk in `ScenarioTests/RealPascalCpmDiskTests.cpp`
+- [ ] T374 Add krunch to the Apple-side program in the link protocol, with progress on the Apple's screen, and offer Krunch disk on a linked Pascal disk's menu
 

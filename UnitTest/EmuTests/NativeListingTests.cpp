@@ -69,12 +69,12 @@ public:
 
         Assert::AreEqual ((size_t) 7, lines.size());
         Assert::AreEqual (std::string ("APPLE3:"), lines[0]);
-        Assert::AreEqual (std::string ("SYSTEM.APPLE      32 25-Dec-83     6   512  Datafile"), lines[1]);
-        Assert::AreEqual (std::string ("< UNUSED >        18              38"), lines[2]);
-        Assert::AreEqual (std::string ("LINEFEED.TEXT      4 17-May-82    56   512  Textfile"), lines[3]);
-        Assert::AreEqual (std::string ("TAIL.CODE        214              60   512  Codefile"), lines[4]);
-        Assert::AreEqual (std::string ("< UNUSED >         6             274"), lines[5]);
-        Assert::AreEqual (std::string ("3/3 files<listed/in-dir>, 274 blocks used, 6 unused, 18 in largest"), lines[6]);
+        Assert::AreEqual (std::string ("SYSTEM.APPLE        32   25-Dec-83     6   512   Datafile"), lines[1]);
+        Assert::AreEqual (std::string ("< UNUSED >          18                38"), lines[2]);
+        Assert::AreEqual (std::string ("LINEFEED.TEXT        4   17-May-82    56   512   Textfile"), lines[3]);
+        Assert::AreEqual (std::string ("TAIL.CODE          214                60   512   Codefile"), lines[4]);
+        Assert::AreEqual (std::string ("< UNUSED >           6               274"), lines[5]);
+        Assert::AreEqual (std::string ("3/3 files <listed/in dir>, 274 blocks used, 6 unused, 18 in largest"), lines[6]);
     }
 
     TEST_METHOD (PascalCountsWhatTheDirectoryListsButTheListingCannot)
@@ -89,7 +89,7 @@ public:
 
         NativeListing::FormatPascal (listing, lines);
 
-        Assert::AreEqual (std::string ("0/2 files<listed/in-dir>, 6 blocks used, 274 unused, 274 in largest"), lines.back());
+        Assert::AreEqual (std::string ("0/2 files <listed/in dir>, 6 blocks used, 274 unused, 274 in largest"), lines.back());
     }
 
     TEST_METHOD (EveryPascalKindHasAWord)
