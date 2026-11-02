@@ -112,7 +112,8 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
         }
         else
         {
-            row.cells = { TextEncoding::NarrowToWide (line) };
+            row.cells      = { TextEncoding::NarrowToWide (line) };
+            row.wrapIndent = GetWrapIndent (line);
         }
 
         rows.push_back (std::move (row));
@@ -125,6 +126,39 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
     {
         m_host.MarkPaneTab (DebuggerLayout::kConsole);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetWrapIndent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ConsoleOutput::GetWrapIndent (const std::string & line)
+{
+    size_t  limit  = std::min (line.size(), kWrapIndentLimit);
+    size_t  indent = 0;
+    size_t  i      = 0;
+
+
+
+    for (i = 0; i < limit; i++)
+    {
+        bool  isGap = line[i] == ' ' && (i == 0 || (i + 1 < line.size() && line[i + 1] == ' ') || line[i - 1] == ' ');
+
+
+
+        if (isGap && i + 1 < line.size() && line[i + 1] != ' ')
+        {
+            indent = i + 1;
+        }
+    }
+
+    return (int) indent;
 }
 
 

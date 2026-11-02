@@ -70,6 +70,26 @@ public:
     }
 
 
+    //  A row with a wrap indent continues its last cell that many characters
+    //  in, so a help row's description wraps under itself.
+    TEST_METHOD (WrapIndent_StartsEachWrappedLineThatFarIn)
+    {
+        DxuiTextView        view;
+        DxuiTextView::Row   row  = MakeRow ({ L"SYN   AAAA BBBB CCCC" });
+
+
+
+        row.wrapIndent = 6;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetRows ({ row });
+
+        Assert::AreEqual (2, view.GetLineCount(), L"sixteen columns, so the row wraps once");
+        Assert::AreEqual (16, view.HitTest (POINT { 6 + 6 * 8, 6 + 16 + 4 }).offset,
+            L"the wrapped line starts six columns in, with CCCC under AAAA");
+    }
+
+
     TEST_METHOD (SelectionText_SpansCellsAndRows)
     {
         DxuiTextView  view;

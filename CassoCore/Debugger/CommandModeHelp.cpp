@@ -748,6 +748,9 @@ std::vector<std::string> CommandModeHelp::BuildListing (CommandMode mode, const 
         }
     }
 
+    //  One long syntax doesn't push every description to the right.
+    width = (std::min) (width, kMaxSyntaxColumn);
+
     if (!own.empty())
     {
         AppendSection (std::string (GetTitle (mode)) + " commands", std::move (own), width, lines);
@@ -1143,6 +1146,15 @@ void CommandModeHelp::AppendSection (const std::string & heading, std::vector<Ro
         {
             current = row.category;
             lines.push_back (std::string ("  ") + CassoCommandReference::GetCategoryTitle (row.category));
+        }
+
+        //  A syntax wider than the column is a row by itself, its description
+        //  on the next row in the description column.
+        if (row.syntax.size() > width)
+        {
+            lines.push_back ("    " + row.syntax);
+            lines.push_back (std::format ("    {:<{}}  {}", "", width, row.description));
+            continue;
         }
 
         lines.push_back (std::format ("    {:<{}}  {}", row.syntax, width, row.description));

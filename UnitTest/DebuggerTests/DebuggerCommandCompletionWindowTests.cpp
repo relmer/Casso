@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/ConsolePanes.h"
 
 #include "CppUnitTest.h"
 
@@ -174,6 +175,31 @@ namespace DebuggerCompletionWindowTests
             window.GetConsolePane().GetCommandLine().GetBox()->SetSelection (2, 2);
             window.Press (VK_RIGHT);
             Assert::AreEqual (std::wstring (L"bpm 400"), window.GetConsolePane().GetCommandLine().GetBox()->GetText(), L"Right takes the gray line");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ConsoleWrapTests
+    //
+    //  A console line that wraps continues under its last field after a gap
+    //  of two or more spaces, so a help row's description wraps under itself.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ConsoleWrapTests)
+    {
+    public:
+
+        TEST_METHOD (AWrappedLineContinuesUnderItsLastField)
+        {
+            Assert::AreEqual (14, ConsoleOutput::GetWrapIndent ("    SYNTAX    description and more words"), L"under the description");
+            Assert::AreEqual (30, ConsoleOutput::GetWrapIndent ("                              a description alone"), L"under a description on a row by itself");
+            Assert::AreEqual (15, ConsoleOutput::GetWrapIndent ("0300: A9 00    LDA #$00"), L"under a listing's last column");
+            Assert::AreEqual (0,  ConsoleOutput::GetWrapIndent ("plain text with single spaces"), L"no gap, no indent");
         }
     };
 }

@@ -47,9 +47,15 @@ public:
     //  as they do in a terminal.
     bool                 RouteMouse     (const DxuiMouseEvent & ev, IDxuiControl * keys);
 
+    //  Where a wrapped line continues: under the field after the line's last
+    //  gap of two or more spaces within kWrapIndentLimit characters, as a
+    //  help row's description and a listing's last column are; 0 for none.
+    static int           GetWrapIndent  (const std::string & line);
+
 private:
-    static constexpr int    kLineLimit   = 2000;
-    static constexpr float  kLineSpacing = 1.2f;
+    static constexpr int     kLineLimit       = 2000;
+    static constexpr float   kLineSpacing     = 1.2f;
+    static constexpr size_t  kWrapIndentLimit = 48;
 
     IDebuggerPaneHost         & m_host;
     DxuiTextView              * m_view = nullptr;

@@ -491,6 +491,24 @@ void DxuiTextView::Rebuild()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::GetLineColumn
+//
+//  The column a line of a row's last cell starts at: the cell's, then its
+//  wrap indent on each wrapped line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetLineColumn (const Row & row, const Line & line) const
+{
+    return GetCellStart (row, (int) row.cells.size() - 1) + (line.first ? 0 : (std::max) (0, row.wrapIndent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::BuildLines
 //
 //  Wraps each row's last cell at the last space that fits, or mid-word when
@@ -507,6 +525,7 @@ void DxuiTextView::BuildLines (int columns)
         const Row &     row    = m_rows[(size_t) r];
         std::wstring    last   = row.cells.empty() ? std::wstring() : row.cells.back();
         int             start  = GetCellStart (row, (int) row.cells.size() - 1);
+        int             indent = (std::max) (0, row.wrapIndent);
         int             avail  = (std::max) (1, columns - start);
         int             length = (int) last.size();
         int             pos    = 0;
@@ -527,6 +546,7 @@ void DxuiTextView::BuildLines (int columns)
 
             pos  += take;
             first = false;
+            avail = (std::max) (1, columns - start - indent);
         }
         while (pos < length);
     }
@@ -623,7 +643,7 @@ DxuiTextView::Position DxuiTextView::HitTest (POINT point) const
         }
     }
 
-    pos.offset = GetCellBase (row, last) + line.start + (std::max) (0, (std::min) (column - GetCellStart (row, last), line.length));
+    pos.offset = GetCellBase (row, last) + line.start + (std::max) (0, (std::min) (column - GetLineColumn (row, line), line.length));
 
     return pos;
 }
@@ -1819,7 +1839,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     if (last >= 0)
     {
         std::wstring  run    = row.cells[(size_t) last].substr ((size_t) line.start, (size_t) line.length);
-        int           column = GetCellStart (row, last);
+        int           column = GetLineColumn (row, line);
 
         if (selected)
         {

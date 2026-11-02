@@ -63,6 +63,11 @@ public:
         //  The row's height as a fraction of a line, for a blank row that
         //  spaces the rows around it. A row this applies to takes one line.
         float                                  height     = 1.0f;
+
+        //  A wrapped line of the last cell starts this many characters into
+        //  the cell, so a help row's description wraps under itself rather
+        //  than under its syntax.
+        int                                    wrapIndent = 0;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -271,6 +276,7 @@ private:
     void          BuildLines        (int columns);
     int           GetTextColumns    (bool scrollbar) const;
     int           GetCellStart      (const Row & row, int cell) const;
+    int           GetLineColumn     (const Row & row, const Line & line) const;
     int           GetCellBase       (const Row & row, int cell) const;
     int           GetRowLength      (const Row & row) const;
     std::wstring  GetRowText        (const Row & row) const;

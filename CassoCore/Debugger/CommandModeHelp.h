@@ -93,6 +93,10 @@ public:
     static bool                    TryDescribe    (CommandMode mode, const std::string & word, std::string & line);
 
 private:
+    //  The widest the syntax column of a help listing gets; a longer syntax
+    //  is a row by itself.
+    static constexpr size_t  kMaxSyntaxColumn = 24;
+
     struct Row
     {
         HelpCategory  category;

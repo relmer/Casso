@@ -229,6 +229,38 @@ namespace DebuggerTests
         }
 
 
+        //  One long syntax doesn't push every description right: a syntax
+        //  wider than the column is a row by itself, with its description on
+        //  the next row in the description column.
+        TEST_METHOD (ALongSyntaxIsARowByItself)
+        {
+            constexpr size_t           kDescriptionColumn = 4 + 24 + 2;
+            std::vector<std::string>   lines              = CommandModeHelp::BuildHelp (CommandMode::Casso);
+            size_t                     longOnes           = 0;
+
+
+
+            for (size_t i = 0; i + 1 < lines.size(); i++)
+            {
+                const std::string  & line = lines[i];
+                const std::string  & next = lines[i + 1];
+
+
+
+                if (!line.starts_with ("    ") || line[4] == ' ' || line.find ("  ", 4) != std::string::npos)
+                {
+                    continue;
+                }
+
+                longOnes++;
+                Assert::IsTrue (next.size() > kDescriptionColumn && next.find_first_not_of (' ') == kDescriptionColumn,
+                                TextEncoding::NarrowToWide (line + " | " + next).c_str());
+            }
+
+            Assert::IsTrue (longOnes > 0, L"PROFILE's syntax is longer than the column");
+        }
+
+
         TEST_METHOD (HelpIsByCategory_AndAlphabeticalWithinEach)
         {
             std::vector<std::string>  lines    = CommandModeHelp::BuildHelp (CommandMode::Casso);
@@ -249,7 +281,9 @@ namespace DebuggerTests
                     continue;
                 }
 
-                if (line.compare (0, 4, "    ") == 0)
+                //  A description on a row of its own, deeper in, follows a
+                //  syntax too wide for the column.
+                if (line.compare (0, 4, "    ") == 0 && line[4] != ' ')
                 {
                     std::string  syntax = line.substr (4);
 
