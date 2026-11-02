@@ -35,18 +35,18 @@
 class CpmVolume : public IVolume
 {
 public:
-    static constexpr uint32_t  kVolumeBlocks     = 128;
-    static constexpr uint32_t  kUnitCount        = 140;
-    static constexpr int       kDirectoryTrack   = 3;
-    static constexpr int       kDirectoryBlocks  = 2;
-    static constexpr int       kSectorsPerBlock  = 4;
-    static constexpr int       kEntries          = 64;
+    static constexpr uint32_t  kVolumeBlocks      = 128;
+    static constexpr uint32_t  kUnitCount         = 140;
+    static constexpr int       kDirectoryTrack    = 3;
+    static constexpr int       kDirectoryBlocks   = 2;
+    static constexpr int       kSectorsPerBlock   = 4;
+    static constexpr int       kEntries           = 64;
     static constexpr int       kCompatibleEntries = 48;
-    static constexpr size_t    kEntryBytes       = 32;
-    static constexpr size_t    kBlockBytes       = 1024;
-    static constexpr size_t    kRecordBytes      = 128;
-    static constexpr Byte      kFree             = 0xE5;
-    static constexpr Byte      kTextEnd          = 0x1A;
+    static constexpr size_t    kEntryBytes        = 32;
+    static constexpr size_t    kBlockBytes        = 1024;
+    static constexpr size_t    kRecordBytes       = 128;
+    static constexpr Byte      kFree              = 0xE5;
+    static constexpr Byte      kTextEnd           = 0x1A;
 
     //  The buffer is accessed by reference and isn't modified.
     explicit CpmVolume (const vector<Byte> & sectors);
