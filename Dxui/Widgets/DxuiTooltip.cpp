@@ -449,12 +449,13 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
     if (m_visible)
     {
-        bool  changed = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
-                        m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark ||
-                        anchor.left   != m_anchor.left  ||
-                        anchor.top    != m_anchor.top   ||
-                        anchor.right  != m_anchor.right ||
-                        anchor.bottom != m_anchor.bottom;
+        bool  isNewText = text != m_text;
+        bool  changed   = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
+                          m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark ||
+                          anchor.left   != m_anchor.left  ||
+                          anchor.top    != m_anchor.top   ||
+                          anchor.right  != m_anchor.right ||
+                          anchor.bottom != m_anchor.bottom;
 
         m_anchor       = anchor;
         m_text         = text;
@@ -466,6 +467,25 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         // sixty times a second and the tip never dismissed itself -- the
         // lifetime existed and could not once be reached. A move to a
         // DIFFERENT control is a new tip and starts its own clock.
+        //  A balloon already up takes the new anchor and text in place: sized
+        //  and drawn again only for new text or colors, and only moved for a
+        //  new anchor, so a pointer crossing from part to part of a view does
+        //  not close one window and open another, which flickered.
+        if (changed && m_popupHost != nullptr && m_activePopup != nullptr && wasAtPointer == isAtPointer)
+        {
+            bool  isNewLook = isNewText || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
+                              m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark;
+
+            m_hideAtMs          = isNewText ? nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs()) : m_hideAtMs;
+            m_shownLineArgbs    = m_lineArgbs;
+            m_shownLineSwatches = m_lineSwatches;
+            m_shownGradient     = m_gradient;
+            m_shownGradientMark = m_gradientMark;
+
+            MovePopup (isNewLook);
+            return;
+        }
+
         if (changed && m_popupHost != nullptr)
         {
             m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
