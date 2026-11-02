@@ -4,6 +4,8 @@
 
 #include "Ui/DiskInspector/InspectorView.h"
 
+struct HeaderItem;
+
 
 
 
@@ -53,6 +55,7 @@ public:
 
 private:
     float  PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
+    void   PaintHeaderItem (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeaderItem & item, float x, float y, float rowH) const;
     void   PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme);
     void   MoveCursor  (int offset, bool isTextColumn, bool isLowNibble);
     int    GetEdit     () const;

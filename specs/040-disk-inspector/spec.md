@@ -329,7 +329,7 @@ except the last four, which are in the later release:
   records and checksum (Applesauce, wozardry).
 - Find with wildcards, at any bit offset, in decoded sector data and for
   timing bits (Applesauce, Locksmith).
-- The DOS 3.3 logical sector and ProDOS block each physical sector has
+- The DOS-order sector index and ProDOS block each physical sector has
   (Applesauce, Disk Fixer, CiderPress II).
 - The angle of each track's sector 0 and its write seam, and an overlay that
   lines them up across tracks, for track alignment (EDD, AppleWin).
@@ -542,7 +542,7 @@ histogram against the cell lengths written into it.
 
 A user zooms the platter from the whole disk down to single cells, zooms and
 pans the strip, moves between tracks and sectors from the keyboard, goes to a
-given track, sector, DOS 3.3 logical sector, ProDOS block, nibble or cell,
+given track, sector, DOS-order sector index, ProDOS block, nibble or cell,
 searches the track or the whole disk for a byte pattern, selects a range of
 nibbles or bytes, and copies what they selected.
 
@@ -571,7 +571,7 @@ its known contents.
    the previous and next sector in passing order are selected.
 4. **Given** a disk, **When** the user goes to sector $5 on track 17,
    **Then** that track and sector are selected and shown in every view.
-5. **Given** a DOS 3.3 disk, **When** the user goes to DOS 3.3 logical sector
+5. **Given** a DOS 3.3 disk, **When** the user goes to DOS-order sector index
    $1 on track 17, **Then** the physical sector that contains it under the
    standard skew is selected, and the Sector data header shows logical sector
    $1 and the ProDOS block and half that the sector has.
@@ -1850,7 +1850,8 @@ legend, and tilt the platter and back.
 - **FR-022**: The platter MUST draw one ring per quarter track with track 0 at
   the rim, a groove at each whole-track boundary, the hub, and an index mark
   where each track starts, at 12 o'clock while the platter has not turned
-  (FR-064). The angle around the platter MUST be the position along the track
+  (FR-064). The index mark and its label MUST be drawn only while the disk is
+  stationary on screen. The angle around the platter MUST be the position along the track
   as Casso's drive plays it, as a fraction of one turn, increasing clockwise
   from the index.
 - **FR-023**: The platter MUST switch between "Structure" and "Timing" modes,
@@ -2048,10 +2049,13 @@ legend, and tilt the platter and back.
   sector in passing order MUST be selected. A click on a field, a Fields or
   Findings row, "Go to" with a sector, and a Find result each select their
   own sector.
-- **FR-040**: The Sector data tab MUST show a header with the sector, track
-  field, volume, address result, data result (good, bad, not checked or
-  missing) and encoding (6-and-2 or 5-and-3), and on a 16-sector track also
-  the DOS 3.3 logical sector and the ProDOS block, and which half of it, that
+- **FR-040**: The Sector data tab MUST show a header with the address field
+  as "Address field: track 17, sector $3", the track in the error color when it
+  is neither whole track the record is read as, the volume, the address
+  checksum result, the data result (good, bad, not checked or missing) and the
+  encoding (6-and-2 or 5-and-3), every "Bad" in the error color, and on a
+  16-sector track also the DOS-order sector index and the ProDOS block, and
+  which half of it, that
   the physical sector has under the standard skew, and, on a mapped CP/M
   volume, the CP/M sector and allocation block the physical sector has
   (FR-085). Below the header it MUST show the 256 bytes as 16 rows of 16 with
@@ -2217,7 +2221,7 @@ legend, and tilt the platter and back.
 **Navigation, search and copy**
 
 - **FR-055**: "Go to" MUST select a track (with quarter fraction), a physical
-  sector, a DOS 3.3 logical sector or a ProDOS block (on a 16-sector track,
+  sector, a DOS-order sector index or a ProDOS block (on a 16-sector track,
   through the standard skew), a CP/M sector of a mapped CP/M volume (FR-085),
   a nibble offset or a cell, or a file by its path, which chooses the file
   as the Files view's list does. A sector, a nibble offset or a cell MUST be
@@ -2235,6 +2239,9 @@ legend, and tilt the platter and back.
   docked under the toolbar, not a dialog, so the platter, strip and tabs
   stay in view and respond while it is open; Ctrl+F and the toolbar's Find
   open it and focus the pattern, and Escape or its close button closes it.
+  While the bar has the focus, after Ctrl+F or a press anywhere on it, its
+  outline MUST be in the focus accent that 035's debugger draws around the
+  pane the user works in.
   The bar MUST have the pattern, the kind of search, "Whole disk" (on by
   default) and "Any bit offset", the selected hit's place as "3 of 16",
   previous and next buttons, and a "List" button. An info tip after the
@@ -2580,7 +2587,7 @@ legend, and tilt the platter and back.
   numbers. Apple Pascal removes a file's entry when it deletes the file, so a
   Pascal volume lists no deleted files.
 - **FR-089**: A "File map" disk tab MUST show a grid with one row per track, 0
-  to 34, and one cell per DOS 3.3 logical sector, $0 to $F, on a DOS 3.3
+  to 34, and one cell per DOS-order sector index, $0 to $F, on a DOS 3.3
   volume, per ProDOS or Pascal block, eight per track, on a ProDOS or Pascal
   volume, or per CP/M sector, $0 to $F in CP/M's own order, on a CP/M volume,
   each cell showing its role and result. A cell's role MUST appear as a word or
@@ -2605,7 +2612,7 @@ legend, and tilt the platter and back.
   file shows "Deleted" alone. A file touches bad sectors when it uses a sector
   that is bad or missing, including a sector on a damaged record; a sector
   that is not checked shows only through its result (FR-093). A cell's tooltip
-  MUST show the DOS 3.3 logical sector and the physical sector that contains it,
+  MUST show the DOS-order sector index and the physical sector that contains it,
   the ProDOS or Pascal block and the physical sectors that contain its two
   halves, or the CP/M sector, its allocation block and the physical sector
   that contains it, its role and result, and each owner with the sector's place
@@ -3023,7 +3030,7 @@ legend, and tilt the platter and back.
   out of the Differences tab.
 - **FR-120**: Sectors MUST be paired within each compared track by sector
   number and encoding, with repeated sector numbers paired in passing order,
-  and each pair MUST show its DOS 3.3 logical sector and ProDOS block, and on
+  and each pair MUST show its DOS-order sector index and ProDOS block, and on
   a mapped CP/M volume its CP/M sector and allocation block. A difference in
   an address field's volume number MUST be listed as its own difference unless
   "Ignore volume numbers" is on. When both disks have a volume the map reads
@@ -3499,7 +3506,7 @@ release (Delivery). The first release MUST NOT depend on them.
   its encoding, its result (good, bad or not checked) and the field it pairs
   with.
 - **Sector**: an address field and the data field paired with it, with the 256
-  decoded bytes and, on a 16-sector track, its DOS 3.3 logical sector and
+  decoded bytes and, on a 16-sector track, its DOS-order sector index and
   ProDOS block, and on a mapped CP/M volume, its CP/M sector and allocation
   block.
 - **Finding**: a category, a location (quarter track, sector, cell) and a

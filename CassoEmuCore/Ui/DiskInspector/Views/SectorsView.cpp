@@ -127,7 +127,7 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
     //  With a pending edit, the data checksum result once applied (FR-098).
     if (int edit = GetEdit(); edit >= 0)
     {
-        items.push_back ({ L"Checksum after apply", EditController::IsChecksumGoodAfter (m_context.edits->GetEdit (edit), track) ? L"Good" : L"Bad" });
+        items.push_back (HeaderItem::MakeResult (L"Checksum after apply", EditController::IsChecksumGoodAfter (m_context.edits->GetEdit (edit), track) ? L"Good" : L"Bad"));
     }
 
     //  On a whole track of a mapped volume, the sector's role and owners.
@@ -173,12 +173,57 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
             y += rowH;
         }
 
-        text.DrawString (line.c_str(), x, y, w + 1.0f, rowH, (item.value == L"Bad") ? theme.ErrorForeground() : theme.Foreground(),
-                         textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        PaintHeaderItem (text, theme, item, x, y, rowH);
         x += w + gap;
     }
 
     return y + rowH * 1.5f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorsView::PaintHeaderItem
+//
+//  The label and value in the text color, with the value's unexpected part
+//  in the error color. Each part starts where the text before it ends, its
+//  trailing space included: a bar after that text is measured and then
+//  taken off again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorsView::PaintHeaderItem (IDxuiTextRenderer & text, const IDxuiTheme & theme, const HeaderItem & item, float x, float y, float rowH) const
+{
+    float         textPx  = m_scaler.ToPxf (kSmallDip);
+    std::wstring  line    = item.label + L": " + item.value;
+    size_t        badAt   = std::min (item.label.size() + 2 + std::min (item.badStart, item.value.size()), line.size());
+    size_t        badEnd  = std::min (badAt + item.badLength, line.size());
+    size_t        ends[]  = { badAt, badEnd, line.size() };
+    size_t        start   = 0;
+    float         bar     = 0;
+    float         before  = 0;
+    float         w       = 0;
+    float         h       = 0;
+
+
+
+    text.MeasureString (L"|", textPx, DxuiTheme::kBodyFace, bar, h);
+
+    for (size_t i = 0; i < std::size (ends); i++)
+    {
+        if (ends[i] > start)
+        {
+            text.MeasureString ((line.substr (0, start) + L"|").c_str(), textPx, DxuiTheme::kBodyFace, before, h);
+            text.MeasureString (line.substr (start, ends[i] - start).c_str(), textPx, DxuiTheme::kBodyFace, w, h);
+            text.DrawString    (line.substr (start, ends[i] - start).c_str(), x + before - bar, y, w + 1.0f, rowH, (i == 1) ? theme.ErrorForeground() : theme.Foreground(),
+                                textPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        }
+
+        start = std::max (start, ends[i]);
+    }
 }
 
 

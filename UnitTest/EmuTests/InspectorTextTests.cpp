@@ -183,6 +183,7 @@ public:
         QuarterTrackEntry      empty;
         QuarterTrackEntry      damaged;
         TrackAnalysis          noSectors;
+        TrackAnalysis          moved;
 
 
 
@@ -190,12 +191,22 @@ public:
         track  = analysis.tracks[analysis.entries[68].slot].get();
         header = InspectorText::BuildSectorHeader (track->sectors[1], *track);
 
-        Assert::AreEqual (std::wstring (L"Sector"),        header[0].label);
-        Assert::AreEqual (std::wstring (L"$1"),            header[0].value);
-        Assert::AreEqual (std::wstring (L"Good"),          header[4].value);
-        Assert::AreEqual (std::wstring (L"6-and-2"),       header[5].value);
-        Assert::AreEqual (std::wstring (L"DOS 3.3 sector"), header[6].label);
-        Assert::AreEqual (std::wstring (L"$7"),            header[6].value);
+        Assert::AreEqual (std::wstring (L"Address field"),          header[0].label);
+        Assert::AreEqual (std::wstring (L"track 17, sector $1"),    header[0].value);
+        Assert::IsTrue   (header[0].badStart == std::wstring::npos, L"the address field on track 17 has track 17");
+        Assert::AreEqual (std::wstring (L"Address checksum"),       header[2].label);
+        Assert::AreEqual (std::wstring (L"Good"),                   header[3].value);
+        Assert::AreEqual (std::wstring (L"6-and-2"),                header[4].value);
+        Assert::AreEqual (std::wstring (L"DOS-order sector index"), header[5].label);
+        Assert::AreEqual (std::wstring (L"$7"),                     header[5].value);
+
+        moved = *track;
+        moved.fields[moved.sectors[1].addressField].track = 3;
+        header = InspectorText::BuildSectorHeader (moved.sectors[1], moved);
+
+        Assert::AreEqual (std::wstring (L"track 3, sector $1"), header[0].value);
+        Assert::AreEqual (static_cast<size_t> (0), header[0].badStart);
+        Assert::AreEqual (std::wstring (L"track 3"), header[0].value.substr (header[0].badStart, header[0].badLength), L"only the track is in the error color");
 
         damaged.content      = QuarterTrackContent::Damaged;
         damaged.damageReason = DamageReason::OutsideFile;

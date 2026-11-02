@@ -42,10 +42,16 @@ struct SummaryChip
 };
 
 
+//  A labeled value. The part of the value from badStart for badLength
+//  characters is drawn in the error color, where the value is unusual.
 struct HeaderItem
 {
     std::wstring  label;
     std::wstring  value;
+    size_t        badStart  = std::wstring::npos;
+    size_t        badLength = 0;
+
+    static HeaderItem  MakeResult (LPCWSTR label, const std::wstring & value);
 };
 
 

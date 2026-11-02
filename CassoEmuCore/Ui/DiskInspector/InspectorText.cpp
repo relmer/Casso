@@ -434,10 +434,37 @@ std::wstring InspectorText::FormatNoSectors (const QuarterTrackEntry & entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeaderItem::MakeResult
+//
+//  A check's result, all of it in the error color when it is "Bad".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeaderItem HeaderItem::MakeResult (LPCWSTR label, const std::wstring & value)
+{
+    HeaderItem  item = { label, value };
+
+
+
+    if (value == L"Bad")
+    {
+        item.badStart  = 0;
+        item.badLength = value.size();
+    }
+
+    return item;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorText::BuildSectorHeader
 //
 //  The Sector data header (FR-040): the sector, its address fields, both
-//  results and the encoding, and on a 16-sector track the DOS 3.3 sector and
+//  results and the encoding, and on a 16-sector track the DOS-order sector index and
 //  ProDOS block it has under the standard skew.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,6 +474,8 @@ vector<HeaderItem> InspectorText::BuildSectorHeader (const AnalyzedSector & sect
     const LocatedField &  address = track.fields[sector.addressField];
     vector<HeaderItem>    items;
     std::wstring          dataResult;
+    std::wstring          trackText;
+    HeaderItem            location;
 
 
 
@@ -463,16 +492,26 @@ vector<HeaderItem> InspectorText::BuildSectorHeader (const AnalyzedSector & sect
         dataResult = sector.isDataGood ? L"Good" : L"Bad";
     }
 
-    items.push_back ({ L"Sector",      InspectorFormat::FormatSector (sector.sector) });
-    items.push_back ({ L"Track field", std::to_wstring (address.track) });
-    items.push_back ({ L"Volume",      std::to_wstring (address.volume) });
-    items.push_back ({ L"Address",     !sector.isAddressCheck ? L"Not checked" : (sector.isAddressGood ? L"Good" : L"Bad") });
-    items.push_back ({ L"Data",        dataResult });
-    items.push_back ({ L"Encoding",    sector.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3" });
+    //  The track in the address field is in the error color when it is neither
+    //  whole track the record is read as.
+    trackText = std::format (L"track {}", address.track);
+    location  = { L"Address field", std::format (L"{}, sector {}", trackText, InspectorFormat::FormatSector (sector.sector)) };
 
-    if (sector.kind == DiskFieldKind::Sixteen && sector.dos33Logical >= 0)
+    if (address.track != track.context.physicalTrack && address.track != track.context.alsoTrack)
     {
-        items.push_back ({ L"DOS 3.3 sector", InspectorFormat::FormatSector (sector.dos33Logical) });
+        location.badStart  = 0;
+        location.badLength = trackText.size();
+    }
+
+    items.push_back (location);
+    items.push_back ({ L"Volume",   std::to_wstring (address.volume) });
+    items.push_back (HeaderItem::MakeResult (L"Address checksum", !sector.isAddressCheck ? L"Not checked" : (sector.isAddressGood ? L"Good" : L"Bad")));
+    items.push_back (HeaderItem::MakeResult (L"Data", dataResult));
+    items.push_back ({ L"Encoding", sector.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3" });
+
+    if (sector.kind == DiskFieldKind::Sixteen && sector.dosOrderIndex >= 0)
+    {
+        items.push_back ({ L"DOS-order sector index", InspectorFormat::FormatSector (sector.dosOrderIndex) });
         items.push_back ({ L"ProDOS block",   std::format (L"{} ({} half)", sector.prodosBlock, sector.prodosHalf == 0 ? L"first" : L"second") });
     }
 
