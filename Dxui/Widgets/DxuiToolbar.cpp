@@ -2314,20 +2314,17 @@ void DxuiToolbar::PaintSlot (Slot & slot, IDxuiPainter & painter, IDxuiTextRende
 //
 //  DxuiToolbar::PaintGrip
 //
-//  Visual Studio's grab handle: a double row of dots across the strip's
-//  leading end, running along the strip's thickness.
+//  Visual Studio's grab handle: a narrow band of small dots across the
+//  strip's leading end, in the theme's disabled ink, or its muted ink while
+//  the strip is dragged. The hit area is the whole grip rect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiToolbar::PaintGrip (IDxuiPainter & painter, const IDxuiTheme & theme)
 {
-    float     dot    = (std::max) (1.0f, m_scaler.ToPxf (2.0f));
-    float     step   = dot * 2.0f;
+    float     dot    = (std::max) (1.0f, std::round (m_scaler.ToPxf (1.0f)));
     float     margin = (float) m_scaler.ToPx (GetSpacingDp (Spacing::BtnMarginY)) + dot;
-    float     cx     = 0.0f;
-    float     cy     = 0.0f;
-    float     run    = 0.0f;
-    uint32_t  ink    = m_lifted ? theme.Foreground() : theme.ForegroundDisabled();
+    uint32_t  ink    = m_lifted ? theme.ForegroundMuted() : theme.ForegroundDisabled();
 
 
 
@@ -2336,29 +2333,54 @@ void DxuiToolbar::PaintGrip (IDxuiPainter & painter, const IDxuiTheme & theme)
         return;
     }
 
-    cx = (float) (m_gripRect.left + m_gripRect.right) * 0.5f;
-    cy = (float) (m_gripRect.top  + m_gripRect.bottom) * 0.5f;
-
-    if (m_vertical)
+    for (const GripDot & each : GetGripDots (m_gripRect, m_vertical, dot, margin))
     {
-        run = (float) (m_gripRect.right - m_gripRect.left) - margin * 2.0f;
+        painter.FillRect (each.x, each.y, each.size, each.size, ink);
+    }
+}
 
-        for (float x = (float) m_gripRect.left + margin; x + dot <= (float) m_gripRect.left + margin + run; x += step)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::GetGripDots
+//
+//  Across a horizontal strip's handle the columns run top to bottom; along
+//  a vertical strip's they run left to right. The dots repeat every four
+//  dots down a column, and the second column starts two dots lower, so the
+//  columns alternate.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::GripDot> DxuiToolbar::GetGripDots (const RECT & grip, bool vertical, float dotPx, float marginPx)
+{
+    std::vector<GripDot>  dots;
+    float                 step   = dotPx * 4.0f;
+    float                 cx     = std::floor ((float) (grip.left + grip.right) * 0.5f);
+    float                 cy     = std::floor ((float) (grip.top  + grip.bottom) * 0.5f);
+    float                 first  = vertical ? (float) grip.left  + marginPx : (float) grip.top    + marginPx;
+    float                 last   = vertical ? (float) grip.right - marginPx : (float) grip.bottom - marginPx;
+
+
+
+    if (dotPx <= 0.0f)
+    {
+        return dots;
+    }
+
+    for (int column = 0; column < 2; column++)
+    {
+        float  across = (vertical ? cy : cx) - dotPx * 1.5f + dotPx * 2.0f * (float) column;
+
+        for (float along = first + step * 0.5f * (float) column; along + dotPx <= last; along += step)
         {
-            painter.FillRect (x, cy - step * 0.5f, dot, dot, ink);
-            painter.FillRect (x, cy + step * 0.5f - dot, dot, dot, ink);
+            dots.push_back (vertical ? GripDot { along, across, dotPx } : GripDot { across, along, dotPx });
         }
     }
-    else
-    {
-        run = (float) (m_gripRect.bottom - m_gripRect.top) - margin * 2.0f;
 
-        for (float y = (float) m_gripRect.top + margin; y + dot <= (float) m_gripRect.top + margin + run; y += step)
-        {
-            painter.FillRect (cx - step * 0.5f, y, dot, dot, ink);
-            painter.FillRect (cx + step * 0.5f - dot, y, dot, dot, ink);
-        }
-    }
+    return dots;
 }
 
 

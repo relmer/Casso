@@ -248,6 +248,19 @@ public:
 
     static constexpr int    kGripDp         = 12;
 
+    //  One dot of the grab handle, in pixels.
+    struct GripDot
+    {
+        float  x    = 0.0f;
+        float  y    = 0.0f;
+        float  size = 0.0f;
+    };
+
+    //  The handle's dots in its rect: two columns of `dotPx` squares a dot
+    //  apart, the second dropped half a step, as Visual Studio's handle is,
+    //  running along the strip's thickness inside `marginPx` of each end.
+    static std::vector<GripDot>  GetGripDots (const RECT & grip, bool vertical, float dotPx, float marginPx);
+
     //  Lifted off its place while it is carried by its handle: a raised
     //  surface a little larger than the strip, with a shadow under it and
     //  an accent edge, so it is plain the toolbar is on the move. It rises
