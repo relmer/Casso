@@ -163,10 +163,14 @@ bool FindPart::OnBarMouse (const DxuiMouseEvent & ev)
 //
 //  FindPart::PaintBar
 //
+//  The bar is outlined in the focus accent while keys go to it, after a
+//  press anywhere on it or Ctrl+F.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void FindPart::PaintBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    m_findBar->SetFocusedLook (m_session.keyTarget == KeyTarget::FindBar);
     m_findBar->Paint (painter, text, theme);
 }
 

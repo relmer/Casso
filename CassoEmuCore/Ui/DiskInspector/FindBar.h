@@ -51,6 +51,11 @@ public:
     void  SetInputFocused (bool isFocused);
     bool  IsInputFocused  () const;
 
+    //  Whether the bar has the focus: its pattern, one of its other controls
+    //  or the bar itself.
+    void  SetFocusedLook (bool isFocused) { m_hasFocusedLook = isFocused; }
+    bool  HasFocusedLook () const         { return m_hasFocusedLook; }
+
     //  The format of each kind of pattern, for the info tip.
     static std::wstring  GetHint (SearchKind kind);
 
@@ -70,24 +75,25 @@ private:
     void  Submit   (int step);
     void  ShowHint ();
 
-    DxuiTextInput  * m_input       = nullptr;
-    DxuiComboBox   * m_kind        = nullptr;
-    DxuiCheckbox   * m_wholeDisk   = nullptr;
-    DxuiCheckbox   * m_anyBit      = nullptr;
-    DxuiLabel      * m_count       = nullptr;
-    DxuiButton     * m_prev        = nullptr;
-    DxuiButton     * m_next        = nullptr;
-    DxuiButton     * m_listButton  = nullptr;
-    DxuiButton     * m_closeButton = nullptr;
-    DxuiInfoTip    * m_hintTip     = nullptr;
-    DxuiLabel      * m_error       = nullptr;
+    DxuiTextInput  * m_input          = nullptr;
+    DxuiComboBox   * m_kind           = nullptr;
+    DxuiCheckbox   * m_wholeDisk      = nullptr;
+    DxuiCheckbox   * m_anyBit         = nullptr;
+    DxuiLabel      * m_count          = nullptr;
+    DxuiButton     * m_prev           = nullptr;
+    DxuiButton     * m_next           = nullptr;
+    DxuiButton     * m_listButton     = nullptr;
+    DxuiButton     * m_closeButton    = nullptr;
+    DxuiInfoTip    * m_hintTip        = nullptr;
+    DxuiLabel      * m_error          = nullptr;
     SearchFn         m_search;
     StepFn           m_step;
     ActionFn         m_list;
     ActionFn         m_close;
     SearchQuery      m_searched;
-    bool             m_hasSearched = false;
-    bool             m_isError     = false;
-    RECT             m_areaPx      = {};
+    bool             m_hasSearched    = false;
+    bool             m_isError        = false;
+    bool             m_hasFocusedLook = false;
+    RECT             m_areaPx         = {};
     DxuiDpiScaler    m_scaler;
 };
