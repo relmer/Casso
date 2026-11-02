@@ -3,6 +3,7 @@
 #include "Window/DxuiDockedWindow.h"
 #include "Core/DxuiPaneMetrics.h"
 #include "Theme/DxuiDwm.h"
+#include "Core/WindowTrace.h"
 
 
 
@@ -452,8 +453,11 @@ bool DxuiDockedWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
 void DxuiDockedWindow::OnMoveLoopTick()
 {
-    POINT  cursor     = {};
-    bool   buttonDown = m_readPointer (cursor);
+    POINT          cursor     = {};
+    bool           buttonDown = m_readPointer (cursor);
+    LARGE_INTEGER  start      = {};
+    LARGE_INTEGER  end        = {};
+    LARGE_INTEGER  frequency  = {};
 
 
 
@@ -461,7 +465,12 @@ void DxuiDockedWindow::OnMoveLoopTick()
 
     if (m_onMoveFrame)
     {
+        QueryPerformanceCounter (&start);
         m_onMoveFrame();
+        QueryPerformanceCounter (&end);
+        QueryPerformanceFrequency (&frequency);
+
+        WindowTrace::Log ("move.tick", "floating", std::format ("frame {:.1f} ms", (double) (end.QuadPart - start.QuadPart) * 1000.0 / (double) frequency.QuadPart));
     }
 }
 

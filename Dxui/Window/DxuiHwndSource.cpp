@@ -12,6 +12,7 @@
 #include "Core/DxuiThread.h"
 #include "Core/DxuiWindowFrame.h"
 #include "Core/DxuiEvents.h"
+#include "Core/WindowTrace.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -1925,14 +1926,33 @@ void DxuiHwndSource::BeginModalKeepAlive()
 {
     DXUI_ASSERT_UI_THREAD();
 
-    if (m_hwnd != nullptr)
-    {
-        ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
-    }
+    ArmModalKeepAlive();
 
     if (m_client != nullptr)
     {
         m_client->OnModalLoopTick();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArmModalKeepAlive
+//
+//  Arms the timer alone, its first tick a timer period away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ArmModalKeepAlive()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_hwnd != nullptr)
+    {
+        ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
     }
 }
 
@@ -2615,6 +2635,79 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NoteFrameStats
+//
+//  With the window trace on, every two seconds a line with the frames
+//  presented, the time between them, and the time from an input to the
+//  present after it, each as an average and the most.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::NoteFrameStats (long long nowQpc, long long frequency)
+{
+    constexpr double  kReportSeconds = 2.0;
+    double            toMs           = (frequency > 0) ? 1000.0 / (double) frequency : 0.0;
+    double            frameMs        = (m_lastPresentQpc != 0) ? (double) (nowQpc - m_lastPresentQpc) * toMs : 0.0;
+    double            inputMs        = (m_inputQpc != 0) ? (double) (nowQpc - m_inputQpc) * toMs : 0.0;
+    wchar_t           title[64]      = {};
+    char              name[192]      = {};
+
+
+
+    if (!WindowTrace::IsOn() || frequency <= 0)
+    {
+        return;
+    }
+
+    m_statsFromQpc = (m_statsFromQpc == 0) ? nowQpc : m_statsFromQpc;
+
+    if (frameMs > 0.0)
+    {
+        m_statsFrames++;
+        m_statsFrameSumMs += frameMs;
+        m_statsFrameMaxMs  = std::max (m_statsFrameMaxMs, frameMs);
+    }
+
+    if (m_inputQpc != 0)
+    {
+        m_statsInputs++;
+        m_statsInputSumMs += inputMs;
+        m_statsInputMaxMs  = std::max (m_statsInputMaxMs, inputMs);
+        m_inputQpc         = 0;
+    }
+
+    if ((double) (nowQpc - m_statsFromQpc) * toMs / 1000.0 < kReportSeconds || m_statsFrames == 0)
+    {
+        return;
+    }
+
+    if (m_hwnd != nullptr)
+    {
+        GetWindowTextW (m_hwnd, title, (int) std::size (title));
+        (void) WideCharToMultiByte (CP_UTF8, 0, title, -1, name, (int) std::size (name), nullptr, nullptr);
+    }
+
+    WindowTrace::Log ("frame.stats", "window",
+                      std::format ("{} frames, between {:.1f} ms avg {:.1f} max, input to present {:.1f} ms avg {:.1f} max over {}, {}",
+                                   m_statsFrames, m_statsFrameSumMs / (double) m_statsFrames, m_statsFrameMaxMs,
+                                   (m_statsInputs > 0) ? m_statsInputSumMs / (double) m_statsInputs : 0.0, m_statsInputMaxMs, m_statsInputs,
+                                   name));
+
+    m_statsFromQpc    = nowQpc;
+    m_statsFrames     = 0;
+    m_statsFrameSumMs = 0.0;
+    m_statsFrameMaxMs = 0.0;
+    m_statsInputs     = 0;
+    m_statsInputSumMs = 0.0;
+    m_statsInputMaxMs = 0.0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PresentFrame
 //
 //  DxuiRenderTarget surface contract: present the swap chain, then commit the
@@ -2652,6 +2745,7 @@ void DxuiHwndSource::PresentFrame()
                                        / (double) freq.QuadPart));
         }
 
+        NoteFrameStats (now.QuadPart, freq.QuadPart);
         m_lastPresentQpc = now.QuadPart;
     }
 
@@ -2795,6 +2889,15 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
     DXUI_ASSERT_UI_THREAD();
 
+    //  The first input since the last present starts a latency measure.
+    if (m_inputQpc == 0 && (msg == WM_KEYDOWN || msg == WM_CHAR || msg == WM_LBUTTONDOWN || msg == WM_MOUSEMOVE || msg == WM_MOUSEWHEEL) && WindowTrace::IsOn())
+    {
+        LARGE_INTEGER  now = {};
+
+        QueryPerformanceCounter (&now);
+        m_inputQpc = now.QuadPart;
+    }
+
     isHandled = DispatchHostMessage (msg, wp, lp, result);
 
     if (!isHandled && m_client != nullptr)
@@ -2917,6 +3020,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             break;
 
         case WM_NCLBUTTONDOWN:
+            WindowTrace::Log ("caption.press", "window", std::format ("hit {}", (int) wp));
             result = IsClaimed (m_client != nullptr
                                   ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
                                   : DxuiMessageResult::NotHandled,
@@ -2983,7 +3087,10 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             // which our outer pump stops. Arm the keep-alive tick so the
             // client can keep painting; report not-handled so the OS loop
             // still starts normally.
-            BeginModalKeepAlive();
+            //  Only the timer: a tick run here, before the loop, delayed the
+            //  start of a drag by a whole frame, 430 ms in Debug.
+            WindowTrace::Log ("move.enter", "window", "");
+            ArmModalKeepAlive();
 
             if (m_client != nullptr) { m_client->OnEnterSizeMove(); }
 

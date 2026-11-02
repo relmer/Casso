@@ -531,6 +531,7 @@ public:
     //  GetMessage loop owns the thread. Begin ticks once immediately.
     //
     void          BeginModalKeepAlive ();
+    void          ArmModalKeepAlive   ();
     void          EndModalKeepAlive   ();
 
     //
@@ -879,6 +880,17 @@ private:
     // until the first frame, which has no predecessor to be a delta from.
     DxuiFrameRate                     m_frameRate;
     long long                         m_lastPresentQpc = 0;
+
+    //  The window trace's frame statistics since the last line it wrote.
+    void                              NoteFrameStats (long long nowQpc, long long frequency);
+    long long                         m_inputQpc        = 0;
+    long long                         m_statsFromQpc    = 0;
+    int                               m_statsFrames     = 0;
+    double                            m_statsFrameSumMs = 0.0;
+    double                            m_statsFrameMaxMs = 0.0;
+    int                               m_statsInputs     = 0;
+    double                            m_statsInputSumMs = 0.0;
+    double                            m_statsInputMaxMs = 0.0;
 
     // m_device / m_context now live in the DxuiRenderTarget base (protected);
     // this subclass still creates + tears them down in CreateDeviceAndSwapChain
