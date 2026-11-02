@@ -1914,6 +1914,7 @@ public:
         //  varies by Windows build.
         auto shellSize = [] (uint64_t bytes)
         {
+            HRESULT      hr    = S_OK;
             PROPERTYKEY  key   = {};
             PROPVARIANT  value = {};
             PWSTR        shown = nullptr;
@@ -1922,8 +1923,11 @@ public:
             value.vt             = VT_UI8;
             value.uhVal.QuadPart = bytes;
 
-            Assert::IsTrue (SUCCEEDED (PSGetPropertyKeyFromName (L"System.Size", &key)));
-            Assert::IsTrue (SUCCEEDED (PSFormatForDisplayAlloc (key, value, PDFF_DEFAULT, &shown)));
+            hr = PSGetPropertyKeyFromName (L"System.Size", &key);
+            Assert::IsTrue (SUCCEEDED (hr));
+
+            hr = PSFormatForDisplayAlloc (key, value, PDFF_DEFAULT, &shown);
+            Assert::IsTrue (SUCCEEDED (hr));
 
             text = shown;
             CoTaskMemFree (shown);
