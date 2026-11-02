@@ -940,6 +940,7 @@ private:
     };
 
     TextPos       HitTestText          (int lx, int ly) const;
+    bool          IsOverCellText       (POINT localPx) const;
     int           HitTestCharInCell    (int row, size_t col, int lx) const;
     int           GetCellLeadPx        (const Cell & cell) const;
     int           HitTestCheck         (int lx, int ly, int row) const;

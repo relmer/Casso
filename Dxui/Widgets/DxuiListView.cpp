@@ -2819,14 +2819,49 @@ LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
     {
         cursor = IDC_SIZEWE;
     }
-    else if (m_textSelect && localPx.y >= GetHeaderHeightPx() && localPx.x >= 0 && localPx.y >= 0 &&
-             localPx.x < (LONG) (m_boundsDip.right - m_boundsDip.left) && localPx.y < (LONG) (m_boundsDip.bottom - m_boundsDip.top))
+    else if (m_textSelect && IsOverCellText (localPx))
     {
-        //  A list that reads as text has the I-beam over its rows.
         cursor = IDC_IBEAM;
     }
 
     return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOverCellText
+//
+//  Whether a point in list-local px is over a row's cell that has text, for
+//  the I-beam of a list that reads as text. A cell with no text, such as a
+//  gutter's or a heat strip's, and the space below the rows have the arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsOverCellText (POINT localPx) const
+{
+    int   row  = HitTestRow (localPx.x, localPx.y);
+    RECT  cell = {};
+
+
+
+    if (row < 0)
+    {
+        return false;
+    }
+
+    for (size_t c = 0; c < m_columns.size() && c < GetRowCells (row).size(); c++)
+    {
+        if (!GetRowCells (row)[c].text.empty() && GetCellTextRectPx (row, c, cell) && localPx.x >= cell.left && localPx.x < cell.right)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

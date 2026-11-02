@@ -91,6 +91,26 @@ public:
     }
 
 
+    //  The I-beam is over a cell with text; an empty cell, such as a gutter's
+    //  or a heat strip's, and the space below the rows have the arrow.
+    TEST_METHOD (TheIBeamIsOverTextAndNotOverAnEmptyCellOrBelowTheRows)
+    {
+        DxuiListView  list;
+        RECT          empty = {};
+        RECT          last  = {};
+
+        ConfigureList (list);
+        list.SetRows ({ { DxuiListView::Cell { L"LDA" }, DxuiListView::Cell { L"" } } });
+
+        Assert::IsTrue (list.GetCellTextRectPx (0, 1, empty));
+        Assert::IsTrue (list.GetCellTextRectPx (0, 0, last));
+
+        Assert::IsTrue (list.GetCursorForPoint (At (list, 0, 0, 1)) == IDC_IBEAM, L"over LDA");
+        Assert::IsNull (list.GetCursorForPoint (POINT { (empty.left + empty.right) / 2, (empty.top + empty.bottom) / 2 }), L"over the empty cell");
+        Assert::IsNull (list.GetCursorForPoint (POINT { last.left + 4, last.bottom + 40 }), L"below the rows");
+    }
+
+
     //  A Ctrl+drag selects only in the column the drag began in, however far
     //  the pointer strays into the next.
     TEST_METHOD (ACtrlDragSelectsOnlyItsColumn)
