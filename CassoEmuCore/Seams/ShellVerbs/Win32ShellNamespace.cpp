@@ -182,7 +182,7 @@ Error:
 
 HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
 {
-    HRESULT                     hr     = S_OK;
+    HRESULT                     hr        = S_OK;
     ComPtr<IShellItem>          folder;
     ComPtr<IEnumShellItems>     items;
     ComPtr<IShellFolder>        shellFolder;
