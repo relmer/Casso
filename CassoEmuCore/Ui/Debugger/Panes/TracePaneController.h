@@ -40,6 +40,7 @@ public:
     IDxuiControl                   * GetContent        () const override;
     std::vector<IDxuiControl *>      GetControls       () const override;
     std::vector<DxuiListView *>      GetLists          () const override { return { m_list }; }
+    bool                             HasTextLists      () const override { return false; }   // monospace, as the disassembly is
     void                             Apply             (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick              (int64_t nowMs) override;
     bool                             RouteContentMouse (const DxuiMouseEvent & ev) override;

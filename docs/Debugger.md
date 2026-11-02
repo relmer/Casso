@@ -999,7 +999,9 @@ closes the bar.
 
 The menu bar holds **File** (open a source file, open a symbol or debug file,
 load and save breakpoints, save the trace), **Edit** (copy, select all, find,
-find next and find previous), **View** (every pane, the device panels, and
+find next and find previous), **View** (every pane, with the disassembly views,
+the source files and the BASIC program, the memory windows, the logs and the
+device panels each in a submenu, and
 **Reset window layout**), **Debug** (run, break,
 detach, the steps, run to cursor, run one frame, show beam on screen, show next statement, step by source
 line and trace, then reset, power cycle and restart under debugger) and **Tools**

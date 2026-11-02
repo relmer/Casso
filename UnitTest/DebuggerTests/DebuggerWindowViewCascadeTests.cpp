@@ -202,5 +202,26 @@ namespace DebuggerViewCascadeTests
 
             AssertCascade (GetView (window), L"Device panels", { L"MMU", L"Disk II" });
         }
+
+
+        //  The logs are a cascade, and the BASIC program is one of the source
+        //  files; neither is a row of View itself.
+        TEST_METHOD (LogsAndSourceFilesAreCascades)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            CascadeHost    host;
+            CascadeWindow  window (theme, host);
+
+
+
+            window.OnCreate();
+            window.SetWindowMenus();
+
+            AssertCascade (GetView (window), L"Logs",         { L"Disk II log", L"Input log", L"Video log", L"Sound log", L"Serial log", L"Network log" });
+            AssertCascade (GetView (window), L"Source files", { L"BASIC program" });
+
+            Assert::IsNull (GetRow (GetView (window), L"Sound log"),     L"Sound log is a row of the cascade");
+            Assert::IsNull (GetRow (GetView (window), L"BASIC program"), L"BASIC program is a row of the cascade");
+        }
     };
 }

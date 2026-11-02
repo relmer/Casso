@@ -524,6 +524,27 @@ std::wstring DebuggerLayout::GetViewMenuGroup (const std::wstring & pane)
         }
     }
 
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        if (pane == GetSourcePaneId (slot))
+        {
+            return L"Source files";
+        }
+    }
+
+    if (pane == kBasicProgram)
+    {
+        return L"Source files";
+    }
+
+    for (const wchar_t * log : { kDiskLog, kInputLog, kVideoLog, kSoundLog, kSerialLog, kNetworkLog })
+    {
+        if (pane == log)
+        {
+            return L"Logs";
+        }
+    }
+
     if (TryGetDiagnosticsId (pane, diagnosticsId))
     {
         return L"Device panels";

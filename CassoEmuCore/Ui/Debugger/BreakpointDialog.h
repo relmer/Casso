@@ -191,8 +191,14 @@ public:
     //  starts at the PC, and every other type's fields start empty.
     static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {});
 
-    //  The condition's info tip text.
-    static const wchar_t *  GetConditionTip ();
+    //  The condition's info tip text for a type, and the type's heading with
+    //  its article: "A memory", "An execution".
+    static std::wstring     GetConditionTip (Type type);
+    static std::wstring     GetTypeArticle  (Type type);
+
+    //  Whether moving the focus off a field checks the fields: not while a
+    //  field the type requires is empty, which only OK reports.
+    static bool             IsCheckedOnFocusLoss (const Fields & fields);
 
     //  The disk event row's info tip text: what each event stops on.
     static const wchar_t *  GetDiskEventTip ();
@@ -208,6 +214,7 @@ private:
     void        Resize            ();
     void        Confirm           ();
     std::string MakeEditedDefinition () const;
+    Fields      GetEditedFields      () const;
     void        CheckFields       ();
     Type        GetSelectedType   () const;
     DiskFields  ReadDiskFields    () const;
