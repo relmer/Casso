@@ -1145,9 +1145,27 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     //  this one.
                     if (msg == WM_RBUTTONDOWN)
                     {
-                        RepostPressBelow (screen, wp);
+                        RepostPressBelow (screen, msg, wp);
                     }
                 }
+            }
+
+            break;
+
+        case WM_XBUTTONDOWN:
+            //  The mouse's Back and Forward buttons close the popup and act on
+            //  the window under the pointer, as in File Explorer, wherever the
+            //  press lands.
+            if (m_open && GetCapture() == m_hwnd)
+            {
+                POINT  screen = pt;
+
+                ClientToScreen (m_hwnd, &screen);
+
+                Close (0);
+                RepostPressBelow (screen, msg, wp);
+                claimed = true;
+                result  = TRUE;
             }
 
             break;
@@ -1570,13 +1588,13 @@ Error:
 //
 //  RepostPressBelow
 //
-//  Hands a right press that closed the popup to the window now under it, in
-//  that window's client coordinates, when it belongs to this thread. The
-//  release follows by itself, since the popup no longer holds the capture.
+//  Posts a press that closed the popup to the window now under it, in that
+//  window's client coordinates, when the window is on this thread. The release
+//  follows by itself, since the popup no longer has the capture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::RepostPressBelow (POINT screen, WPARAM keys)
+void DxuiPopupHost::RepostPressBelow (POINT screen, UINT msg, WPARAM keys)
 {
     HWND   below  = WindowFromPoint (screen);
     POINT  client = screen;
@@ -1591,7 +1609,7 @@ void DxuiPopupHost::RepostPressBelow (POINT screen, WPARAM keys)
 
     ScreenToClient (below, &client);
 
-    posted = PostMessageW (below, WM_RBUTTONDOWN, keys, MAKELPARAM (client.x, client.y));
+    posted = PostMessageW (below, msg, keys, MAKELPARAM (client.x, client.y));
     IGNORE_RETURN_VALUE (posted, TRUE);
 }
 

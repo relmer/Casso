@@ -433,7 +433,7 @@ private:
 
     //  The drawn shadow and the rounded card it sits under.
     void  PaintShadowAndCard   ();
-    void  RepostPressBelow     (POINT screen, WPARAM keys);
+    void  RepostPressBelow     (POINT screen, UINT msg, WPARAM keys);
 
     ShowParams  m_params;
     bool        m_open               = false;
