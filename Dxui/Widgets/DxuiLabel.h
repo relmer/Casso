@@ -74,6 +74,9 @@ public:
     float                 GetFontSizeDip () const { return m_fontDip; }
     DxuiTextHAlign        GetHAlign      () const { return m_hAlign; }
 
+    //  The height of the text wrapped at a width, as Paint lays it out.
+    HRESULT  MeasureWrappedDip (float widthDip, float & outHeightDip) const;
+
     // Legacy theme-less paint; draws with the color pinned by SetColor.
     void  Paint (IDxuiTextRenderer & text) const;
 

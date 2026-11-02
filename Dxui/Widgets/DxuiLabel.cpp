@@ -2,6 +2,7 @@
 
 #include "Widgets/DxuiLabel.h"
 
+#include "Render/DxuiTextRenderer.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 
@@ -114,3 +115,21 @@ void DxuiLabel::DrawResolved (IDxuiTextRenderer & text, uint32_t argb, float fon
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLabel::MeasureWrappedDip
+//
+//  The font resolves as in the theme-less Paint: the label's size, or the
+//  fallback size at the sentinel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiLabel::MeasureWrappedDip (float widthDip, float & outHeightDip) const
+{
+    float  fontDip = (m_fontDip > 0.0f) ? m_fontDip : s_kFallbackFontDip;
+
+
+
+    return DxuiTextRenderer::MeasureWrappedDip (m_text.c_str(), fontDip, m_fontFace.c_str(), m_weight, widthDip, outHeightDip);
+}
