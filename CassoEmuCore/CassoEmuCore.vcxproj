@@ -278,6 +278,7 @@
     <ClCompile Include="Devices\Disk\ChainWalkGuard.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleFileName.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Dos33Volume.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\NativeListing.cpp" />
     <ClCompile Include="Machines\Apple2\Common\PascalVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CpmVolume.cpp" />
     <ClCompile Include="CassoExplorer\Model\FilesystemChoices.cpp" />
@@ -770,6 +771,7 @@
     <ClInclude Include="Machines\Apple2\Common\AssembledFilePlacement.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleFileName.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Volume.h" />
+    <ClInclude Include="Machines\Apple2\Common\NativeListing.h" />
     <ClInclude Include="Machines\Apple2\Common\PascalVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\CpmVolume.h" />
     <ClInclude Include="CassoExplorer\Model\FilesystemChoices.h" />

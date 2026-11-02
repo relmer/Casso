@@ -346,6 +346,8 @@ void PascalVolume::FillEntry (const RawEntry & raw, size_t index, FileEntry & ou
     outEntry.hasEofBytes  = true;
     outEntry.catalogIndex = index;
     outEntry.hasModified  = ProDosVolume::TryToUnixTime (ToProDosDate (raw.date), 0, outEntry.modifiedUnix);
+    outEntry.firstBlock     = raw.first;
+    outEntry.lastBlockBytes = raw.lastBytes;
 }
 
 
@@ -384,6 +386,7 @@ HRESULT PascalVolume::Enumerate (VolumeListing & outListing) const
     outListing.volumeName.assign ((const char *) directory.data() + s_kOffName, nameBytes);
     outListing.hasVolumeName = true;
     outListing.totalUnits    = (std::min) ((uint32_t) GetWord (directory, s_kOffVolumeBlocks), kUnitCount);
+    outListing.directoryFiles = (uint32_t) entries.size();
 
     for (const RawEntry & raw : entries)
     {

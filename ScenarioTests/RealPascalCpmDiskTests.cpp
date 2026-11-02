@@ -2,6 +2,7 @@
 
 #include "EhmTestHelper.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
+#include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -97,6 +98,15 @@ public:
         AssertSucceeded (volume.Read (FilePath::Parse ("SYSTEM.MISCINFO"), info));
         Assert::AreEqual ((size_t) 192, info.bytes.size());
 
+        std::vector<std::string>  lines;
+
+        NativeListing::FormatPascal (listing, lines);
+
+        Assert::AreEqual (std::string ("APPLE0:"), lines[0]);
+        Assert::AreEqual (std::string ("SYSTEM.PASCAL     44 ") + lines[1].substr (21, 9) + "     6   512  Codefile", lines[1]);
+        Assert::IsTrue   (lines.back().starts_with ("8/8 files<listed/in-dir>, 261 blocks used, 19 unused, 19 in largest"));
+        Logger::WriteMessage ((lines[0] + "\n" + lines[1] + "\n" + lines.back() + "\n").c_str());
+
         //  The syntax errors are text in the compiler's format.
         AssertSucceeded (volume.Read (FilePath::Parse ("SYSTEM.SYNTAX"), syntax));
         PascalVolume::DecodeText (syntax.bytes, text);
@@ -136,6 +146,14 @@ public:
         Assert::AreEqual (std::string ("TESTFILE"), listing.entries[1].name);
         Assert::AreEqual ((size_t) 1, listing.damage.size(), L"The leftover bytes are reported");
 
+        std::vector<std::string>  lines;
+
+        NativeListing::FormatCpm (listing, lines);
+
+        Assert::AreEqual (std::string ("Recs  Bytes  Ext Acc"), lines[0]);
+        Assert::AreEqual (std::string ("  56     7k    1 R/W A:TEST.COM"), lines[1]);
+        Assert::AreEqual (std::string (" 256    32k    3 R/W A:TESTFILE"), lines[2]);
+
         AssertSucceeded (volume.Read (FilePath::Parse ("TEST.COM"), test));
 
         Assert::AreEqual ((size_t) 56 * 128, test.bytes.size());
@@ -173,6 +191,14 @@ public:
         Assert::AreEqual (std::string ("31:cp/am.sys"), listing.entries[0].name);
         Assert::IsTrue (listing.entries[0].isLocked);
         Assert::AreEqual ((uint32_t) 3, listing.freeUnits, L"Blocks 2 to 124 are in use");
+
+        std::vector<std::string>  lines;
+
+        NativeListing::FormatCpm (listing, lines);
+
+        Assert::AreEqual (std::string ("Bytes Remaining On A: 3k"), lines[lines.size() - 5]);
+        Assert::AreEqual (std::string ("USER 31"), lines[lines.size() - 3]);
+        Assert::AreEqual (std::string ("  96    12k    1 R/W A:cp/am.sys"), lines.back());
 
         //  Strings that cross a sector boundary confirm the skew.
         AssertSucceeded (volume.Read (FilePath::Parse ("CONFIGIO.COM"), configure));

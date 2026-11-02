@@ -112,6 +112,17 @@ struct FileEntry
     //  Where the entry sits in its directory's catalog, from 0. DOS 3.3 names
     //  can repeat, and this distinguishes two entries with the same name.
     size_t       catalogIndex   = 0;
+
+    //  Apple Pascal's first block and bytes in the last block.
+    int          firstBlock     = 0;
+    Word         lastBlockBytes = 0;
+
+    //  CP/M's 128-byte records, directory entries, user number and attributes.
+    uint32_t     records        = 0;
+    uint32_t     extents        = 0;
+    int          user           = 0;
+    bool         isReadOnly     = false;
+    bool         isSystem       = false;
 };
 
 
@@ -131,6 +142,9 @@ struct VolumeListing
     uint32_t                  freeUnits       = 0;
     std::vector<FileEntry>    entries;
     std::vector<std::string>  damage;   // empty means a clean read
+
+    //  Apple Pascal: the file count its directory records, valid entries or not.
+    uint32_t                  directoryFiles  = 0;
 };
 
 

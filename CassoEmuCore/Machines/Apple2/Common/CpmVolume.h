@@ -108,6 +108,7 @@ private:
         int                   extent     = 0;
         int                   records    = 0;
         bool                  isReadOnly = false;
+        bool                  isSystem   = false;
         std::string           name;
         std::array<Byte, 16>  blocks     = {};
     };
@@ -118,6 +119,7 @@ private:
         std::string       name;
         bool              isFixed    = false;
         bool              isReadOnly = false;
+        bool              isSystem   = false;
         vector<RawEntry>  extents;
     };
 

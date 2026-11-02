@@ -12,6 +12,7 @@
 #include "IntegerBasicDetokenizer.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -680,39 +681,31 @@ void PreviewDecoder::RenderDos33Catalog (const VolumeListing & listing, std::vec
 //
 //  PreviewDecoder::RenderBlockCatalog
 //
-//  The volume when it has a name, then per file the lock, the name, the type,
-//  the blocks and the date, and the free blocks at the foot.
+//  The Filer's Extended list or CP/M's STAT *.*, the lines `disk list` prints.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewDecoder::RenderBlockCatalog (const VolumeListing & listing, VolumeKind kind, std::vector<std::wstring> & outLines)
 {
-    wchar_t  line[96] = {};
+    std::vector<std::string>  lines;
 
 
 
     outLines.clear();
 
-    if (listing.hasVolumeName)
+    if (kind == VolumeKind::Pascal)
     {
-        outLines.push_back (TextEncoding::NarrowToWide (listing.volumeName) + L":");
-        outLines.push_back (std::wstring());
+        NativeListing::FormatPascal (listing, lines);
+    }
+    else
+    {
+        NativeListing::FormatCpm (listing, lines);
     }
 
-    for (const FileEntry & entry : listing.entries)
+    for (const std::string & line : lines)
     {
-        swprintf_s (line, L"%lc%-15ls %4ls%8u  %ls",
-                    entry.isLocked ? L'*' : L' ',
-                    TextEncoding::NarrowToWide (entry.name).c_str(),
-                    CatalogModel::GetEntryTypeText (entry, kind).c_str(),
-                    (unsigned) entry.sizeUnits,
-                    entry.hasModified ? FormatProDosDate (entry).c_str() : L"");
-        outLines.push_back (line);
+        outLines.push_back (TextEncoding::NarrowToWide (line));
     }
-
-    outLines.push_back (std::wstring());
-    swprintf_s (line, L"%u blocks free of %u", (unsigned) listing.freeUnits, (unsigned) listing.totalUnits);
-    outLines.push_back (line);
 }
 
 

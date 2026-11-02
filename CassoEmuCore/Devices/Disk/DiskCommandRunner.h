@@ -299,6 +299,19 @@ private:
     void  RunMkdir  (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunRmdir  (const CommandLineOptions & options, DiskCommandResult & result);
 
+    //  A Pascal or CP/M catalog as the Filer or STAT prints it.
+    HRESULT  AppendNativeListing (const CommandLineOptions             & options,
+                                  const DiskImageSession::OpenedImage  & opened,
+                                  const IVolume                        & volume,
+                                  const VolumeListing                  & listing,
+                                  DiskCommandResult                    & result);
+
+    //  What a listing could not read, on the error stream, with the status.
+    void     ReportListingDamage (const CommandLineOptions             & options,
+                                  const DiskImageSession::OpenedImage  & opened,
+                                  const VolumeListing                  & listing,
+                                  DiskCommandResult                    & result);
+
     //  One directory's rows, and with `recurse` the rows of everything below
     //  it, each of those written as a full path.
     HRESULT  AppendDirectoryRows (const IVolume      & volume,
@@ -396,7 +409,6 @@ private:
     //  whether or not anybody asks and the widest row still fits in 80.
     static std::string  FormatDos33Entry  (const FileEntry & entry);
     static std::string  FormatProDosEntry (const FileEntry & entry);
-    static std::string  FormatBlockEntry  (const FileEntry & entry, VolumeKind kind);
 
     static char  GetDos33TypeLetter (Byte type);
 

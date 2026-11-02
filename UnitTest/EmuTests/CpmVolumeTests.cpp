@@ -1029,7 +1029,7 @@ public:
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "cpm");
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
-        Assert::IsTrue (result.output.find ("126 blocks free of 128") != std::string::npos);
+        Assert::IsTrue (result.output.find ("Bytes Remaining On A: ") != std::string::npos);
 
         result = RunVerb (io, CommandLineOptions::DiskOptions::Command::List, "", "nonsense");
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
@@ -1047,7 +1047,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.output.find ("TEST.COM") != std::string::npos);
         Assert::IsTrue (result.output.find ("COM") != std::string::npos);
-        Assert::IsTrue (result.output.find ("*2:OTHER") != std::string::npos);
+        Assert::IsTrue (result.output.find ("USER 2") != std::string::npos);
         Assert::IsTrue (result.output.find ("Not bootable") == std::string::npos);
     }
 

@@ -390,6 +390,7 @@ void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & 
         entry.extent     = bytes[s_kOffExtent];
         entry.records    = bytes[s_kOffRecords];
         entry.isReadOnly = (bytes[s_kOffType] & s_kHighBit) != 0;
+        entry.isSystem   = (bytes[s_kOffSystem] & s_kHighBit) != 0;
         entry.name       = name;
 
         std::copy_n (bytes.begin() + (ptrdiff_t) s_kOffBlocks, entry.blocks.size(), entry.blocks.begin());
@@ -402,6 +403,7 @@ void CpmVolume::CollectFiles (const vector<Byte> & directory, vector<RawFile> & 
         }
 
         outFiles[file].isReadOnly = outFiles[file].isReadOnly || entry.isReadOnly;
+        outFiles[file].isSystem   = outFiles[file].isSystem || entry.isSystem;
         outFiles[file].isFixed    = outFiles[file].isFixed || entry.user == s_kUserSystem;
         outFiles[file].extents.push_back (entry);
     }
@@ -492,6 +494,11 @@ void CpmVolume::FillEntry (const RawFile & file, size_t index, FileEntry & outEn
     outEntry.eofBytes     = (uint32_t) CountRecords (file) * (uint32_t) kRecordBytes;
     outEntry.hasEofBytes  = true;
     outEntry.catalogIndex = index;
+    outEntry.records      = (uint32_t) CountRecords (file);
+    outEntry.extents      = (uint32_t) file.extents.size();
+    outEntry.user         = file.extents.front().user;
+    outEntry.isReadOnly   = file.isReadOnly;
+    outEntry.isSystem     = file.isSystem;
 }
 
 

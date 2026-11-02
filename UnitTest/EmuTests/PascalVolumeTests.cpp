@@ -964,8 +964,8 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
         Assert::IsTrue (result.output.find ("APPLE0:") != std::string::npos);
         Assert::IsTrue (result.output.find ("SYSTEM.PASCAL") != std::string::npos);
-        Assert::IsTrue (result.output.find ("CODE") != std::string::npos);
-        Assert::IsTrue (result.output.find ("265 blocks free of 280") != std::string::npos);
+        Assert::IsTrue (result.output.find ("Codefile") != std::string::npos);
+        Assert::IsTrue (result.output.find ("265 unused") != std::string::npos);
         Assert::IsTrue (result.output.find ("Not bootable") == std::string::npos);
     }
 

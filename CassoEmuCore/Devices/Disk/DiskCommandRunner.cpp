@@ -7,6 +7,7 @@
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "DiskImageStore.h"
@@ -343,39 +344,6 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskCommandRunner::FormatBlockEntry
-//
-//  An Apple Pascal or CP/M entry: the lock column, the name, the kind where
-//  there is one, the blocks and the length.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string DiskCommandRunner::FormatBlockEntry (const FileEntry & entry, VolumeKind kind)
-{
-    char         detail[64] = {};
-    std::string  text       = std::string (entry.isLocked ? "*" : " ") + entry.name;
-
-
-
-    while (text.size() < 18)
-    {
-        text += " ";
-    }
-
-    snprintf (detail, sizeof (detail), "%-4s %5u  eof=%u",
-              TextEncoding::WideToNarrow (CatalogModel::GetEntryTypeText (entry, kind)).c_str(),
-              (unsigned) entry.sizeUnits,
-              (unsigned) entry.eofBytes);
-
-    return text + detail;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskCommandRunner::DescribeListingRefusal
 //
 //  WHICH LINE, AND THE LINE ITSELF. A number on its own is useless against a
@@ -558,11 +526,14 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     VolumeListing                  listing;
     std::string                    directory;
     char                           summary[128] = {};
+    bool                           isFlat       = false;
 
 
 
     hr = m_session.OpenImage (options.disk.imagePath, opened, result);
     CHR (hr);
+
+    isFlat = opened.kind == VolumeKind::Pascal || opened.kind == VolumeKind::Cpm;
 
     {
         std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
@@ -575,11 +546,19 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
         result.output += std::string (VolumeImage::GetSystemName (opened.kind)) + " disk\n\n";
 
-        if (opened.kind == VolumeKind::Pascal)
+        //  The whole volume's listing, as the Filer or STAT prints it, since
+        //  neither file system has anything below the volume directory.
+        if (isFlat)
         {
-            result.output += listing.volumeName + ":\n\n";
+            hr = AppendNativeListing (options, opened, *volume, listing, result);
+            CHR (hr);
+
+            ReportListingDamage (options, opened, listing, result);
+
+            BAIL_OUT_IF (true, S_OK);
         }
-        else if (listing.hasVolumeName)
+
+        if (listing.hasVolumeName)
         {
             result.output += "/" + listing.volumeName + "\n\n";
         }
@@ -625,14 +604,90 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         }
     }
 
-    // Damage from the catalog walk, and from the track layer beneath it.
-    //
-    // Each message must say the LISTING IS INCOMPLETE, not merely that the disk
-    // is damaged. A pipeline that treats status 1 as a warning and continues
-    // will otherwise consume a truncated listing that reads as whole, and its
-    // log will describe a disk problem rather than a missing-entries problem.
-    // The status carries the distinction for a script; the wording has to carry
-    // it for whoever reads the log afterwards.
+    ReportListingDamage (options, opened, listing, result);
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::AppendNativeListing
+//
+//  A directory typed for a file system with none is turned down, as it is on
+//  DOS 3.3.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::AppendNativeListing (
+    const CommandLineOptions             & options,
+    const DiskImageSession::OpenedImage  & opened,
+    const IVolume                        & volume,
+    const VolumeListing                  & listing,
+    DiskCommandResult                    & result)
+{
+    HRESULT                   hr = S_OK;
+    VolumeListing             below;
+    std::vector<std::string>  lines;
+
+
+
+    hr = volume.EnumerateDirectory (FilePath::Parse (options.disk.path), below);
+
+    CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
+                                 ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+
+    if (opened.kind == VolumeKind::Pascal)
+    {
+        NativeListing::FormatPascal (listing, lines);
+    }
+    else
+    {
+        NativeListing::FormatCpm (listing, lines);
+    }
+
+    for (const std::string & line : lines)
+    {
+        result.output += line + "\n";
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ReportListingDamage
+//
+//  Damage from the catalog walk, and from the track layer beneath it.
+//
+//  Each message must say the LISTING IS INCOMPLETE, not merely that the disk
+//  is damaged. A pipeline that treats status 1 as a warning and continues
+//  will otherwise consume a truncated listing that reads as whole, and its
+//  log will describe a disk problem rather than a missing-entries problem.
+//  The status carries the distinction for a script; the wording has to carry
+//  it for whoever reads the log afterwards.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ReportListingDamage (
+    const CommandLineOptions             & options,
+    const DiskImageSession::OpenedImage  & opened,
+    const VolumeListing                  & listing,
+    DiskCommandResult                    & result)
+{
+    char  summary[128] = {};
+
+
+
     for (const std::string & note : listing.damage)
     {
         result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "",
@@ -652,9 +707,6 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         result.diagnostics += DiskCommandResult::FormatFailure (options.disk.imagePath, "", summary) + "\n";
         result.exitStatus   = DiskCommandResult::kWithComplaints;
     }
-
-Error:
-    return;
 }
 
 
@@ -704,9 +756,7 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
             shown.name = directory + "/" + entry.name;
         }
 
-        result.output += (kind == VolumeKind::Dos33)  ? FormatDos33Entry (shown)
-                       : (kind == VolumeKind::ProDos) ? FormatProDosEntry (shown)
-                                                      : FormatBlockEntry (shown, kind);
+        result.output += (kind == VolumeKind::Dos33) ? FormatDos33Entry (shown) : FormatProDosEntry (shown);
 
         //  A name that several entries share cannot select one of them, so
         //  each such entry is listed with its index. A unique name has none.
