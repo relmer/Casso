@@ -104,8 +104,8 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
 //
 //  SourcePane::AddHeatStrips
 //
-//  A line that produced no code, or whose bytes nothing touched, gets spaces
-//  in the strip's place.
+//  A line without code, or whose bytes nothing touched, gets spaces in the
+//  strip's place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
