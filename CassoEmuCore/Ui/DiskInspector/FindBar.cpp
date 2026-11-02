@@ -415,7 +415,10 @@ void FindBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 //  FindBar::Paint
 //
-//  A shadow and the bar's surface, a step above the window's, then its controls.
+//  A shadow and the bar's surface, a step above the window's, then its
+//  controls. While the pattern has the focus, the outline is in the focus
+//  accent, a whole number of pixels wide, as a docked pane's is while the
+//  user works in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -427,12 +430,13 @@ void FindBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDx
     float  h      = static_cast<float> (m_boundsDip.bottom - m_boundsDip.top);
     float  radius = m_scaler.ToPxf (s_kRadiusDip);
     float  shadow = m_scaler.ToPxf (s_kShadowDip);
+    float  line   = std::max (1.0f, std::round (m_scaler.ToPxf (1.0f)));
 
 
 
     painter.FillRoundedRect    (x + shadow, y + shadow, w, h, radius, s_kShadowArgb);
     painter.FillRoundedRect    (x, y, w, h, radius, theme.BackgroundElevated());
-    painter.OutlineRoundedRect (x, y, w, h, radius, m_scaler.ToPxf (1.0f), theme.Border());
+    painter.OutlineRoundedRect (x, y, w, h, radius, line, IsInputFocused() ? theme.FocusAccent() : theme.Border());
 
     DxuiPanel::Paint (painter, text, theme);
 }
