@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
@@ -341,6 +342,9 @@ void CommandLine::Submit()
 
 
     BAIL_OUT_IF (host == nullptr, S_OK);
+
+    //  HELP lays its rows out for the console's width as it is now.
+    CommandModeHelp::SetConsoleColumns (m_output.GetView()->GetVisibleColumns());
 
     fileVerb = DebuggerViewState::GetMissingFileVerb (line,
                                                       snapshot != nullptr ? snapshot->mode : CommandMode::AppleWin,

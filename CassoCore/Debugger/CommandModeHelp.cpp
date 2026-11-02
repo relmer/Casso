@@ -705,7 +705,8 @@ std::vector<std::string> CommandModeHelp::BuildListing (CommandMode mode, const 
     std::vector<Row>          own;
     std::vector<Row>          casso;
     std::vector<std::string>  lines;
-    size_t                    width = 0;
+    size_t                    width       = 0;
+    size_t                    description = 0;
 
 
 
@@ -744,12 +745,12 @@ std::vector<std::string> CommandModeHelp::BuildListing (CommandMode mode, const 
     {
         for (const Row & row : *rows)
         {
-            width = (std::max) (width, row.syntax.size());
+            width       = (std::max) (width, row.syntax.size());
+            description = (std::max) (description, row.description.size());
         }
     }
 
-    //  One long syntax doesn't push every description to the right.
-    width = (std::min) (width, kMaxSyntaxColumn);
+    width = GetSyntaxColumn (width, description, s_consoleColumns);
 
     if (!own.empty())
     {
@@ -1107,6 +1108,36 @@ std::string CommandModeHelp::GetModesThatRun (const std::string & name)
     }
 
     return list + (modes.size() == 1 ? " mode" : " modes");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::GetSyntaxColumn
+//
+//  A row is the indent, the syntax column, a gap of two and the description.
+//  Where every row fits the console that way, nothing wraps and the column is
+//  as wide as the widest syntax. Otherwise one long syntax doesn't push every
+//  description to the right, and the descriptions wrap to the column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CommandModeHelp::GetSyntaxColumn (size_t widestSyntax, size_t widestDescription, int consoleColumns)
+{
+    constexpr size_t  kIndent = 4;
+    constexpr size_t  kGap    = 2;
+
+
+
+    if (consoleColumns > 0 && kIndent + widestSyntax + kGap + widestDescription <= (size_t) consoleColumns)
+    {
+        return widestSyntax;
+    }
+
+    return (std::min) (widestSyntax, kMaxSyntaxColumn);
 }
 
 

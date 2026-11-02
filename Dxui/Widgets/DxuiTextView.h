@@ -151,6 +151,9 @@ public:
     int    GetTextTopPx    () const               { return m_textTopPx; }
 
     int   GetLineCount () const { return (int) m_lines.size(); }
+
+    //  How many characters fit across the text with a scroll bar beside it.
+    int   GetVisibleColumns () const { return GetTextColumns (true); }
     int   GetLineCap   () const;
     int   GetTopLine   () const { return m_topLine; }
     void  SetTopLine   (int line);

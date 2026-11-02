@@ -261,6 +261,18 @@ namespace DebuggerTests
         }
 
 
+        //  Where the console fits every row unwrapped, the syntax column is
+        //  the widest syntax; where it doesn't, or the width is unknown, the
+        //  column is capped.
+        TEST_METHOD (TheSyntaxColumnIsUncappedOnlyWhereEveryRowFits)
+        {
+            Assert::AreEqual ((size_t) 30, CommandModeHelp::GetSyntaxColumn (30, 60, 4 + 30 + 2 + 60), L"every row fits");
+            Assert::AreEqual (CommandModeHelp::kMaxSyntaxColumn, CommandModeHelp::GetSyntaxColumn (30, 60, 4 + 30 + 2 + 59), L"one column short");
+            Assert::AreEqual (CommandModeHelp::kMaxSyntaxColumn, CommandModeHelp::GetSyntaxColumn (30, 60, 0), L"no console width");
+            Assert::AreEqual ((size_t) 10, CommandModeHelp::GetSyntaxColumn (10, 60, 0), L"a column narrower than the cap");
+        }
+
+
         TEST_METHOD (HelpIsByCategory_AndAlphabeticalWithinEach)
         {
             std::vector<std::string>  lines    = CommandModeHelp::BuildHelp (CommandMode::Casso);

@@ -61,8 +61,23 @@ public:
     //  or its marker and the name.
     static std::string             GetTypedName   (CommandMode mode, const std::string & cassoName);
 
+    //  The widest the syntax column of a help listing gets, unless the
+    //  console is wide enough for every row unwrapped; a longer syntax is a
+    //  row by itself.
+    static constexpr size_t  kMaxSyntaxColumn = 24;
+
     //  HELP ALL: every command the mode can type, the lines it prints.
     static std::vector<std::string>  BuildHelp    (CommandMode mode);
+
+    //  The width in characters of the console the help goes to, set before a
+    //  command runs; zero, as for a script or the command line, caps the
+    //  syntax column.
+    static void  SetConsoleColumns (int columns) { s_consoleColumns = columns; }
+
+    //  The syntax column's width for rows of this syntax and description
+    //  width: the widest syntax where every row fits the console unwrapped,
+    //  otherwise no wider than kMaxSyntaxColumn.
+    static size_t  GetSyntaxColumn (size_t widestSyntax, size_t widestDescription, int consoleColumns);
 
     //  HELP with no word: the sections and how to ask for each.
     static std::vector<std::string>  BuildSectionIndex (CommandMode mode);
@@ -93,9 +108,7 @@ public:
     static bool                    TryDescribe    (CommandMode mode, const std::string & word, std::string & line);
 
 private:
-    //  The widest the syntax column of a help listing gets; a longer syntax
-    //  is a row by itself.
-    static constexpr size_t  kMaxSyntaxColumn = 24;
+
 
     struct Row
     {
@@ -115,4 +128,6 @@ private:
     static const char * GetSectionWord    (HelpCategory category);
     static void         AppendSection     (const std::string & heading, std::vector<Row> rows, size_t width, std::vector<std::string> & lines);
     static std::string  ToUpper           (const std::string & text);
+
+    static inline std::atomic<int>  s_consoleColumns = 0;
 };
