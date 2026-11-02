@@ -123,7 +123,7 @@ void SoundBoardView::Reflow()
     for (bool hasBar : { false, true })
     {
         m_hasScrollbar = hasBar;
-        columns        = SoundBoardLayout::GetColumnCount (GetClientWidth(), m_scaler.ToPx (kLeastCardDip), gap);
+        columns        = SoundBoardLayout::GetColumnCount (GetClientWidth(), m_scaler.ToPx (kLeastCardDip), gap, (int) heights.size());
         m_halfCards    = heights.empty() ? std::vector<RECT>() : SoundBoardLayout::PlaceCards (heights, columns, GetClientWidth(), gap, below);
 
         if (voice + below <= height)
@@ -1434,6 +1434,7 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     int               top          = card.top + pad + m_scaler.ToPx (kTitleDip);
     int               mainBottom   = top + m_scaler.ToPx (kPhonemeDip);
     int               stripTop     = mainBottom + gap + m_scaler.ToPx (kStripHeadDip);
+    int               captionHigh  = m_scaler.ToPx (kStripHeadDip);
     int               stripBottom  = stripTop + m_scaler.ToPx (kStripDip);
     int               historyEnd   = stripBottom + m_scaler.ToPx (kHistoryDip);
     size_t            shown        = 0;
@@ -1502,8 +1503,11 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
                             isLit ? Mix (color, 0xFFFFFFFF, (float) s / (float) kSegments * 0.35f) : WithAlpha (p.theme.ForegroundMuted(), kUnlitAlpha));
     }
 
-    PaintScope    (p, voice.scope, { scopeLeft, top, scopeRight, mainBottom }, color, 0.0, true);
-    PaintFormants (p, voice, { scopeRight + gap, top, right, mainBottom });
+    //  Each graph under a caption.
+    PaintString   (p, L"Waveform", { scopeLeft, top, scopeRight, top + captionHigh }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
+    PaintString   (p, L"Formants", { scopeRight + gap, top, right, top + captionHigh }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
+    PaintScope    (p, voice.scope, { scopeLeft, top + captionHigh, scopeRight, mainBottom }, color, 0.0, true);
+    PaintFormants (p, voice, { scopeRight + gap, top + captionHigh, right, mainBottom });
     PaintString (p, L"Recent phonemes", { left, mainBottom + gap, right, stripTop }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
 
     shown = PaintHistory (p, voice, { left, stripBottom, right, historyEnd });

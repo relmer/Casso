@@ -558,12 +558,23 @@ bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
         return true;
     }
 
+    //  The tip is placed at the pointer where it first opens, and isn't moved
+    //  while the pointer is over a part with the same tip. Moving the balloon
+    //  with every move of the pointer lagged a frame behind it.
     if (board != nullptr && m_host.IsRoutable (board) && board->IsVisible() && board->TryGetTipAt (clientPx, tip.text))
     {
+        if (tip.text != m_boardTipText)
+        {
+            m_boardTipText   = tip.text;
+            m_boardTipAnchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+        }
+
         tip.kind   = PaneTip::Kind::Control;
-        tip.anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+        tip.anchor = m_boardTipAnchor;
         return true;
     }
+
+    m_boardTipText.clear();
 
     if (head == nullptr || !m_host.IsRoutable (head))
     {

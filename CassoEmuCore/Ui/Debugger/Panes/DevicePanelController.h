@@ -69,5 +69,7 @@ private:
     std::unique_ptr<DiagnosticsPane>           m_model;
     std::unique_ptr<PaneBarSlot>               m_bar;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;
-    bool                                       m_isOpen   = false;
+    bool                                       m_isOpen         = false;
+    std::wstring                               m_boardTipText;
+    RECT                                       m_boardTipAnchor = {};
 };
