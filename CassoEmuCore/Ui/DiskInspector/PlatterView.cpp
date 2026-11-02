@@ -116,12 +116,14 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
     if (!IsRectEmpty (&clip))
     {
+        bool  isStill = IsIndexStill (view);
+
         painter.SetClipRect (&clip);
-        PaintDisk    (painter, theme, view);
+        PaintDisk    (painter, theme, view, isStill);
         PaintNibbles (painter, text, theme, view);
         PaintHead    (painter, theme, view);
 
-        if (IsIndexStill (view))
+        if (isStill)
         {
             PaintIndexLabel (painter, text, theme, view);
         }
@@ -138,9 +140,11 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //
 //  PlatterView::PaintDisk
 //
+//  The index mark is drawn only on a stationary disk, as its label is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
+void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view, bool isStill)
 {
     float                             hub  = view.outerRadiusPx * PlatterRenderer::kInnerFraction;
     float                             mark = m_scaler.ToPxf (s_kIndexMarkDip);
@@ -171,9 +175,12 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
                    DxuiColor::Lerp (theme.BackgroundElevated(), 0xFFFFFFFF, s_kHubLightShare / 2.0f));
 
     //  The index mark just outside the rim, where each track starts.
-    PlatterGeometry::ProjectAt (view, 0.0, view.outerRadiusPx + 2.0f,        x0, y0);
-    PlatterGeometry::ProjectAt (view, 0.0, view.outerRadiusPx + 2.0f + mark, x1, y1);
-    painter.DrawLine (x0, y0, x1, y1, m_scaler.ToPxf (s_kSelectOutlineDip), theme.Foreground());
+    if (isStill)
+    {
+        PlatterGeometry::ProjectAt (view, 0.0, view.outerRadiusPx + 2.0f,        x0, y0);
+        PlatterGeometry::ProjectAt (view, 0.0, view.outerRadiusPx + 2.0f + mark, x1, y1);
+        painter.DrawLine (x0, y0, x1, y1, m_scaler.ToPxf (s_kSelectOutlineDip), theme.Foreground());
+    }
 
     //  The line at the head's limit (FR-004).
     if (view.headLimitRing < PlatterRenderer::kRingCount)
@@ -309,6 +316,7 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     bool                 showTicks  = IsShowingTicks (view, quarterTrack);
     bool                 showBits   = IsShowingBits (view, quarterTrack);
     double               rText      = showTicks ? rMid + ringW * s_kTickShare / 2 : rMid;
+    double               shortest   = s_kTwoPi * rMid * LatchFramer::kNibbleCells / std::max<uint32_t> (framed.cellCount, 1);
     float                textPx     = m_scaler.ToPxf (kSmallDip);
     size_t               n          = framed.nibbles.size();
     size_t               i          = 0;
@@ -349,10 +357,12 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
             }
 
             //  Tilted, a value is left out where the ring is drawn too thin for
-            //  it (FR-151).
+            //  it (FR-151). The test is on a nibble of eight cells, the
+            //  shortest, so a sync nibble's extra zero cells don't put its value
+            //  up before its neighbors' values.
             local = PlatterGeometry::GetLocalScale (view, (a + b) / 2, rMid);
 
-            if (showValues && arc * local >= m_scaler.ToPxf (s_kValueMinDip) && ringW * local >= m_scaler.ToPxf (kSmallDip))
+            if (showValues && shortest * local >= m_scaler.ToPxf (s_kValueMinDip) && ringW * local >= m_scaler.ToPxf (kSmallDip))
             {
                 DrawRadial (painter, view, a, rInner, rOuter, 1.0f, theme.Background());
                 DrawUpright (text, view, (a + b) / 2, rText, std::format (L"{:02X}", framed.nibbles[i].value), static_cast<float> (arc * local), textPx, ink);
@@ -499,7 +509,8 @@ void PlatterView::DrawUpright (IDxuiTextRenderer & text, const PlatterPlacement 
 //
 //  PlatterView::IsShowingValues
 //
-//  Whether a ring's mean nibble is long enough for its value.
+//  Whether a ring's nibble of eight cells, the shortest, is long enough for
+//  its value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -513,8 +524,8 @@ bool PlatterView::IsShowingValues (const PlatterPlacement & view, int quarterTra
 
 
     //  Tilted, the near side is drawn larger, so values can fit there.
-    return track != nullptr && !track->framed.nibbles.empty() && ringW >= m_scaler.ToPxf (kSmallDip) &&
-           s_kTwoPi * rMid * most / track->framed.nibbles.size() >= m_scaler.ToPxf (s_kValueMinDip);
+    return track != nullptr && !track->framed.nibbles.empty() && track->framed.cellCount > 0 && ringW >= m_scaler.ToPxf (kSmallDip) &&
+           s_kTwoPi * rMid * most * LatchFramer::kNibbleCells / track->framed.cellCount >= m_scaler.ToPxf (s_kValueMinDip);
 }
 
 
@@ -1018,7 +1029,7 @@ vector<double> PlatterView::GetZoomStops() const
     double                 nibbles   = (track != nullptr && !track->framed.nibbles.empty()) ? static_cast<double> (track->framed.nibbles.size()) : cells / 8;
     double                 seen      = m_scaler.ToPxf (s_kNibbleSeenDip) * nibbles / ring;
     vector<double>         details   = { seen, seen * 2, seen * 4,
-                                         m_scaler.ToPxf (s_kValueMinDip)   * nibbles / ring,
+                                         m_scaler.ToPxf (s_kValueMinDip)   * cells / LatchFramer::kNibbleCells / ring,
                                          m_scaler.ToPxf (s_kTickMinDip)    * cells   / ring,
                                          m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring,
                                          m_scaler.ToPxf (s_kBitMinDip)     * cells   / ring * s_kFineRatio,

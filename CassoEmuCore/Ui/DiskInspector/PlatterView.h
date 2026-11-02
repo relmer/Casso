@@ -77,7 +77,7 @@ private:
     bool           IsShowingBits   (const PlatterPlacement & view, int quarterTrack) const;
     const TrackAnalysis *  GetRingTrack (int quarterTrack) const;
     const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
-    void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
+    void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view, bool isStill);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     static void  GetHeadPlace   (const PlatterPlacement & view, double radius, float drop, float along, float across, float & outX, float & outY);
     void         PaintIndexLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view) const;
