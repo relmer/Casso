@@ -903,6 +903,23 @@ public:
     }
 
 
+    //  The desktop's order puts a public shortcut ahead of the user's folders.
+    TEST_METHOD (SortByName_PlacesAShellFoldersFilesWhereItsOrderPutsThem)
+    {
+        std::vector<CatalogRow>  rows (3);
+
+        rows[0].name = L"Folder";     rows[0].shellOrder = 3;    rows[0].isDirectory = true;
+        rows[1].name = L"Shortcut";   rows[1].shellOrder = 2;
+        rows[2].name = L"Recycle";    rows[2].shellOrder = 1;    rows[2].isDirectory = true;
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, false);
+        Assert::IsTrue (rows[0].name == L"Recycle" && rows[1].name == L"Shortcut" && rows[2].name == L"Folder");
+
+        CatalogModel::Sort (rows, CatalogModel::Column::Name, true);
+        Assert::IsTrue (rows[0].name == L"Folder" && rows[1].name == L"Recycle" && rows[2].name == L"Shortcut", L"Descending puts the folders first");
+    }
+
+
 
     //  A folder with a name in its desktop.ini sorts by that name, the one it
     //  is listed by, as Explorer's do.
@@ -1554,6 +1571,21 @@ public:
         Assert::IsTrue  (ExplorerFileOps::HasShellRows (Location::Kind::None, true));
         Assert::IsTrue  (ExplorerFileOps::HasShellRows (Location::Kind::ShellFolder, false));
         Assert::IsFalse (ExplorerFileOps::HasShellRows (Location::Kind::HostFolder, false));
+    }
+
+    TEST_METHOD (DesktopListing_DropsTheControlPanelCommandBesideTheFolder)
+    {
+        std::vector<IShellItemVerbs::ShellFolderItem>  items (4);
+
+        items[0].name = L"Control Panel";   items[0].isFolder = true;
+        items[1].name = L"Control Panel";
+        items[2].name = L"Shortcut";        items[2].path     = L"C:\\Users\\Public\\Desktop\\Shortcut.lnk";
+        items[3].name = L"Command";
+
+        Win32ShellNamespace::DropDesktopCommandTwins (items);
+
+        Assert::AreEqual ((size_t) 3, items.size());
+        Assert::IsTrue   (items[0].isFolder && items[1].name == L"Shortcut" && items[2].name == L"Command");
     }
 
     TEST_METHOD (HomeGroup_PinnedFile_IsAFavorite)

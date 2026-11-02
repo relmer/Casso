@@ -72,6 +72,10 @@ public:
     static bool  IsDesktopRoot     (const IShellItemVerbs::ShellFolderItem & item);
     static bool  IsOnDesktop       (const std::wstring & path);
 
+    //  Removes a desktop command item that has a virtual folder's name.
+    static void  DropDesktopCommandTwins (std::vector<IShellItemVerbs::ShellFolderItem> & items);
+    static bool  IsDesktopItem           (IShellItem * item);
+
 private:
     friend class Win32ShellItemVerbs;
 

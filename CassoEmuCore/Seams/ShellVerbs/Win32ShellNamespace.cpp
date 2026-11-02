@@ -188,7 +188,8 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
     ComPtr<IShellFolder>        shellFolder;
     std::vector<PITEMID_CHILD>  children;
     std::vector<size_t>         order;
-    HRESULT                     hrSort = S_OK;
+    HRESULT                     hrSort    = S_OK;
+    bool                        isDesktop = false;
 
 
 
@@ -231,6 +232,8 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
     hr = CreateItem (id, &folder);
     CHR (hr);
 
+    isDesktop = IsDesktopItem (folder.Get());
+
     hr = folder->BindToHandler (nullptr, BHID_EnumItems, IID_PPV_ARGS (&items));
     CHR (hr);
 
@@ -250,7 +253,7 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
 
         //  A desktop entry such as OneDrive has the entry's icon, its cloud,
         //  rather than its folder's, as in ListDesktopNamespace.
-        if (SUCCEEDED (hrItem) && id == IShellItemVerbs::kDesktopNamespaceId)
+        if (SUCCEEDED (hrItem) && isDesktop)
         {
             entry.iconId = GetJunctionId (item.Get());
         }
@@ -290,6 +293,11 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
         {
             outItems[order[rank]].shellOrder = (int) rank + 1;
         }
+    }
+
+    if (isDesktop)
+    {
+        DropDesktopCommandTwins (outItems);
     }
 
 Error:
@@ -1061,6 +1069,69 @@ HRESULT Win32ShellNamespace::CreateItem (const std::wstring & id, IShellItem ** 
     }
 
     return ShellItemId::ToItem (id, IID_PPV_ARGS (outItem));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellNamespace::IsDesktopItem
+//
+//  The desktop is the namespace's root, the empty item list, whether the
+//  location is its CLSID or shell:desktop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellNamespace::IsDesktopItem (IShellItem * item)
+{
+    PIDLIST_ABSOLUTE  pidl      = nullptr;
+    HRESULT           hr        = SHGetIDListFromObject (item, &pidl);
+    bool              isDesktop = SUCCEEDED (hr) && pidl != nullptr && ILIsEmpty (pidl);
+
+
+
+    CoTaskMemFree (pidl);
+    return isDesktop;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellNamespace::DropDesktopCommandTwins
+//
+//  The desktop lists Control Panel twice: the folder, and a command object
+//  that opens it from the desktop and Start. File Explorer's view of the
+//  desktop lists the folder only, so a virtual item that is not a folder is
+//  dropped when a virtual folder has its name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellNamespace::DropDesktopCommandTwins (std::vector<IShellItemVerbs::ShellFolderItem> & items)
+{
+    std::vector<std::wstring>  folders;
+
+
+
+    for (const IShellItemVerbs::ShellFolderItem & item : items)
+    {
+        if (item.isFolder && item.path.empty())
+        {
+            folders.push_back (item.name);
+        }
+    }
+
+    std::erase_if (items, [&folders] (const IShellItemVerbs::ShellFolderItem & item)
+    {
+        return !item.isFolder && item.path.empty() && std::any_of (folders.begin(), folders.end(), [&item] (const std::wstring & folder)
+        {
+            return _wcsicmp (folder.c_str(), item.name.c_str()) == 0;
+        });
+    });
 }
 
 

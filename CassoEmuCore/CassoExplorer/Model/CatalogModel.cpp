@@ -479,6 +479,11 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
 //  Folders first whatever the column, then the column's order, reversed as
 //  a whole for descending so the folders stay in front.
 //
+//  Ascending by name, a shell folder's items go in the folder's order alone,
+//  folders among them: the desktop's order puts the public desktop's
+//  shortcuts and its system items that are not folders ahead of the user's
+//  folders.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CatalogModel::Sort (std::vector<CatalogRow> & rows, Column column, bool descending)
@@ -486,7 +491,9 @@ void CatalogModel::Sort (std::vector<CatalogRow> & rows, Column column, bool des
     std::stable_sort (rows.begin(), rows.end(),
                       [column, descending] (const CatalogRow & a, const CatalogRow & b)
                       {
-                          if (a.isDirectory != b.isDirectory)
+                          bool  shellByName = column == Column::Name && !descending && a.shellOrder > 0 && b.shellOrder > 0;
+
+                          if (a.isDirectory != b.isDirectory && !shellByName)
                           {
                               return a.isDirectory;
                           }
