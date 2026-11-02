@@ -218,6 +218,105 @@ void PascalVolume::WriteBlank (const std::string & volumeName, Word date, vector
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PascalVolume::DescribeMissingSystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PascalVolume::DescribeMissingSystem (const vector<Byte> & sectors)
+{
+    PascalVolume                       volume (sectors);
+    std::array<Byte, 2 * kBlockBytes>  loader    = {};
+    VolumeListing                      listing;
+    HRESULT                            hr        = volume.Enumerate (listing);
+    bool                               hasRun    = false;
+    bool                               hasApple  = false;
+    bool                               hasPascal = false;
+
+
+
+    if (FAILED (hr))
+    {
+        return "its directory can't be read";
+    }
+
+    volume.ReadBlock (0, std::span<Byte> (loader).subspan (0, kBlockBytes));
+    volume.ReadBlock (1, std::span<Byte> (loader).subspan (kBlockBytes, kBlockBytes));
+
+    hasRun = std::any_of (loader.begin(), loader.end(), [&loader] (Byte value) { return value != loader[0]; });
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        hasApple  = hasApple  || _stricmp (entry.name.c_str(), "SYSTEM.APPLE")  == 0;
+        hasPascal = hasPascal || _stricmp (entry.name.c_str(), "SYSTEM.PASCAL") == 0;
+    }
+
+    return !hasRun    ? "it has no boot loader in blocks 0 and 1"
+         : !hasApple  ? "it has no SYSTEM.APPLE"
+         : !hasPascal ? "it has no SYSTEM.PASCAL"
+                      : "";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalVolume::InstallSystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PascalVolume::InstallSystem (const vector<Byte> & source, vector<Byte> & ioSectors)
+{
+    HRESULT                        hr     = S_OK;
+    PascalVolume                   from (source);
+    std::array<Byte, kBlockBytes>  block  = {};
+    VolumeListing                  listing;
+
+
+
+    hr = from.Enumerate (listing);
+    CHR (hr);
+
+    for (int i = 0; i < kFirstDirectoryBlock; i++)
+    {
+        from.ReadBlock (i, block);
+        WriteBlockPart (ioSectors, i, 0, block);
+    }
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        FilePath      path = FilePath::Parse (entry.name);
+        FilePayload   payload;
+        vector<Byte>  next;
+        bool          isSystem = _strnicmp (entry.name.c_str(), "SYSTEM.", strlen ("SYSTEM.")) == 0
+                              && _strnicmp (entry.name.c_str(), "SYSTEM.WRK", strlen ("SYSTEM.WRK")) != 0
+                              && _strnicmp (entry.name.c_str(), "SYSTEM.LST", strlen ("SYSTEM.LST")) != 0;
+
+        if (!isSystem)
+        {
+            continue;
+        }
+
+        hr = from.Read (path, payload);
+        CHR (hr);
+
+        hr = PascalVolume (ioSectors).Write (path, payload, next);
+        CHR (hr);
+
+        ioSectors = std::move (next);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PascalVolume::GetKindFromName
 //
 ////////////////////////////////////////////////////////////////////////////////

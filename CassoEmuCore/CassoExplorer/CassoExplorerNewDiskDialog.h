@@ -45,8 +45,21 @@ public:
         { L"Nibble (.nb2)",        "nb2" },
     };
 
+    //  CP/M's two boot disks, the default first.
+    static constexpr const wchar_t *  kCpmSystems[] =
+    {
+        L"CP/AM 5.1 (Applied Engineering Z-RAM)",
+        L"CP/M 2.23 (Microsoft SoftCard)",
+    };
+
     static std::vector<std::wstring>  GetFormatLabels    ();
     static std::vector<std::wstring>  GetContainerLabels ();
+    static std::vector<std::wstring>  GetCpmSystemLabels ();
+
+    //  What `--bootable` receives: the image's path when one is typed, the word
+    //  for a SoftCard when that's the CP/M system chosen, and otherwise nothing,
+    //  which takes the stock disk.
+    static std::string   MakeBootSource (int formatIndex, int cpmSystemIndex, const std::wstring & image);
 
     //  The request for the chosen indices. An index out of range takes the
     //  first choice; an empty volume leaves the runner's default.
@@ -114,6 +127,10 @@ public:
         DxuiTextInput   * volume         = nullptr;
         DxuiFieldError  * volumeError    = nullptr;
         DxuiCheckbox    * bootable       = nullptr;
+        DxuiLabel       * systemLabel    = nullptr;
+        DxuiComboBox    * system         = nullptr;
+        DxuiLabel       * imageLabel     = nullptr;
+        DxuiTextInput   * image          = nullptr;
 
         //  Format mode's first row: the image being formatted, not editable.
         DxuiLabel       * fileLabel      = nullptr;
@@ -236,5 +253,9 @@ private:
     DxuiTextInput         m_volume;
     DxuiFieldError        m_volumeError;
     DxuiCheckbox             m_bootable { L"Bootable (copies the stock system files)" };
-    CassoExplorerNewDiskPanel    * m_body       = nullptr;
+    DxuiLabel                    m_systemLabel;
+    DxuiComboBox                 m_system;
+    DxuiLabel                    m_imageLabel;
+    DxuiTextInput                m_image;
+    CassoExplorerNewDiskPanel  * m_body        = nullptr;
 };

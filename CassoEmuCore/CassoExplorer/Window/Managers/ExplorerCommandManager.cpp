@@ -2,7 +2,9 @@
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
+#include "AssetBootstrap.h"
 #include "CassoExplorer/CassoExplorerRawDialog.h"
+#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
@@ -1169,7 +1171,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                 return m_context.actions.IsNameTaken (m_context.browser.GetLocation().path, fileName);
             });
 
-            if (newDisk.confirmed)
+            if (newDisk.confirmed && TryPrepareBootDisk (newDisk.request))
             {
                 CreateDisk (newDisk);
             }
@@ -1215,7 +1217,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             newDisk = CassoExplorerNewDiskDialog::Ask (m_context.window.GetHwnd(), m_context.theme, true, {}, ChooseFormatDefault (m_context.actions.GetFormatTarget()),
                                                        std::filesystem::path (m_context.actions.GetFormatTarget()).filename().wstring());
 
-            if (newDisk.confirmed)
+            if (newDisk.confirmed && TryPrepareBootDisk (newDisk.request))
             {
                 answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
                                          (L"Format " + CassoExplorerActions::GetLeafName (m_context.actions.GetFormatTarget())
@@ -1246,6 +1248,55 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
     IGNORE_RETURN_VALUE (hr, S_OK);
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerCommandManager::TryPrepareBootDisk
+//
+//  A bootable disk with no image supplied copies a stock disk, which is asked
+//  about and downloaded here when it isn't in the cache. False when the user
+//  declined or the download failed, and nothing further should happen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerCommandManager::TryPrepareBootDisk (const DiskOperations::NewDiskRequest & request)
+{
+    StockBootDisks::Which  disk   = StockBootDisks::Which::Dos33Master;
+    std::wstring           label;
+    std::wstring           path;
+    std::string            error;
+    HRESULT                hr     = S_OK;
+
+
+
+    if (!request.bootable || !StockBootDisks::TryGetStockDisk (request.formatName, request.bootableFrom, disk) || StockBootDisks::IsCached (disk))
+    {
+        return true;
+    }
+
+    label = StockBootDisks::GetLabel (disk);
+
+    if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme,
+                        std::format (L"A bootable disk copies the {} boot disk, which hasn't been downloaded. Download it now?", label).c_str(),
+                        L"Download boot disk", MB_OKCANCEL | MB_ICONQUESTION, { L"Download", L"Cancel" }) != IDOK)
+    {
+        return false;
+    }
+
+    hr = AssetBootstrap::EnsureStockBootDisk (disk, path, error);
+
+    if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (std::format (L"The {} boot disk could not be downloaded. {}", label, TextEncoding::NarrowToWide (error)), MB_ICONERROR);
+        return false;
+    }
+
+    return true;
 }
 
 

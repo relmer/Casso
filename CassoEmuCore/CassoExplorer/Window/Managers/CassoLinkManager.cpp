@@ -21,6 +21,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "Core/AppTimerIds.h"
 
 
@@ -678,7 +679,7 @@ void CassoLinkManager::FormatAppleDisk (const Location & location)
     drive  = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
     choice = CassoExplorerNewDiskDialog::Ask (m_context.window.GetHwnd(), m_context.theme, true, {}, CassoExplorerNewDiskChoices::kFormatDos33, drive, true);
 
-    if (!choice.confirmed)
+    if (!choice.confirmed || !m_context.commandManager.TryPrepareBootDisk (choice.request))
     {
         return;
     }

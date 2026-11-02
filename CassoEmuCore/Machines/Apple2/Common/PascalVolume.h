@@ -91,6 +91,15 @@ public:
     //  the name in upper case and `date` as the volume's date.
     static void  WriteBlank (const std::string & volumeName, Word date, vector<Byte> & ioSectors);
 
+    //  Why a disk can't supply the system for a bootable disk, or empty when it
+    //  can: it needs a boot loader in blocks 0 and 1, SYSTEM.APPLE and
+    //  SYSTEM.PASCAL.
+    static std::string  DescribeMissingSystem (const vector<Byte> & sectors);
+
+    //  Blocks 0 and 1 and the SYSTEM files of `source`, onto a new volume. A work
+    //  file or listing, SYSTEM.WRK or SYSTEM.LST, isn't part of the system.
+    static HRESULT  InstallSystem (const vector<Byte> & source, vector<Byte> & ioSectors);
+
     //  A date word from a year, month and day. The year is reduced to two digits.
     static Word  MakeDate (int year, int month, int day);
 

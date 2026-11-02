@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
+#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Ui/FileBrowseModel.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -61,6 +62,50 @@ std::vector<std::wstring> CassoExplorerNewDiskChoices::GetContainerLabels()
     }
 
     return labels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerNewDiskChoices::GetCpmSystemLabels
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerNewDiskChoices::GetCpmSystemLabels()
+{
+    std::vector<std::wstring>  labels;
+
+
+
+    for (const wchar_t * label : kCpmSystems)
+    {
+        labels.push_back (label);
+    }
+
+    return labels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerNewDiskChoices::MakeBootSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoExplorerNewDiskChoices::MakeBootSource (int formatIndex, int cpmSystemIndex, const std::wstring & image)
+{
+    if (!image.empty())
+    {
+        return TextEncoding::WideToNarrow (image);
+    }
+
+    return (formatIndex == kFormatCpm && cpmSystemIndex == 1) ? std::string (StockBootDisks::kpszSoftCardWord) : std::string();
 }
 
 
@@ -311,6 +356,10 @@ void CassoExplorerNewDiskPanel::Init (const Children & children, bool showNameRo
     Adopt (*children.volume);
     Adopt (*children.volumeError);
     Adopt (*children.bootable);
+    Adopt (*children.systemLabel);
+    Adopt (*children.system);
+    Adopt (*children.imageLabel);
+    Adopt (*children.image);
 
     children.nameLabel->SetVisible (showNameRows);
     children.name->SetVisible (showNameRows);
@@ -438,6 +487,22 @@ int CassoExplorerNewDiskPanel::ArrangeRows (const RECT & bounds, const DxuiDpiSc
         m_kids.bootable->Layout (RECT { fieldX, y, bounds.right, y + row }, scaler);
     }
 
+    y += row + gap;
+
+    if (place)
+    {
+        m_kids.systemLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+        m_kids.system->Layout      (RECT { fieldX, y, bounds.right, y + row }, scaler);
+    }
+
+    y += row + gap;
+
+    if (place)
+    {
+        m_kids.imageLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+        m_kids.image->Layout      (RECT { fieldX, y, bounds.right, y + row }, scaler);
+    }
+
     y += row;
 
     return y - bounds.top;
@@ -483,7 +548,7 @@ int CassoExplorerNewDiskPanel::GetErrorHeightPx (const DxuiFieldError & error, i
 
 bool CassoExplorerNewDiskPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    IDxuiControl *  fields[] = { m_kids.container, m_kids.format, m_kids.name, m_kids.volume, m_kids.bootable };
+    IDxuiControl *  fields[] = { m_kids.container, m_kids.format, m_kids.system, m_kids.name, m_kids.volume, m_kids.bootable, m_kids.image };
     bool            handled  = false;
 
 
@@ -530,7 +595,7 @@ bool CassoExplorerNewDiskPanel::OnMouse (const DxuiMouseEvent & ev)
 
 void CassoExplorerNewDiskPanel::UpdateTooltip (int x, int y)
 {
-    IDxuiControl *  fields[] = { m_kids.name, m_kids.container, m_kids.format, m_kids.volume, m_kids.bootable };
+    IDxuiControl *  fields[] = { m_kids.name, m_kids.container, m_kids.format, m_kids.volume, m_kids.bootable, m_kids.system, m_kids.image };
     int64_t         now      = (int64_t) GetTickCount64();
     POINT           pt       = { x, y };
     std::wstring    tip;
@@ -577,7 +642,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_volumeLabel, &m_fileLabel, &m_fileName })
+    for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_volumeLabel, &m_fileLabel, &m_fileName, &m_systemLabel, &m_imageLabel })
     {
         ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -588,9 +653,11 @@ void CassoExplorerNewDiskDialog::OnCreate()
     m_formatLabel.SetText    (L"Format:");
     m_volumeLabel.SetText    (L"Volume:");
     m_fileLabel.SetText      (m_appleDrive ? L"Drive:" : L"File:");
+    m_systemLabel.SetText    (L"CP/M system:");
+    m_imageLabel.SetText     (L"Boot disk image:");
     m_fileName.SetText       (m_target);
 
-    for (DxuiTextInput * input : { &m_name, &m_volume })
+    for (DxuiTextInput * input : { &m_name, &m_volume, &m_image })
     {
         input->SetTheme        (m_theme);
         input->SetHwnd         (GetHwnd());
@@ -636,6 +703,13 @@ void CassoExplorerNewDiskDialog::OnCreate()
     });
 
     m_bootable.SetSingleLineLabel (true);
+    m_bootable.SetOnChange ([this] (bool) { Revalidate(); });
+
+    m_system.SetPopupHost (GetPopupHost());
+    m_system.SetItems     (CassoExplorerNewDiskChoices::GetCpmSystemLabels());
+    m_system.SetSelected  (0);
+
+    m_image.SetPlaceholder (L"The stock boot disk");
 
     kids.nameLabel      = &m_nameLabel;
     kids.name           = &m_name;
@@ -648,6 +722,10 @@ void CassoExplorerNewDiskDialog::OnCreate()
     kids.volume         = &m_volume;
     kids.volumeError    = &m_volumeError;
     kids.bootable       = &m_bootable;
+    kids.systemLabel    = &m_systemLabel;
+    kids.system         = &m_system;
+    kids.imageLabel     = &m_imageLabel;
+    kids.image          = &m_image;
     kids.fileLabel      = &m_fileLabel;
     kids.fileName       = &m_fileName;
 
@@ -692,6 +770,9 @@ void CassoExplorerNewDiskDialog::OnCreate()
         m_outcome.fileName  = CassoExplorerNewDiskChoices::ApplyExtension (m_name.GetText(), m_container.GetSelectedIndex());
         m_outcome.request   = CassoExplorerNewDiskChoices::MakeRequest (m_format.GetSelectedIndex(), m_container.GetSelectedIndex(),
                                                                   m_volume.GetText(), m_bootable.IsChecked());
+        m_outcome.request.bootableFrom = m_outcome.request.bootable
+                                       ? CassoExplorerNewDiskChoices::MakeBootSource (m_format.GetSelectedIndex(), m_system.GetSelectedIndex(), m_image.GetText())
+                                       : std::string();
         EndDialog (IDOK);
     });
 
@@ -735,7 +816,7 @@ CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner,
     HRESULT                     hr     = S_OK;
     CassoExplorerNewDiskDialog  dialog;
     DxuiWindow::CreateParams    params;
-    int                         rows   = formatMode ? 4 : 5;
+    int                         rows   = formatMode ? 6 : 7;
 
 
 
@@ -799,6 +880,11 @@ void CassoExplorerNewDiskDialog::Revalidate()
     m_volume.SetPlaceholder  (hasName                                                ? L"NEWDISK"
                             : (format == CassoExplorerNewDiskChoices::kFormatDos33)  ? L"254"
                                                                                 : L"");
+
+    m_systemLabel.SetEnabled (m_bootable.IsChecked() && format == CassoExplorerNewDiskChoices::kFormatCpm);
+    m_system.SetEnabled      (m_bootable.IsChecked() && format == CassoExplorerNewDiskChoices::kFormatCpm);
+    m_imageLabel.SetEnabled  (m_bootable.IsChecked());
+    m_image.SetEnabled       (m_bootable.IsChecked());
 
     valid = m_validator.Revalidate();
     IGNORE_RETURN_VALUE (valid, true);

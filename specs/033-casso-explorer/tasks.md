@@ -1554,4 +1554,5 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T366 Add `pascal` and `cpm` to `--format`, the New disk dialog and formatting an Apple drive, in every container, with detection of an empty CP/M directory, per FR-132
 - [X] T367 Limit CP/M directory writes to 48 slots unless a valid entry past slot 47 is present, keep blocks 128 to 139 unallocated, and add blocks that entries list past 127 to the listing total, per FR-132
 - [X] T368 Add the directory damage note to the preview pane and status text, and count blocks that invalid entries with a user byte of 0 to $1F list, per FR-132
+- [X] T369 Add `--bootable` for Apple Pascal and CP/M, with a stock disk table, a download prompt in the New disk dialog and `softcard`, per FR-132
 

@@ -654,6 +654,7 @@ HRESULT DiskCommandRunner::AppendNativeListing (
     HRESULT                   hr = S_OK;
     VolumeListing             below;
     std::vector<std::string>  lines;
+    std::string               missing;
 
 
 
@@ -674,6 +675,15 @@ HRESULT DiskCommandRunner::AppendNativeListing (
     for (const std::string & line : lines)
     {
         result.output += line + "\n";
+    }
+
+    //  As DOS 3.3 and ProDOS listings report it.
+    missing = (opened.kind == VolumeKind::Pascal) ? PascalVolume::DescribeMissingSystem (opened.sectors)
+            : CpmVolume::HasSystemTracks (opened.sectors) ? std::string() : std::string ("it has no system on tracks 0 to 2");
+
+    if (!missing.empty())
+    {
+        result.output += "\nNot bootable: " + missing + "\n";
     }
 
 Error:
@@ -2848,9 +2858,11 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
 {
     HRESULT                hr       = S_OK;
     bool                   isProDos = inOutSpec.contents == BlankDiskContents::ProDos;
+    bool                   isFlat   = inOutSpec.contents == BlankDiskContents::Pascal || inOutSpec.contents == BlankDiskContents::Cpm;
     StockBootDisks::Which  which    = isProDos ? StockBootDisks::Which::ProDosUsersDisk
                                                : StockBootDisks::Which::Dos33Master;
     std::string   master        = options.disk.bootableFrom;
+    bool          stock         = false;
     bool          bothWaysAsked = false;
     bool          cached        = false;
     vector<Byte>  osBytes;
@@ -2870,6 +2882,34 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
 
     //  Not asked for at all is the ordinary case, not a failure.
     BAIL_OUT_IF (!options.disk.bootable, S_OK);
+
+    //  A stock Apple Pascal or CP/M disk comes from the same cache, and neither
+    //  goes in the repository. The choice between CP/M's two is a word in place
+    //  of the image's path.
+    if (isFlat)
+    {
+        stock = StockBootDisks::TryGetStockDisk (options.disk.formatName, master, which);
+
+        if (stock)
+        {
+            cached = StockBootDisks::IsCached (which);
+            CBRFEx (cached, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+                    (result.diagnostics    += "Error: the " + TextEncoding::WideToNarrow (StockBootDisks::GetLabel (which))
+                                            + " boot disk has not been downloaded\n"
+                                            + ApplyPrefix ("       Select Bootable in Casso Explorer's New disk image to download it,\n"
+                                                           "       or supply a boot disk image with %Lbootable <image>.\n"),
+                     result.exitStatus      = DiskCommandResult::kNoOutput,
+                     result.badCommandLine  = true));
+
+            master = StockBootDisks::GetPath (which);
+        }
+
+        hr = LoadSystemSource (master, inOutSpec.contents, outPayload, result);
+        CHR (hr);
+
+        inOutSpec.bootable = true;
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     //  A BARE --bootable MEANS THE ONE THE EMULATOR DOWNLOADED. Which of the
     //  two that is follows the format being written, because a ProDOS disk
@@ -2905,6 +2945,66 @@ HRESULT DiskCommandRunner::ResolveBoot (const CommandLineOptions & options,
     }
 
     inOutSpec.bootable = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::LoadSystemSource
+//
+//  The image a bootable Apple Pascal or CP/M disk is copied from, in any
+//  container, checked for what the copy needs before anything is built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::LoadSystemSource (const std::string   & path,
+                                             BlankDiskContents     contents,
+                                             BootPayload         & outPayload,
+                                             DiskCommandResult   & result)
+{
+    HRESULT             hr       = S_OK;
+    bool                isPascal = contents == BlankDiskContents::Pascal;
+    VolumeKind          wanted   = isPascal ? VolumeKind::Pascal : VolumeKind::Cpm;
+    bool                matches  = false;
+    bool                complete = false;
+    vector<Byte>        fileBytes;
+    vector<Byte>        sectors;
+    SectorDecodeReport  report;
+    std::string         missing;
+
+
+
+    hr = m_fileIo.ReadAllBytes (path, fileBytes);
+    CHRF (hr, result.Fail (path, "", "cannot be read, so there is no operating system to copy"));
+
+    hr = VolumeImage::Load (fileBytes, path, sectors, report);
+    CHRF (hr, result.Fail (path, "", "is not a disk image this tool can read"));
+
+    matches = VolumeImage::DetectFilesystem (sectors) == wanted;
+    CBRFEx (matches, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT),
+            result.Fail (path, "", std::string ("is not ") + (isPascal ? "an Apple Pascal disk" : "a CP/M disk") + ", so it can't supply the system"));
+
+    missing  = isPascal ? PascalVolume::DescribeMissingSystem (sectors)
+             : CpmVolume::HasSystemTracks (sectors) ? std::string() : std::string ("it has no system on tracks 0 to 2");
+    complete = missing.empty();
+
+    CBRFEx (complete, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT),
+            result.Fail (path, "", "can't make a disk bootable: " + missing));
+
+    if (isPascal)
+    {
+        outPayload.pascalSystem = std::move (sectors);
+    }
+    else
+    {
+        outPayload.cpmSystem = std::move (sectors);
+    }
 
 Error:
     return hr;

@@ -60,6 +60,7 @@ public:
     void                   RunRawVerb                 (CassoExplorerActions::Verb verb);
     bool                   IsRawTargetCurrent         (const std::wstring & target);
     void                   ReportOutcome              (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
+    bool                   TryPrepareBootDisk         (const DiskOperations::NewDiskRequest & request);
     void                   ExtractImageFiles          (const std::wstring & imagePath);
 
 private:

@@ -966,7 +966,7 @@ public:
         Assert::IsTrue (result.output.find ("SYSTEM.PASCAL") != std::string::npos);
         Assert::IsTrue (result.output.find ("Codefile") != std::string::npos);
         Assert::IsTrue (result.output.find ("265 unused") != std::string::npos);
-        Assert::IsTrue (result.output.find ("Not bootable") == std::string::npos);
+        Assert::IsTrue (result.output.find ("Not bootable: it has no boot loader") != std::string::npos);
     }
 
     TEST_METHOD (TheCommandLinePutsAndGetsAFile)

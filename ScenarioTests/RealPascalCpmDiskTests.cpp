@@ -1,6 +1,12 @@
 #include "Pch.h"
 
 #include "EhmTestHelper.h"
+#include "FakeDiskFileIo.h"
+#include "GuestSession.h"
+#include "TestMachine.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskCommandRunner.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
@@ -111,6 +117,117 @@ public:
         AssertSucceeded (volume.Read (FilePath::Parse ("SYSTEM.SYNTAX"), syntax));
         PascalVolume::DecodeText (syntax.bytes, text);
         Assert::IsTrue (text.find ("1: Error in simple type\r\n2: Identifier expected\r\n") != std::string::npos, L"The compiler's messages");
+    }
+
+
+
+    //  What the real loader does on a disk it finds no SYSTEM.APPLE on.
+    TEST_METHOD (TheApplePascalDiskPrintsItsLoadersMessage)
+    {
+        std::vector<Byte>         sectors;
+        std::vector<std::string>  rows;
+        TestMachine               machine ("Apple2e");
+
+        if (!TryLoad ("0006 APPLE0.dsk", sectors))
+        {
+            return;
+        }
+
+        GuestSession::MountAndBoot (machine, sectors);
+        GuestSession::CollectRows (machine, rows);
+
+        std::string  screen;
+
+        for (const std::string & row : rows)
+        {
+            screen += row + "\n";
+        }
+
+        Assert::IsTrue (screen.find ("FILE SYSTEM.APPLE") != std::string::npos, TextEncoding::NarrowToWide (screen).c_str());
+    }
+
+    //  The real boot loader from 0006, on a disk from `disk create --bootable`,
+    //  with a stand-in for SYSTEM.APPLE, since no real one is on this machine.
+    //  The loader reads 16 KB of the file into the language card, and jumps
+    //  through $FFF8, so this proves the directory and block layout it finds.
+    TEST_METHOD (ACreatedPascalDiskBootsThroughTheRealLoader)
+    {
+        constexpr size_t          kVectorOffset = 0x2FF8;
+        constexpr size_t          kAppleBytes   = 32 * 512;
+        const std::string         kMessage      = "CASSO BOOT";
+        std::vector<Byte>         real;
+        std::vector<Byte>         source (143360, 0);
+        std::vector<Byte>         next;
+        std::vector<Byte>         sectors;
+        std::vector<std::string>  rows;
+        FilePayload               apple;
+        FilePayload               pascal_;
+        FakeDiskFileIo            io;
+        DiskCommandRunner         runner (io);
+        CommandLineOptions        options;
+        DiskCommandResult         result;
+        SectorDecodeReport        report;
+        TestMachine               machine ("Apple2e");
+
+        if (!TryLoad ("0006 APPLE0.dsk", real))
+        {
+            return;
+        }
+
+        PascalVolume::WriteBlank ("SOURCE", 0, source);
+
+        for (int block = 0; block < 2; block++)
+        {
+            for (size_t i = 0; i < 512; i++)
+            {
+                source[ProDosSkeleton::GetBlockByteOffset (block, i)] = real[ProDosSkeleton::GetBlockByteOffset (block, i)];
+            }
+        }
+
+        //  LDA #char, STA $0400+i for each character, and a loop on itself.
+        apple.bytes.assign (kAppleBytes, 0xEA);
+
+        {
+            size_t  at = 0;
+
+            for (size_t i = 0; i < kMessage.size(); i++)
+            {
+                apple.bytes[at++] = 0xA9;
+                apple.bytes[at++] = (Byte) (kMessage[i] | 0x80);
+                apple.bytes[at++] = 0x8D;
+                apple.bytes[at++] = (Byte) i;
+                apple.bytes[at++] = 0x04;
+            }
+
+            apple.bytes[at]     = 0x4C;
+            apple.bytes[at + 1] = (Byte) ((0xD000 + at) & 0xFF);
+            apple.bytes[at + 2] = (Byte) ((0xD000 + at) >> 8);
+        }
+
+        apple.bytes[kVectorOffset]     = 0x00;
+        apple.bytes[kVectorOffset + 1] = 0xD0;
+
+        pascal_.bytes.assign (512, 0);
+
+        AssertSucceeded (PascalVolume (source).Write (FilePath::Parse ("SYSTEM.APPLE"), apple, next));
+        AssertSucceeded (PascalVolume (next).Write (FilePath::Parse ("SYSTEM.PASCAL"), pascal_, source));
+
+        io.files["C:\\src\\system.dsk"] = source;
+
+        options.disk.command      = CommandLineOptions::DiskOptions::Command::Create;
+        options.disk.imagePath    = "C:\\disks\\boot.dsk";
+        options.disk.formatName   = "pascal";
+        options.disk.bootable     = true;
+        options.disk.bootableFrom = "C:\\src\\system.dsk";
+
+        result = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        GuestSession::MountAndBoot (machine, io.files["C:\\disks\\boot.dsk"]);
+        GuestSession::CollectRows (machine, rows);
+
+        Assert::IsTrue (std::any_of (rows.begin(), rows.end(), [&kMessage] (const std::string & row) { return row.find (kMessage) != std::string::npos; }), L"The stand-in ran");
     }
 
 

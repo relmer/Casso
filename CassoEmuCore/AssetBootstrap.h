@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Shell/DiskMru.h"
 
 
@@ -267,11 +268,7 @@ public:
     // The stock OS masters the create-disk flow installs from. Availability
     // is the download cache under GetDiskDirectory(); Ensure downloads on
     // demand (blocking, no UI -- the caller owns consent and reporting).
-    enum class StockBootDisk
-    {
-        Dos33Master,
-        ProDosUsersDisk,
-    };
+    using StockBootDisk = StockBootDisks::Which;
 
     static fs::path  GetStockBootDiskPath  (StockBootDisk disk);
     static bool      IsStockBootDiskCached (StockBootDisk disk);

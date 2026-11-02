@@ -103,6 +103,10 @@ struct BootPayload
 {
     vector<Byte>  dosMasterSectors;
     vector<Byte>  proDosUsersDisk;
+
+    //  In DOS logical order, whatever container each came from.
+    vector<Byte>  pascalSystem;
+    vector<Byte>  cpmSystem;
 };
 
 

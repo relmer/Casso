@@ -214,6 +214,12 @@ public:
                           BootPayload              & outPayload,
                           DiskCommandResult        & result);
 
+    //  The disk a bootable Apple Pascal or CP/M disk is copied from.
+    HRESULT  LoadSystemSource (const std::string   & path,
+                               BlankDiskContents     contents,
+                               BootPayload         & outPayload,
+                               DiskCommandResult   & result);
+
     //  Everything create and init share: build the bytes, then put them there.
     void  BuildAndWrite (const CommandLineOptions & options,
                          DiskFormat                 format,

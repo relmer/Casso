@@ -170,6 +170,7 @@ struct BootDiskSpec
     size_t       expectedSize;       // exact byte count for integrity check
     string_view  shortLabel;         // text on the choice button
     string_view  description;        // longer text in the dialog body
+    LPCWSTR      host = nullptr;     // the Asimov mirror when none is given
 };
 
 
@@ -195,6 +196,39 @@ static constexpr BootDiskSpec s_kProDOSDisk =
     "ProDOS",
     "Apple ProDOS Users Disk (680-0224-C). Boots ProDOS 8 with the BASIC.SYSTEM "
     "shell."
+};
+
+static constexpr LPCWSTR  s_kpszBootDiskMirrorHost = L"mirrors.apple2.org.za";
+
+static constexpr BootDiskSpec s_kPascalDisk =
+{
+    StockBootDisks::kpszPascalBootDiskFile,
+    L"/ftp.apple.asimov.net/images/programming/pascal/ucsd/UCSD%20Pascal%201.2_1.DSK",
+    143360,
+    "Apple Pascal",
+    "Apple Pascal 1.2, boot disk.",
+    s_kpszBootDiskMirrorHost
+};
+
+//  The default for CP/M: it runs on Applied Engineering's Z-RAM.
+static constexpr BootDiskSpec s_kCpamDisk =
+{
+    StockBootDisks::kpszCpamBootDiskFile,
+    L"/ftp.apple.asimov.net/images/cpm/os/CPAM51A.dsk",
+    143360,
+    "CP/AM 5.1",
+    "Applied Engineering CP/AM 5.1, for the Z-RAM.",
+    s_kpszBootDiskMirrorHost
+};
+
+static constexpr BootDiskSpec s_kSoftCardDisk =
+{
+    StockBootDisks::kpszSoftCardBootDiskFile,
+    L"/ftp.apple.asimov.net/images/cpm/os/CPM2.23%2860k%29.dsk",
+    143360,
+    "CP/M 2.23",
+    "CP/M 2.23, for a Microsoft SoftCard.",
+    s_kpszBootDiskMirrorHost
 };
 
 
@@ -1887,7 +1921,7 @@ static HRESULT DownloadStockBootDisk (
           outError = "Cannot initialize WinHTTP session");
 
     hr = DownloadHttp (hSession,
-                       s_kpszAsimovHost,
+                       (spec.host != nullptr) ? spec.host : s_kpszAsimovHost,
                        spec.asimovUrlPath,
                        spec.expectedSize,
                        spec.shortLabel,
@@ -1970,19 +2004,35 @@ static void ReportStockDiskDownloadFailure (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetStockBootDiskSpec
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const BootDiskSpec & GetStockBootDiskSpec (AssetBootstrap::StockBootDisk disk)
+{
+    switch (disk)
+    {
+        case AssetBootstrap::StockBootDisk::ProDosUsersDisk:  return s_kProDOSDisk;
+        case AssetBootstrap::StockBootDisk::PascalBootDisk:   return s_kPascalDisk;
+        case AssetBootstrap::StockBootDisk::CpamBootDisk:     return s_kCpamDisk;
+        case AssetBootstrap::StockBootDisk::SoftCardBootDisk: return s_kSoftCardDisk;
+        default:                                              return s_kDos33Disk;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetStockBootDiskPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 fs::path AssetBootstrap::GetStockBootDiskPath (StockBootDisk disk)
 {
-    const BootDiskSpec &  spec = (disk == StockBootDisk::Dos33Master)
-                               ? s_kDos33Disk
-                               : s_kProDOSDisk;
-
-
-
-    return GetDiskDirectory() / spec.cassoName;
+    return GetDiskDirectory() / GetStockBootDiskSpec (disk).cassoName;
 }
 
 
@@ -2023,13 +2073,7 @@ HRESULT AssetBootstrap::EnsureStockBootDisk (
     wstring       & outDiskPath,
     string        & outError)
 {
-    const BootDiskSpec &  spec = (disk == StockBootDisk::Dos33Master)
-                               ? s_kDos33Disk
-                               : s_kProDOSDisk;
-
-
-
-    return DownloadStockBootDisk (spec, GetDiskDirectory(), outDiskPath, outError);
+    return DownloadStockBootDisk (GetStockBootDiskSpec (disk), GetDiskDirectory(), outDiskPath, outError);
 }
 
 

@@ -88,6 +88,14 @@ public:
     //  A blank disk as CP/M's FORMAT leaves it: $E5 in every byte.
     static void  WriteBlank (vector<Byte> & outSectors);
 
+    //  Whether tracks 0 to 2 have anything on them, which a boot disk's system
+    //  does and a blank disk's fill doesn't.
+    static bool  HasSystemTracks (const vector<Byte> & sectors);
+
+    //  Tracks 0 to 2 of `source`, onto a new volume, with any user 31 entry whose
+    //  blocks wrap onto them, so that CP/AM can't allocate them.
+    static HRESULT  InstallSystem (const vector<Byte> & source, vector<Byte> & ioSectors);
+
     //  The buffer offset of a block's nth 256-byte sector.
     static size_t  GetSectorOffset (int block, int sector);
 

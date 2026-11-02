@@ -157,7 +157,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS or Apple Pascal, the volume name"
                                    " (default NEWDISK). CP/M has no volume\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
-                                   " for the selected format, but this can be overridden by supplying an image of your own\n"
+                                   " for the selected format, but this can be overridden by supplying an image of your own."
+                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard\n"
         "  %Lboot <file>           Loads and executes the binary <file> directly without copying or relying on operating system files\n"
         "  %Lload $XXXX            Where a %Lboot binary is loaded into memory. Valid addresses are $0900-$BFFF, inclusive\n"
         "  %Lexec $XXXX            Memory address to jump to after loading the %Lboot binary file. Defaults to the load"
@@ -176,7 +177,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS or Apple Pascal, the volume name"
                                    " (default NEWDISK). CP/M has no volume\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
-                                   " for the selected format, but this can be overridden by supplying an image of your own\n"
+                                   " for the selected format, but this can be overridden by supplying an image of your own."
+                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard\n"
         "  %Lflux [<tracks>]       Stores tracks as flux rather than bits, in a WOZ image only. Every track by default, or only"
                                    " the whole tracks listed, such as 0-2,17. Without it, tracks already stored as flux stay flux\n",
         nullptr,

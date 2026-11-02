@@ -242,6 +242,71 @@ void CpmVolume::WriteBlank (vector<Byte> & outSectors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CpmVolume::HasSystemTracks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpmVolume::HasSystemTracks (const vector<Byte> & sectors)
+{
+    size_t  bytes = (size_t) kDirectoryTrack * NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+
+
+
+    return sectors.size() >= bytes && std::any_of (sectors.begin(), sectors.begin() + (ptrdiff_t) bytes, [&sectors] (Byte value) { return value != sectors[0]; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmVolume::InstallSystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CpmVolume::InstallSystem (const vector<Byte> & source, vector<Byte> & ioSectors)
+{
+    HRESULT       hr     = S_OK;
+    size_t        bytes  = (size_t) kDirectoryTrack * NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize;
+    bool          sized  = source.size() == (size_t) NibblizationLayer::kImageByteSize && ioSectors.size() == source.size();
+    int           target = 0;
+    vector<Byte>  fromDirectory;
+    vector<Byte>  directory;
+
+
+
+    CBRAEx (sized, E_INVALIDARG);
+
+    std::copy_n (source.begin(), bytes, ioSectors.begin());
+
+    CpmVolume (source).ReadDirectory (fromDirectory);
+    CpmVolume (ioSectors).ReadDirectory (directory);
+
+    for (int slot = 0; slot < kEntries; slot++)
+    {
+        std::span<const Byte>  entry    = std::span<const Byte> (fromDirectory).subspan ((size_t) slot * kEntryBytes, kEntryBytes);
+        bool                   isSystem = entry[0] == s_kUserSystem && IsPlausibleEntry (entry) && entry[s_kOffBlocks] >= kVolumeBlocks;
+
+        if (isSystem)
+        {
+            std::copy (entry.begin(), entry.end(), directory.begin() + (ptrdiff_t) ((size_t) target * kEntryBytes));
+            target++;
+        }
+    }
+
+    WriteDirectory (ioSectors, directory);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CpmVolume::TryParseName
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -402,10 +402,30 @@ HRESULT BlankDiskBuilder::Build (
     else if (spec.contents == BlankDiskContents::Pascal)
     {
         PascalVolume::WriteBlank (spec.volumeName, spec.pascalDate, buffer);
+
+        if (spec.bootable)
+        {
+            bool  havePayload = !payload.pascalSystem.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = PascalVolume::InstallSystem (payload.pascalSystem, buffer);
+            CHR (hr);
+        }
     }
     else if (spec.contents == BlankDiskContents::Cpm)
     {
         CpmVolume::WriteBlank (buffer);
+
+        if (spec.bootable)
+        {
+            bool  havePayload = !payload.cpmSystem.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = CpmVolume::InstallSystem (payload.cpmSystem, buffer);
+            CHR (hr);
+        }
     }
 
     hr = WrapInContainer (spec.format, spec.nibbleTrackSize,

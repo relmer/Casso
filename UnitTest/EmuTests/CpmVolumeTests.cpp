@@ -1195,7 +1195,7 @@ public:
         Assert::IsTrue (result.output.find ("TEST.COM") != std::string::npos);
         Assert::IsTrue (result.output.find ("COM") != std::string::npos);
         Assert::IsTrue (result.output.find ("USER 2") != std::string::npos);
-        Assert::IsTrue (result.output.find ("Not bootable") == std::string::npos);
+        Assert::IsTrue (result.output.find ("Not bootable: it has no system on tracks 0 to 2") != std::string::npos);
     }
 
     TEST_METHOD (TheCommandLinePutsGetsAndConvertsText)
