@@ -2142,9 +2142,9 @@ void CassoExplorerBrowser::NavigateToLocation (const Location & location)
 
 bool CassoExplorerBrowser::NavigateToAddress (const std::wstring & text)
 {
+    std::wstring  rooted = RootOnSystemDrive (ExpandVariables (text));
     Location      location;
-    bool          parsed = BrowserModel::ParseAddress (m_fs, RootOnSystemDrive (text), location);
-    std::wstring  rooted = RootOnSystemDrive (text);
+    bool          parsed = BrowserModel::ParseAddress (m_fs, rooted, location);
 
 
 
@@ -2211,6 +2211,47 @@ std::wstring CassoExplorerBrowser::RootOnSystemDrive (const std::wstring & text)
     length = GetWindowsDirectoryW (windows, MAX_PATH);
 
     return (length >= 2) ? std::wstring (windows, 2) + text : L"C:" + text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::ExpandVariables
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::ExpandVariables (const std::wstring & text)
+{
+    std::wstring  expanded;
+    DWORD         length = 0;
+
+
+
+    if (text.find (L'%') == std::wstring::npos)
+    {
+        return text;
+    }
+
+    length = ExpandEnvironmentStringsW (text.c_str(), nullptr, 0);
+
+    if (length == 0)
+    {
+        return text;
+    }
+
+    expanded.resize (length);
+    length = ExpandEnvironmentStringsW (text.c_str(), expanded.data(), length);
+
+    if (length == 0 || length > expanded.size())
+    {
+        return text;
+    }
+
+    expanded.resize (length - 1);
+    return expanded;
 }
 
 

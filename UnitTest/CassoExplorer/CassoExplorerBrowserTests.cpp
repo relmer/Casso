@@ -561,6 +561,22 @@ public:
     }
 
 
+    TEST_METHOD (TypedPath_WithAnEnvironmentVariable_GoesToItsValue)
+    {
+        Host  host;
+
+        Assert::IsTrue (SetEnvironmentVariableW (L"CASSO_TEST_DISKS", L"C:\\Disks") != FALSE);
+
+        Assert::IsTrue   (host.browser.NavigateToAddress (L"%CASSO_TEST_DISKS%"));
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), host.browser.GetLocation().path);
+        Assert::AreEqual (std::wstring (L"%CASSO_TEST_DISKS%"), host.browser.GetTypedPaths().GetEntries()[0], L"The history has the text as typed");
+
+        Assert::AreEqual (std::wstring (L"%CASSO_UNDEFINED_VARIABLE%\\x"), CassoExplorerBrowser::ExpandVariables (L"%CASSO_UNDEFINED_VARIABLE%\\x"));
+
+        SetEnvironmentVariableW (L"CASSO_TEST_DISKS", nullptr);
+    }
+
+
     TEST_METHOD (SelectFolder_ListsHostEntriesAndFlagsImages)
     {
         Host  host;

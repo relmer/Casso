@@ -353,6 +353,10 @@ public:
     //  A typed path with a root and no drive, put on the system drive.
     static std::wstring  RootOnSystemDrive (const std::wstring & text);
 
+    //  A typed path with its environment variables expanded, as Explorer
+    //  reads "%TEMP%". An undefined variable stays as typed.
+    static std::wstring  ExpandVariables   (const std::wstring & text);
+
 private:
 
     CassoExplorerShellListings  m_shellListings;
