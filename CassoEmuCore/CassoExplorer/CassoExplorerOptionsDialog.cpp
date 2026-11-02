@@ -26,13 +26,13 @@ struct FullSendFormat
 
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
-    { L"Automatic: .po for ProDOS disks, .dsk for others", ""     },
-    { L".dsk: DOS-order sectors",                         ".dsk" },
-    { L".do: DOS-order sectors",                          ".do"  },
-    { L".po: ProDOS-order sectors",                       ".po"  },
-    { L".woz: WOZ, built from the sectors read",          ".woz" },
-    { L".nib: nibbles, built from the sectors read",      ".nib" },
-    { L".nb2: nibbles, built from the sectors read",      ".nb2" },
+    { L"Automatic: .po for ProDOS disks, .dsk for others",                 ""     },
+    { L".dsk: DOS-order sectors",                                         ".dsk" },
+    { L".do: DOS-order sectors",                                          ".do"  },
+    { L".po: ProDOS-order sectors",                                       ".po"  },
+    { L".woz: WOZ 2 bit stream, as Applesauce and current emulators use", ".woz" },
+    { L".nib: Nibbles, 6,656 bytes a track, the common nibble format",    ".nib" },
+    { L".nb2: Nibbles, 6,384 bytes a track, for emulators that read .nb2", ".nb2" },
 };
 
 
@@ -447,7 +447,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
     WireFullSend();
 
-    m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full send");
+    m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full Send");
     m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendPrefixLabel, m_fullSendPrefix, m_fullSendFormatLabel, m_fullSendFormat);
 
     WireVerify();
@@ -497,7 +497,7 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFormat.SetOptions  (options);
     m_fullSendFormat.SetSelected (selected);
 
-    m_fullSendNote.SetText      (L"Full send archives a stack of floppies. Each disk you put in the Apple's drives is saved here as a disk image, "
+    m_fullSendNote.SetText      (L"Full Send archives a stack of floppies. Each disk you put in the Apple's drives is saved here as a disk image, "
                                  L"with no steps on the PC between disks. Just keep feeding the drives on the Apple. A list of what was sent is kept beside the images.");
     ExplorerTextStyles::Apply (m_fullSendNote, ExplorerTextStyles::kFormNote);
     m_fullSendNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
@@ -545,9 +545,10 @@ void CassoExplorerOptionsDialog::WireVerify()
     static constexpr const wchar_t *  kLabels[] = { L"Verify disks read from the Apple", L"Verify disks written to the Apple", L"Verify automatically when a read fails" };
     static constexpr const wchar_t *  kNotes[]  =
     {
-        L"Each track is read three times and the sectors are compared. If the reads disagree, the track is read up to nine times to find a consensus "
-        L"for the correct data. A sector with read errors is accepted once two good reads match. A sector with one good read is kept and marked "
-        L"unreliable. A sector with none is saved as zeros and listed beside the image.",
+        L"Each track is read three times, and the sectors are compared. If the reads disagree, the track is read up to nine times to find a consensus "
+        L"for the correct data. A sector with read errors is accepted once two good reads match. A sector with only one good read is saved as read, but it is "
+        L"listed as unreliable in the .unreadable.txt file beside the image, because no second read confirmed its data. A sector with no good read is "
+        L"saved as zeros and listed in the same file.",
         L"Every track is already read back for validation by default. With this additional verification, a track that fails is rewritten up to twice "
         L"more, and the whole disk is compared with the image at the end. That catches a track damaged by a later write, for example on a misaligned drive.",
         L"A track with read errors is read again with the verification steps above. Verification happens only for that track.",
@@ -562,9 +563,10 @@ void CassoExplorerOptionsDialog::WireVerify()
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
     }
 
-    m_verifyIntro.SetText (L"Old disks can read differently from one pass to the next, and a read can pass its checksum with the wrong data. Verified transfers read and "
-                           L"write disks more than once, so a damaged copy is caught while you still have the disk. They apply to whole disks: Full Send, Create image and "
-                           L"Write image. They take longer, and they don't change how files are browsed or copied.");
+    m_verifyIntro.SetText (L"Old disks can read differently from one pass to the next. Each sector has a checksum, but it is not a rigorous test and misses many "
+                           L"errors, so a read can pass it with the wrong data. Verified transfers read and write disks more than once to catch a damaged copy. "
+                           L"Verification applies to whole disks: Full Send, Create image and Write image. The trade-off for this additional rigor is speed; "
+                           L"additional checks take a bit longer.");
 
     for (size_t i = 0; i < m_verifyRows.size(); i++)
     {
@@ -594,7 +596,7 @@ void CassoExplorerOptionsDialog::WireVerify()
     ExplorerTextStyles::Apply (m_verifyLimitHead, ExplorerTextStyles::kFormLabel);
     m_verifyLimitNote.SetText (L"A verified image has sectors that read consistently, but it may not run. Some copy protection schemes store data between tracks or sectors, "
                                L"where sector reads can't capture it. A disk that is likely copy-protected is read once and labeled, without retries. "
-                               L"Use a flux tool such as an Applesauce for those.");
+                               L"Use a flux tool such as Applesauce for those.");
 }
 
 

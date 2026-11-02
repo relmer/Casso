@@ -80,8 +80,8 @@ private:
 //
 //  CassoExplorerFullSendPage
 //
-//  A full send's folder, with its Browse button, its file name prefix and its
-//  image format. A full send starts from the Apple's keyboard, so these are set
+//  A Full Send's folder, with its Browse button, its file name prefix and its
+//  image format. A Full Send starts from the Apple's keyboard, so these are set
 //  here ahead of time.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,7 +196,7 @@ public:
         //  Whether the preview pane opens and closes for the selected file.
         bool  autoPreview = true;
 
-        //  A full send's folder and its extension, each empty for the default,
+        //  A Full Send's folder and its extension, each empty for the default,
         //  and what begins each image's file name.
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;

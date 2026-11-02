@@ -95,9 +95,9 @@ public:
     //  Apple fills in.
     static constexpr Byte  kSectorBlank   = 0xE0;
 
-    //  A full send's screen, and its pause for Space or Q. Key has the same
+    //  A Full Send's screen, and its pause for Space or Q. Key has the same
     //  command byte as Wait for key, and one byte: the key's code, kKeyQuit also
-    //  unprompted during a full send, kKeyFullSend unprompted on the standard
+    //  unprompted during a Full Send, kKeyFullSend unprompted on the standard
     //  screen, and kKeyNone once a second in a pause.
     static constexpr Byte  kSessionScreen = 0xE1;
     static constexpr Byte  kWaitForKey    = 0xE2;

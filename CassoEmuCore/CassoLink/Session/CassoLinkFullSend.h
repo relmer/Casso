@@ -15,7 +15,7 @@ class CassoLinkSession;
 //
 //  CassoLinkFullSend
 //
-//  A full send as one operation on the session's thread: FullSendSession over
+//  A Full Send as one operation on the session's thread: FullSendSession over
 //  the link. A flag here has Cancel between requests, as the host clears its
 //  flag when its next request starts.
 //

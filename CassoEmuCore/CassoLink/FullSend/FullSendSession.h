@@ -15,7 +15,7 @@ class IDiskFileIo;
 //
 //  FullSendScreen
 //
-//  The Apple's full send screen. Off in both drives clears it, and Q on
+//  The Apple's Full Send screen. Off in both drives clears it, and Q on
 //  the Apple ends CassoLink again rather than the session.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +103,7 @@ struct FullSendReadReport
 //
 //  IFullSendLink
 //
-//  The Apple, as a full send uses it. An image is DOS logical sectors in an
+//  The Apple, as a Full Send uses it. An image is DOS logical sectors in an
 //  image-sized buffer. kQuit from any call is Q on the Apple;
 //  ERROR_CANCELLED is Cancel on the PC.
 //
@@ -151,7 +151,7 @@ public:
 //
 //  FullSendSession
 //
-//  One full send: disks read from a linked Apple's drives into a folder, one
+//  One Full Send: disks read from a linked Apple's drives into a folder, one
 //  at a time, alternating between the drives, until Q, Cancel or a
 //  failure ends it. Pure: the Apple, the clock and the files are injected.
 //

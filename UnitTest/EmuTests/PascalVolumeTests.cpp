@@ -916,7 +916,7 @@ public:
 
 
 
-    //  The full send's values.
+    //  The Full Send's values.
 
     TEST_METHOD (AFullSendFindsTheCatalogOnTrackZero)
     {

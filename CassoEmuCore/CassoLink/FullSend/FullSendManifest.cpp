@@ -8,7 +8,7 @@
 
 static constexpr std::string_view  s_kHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable";
 static constexpr std::string_view  s_kLegacyHeader = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf";
-static constexpr std::string_view  s_kComment = "# Casso full send manifest. Do not edit, rename or move this file.\r\n"
+static constexpr std::string_view  s_kComment = "# Casso Full Send manifest. Do not edit, rename or move this file.\r\n"
                                                 "# Casso uses it to recognize disks already received in this folder.\r\n"
                                                 "# Changing it can make disks get skipped or read again.\r\n";
 

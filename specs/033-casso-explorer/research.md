@@ -942,7 +942,7 @@ once.
 less risk, but rejected by the owner (Session 2026-10-26). Leaving the
 files as they are fails SC-037.
 
-## R34. Full send
+## R34. Full Send
 
 **Finding**: the PC starts every link operation, and the Apple-side program runs one at a time, so one drive transfers while the other is idle and can be swapped. No DOS 3.3, ProDOS or Disk II signal reports a disk change.
 

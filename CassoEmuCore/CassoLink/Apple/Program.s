@@ -24,7 +24,7 @@
 ;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
 ;   Exit            CassoLink ends, and control returns to BASIC
-;   Session screen  whether a full send is active, its tone, and its rows' text,
+;   Session screen  whether a Full Send is active, its tone, and its rows' text,
 ;                   each ending in a zero: drawn, the tone sounded, and Ready
 ;                   again; not active clears them and ends the session
 ;   Read CRCs       drive, track, count, sectors: Sector CRCs, each sector's CRC
@@ -32,13 +32,13 @@
 ;                   crosses the link in a few bytes; then the status
 ;   Set columns     1 for 80 columns where the machine has them, 0 for 40: the
 ;                   screen drawn again, and Ready again
-;   Wait for key    a full send's pause, with the prompt's lines, each ending in a
+;   Wait for key    a Full Send's pause, with the prompt's lines, each ending in a
 ;                   zero: drawn with the motor off,
 ;                   Key with its code on Space, Q, 1 or 2, Key with 0 each
 ;                   second until then; any byte from the host is taken as Cancel
 ;
 ; F on the standard screen sends Key with its code ahead of the next Ready,
-; and the host starts a full send. During a full send Q does the same, and the
+; and the host starts a Full Send. During a Full Send Q does the same, and the
 ; session ends and returns to the standard screen; Escape is ignored, so that a
 ; second press cannot end CassoLink.
 ;
@@ -157,7 +157,7 @@ CMDLOG    = $DD
 CMDTIME   = $DE
 CMDEXIT   = $DF
 CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
-CMDSCREEN = $E1                 ; a full send's screen
+CMDSCREEN = $E1                 ; a Full Send's screen
 CMDCOLS   = $E3                 ; 40 or 80 columns
 CMDREADCRC = $E4                ; Read CRCs
 CMDCRCS   = $E5                 ; and the CRCs in reply
@@ -180,7 +180,7 @@ OPREAD   = 1
 OPWRITE  = 2
 OPFORMAT = 3
 OPSPEED  = 4
-OPDISK   = 5                    ; a full send's pause, on the status row alone
+OPDISK   = 5                    ; a Full Send's pause, on the status row alone
 
 ; Errors.
 ERRNONE    = $00
@@ -233,7 +233,7 @@ revs     = $0B                  ; Time drive: passes left to report
 fgap     = $0C                  ; the gap after each sector, in self-sync bytes
 idles    = $0D                  ; Idle replies since the last operation
 vflag    = $0E                  ; nonzero while a written track is read back
-fsmode   = $0F                  ; nonzero during a full send
+fsmode   = $0F                  ; nonzero during a Full Send
 diskx    = $E0
 drive    = $E1                  ; 1 or 2
 track    = $E2
@@ -341,15 +341,15 @@ slotok:
 main:   lda $C000               ; Escape on the Apple ends CassoLink
         cmp #$9B
         beq mnesc
-        cmp #$C6                ; F or f asks for a full send
+        cmp #$C6                ; F or f asks for a Full Send
         beq mnfull
         cmp #$E6
         beq mnfull
-        cmp #$D6                ; V or v turns a full send's verification on or off
+        cmp #$D6                ; V or v turns a Full Send's verification on or off
         beq mnverify
         cmp #$F6
         beq mnverify
-        cmp #$D1                ; Q or q ends a full send
+        cmp #$D1                ; Q or q ends a Full Send
         beq mnquit
         cmp #$F1
         bne mnokey
@@ -2736,7 +2736,7 @@ BARTEXT = 14                    ; the column of the track and sector over the ba
 BARTEXTW = 31                   ; and in 80 columns, where a track has two cells
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
-FSKEYSCOL = 4                   ; and in a full send
+FSKEYSCOL = 4                   ; and in a Full Send
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
@@ -3196,8 +3196,8 @@ speedend:
 
 ; showstatus: each drive's row and bar. A read or write has its bar, and any
 ; other time both are drawn with no text over them. A request with no share of
-; the operation, as a full send's check, leaves its drive's bar as it is. During
-; a full send the host sends the drives' rows.
+; the operation, as a Full Send's check, leaves its drive's bar as it is. During
+; a Full Send the host sends the drives' rows.
 showop:
 showstatus: jsr percent
         sta pct
@@ -3733,7 +3733,7 @@ logrowlo: .byte $A8, $50, $D0, $50, $D0, $50, $D0, $50
 logrowhi: .byte $07, $04, $04, $05, $05, $06, $06, $07
 
 ; ---------------------------------------------------------------------------
-; A full send
+; A Full Send
 ; ---------------------------------------------------------------------------
 
 FSPROMPT = 0                    ; the first of Wait for key's lines, by its index in logrowlo
@@ -3759,7 +3759,7 @@ skloop: lda keyhdr,x
 keyhdr: .byte $C1, $01, $00, CMDKEY, $C1 ^ $01 ^ $00 ^ CMDKEY
 keyend:
 
-; dowaitkey: a full send's pause. The motor is off and a key pressed during the
+; dowaitkey: a Full Send's pause. The motor is off and a key pressed during the
 ; transfer is dropped, so Space means the disks in the drives now.
 dowaitkey: jsr motoroff
         lda #OPDISK
@@ -3880,7 +3880,7 @@ dscol:  .byte 0
 fsrowlo: .byte <ROWLB, $80, $00, <ROWD1, $A8, <ROWD2, $28
 fsrowhi: .byte >ROWLB, $06, $07, >ROWD1, $04, >ROWD2, $06
 
-; fsclear: the rows a full send draws on cleared, and the label and history's.
+; fsclear: the rows a Full Send draws on cleared, and the label and history's.
 fsclear: ldx #LOGROWS-1
 fcclear: jsr fsrow
         dex

@@ -10,7 +10,7 @@
 //
 //  FullSendDisk
 //
-//  The values a full send computes from a disk's sectors, in DOS logical order
+//  The values a Full Send computes from a disk's sectors, in DOS logical order
 //  in an image-sized buffer with at least the tracks read so far: its
 //  fingerprint, its whole-image hash and its image's file name.
 //  Pure: no I/O, no Win32.

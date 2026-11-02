@@ -895,7 +895,7 @@ const wchar_t * BrowserLoader::GetCassoLinkHelp()
            L"## Full Send\r\n"
            L"\r\n"
            L"Press F on the Apple to archive a stack of floppies, then Space to begin. Each new disk is saved to the "
-           L"Full send folder under CassoLink.\r\n"
+           L"Full Send folder under CassoLink.\r\n"
            L"\r\n"
            L"To recognize a disk already sent without reading all of it, CassoLink compares a few tracks, which can "
            L"match on different disks. When a disk matches, it isn't read, and the Apple asks whether to send it "

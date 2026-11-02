@@ -10,7 +10,7 @@
 //
 //  FullSendRow
 //
-//  One disk in a full send's manifest. A duplicate has an empty file, and
+//  One disk in a Full Send's manifest. A duplicate has an empty file, and
 //  duplicateOf is the earlier image's file name.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +39,7 @@ struct FullSendRow
 //
 //  FullSendManifest
 //
-//  manifest.fullsend in a full send's folder, CSV in UTF-8 with one row per
+//  manifest.fullsend in a Full Send's folder, CSV in UTF-8 with one row per
 //  disk after # comments: parsed once when a session starts, and formatted again
 //  after each disk.
 //  Pure: no I/O, no Win32.

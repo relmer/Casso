@@ -419,16 +419,16 @@ hardware.
 
 ### Session 2026-10-30
 
-- Q: How does a full send start and end? -> A: From the Apple. The folder and image format are set ahead of time on a Full send page in Casso Explorer's Options, with `Casso Full Send` under Downloads as the default folder. F on the Apple's CassoLink screen starts a session, and Q ends it, discards a partial image and returns to the CassoLink screen. Esc is ignored during a session, as a second press would end CassoLink. No menu or toolbar command on the PC starts one, and Cancel on the PC ends one. F pressed during another operation starts the session when that operation ends.
+- Q: How does a Full Send start and end? -> A: From the Apple. The folder and image format are set ahead of time on a Full Send page in Casso Explorer's Options, with `Casso Full Send` under Downloads as the default folder. F on the Apple's CassoLink screen starts a session, and Q ends it, discards a partial image and returns to the CassoLink screen. Esc is ignored during a session, as a second press would end CassoLink. No menu or toolbar command on the PC starts one, and Cancel on the PC ends one. F pressed during another operation starts the session when that operation ends.
 - Q: How does Casso Explorer detect and install new versions? -> A: Casso and Casso Explorer share one implementation, ShellUpdater, behind a small host interface that each app supplies. Whichever app notices an update first shows it. The schedule, the skipped version and the check record are shared in Casso's prefs file, and only the update fields are written from Casso Explorer. Applying an update while the other app runs stops and asks the user to close the other app; the other app is never closed silently. Casso Explorer has the same title bar indicator and update dialog as Casso, in one open window, plus Help > Check for updates, an automatic check at startup, --updated and --cleanup-old, and the pending update applied at exit.
 
 - Q: What does Home show, and where does it read it? -> A: File Explorer's Home page: Quick access tiles, then Recent, Favorites and Shared tabs over two-line rows. Recent and Quick access come from the Home shell folder; Favorites are the pinned items of the MS Graph Recent File Folder and Shared is the MS Graph Shared File Folder, so no sign-in is needed. Those folder ids are undocumented, so a tab is empty if Windows drops them.
 
-- Q: How does a box of floppies get archived from a //c? -> A: Full send, a CassoLink session that alternates between the Apple's two drives with no interaction on the PC. Disk II hardware has no usable disk-change signal, so a new disk is recognized by a fingerprint of track 0 and the catalog track. With no new fingerprint in either drive, the session pauses until Space on the Apple, and Space also forces a send, since two freshly formatted disks can match. Each image's name comes from its catalog where the disk has one. Labels are not typed on the Apple, whose keyboard has a one-character latch that a disk read can't poll; the user renames images on the PC afterward. Raw capture of copy-protected disks is a follow-on; the manifest flags those disks.
+- Q: How does a box of floppies get archived from a //c? -> A: Full Send, a CassoLink session that alternates between the Apple's two drives with no interaction on the PC. Disk II hardware has no usable disk-change signal, so a new disk is recognized by a fingerprint of track 0 and the catalog track. With no new fingerprint in either drive, the session pauses until Space on the Apple, and Space also forces a send, since two freshly formatted disks can match. Each image's name comes from its catalog where the disk has one. Labels are not typed on the Apple, whose keyboard has a one-character latch that a disk read can't poll; the user renames images on the PC afterward. Raw capture of copy-protected disks is a follow-on; the manifest flags those disks.
 
 - Q: When a disk finishes and the other drive's disk is not new, is the drive just read checked before the pause for Space? -> A: Only when its disk changed during the read, so a swap during the transfer continues with no key press. See Session 2026-11-01.
 
-- Q: Does a new full send recognize disks an earlier session sent to the same folder? -> A: Yes, from the folder's manifest, which also has each disk's fingerprint. Sequence numbers continue from it.
+- Q: Does a new Full Send recognize disks an earlier session sent to the same folder? -> A: Yes, from the folder's manifest, which also has each disk's fingerprint. Sequence numbers continue from it.
 
 ### Session 2026-10-26
 
@@ -510,15 +510,15 @@ hardware.
 
 ### Session 2026-11-01
 
-- Q: Can a full send's images have a file name prefix, as ADTPro's batch mode does? -> A: Yes. It is set on Options' Full send page, because FR-113 rules out typing on the Apple. It goes before the sequence number exactly as typed, so the user chooses any separator.
-- Q: Why was a full send slower per disk than ADTPro's batch mode, and what changed? -> A: One drive's disk took 42 track reads against ADTPro's 35: a check of two tracks read twice each before the disk, the catalog track read again after it, and another check of the same drive. A track read whole now counts as one read, and a drive whose disk was just sent is not checked again before the pause, which is 36 reads. The check is required to separate a new disk from a repeat, and the whole-disk read skips its tracks.
-- Q: Where is the link to a full send's images? -> A: A Full send row directly under CassoLink, a peer of the connections, in the list and the tree, once the folder exists, because every connection writes to the same folder. It opens the folder.
+- Q: Can a Full Send's images have a file name prefix, as ADTPro's batch mode does? -> A: Yes. It is set on Options' Full Send page, because FR-113 rules out typing on the Apple. It goes before the sequence number exactly as typed, so the user chooses any separator.
+- Q: Why was a Full Send slower per disk than ADTPro's batch mode, and what changed? -> A: One drive's disk took 42 track reads against ADTPro's 35: a check of two tracks read twice each before the disk, the catalog track read again after it, and another check of the same drive. A track read whole now counts as one read, and a drive whose disk was just sent is not checked again before the pause, which is 36 reads. The check is required to separate a new disk from a repeat, and the whole-disk read skips its tracks.
+- Q: Where is the link to a Full Send's images? -> A: A Full Send row directly under CassoLink, a peer of the connections, in the list and the tree, once the folder exists, because every connection writes to the same folder. It opens the folder.
 - Q: Which connections start at launch, and what happens when two use one port? -> A: An ADTPro-compatible server doesn't start by default. Its list has its folder and help, with a floating Start server button over the list, as Bootstrap the Apple has. Other connections start at launch, except one the user disconnected, an any-port serial connection with no port that has connected to an Apple, and a Wi-Fi listener the firewall doesn't allow. On a shared port the most recent choice takes the port: starting or creating a connection disconnects the others on that port, each with its reason and a Connect button. A running transfer is never interrupted.
 - Q: How is the Apple's screen arranged? -> A: The status row is merged into each drive's row, as D1: SENDING 13 GAMES DISK, with no leading zeros on screen. The zeros are in image file names only. Each drive has a 35-cell bar, one cell per track, filled in track order, with its track and sector overlaid in inverse video as the bar passes and the percentage at the right edge. A second map row, used once a track has a problem, marks R recovered, U unreliable and X unreadable. The connection and PC rows are merged, and a divider follows the counts. A prompt line follows ON DECK-- only after INSERT A DISK TO SEND NEXT has appeared once for that drive.
 - Q: How does a Full Send begin? -> A: F enters Full Send without reading a disk. The screen has an explanation of V, then REMOVE THE CASSOLINK DISK unless this session bootstrapped the Apple, then INSERT DISKS TO BE SENT INTO THE DRIVES and THEN PRESS SPACE TO BEGIN. A CassoLink disk left in a drive is sent as any other disk.
 - Q: What happens on Space when a drive has a disk already sent? -> A: The disk isn't read and DUP doesn't change. The Apple lists the drives that may already have been sent, with CHECK CASSO EXPLORER FOR DETAILS and PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY, for those drives only. A disk sent this way that is an exact copy is discarded by its whole-disk hash and counts as DUP. Casso Explorer's status lists the matching file, and its help has the reason: a fingerprint compares only a few tracks.
 - Q: Does the Apple's screen use 80 columns? -> A: The program starts in 40 columns, and on connecting the PC selects 80 where the Apple detects them, unless the connection's Use 40 columns setting is on, for a monitor too fuzzy for 80 or a wrong detection. No boot disk option is needed, as 80 columns never appear before the PC connects.
-- Q: How are transfers verified? -> A: Verified transfers apply to Full Send, Create image and Write image. Reads, off by default: three reads per track compared per sector, then up to nine and a strict majority when they disagree. A sector with read errors is accepted at two matching good reads, one good read is saved and marked unreliable, and none is saved as zeros and listed. Failed reads don't vote, the head moves away and back before a retry, and re-reads return per-sector CRCs unless reads disagree. Writes, off by default: a failed track is rewritten up to twice more, and the whole disk is compared with the image by CRC at the end. Verify automatically when a read fails, on by default, verifies only the failing track. The setting is global, can be overridden per connection, and per transfer by commands on a drive's menu for Create verified image and Write image and verify, and by V on the Apple at any time in Full Send, effective at the next track. The manifest lists a disk verified for only some tracks as partly verified. This replaces the plan for a later multi-read spec.
+- Q: How are transfers verified? -> A: Verified transfers apply to Full Send, Create image and Write image. Reads, off by default: three reads per track compared per sector, then up to nine and a strict majority when they disagree. A sector with read errors is accepted at two matching good reads, one good read is saved and listed as unreliable in NAME.unreadable.txt, and none is saved as zeros and listed in the same file. Full Send also counts unreliable sectors in its manifest. Failed reads don't vote, the head moves away and back before a retry, and re-reads return per-sector CRCs unless reads disagree. Writes, off by default: a failed track is rewritten up to twice more, and the whole disk is compared with the image by CRC at the end. Verify automatically when a read fails, on by default, verifies only the failing track. The setting is global, can be overridden per connection, and per transfer by commands on a drive's menu for Create verified image and Write image and verify, and by V on the Apple at any time in Full Send, effective at the next track. The manifest lists a disk verified for only some tracks as partly verified. This replaces the plan for a later multi-read spec.
 - Q: How does a copy-protected disk differ from a damaged one? -> A: It can't be known from sectors, so the labels are Likely copy-protected, Likely damaged and Unclear, from whether a file system is recognized, then the failure type, its consistency and its spread. With no recognized file system and whole tracks with no sector found the same way on each read, a disk is likely copy-protected. After about 3 such tracks the rest is read once, with no retries or verification. The partial image and its list are saved, a PROT count and tone are added, a flux tool is suggested, and the session goes on. A clean result doesn't mean an image runs.
 - Q: What is the manifest's file? -> A: manifest.fullsend, CSV inside, with a # header with instructions not to edit it, so that it doesn't preview or open in a spreadsheet. A full-send.csv is renamed on first use.
 - Q: What does Casso Explorer's tree add for transfers? -> A: An animation on the connection's icon and the receiving folder during any transfer, and a count badge on the Full Send and ADTPro folders for files received but not yet rendered in the list, which survives a restart.
@@ -1148,7 +1148,7 @@ to Casso over TCP.
    with the port and speed, and then the program loading.
 
 ---
-### User Story 17 - Full send a box of floppies (Priority: P2)
+### User Story 17 - Full Send a box of floppies (Priority: P2)
 
 A user sits at a //c with a box of floppies and archives them to the PC.
 They press F on the Apple's CassoLink screen, then only feed disks: while one
@@ -1333,9 +1333,9 @@ source and read the manifest. Repeat on a real //c with real floppies.
   with a track not read whole that reads differently on a second read is not sent yet, and a
   disk that changes during a transfer fails that image with no file left on
   the PC, and the session continues.
-- **An Apple with one drive**: a full send uses that drive alone, and pauses
+- **An Apple with one drive**: a Full Send uses that drive alone, and pauses
   until Space after each disk.
-- **A full send when the link drops**: the session ends with the reason, the
+- **A Full Send when the link drops**: the session ends with the reason, the
   images already written and the manifest remain on the PC, and the partial
   image is discarded.
 ## Requirements *(mandatory)*
@@ -2022,7 +2022,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
   guest opens that the address translation mirrors onto the PC. Only the
   link's own ports are fixed enough to declare.
 
-**Full send**
+**Full Send**
 
 - **FR-107**: A Full Send MUST start from the Apple. F (either case) on the
   program's CassoLink screen, which MUST show `F: FULL SEND`, MUST enter Full Send
@@ -2034,7 +2034,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
   `Casso Full Send` under the user's Downloads, made when a session needs it. No
   command on the PC starts a session. F during another operation MUST start the
   session when that operation ends.
-- **FR-108**: A full send MUST read one drive at a time, and when a disk
+- **FR-108**: A Full Send MUST read one drive at a time, and when a disk
   finishes MUST check the other drive first, alternating for as long as the
   session runs. The drive just read MUST be checked as well only when its disk
   changed during the read.
@@ -2057,7 +2057,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
   first program's name on DOS 3.3. With no name in the catalog,
   the prefix and sequence number MUST be the whole name. An existing file MUST NOT be
   overwritten.
-- **FR-113**: A full send MUST NOT accept a label typed on the Apple. Images
+- **FR-113**: A Full Send MUST NOT accept a label typed on the Apple. Images
   MUST be renamed on the PC.
 - **FR-114**: The session MUST write a manifest to the destination folder,
   updated after each disk: each image's file name, drive, fingerprint, hash, time,
@@ -2084,8 +2084,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-121**: A slow folder's rows MUST appear as they are read, and while a folder is read again its rows MUST stay on screen until the read finishes.
 - **FR-122**: The list's background menu MUST have File Explorer's rows for This PC, the Recycle Bin, Home, Network, Libraries and a zip.
 - **FR-123**: A shell command MUST be initialized and hosted as File Explorer hosts it, and one that faults MUST NOT close the window.
-- **FR-124**: CassoLink's root MUST list a Full send row, a peer of the connections, that opens the full send folder, once the folder exists.
-- **FR-125**: The full send folder and an ADTPro server's folder MUST open grouped by Date modified, newest first, until the user chooses otherwise.
+- **FR-124**: CassoLink's root MUST list a Full Send row, a peer of the connections, that opens the Full Send folder, once the folder exists.
+- **FR-125**: The Full Send folder and an ADTPro server's folder MUST open grouped by Date modified, newest first, until the user chooses otherwise.
 - **FR-126**: An ADTPro-compatible server MUST NOT start by default, and its list MUST have a floating Start server button. Other connections MUST start at launch, except one the user disconnected, an any-port serial connection with no port that has connected to an Apple, and a Wi-Fi listener the firewall doesn't allow.
 - **FR-127**: Starting or creating a connection MUST disconnect others on the same port, each with its reason and a Connect button, and MUST NOT interrupt a running transfer.
 - **FR-128**: The Apple's screen MUST merge the status into each drive's row, with a 35-cell per-track bar filled in track order, track and sector overlaid in inverse video, the percentage at the right edge, and a second map row marking R, U and X once a track has a problem. It MUST use 80 columns where detected, 40 otherwise, and a connection's Use 40 columns setting MUST force 40.
@@ -2148,7 +2148,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **Printer connection**: the one connector the emulated ImageWriter II is
   attached to: a parallel card's slot, a Super Serial Card's slot, a //c
   serial port, or none.
-- **Full send session**: one run of alternating disk reads from a linked
+- **Full Send session**: one run of alternating disk reads from a linked
   Apple: its destination folder, image format, sequence number, the
   fingerprints and hashes of its disks, and its manifest.
 
@@ -2262,11 +2262,11 @@ source and read the manifest. Repeat on a real //c with real floppies.
   class split to get there is a set of component classes with separate
   state rather than one class across several files. The unit and scenario
   suites pass unchanged in what they check before and after each split.
-- **SC-038**: On a //c at 115,200 baud, a full send of two 140K disks with a
+- **SC-038**: On a //c at 115,200 baud, a Full Send of two 140K disks with a
   swap during each transfer runs with no PC interaction and no key press after Space, at
   under 30 seconds a disk, and each image matches one read by Read disk to
   image from the same disk.
-- **SC-039**: In a full send that includes a duplicate and a disk with an
+- **SC-039**: In a Full Send that includes a duplicate and a disk with an
   unreadable sector, the manifest lists both correctly, no duplicate image is
   on the PC, and the session continues past each.
 - **SC-040**: The window's thread doesn't stall for more than 100 ms when Network opens or when a folder of thousands of files is grouped by a property, and Network's first rows appear within 5 seconds.

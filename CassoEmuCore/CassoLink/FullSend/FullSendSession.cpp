@@ -784,7 +784,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
 
         if (isProtected)
         {
-            m_link.Report (std::format ("{} is likely copy-protected, so it was read once with no retries. The image may not run. Use a flux tool such as an Applesauce for a working copy.", title));
+            m_link.Report (std::format ("{} is likely copy-protected, so it was read once with no retries. The image may not run. Use a flux tool such as Applesauce for a working copy.", title));
         }
 
         m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image));
@@ -967,7 +967,7 @@ void FullSendSession::End (HRESULT hr)
         default:                         why = "The link failed.";                                                                                                            break;
     }
 
-    m_message = std::format ("Full send ended with {} sent, {} duplicates and {} with bad sectors. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, why);
+    m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, why);
 }
 
 

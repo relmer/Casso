@@ -218,11 +218,11 @@ run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
 
 **Whole disks in every format, on a real //c over serial:** for each of .dsk, .do, .po, .woz, .nib and .nb2, read a whole disk into an image, write that image to a scratch floppy, read the floppy back, and compare its sectors with the source disk.
 
-## 7c. Full send (Story 17, FR-107 to FR-116)
+## 7c. Full Send (Story 17, FR-107 to FR-116)
 
 Prerequisites: the link running on an emulated //c with two drives, then on a real //c, and a set of disks that includes a duplicate and a disk with an unreadable sector.
 
-1. Set an empty folder on the Full send page of Options, and press F on the Apple's CassoLink screen. Each image appears as `NNNN NAME.ext`, and `full-send.csv` has a row for it.
+1. Set an empty folder on the Full Send page of Options, and press F on the Apple's CassoLink screen. Each image appears as `NNNN NAME.ext`, and `full-send.csv` has a row for it.
 2. Swap the idle drive during each transfer. The session continues with no key press, at under 30 seconds a disk at 115,200 baud (SC-038).
 3. Make no swap. A prompt appears on the Apple, and neither drive spins until Space.
 4. Press Space with a repeated disk present. It is sent, and its hash marks it as a duplicate, and no second image is on the PC (SC-039).

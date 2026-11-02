@@ -219,7 +219,7 @@ never stored in `links`.
   committed; the atomic replace of `IDiskFileIo` only runs on success
   (FR-087).
 
-### Full send (Story 17, R34)
+### Full Send (Story 17, R34)
 
 `full-send.csv`, one row per disk:
 

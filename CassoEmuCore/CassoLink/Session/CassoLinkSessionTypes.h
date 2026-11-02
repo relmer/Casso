@@ -108,7 +108,7 @@ struct LinkOperation
     bool                             verifyWrites = false;
     std::vector<SectorMark>          marks;
 
-    //  Full send: imagePath is the folder, newName the chosen extension and
+    //  Full Send: imagePath is the folder, newName the chosen extension and
     //  imagePrefix what begins each image's file name.
     //  Read disk and Write disk: the image file, and for a read, whether an
     //  unreadable sector is written as zeros rather than failing the read.
@@ -155,7 +155,7 @@ public:
     //  An operation finished, for the log with the time it started.
     virtual void  OnFinished     (const LinkOperation & operation, const std::string & text) { UNREFERENCED_PARAMETER (operation); OnActivity (text); }
 
-    //  The folder and extension of a full send started from the Apple, with
+    //  The folder and extension of a Full Send started from the Apple, with
     //  the folder ready to use; false when there is no folder to send to.
     virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); UNREFERENCED_PARAMETER (outPrefix); return false; }
 

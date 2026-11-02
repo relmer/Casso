@@ -131,7 +131,7 @@ client sends first; the host's reply is the next operation.
 | Exit | $DF | host | none; CassoLink ends, the machine's state is put back, and control returns to BASIC |
 | Session screen | $E1 | host | active (1), tone (1: 0 none, 1 done, 2 duplicate, 3 bad sectors, 4 likely copy-protected), then the screen's rows as ASCII text, up to 80 characters each and each ending in a zero, with bit 7 set for inverse video; the PC composes the rows. The program draws them, sounds the tone and sends Ready. Not active clears the rows and returns to the CassoLink screen, as does the PC's silence |
 | Wait for key | $E2 | host | the prompt's lines, each ending in a zero; the program turns the motor off, draws them and polls the keyboard. It replies Key on Space, Q, 1 or 2, and Key with code 0 each second until then. Esc is ignored. Any byte from the host is taken as Cancel |
-| Key | $E2 | client | code (1): $A0 Space, $D1 Q, $C6 F, $B1 1, $B2 2, $D6 V, 0 no key. Besides the replies to Wait for key, the program sends $C6 ahead of Ready for F on the CassoLink screen, $D1 for Q during a session, and $D6 for V, which turns a full send's verification on or off |
+| Key | $E2 | client | code (1): $A0 Space, $D1 Q, $C6 F, $B1 1, $B2 2, $D6 V, 0 no key. Besides the replies to Wait for key, the program sends $C6 ahead of Ready for F on the CassoLink screen, $D1 for Q during a session, and $D6 for V, which turns a Full Send's verification on or off |
 | Cancel | $D1 `'Q'` | host | none; client stops, replies Ready (FR-098). During a read, any byte from the host is taken as Cancel, as the 6551 has room for only the first while the drive is busy |
 
 The host distinguishes clients by the first command it receives: Ready is

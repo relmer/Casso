@@ -1872,7 +1872,7 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
 
             sent.id       = kAdtProId + m_fullSendFolder;
             sent.kind     = TreeNode::Kind::HostFolder;
-            sent.label    = L"Full send";
+            sent.label    = L"Full Send";
             sent.location = Location::MakeHostFolder (m_fullSendFolder);
             sent.unseen   = GetUnseenFiles (m_fullSendFolder);
             sent.transferring = std::any_of (m_links.begin(), m_links.end(), [] (const LinkTreeEntry & link) { return link.fullSending; });

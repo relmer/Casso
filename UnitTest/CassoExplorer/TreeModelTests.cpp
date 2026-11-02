@@ -434,7 +434,7 @@ public:
     }
 
 
-    //  CassoLink lists where every connection's full sends write, with no Apple
+    //  CassoLink lists where every connection's Full Send sessions write, with no Apple
     //  connected, once the folder exists.
     TEST_METHOD (CassoLink_ListsTheFullSendFolder_OnceItExists)
     {
@@ -456,7 +456,7 @@ public:
         AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
 
         Assert::AreEqual ((size_t) 3, nodes.size());
-        Assert::AreEqual (std::wstring (L"Full send"), nodes[1].label);
+        Assert::AreEqual (std::wstring (L"Full Send"), nodes[1].label);
         Assert::IsTrue   (nodes[1].location == Location::MakeHostFolder (L"C:\\Box"));
         Assert::IsTrue   (nodes[2].kind == TreeNode::Kind::AddLink);
     }
@@ -489,7 +489,7 @@ public:
         AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, roots));
         AssertSucceeded (model.GetChildren (TreeModel::MakeLinkId (L"ADTPro server"), shared));
 
-        auto  sent = std::find_if (roots.begin(), roots.end(), [] (const TreeNode & node) { return node.label == L"Full send"; });
+        auto  sent = std::find_if (roots.begin(), roots.end(), [] (const TreeNode & node) { return node.label == L"Full Send"; });
 
         Assert::IsTrue (roots[0].transferring);
         Assert::IsTrue (sent != roots.end());

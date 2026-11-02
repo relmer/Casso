@@ -30,7 +30,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CassoLinkFullSendScenarioTests
 //
-//  A full send against Casso's program on an emulated //c, over the
+//  A Full Send against Casso's program on an emulated //c, over the
 //  in-process bridge, with disks swapped by the test as the Apple's screen
 //  reports each transfer. Each image is compared with its source.
 //
@@ -455,7 +455,7 @@ public:
 
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
 
-        Logger::WriteMessage (std::format ("Full send: {:.1f} seconds a disk", (double) perDisk / kCyclesPerS).c_str());
+        Logger::WriteMessage (std::format ("Full Send: {:.1f} seconds a disk", (double) perDisk / kCyclesPerS).c_str());
 
         rig.Press ('Q');
         rig.Finish();

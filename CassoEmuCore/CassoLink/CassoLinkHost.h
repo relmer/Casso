@@ -242,7 +242,7 @@ public:
     //  Ready is sent again.
     HRESULT  PromptReady  () { return SendPacket (CassoLinkCodec::kIdle, {}); }
 
-    //  A full send's screen, in the Session screen packet: whether the session
+    //  A Full Send's screen, in the Session screen packet: whether the session
     //  is active, its tone, and its rows' text. Not active clears the rows and
     //  ends the session.
     //  80 columns where the Apple has them, or 40. The screen is drawn again.
@@ -254,10 +254,10 @@ public:
     //  Any Cancel ends the wait with ERROR_CANCELLED.
     HRESULT  WaitForKey   (const std::vector<std::string> & lines, Byte & outKey);
 
-    //  Whether Q was pressed during a full send, since the last call.
+    //  Whether Q was pressed during a Full Send, since the last call.
     bool     TakeQuit   () { bool  quit = m_quit; m_quit = false; return quit; }
 
-    //  Whether V was pressed during a full send, since the last call.
+    //  Whether V was pressed during a Full Send, since the last call.
     bool     TakeVerifyToggle () { bool  toggle = m_verifyToggle; m_verifyToggle = false; return toggle; }
 
     //  Whether F was pressed on the Apple's standard screen, since the last call.

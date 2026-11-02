@@ -177,11 +177,11 @@ public:
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
 
-    //  Where every connection's full sends write, listed under CassoLink once it
+    //  Where every connection's Full Send sessions write, listed under CassoLink once it
     //  exists.
     void  SetFullSendFolder  (std::wstring folder);
 
-    //  Whether a folder is one disks arrive in over CassoLink: the full send
+    //  Whether a folder is one disks arrive in over CassoLink: the Full Send
     //  folder, or an ADTPro server's shared folder.
     bool  IsLinkFolder       (const std::wstring & path) const;
 
@@ -251,7 +251,7 @@ public:
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
 
     //  A folder listed where it is not on the disk, adtpro:<path>: an ADTPro
-    //  server's under its connection, or a full send's under CassoLink,
+    //  server's under its connection, or a Full Send's under CassoLink,
     //  which lists the folder there rather than where the folder is.
     static constexpr const wchar_t *  kAdtProId        = L"adtpro:";
 

@@ -1490,15 +1490,15 @@ The product-wide styles are GitHub issue #179.
 
 - [X] T318 Add `FullSendSession` to the core: drive order, pause and end states over injected reads, a clock and a file store, with unit tests using scripted disks, per FR-108, FR-110, FR-116 and US17/AC1-5 (missing)
 - [X] T319 Add fingerprints of track 0 and the catalog track, two matching reads, empty-drive detection and whole-image hashes, using a SHA-256 already in the core or Windows CNG, per FR-109 and FR-111 (missing)
-- [X] T320 Add `FullSendManifest`: write `full-send.csv` after each disk, read it at a session start, continue sequence numbers, and end the session on a manifest that fails to parse, per FR-114 and data-model Full send (missing)
+- [X] T320 Add `FullSendManifest`: write `full-send.csv` after each disk, read it at a session start, continue sequence numbers, and end the session on a manifest that fails to parse, per FR-114 and data-model Full Send (missing)
 - [X] T321 Add image file titles from the sequence number and the catalog, never overwriting a file, per FR-112, FR-113 and US17/AC7 (missing)
 - [X] T322 Add Session screen ($E1) and Wait for key ($E2) to `CassoLinkCodec` and `Program.s`, with the tones, the screen and no drive running during the wait, and bump the program version, per FR-110, FR-115 and contract cassolink (missing)
-- [X] T323 Add the full send command, folder and format choice to Casso Explorer, and run a session through the operation queue in `CassoLinkManager`, per FR-107 and plan Full send (missing)
+- [X] T323 Add the Full Send command, folder and format choice to Casso Explorer, and run a session through the operation queue in `CassoLinkManager`, per FR-107 and plan Full Send (missing)
 - [X] T324 Reuse Read disk to image for each disk, flag disks with unreadable sectors, and discard partial images on Cancel, Escape, a dropped link or a disk changed in mid-transfer, per FR-116, US17/AC8 and the edge cases (missing)
 - [X] T325 Add scenario tests in an emulated //c with scripted disk swaps, per SC-038 and SC-039 (missing)
-- [X] T327 Start a full send with F on the Apple through an unprompted Key, end it with Q, ignore Esc in a session, and remove the PC's command, menu and toolbar button, per FR-107 and FR-116
-- [X] T328 Add the Full send page to Options, with the folder, default `Casso Full Send` under Downloads, and the format, per FR-107
-- [X] T329 Show WAITING FOR A DISK in the pause, `F: FULL SEND` on the CassoLink screen, and a Full send heading and `Q: BACK TO CASSOLINK` in a session, per FR-110, FR-115 and FR-116
+- [X] T327 Start a Full Send with F on the Apple through an unprompted Key, end it with Q, ignore Esc in a session, and remove the PC's command, menu and toolbar button, per FR-107 and FR-116
+- [X] T328 Add the Full Send page to Options, with the folder, default `Casso Full Send` under Downloads, and the format, per FR-107
+- [X] T329 Show WAITING FOR A DISK in the pause, `F: FULL SEND` on the CassoLink screen, and a Full Send heading and `Q: BACK TO CASSOLINK` in a session, per FR-110, FR-115 and FR-116
 - [X] T330 Add a scenario test that presses F, runs a session, presses Q and reads a catalog, per US17/AC9
 - [ ] T326 Walk quickstart section 7c on a real //c with real floppies, per SC-038 and SC-039 (missing)
 - [ ] T331 Read a whole disk from a real //c over serial into each image format (.dsk, .do, .po, .woz, .nib, .nb2), write each of those images back to a real floppy, and compare the sectors with the source disk, per quickstart section 7b
@@ -1519,14 +1519,14 @@ Session 2026-10-31. The owner's //c passes, T326 and T331, follow this phase.
 - [X] T341 Display a search result's folder as the shell does, read the path of an item in a zip, and open typed zip and This PC paths
 - [X] T342 Add `ScenarioTests/CassoExplorerShellSearchTests.cpp` for search options, zip paths, drive ranges and Home's ids, against real files
 
-## Phase 31: Full send prefix, speed and folder row
+## Phase 31: Full Send prefix, speed and folder row
 
 Session 2026-11-01, from the owner's //c passes.
 
-- [X] T343 Add `CassoExplorerPrefs::fullSendPrefix`, its field on Options' Full send page, and pass it through `CassoLinkConnections` and `LinkOperation` to `FullSendDisk::MakeImageTitle`, per FR-107 and FR-112
+- [X] T343 Add `CassoExplorerPrefs::fullSendPrefix`, its field on Options' Full Send page, and pass it through `CassoLinkConnections` and `LinkOperation` to `FullSendDisk::MakeImageTitle`, per FR-107 and FR-112
 - [X] T344 In `FullSendSession`, count a track read whole as one read, and skip the check of a drive whose disk was just sent, per FR-108 and FR-109
-- [X] T345 Add `TreeModel::SetFullSendFolder` and list the Full send row under `TreeModel::kCassoLinkRootId`, per FR-124
-- [X] T347 Open the full send folder and an ADTPro server's folder grouped by Date modified, through `TreeModel::IsLinkFolder`, per FR-125
+- [X] T345 Add `TreeModel::SetFullSendFolder` and list the Full Send row under `TreeModel::kCassoLinkRootId`, per FR-124
+- [X] T347 Open the Full Send folder and an ADTPro server's folder grouped by Date modified, through `TreeModel::IsLinkFolder`, per FR-125
 - [X] T346 Add tests in `UnitTest/CassoLink/FullSendTests.cpp` and `UnitTest/CassoExplorer/TreeModelTests.cpp` for the prefix, the track reads per disk and the row
 
 ## Phase 32: Connections, the Apple screen, verified transfers, Pascal and CP/M

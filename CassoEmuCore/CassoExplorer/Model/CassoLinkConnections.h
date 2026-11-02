@@ -43,7 +43,7 @@ public:
     CassoLinkConnections (IByteStreamFactory & factory, ICassoLinkFolder & folder, IDiskFileIo & fileIo);
     ~CassoLinkConnections ();
 
-    //  Where a full send started from an Apple writes: the folder, made by
+    //  Where a Full Send started from an Apple writes: the folder, made by
     //  makeFolder when the session starts, the extension with its period, empty
     //  for .po on ProDOS and .dsk otherwise, and what begins each file name.
     using MakeFolderFn = std::function<HRESULT (const std::string & folder)>;
