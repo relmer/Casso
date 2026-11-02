@@ -900,9 +900,10 @@ HRESULT DiskImageSession::CommitImage (
     const vector<Byte>  & newImageBytes,
     DiskCommandResult   & result)
 {
-    HRESULT               hr       = S_OK;
-    bool                  held     = false;
-    bool                  stale    = false;
+    HRESULT               hr           = S_OK;
+    bool                  held         = false;
+    bool                  stale        = false;
+    bool                  protectedWoz = false;
     CommitPlan::Progress  progress;
     FileStamp             observed;
 
@@ -920,7 +921,9 @@ HRESULT DiskImageSession::CommitImage (
 
     //  A WOZ marked write-protected is one the emulated drive won't write
     //  either.
-    CBRFEx (opened.isNew || !WozLoader::IsWriteProtectFlagSet (opened.fileBytes), HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT),
+    protectedWoz = !opened.isNew && WozLoader::IsWriteProtectFlagSet (opened.fileBytes);
+
+    CBRFEx (!protectedWoz, HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT),
             RefuseCommit (opened.imagePath, "is write-protected by the flag in its WOZ file, so nothing was written", result));
 
     progress.furthestAttempted = CommitPlan::Step::Reverify;
