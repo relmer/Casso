@@ -56,6 +56,10 @@ public:
     static constexpr size_t  kGutterColumn  = 0;
     static constexpr size_t  kHeatColumn    = 1;
     static constexpr size_t  kListingColumn = 2;
+    static constexpr size_t  kValuesColumn  = 3;
+
+    //  The width of a run of text in the listing's face, in pixels.
+    using MeasureFn = std::function<float (const std::wstring & text)>;
 
     BasicProgramPane (DxuiListView * list, ToggleFn toggle);
 
@@ -72,8 +76,27 @@ public:
     //  Scrolls to a line's first row and selects it.
     void  ShowLine  (Word line);
 
+    //  The width the listing wraps at, in pixels, and how to measure it; the
+    //  rows are made again with the next Apply. No width wraps as LIST does.
+    void   SetWrap        (float widthPx, MeasureFn measure) { m_wrapPx = widthPx; m_measure = std::move (measure); }
+    float  GetWrapPx      () const { return m_wrapPx; }
+
     //  The rows LIST prints, with each piece's place.
     static std::vector<Row>  GetRows (const std::vector<BasicLine> & lines);
+
+    //  The rows wrapped at a width instead: a new row, indented as LIST
+    //  indents one, where the next piece would pass the width.
+    static std::vector<Row>  GetRows (const std::vector<BasicLine> & lines, float widthPx, const MeasureFn & measure);
+
+    //  A line's values column: each variable the line uses and its value,
+    //  and for the line the machine stopped at before, a value that changed
+    //  as old -> new. The before parameter is the program at that stop.
+    static std::wstring  GetValuesText (const BasicLine & line, const DebuggerViewSnapshot::BasicState & basic,
+                                        const DebuggerViewSnapshot::BasicState * before);
+
+    //  The tip over a line's text: each variable it uses and its value, a
+    //  line each; empty for a line with no variables.
+    static std::wstring  GetValuesTip (const BasicLine & line, const DebuggerViewSnapshot::BasicState & basic);
 
     //  The pieces of the statement that the piece at `piece` is in, first
     //  and one past the last: a statement ends at a colon outside quotes,
@@ -104,6 +127,14 @@ private:
     //  The heat column's levels and colors, none while it is hidden.
     std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels>  m_heat;
     std::optional<HeatMapView::Palette>                            m_heatPalette;
+
+    float                                                          m_wrapPx = 0.0f;
+    MeasureFn                                                      m_measure;
+
+    //  The program at the stop on screen and at the one before, for the
+    //  values a line changed.
+    std::optional<DebuggerViewSnapshot::BasicState>                m_stop;
+    std::optional<DebuggerViewSnapshot::BasicState>                m_stopBefore;
 };
 
 
@@ -140,6 +171,10 @@ public:
     //  The value, as Applesoft reads it: 0 or "" for a variable not set yet;
     //  none for text that is not a variable or an element out of range.
     static std::optional<std::string>  TryGetValue (const DebuggerViewSnapshot::BasicState & basic, const std::string & text);
+
+    //  The simple variables a line's pieces from the first index to the one before the last
+    //  use, each once, in the order they appear.
+    static std::vector<std::string>  GetNames (const BasicLine & line, int first, int last);
 
     //  The simple variables the statement being run uses, each once, in the
     //  order they appear.

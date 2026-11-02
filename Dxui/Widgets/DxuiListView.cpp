@@ -2819,6 +2819,12 @@ LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
     {
         cursor = IDC_SIZEWE;
     }
+    else if (m_textSelect && localPx.y >= GetHeaderHeightPx() && localPx.x >= 0 && localPx.y >= 0 &&
+             localPx.x < (LONG) (m_boundsDip.right - m_boundsDip.left) && localPx.y < (LONG) (m_boundsDip.bottom - m_boundsDip.top))
+    {
+        //  A list that reads as text has the I-beam over its rows.
+        cursor = IDC_IBEAM;
+    }
 
     return cursor;
 }

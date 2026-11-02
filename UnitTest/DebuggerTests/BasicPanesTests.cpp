@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/UnicodeSymbols.h"
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/BasicHandlers.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
@@ -309,6 +310,47 @@ namespace DebuggerTests
             state.arrays    = { array };
             return state;
         }
+
+        //  Wrapped at a width, a row is cut before the piece that would pass
+        //  it, the next row indented as LIST indents one, and a row has at
+        //  least one piece.
+        TEST_METHOD (TheListingWrapsAtTheWidthGiven)
+        {
+            auto                                     count = [] (const std::wstring & text) { return (float) text.size(); };
+            std::vector<BasicLine>                   lines = { MakeLine (0x0801, 10, { " PRINT ", "\"", "A", "B", "C", "D", "\"" }) };
+            std::vector<BasicProgramPane::Row>       rows  = BasicProgramPane::GetRows (lines, 12.0f, count);
+
+
+
+            Assert::AreEqual (std::wstring (L" 10  PRINT \""), rows[0].text, L"the row before the piece past the width");
+            Assert::IsTrue   (rows.size() > 1);
+            Assert::IsFalse  (rows[1].isFirst);
+            Assert::IsTrue   (rows[1].text.starts_with (std::wstring (ApplesoftProgram::kListIndent, L' ')));
+
+            rows = BasicProgramPane::GetRows (lines, 1000.0f, count);
+            Assert::AreEqual ((size_t) 1, rows.size(), L"a wide pane has the line on one row");
+
+            rows = BasicProgramPane::GetRows ({ MakeLine (0x0801, 10, { " PRINT " }) }, 1.0f, count);
+            Assert::AreEqual ((size_t) 1, rows.size(), L"a piece wider than the width is alone on a row");
+        }
+
+        //  A line's values are its variables' at this stop; on the line the
+        //  machine stopped at before, a changed one is before -> after.
+        TEST_METHOD (ALinesValuesShowWhatItChanged)
+        {
+            DebuggerViewSnapshot::BasicState  now    = MakeValues();
+            DebuggerViewSnapshot::BasicState  before = MakeValues();
+            BasicLine                         line   = MakeLine (0x0801, 10, { "A", " = ", "A", " + ", "1", ":", " PRINT ", "S", "$" });
+
+
+
+            before.variables[0].value = "0.5";
+
+            Assert::AreEqual (std::wstring (L"A=1.5  S$=\"HI\""), BasicProgramPane::GetValuesText (line, now, nullptr));
+            Assert::AreEqual (std::wstring (L"A=0.5 ") + s_kpszRightArrow + L" 1.5  S$=\"HI\"", BasicProgramPane::GetValuesText (line, now, &before));
+            Assert::AreEqual (std::wstring (L"A\t1.5\nS$\t\"HI\""), BasicProgramPane::GetValuesTip (line, now));
+        }
+
 
         //  Every variable, then every element, the first subscript varying
         //  fastest; a string in quotes.

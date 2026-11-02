@@ -430,6 +430,7 @@ public:
     int    GetCellPadRightDip          () const                { return m_cellPadRightDip; }
     void   SetFontSizeDip              (float dip)             { m_fontDip = (dip > 0.0f) ? dip : s_kFontDip; }
     float  GetFontSizeDip              () const                { return m_fontDip; }
+    const wchar_t *  GetFace           () const                { return GetBodyFace(); }
 
     //  A list that fills a pane: the columns start far enough in that the
     //  first column's text lines up with the pane's title, while the row,

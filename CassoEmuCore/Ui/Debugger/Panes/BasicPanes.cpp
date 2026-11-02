@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/UnicodeSymbols.h"
 
 #include "Ui/Debugger/Panes/BasicPanes.h"
 
@@ -64,16 +65,22 @@ void BasicProgramPane::Configure (int gutterDip)
 {
     std::vector<DxuiListView::Column>  columns = { { L"",        gutterDip, false, DxuiTextHAlign::Left },
                                                    { L"Heat",    0,         false, DxuiTextHAlign::Left },
-                                                   { L"Listing", 0,         true,  DxuiTextHAlign::Left } };
+                                                   { L"Listing", 0,         false, DxuiTextHAlign::Left },
+                                                   { L"Values",  0,         true,  DxuiTextHAlign::Left } };
 
 
 
+    columns[kValuesColumn].tip         = L"The values of the variables each line uses, at this stop. On the line the machine stopped at before, a value it changed reads old " + std::wstring (s_kpszRightArrow) + L" new.";
     columns[kHeatColumn].tip           = HeatStrip::GetHeadingTip (true).text;
     columns[kHeatColumn].tipLineScales = HeatStrip::GetHeadingTip (true).lineScales;
 
     m_list->SetColumns (std::move (columns));
 
     m_list->SetColumnVisible (kHeatColumn, false);
+
+    //  The listing reads as text: a drag selects characters and Ctrl+C
+    //  copies them.
+    m_list->SetTextSelection (true);
 
     m_list->SetActivateOnDoubleClick (true);
 
@@ -115,13 +122,35 @@ void BasicProgramPane::Apply (
         return;
     }
 
-    m_rows = GetRows (basic->lines);
+    //  At a new stop, the one on screen becomes the stop before.
+    if (basic->hasValues && (!m_stop.has_value() || m_stop->line != basic->line || m_stop->textPointer != basic->textPointer))
+    {
+        m_stopBefore = std::move (m_stop);
+        m_stop       = basic;
+    }
+
+    m_rows = (m_wrapPx > 0.0f && m_measure) ? GetRows (basic->lines, m_wrapPx, m_measure) : GetRows (basic->lines);
     cells  = GetCells (*basic, m_rows, breakpoints, m_style, m_heatPalette.has_value() ? m_heat.get() : nullptr,
                        m_heatPalette.has_value() ? &*m_heatPalette : nullptr);
 
-    for (const Row & row : m_rows)
+    for (size_t r = 0; r < m_rows.size(); r++)
     {
-        m_rowLines.push_back (basic->lines[row.lineIndex].number);
+        const BasicLine  & line   = basic->lines[m_rows[r].lineIndex];
+        bool               isPrev = m_stopBefore.has_value() && m_stopBefore->line == line.number;
+
+        m_rowLines.push_back (line.number);
+
+        if (!basic->hasValues)
+        {
+            continue;
+        }
+
+        cells[r][kListingColumn].tip = GetValuesTip (line, *basic);
+
+        if (m_rows[r].isFirst)
+        {
+            cells[r][kValuesColumn].text = GetValuesText (line, *basic, isPrev ? &*m_stopBefore : nullptr);
+        }
     }
 
     m_list->SetRows (std::move (cells));
@@ -249,6 +278,120 @@ std::vector<BasicProgramPane::Row> BasicProgramPane::GetRows (const std::vector<
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BasicProgramPane::GetRows
+//
+//  At least one piece goes on each row, so a piece wider than the width is a
+//  row by itself rather than an endless wrap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<BasicProgramPane::Row> BasicProgramPane::GetRows (const std::vector<BasicLine> & lines, float widthPx, const MeasureFn & measure)
+{
+    std::vector<Row>  rows;
+    std::wstring      indent (ApplesoftProgram::kListIndent, L' ');
+
+
+
+    for (size_t index = 0; index < lines.size(); index++)
+    {
+        const BasicLine  & line   = lines[index];
+        Row                row;
+        bool               isBare = true;
+
+
+
+        row.lineIndex = index;
+        row.text      = std::format (L" {} ", line.number);
+
+        for (size_t piece = 0; piece < line.pieces.size(); piece++)
+        {
+            std::wstring  text = TextEncoding::NarrowToWide (line.pieces[piece]);
+
+
+
+            if (!isBare && measure (row.text + text) > widthPx)
+            {
+                rows.push_back (row);
+                row           = Row();
+                row.lineIndex = index;
+                row.isFirst   = false;
+                row.text      = indent;
+            }
+
+            row.pieces.push_back ({ (int) piece, (int) row.text.size() });
+            row.text += text;
+            isBare    = false;
+        }
+
+        rows.push_back (row);
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::GetValuesText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BasicProgramPane::GetValuesText (const BasicLine & line, const DebuggerViewSnapshot::BasicState & basic,
+                                              const DebuggerViewSnapshot::BasicState * before)
+{
+    std::wstring  text;
+
+
+
+    for (const std::string & name : BasicWatches::GetNames (line, 0, (int) line.pieces.size()))
+    {
+        std::string  now  = BasicWatches::TryGetValue (basic, name).value_or ("");
+        std::string  then = (before != nullptr) ? BasicWatches::TryGetValue (*before, name).value_or ("") : now;
+
+
+
+        text += text.empty() ? L"" : L"  ";
+        text += (then != now) ? std::format (L"{}={} {} {}", TextEncoding::NarrowToWide (name), TextEncoding::NarrowToWide (then), s_kpszRightArrow, TextEncoding::NarrowToWide (now))
+                              : std::format (L"{}={}", TextEncoding::NarrowToWide (name), TextEncoding::NarrowToWide (now));
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::GetValuesTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BasicProgramPane::GetValuesTip (const BasicLine & line, const DebuggerViewSnapshot::BasicState & basic)
+{
+    std::wstring  tip;
+
+
+
+    for (const std::string & name : BasicWatches::GetNames (line, 0, (int) line.pieces.size()))
+    {
+        tip += std::format (L"{}{}\t{}", tip.empty() ? L"" : L"\n", TextEncoding::NarrowToWide (name),
+                            TextEncoding::NarrowToWide (BasicWatches::TryGetValue (basic, name).value_or ("")));
+    }
+
+    return tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BasicProgramPane::GetStatement
 //
 //  A colon ends a statement unless it is inside quotes or after a REM; the
@@ -317,7 +460,7 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
     for (const Row & row : rows)
     {
         const BasicLine                  & line       = basic.lines[row.lineIndex];
-        std::vector<DxuiListView::Cell>    rowCells (3);
+        std::vector<DxuiListView::Cell>    rowCells (4);
         bool                               isCurrent  = basic.line == line.number;
         int                                piece      = (int) basic.textPointer - (int) (line.address + 4);
         bool                               isInLine   = isCurrent && piece >= 0 && piece < (int) line.pieces.size();
@@ -528,7 +671,7 @@ std::optional<std::string> BasicWatches::TryGetValue (const DebuggerViewSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BasicWatches::GetStatementItems
+//  BasicWatches::GetNames
 //
 //  A variable is a run of single letters and digits starting with a letter,
 //  with a $ or % after it; a keyword is one piece of its own. Text in quotes,
@@ -537,13 +680,9 @@ std::optional<std::string> BasicWatches::TryGetValue (const DebuggerViewSnapshot
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<BasicWatches::Item> BasicWatches::GetStatementItems (const DebuggerViewSnapshot::BasicState & basic)
+std::vector<std::string> BasicWatches::GetNames (const BasicLine & line, int first, int last)
 {
-    std::vector<Item>         items;
-    std::vector<std::string>  seen;
-    const BasicLine         * line      = nullptr;
-    int                       piece     = 0;
-    std::pair<int, int>       statement;
+    std::vector<std::string>  names;
     bool                      isQuoted  = false;
     bool                      isSkipped = false;
     std::string               name;
@@ -551,6 +690,67 @@ std::vector<BasicWatches::Item> BasicWatches::GetStatementItems (const DebuggerV
     {
         return text.size() == 1 && (std::isupper ((unsigned char) text[0]) || (!isFirst && std::isdigit ((unsigned char) text[0])));
     };
+
+
+
+    last = std::min (last, (int) line.pieces.size());
+
+    for (int at = std::max (first, 0); at < last; at++)
+    {
+        const std::string  & text = line.pieces[(size_t) at];
+
+
+
+        isQuoted  = (text == "\"") ? !isQuoted : isQuoted;
+        isSkipped = isSkipped || (!isQuoted && (text == " REM " || text == " DATA "));
+
+        if (isQuoted || isSkipped || !isNamePiece (text, true))
+        {
+            continue;
+        }
+
+        name = text;
+
+        while (at + 1 < last && isNamePiece (line.pieces[(size_t) at + 1], false))
+        {
+            name += line.pieces[(size_t) ++at];
+        }
+
+        if (at + 1 < last && (line.pieces[(size_t) at + 1] == "$" || line.pieces[(size_t) at + 1] == "%"))
+        {
+            name += line.pieces[(size_t) ++at];
+        }
+
+        if (at + 1 < last && line.pieces[(size_t) at + 1] == "(")
+        {
+            continue;
+        }
+
+        if (std::ranges::find (names, name) == names.end())
+        {
+            names.push_back (name);
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicWatches::GetStatementItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<BasicWatches::Item> BasicWatches::GetStatementItems (const DebuggerViewSnapshot::BasicState & basic)
+{
+    std::vector<Item>     items;
+    const BasicLine     * line      = nullptr;
+    int                   piece     = 0;
+    std::pair<int, int>   statement;
 
 
 
@@ -572,42 +772,9 @@ std::vector<BasicWatches::Item> BasicWatches::GetStatementItems (const DebuggerV
     piece     = std::clamp ((int) basic.textPointer - (int) (line->address + 4), 0, std::max ((int) line->pieces.size() - 1, 0));
     statement = BasicProgramPane::GetStatement (*line, piece);
 
-    for (int at = statement.first; at < statement.second; at++)
+    for (const std::string & name : GetNames (*line, statement.first, statement.second))
     {
-        const std::string  & text = line->pieces[(size_t) at];
-
-
-
-        isQuoted  = (text == "\"") ? !isQuoted : isQuoted;
-        isSkipped = isSkipped || (!isQuoted && (text == " REM " || text == " DATA "));
-
-        if (isQuoted || isSkipped || !isNamePiece (text, true))
-        {
-            continue;
-        }
-
-        name = text;
-
-        while (at + 1 < statement.second && isNamePiece (line->pieces[(size_t) at + 1], false))
-        {
-            name += line->pieces[(size_t) ++at];
-        }
-
-        if (at + 1 < statement.second && (line->pieces[(size_t) at + 1] == "$" || line->pieces[(size_t) at + 1] == "%"))
-        {
-            name += line->pieces[(size_t) ++at];
-        }
-
-        if (at + 1 < statement.second && line->pieces[(size_t) at + 1] == "(")
-        {
-            continue;
-        }
-
-        if (std::ranges::find (seen, name) == seen.end())
-        {
-            seen.push_back (name);
-            items.push_back ({ name, TryGetValue (basic, name).value_or ("") });
-        }
+        items.push_back ({ name, TryGetValue (basic, name).value_or ("") });
     }
 
     return items;

@@ -78,6 +78,7 @@ void BasicProgramController::CreateControls()
 void BasicProgramController::Configure()
 {
     m_model->Configure (DisassemblyCells::kGutterColumnDip);
+    m_list->SetOwnerWindow (m_host.GetOwnerHwnd());
 }
 
 
@@ -266,6 +267,8 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
     style.pcRowArgb        = m_host.GetPcRowArgb();
     style.syntax           = m_host.GetSyntaxColors();
 
+    (void) UpdateWrap();
+
     m_model->SetStyle (style);
     m_model->SetHeat  (snapshot.heatColumns, m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);
     m_model->Apply    (basic, snapshot.breakpoints);
@@ -293,6 +296,57 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BasicProgramController::UpdateWrap
+//
+//  The listing wraps at two thirds of the list's width past the gutter and
+//  the heat column, with the rest for the values, measured in the
+//  list's face. True when the width changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramController::UpdateWrap()
+{
+    constexpr float        kListingShare = 2.0f / 3.0f;
+    IDxuiTextRenderer    * text          = m_host.GetPaneTextRenderer();
+    const DxuiDpiScaler  & scaler        = m_host.GetPaneScaler();
+    const RECT           & bounds        = m_list->GetBounds();
+    float                  fontPx        = scaler.ToPxf (m_list->GetFontSizeDip());
+    const wchar_t        * face          = m_list->GetFace();
+    float                  pads          = scaler.ToPxf ((float) (m_list->GetCellPadLeftDip() + m_list->GetCellPadRightDip()));
+    float                  widthPx       = 0.0f;
+
+
+
+    widthPx = (float) (bounds.right - bounds.left) - (float) m_list->GetColumnEffectiveWidthPx (BasicProgramPane::kGutterColumn) -
+              (float) m_list->GetColumnEffectiveWidthPx (BasicProgramPane::kHeatColumn);
+    widthPx = std::floor (std::max (0.0f, widthPx * kListingShare - pads));
+
+    if (text == nullptr || widthPx <= 0.0f || widthPx == m_model->GetWrapPx())
+    {
+        return false;
+    }
+
+    m_model->SetWrap (widthPx, [text, fontPx, face] (const std::wstring & run)
+    {
+        float    w  = 0.0f;
+        float    h  = 0.0f;
+        HRESULT  hr = text->MeasureString (run.c_str(), fontPx, face, w, h);
+
+
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return w;
+    });
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BasicProgramController::Tick
 //
 //  Whether the machine's thread reads the program follows whether the pane
@@ -308,6 +362,12 @@ bool BasicProgramController::Tick (int64_t nowMs)
 
 
     (void) nowMs;
+
+    //  A new width wraps the listing again at once, with no snapshot to wait for.
+    if (m_isReading && UpdateWrap() && m_host.GetLatestSnapshot() != nullptr)
+    {
+        ApplyRows (*m_host.GetLatestSnapshot());
+    }
 
     if (isWanted == m_isReading || host == nullptr)
     {

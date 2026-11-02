@@ -55,6 +55,7 @@ private:
     void                             Follow         (const DebuggerViewSnapshot & snapshot);
     static bool                      IsMachineStop  (const DebuggerViewSnapshot & snapshot);
     void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
+    bool                             UpdateWrap     ();
     void                             ToggleBreakpoint (Word line);
 
     DxuiListView                        * m_list      = nullptr;
