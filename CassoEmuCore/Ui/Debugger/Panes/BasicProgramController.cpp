@@ -452,15 +452,44 @@ bool BasicProgramController::Tick (int64_t nowMs)
 
 void BasicProgramController::ToggleBreakpoint (Word line)
 {
+    std::optional<int>  id = FindBreakpoint (line);
+    DebuggerAction      action;
+
+
+
+    if (m_host.GetLatestSnapshot() == nullptr)
+    {
+        return;
+    }
+
+    action = id.has_value() ? DebuggerActions::GetClearBreakpoint (*id, m_host.GetMode())
+                            : DebuggerActions::GetDefineBreakpoint (std::format ("BPBASIC {}", line), m_host.GetMode());
+
+    m_host.RunAction (DebuggerActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::FindBreakpoint
+//
+//  The id of the breakpoint on a line of the program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> BasicProgramController::FindBreakpoint (Word line) const
+{
     const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    DebuggerAction                action;
     std::optional<int>            id;
 
 
 
     if (snapshot == nullptr)
     {
-        return;
+        return id;
     }
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot->breakpoints)
@@ -468,10 +497,47 @@ void BasicProgramController::ToggleBreakpoint (Word line)
         id = (bp.info.kind == BreakpointKind::BasicLine && bp.info.address == line) ? std::optional<int> (bp.id) : id;
     }
 
-    action = id.has_value() ? DebuggerActions::GetClearBreakpoint (*id, m_host.GetMode())
-                            : DebuggerActions::GetDefineBreakpoint (std::format ("BPBASIC {}", line), m_host.GetMode());
+    return id;
+}
 
-    m_host.RunAction (DebuggerActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::AddMenuItems
+//
+//  Copy for the text selected or the rows, the line's breakpoint, and the
+//  bar's Load and Save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
+{
+    std::optional<Word>  line = m_model->GetLineOfRow (row);
+
+
+
+    if (list != m_list)
+    {
+        return false;
+    }
+
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+
+    if (line.has_value())
+    {
+        items.push_back (PaneMenu::MakeSeparator());
+        items.push_back ({ FindBreakpoint (*line).has_value() ? std::format (L"Remove breakpoint on line {}", *line) : std::format (L"Set breakpoint on line {}", *line),
+                           [this, at = *line] { ToggleBreakpoint (at); } });
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+    items.push_back ({ L"Load BASIC program...", [this] { m_host.OpenBasicProgram(); } });
+    items.push_back ({ L"Save BASIC program...", [this] { m_host.SaveBasicProgram(); } });
+
+    return true;
 }
 
 

@@ -76,6 +76,9 @@ public:
     //  Scrolls to a line's first row and selects it.
     void  ShowLine  (Word line);
 
+    //  The line a row of the listing is part of, none for a note's row.
+    std::optional<Word>  GetLineOfRow (int row) const { return (row >= 0 && (size_t) row < m_rowLines.size()) ? std::optional<Word> (m_rowLines[(size_t) row]) : std::nullopt; }
+
     //  The width the listing wraps at, in pixels, and how to measure it; the
     //  rows are made again with the next Apply. No width wraps as LIST does.
     void   SetWrap        (float widthPx, MeasureFn measure) { m_wrapPx = widthPx; m_measure = std::move (measure); }

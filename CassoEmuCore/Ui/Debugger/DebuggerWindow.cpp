@@ -88,7 +88,7 @@ static std::wstring Widen (const std::string & text)
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerWindow::DebuggerWindow() :
-    m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this), static_cast<const ICodeViews &> (*this))),
+    m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this))),
     m_tips        (std::make_unique<TooltipCoordinator> (static_cast<ITooltipSources &> (*this))),
     m_gutter      (std::make_unique<DisassemblyGutter> (static_cast<IDebuggerPaneHost &> (*this), static_cast<const ICodeViews &> (*this),
                                                         [this] (int view) { ApplyCodeView (view); })),

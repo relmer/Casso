@@ -56,6 +56,7 @@ public:
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick           (int64_t nowMs) override;
     bool                             OnMappedAction (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;
+    bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:
     void                             Follow         (const DebuggerViewSnapshot & snapshot);
@@ -63,6 +64,7 @@ private:
     void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
     bool                             UpdateWrap     ();
     void                             ToggleBreakpoint (Word line);
+    std::optional<int>               FindBreakpoint   (Word line) const;
 
     std::vector<DxuiToolbar::Entry>      MakeBarEntries () const;
 

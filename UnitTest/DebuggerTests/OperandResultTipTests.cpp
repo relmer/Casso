@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/ColorKeyButton.h"
 #include "Core/TextEncoding.h"
@@ -60,6 +61,10 @@ namespace OperandResultTipTests
         using DebuggerWindow::IsZoomPopupOpen;
         using DebuggerWindow::GetZoomPopupRect;
         using DebuggerWindow::kStatusZoom;
+        using DebuggerWindow::ShowPane;
+        using DebuggerWindow::GetTipList;
+        using DebuggerWindow::kBasicTipView;
+        using DebuggerWindow::FindPaneForTest;
     };
 
 
@@ -756,6 +761,78 @@ namespace OperandResultTipTests
 
             Assert::IsFalse (window.GetOperandTips().TryGet (GetOperandPoint (window, 1), scaler, text, MakeScreen(), layout, tipCell),
                              L"a short operand fits");
+        }
+
+
+        //  A BASIC line's values that the pane cuts off are laid over their
+        //  cell the same way.
+        TEST_METHOD (TheWindowLaysTheTipOverACutOffBasicValuesCell)
+        {
+            CassoTheme                                    theme   = CassoTheme::MakeSkeuomorphic();
+            TipHost                                       host;
+            TipWindow                                     window (theme, host);
+            DxuiDpiScaler                                 scaler;
+            MockDxuiTextRenderer                          text;
+            MockDxuiPainter                               painter;
+            DxuiListView                                * list    = nullptr;
+            RECT                                          bounds  = {};
+            RECT                                          cell    = {};
+            OperandResultTip::Layout                      layout;
+            TipWindow::OperandTipCell                     tipCell;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+            scaler.SetDpi (96);
+            Build (window, theme, text);
+            window.ShowPane (DebuggerLayout::kBasicProgram);
+            window.Layout   (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+
+            list = window.GetTipList (TipWindow::kBasicTipView);
+            Assert::IsNotNull (list, L"the BASIC program pane's list");
+
+            rows.push_back ({ DxuiListView::Cell {}, DxuiListView::Cell {}, DxuiListView::Cell { L"10 PRINT A$" },
+                              DxuiListView::Cell { L"A$=\"" + std::wstring (300, L'X') + L"\"" } });
+            list->SetRows (std::move (rows));
+            list->Paint   (painter, text, theme);
+
+            bounds = list->GetBounds();
+            Assert::IsTrue (list->GetCellTextRectPx (0, BasicProgramPane::kValuesColumn, cell), L"the values are in view");
+            Assert::IsTrue (window.GetOperandTips().TryGet (POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 },
+                                                            scaler, text, MakeScreen(), layout, tipCell),
+                            L"the pane cuts the long values off");
+            Assert::AreEqual (TipWindow::kBasicTipView, tipCell.view);
+            Assert::AreEqual (bounds.left + cell.left, layout.textOrigin.x, L"the tip's text starts at the cell's");
+        }
+
+
+        //  The BASIC listing's menu copies, has the line's breakpoint, and
+        //  loads and saves the program.
+        TEST_METHOD (TheBasicListingsMenuCopiesAndLoadsAndSaves)
+        {
+            CassoTheme                                    theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost                                       host;
+            TipWindow                                     window (theme, host);
+            MockDxuiTextRenderer                          text;
+            PaneMenuItems                                 items;
+            std::vector<std::wstring>                     labels;
+            IDebuggerPane                               * pane   = nullptr;
+            DxuiListView                                * list   = nullptr;
+
+
+
+            Build (window, theme, text);
+            pane = window.FindPaneForTest (DebuggerLayout::kBasicProgram);
+            list = window.GetTipList (TipWindow::kBasicTipView);
+
+            Assert::IsTrue (pane->AddMenuItems (list, -1, items), L"the listing has a menu of its own, not its pane's Dock menu");
+
+            for (const auto & [label, action] : items)
+            {
+                labels.push_back (label);
+            }
+
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Copy", L"", L"Load BASIC program...", L"Save BASIC program..." });
         }
 
 

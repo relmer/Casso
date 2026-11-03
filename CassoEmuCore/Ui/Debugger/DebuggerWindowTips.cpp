@@ -22,6 +22,7 @@
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
+#include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
@@ -241,6 +242,7 @@ bool DebuggerWindow::TryFindOperandTipRow (
 {
     HRESULT          hr     = S_OK;
     DxuiListView   * list   = nullptr;
+    DxuiListView   * basic  = (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
     RECT             bounds = {};
     bool             isOver = false;
 
@@ -248,15 +250,57 @@ bool DebuggerWindow::TryFindOperandTipRow (
 
     view = FindOperandTipView (clientPx);
     row  = -1;
-    list = (view >= 0) ? m_code->GetCodeList (view) : nullptr;
+
+    //  Off the disassembly, the BASIC program's values.
+    if (view < 0 && basic != nullptr && IsRoutable (basic) && basic->IsVisible() && DxuiDockSite::Contains (basic->GetBounds(), clientPx))
+    {
+        view = kBasicTipView;
+    }
+
+    list = (view >= 0) ? GetTipList (view) : nullptr;
     CBR (list != nullptr);
 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    isOver = row >= 0 && GetColumnAt (list, clientPx.x - bounds.left) == (int) kCodeOperandColumn;
+    isOver = row >= 0 && GetColumnAt (list, clientPx.x - bounds.left) == (int) GetTipColumn (view);
 
 Error:
     return isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTipList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * DebuggerWindow::GetTipList (int view) const
+{
+    if (view == kBasicTipView)
+    {
+        return (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
+    }
+
+    return m_code->GetCodeList (view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTipColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t DebuggerWindow::GetTipColumn (int view) const
+{
+    return (view == kBasicTipView) ? BasicProgramPane::kValuesColumn : (size_t) kCodeOperandColumn;
 }
 
 
@@ -293,7 +337,7 @@ bool DebuggerWindow::IsOperandTipCovered (
     isCovered = isMain && m_zoomOpen && Meets (m_zoomRect, clientPx, tipRect);
 
     isCovered = isCovered || (isMain && m_dockSite != nullptr && !m_dockSite->GetSlidPane().empty() &&
-                              m_dockSite->GetSlidPane() != DebuggerLayout::GetCodePaneId (view) &&
+                              m_dockSite->GetSlidPane() != (view == kBasicTipView ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (view)) &&
                               Meets (m_dockSite->GetSlidRect(), clientPx, tipRect));
 
     isCovered = isCovered || (m_colorKeys->TryGetPinnedRect (pinned) && Meets (pinned, clientPx, tipRect));

@@ -209,6 +209,11 @@ protected:
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
     DxuiListView  * GetCodeList       (int view) const override;
+
+    //  The operand tip's view for the BASIC program's values, after the
+    //  disassembly views, and the list it covers. Protected for a test.
+    static constexpr int  kBasicTipView = DebuggerViewState::kMaxCodeViews;
+    DxuiListView        * GetTipList       (int view) const override;
     bool            ScrollCodeAtEdge  (WPARAM vk, IDxuiControl * focused);
 
     //  Protected so a test can read the rows a view shows.
@@ -292,6 +297,7 @@ protected:
     void                                          KeepOpenViews          ();
     void                                          SetSnapshotForTest     (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); }
     IDxuiControl *                                GetPaneContentForTest  (const std::wstring & pane) const { return GetPaneContent (pane); }
+    IDebuggerPane *                               FindPaneForTest        (const std::wstring & pane) const { return FindPane (pane); }
 
     //  Protected so a test can open the zero-page pointer dialog as Add
     //  zero-page pointer... does.
@@ -610,6 +616,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     HWND                   GetTipOwner          () const override { return GetHwnd(); }
     bool                   IsTipBlocked         () const override;
     bool                   TryFindTipRow        (POINT clientPx, int & view, int & row) const override { return TryFindOperandTipRow (clientPx, view, row); }
+    size_t                 GetTipColumn         (int view) const override;
     bool                   IsTipCovered         (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const override
                                                 { return IsOperandTipCovered (view, clientPx, tipRect, screen); }
     int                    FindOperandTipView   (POINT clientPx) const;

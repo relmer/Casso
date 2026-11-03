@@ -59,6 +59,11 @@ public:
     virtual HWND                   GetTipOwner      () const = 0;
     virtual bool                   IsTipBlocked     () const = 0;
     virtual bool                   TryFindTipRow    (POINT clientPx, int & view, int & row) const = 0;
+
+    //  The list and column a view's tip covers: a disassembly view's operand
+    //  and result, or the BASIC program's values.
+    virtual DxuiListView *         GetTipList       (int view) const = 0;
+    virtual size_t                 GetTipColumn     (int view) const = 0;
     virtual bool                   IsTipCovered     (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const = 0;
 };
 
@@ -70,8 +75,8 @@ public:
 //
 //  OperandTipController
 //
-//  A disassembly row's operand and result that the pane cuts off, drawn
-//  whole over their cell in a popup: the window the popup is in, whether
+//  A disassembly row's operand and result that the pane cuts off, or a BASIC
+//  line's values, drawn whole over their cell in a popup: the window the popup is in, whether
 //  the tip is up, its layout, the cell it covers, and the renderer, scale
 //  and screen it was laid out with, which new rows and layouts are checked
 //  against. A window with no HWND, as a test builds it, measures with the
@@ -83,7 +88,7 @@ public:
 class OperandTipController
 {
 public:
-    OperandTipController (IOperandTipHost & host, const ICodeViews & views);
+    explicit OperandTipController (IOperandTipHost & host);
 
     OperandTipController (const OperandTipController &)             = delete;
     OperandTipController & operator= (const OperandTipController &) = delete;
@@ -148,11 +153,10 @@ private:
     uint32_t             GetRowFill     (const DxuiListView * list, int row) const;
     OperandTipScreen     GetScreen      (const DxuiHwndSource * host) const;
 
-    static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, const OperandResultTip::Layout & layout);
+    static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout);
     static BOOL CALLBACK CollectWindowOver      (HWND hwnd, LPARAM param);
 
     IOperandTipHost           & m_host;
-    const ICodeViews          & m_views;
     DxuiInPlaceTip              m_tip;
     DxuiHwndSource            * m_popupHost  = nullptr;
     bool                        m_hasTip     = false;
