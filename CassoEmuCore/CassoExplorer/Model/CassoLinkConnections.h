@@ -7,6 +7,7 @@
 #include "CassoLink/LinkAnnouncement.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/RunningCassoRegistry.h"
+#include "CassoExplorer/Model/CassoLinkLogFile.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Net/FirewallRemedy.h"
 
@@ -52,6 +53,10 @@ public:
 
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
+
+    //  The folder of the daily log files of every connection's activity and
+    //  packets. With none, nothing is written to a file.
+    void  SetLogFolder (const std::filesystem::path & folder) { m_logFile.SetFolder (folder); }
 
     //  Where a finished operation or a change of state is posted.
     void  SetTarget (HWND hwnd, UINT message) { m_hwnd = hwnd; m_message = message; }
@@ -288,6 +293,7 @@ private:
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
+        void  OnTrace              (const std::string & text) override;
         void  OnFinished           (const LinkOperation & operation, const std::string & text) override;
 
         //  Whether a transfer reported progress lately. A Full Send waiting for
@@ -364,6 +370,7 @@ private:
     MakeFolderFn          m_makeFullSendFolder;
     std::vector<Job>      m_jobs;
     std::deque<Activity>  m_activity;
+    CassoLinkLogFile      m_logFile;
     mutable std::mutex    m_lock;
     std::atomic<bool>     m_changed            { false };
     HWND                  m_hwnd               = nullptr;

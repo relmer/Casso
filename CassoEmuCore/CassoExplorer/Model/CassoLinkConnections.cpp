@@ -2093,6 +2093,21 @@ void CassoLinkConnections::Sink::OnActivity (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::Sink::OnTrace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::Sink::OnTrace (const std::string & text)
+{
+    m_owner.m_logFile.Append (m_name, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::Sink::OnFinished
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2124,6 +2139,8 @@ void CassoLinkConnections::Sink::Log (Activity entry, const std::string & text)
     GetLocalTime (&entry.time);
     entry.connection = TextEncoding::NarrowToWide (m_name);
     entry.text       = TextEncoding::NarrowToWide (text);
+
+    m_owner.m_logFile.Append (m_name, "- " + text);
 
     {
         std::lock_guard<std::mutex>  lock (m_owner.m_lock);

@@ -178,6 +178,14 @@ public:
 
     void     SetActivitySink (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
 
+    //  Each packet sent and received, as DescribePacket has it, for a log. A
+    //  pause's report of no key, once a second, is left out.
+    void     SetTraceSink    (ActivityFn sink) { m_trace = std::move (sink); }
+
+    //  A packet as a line: > for one sent and < for one received, the command,
+    //  and its first bytes in hex, or its sector's track and number.
+    static std::string  DescribePacket (bool sent, Byte command, std::span<const Byte> payload);
+
     //  The chip the Apple's program is built for: a 6551, or an Uthernet II's
     //  W5100.
     void     SetProgramChip (LinkChip chip) { m_programChip = chip; m_program.clear(); }
@@ -345,6 +353,7 @@ private:
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
+    ActivityFn                      m_trace;
 
     //  The host's parts, each with the state it uses.
     friend class           CassoLinkAdtProServer;

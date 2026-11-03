@@ -387,6 +387,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerPrefsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerLinkDialogTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkConnectionsTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoLinkLogFileTests.cpp" />
     <ClCompile Include="CassoExplorer\AppleDriveActionsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileAssociationsTests.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesTests.cpp" />
