@@ -129,6 +129,10 @@ public:
     //  file's document, opened behind the others if it is not open (FR-054).
     void                             ShowLine       (int fileId, int line);
 
+    //  The PC's file brought forward, opened if it is not open, at the PC's
+    //  line; false when the PC has no source line.
+    bool                             ShowPc         ();
+
     //  The banner's actions, then the text, of the document under the
     //  pointer or the one a drag began in.
     bool                             RouteMouse     (const DxuiMouseEvent & ev);

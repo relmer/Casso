@@ -428,7 +428,7 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 
     if (id == DebuggerCommands::kShowNext)
     {
-        ShowCode (std::nullopt);
+        ShowNextStatement();
         return;
     }
 

@@ -408,6 +408,9 @@ protected:
     WatchesPane            & GetWatchesPane     () const { return *m_watchesPane; }
     OperandTipController   & GetOperandTips     () override { return *m_operandTips; }
 
+    //  The view of the step mode brought forward, at the PC.
+    void                     ShowNextStatement  ();
+
 private:
     static constexpr int    kPreferredWidthDip  = 1100;
     static constexpr int    kPreferredHeightDip = 840;

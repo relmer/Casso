@@ -646,6 +646,33 @@ bool DebuggerWindow::IsCodeHeatOn() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ShowNextStatement
+//
+//  Bring the view of the step mode forward, at the PC. The step mode follows
+//  the view last used: the PC's line in its source file while steps go by
+//  source line, and the PC in the disassembly while they go by instruction
+//  or when the PC has no source line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowNextStatement()
+{
+    bool  isBySource = m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->stepBySource;
+
+
+
+    if (!isBySource || !m_sources->ShowPc())
+    {
+        ShowCode (std::nullopt);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ShowCode
 //
 ////////////////////////////////////////////////////////////////////////////////

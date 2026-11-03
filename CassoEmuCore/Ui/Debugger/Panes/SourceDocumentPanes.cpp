@@ -536,7 +536,9 @@ void SourceDocumentGroup::Apply()
 //
 //  At each stop at a new place, the file the PC is in comes to the front,
 //  opened if it is not open yet -- the body's file while the body is on
-//  screen.
+//  screen. At a stop with no source line after one with a line, the
+//  disassembly view following the PC comes to the front instead, which
+//  matters where the two are tabs of one group.
 //  A running machine moves nothing, so the documents do not churn under it.
 //
 //  The first stop after the window opens only opens the file, so the tabs
@@ -546,17 +548,31 @@ void SourceDocumentGroup::Apply()
 
 void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
 {
-    const DebuggerViewSnapshot::SourceState & source = *snapshot.source;
-    std::pair<int, int>                       place  = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
+    const DebuggerViewSnapshot::SourceState & source  = *snapshot.source;
+    std::pair<int, int>                       place   = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
+    bool                                      wasLine = m_pcPlace.first >= 0;
+    bool                                      isOpen  = (size_t) snapshot.followView < snapshot.codeOpen.size() && snapshot.codeOpen[(size_t) snapshot.followView];
 
 
 
-    if (!snapshot.isPaused || place.first < 0 || place == m_pcPlace)
+    if (!snapshot.isPaused || place == m_pcPlace)
     {
         return;
     }
 
     m_pcPlace = place;
+
+    if (place.first < 0)
+    {
+        if (wasLine && m_hasFollowedPc && isOpen)
+        {
+            m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (snapshot.followView));
+            m_host.RelayoutDock();
+        }
+
+        return;
+    }
+
     Open (place.first, 0, m_hasFollowedPc);
     m_hasFollowedPc = true;
 }
@@ -732,6 +748,40 @@ void SourceDocumentGroup::ShowLine (int fileId, int line)
     {
         m_documents[(size_t) slot]->GetModel().ShowLine (fileId, line);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::ShowPc
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceDocumentGroup::ShowPc()
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    std::pair<int, int>           place    = { -1, 0 };
+
+
+
+    if (snapshot == nullptr || !snapshot->source.has_value())
+    {
+        return false;
+    }
+
+    place = SourcePane::GetPlace (*snapshot->source, SourcePane::GetMacroLevel (*snapshot->source, m_macroLevel));
+
+    if (place.first < 0)
+    {
+        return false;
+    }
+
+    Open     (place.first, 0, true);
+    ShowLine (place.first, place.second);
+    return true;
 }
 
 
