@@ -88,7 +88,8 @@ private:
     int   WalkTreeLabels      (int row, const std::wstring & path);
     void  ShowLabelTipAt      (POINT point);
     void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
-    void  AddTreeIconRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id);
+    void  AddTreeIconRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive);
+    void  AddRootRows         (std::vector<DxuiPopupMenuItem> & items, const Location & location, int x, int y);
     void  ShowTreeEmptyMenu   (int x, int y);
     void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
 

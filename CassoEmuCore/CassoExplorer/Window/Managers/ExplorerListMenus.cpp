@@ -374,6 +374,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     std::wstring                                     folderForCasso;
     bool                                             known          = false;
     bool                                             moreOptions    = false;
+    bool                                             selectedDrives = false;
     bool                                             listFocused    = false;
     bool                                             browsable      = false;
     std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
@@ -693,7 +694,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     if (!m_context.browser.GetSelectedRows().empty() && m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
-        m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.commandManager.RunRecycleBinVerb (CassoExplorerActions::Verb::Open); });
+        m_context.menus.AddMenuCommand (items, L"P&roperties", [this]() { m_context.commandManager.RunRecycleBinVerb (CassoExplorerActions::Verb::Open); }, L"Alt+Enter");
         m_context.menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
         m_context.menus.GetMenuCommands().back()->menuSvg   = m_context.menus.GetMenuSvg (L"windows.properties");
     }
@@ -751,10 +752,16 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             }
 
             m_context.menus.AddShellMenuCommands (items, rowPaths);
+
+            selectedDrives = !rowPaths.empty() && std::all_of (rowPaths.begin(), rowPaths.end(), [] (const std::wstring & path) { return path.size() == 3 && path[1] == L':'; });
         }
 
-        m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.fileOps.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
-        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
+        //  File Explorer's drive has no Copy as path.
+        if (!selectedDrives)
+        {
+            m_context.menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_context.fileOps.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
+            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
+        }
 
         if (m_context.browser.GetSelectedRows().size() == 1)
         {
@@ -817,7 +824,10 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
     //  The commands installed apps add for these items, as Explorer lists
     //  them, above the shell's own menu.
-    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles()))
+    //  A drive in This PC has them, and the shell's menu, as in File Explorer.
+    moreOptions = moreOptions || selectedDrives;
+
+    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles() || selectedDrives))
     {
         m_context.menus.AddPackagedCommands (items);
         m_context.menus.SetCommandItemIds ({});
@@ -1092,6 +1102,7 @@ void ExplorerListMenus::AddBackgroundRows (std::vector<DxuiPopupMenuItem> & item
         {
             ShellExecuteW (nullptr, L"open", L"rundll32.exe", L"shwebsvc.dll,AddNetPlaceRunDll", nullptr, SW_SHOWNORMAL);
         });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.addnetworklocation");
         addProperties();
     }
     else if (shown.kind == Location::Kind::RecycleBin)
@@ -1826,6 +1837,13 @@ void ExplorerListMenus::AddViewMenus (std::vector<DxuiPopupMenuItem> & items)
     sort->menuSvg  = m_context.menus.GetMenuSvg (L"SortBy");
     group->label   = L"Grou&p by";
     group->menuSvg = m_context.menus.GetMenuSvg (L"windows.groupbycolumn");
+
+    //  Home sorts and groups its sections itself, so File Explorer grays both.
+    if (m_context.browser.IsHomeLocation())
+    {
+        sort->isEnabled  = []() { return false; };
+        group->isEnabled = []() { return false; };
+    }
 
     items.push_back (DxuiPopupMenuItem::ForSubmenu (view,  GetViewChoices (true)));
     items.push_back (DxuiPopupMenuItem::ForSubmenu (sort,  GetSortChoices (false)));

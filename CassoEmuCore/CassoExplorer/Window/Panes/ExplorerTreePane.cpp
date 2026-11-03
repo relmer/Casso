@@ -851,10 +851,10 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     }
 
     //  A folder on the disk has Explorer's row of Cut, Copy, Paste, Rename and
-    //  Delete.
-    if (hasLocation && ((location.kind == Location::Kind::HostFolder && location.path.size() > 3) || location.kind == Location::Kind::DiskImage))
+    //  Delete, and a drive Copy and Paste.
+    if (hasLocation && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage))
     {
-        AddTreeIconRow (items, location.path, id);
+        AddTreeIconRow (items, location.path, id, location.kind == Location::Kind::HostFolder && location.path.size() <= 3);
     }
 
     //  Explorer's first command expands or collapses the node, in a group
@@ -936,6 +936,11 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
     m_context.cassoLinkManager.AddConnectionRows (items, hasLocation, location);
 
+    if (hasLocation && location.kind == Location::Kind::Root)
+    {
+        AddRootRows (items, location, x, y);
+    }
+
     //  The Recycle Bin's node empties it, as Explorer's does.
     if (hasLocation && location.kind == Location::Kind::RecycleBin)
     {
@@ -962,11 +967,15 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             m_context.menus.AddShellMenuCommands (items, { location.path });
         }
 
-        m_context.menus.AddMenuCommand (items, L"Copy as &path", [this, location]()
+        //  File Explorer's drive has no Copy as path.
+        if (location.kind != Location::Kind::HostFolder || location.path.size() > 3)
         {
-            DxuiClipboard::SetText (m_context.window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
-        }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
-        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
+            m_context.menus.AddMenuCommand (items, L"Copy as &path", [this, location]()
+            {
+                DxuiClipboard::SetText (m_context.window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
+            }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
+            m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copyaspath");
+        }
 
         if (location.kind == Location::Kind::HostFolder)
         {
@@ -1032,17 +1041,95 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerTreePane::AddRootRows
+//
+//  File Explorer's rows for This PC's node: the network commands and
+//  Properties; and for This PC and Home, Show more options.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTreePane::AddRootRows (std::vector<DxuiPopupMenuItem> & items, const Location & location, int x, int y)
+{
+    static constexpr const wchar_t *  s_kThisPcId = L"::{20D04FE0-3AEA-1069-A2D8-08002B30309D}";
+    bool                              thisPc      = location.path == TreeModel::kThisPcRootId;
+    bool                              home        = location.path.empty() || location.path == IShellItemVerbs::kHomeId;
+    std::wstring                      shellId     = thisPc ? std::wstring (s_kThisPcId) : std::wstring (IShellItemVerbs::kHomeId);
+    HWND                              owner       = m_context.window.GetHwnd();
+    POINT                             screen      = { x, y };
+
+
+
+    if (!thisPc && !home)
+    {
+        return;
+    }
+
+    ClientToScreen (owner, &screen);
+
+    if (thisPc)
+    {
+        m_context.menus.AddMenuCommand (items, L"Add a &network location", []()
+        {
+            ShellExecuteW (nullptr, L"open", L"rundll32.exe", L"shwebsvc.dll,AddNetPlaceRunDll", nullptr, SW_SHOWNORMAL);
+        });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.addnetworklocation");
+
+        m_context.menus.AddMenuCommand (items, L"&Map network drive...", []()
+        {
+            ShellExecuteW (nullptr, L"open", L"rundll32.exe", L"shell32.dll,SHHelpShortcuts_RunDLL Connect", nullptr, SW_SHOWNORMAL);
+        });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.mapnetworkdrive");
+
+        m_context.menus.AddMenuCommand (items, L"Dis&connect network drive...", []()
+        {
+            ShellExecuteW (nullptr, L"open", L"rundll32.exe", L"shell32.dll,SHHelpShortcuts_RunDLL Disconnect", nullptr, SW_SHOWNORMAL);
+        });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.disconnectnetworkdrive");
+
+        m_context.menus.AddMenuCommand (items, L"P&roperties", [owner, shellId]()
+        {
+            SHELLEXECUTEINFOW  info = { sizeof (info) };
+            std::wstring       file = L"shell:" + shellId;
+            BOOL               ran  = FALSE;
+
+            info.fMask  = SEE_MASK_INVOKEIDLIST;
+            info.hwnd   = owner;
+            info.lpVerb = L"properties";
+            info.lpFile = file.c_str();
+            info.nShow  = SW_SHOWNORMAL;
+            ran         = ShellExecuteExW (&info);
+
+            IGNORE_RETURN_VALUE (ran, TRUE);
+        }, L"Alt+Enter");
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.properties");
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::MoreOptions), [this, owner, shellId, screen]()
+    {
+        HRESULT  hr = m_context.shellVerbs.ShowShellMenu (owner, { shellId }, screen, {});
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    });
+    m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerTreePane::AddTreeIconRow
 //
 //  Add a folder's Cut, Copy, Paste, Rename and Delete as buttons atop the
-//  menu, as File Explorer does for a node. Cut and Copy place the folder on
+//  menu, as File Explorer does for a node, or a drive's Copy and Paste. Cut and Copy place the folder on
 //  the clipboard as a file, Paste goes into it while the clipboard has
 //  files, Rename edits the node's label, and Delete moves the folder to the
 //  Recycle Bin.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id)
+void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id, bool drive)
 {
     static constexpr CassoExplorerActions::Verb  kIconVerbs[] =
     {
@@ -1060,10 +1147,16 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
-        //  Paste is added only with files to paste, as on a folder's row.
-        if (verb == CassoExplorerActions::Verb::Paste && !m_context.shellVerbs.ClipboardHasFiles())
+        //  A drive has only Copy and Paste of these. Paste is grayed with no
+        //  files to paste, as in File Explorer.
+        if (drive && verb != CassoExplorerActions::Verb::Copy && verb != CassoExplorerActions::Verb::Paste)
         {
             continue;
+        }
+
+        if (verb == CassoExplorerActions::Verb::Paste)
+        {
+            command->isEnabled = [this]() { return m_context.shellVerbs.ClipboardHasFiles(); };
         }
 
         command->id       = (int) verb;
