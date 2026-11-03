@@ -2030,7 +2030,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
   have REMOVE THE CASSOLINK DISK unless this session bootstrapped the Apple.
   Casso Explorer's Options MUST have a Full Send page with the destination folder,
   a file name prefix and the image format: any format Casso writes, defaulting to
-  .po for a ProDOS disk and .dsk for any other. The default folder MUST be
+  .po for a ProDOS or Apple Pascal disk and .dsk for any other, CP/M included. The default folder MUST be
   `Casso Full Send` under the user's Downloads, made when a session needs it. No
   command on the PC starts a session. F during another operation MUST start the
   session when that operation ends.

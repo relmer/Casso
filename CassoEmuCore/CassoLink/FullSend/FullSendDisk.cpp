@@ -321,10 +321,16 @@ std::string FullSendDisk::MakeImageTitle (int sequence, const std::string & cata
 
 std::string FullSendDisk::GetImageExtension (const std::vector<Byte> & image, const std::string & chosen)
 {
+    VolumeKind  kind = VolumeKind::Unknown;
+
+
+
     if (!chosen.empty())
     {
         return chosen;
     }
 
-    return VolumeImage::DetectFilesystem (image) == VolumeKind::ProDos ? ".po" : ".dsk";
+    kind = VolumeImage::DetectFilesystem (image);
+
+    return kind == VolumeKind::ProDos || kind == VolumeKind::Pascal ? ".po" : ".dsk";
 }

@@ -187,7 +187,7 @@ public:
     using ClockFn = std::function<std::string()>;
 
     //  A chosen extension has its leading period; empty is .po for ProDOS and
-    //  .dsk for any other.
+    //  Pascal and .dsk for any other.
     FullSendSession (IFullSendLink & link, IDiskFileIo & fileIo, ClockFn clock, std::string folder, std::string extension, std::string prefix);
 
     //  Returns when the session ends. Q returns kQuit and Cancel

@@ -30,7 +30,7 @@ struct FullSendFormat
 //  Each type's second line is the car it would be.
 static constexpr FullSendFormat  s_kFullSendFormats[] =
 {
-    { L"Automatic: .po for ProDOS disks, .dsk for everything else",
+    { L"Automatic: .po for ProDOS and Pascal disks, .dsk for everything else",
       L"A silver Camry on cruise control. Always arrives, and nobody remembers the trip.",                         ""     },
     { L".dsk: DOS-order sectors, the type every emulator opens",
       L"A '94 Civic with 400,000 miles on it. Every mechanic on Earth has parts for it.",                          ".dsk" },

@@ -926,7 +926,7 @@ public:
         Assert::IsTrue (FullSendDisk::IsCatalogOnTrackZero (image));
         Assert::IsFalse (FullSendDisk::NeedsDirectoryTrack (image));
         Assert::AreEqual (std::string ("APPLE0"), FullSendDisk::GetCatalogTitle (image));
-        Assert::AreEqual (std::string (".dsk"), FullSendDisk::GetImageExtension (image, std::string()));
+        Assert::AreEqual (std::string (".po"), FullSendDisk::GetImageExtension (image, std::string()), L"Pascal blocks are in ProDOS order");
         Assert::AreEqual (std::string ("0005 APPLE0"), FullSendDisk::MakeImageTitle (5, FullSendDisk::GetCatalogTitle (image), std::string()));
         Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged), std::string (FullSendDisk::AssessDamage (image, 0, 1)), L"A recognized file system");
     }

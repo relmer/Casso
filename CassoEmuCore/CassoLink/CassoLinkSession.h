@@ -121,7 +121,7 @@ public:
 
     //  Disks into a folder, alternating between the drives, until Q on
     //  the Apple, Cancel or a failure ends it. The extension has its period;
-    //  empty is .po for ProDOS and .dsk for any other. F on the Apple queues
+    //  empty is .po for ProDOS and Pascal and .dsk for any other. F on the Apple queues
     //  this with the sink's folder and extension, after what is queued already.
     std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension, const std::string & prefix);
 
