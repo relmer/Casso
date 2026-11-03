@@ -10,6 +10,9 @@
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -147,6 +150,19 @@ namespace DebuggerTests
                 (void) (OnKey (down) || RouteMappedKey (down));
                 (void) OnKey (typed);
             }
+        }
+
+        //  A column that fits its text has its width once a paint measures
+        //  it, so the list is painted before a cell is edited.
+        void  PaintWatches()
+        {
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+
+
+
+            GetWatchesPane().GetList()->Paint (painter, text, theme);
         }
     };
 
@@ -836,6 +852,7 @@ namespace DebuggerTests
 
             Build (window);
             window.TakeSnapshot (before);
+            window.PaintWatches();
 
             //  Row 0 is register A.
             window.GetWatchesPane().BeginEdit (0, 1);
@@ -897,6 +914,7 @@ namespace DebuggerTests
 
         static void  EditWatch (TextSizeWindow & window)
         {
+            window.PaintWatches();
             window.FocusControl (window.GetWatchesPane().GetList());
             window.GetWatchesPane().GetList()->ClickRow (0, false, false);
             window.Press (VK_F2);
