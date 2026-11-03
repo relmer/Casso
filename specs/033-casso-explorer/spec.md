@@ -553,6 +553,9 @@ hardware.
 - Q: What is on the Apple's screen for a disk that may already have been sent? -> A: DUPE OF and the matching file, with a ?, as the fingerprint compares only a few tracks. A drive's number sends it anyway, and the image is written with the next sequence number even when it is an exact copy. A disk whose whole-disk hash matches an earlier image, with no key, is written too, and its row adds DUPE OF and that file with no ?.
 - Q: Is there a log of what crossed the wire? -> A: Yes: one CSV file under Casso's Logs folder with each connection's activity and every packet in plain English, its rows past 30 days dropped, so a session across midnight stays in one file.
 - Q: Do Details columns narrow as well as widen? -> A: Yes, in a folder with no widths the user set; a folder with any opens with them.
+- Q: Does View have File Explorer's panes and Show? -> A: Preview pane and Show, yes; the Details pane, which repeats the preview's facts, no. Show's Navigation pane is Casso Explorer's setting; Compact view, Item check boxes, File name extensions and Hidden items are Windows' and change File Explorer's windows too, as its menu does. Check boxes are drawn in Details.
+- Q: How do menu icons follow the theme? -> A: File Explorer's icons are read for the theme in use; one with no light file is mapped from the dark one by one palette transform (#E0DFDF to #555, #4CC2FF to #0078D4), and Casso's own art takes the same colors through tokens.
+- Q: Does a search's background have Save search? -> A: Yes. It saves a .search-ms file, in Saved Searches unless the user picks another folder, that File Explorer opens as the same search.
 
 ## User Scenarios & Testing *(mandatory)*
 
