@@ -29,7 +29,7 @@ namespace DebuggerCommandIconTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static std::vector<RecordedPaintCall> Paint (int id, bool enabled)
+    static std::vector<RecordedPaintCall> Paint (int id, bool enabled, bool isRunning = false)
     {
         DebuggerCommands::Handlers  handlers;
         MockDxuiPainter             painter;
@@ -37,7 +37,8 @@ namespace DebuggerCommandIconTests
 
 
 
-        handlers.isDark = [] { return true; };
+        handlers.isDark    = [] { return true; };
+        handlers.isEnabled = [isRunning] (int each) { return each != DebuggerCommands::kPause || isRunning; };
 
         DebuggerCommands                 commands (std::move (handlers));
         std::vector<DxuiToolbar::Entry>  entries  = commands.BuildEntries();
@@ -83,9 +84,11 @@ namespace DebuggerCommandIconTests
     {
     public:
 
+        //  The bar's one Run or Pause button is Run while the machine is
+        //  stopped.
         TEST_METHOD (RunIsAGreenTriangle)
         {
-            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kRun, true);
+            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kRunOrPause, true);
 
 
 
@@ -96,9 +99,10 @@ namespace DebuggerCommandIconTests
 
 
 
+        //  And Pause while it runs.
         TEST_METHOD (PauseIsTwoBarsInTheInk)
         {
-            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kPause, true);
+            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kRunOrPause, true, true);
 
 
 
@@ -126,7 +130,7 @@ namespace DebuggerCommandIconTests
 
         TEST_METHOD (DisabledIconsTakeTheDimmedInk)
         {
-            for (int id : { DebuggerCommands::kRun, DebuggerCommands::kStepInto, DebuggerCommands::kStepOver,
+            for (int id : { DebuggerCommands::kRunOrPause, DebuggerCommands::kStepInto, DebuggerCommands::kStepOver,
                             DebuggerCommands::kStepOut, DebuggerCommands::kRunToCursor })
             {
                 std::vector<RecordedPaintCall>  calls = Paint (id, false);

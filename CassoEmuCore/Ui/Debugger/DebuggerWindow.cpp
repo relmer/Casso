@@ -415,6 +415,17 @@ std::string DebuggerWindow::GetMenuState() const
 
 void DebuggerWindow::RunCommandBarEntry (int id)
 {
+    //  Pause while there is something to stop, Run otherwise.
+    if (id == DebuggerCommands::kRunOrPause)
+    {
+        id = IsCommandBarEntryEnabled (DebuggerCommands::kPause) ? DebuggerCommands::kPause : DebuggerCommands::kRun;
+
+        if (!IsCommandBarEntryEnabled (id))
+        {
+            return;
+        }
+    }
+
     if (id == DebuggerCommands::kShowNext)
     {
         ShowCode (std::nullopt);
@@ -477,6 +488,11 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
     if (id == DebuggerCommands::kRun)
     {
         return paused;
+    }
+
+    if (id == DebuggerCommands::kRunOrPause)
+    {
+        return IsCommandBarEntryEnabled (DebuggerCommands::kRun) || IsCommandBarEntryEnabled (DebuggerCommands::kPause);
     }
 
     //  A replay runs with the machine stopped, and Pause stops it.

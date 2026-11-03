@@ -486,7 +486,7 @@ namespace DebuggerMenuBarTests
             CassoTheme        theme    = CassoTheme::MakeSkeuomorphic();
             MenuBarHost       host;
             MenuBarWindow     window   (theme, host);
-            std::vector<int>  expected = { DebuggerCommands::kRun, DebuggerCommands::kPause, DebuggerCommands::kStepInto, DebuggerCommands::kStepOver,
+            std::vector<int>  expected = { DebuggerCommands::kRunOrPause, DebuggerCommands::kStepInto, DebuggerCommands::kStepOver,
                                            DebuggerCommands::kStepOut, DebuggerCommands::kRunToCursor,
                                            DebuggerCommands::kStepBackInto, DebuggerCommands::kStepBackOver, DebuggerCommands::kStepBackOut,
                                            DebuggerCommands::kReverseContinue, DebuggerCommands::kShowNext, DebuggerCommands::kTrace,

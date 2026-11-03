@@ -472,6 +472,12 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         return true;
     }
 
+    if (action == DebuggerKeySchemes::Action::RunOrPause)
+    {
+        RunCommandBarEntry (DebuggerCommands::kRunOrPause);
+        return true;
+    }
+
     if (action == DebuggerKeySchemes::Action::Reset || action == DebuggerKeySchemes::Action::PowerCycle)
     {
         if (m_host != nullptr)

@@ -101,8 +101,12 @@ public:
         ShowInputLog,
         ShowBasicProgram,
 
+        //  Run while the machine is stopped, Pause while it runs or replays
+        //  history: the one button on the command bar, and Pause/Break.
+        RunOrPause,
+
         First = Run,
-        Last  = ShowBasicProgram,
+        Last  = RunOrPause,
     };
 
     static constexpr DebuggerKeyScheme  kDefault = DebuggerKeyScheme::VisualStudio;

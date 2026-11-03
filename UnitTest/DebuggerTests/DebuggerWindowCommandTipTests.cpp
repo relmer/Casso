@@ -144,7 +144,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
 
@@ -168,7 +168,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
             Assert::IsTrue (window.GetTooltip().WantsTick(), L"no tip pending over Break");
@@ -207,7 +207,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
             (void) window.TickTooltip ((int64_t) GetTickCount64() + 10000);
@@ -238,7 +238,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
             Assert::IsTrue (window.GetTooltip().WantsTick(), L"no tip pending over Break");

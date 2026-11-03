@@ -50,12 +50,14 @@ static constexpr DxuiKeyChord  s_kPaneKeys[] =
     { 'P',      false, false, false, (int) Action::PreviousBookmark,   s_kBookmarkPrefix },
 };
 
-//  The emulator window's restart keys, the same in every scheme.
+//  The emulator window's restart keys and its Pause/Break, the same in every
+//  scheme.
 static constexpr DxuiKeyChord  s_kMachineKeys[] =
 {
     { 'R',      true,  false, true,  (int) Action::Reset      },
     { 'R',      true,  true,  true,  (int) Action::Reset      },
     { 'P',      true,  false, true,  (int) Action::PowerCycle },
+    { VK_PAUSE, false, false, false, (int) Action::RunOrPause },
 };
 
 //  Each pane action's pane, in the actions' order from ShowDisassembly.

@@ -41,6 +41,7 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
+        { kRunOrPause,      L"Run",              s_kGlyphRun,         L"Run until something stops the machine",                DxuiToolbar::Kind::Command, 0, false, true  },
         { kRun,             L"Run",              s_kGlyphRun,         L"Run until something stops the machine",                DxuiToolbar::Kind::Command, 0, false, true  },
         { kPause,           L"Pause",            s_kGlyphPause,       L"Stop the running machine",                             DxuiToolbar::Kind::Command, 0, false, true  },
         { kStepInto,        L"Step into",        s_kGlyphStepInto,    L"Step one instruction, into a call",                    DxuiToolbar::Kind::Command, 1, false, true  },
@@ -98,6 +99,14 @@ DebuggerCommands::DebuggerCommands (Handlers handlers)
             return m_handlers.isEnabled ? m_handlers.isEnabled (id) : true;
         };
 
+        //  The bar's one button is Run while the machine is stopped and
+        //  Pause while it runs, with that command's name and tip.
+        if (id == kRunOrPause)
+        {
+            command->labelText = [this] { return Find (IsPausing() ? kPause : kRun)->label; };
+            command->tipText   = [this] { return Find (IsPausing() ? kPause : kRun)->GetTipText(); };
+        }
+
         if (row.checkable)
         {
             command->isChecked = [this, id]
@@ -130,6 +139,12 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
     {
         DxuiToolbar::Entry  entry;
 
+        //  Run and Pause are one button on the bar.
+        if (row.id == kRun || row.id == kPause)
+        {
+            continue;
+        }
+
         entry.command  = Find (row.id);
         entry.kind     = row.kind;
         entry.group    = row.group;
@@ -144,7 +159,9 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
 
             entry.icon = [this, id] (IDxuiPainter & painter, const DxuiToolbarIconBox & icon)
             {
-                PaintIcon (id, painter, icon, GetIconColors (m_handlers.isDark ? m_handlers.isDark() : true));
+                int  shown = (id == kRunOrPause) ? (IsPausing() ? kPause : kRun) : id;
+
+                PaintIcon (shown, painter, icon, GetIconColors (m_handlers.isDark ? m_handlers.isDark() : true));
             };
         }
 
@@ -152,6 +169,21 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
     }
 
     return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::IsPausing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerCommands::IsPausing() const
+{
+    return m_handlers.isEnabled && m_handlers.isEnabled (kPause);
 }
 
 
