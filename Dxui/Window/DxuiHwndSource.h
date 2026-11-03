@@ -850,6 +850,7 @@ private:
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,
                                                 int   resizeBorderPx);
+    static int              GetDistanceToEdge  (DxuiHitTestKind kind, POINT clientDip, const RECT & clientBoundsDip);
 
     static void            NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized);
     static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);

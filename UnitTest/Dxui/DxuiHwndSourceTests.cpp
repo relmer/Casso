@@ -312,10 +312,23 @@ public:
     TEST_METHOD (EdgeScrollbar_KeepsThePointerAt96Dpi)
     {
         std::unique_ptr<DxuiHwndSource>  host = BuildEdgeScrollbarHost (96);
-        DxuiHitTestKind                  kind = host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 2,
+        DxuiHitTestKind                  kind = host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 5,
                                                                                     s_kClientHeightDip * 3 / 4));
 
         Assert::AreEqual ((int) HTCLIENT, (int) DxuiHwndSource::KindToHt (kind));
+    }
+
+
+
+    //  The outer half of the band resizes over a bar too, so a window whose
+    //  bar is at its edge can be grabbed there by more than its last pixel.
+    TEST_METHOD (EdgeScrollbar_TheOuterHalfOfTheEdgeResizesOverTheBar)
+    {
+        std::unique_ptr<DxuiHwndSource>  host = BuildEdgeScrollbarHost (96);
+        DxuiHitTestKind                  kind = host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 2,
+                                                                                    s_kClientHeightDip * 3 / 4));
+
+        Assert::AreEqual ((int) HTRIGHT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -325,7 +338,7 @@ public:
         //  The classifier measures in DIPs and a control in pixels. Asked in
         //  DIPs, the bar was missed at any scale but 96 and the edge resized.
         std::unique_ptr<DxuiHwndSource>  host = BuildEdgeScrollbarHost (120);
-        DxuiHitTestKind                  kind = host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 2,
+        DxuiHitTestKind                  kind = host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 5,
                                                                                     s_kClientHeightDip * 3 / 4));
 
         Assert::AreEqual ((int) HTCLIENT, (int) DxuiHwndSource::KindToHt (kind));

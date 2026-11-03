@@ -4011,6 +4011,16 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     {
         RenderFrame (m_theme);
     }
+
+    //  A composited window's frame is on screen once the compositor completes
+    //  the commit after the present. With the move loop resumed before that,
+    //  the window grew ahead of its content, and the desktop behind it was
+    //  visible in the gap along the dragged edge.
+    if (m_compDevice != nullptr)
+    {
+        hr = m_compDevice->WaitForCommitCompletion();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 
@@ -4774,11 +4784,12 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
         result  = claimed ? kind : result;
     }
 
-    //  A scrollbar at the window's edge keeps the pointer over a straight
-    //  resize edge, whose band would otherwise cover most of it. The corners
-    //  still resize.
-    if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
-                 || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
+    //  Over a scrollbar at the window's edge, the inner half of a straight
+    //  resize edge's band is the scrollbar's, since the band would otherwise
+    //  cover most of it. The outer half and the corners resize: with the whole
+    //  band given to the scrollbar, a floating console's right edge could be
+    //  grabbed at its last pixel only.
+    if (claimed && GetDistanceToEdge (kind, clientDip, clientBoundsDip) >= borderPx / 2)
     {
         n =(GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
 
@@ -4842,6 +4853,31 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDistanceToEdge
+//
+//  How far a point is inside the window's edge that a straight resize edge
+//  `kind` is on, in DIPs; -1 for any other kind, which no scrollbar takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetDistanceToEdge (DxuiHitTestKind kind, POINT clientDip, const RECT & clientBoundsDip)
+{
+    switch (kind)
+    {
+    case DxuiHitTestKind::ResizeEdgeLeft:   return clientDip.x - clientBoundsDip.left;
+    case DxuiHitTestKind::ResizeEdgeRight:  return clientBoundsDip.right - 1 - clientDip.x;
+    case DxuiHitTestKind::ResizeEdgeTop:    return clientDip.y - clientBoundsDip.top;
+    case DxuiHitTestKind::ResizeEdgeBottom: return clientBoundsDip.bottom - 1 - clientDip.y;
+    default:                                return -1;
+    }
 }
 
 
