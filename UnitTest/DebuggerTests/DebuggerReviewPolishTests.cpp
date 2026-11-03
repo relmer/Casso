@@ -267,7 +267,7 @@ namespace DebuggerReviewPolishTests
             output->Append ({ "> R", "A=00\tX=01" }, time);
 
             output->SaveIfChanged ((int64_t) GetTickCount64());
-            Assert::IsFalse (host.state.contains ("consoleText"), L"not while output may still come");
+            Assert::IsFalse (host.state.contains ("consoleText"), L"not right after the output");
 
             output->SaveIfChanged ((int64_t) GetTickCount64() + 60000);
             saved = host.state["consoleText"];
