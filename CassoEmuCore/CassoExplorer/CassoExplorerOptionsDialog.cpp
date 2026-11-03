@@ -41,9 +41,9 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
     { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",
       L"A right-hand-drive import in Ohio. Everything works, but the drive-through window is on the wrong side.", ".po"  },
     { L".nib: Nibbles, 6,656 bytes a track, padded past a real track's length",
-      L"A '78 Lincoln Continental. Three feet of chrome bumper past where the car ends.",                          ".nib" },
+      L"A Saab 900 Turbo. The key goes in the floor between the seats, and its driver will explain why.",          ".nib" },
     { L".nb2: Nibbles, 6,384 bytes a track, closer to a real track. For when .nib is too mainstream",
-      L"The same Lincoln, bumper trimmed to factory spec. Its driver brings this up at every stoplight.",          ".nb2" },
+      L"A '67 Citroen DS, like Patrick Jane's. It rises off the ground at startup, and the wheel has one spoke.",  ".nb2" },
 };
 
 
