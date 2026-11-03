@@ -78,6 +78,14 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 
 
 
+    //  A right-click on a tab brings its pane forward first, as a left click
+    //  does, so the menu is over the pane it acts on.
+    if (fromTab)
+    {
+        ShowPane  (pane);
+        FocusPane (pane);
+    }
+
     //  A floating pane's menu opens in its own window, where the click was.
     if (items.empty() || host == nullptr)
     {
