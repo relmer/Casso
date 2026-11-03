@@ -52,6 +52,9 @@ public:
     //  What the part at a point means and the raw values behind it.
     bool  TryGetTipAt   (POINT clientPx, std::wstring & outTip) const;
 
+    //  Whether a point is on the strip of recent phonemes or its labels.
+    bool  IsOverPhonemeStrip (POINT clientPx) const;
+
     //  Where the envelope is along its picture's four ramps, from 0 to 1.
     static float  GetEnvelopeMarkX (const DiagnosticsSoundPsg & psg);
 
@@ -126,7 +129,6 @@ private:
     void  AddRegion         (const RECT & rect, std::wstring tip, int muteChannel = -1);
     void  SyncScrollbar     ();
     void  ScrollTo          (int top);
-    bool  IsOverPhonemeStrip (POINT clientPx) const;
 
     RECT  GetChannelRect    (const RECT & card, int channel) const;
     RECT  GetMuteOfChannel  (const RECT & row) const;

@@ -609,9 +609,11 @@ bool SoundBoardView::OnMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && IsOverPhonemeStrip (at))
+    //  The oldest phonemes are at the left, so the wheel up, or tilted to the
+    //  left, goes back to them.
+    if (ev.kind == DxuiMouseEventKind::Wheel && IsOverPhonemeStrip (at))
     {
-        ScrollPhonemes ((int) std::lround (ev.wheelDelta * (float) kPhonemesPerNotch));
+        ScrollPhonemes ((int) std::lround ((ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta) * (float) kPhonemesPerNotch));
         return true;
     }
 

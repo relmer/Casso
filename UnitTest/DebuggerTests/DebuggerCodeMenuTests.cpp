@@ -103,6 +103,7 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::GetCodeEdits;
         using DebuggerWindow::GetCodeGroup;
         using DebuggerWindow::ScrollCodeAtEdge;
+        using DebuggerWindow::OnMouse;
 
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
         {
@@ -239,6 +240,49 @@ namespace DebuggerCodeMenuTests
             Assert::AreEqual (-1, host.scrolls[0]);
             Assert::IsTrue   (host.scrolls[1] < -1, L"a page up");
             Assert::AreEqual (1, host.scrolls[2]);
+        }
+
+
+        //  The vertical wheel over a view scrolls the disassembly through
+        //  memory; the horizontal wheel and Shift with the wheel do not, since
+        //  they scroll the list's columns sideways.
+        TEST_METHOD (OnlyTheVerticalWheelScrollsTheDisassemblyThroughMemory)
+        {
+            CassoTheme         theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window  (theme, host);
+            DxuiDpiScaler      scaler;
+            DxuiListView     * code    = nullptr;
+            DxuiMouseEvent     wheel;
+            RECT               bounds  = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (MakeSnapshot());
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            code   = window.GetCodeList (0);
+            bounds = code->GetBounds();
+
+            wheel.kind            = DxuiMouseEventKind::Wheel;
+            wheel.positionDip     = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+            wheel.wheelDelta      = 1.0f;
+            wheel.wheelHorizontal = true;
+            (void) window.OnMouse (wheel);
+            Assert::IsTrue (host.scrolls.empty(), L"the horizontal wheel scrolled through memory");
+
+            wheel.wheelHorizontal = false;
+            wheel.shift           = true;
+            (void) window.OnMouse (wheel);
+            Assert::IsTrue (host.scrolls.empty(), L"Shift with the wheel scrolled through memory");
+
+            wheel.shift = false;
+            (void) window.OnMouse (wheel);
+            Assert::AreEqual ((size_t) 1, host.scrolls.size(), L"the vertical wheel did not scroll");
+            Assert::IsTrue   (host.scrolls[0] < 0, L"the wheel up went down through memory");
         }
 
 

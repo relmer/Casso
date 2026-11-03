@@ -1117,17 +1117,29 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Wheel:
-        //  The code pane holds only the lines it shows, so the wheel scrolls
-        //  the disassembly itself, through all of memory (FR-073).
+        //  The code pane has only the lines in view, so the vertical wheel
+        //  scrolls the disassembly itself, through all of memory. The
+        //  horizontal wheel, or Shift with the wheel, scrolls the list's
+        //  columns sideways, as it does every list's.
         for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
         {
             DxuiListView  * code = m_code->GetCodeList (view);
 
-            if (IsRoutable (code) && code->IsVisible() && DxuiDockSite::Contains (code->GetBounds(), ev.positionDip) && m_host != nullptr)
+            if (!IsRoutable (code) || !code->IsVisible() || !DxuiDockSite::Contains (code->GetBounds(), ev.positionDip) || m_host == nullptr)
+            {
+                continue;
+            }
+
+            if (ev.wheelHorizontal || ev.shift)
+            {
+                ForwardToList (code, ev);
+            }
+            else
             {
                 m_host->ScrollDebuggerCode ((int) std::lround (-ev.wheelDelta * (float) code->GetWheelLinesPerNotch()), view);
-                return true;
             }
+
+            return true;
         }
 
         for (DxuiListView * list : GetLists())

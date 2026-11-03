@@ -234,10 +234,51 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetPhonemesBack());
 
             view.ScrollPhonemes (1000);
-            Assert::AreEqual ((size_t) 9, view.GetPhonemesBack(), L"the oldest at the strip's right end");
+            Assert::AreEqual ((size_t) 9, view.GetPhonemesBack(), L"as far back as the oldest");
 
             view.ScrollPhonemes (-1000);
             Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the newest again");
+        }
+
+
+        //  The oldest phonemes are at the strip's left, so a tilt of the
+        //  wheel to the left goes back to them and one to the right comes
+        //  forward again.
+        TEST_METHOD (TheHorizontalWheelScrollsThePhonemeStrip)
+        {
+            SoundBoardView         view;
+            DiagnosticsSoundBoard  board = MakeBoard (true);
+            DxuiMouseEvent         wheel;
+            bool                   found = false;
+
+
+
+            for (int i = 0; i < 10; i++)
+            {
+                board.voice->recent.push_back ({ "E (meet)", 0.05f });
+            }
+
+            LayOut (view, 500, 2000);
+            view.SetBoard (board);
+
+            wheel.kind = DxuiMouseEventKind::Wheel;
+
+            for (int y = 0; y < 2000 && !found; y += 2)
+            {
+                wheel.positionDip = POINT { 250, y };
+                found             = view.IsOverPhonemeStrip (wheel.positionDip);
+            }
+
+            Assert::IsTrue (found, L"no strip on the board");
+
+            wheel.wheelHorizontal = true;
+            wheel.wheelDelta      = -1.0f;
+            Assert::IsTrue   (view.OnMouse (wheel));
+            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetPhonemesBack(), L"the tilt to the left");
+
+            wheel.wheelDelta = 1.0f;
+            Assert::IsTrue   (view.OnMouse (wheel));
+            Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the tilt to the right");
         }
 
 
