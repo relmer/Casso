@@ -1618,9 +1618,10 @@ bool DxuiPopupMenu::IsSelectable (int index) const
 //
 //  DxuiPopupMenu::FindNextSelectable
 //
-//  The next selectable row in a direction, wrapping, skipping separators and
-//  disabled rows. From no highlight, Down starts at the first row and Up at
-//  the last, so each key lands where a user expects on a fresh menu.
+//  The next selectable row in a direction, wrapping unless turned off,
+//  skipping separators and disabled rows. From no highlight, Down starts at
+//  the first row and Up at the last. With no row past an end, the row is
+//  the same.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1636,6 +1637,10 @@ int DxuiPopupMenu::FindNextSelectable (int from, int direction) const
         if (i < 0)
         {
             i = (direction > 0) ? 0 : n - 1;
+        }
+        else if (!m_isWrapping && (i + direction < 0 || i + direction >= n))
+        {
+            return from;
         }
         else
         {

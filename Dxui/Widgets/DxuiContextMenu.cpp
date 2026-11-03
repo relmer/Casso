@@ -151,6 +151,7 @@ void DxuiContextMenu::ShowAboveAtWidth (DxuiHwndSource & host, const RECT & anch
     menu.SetMaxWidthPx  (width);
     menu.SetMaxHeightPx (look.maxHeightPx);
     menu.SetCutTipShown (look.isCutTipShown);
+    menu.SetWrapping    (look.isWrapping);
     menu.SetFace        (look.face);
     menu.SetMetrics     (look.metrics);
     menu.ShowAbove      (anchor, items, *text, client);
@@ -193,6 +194,7 @@ void DxuiContextMenu::ClearListLook (DxuiPopupMenu & menu)
     menu.SetMaxWidthPx  (0);
     menu.SetMaxHeightPx (0);
     menu.SetCutTipShown (true);
+    menu.SetWrapping    (true);
     menu.SetFace        (nullptr);
     menu.ClearMetrics();
 }

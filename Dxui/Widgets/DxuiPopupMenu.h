@@ -87,7 +87,7 @@ struct DxuiPopupMenuItem
 //  no label can reach into them. There is no fixed width and no setter for
 //  one, only a floor.
 //
-//  Up and Down skip separators and disabled rows and wrap. Right on a submenu
+//  Up and Down skip separators and disabled rows and wrap, unless turned off. Right on a submenu
 //  row opens its child with the first enabled row highlighted; the pointer
 //  resting on it opens the child unhighlighted, and hovering another row of
 //  the parent closes it again. Left or Escape with a child open closes only
@@ -216,6 +216,11 @@ public:
     //  Whether a highlighted row whose label was cut has its whole label laid
     //  over it; on unless turned off, as for a list where every row is cut.
     void  SetCutTipShown (bool isShown)          { m_isCutTipShown = isShown; }
+
+    //  Whether Up from the first row goes to the last and Down from the last
+    //  to the first; on unless turned off, as for a list where the ends are
+    //  the oldest and newest entries.
+    void  SetWrapping    (bool isWrapping)       { m_isWrapping = isWrapping; }
 
     //  From the menu's left edge to its labels, as laid out when it last opened.
     int   GetLabelLeftPx () const                { return m_labelLeftPx; }
@@ -484,6 +489,7 @@ private:
     int                  m_minWidthPx       = 0;
     int                  m_maxHeightPx      = 0;
     bool                 m_isCutTipShown    = true;
+    bool                 m_isWrapping       = true;
     int                  m_maxWidthPx       = 0;
     const wchar_t      * m_face             = nullptr;
     std::vector<bool>    m_cutRows;

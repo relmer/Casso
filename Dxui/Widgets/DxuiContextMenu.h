@@ -44,6 +44,7 @@ public:
         DxuiMenuMetrics    metrics;
         int                maxHeightPx   = 0;
         bool               isCutTipShown = true;
+        bool               isWrapping    = true;
 
         //  Where the labels start, in the host's client pixels: the menu is
         //  moved along so its label column starts there. With a negative

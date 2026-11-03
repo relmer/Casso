@@ -121,6 +121,8 @@ public:
     const std::wstring & GetText           () const { return m_text;    }
     const std::wstring & GetGhostText      () const { return m_ghost;   }
     const RECT         & GetRect           () const { return m_boundsDip;    }
+    float                GetFontDip        () const { return m_fontDip; }
+    const wchar_t      * GetFace           () const;
     bool                 IsFocused         () const { return m_focused; }
     bool                 IsEnabled         () const { return m_enabled; }
     size_t               GetCaret          () const { return m_caret; }
@@ -161,7 +163,6 @@ private:
     size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
     float  MeasurePrompt (IDxuiTextRenderer & text, float fontPx) const;
     size_t GetWordBoundary (size_t from, bool forward) const;
-    const wchar_t *  GetFace () const;
 
     enum class CharClass
     {

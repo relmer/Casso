@@ -552,9 +552,10 @@ void CommandLine::RefreshGhost()
 //
 //  The earlier lines in a list rising from the command line, from where the
 //  typed text starts to a little short of the console's right edge, in the
-//  console's face and row height, with the newest nearest the box. A long
+//  command line's face and size, with the newest nearest the box. A long
 //  line is cut, with no tip of the whole line. Home and End go to the oldest
-//  and newest. Picking one puts it in the box to edit or run.
+//  and newest, and Up and Down stop at them. Picking one puts it in the box
+//  to edit or run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -571,7 +572,6 @@ void CommandLine::ShowHistoryList()
     RECT                              box            = m_box->GetBounds();
     RECT                              pane           = view->GetBounds();
     DxuiContextMenu::ListLook         look;
-    DxuiFontHandle                    font;
     size_t                            first          = 0;
 
 
@@ -597,22 +597,13 @@ void CommandLine::ShowHistoryList()
         } });
     }
 
-    font                      = theme->MonospaceFont();
-    look.face                 = font.face;
+    look.face                 = m_box->GetFace();
     look.metrics              = DxuiMenuMetrics::FromSystem (scaler.GetDpi());
-    look.metrics.fontPx       = scaler.ToPxf (font.sizeDip * view->GetZoom());
+    look.metrics.fontPx       = scaler.ToPxf (m_box->GetFontDip());
     look.metrics.minWidthPx   = 0;
-
-    //  Before the console is painted, its rows have no height yet, so the
-    //  menu's row height is used.
-    if (view->GetCellHeightPx() > 0)
-    {
-        look.metrics.rowHeightPx  = view->GetCellHeightPx();
-        look.metrics.lineHeightPx = view->GetCellHeightPx() - 2 * view->GetTextTopPx();
-    }
-
-    look.maxHeightPx   = look.metrics.rowHeightPx * s_kShownRows;
-    look.isCutTipShown = false;
+    look.maxHeightPx          = look.metrics.rowHeightPx * s_kShownRows;
+    look.isCutTipShown        = false;
+    look.isWrapping           = false;
 
     //  Each command's text starts where the typed text does after the
     //  prompt, so the list's edge is apart from the console's beneath it.
