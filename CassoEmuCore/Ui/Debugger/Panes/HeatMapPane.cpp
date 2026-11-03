@@ -848,8 +848,17 @@ void HeatMapPane::RunBarEntry (int id)
 
 bool HeatMapPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
 {
-    return ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && m_host.IsRoutable (m_view) && m_view->IsVisible() &&
-           m_view->IsOverMap (ev.positionDip) && RouteContentMouse (ev);
+    bool  isZoom = ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && m_host.IsRoutable (m_view) && m_view->IsVisible() &&
+                   m_view->IsOverMap (ev.positionDip);
+
+
+
+    if (isZoom)
+    {
+        m_zoomedAtMs = (int64_t) GetTickCount64();
+    }
+
+    return isZoom && RouteContentMouse (ev);
 }
 
 
@@ -939,6 +948,11 @@ bool HeatMapPane::TryGetTip (POINT clientPx, PaneTip & tip)
 
     m_tipAt.reset();
     m_isTipPending = false;
+
+    if ((int64_t) GetTickCount64() - m_zoomedAtMs < kZoomQuietMs)
+    {
+        return false;
+    }
 
     if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text))
     {

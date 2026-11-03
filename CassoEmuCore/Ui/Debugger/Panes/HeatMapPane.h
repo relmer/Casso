@@ -119,4 +119,10 @@ private:
     //  a snapshot brings the cell's last writer and reader.
     std::optional<POINT>                         m_tipAt;
     bool                                         m_isTipPending  = false;
+
+    //  When the wheel last zoomed the map. TryGetTip returns false for
+    //  kZoomQuietMs after, since each notch moves every cell under the pointer and a tip
+    //  following them jumped from cell to cell.
+    static constexpr int64_t                     kZoomQuietMs    = 400;
+    int64_t                                      m_zoomedAtMs    = 0;
 };

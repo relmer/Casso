@@ -35,7 +35,7 @@ public:
         Reset,
     };
 
-    static constexpr int  kButtonWidthDip  = 48;
+    static constexpr int  kButtonWidthDip  = 84;
     static constexpr int  kButtonHeightDip = 20;
     static constexpr int  kPanelWidthDip   = 220;
     static constexpr int  kPanelHeightDip  = 58;
@@ -49,7 +49,8 @@ public:
     //  The tip over the button.
     static constexpr const wchar_t * kpszTip = L"Zoom\nCtrl+wheel over the map zooms in and out about the pointer. Click for a slider and Reset.";
 
-    //  The zoom as a percentage of the starting cell size, "300%".
+    //  The zoom as a percentage of the starting cell size, "Zoom 300%", so the
+    //  button reads as a zoom and not as a figure about the map.
     static int           GetPercent      (int cellPx, int startCellPx);
     static std::wstring  GetPercentLabel (int cellPx, int startCellPx);
 

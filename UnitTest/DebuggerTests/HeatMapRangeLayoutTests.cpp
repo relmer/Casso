@@ -183,7 +183,7 @@ namespace DebuggerTests
             Assert::IsFalse (view.HasVerticalScroll(),   L"a new set fits again");
             Assert::IsTrue  (fitted > 3, L"and as large as that allows: these ranges are 1,280 bytes");
             view.ZoomIn();
-            Assert::IsTrue  (view.HasVerticalScroll(), L"so one notch larger no longer fits");
+            Assert::IsTrue  (view.HasVerticalScroll() || view.HasHorizontalScroll(), L"so one notch larger no longer fits");
             view.ZoomOut();
             view.ZoomOut();
             fitted = view.GetCellPx();

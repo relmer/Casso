@@ -173,8 +173,9 @@ void HeatMapView::ClearRanges()
 
 void HeatMapView::FitRanges()
 {
-    m_isFitted  = true;
-    m_scroll    = {};
+    m_isFitted    = true;
+    m_zoomColumns = std::nullopt;
+    m_scroll      = {};
     m_fittedFor = m_boundsDip;
 
     for (int cell = kMaxCellPx; cell >= 1; cell--)
@@ -624,6 +625,14 @@ void HeatMapView::PlaceMap()
         m_columns = GetColumnsFor (width, pitch);
         contentW  = std::max (width, (m_columns == kMinColumns) ? (long) m_columns * pitch : 0L);
 
+        //  Zoomed in past the fitted size, a row has m_zoomColumns addresses,
+        //  the number it had when the zoom began, and the rows scroll across.
+        if (m_zoomColumns.has_value() && m_cellPx > m_fitCellPx && *m_zoomColumns > m_columns)
+        {
+            m_columns = *m_zoomColumns;
+            contentW  = std::max (width, (long) m_columns * pitch);
+        }
+
         PlaceBands();
 
         contentH  = m_contentH;
@@ -720,7 +729,9 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
 //
 //  Each notch up makes a cell kZoomPerNotch times larger, and each down that
 //  much smaller, by at least a pixel; the address under the point stays under
-//  it. A point off the map zooms about the map's center.
+//  it. Zoomed in past the fitted size, a row has the number of addresses it
+//  had when the zoom began, and the rows scroll across, as a picture grows,
+//  so the address stays under the point across as well as down. A point off the map zooms about the map's center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -745,6 +756,13 @@ void HeatMapView::ZoomAt (POINT point, float notches)
     if (cell == m_cellPx)
     {
         cell += (notches > 0.0f) ? 1 : -1;
+    }
+
+    //  A zoom in from the fitted size or below starts from the row's
+    //  addresses as they are.
+    if (m_cellPx <= m_fitCellPx || !m_zoomColumns.has_value())
+    {
+        m_zoomColumns = m_columns;
     }
 
     ApplyCellPx (cell, point);
@@ -797,6 +815,8 @@ void HeatMapView::ZoomOut()
 
 void HeatMapView::ZoomTo (int cellPx)
 {
+    m_zoomColumns = std::nullopt;
+
     ApplyCellPx (cellPx, { m_map.left, m_map.top });
 }
 

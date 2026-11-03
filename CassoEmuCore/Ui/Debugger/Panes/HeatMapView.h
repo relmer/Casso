@@ -186,7 +186,7 @@ public:
     static constexpr int    kStreetPx       = 1;
     static constexpr int    kDefaultCellDip = 3;
     static constexpr int    kMaxCellPx      = 64;
-    static constexpr float  kZoomPerNotch   = 1.25f;
+    static constexpr float  kZoomPerNotch   = 1.5f;
 
     //  The most a row's cells are widened to fill the pane before the row
     //  takes twice the addresses instead, each a little narrower than the
@@ -471,6 +471,12 @@ private:
     long                       m_contentH     = 0;
     bool                       m_hasRanges    = false;
     bool                       m_isFitted     = true;
+
+    //  The number of addresses in a row when the user began to zoom from the
+    //  fitted size. Zoomed in, a row has that many and the rows scroll across,
+    //  so the map grows as a picture does and the address under the pointer
+    //  stays under it; none while fitted.
+    std::optional<int>         m_zoomColumns;
     RECT                       m_fittedFor    = {};     // the bounds the map was last fitted to
     int                        m_fitCellPx    = 0;      // the fitted cell size, the zoom's 100%
     double                     m_top          = 0.0;
