@@ -289,8 +289,9 @@ public:
     bool  AreSelectedRowsSearchFiles() const;
 
     //  A search's row given the name a rename gave its file, without searching
-    //  again: the index takes a while to learn the new name.
-    void  RenameSearchRow (int row, const std::wstring & newName);
+    //  again: the index takes a while to have the new name. A name the query no
+    //  longer matches removes the row, and false is returned.
+    bool  RenameSearchRow (int row, const std::wstring & newName);
 
     //  Every row's key, in row order, as a selection stores them: a name and
     //  its occurrence among rows with that name. What a refresh matches rows

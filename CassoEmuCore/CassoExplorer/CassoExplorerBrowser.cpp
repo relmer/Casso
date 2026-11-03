@@ -1660,16 +1660,28 @@ bool CassoExplorerBrowser::AreSelectedRowsSearchFiles() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newName)
+bool CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newName)
 {
     CatalogRow  *  renamed = (row >= 0 && (size_t) row < m_rows.size()) ? &m_rows[(size_t) row] : nullptr;
     std::wstring   oldPath;
+    std::wstring   scope;
+    std::wstring   query;
+    bool           parsed  = SearchQuery::TryParseId (GetLocation().path, scope, query);
+    bool           byName  = parsed && !SearchQuery::GetOptions (GetLocation().path).contents && !SearchQuery::GetNameWords (query).empty();
 
 
 
     if (renamed == nullptr || renamed->hostPath.empty())
     {
-        return;
+        return false;
+    }
+
+    //  A row whose new name no longer matches is removed, as in File Explorer.
+    if (byName && !SearchQuery::MatchesName (newName, SearchQuery::GetNameWords (query)))
+    {
+        m_rows.erase (m_rows.begin() + row);
+        m_selectedRows.clear();
+        return false;
     }
 
     oldPath           = renamed->hostPath;
@@ -1677,6 +1689,8 @@ void CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newNam
     renamed->label.clear();
     renamed->hostPath = (std::filesystem::path (oldPath).parent_path() / newName).wstring();
     renamed->shellId  = (renamed->shellId == oldPath) ? renamed->hostPath : renamed->shellId;
+
+    return true;
 }
 
 

@@ -132,24 +132,7 @@ void ExplorerListPane::Configure()
     m_list->SetPageSlideEnabled (true);
     m_list->SetClock (&CassoExplorerWindow::GetNowMs);
 
-    m_list->SetOnSelectionChanged ([this] (int)
-    {
-        m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
-
-        //  Automatic preview waits to see that this isn't a double-click's
-        //  first press, so an item being opened doesn't open the pane.
-        if (m_context.prefs.autoPreview && !m_context.prefs.previewVisible)
-        {
-            SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview, GetDoubleClickTime(), nullptr);
-        }
-        else
-        {
-            m_context.preview.FillPreview();
-        }
-
-        m_context.statusBar.Fill();
-        m_context.toolbars.UpdateCommandBar();
-    });
+    m_list->SetOnSelectionChanged ([this] (int) { OnSelectionChanged(); });
 
     m_list->SetView (m_columns.GetView());
     m_context.toolbars.ShowViewOnButton();
@@ -855,6 +838,58 @@ void ExplorerListPane::RefreshTip()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::OnSelectionChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::OnSelectionChanged()
+{
+    m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
+
+    //  Automatic preview waits to see that this isn't a double-click's first
+    //  press, so an item being opened doesn't open the pane.
+    if (m_context.prefs.autoPreview && !m_context.prefs.previewVisible)
+    {
+        SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview, GetDoubleClickTime(), nullptr);
+    }
+    else
+    {
+        m_context.preview.FillPreview();
+    }
+
+    m_context.statusBar.Fill();
+    m_context.toolbars.UpdateCommandBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::SetListSelection
+//
+//  The rows selected from a menu, as a click in the list selects them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::SetListSelection (std::vector<int> rows)
+{
+    int  anchor = rows.empty() ? -1 : rows.front();
+
+
+
+    m_list->SetSelectedRows (std::move (rows), anchor);
+    OnSelectionChanged();
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::FillList
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1003,8 +1038,11 @@ void ExplorerListPane::FillList()
     if (SearchQuery::IsId (m_listLocation.path) && m_columns.GetView() == DxuiListView::View::Details && count > 0
         && (m_fittedSearch != m_listLocation.path || m_fittedRows != count))
     {
-        m_fittedSearch = m_listLocation.path;
-        m_fittedRows   = count;
+        m_fittedSearch  = m_listLocation.path;
+        m_fittedRows    = count;
+
+        //  The folder the search left is fitted again when the search closes.
+        m_grownLocation = Location();
 
         for (size_t column = 0; column < m_columns.GetChosen().size(); column++)
         {

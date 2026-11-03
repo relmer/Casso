@@ -333,9 +333,15 @@ void ExplorerFileOps::EndRename (bool commit)
         //  would find the old one until the index catches up.
         if (SUCCEEDED (hr) && SearchQuery::IsId (m_context.browser.GetLocation().path))
         {
-            m_context.browser.RenameSearchRow (row, newName);
+            bool  kept = m_context.browser.RenameSearchRow (row, newName);
+
             m_context.listPane.FillList();
-            m_context.listPane.SelectRowNamed (newName);
+
+            if (kept)
+            {
+                m_context.listPane.SelectRowNamed (newName);
+            }
+
             return;
         }
 
@@ -1261,15 +1267,15 @@ const wchar_t * ExplorerFileOps::GetUndoLabel (UndoStep::Kind kind)
     switch (kind)
     {
         case UndoStep::Kind::Recycle:
-        case UndoStep::Kind::ImageDelete:    return L"&Undo delete";
+        case UndoStep::Kind::ImageDelete:    return L"&Undo Delete";
         case UndoStep::Kind::HostRename:
-        case UndoStep::Kind::ImageRename:    return L"&Undo rename";
+        case UndoStep::Kind::ImageRename:    return L"&Undo Rename";
         case UndoStep::Kind::HostNewFolder:
-        case UndoStep::Kind::ImageNewFolder: return L"&Undo new folder";
-        case UndoStep::Kind::HostNewItem:    return L"&Undo new";
+        case UndoStep::Kind::ImageNewFolder: return L"&Undo New Folder";
+        case UndoStep::Kind::HostNewItem:    return L"&Undo New";
         case UndoStep::Kind::HostCopy:
-        case UndoStep::Kind::ImagePut:       return L"&Undo copy";
-        case UndoStep::Kind::HostMove:       return L"&Undo move";
+        case UndoStep::Kind::ImagePut:       return L"&Undo Copy";
+        case UndoStep::Kind::HostMove:       return L"&Undo Move";
         default:                             return L"&Undo";
     }
 }
