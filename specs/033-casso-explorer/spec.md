@@ -510,7 +510,7 @@ hardware.
 
 ### Session 2026-11-01
 
-- Q: Can a Full Send's images have a file name prefix, as ADTPro's batch mode does? -> A: Yes. It is set on Options' Full Send page, because FR-113 rules out typing on the Apple. It goes before the sequence number exactly as typed, so the user chooses any separator.
+- Q: Can a Full Send's images have a file name prefix, as ADTPro's batch mode does? -> A: Yes. It is typed on the Apple, as ADTPro takes a file name there: P on the entry screen or in a pause opens a line for it, and the last one typed is the next session's. It goes before the sequence number exactly as typed, so the user chooses any separator.
 - Q: Why was a Full Send slower per disk than ADTPro's batch mode, and what changed? -> A: One drive's disk took 42 track reads against ADTPro's 35: a check of two tracks read twice each before the disk, the catalog track read again after it, and another check of the same drive. A track read whole now counts as one read, and a drive whose disk was just sent is not checked again before the pause, which is 36 reads. The check is required to separate a new disk from a repeat, and the whole-disk read skips its tracks.
 - Q: Where is the link to a Full Send's images? -> A: A Full Send row directly under CassoLink, a peer of the connections, in the list and the tree, once the folder exists, because every connection writes to the same folder. It opens the folder.
 - Q: Which connections start at launch, and what happens when two use one port? -> A: An ADTPro-compatible server doesn't start by default. Its list has its folder and help, with a floating Start server button over the list, as Bootstrap the Apple has. Other connections start at launch, except one the user disconnected, an any-port serial connection with no port that has connected to an Apple, and a Wi-Fi listener the firewall doesn't allow. On a shared port the most recent choice takes the port: starting or creating a connection disconnects the others on that port, each with its reason and a Connect button. A running transfer is never interrupted.
@@ -546,6 +546,13 @@ hardware.
 
 - Q: Which disk image formats have metadata to edit? -> A: Only WOZ, among the formats Casso writes: its INFO chunk and its optional META chunk. .dsk, .do, .po, .nib and .nb2 have no header at all, and .2mg, which Casso does not write, has a creator and a comment. A WOZ image's Properties get a page that edits INFO's write protection, boot sector format, compatible hardware and required RAM, and META's standard keys (title, subtitle, publisher, developer, copyright, version, language, requires_ram, requires_machine, notes, side, side_name, contributor, image_date), saved into the image in place. INFO's creator is set by the program that writes the image and is shown, not edited.
 - Q: Which order does an automatic Full Send use for Apple Pascal and CP/M disks? -> A: .po for Apple Pascal, whose blocks are in ProDOS's interleave, and .dsk for CP/M, which applies its own skew on top of DOS order.
+
+### Session 2026-11-03
+
+- Q: Where is a Full Send's file name prefix set? -> A: On the Apple, as ADTPro takes a file name there, not in Casso Explorer's Options. P on the entry screen or in a pause opens a line; the last prefix typed is the next session's.
+- Q: What is on the Apple's screen for a disk that may already have been sent? -> A: DUPE OF and the matching file, with a ?, as the fingerprint compares only a few tracks. A drive's number sends it anyway, and the image is written with the next sequence number even when it is an exact copy. A disk whose whole-disk hash matches an earlier image, with no key, reads DUPE OF and that file with no ?.
+- Q: Is there a log of what crossed the wire? -> A: Yes: a file a day under Casso's Logs folder with each connection's activity and every packet, for finding out afterward what a session did.
+- Q: Do Details columns narrow as well as widen? -> A: Yes, in a folder with no widths the user set; a folder with any opens with them.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2034,7 +2041,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
   without reading a disk, and Space MUST begin. The screen MUST explain V, and MUST
   have REMOVE THE CASSOLINK DISK unless this session bootstrapped the Apple.
   Casso Explorer's Options MUST have a Full Send page with the destination folder,
-  a file name prefix and the image format: any format Casso writes, defaulting to
+  and the image format: any format Casso writes, defaulting to
   .po for a ProDOS or Apple Pascal disk and .dsk for any other, CP/M included. The default folder MUST be
   `Casso Full Send` under the user's Downloads, made when a session needs it. No
   command on the PC starts a session. F during another operation MUST start the
@@ -2056,14 +2063,16 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-111**: An image whose whole-disk hash matches an earlier image in the
   folder's manifest MUST be discarded, unless it was sent with its drive's number, and the manifest MUST list it as a duplicate of
   that image. The drive's row MUST read DUPE OF and that image's file. A duplicate MUST have a manifest row and a sequence number, so the numbers match the disks fed in.
-- **FR-112**: An image's file name MUST begin with the prefix from Options, as
+- **FR-112**: An image's file name MUST begin with the prefix typed on the Apple, as
   typed and with characters a file name cannot have replaced, then the session's sequence
   number, followed by the volume name on ProDOS or Apple Pascal, or the
   first program's name on DOS 3.3. With no name in the catalog,
   the prefix and sequence number MUST be the whole name. An existing file MUST NOT be
   overwritten.
-- **FR-113**: A Full Send MUST NOT accept a label typed on the Apple. Images
-  MUST be renamed on the PC.
+- **FR-113**: A Full Send MUST accept no label typed on the Apple but the file name
+  prefix. P on its entry screen or in a pause MUST open a line for it, where Return takes
+  it, Esc puts back the prefix before, and Left arrow or Delete erases a letter. The last
+  prefix typed MUST begin each file name in the next session. Images MUST be renamed on the PC.
 - **FR-114**: The session MUST write a manifest to the destination folder,
   updated after each disk: each image's file name, drive, fingerprint, hash, time,
   unreadable sector count, whether it is a duplicate, its verification and its
@@ -2099,6 +2108,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-131**: The tree MUST animate a connection's icon and the receiving folder during a transfer, and MUST badge the Full Send and ADTPro folders with a count of received files not yet rendered in the list, across restarts.
 - **FR-132**: Casso Explorer MUST read and write Apple Pascal and CP/M 140K disks, on images and over CassoLink. CP/M detection MAY be heuristic, with a manual choice.
 - **FR-133**: A WOZ image's Properties MUST have a page that edits its INFO and META fields, as in Session 2026-11-02, and saves them into the image in place.
+- **FR-134**: Casso Explorer MUST append every CassoLink connection's activity and each packet sent and received to `CassoLink-<date>.log` under Casso's Logs folder in local app data, a file a day, and MUST delete a log older than 30 days.
+- **FR-135**: A folder in Details view with no column width the user set MUST fit each column but Name to its values, wider or narrower, measuring every row up to 500 and the rows on screen past that. A width the user set by dragging or fitting a column MUST be the folder's from then on, and an automatic fit MUST NOT be saved as one.
 
 ### Key Entities
 
