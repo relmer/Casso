@@ -2385,7 +2385,17 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Wheel:
-        if (ev.shift && m_noWrap)
+        //  The horizontal wheel's positive turn is to the right, the
+        //  opposite of the Shift+wheel's, and wrapped text doesn't scroll
+        //  sideways at all.
+        if (ev.wheelHorizontal)
+        {
+            if (m_noWrap)
+            {
+                SetLeftColumn (m_leftColumn + (int) (ev.wheelDelta * (float) kWheelColumns));
+            }
+        }
+        else if (ev.shift && m_noWrap)
         {
             SetLeftColumn (m_leftColumn + (int) (-ev.wheelDelta * (float) kWheelColumns));
         }

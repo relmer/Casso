@@ -184,6 +184,38 @@ public:
     }
 
 
+    //  The horizontal wheel scrolls sideways, a turn to the right toward the
+    //  line's end, and the top line stays the same.
+    TEST_METHOD (TheHorizontalWheelScrollsSideways)
+    {
+        DxuiTextView    view;
+        std::vector<DxuiTextView::Row>  rows;
+        DxuiMouseEvent  ev;
+
+
+
+        LayOut (view, 200, 100);
+        view.SetNoWrap (true);
+
+        for (int i = 0; i < 40; i++)
+        {
+            rows.push_back (MakeRow ({ L"A", std::wstring (200, L'x') }));
+        }
+
+        view.SetRows (std::move (rows));
+        view.SetTopLine (5);
+
+        ev.kind            = DxuiMouseEventKind::Wheel;
+        ev.positionDip     = POINT { 100, 20 };
+        ev.wheelDelta      = 1.0f;
+        ev.wheelHorizontal = true;
+        (void) view.OnMouse (ev);
+
+        Assert::IsTrue   (view.GetLeftColumn() > 0, L"along the line");
+        Assert::AreEqual (5, view.GetTopLine(), L"not down the lines");
+    }
+
+
     TEST_METHOD (Drag_SelectsFromTheCharacterPressedToTheOneReleased)
     {
         DxuiTextView  view;
