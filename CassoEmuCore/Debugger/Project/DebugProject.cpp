@@ -173,18 +173,23 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
 
 
 
-    for (const SymbolFile & file : symbolFiles)
+    //  A load replaces its table, so of a table's files only the last is
+    //  loaded; a project saved before that listed every file a table had
+    //  ever been loaded from. A BASIC program an earlier Casso loaded as
+    //  symbols is passed over. Either way, the next save drops them.
+    for (size_t i = 0; i < symbolFiles.size(); i++)
     {
-        bool  isLoaded = std::ranges::any_of (session.GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
+        const SymbolFile  & file     = symbolFiles[i];
+        auto                isUsable = [] (const SymbolFile & each) { return !SymbolHandlers::IsBasicListing (TextEncoding::WideToNarrow (each.path), std::string()); };
+        bool                isLater  = std::any_of (symbolFiles.begin() + (std::ptrdiff_t) i + 1, symbolFiles.end(), [&] (const SymbolFile & each) { return each.table == file.table && isUsable (each); });
+        bool                isLoaded = std::ranges::any_of (session.GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
         {
             return load.table == file.table && load.path == file.path;
         });
 
 
 
-        //  A BASIC program an earlier Casso loaded as symbols is passed
-        //  over, so the next save drops it from the project.
-        if (!isLoaded && !SymbolHandlers::IsBasicListing (TextEncoding::WideToNarrow (file.path), std::string()))
+        if (!isLoaded && !isLater && isUsable (file))
         {
             run (std::format ("SYM{} LOAD \"{}\",{:04X}", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (file.table)),
                               TextEncoding::WideToNarrow (file.path), file.offset));

@@ -1079,11 +1079,15 @@ void DebugSession::ExecuteAssemblyLine (const std::string & line, Reply & reply)
 //
 //  DebugSession::NoteSymbolLoad
 //
+//  A load replaces its table's symbols, so it replaces the table's earlier
+//  load too. Otherwise every file ever loaded into the table was replayed
+//  in turn, and one passed over as loaded was replaced by an earlier one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::NoteSymbolLoad (SymbolTableId table, const std::wstring & path, int offset)
 {
-    std::erase_if (m_symbolLoads, [&] (const SymbolLoad & load) { return load.table == table && load.path == path; });
+    std::erase_if (m_symbolLoads, [&] (const SymbolLoad & load) { return load.table == table; });
     m_symbolLoads.push_back ({ table, path, offset });
 }
 
