@@ -757,6 +757,13 @@ public:
     //
     static bool  NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest);
 
+    //  The back buffers' extent for a client extent: a quarter more, and at
+    //  least kBufferSparePx more, in steps of 64. They are resized when the
+    //  client outgrows them or they are over twice its extent.
+    static UINT  GetBufferExtent    (UINT clientPx);
+    static bool  IsBufferResizeDue  (SIZE buffersPx, UINT widthPx, UINT heightPx);
+    static constexpr UINT  kBufferSparePx = 256;
+
 private:
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 

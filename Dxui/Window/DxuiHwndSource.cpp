@@ -3934,13 +3934,52 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetBufferExtent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiHwndSource::GetBufferExtent (UINT clientPx)
+{
+    UINT  spare = (std::max) (clientPx / 4, kBufferSparePx);
+
+
+
+    return (clientPx + spare + 63u) & ~63u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBufferResizeDue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::IsBufferResizeDue (SIZE buffersPx, UINT widthPx, UINT heightPx)
+{
+    bool  isOutgrown = (LONG) widthPx > buffersPx.cx || (LONG) heightPx > buffersPx.cy;
+    bool  isTooLarge = buffersPx.cx > (LONG) GetBufferExtent (widthPx) * 2 || buffersPx.cy > (LONG) GetBufferExtent (heightPx) * 2;
+
+
+
+    return isOutgrown || isTooLarge;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleSize
 //
 //  Resizes the swap chain, relayouts the panel tree, and re-renders -- the
 //  host-side counterpart to a client's own OnSize.
 //
-//  The explicit width and height from WM_SIZE are passed to ResizeBuffers
-//  rather than the usual (0, 0) "inherit from the window". A COMPOSITION swap
+//  Explicit widths and heights are passed to ResizeBuffers rather than the
+//  usual (0, 0) "inherit from the window". A COMPOSITION swap
 //  chain has no window to inherit from and fails outright with "a non-zero
 //  Width and Height must be specified for Composition SwapChains" -- and since
 //  passing the real size also works for an HWND swap chain, one call serves
@@ -3988,13 +4027,27 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     // pass the explicit WM_SIZE client size instead -- which also works for the
     // hwnd swap chain. A zero extent (e.g. SIZE_MINIMIZED) is skipped so the
     // buffers keep their last valid size.
+    //
+    //  THE BUFFERS GROW WITH ROOM TO SPARE, and shrink only once the window
+    //  is well inside them. The compositor composes a window at its new size
+    //  before the frame drawn for that size arrives, and the edge a drag
+    //  exposes was black, or the desktop, until the frame arrived. In
+    //  a buffer larger than the window, that edge has the last frame's
+    //  background, which the clear filled to the buffer's edges, and most
+    //  steps of a drag skip ResizeBuffers and its stall.
+    //
     if (m_swapChain && widthPx > 0 && heightPx > 0)
     {
-        ReleaseBackBufferRtv();
-        (void) m_swapChain->ResizeBuffers (0, widthPx, heightPx, DXGI_FORMAT_UNKNOWN, 0);
+        SIZE  have = GetBackBufferSizePx();
 
-        hr = CreateBackBufferRtv();
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        if (IsBufferResizeDue (have, widthPx, heightPx))
+        {
+            ReleaseBackBufferRtv();
+            (void) m_swapChain->ResizeBuffers (0, GetBufferExtent (widthPx), GetBufferExtent (heightPx), DXGI_FORMAT_UNKNOWN, 0);
+
+            hr = CreateBackBufferRtv();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 
     if (m_root != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
