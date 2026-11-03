@@ -1557,6 +1557,15 @@ void DebuggerWindow::KeepOpenViews()
             RunAction (reopen);
         }
 
+        //  A tool or BASIC pane open at the last close is on screen again
+        //  after a layout; without one it stayed hidden until the next.
+        if (!m_basicOpened.empty())
+        {
+            m_floating->MarkSyncNeeded();
+            m_dockSite->Relayout();
+            SetWindowMenus();
+        }
+
         return;
     }
 

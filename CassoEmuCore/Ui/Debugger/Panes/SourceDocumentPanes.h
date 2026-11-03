@@ -164,17 +164,18 @@ private:
     void                             Restore        (const DebuggerViewSnapshot & snapshot);
     int                              GetSlotAt      (POINT atDip) const;
 
-    IDebuggerPaneHost                         & m_host;
-    std::vector<SourceDocumentPane *>           m_documents;
-    SourceDocuments                             m_files;
-    std::vector<SourceDocuments::Saved>         m_saved;
-    std::wstring                                m_loadedFor;
-    std::pair<int, int>                         m_pcPlace      = { -1, 0 };
-    int                                         m_macroLevel   = 0;
-    int                                         m_activeSlot   = 0;
-    std::map<int, std::wstring>                 m_looseFiles;
-    int                                         m_nextLooseId  = kFirstLooseFileId;
-    std::wstring                                m_pendingLoose;
-    uint64_t                                    m_clickMs      = 0;
-    POINT                                       m_clickAt      = {};
+    IDebuggerPaneHost                    & m_host;
+    std::vector<SourceDocumentPane *>      m_documents;
+    SourceDocuments                        m_files;
+    std::vector<SourceDocuments::Saved>    m_saved;
+    std::wstring                           m_loadedFor;
+    std::pair<int, int>                    m_pcPlace       = { -1, 0 };
+    bool                                   m_hasFollowedPc = false;   // the PC's file has come forward at a stop
+    int                                    m_macroLevel    = 0;
+    int                                    m_activeSlot    = 0;
+    std::map<int, std::wstring>            m_looseFiles;
+    int                                    m_nextLooseId   = kFirstLooseFileId;
+    std::wstring                           m_pendingLoose;
+    uint64_t                               m_clickMs       = 0;
+    POINT                                  m_clickAt       = {};
 };

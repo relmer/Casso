@@ -539,6 +539,9 @@ void SourceDocumentGroup::Apply()
 //  screen.
 //  A running machine moves nothing, so the documents do not churn under it.
 //
+//  The first stop after the window opens only opens the file, so the tabs
+//  the layout put in front when it was restored stay in front.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
@@ -554,7 +557,8 @@ void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
     }
 
     m_pcPlace = place;
-    Open (place.first, 0, true);
+    Open (place.first, 0, m_hasFollowedPc);
+    m_hasFollowedPc = true;
 }
 
 

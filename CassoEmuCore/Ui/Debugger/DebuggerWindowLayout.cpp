@@ -1382,18 +1382,33 @@ void DebuggerWindow::OnWindowFocusChanged (bool focused)
 //  the window losing the accent repaints without it in the same message
 //  rather than at its next frame paint, up to kIdlePaintMs later.
 //
+//  The pane with the focus is saved as the focus moves to it, once the focus
+//  saved last time has been placed, so the focus comes back to it however
+//  Casso is closed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ShowFocusAccent()
 {
+    std::wstring  focused;
+
+
+
     if (m_dockSite == nullptr || m_theme == nullptr)
     {
         return;
     }
 
-    m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? GetPaneOfFocus() : std::wstring());
+    focused = GetPaneOfFocus();
+    m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? focused : std::wstring());
 
     m_floating->SetFocusedLooks (m_accentOwner.GetFocusedFloat(), *m_theme);
+
+    if (!m_isOpeningFocusDue && !m_openingFocus.IsPending() && !focused.empty() && focused != m_savedFocusPane)
+    {
+        m_savedFocusPane = focused;
+        SaveFocusedPane();
+    }
 }
 
 

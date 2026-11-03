@@ -799,6 +799,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     FocusAccentOwner                             m_accentOwner;
     bool                                         m_isOpeningFocusDue      = true;
     OpeningFocusDeferral                         m_openingFocus;
+    std::wstring                                 m_savedFocusPane;                   // the pane last saved as having the focus
     StopFocus                                    m_stopFocus;
     uint32_t                                     m_shownPaneSerial        = 0;
     bool                                         m_isHeatMapRecording     = false;

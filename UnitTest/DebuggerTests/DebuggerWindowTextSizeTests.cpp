@@ -127,6 +127,7 @@ namespace DebuggerTests
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetCodeGroup;
         using DebuggerWindow::ShowPane;
+        using DebuggerWindow::OnWindowFocusChanged;
 
         //  A key as the window's message handling delivers it: to the window
         //  first, then to the key scheme if nothing took it.
@@ -988,6 +989,63 @@ namespace DebuggerTests
             window.FocusControl (window.GetWatchesPane().GetList());
             window.Press ('Z', true);
             Assert::AreEqual (sent, host.commands.size(), L"another machine's value is not written into this one");
+        }
+
+
+        //  The pane with the focus is saved as the focus moves to it, not
+        //  only when the debugger's window closes, so it is saved when Casso
+        //  is closed from the emulator's window too.
+        TEST_METHOD (TheFocusedPaneIsSavedAsTheFocusMoves)
+        {
+            class FocusHost : public QuietDebuggerHost
+            {
+            public:
+                void  SetDebuggerFocusedPane (const std::string & pane) override { saved = pane; }
+
+                std::string  saved;
+            };
+
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            FocusHost        host;
+            TextSizeWindow   window (theme, host);
+
+
+
+            Build (window);
+            window.FocusControl (window.GetWatchesPane().GetList());
+            window.OnWindowFocusChanged (true);
+            Assert::AreEqual (std::string ("watches"), host.saved);
+
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
+            window.OnWindowFocusChanged (true);
+            Assert::AreEqual (std::string ("console"), host.saved);
+        }
+
+
+        //  A tool pane open when the window last closed is on screen again
+        //  once the first snapshot has restored the open views.
+        TEST_METHOD (AToolPaneOpenAtTheLastCloseIsOnScreenAgain)
+        {
+            class OpenViewsHost : public QuietDebuggerHost
+            {
+            public:
+                std::string  GetDebuggerOpenViews() override { return "open=symbols"; }
+            };
+
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            OpenViewsHost    host;
+            TextSizeWindow   window (theme, host);
+            IDxuiControl   * content = nullptr;
+
+
+
+            Build (window);
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot>());
+
+            content = window.GetDockSite()->GetPaneContent (DebuggerLayout::kSymbols);
+            Assert::IsTrue    (window.IsPaneShown (DebuggerLayout::kSymbols), L"open");
+            Assert::IsNotNull (content);
+            Assert::IsTrue    (content->IsVisible(), L"and on screen");
         }
 
 
