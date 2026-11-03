@@ -657,7 +657,7 @@ std::string ProfileRoutineEntry::GetTipHead() const
 
 std::string ProfileData::GetTopLevelTip() const
 {
-    std::string  tip = "Top level: the cycles in code that no JSR in the period called, such as code entered by a jump, "
+    std::string  tip = "Top level: the cycles in code that wasn't called by a JSR in the period, such as code entered by a jump, "
                        "a reset or an interrupt: the boot ROM, a program's main loop, or BASIC's loop that runs each statement.";
 
 
