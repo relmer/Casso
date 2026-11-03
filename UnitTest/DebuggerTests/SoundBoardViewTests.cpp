@@ -275,6 +275,76 @@ namespace DebuggerTests
         }
 
 
+        //  After a paint, each part has a separate tip: an R13 bit, what it
+        //  does, and a register, its name and value.
+        TEST_METHOD (EachPaintedPartHasATipOfItsOwn)
+        {
+            SoundBoardView         view;
+            DiagnosticsSoundBoard  board   = MakeBoard (false);
+            MockDxuiPainter        painter;
+            MockDxuiTextRenderer   text;
+            CassoTheme             theme   = CassoTheme::MakeSkeuomorphic();
+            std::wstring           tip;
+            std::set<std::wstring> tips;
+            RECT                   bounds  = {};
+
+
+
+            board.halves[0].psg.envelopeRegister = 0x0E;
+            board.halves[0].psg.registers[7]     = 0x38;
+            LayOut (view);
+            view.SetBoard (board);
+            view.Paint (painter, text, theme);
+            bounds = view.GetBounds();
+
+            for (int y = bounds.top; y < bounds.bottom; y += 4)
+            {
+                for (int x = bounds.left; x < bounds.right; x += 4)
+                {
+                    if (view.TryGetTipAt ({ x, y }, tip))
+                    {
+                        tips.insert (tip);
+                    }
+                }
+            }
+
+            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"ALT, alternate"); }), L"the ALT bit");
+            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"R7 = $38 (56): the mixer"); }), L"the mixer's register");
+            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"ACR, auxiliary control"); }), L"the 6522's ACR");
+            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"Channel A's output"); }), L"channel A's scope");
+        }
+
+
+        //  The dot is where the envelope is along its picture's ramps: on a
+        //  repeating triangle, the second ramp falls, so a high level there is
+        //  near the ramp's start; an envelope stopped at its end is at the
+        //  right.
+        TEST_METHOD (TheEnvelopesDotFollowsItAlongTheRamps)
+        {
+            DiagnosticsSoundPsg  psg;
+
+
+
+            psg.envelopeRegister = 0x0E;    // CONT, ATT, ALT: a triangle rising first
+            psg.envelopeRamps    = 0;
+            psg.envelopeLevel    = 15;
+            Assert::AreEqual (0.25f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"the top of the first ramp");
+
+            psg.envelopeRamps = 1;
+            psg.envelopeLevel = 15;
+            Assert::AreEqual (0.25f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"the start of the falling second ramp");
+
+            psg.envelopeLevel = 0;
+            Assert::AreEqual (0.50f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"the bottom of the second ramp");
+
+            psg.envelopeRamps = 5;
+            Assert::AreEqual (0.50f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"ramps after the fourth wrap around the picture");
+
+            psg.isEnvelopeHeld = true;
+            Assert::AreEqual (1.0f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"a stopped level at the right");
+        }
+
+
         TEST_METHOD (ABoardThatFitsDoesNotScroll)
         {
             SoundBoardView  view;

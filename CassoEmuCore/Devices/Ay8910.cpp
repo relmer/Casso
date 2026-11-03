@@ -443,11 +443,13 @@ void Ay8910::StepEnvelope()
         // Ramp complete, one-shot: park at 0 and hold.
         m_envLevel   = 0;
         m_envHolding = true;
+        m_envRamps++;
     }
     else if (m_envHold)
     {
         // Ramp complete, hold at the end reached (ALTERNATE flips it once).
         m_envHolding = true;
+        m_envRamps++;
 
         if (m_envAlt)
         {
@@ -458,11 +460,13 @@ void Ay8910::StepEnvelope()
     {
         // ALTERNATE: reverse direction for the next ramp.
         m_envDirUp = !m_envDirUp;
+        m_envRamps++;
     }
     else
     {
         // Repeat: jump back to the start of the ramp.
         m_envLevel = m_envDirUp ? 0 : kMaxEnvLevel;
+        m_envRamps++;
     }
 }
 
@@ -487,6 +491,7 @@ void Ay8910::RestartEnvelope (Byte shape)
     m_envHold    = (shape & kEnvHold)      != 0;
 
     m_envHolding = false;
+    m_envRamps   = 0;
     m_envDirUp   = m_envAttack;
     m_envLevel   = m_envDirUp ? 0 : kMaxEnvLevel;
     m_envCounter = 2 * GetEnvPeriod();
@@ -787,6 +792,8 @@ void Ay8910::AppendSoundBoard (DiagnosticsSoundPsg & out) const
     out.envelopeRegister = m_regs[kRegEnvShape];
     out.envelopePeriod   = GetEnvPeriod();
     out.envelopeLevel    = m_envLevel;
+    out.envelopeRamps    = m_envRamps;
+    out.isEnvelopeHeld   = m_envHolding;
     out.envelopeRampMs   = kEnvelopeDivisor * out.envelopePeriod / m_clockHz * kMsPerSecond;
     out.noisePeriod      = GetNoisePeriod();
     out.noiseHz          = m_clockHz / (kToneDivisor * out.noisePeriod);
@@ -795,6 +802,8 @@ void Ay8910::AppendSoundBoard (DiagnosticsSoundPsg & out) const
     out.hasLastWrite     = m_hasLastWrite;
     out.lastWriteReg     = m_lastWriteReg;
     out.lastWriteValue   = m_lastWriteValue;
+
+    std::copy (std::begin (m_regs), std::end (m_regs), out.registers.begin());
 
     if (m_scope.empty())
     {

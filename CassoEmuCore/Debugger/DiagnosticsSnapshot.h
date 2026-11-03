@@ -135,6 +135,12 @@ struct DiagnosticsSoundPsg
     Byte      envelopeRegister = 0;
     int       envelopePeriod   = 0;
     int       envelopeLevel    = 0;      // 0 to 15
+
+    //  The ramps the envelope finished since R13 was written, and whether it
+    //  stopped at its last level; the two place the level on its picture.
+    int       envelopeRamps    = 0;
+    bool      isEnvelopeHeld   = false;
+
     double    envelopeRampMs   = 0.0;
     int       noisePeriod      = 0;
     double    noiseHz          = 0.0;
@@ -143,6 +149,9 @@ struct DiagnosticsSoundPsg
     bool      hasLastWrite     = false;
     Byte      lastWriteReg     = 0;
     Byte      lastWriteValue   = 0;
+
+    //  R0 to R15 as written.
+    std::array<Byte, 16>  registers = {};
 };
 
 struct DiagnosticsSoundVia

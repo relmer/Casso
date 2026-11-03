@@ -209,4 +209,9 @@ protected:
     bool     m_envAttack  = false;
     bool     m_envAlt     = false;
     bool     m_envHold    = false;
+
+    //  The ramps finished since R13 was written, for the debugger's
+    //  picture of the envelope only; not saved, since nothing the machine
+    //  does depends on it.
+    int      m_envRamps   = 0;
 };

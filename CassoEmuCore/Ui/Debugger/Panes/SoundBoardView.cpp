@@ -6,6 +6,7 @@
 #include "Devices/Ay8910.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/Panes/SoundBoardLayout.h"
+#include "Ui/Debugger/Panes/SoundBoardTips.h"
 
 
 
@@ -418,7 +419,8 @@ void SoundBoardView::BuildVoiceRegions (const DiagnosticsSoundVoice & voice, con
 //
 //  SoundBoardView::TryGetTipAt
 //
-//  A mute's region comes ahead of the larger region around it.
+//  A mute's region comes ahead of the parts the last paint drew, and those
+//  ahead of the larger regions around them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -429,18 +431,45 @@ bool SoundBoardView::TryGetTipAt (POINT clientPx, std::wstring & outTip) const
         return false;
     }
 
-    for (const Region & region : m_regions)
+    for (bool isMute : { true, false })
     {
-        RECT  placed = ToClient (region.rect);
-
-        if (PtInRect (&placed, clientPx))
+        for (const Region & region : m_regions)
         {
-            outTip = region.tip;
-            return true;
+            RECT  placed = ToClient (region.rect);
+
+            if ((region.muteChannel >= 0) == isMute && PtInRect (&placed, clientPx))
+            {
+                outTip = region.tip;
+                return true;
+            }
+        }
+
+        for (const Spot & spot : m_spots)
+        {
+            if (isMute && PtInRect (&spot.rect, clientPx))
+            {
+                outTip = spot.tip;
+                return true;
+            }
         }
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::AddSpot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::AddSpot (const Painting & p, const RECT & rect, std::wstring tip)
+{
+    p.spots.push_back ({ rect, std::move (tip) });
 }
 
 
@@ -650,9 +679,11 @@ void SoundBoardView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     Painting          p            = { painter, text, theme,
                                        Mix (background, kBlack, DebuggerTextColors::IsDark (background) ? kScreenDark : kScreenLight),
                                        Mix (theme.ContentBackground(), theme.Foreground(), kCardLift),
-                                       theme.ContentEdge() };
+                                       theme.ContentEdge(), m_spots };
 
 
+
+    m_spots.clear();
 
     if (!m_visible)
     {
@@ -922,40 +953,42 @@ void SoundBoardView::PaintScope (const Painting & p, const std::vector<float> & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundChannel & channel, const RECT & row, int index, int muteChannel) const
+void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & row, int index, int muteChannel) const
 {
     static constexpr const wchar_t * kNames[]    = { L"A", L"B", L"C" };
-    constexpr int     kNoteDip     = 98;
-    constexpr int     kSourceDip   = 18;
-    constexpr int     kMeterDip    = 118;
-    constexpr int     kGapPartDip  = 8;
-    constexpr int     kNoteRowDip  = 22;
-    constexpr float   kMuteMix     = 0.65f;
-    constexpr float   kPillRadius  = 4.0f;
-    constexpr float   kPillAlpha   = 0.16f;
-    constexpr float   kUnlitAlpha  = 0.18f;
-    constexpr int     kSegments    = 15;
-    constexpr float   kPeakDim     = 0.8f;
-    constexpr float   kSilentAlpha = 0.35f;
-    RECT              mute         = GetMuteOfChannel (row);
-    uint32_t          color        = channel.isMuted ? Mix (m_palette.channels[index], p.theme.ForegroundMuted(), kMuteMix) : m_palette.channels[index];
-    int               gap          = m_scaler.ToPx (kGapPartDip);
-    int               noteLeft     = mute.right + gap;
-    int               noteRight    = noteLeft + m_scaler.ToPx (kNoteDip);
-    int               sourceLeft   = noteRight + gap;
-    int               sourceRight  = sourceLeft + m_scaler.ToPx (kSourceDip);
-    int               meterLeft    = sourceRight + gap;
-    int               meterRight   = meterLeft + m_scaler.ToPx (kMeterDip);
-    int               middle       = (row.top + row.bottom) / 2;
-    int               source       = m_scaler.ToPx (kSourceDip);
-    float             radius       = m_scaler.ToPxf (kPillRadius);
-    std::wstring      note         = SoundBoardLayout::GetNoteText (channel.frequencyHz);
-    DxuiFontHandle    big          = p.theme.BodyBoldFont();
-    bool              isSilent     = channel.level == 0 || (!channel.isToneOn && !channel.isNoiseOn);
-    float             segmentWide  = (float) m_scaler.ToPx (kMeterDip) / (float) kSegments;
-    float             meterTop     = (float) middle + m_scaler.ToPxf (2.0f);
-    float             meterHigh    = m_scaler.ToPxf (12.0f);
-    float             peak         = (muteChannel < (int) m_peaks.size()) ? m_peaks[(size_t) muteChannel] : 0.0f;
+    const DiagnosticsSoundChannel  & channel      = psg.channels[(size_t) index];
+    Byte                             amplitude    = psg.registers[(size_t) (8 + index)];
+    constexpr int                    kNoteDip     = 98;
+    constexpr int                    kSourceDip   = 18;
+    constexpr int                    kMeterDip    = 118;
+    constexpr int                    kGapPartDip  = 8;
+    constexpr int                    kNoteRowDip  = 22;
+    constexpr float                  kMuteMix     = 0.65f;
+    constexpr float                  kPillRadius  = 4.0f;
+    constexpr float                  kPillAlpha   = 0.16f;
+    constexpr float                  kUnlitAlpha  = 0.18f;
+    constexpr int                    kSegments    = 15;
+    constexpr float                  kPeakDim     = 0.8f;
+    constexpr float                  kSilentAlpha = 0.35f;
+    RECT                             mute         = GetMuteOfChannel (row);
+    uint32_t                         color        = channel.isMuted ? Mix (m_palette.channels[index], p.theme.ForegroundMuted(), kMuteMix) : m_palette.channels[index];
+    int                              gap          = m_scaler.ToPx (kGapPartDip);
+    int                              noteLeft     = mute.right + gap;
+    int                              noteRight    = noteLeft + m_scaler.ToPx (kNoteDip);
+    int                              sourceLeft   = noteRight + gap;
+    int                              sourceRight  = sourceLeft + m_scaler.ToPx (kSourceDip);
+    int                              meterLeft    = sourceRight + gap;
+    int                              meterRight   = meterLeft + m_scaler.ToPx (kMeterDip);
+    int                              middle       = (row.top + row.bottom) / 2;
+    int                              source       = m_scaler.ToPx (kSourceDip);
+    float                            radius       = m_scaler.ToPxf (kPillRadius);
+    std::wstring                     note         = SoundBoardLayout::GetNoteText (channel.frequencyHz);
+    DxuiFontHandle                   big          = p.theme.BodyBoldFont();
+    bool                             isSilent     = channel.level == 0 || (!channel.isToneOn && !channel.isNoiseOn);
+    float                            segmentWide  = (float) m_scaler.ToPx (kMeterDip) / (float) kSegments;
+    float                            meterTop     = (float) middle + m_scaler.ToPxf (2.0f);
+    float                            meterHigh    = m_scaler.ToPxf (12.0f);
+    float                            peak         = (muteChannel < (int) m_peaks.size()) ? m_peaks[(size_t) muteChannel] : 0.0f;
 
 
 
@@ -980,10 +1013,16 @@ void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundCha
         PaintString (p, SoundBoardLayout::GetFrequencyText (channel.frequencyHz), { noteLeft, middle, noteRight, middle + m_scaler.ToPx (kNoteRowDip) }, p.theme.ForegroundMuted(), p.theme.CaptionFont());
     }
 
+    AddSpot (p, { noteLeft, row.top, noteRight, row.bottom }, SoundBoardTips::GetNote (index, channel));
+    AddSpot (p, { meterLeft, row.top, meterRight, row.bottom }, SoundBoardTips::GetLevel (index, channel, amplitude));
+    AddSpot (p, { meterRight + gap, row.top, row.right, row.bottom }, SoundBoardTips::GetScope (index));
+
     for (int s = 0; s < 2; s++)
     {
         bool  isOn = (s == 0) ? channel.isToneOn : channel.isNoiseOn;
         RECT  pill = { sourceLeft, middle - source + s * (source + 2), sourceRight, middle + s * (source + 2) };
+
+        AddSpot (p, pill, SoundBoardTips::GetSource (index, s == 1, channel, psg.mixer));
 
         p.painter.FillRoundedRect ((float) pill.left, (float) pill.top, (float) source, (float) source, radius, isOn ? WithAlpha (color, kPillAlpha * 2.0f) : WithAlpha (p.theme.ForegroundMuted(), kPillAlpha / 2.0f));
         PaintString (p, (s == 0) ? L"T" : L"N", pill, isOn ? color : p.theme.ForegroundDisabled(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
@@ -1015,7 +1054,8 @@ void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundCha
 //  SoundBoardView::PaintEnvelope
 //
 //  The envelope's level over its ramps, with its present level as a line
-//  across, its R13 bits, its ramp time and the noise frequency beside it.
+//  across and a dot where the envelope is along the ramps, its R13 bits, its
+//  ramp time and the noise frequency beside it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1056,11 +1096,16 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
 
     PaintTrace (p, points, color);
     p.painter.DrawLine (x + inset, markY, x + w - inset, markY, 1.0f, WithAlpha (p.theme.Foreground(), kMarkAlpha));
-    p.painter.FillCircle (x + w - inset, markY, m_scaler.ToPxf (3.0f), p.theme.Foreground());
+    p.painter.FillCircle (x + inset + GetEnvelopeMarkX (psg) * (w - 2.0f * inset), markY, m_scaler.ToPxf (3.0f), p.theme.Foreground());
 
     PaintValue (p, { textLeft, rect.top, textMiddle, rect.top + line }, L"Ramp", std::format (L"{:.1f} ms", psg.envelopeRampMs));
     PaintValue (p, { textMiddle, rect.top, rect.right, rect.top + line }, L"R13", std::format (L"${:02X} ({})", psg.envelopeRegister, psg.envelopeRegister));
     PaintValue (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, L"Noise", SoundBoardLayout::GetFrequencyText (psg.noiseHz));
+
+    AddSpot (p, { rect.left, rect.top, pictureRight, rect.bottom }, SoundBoardTips::GetEnvelopePicture (psg));
+    AddSpot (p, { textLeft, rect.top, textMiddle, rect.top + line }, SoundBoardTips::GetRamp (psg));
+    AddSpot (p, { textMiddle, rect.top, rect.right, rect.top + line }, SoundBoardTips::GetShape (psg));
+    AddSpot (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, SoundBoardTips::GetNoise (psg));
 
     for (int b = 0; b < 4; b++)
     {
@@ -1071,7 +1116,47 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
         p.painter.FillRoundedRect ((float) pill.left, (float) pill.top, (float) (pill.right - pill.left), (float) (pill.bottom - pill.top), m_scaler.ToPxf (kRadiusDip),
                                    isSet ? WithAlpha (color, kPillAlpha) : WithAlpha (p.theme.ForegroundMuted(), kPillAlpha / 3.0f));
         PaintString (p, kBits[b], pill, isSet ? color : p.theme.ForegroundDisabled(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
+        AddSpot     (p, pill, SoundBoardTips::GetShapeBit (b, psg.envelopeRegister));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::GetEnvelopeMarkX
+//
+//  Where the envelope is along its picture's four ramps, from 0 to 1: the
+//  ramp it is on, from the ramps finished since R13 was written, and how far
+//  along that ramp its level is. A level stopped at its end is at the
+//  picture's right, where its line runs on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float SoundBoardView::GetEnvelopeMarkX (const DiagnosticsSoundPsg & psg)
+{
+    constexpr float  kMaxLevel = 15.0f;
+    constexpr Byte   kAttack   = 0x04;
+    constexpr Byte   kAlt      = 0x02;
+    int              ramp      = psg.envelopeRamps % SoundBoardLayout::kEnvelopeRamps;
+    bool             isRising  = (psg.envelopeRegister & kAttack) != 0;
+
+
+
+    if (psg.isEnvelopeHeld)
+    {
+        return 1.0f;
+    }
+
+    //  With ALT, each ramp after the first runs the other way.
+    if ((psg.envelopeRegister & kAlt) != 0 && (ramp % 2) == 1)
+    {
+        isRising = !isRising;
+    }
+
+    return ((float) ramp + (isRising ? (float) psg.envelopeLevel : kMaxLevel - (float) psg.envelopeLevel) / kMaxLevel) / (float) SoundBoardLayout::kEnvelopeRamps;
 }
 
 
@@ -1099,33 +1184,76 @@ void SoundBoardView::PaintVia (const Painting & p, const DiagnosticsSoundHalf & 
     };
     auto                         hex      = [] (int value) { return std::format (L"${:02X}", value); };
     auto                         word     = [] (int value) { return std::format (L"${:04X}", value); };
+    auto                         field    = [&] (const RECT & at, const wchar_t * label, const std::wstring & value)
+    {
+        PaintValue (p, at, label, value);
+        AddSpot    (p, at, SoundBoardTips::GetVia (label, half));
+    };
+    auto                         lamp     = [&] (int x, const wchar_t * label, bool isOn)
+    {
+        PaintLamp (p, (float) (rect.left + x * wide), lampY, label, isOn, lit, (float) wide);
+        AddSpot   (p, { rect.left + x * wide, rect.top + 4 * row, rect.left + (x + 1) * wide, rect.top + 5 * row }, SoundBoardTips::GetVia (label, half));
+    };
 
 
 
     p.painter.DrawLine ((float) rect.left, (float) rect.top - 2.0f, (float) rect.right, (float) rect.top - 2.0f, 1.0f, p.edge);
 
-    PaintValue (p, cell (0, 0), L"Bus",    TextEncoding::NarrowToWide (half.busState));
-    PaintValue (p, cell (0, 1), L"Writes", std::format (L"{}", psg.writeCount));
-    PaintValue (p, cell (0, 2, 2), L"Last", psg.hasLastWrite ? std::format (L"R{}=${:02X}", psg.lastWriteReg, psg.lastWriteValue) : std::wstring (L"--"));
+    field (cell (0, 0),    L"Bus",    TextEncoding::NarrowToWide (half.busState));
+    field (cell (0, 1),    L"Writes", std::format (L"{}", psg.writeCount));
+    field (cell (0, 2, 2), L"Last",   psg.hasLastWrite ? std::format (L"R{}=${:02X}", psg.lastWriteReg, psg.lastWriteValue) : std::wstring (L"--"));
 
-    PaintValue (p, cell (1, 0), L"ORA",  hex (via.ora));
-    PaintValue (p, cell (1, 1), L"ORB",  hex (via.orb));
-    PaintValue (p, cell (1, 2), L"DDRA", hex (via.ddra));
-    PaintValue (p, cell (1, 3), L"DDRB", hex (via.ddrb));
+    field (cell (1, 0), L"ORA",  hex (via.ora));
+    field (cell (1, 1), L"ORB",  hex (via.orb));
+    field (cell (1, 2), L"DDRA", hex (via.ddra));
+    field (cell (1, 3), L"DDRB", hex (via.ddrb));
 
-    PaintValue (p, cell (2, 0), L"ACR", hex (via.acr));
-    PaintValue (p, cell (2, 1), L"PCR", hex (via.pcr));
-    PaintValue (p, cell (2, 2), L"IFR", hex (via.ifr));
-    PaintValue (p, cell (2, 3), L"IER", hex (via.ier));
+    field (cell (2, 0), L"ACR", hex (via.acr));
+    field (cell (2, 1), L"PCR", hex (via.pcr));
+    field (cell (2, 2), L"IFR", hex (via.ifr));
+    field (cell (2, 3), L"IER", hex (via.ier));
 
-    PaintValue (p, cell (3, 0), L"T1",    word (via.t1Count));
-    PaintValue (p, cell (3, 1), L"Latch", word (via.t1Latch));
-    PaintValue (p, cell (3, 2), L"T2",    word (via.t2Count));
-    PaintValue (p, cell (3, 3), L"Rate",  (via.t1RateHz > 0.0) ? SoundBoardLayout::GetFrequencyText (via.t1RateHz) : std::wstring (L"--"));
+    field (cell (3, 0), L"T1",    word (via.t1Count));
+    field (cell (3, 1), L"Latch", word (via.t1Latch));
+    field (cell (3, 2), L"T2",    word (via.t2Count));
+    field (cell (3, 3), L"Rate",  (via.t1RateHz > 0.0) ? SoundBoardLayout::GetFrequencyText (via.t1RateHz) : std::wstring (L"--"));
 
-    PaintLamp (p, (float) rect.left,            lampY, L"Run",    via.isRunning, lit, (float) wide);
-    PaintLamp (p, (float) (rect.left + wide),   lampY, L"Fired",  via.isFired,   lit, (float) wide);
-    PaintLamp (p, (float) (rect.left + 2 * wide), lampY, L"T1 IRQ", via.isT1Irq, lit, (float) wide);
+    lamp (0, L"Run",    via.isRunning);
+    lamp (1, L"Fired",  via.isFired);
+    lamp (2, L"T1 IRQ", via.isT1Irq);
+
+    PaintRegisters (p, psg, { rect.left, rect.top + 5 * row, rect.right, rect.top + 7 * row });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::PaintRegisters
+//
+//  The AY's sixteen registers as written, in two rows of eight, so a value a
+//  program sets can be found by its number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::PaintRegisters (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const
+{
+    constexpr int  kPerRow  = 8;
+    constexpr int  kNameDip = 28;
+    int            row      = (rect.bottom - rect.top) / 2;
+    int            wide     = (rect.right - rect.left) / kPerRow;
+
+
+
+    for (int r = 0; r < SoundBoardTips::kRegisterCount; r++)
+    {
+        RECT  at = { rect.left + (r % kPerRow) * wide, rect.top + (r / kPerRow) * row, rect.left + (r % kPerRow + 1) * wide, rect.top + (r / kPerRow + 1) * row };
+
+        PaintValue (p, at, std::format (L"R{}", r), std::format (L"{:02X}", psg.registers[(size_t) r]), kNameDip);
+        AddSpot    (p, at, SoundBoardTips::GetRegister (r, psg.registers[(size_t) r]));
+    }
 }
 
 
@@ -1151,10 +1279,11 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
 
     PaintCard (p, card, std::format (L"AY #{}", half.index + 1), std::format (L"6522 #{}, slot {}, ${:04X}", half.index + 1, m_board.slot, half.baseAddress));
     PaintLamp (p, lampX, lampY, L"IRQ", half.via.isIrq, p.theme.ErrorForeground(), (float) m_scaler.ToPx (kLampDip));
+    AddSpot   (p, { (long) lampX, card.top + pad, card.right - pad, card.top + pad + m_scaler.ToPx (kTitleDip) }, SoundBoardTips::GetVia (L"IRQ", half));
 
     for (int c = 0; c < kChannels; c++)
     {
-        PaintChannel (p, half.psg.channels[c], GetChannelRect (card, c), c, half.index * kChannels + c);
+        PaintChannel (p, half.psg, GetChannelRect (card, c), c, half.index * kChannels + c);
     }
 
     PaintEnvelope (p, half.psg, envelope);
@@ -1186,12 +1315,13 @@ void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice
     std::vector<float>         least;
     std::vector<float>         labels;
     std::vector<std::wstring>  names;
+    size_t                     first          = voice.recent.size() - std::min (count, voice.recent.size());
 
 
 
     //  The phonemes the history row has labels for, so the two cover the same
     //  stretch of speech.
-    for (size_t i = voice.recent.size() - std::min (count, voice.recent.size()); i < voice.recent.size(); i++)
+    for (size_t i = first; i < voice.recent.size(); i++)
     {
         const DiagnosticsSoundVoice::Phoneme  & phoneme = voice.recent[i];
         std::wstring                            name    = TextEncoding::NarrowToWide (phoneme.name.substr (0, phoneme.name.find (' ')));
@@ -1224,6 +1354,7 @@ void SoundBoardView::PaintStrip (const Painting & p, const DiagnosticsSoundVoice
         uint32_t                              ink    = (isLast && voice.isSounding) ? p.theme.Background() : p.theme.Foreground();
 
         p.painter.FillRoundedRect (x, (float) rect.top, place.width, (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), fill);
+        AddSpot (p, { (long) x, rect.top, (long) (x + place.width) + 1, rect.bottom }, SoundBoardTips::GetPhoneme (voice.recent[first + place.index]));
 
         if (place.width >= labels[place.index])
         {
@@ -1283,6 +1414,7 @@ size_t SoundBoardView::PaintHistory (const Painting & p, const DiagnosticsSoundV
         float     left     = x - widths[i - 1];
 
         PaintString (p, names[i - 1], { (long) left, rect.top, (long) x + 1, (long) textBottom }, ink, font, DxuiTextHAlign::Left);
+        AddSpot     (p, { (long) left, rect.top, (long) x + 1, rect.bottom }, SoundBoardTips::GetPhoneme (voice.recent[i - 1]));
 
         if (isActive)
         {
@@ -1521,4 +1653,22 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     PaintValue (p, cell (1, 1), L"Articulation", std::format (L"${:X}", voice.articulation), kVoiceLabelDip);
     PaintValue (p, cell (1, 2), L"Amplitude",    std::format (L"${:X}", voice.amplitude), kVoiceLabelDip);
     PaintValue (p, cell (1, 3), L"Filter",       SoundBoardLayout::GetFrequencyText (voice.filterHz), kVoiceLabelDip);
+
+    //  What each part means, at the place it is drawn.
+    for (const auto & [at, label] : std::initializer_list<std::pair<RECT, const wchar_t *>>
+         {
+             { cell (0, 0), L"Mode" },     { cell (0, 1), L"Duration" },     { cell (0, 2), L"Frame" },     { cell (0, 3), L"Pitch" },
+             { cell (1, 0), L"Formants" }, { cell (1, 1), L"Articulation" }, { cell (1, 2), L"Amplitude" }, { cell (1, 3), L"Filter" },
+             { RECT { left, top, left + leftWide, (long) meterTop }, L"Phoneme" },
+             { RECT { left, (long) meterTop, left + leftWide, mainBottom }, L"Level" },
+             { RECT { scopeLeft, top, scopeRight, mainBottom }, L"Waveform" },
+             { RECT { scopeRight + gap, top, right, mainBottom }, L"Formants" },
+             { RECT { left, mainBottom + gap, right, stripTop }, L"Recent phonemes" },
+             { RECT { (long) lampX, card.top + pad, (long) lampX + m_scaler.ToPx (kLampWideDip), top }, L"Power" },
+             { RECT { (long) lampX + m_scaler.ToPx (kLampWideDip), card.top + pad, (long) lampX + m_scaler.ToPx (2 * kLampWideDip), top }, L"Sounding" },
+             { RECT { (long) lampX + m_scaler.ToPx (2 * kLampWideDip), card.top + pad, (long) lampX + m_scaler.ToPx (3 * kLampWideDip), top }, L"Request" },
+         })
+    {
+        AddSpot (p, at, SoundBoardTips::GetVoice (label, voice));
+    }
 }

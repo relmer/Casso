@@ -49,8 +49,11 @@ public:
     //  rectangle for one the board does not have.
     RECT  GetMuteRect   (int channel) const;
 
-    //  The raw values behind the part at a point.
+    //  What the part at a point means and the raw values behind it.
     bool  TryGetTipAt   (POINT clientPx, std::wstring & outTip) const;
+
+    //  Where the envelope is along its picture's four ramps, from 0 to 1.
+    static float  GetEnvelopeMarkX (const DiagnosticsSoundPsg & psg);
 
     int   GetContentHeight () const { return m_contentHeight; }
     int   GetScrollTop     () const { return m_scrollTop; }
@@ -71,6 +74,14 @@ private:
         int           muteChannel = -1;
     };
 
+    //  A part's tip, at the place the last paint drew the part, in client
+    //  pixels.
+    struct Spot
+    {
+        RECT          rect = {};
+        std::wstring  tip;
+    };
+
     struct Painting
     {
         IDxuiPainter       & painter;
@@ -79,6 +90,7 @@ private:
         uint32_t             screen;
         uint32_t             card;
         uint32_t             edge;
+        std::vector<Spot>  & spots;
     };
 
     static constexpr int  kScrollbarDip    = 12;
@@ -89,7 +101,7 @@ private:
     static constexpr int  kChannelGapDip   = 6;
     static constexpr int  kEnvelopeDip     = 74;
     static constexpr int  kRegisterDip     = 20;
-    static constexpr int  kRegisterRows    = 5;
+    static constexpr int  kRegisterRows    = 7;
     static constexpr int  kLeastCardDip    = 440;
     static constexpr int  kPhonemeDip      = 128;
     static constexpr int  kStripDip        = 30;
@@ -117,9 +129,11 @@ private:
 
     void  PaintCard         (const Painting & p, const RECT & card, const std::wstring & title, const std::wstring & detail) const;
     void  PaintHalf         (const Painting & p, const DiagnosticsSoundHalf & half, const RECT & card) const;
-    void  PaintChannel      (const Painting & p, const DiagnosticsSoundChannel & channel, const RECT & row, int index, int muteChannel) const;
+    void  PaintChannel      (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & row, int index, int muteChannel) const;
     void  PaintEnvelope     (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const;
     void  PaintVia          (const Painting & p, const DiagnosticsSoundHalf & half, const RECT & rect) const;
+    void  PaintRegisters    (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const;
+    static void  AddSpot    (const Painting & p, const RECT & rect, std::wstring tip);
     void  PaintVoice        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & card) const;
     void  PaintStrip        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect, size_t count) const;
     size_t  PaintHistory    (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
@@ -142,6 +156,7 @@ private:
     std::vector<RECT>         m_halfCards;
     RECT                      m_voiceCard     = {};
     std::vector<Region>       m_regions;
+    std::vector<Spot>         m_spots;
     std::array<float, 6>      m_peaks         = {};
     int                       m_contentHeight = 0;
     int                       m_scrollTop     = 0;
