@@ -291,6 +291,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
     bool                                                      hasPc         = false;
     bool                                                      relayout      = false;
     std::wstring                                              bannerKey;
+    std::wstring                                              tip;
     DxuiTabGroup::LeadingMark                                 mark;
 
 
@@ -333,7 +334,16 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
         mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcMarkerArgb() };
     }
 
-    m_host.SetPaneTabMark (GetId(), mark, hasPc ? L"The PC is in this file" : L"");
+    //  The tab's tip is the file's full path, which differs for two files of
+    //  one name.
+    tip = m_model->GetFoundPath();
+
+    if (hasPc)
+    {
+        tip += (tip.empty() ? L"" : L"\n") + std::wstring (L"The PC is in this file");
+    }
+
+    m_host.SetPaneTabMark (GetId(), mark, tip);
     return relayout;
 }
 

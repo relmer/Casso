@@ -86,6 +86,9 @@ public:
     bool  IsActive      () const { return (m_state.has_value() || m_isLoose) && m_docFileId >= 0; }
     bool  HasBanner     () const { return !m_banner->GetText().empty(); }
 
+    //  The path of the document's file, empty while none was found.
+    const std::wstring &  GetFoundPath () const { return m_foundPath; }
+
     void  Configure     (HWND hwnd);
 
     //  Rows are rebuilt with the next Apply when the style changes.
