@@ -1192,6 +1192,8 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchSortChoices()
 {
     static constexpr size_t  s_kTopChoices = 3;
 
+
+
     std::vector<DxuiPopupMenuItem>     items;
     std::vector<DxuiPopupMenuItem>     more;
     std::vector<int>                   moreIds;

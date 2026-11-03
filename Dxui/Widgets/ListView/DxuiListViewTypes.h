@@ -225,16 +225,16 @@ struct DxuiListViewTypes
     // Per-element ARGB colors derived once per paint from the theme.
     struct Palette
     {
-        uint32_t  fg       = 0;
-        uint32_t  fgDim    = 0;
-        uint32_t  hdrFg    = 0;
-        uint32_t  bgRow    = 0;
-        uint32_t  bgHover  = 0;
-        uint32_t  bgSel    = 0;
-        uint32_t  edgeSel  = 0;   // outline on the focused selected row; zero draws none
-        uint32_t  bgHeader = 0;
-        uint32_t  border   = 0;
-        uint32_t  matchBg  = 0;
+        uint32_t  fg        = 0;
+        uint32_t  fgDim     = 0;
+        uint32_t  hdrFg     = 0;
+        uint32_t  bgRow     = 0;
+        uint32_t  bgHover   = 0;
+        uint32_t  bgSel     = 0;
+        uint32_t  edgeSel   = 0;   // outline on the focused selected row; zero draws none
+        uint32_t  bgHeader  = 0;
+        uint32_t  border    = 0;
+        uint32_t  matchBg   = 0;
         uint32_t  matchEdge = 0;   // the outline around a search match, as File Explorer draws it
     };
 
