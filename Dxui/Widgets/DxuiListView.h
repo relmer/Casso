@@ -473,6 +473,10 @@ public:
     int   HitTestHeaderColumn (int xPx, int yPx) const;
     int   HitTestRow          (int xPx, int yPx) const;
 
+    //  The column under an x, counted from the pane lead, where a point in
+    //  the lead is in the first column; -1 past the last.
+    int   HitTestColumn       (int xPx) const;
+
     //  Explorer's eight views. Details is the table of columns; the others
     //  lay the rows out as items with the first cell's icon and text, and
     //  Tiles and Content add the next cells on the lines below. Selection,
@@ -598,6 +602,12 @@ public:
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
+    bool                TryGetTip      (POINT pointPx, DxuiTip & tip) const override;
+    bool                UsesLocalPoints() const override { return true; }
+
+    //  Whether the cells' and headings' tips are drawn in a fixed-width face,
+    //  for tips whose characters line up in columns, such as a hex dump.
+    void                SetMonospaceTips (bool mono) { m_isMonospaceTips = mono; }
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
     bool                QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand  (DxuiStandardCommand command) override;
@@ -880,6 +890,7 @@ private:
     int                        m_sortColumn        = -1;
     bool                       m_sortDescending    = false;
     bool                       m_showHeader        = false;
+    bool                       m_isMonospaceTips   = false;
     View                       m_view              = View::Details;
     bool                       m_detailsHeader     = false;   // the header Details had, while another view shows
     int                        m_topRow            = 0;

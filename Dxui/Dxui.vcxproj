@@ -217,6 +217,7 @@
     <ClCompile Include="Widgets\DxuiInPlaceTip.cpp" />
     <ClCompile Include="Widgets\DxuiMarquee.cpp" />
     <ClCompile Include="Widgets\DxuiTextFind.cpp" />
+    <ClCompile Include="Widgets\DxuiTipService.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
     <ClCompile Include="Widgets\DxuiFieldError.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
@@ -288,6 +289,7 @@
     <ClInclude Include="Core\DxuiSystemSettings.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
     <ClInclude Include="Core\DxuiThread.h" />
+    <ClInclude Include="Core\DxuiTip.h" />
     <ClInclude Include="Core\DxuiUnicodeSymbols.h" />
     <ClInclude Include="Core\DxuiViewport.h" />
     <ClInclude Include="Core\IDxuiControl.h" />
@@ -346,6 +348,7 @@
     <ClInclude Include="Widgets\DxuiMarquee.h" />
     <ClInclude Include="Widgets\IDxuiFindTarget.h" />
     <ClInclude Include="Widgets\DxuiTextFind.h" />
+    <ClInclude Include="Widgets\DxuiTipService.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
     <ClInclude Include="Widgets\DxuiFieldError.h" />
     <ClInclude Include="Render\DxuiStroke.h" />

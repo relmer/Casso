@@ -3,6 +3,7 @@
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiPaneMetrics.h"
+#include "Core/DxuiTip.h"
 
 #include "DxuiToolbar.h"
 #include "DxuiMenuBar.h"
@@ -1531,6 +1532,41 @@ RECT DxuiToolbar::GetFlyoutKeepAliveRc() const
     }
 
     return rc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::TryGetTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbar::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    RECT             anchor = {};
+    const wchar_t  * text   = nullptr;
+
+
+
+    if (!IsVisible())
+    {
+        return false;
+    }
+
+    text = GetTooltipAt (pointPx.x, pointPx.y, anchor);
+
+    if (text == nullptr || *text == L'\0')
+    {
+        return IDxuiControl::TryGetTip (pointPx, tip);
+    }
+
+    tip        = DxuiTip();
+    tip.text   = text;
+    tip.anchor = anchor;
+    return true;
 }
 
 

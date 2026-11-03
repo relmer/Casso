@@ -5,6 +5,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiTip.h"
 
 
 
@@ -461,6 +462,23 @@ bool DxuiScrollPanel::OnMouse (const DxuiMouseEvent & ev)
 LPCWSTR DxuiScrollPanel::GetCursorForPoint (POINT clientPx) const
 {
     return IsInViewport (clientPx) ? DxuiPanel::GetCursorForPoint (clientPx) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTip
+//
+//  As OnMouse: outside the viewport a child has no tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollPanel::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    return IsInViewport (pointPx) && DxuiPanel::TryGetTip (pointPx, tip);
 }
 
 

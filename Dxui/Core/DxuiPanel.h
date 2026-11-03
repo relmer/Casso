@@ -109,6 +109,7 @@ public:
                                     const IDxuiTheme    & theme) override;
     bool              OnMouse      (const DxuiMouseEvent & ev) override;
     LPCWSTR           GetCursorForPoint (POINT clientPx) const     override;
+    bool              TryGetTip    (POINT pointPx, DxuiTip & tip) const override;
     bool              OnKey        (const DxuiKeyEvent   & ev) override;
     void              OnThemeChanged()                       override;
     void              Tick         (int64_t nowMs)            override;

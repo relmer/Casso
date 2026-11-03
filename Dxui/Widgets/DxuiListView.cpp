@@ -11,6 +11,7 @@
 #include "Core/DxuiPaneMetrics.h"
 #include "Render/IDxuiPainter.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiTip.h"
 
 
 
@@ -2863,6 +2864,111 @@ bool DxuiListView::IsOverCellText (POINT localPx) const
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HitTestColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::HitTestColumn (int xPx) const
+{
+    int  right = GetPaneLeadPx() - m_leftPx;
+
+
+
+    for (size_t c = 0; c < m_columns.size(); c++)
+    {
+        right += GetColumnEffectiveWidthPx (c);
+
+        if (xPx < right)
+        {
+            return (int) c;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetTip
+//
+//  A heading's tip by the pointer, with the color scales of its lines, or a
+//  cell's tip over its text, with the scale under it. A cell with only an
+//  icon, such as a breakpoint's dot, has no text to anchor on, so its tip goes
+//  by the pointer. The scrollbars, and past the last column, have none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    const std::vector<Cell>  * cells   = nullptr;
+    RECT                       local   = { 0, 0, m_boundsDip.right - m_boundsDip.left, m_boundsDip.bottom - m_boundsDip.top };
+    RECT                       pointer = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+    int                        column  = -1;
+    int                        row     = -1;
+    bool                       isOver  = false;
+
+
+
+    isOver = IsVisible() && PtInRect (&local, pointPx) != FALSE && !IsOverScrollbar (pointPx);
+
+    if (!isOver)
+    {
+        return false;
+    }
+
+    column = HitTestColumn (pointPx.x);
+
+    if (column < 0)
+    {
+        return IDxuiControl::TryGetTip (pointPx, tip);
+    }
+
+    tip             = DxuiTip();
+    tip.isMonospace = m_isMonospaceTips;
+
+    if (pointPx.y < GetHeaderHeightPx())
+    {
+        tip.text       = m_columns[(size_t) column].tip;
+        tip.anchor     = pointer;
+        tip.lineScales = m_columns[(size_t) column].tipLineScales;
+        return !tip.text.empty();
+    }
+
+    row = HitTestRow (pointPx.x, pointPx.y);
+
+    if (row < 0 || row >= GetRowCount())
+    {
+        return IDxuiControl::TryGetTip (pointPx, tip);
+    }
+
+    cells = &GetCellsOfRow (row);
+
+    if ((size_t) column >= cells->size() || (*cells)[(size_t) column].tip.empty())
+    {
+        return IDxuiControl::TryGetTip (pointPx, tip);
+    }
+
+    if (!GetCellTextRectPx (row, (size_t) column, tip.anchor))
+    {
+        tip.anchor = pointer;
+    }
+
+    tip.text         = (*cells)[(size_t) column].tip;
+    tip.gradient     = (*cells)[(size_t) column].tipGradient;
+    tip.gradientMark = (*cells)[(size_t) column].tipGradientMark;
+    return true;
 }
 
 

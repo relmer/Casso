@@ -6,6 +6,7 @@
 
 struct DxuiMouseEvent;
 struct DxuiKeyEvent;
+struct DxuiTip;
 
 
 
@@ -177,6 +178,21 @@ public:
     // keyboard just focused. Nothing for a container that does not scroll.
     virtual void  RevealDescendant (const IDxuiControl & descendant)            { (void) descendant; }
 
+    //  The tip under a point, in the pixels of the control's mouse events,
+    //  with its anchor in the same pixels. By default it is the control's tip
+    //  text (SetTip) over its bounds. A control whose parts have tips, such as
+    //  a toolbar's buttons or a list's cells, overrides it. A container's tip
+    //  is the tip of its front child under the point, or else its tip text.
+    virtual bool  TryGetTip       (POINT pointPx, DxuiTip & tip) const;
+
+    //  True for a control whose mouse events, cursor and tip points are
+    //  relative to the control's top-left rather than to the client area,
+    //  as a list view's are. A container translates the point for it.
+    virtual bool  UsesLocalPoints () const                                      { return false; }
+
+    const std::wstring &  GetTip () const                                       { return m_tip; }
+    void                  SetTip (const std::wstring & tip)                     { m_tip = tip; }
+
     virtual std::wstring        GetAccessibleName () const                        { return L""; }
     virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }
 
@@ -217,4 +233,5 @@ protected:
     bool            m_focusable       = false;
     int             m_tabIndex        = kTabIndexGeometry;
     bool            m_focusCueVisible = true;
+    std::wstring    m_tip;
 };

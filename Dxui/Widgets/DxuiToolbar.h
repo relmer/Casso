@@ -285,6 +285,9 @@ public:
     //  The move cursor over the grab handle.
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
+    //  The tip of the entry under the point (GetTooltipAt), or the toolbar's.
+    bool     TryGetTip         (POINT pointPx, DxuiTip & tip) const override;
+
     //  A strip docked in a band between panes: a hairline across each short
     //  end and none along its long sides, which the panes beside it draw.
     //  Off, a horizontal strip draws its bottom hairline.

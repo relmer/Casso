@@ -319,6 +319,7 @@ public:
     void                PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse            (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint  (POINT clientPx) const override;
+    bool                TryGetTip          (POINT pointPx, DxuiTip & tip) const override;
     DxuiHitTestKind     ClassifyHit        (POINT clientDip) const override;
     DxuiAccessibleRole  GetAccessibleRole  () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName  () const override { return L"Dock site"; }

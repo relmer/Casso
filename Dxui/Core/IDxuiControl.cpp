@@ -3,6 +3,7 @@
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiThread.h"
+#include "Core/DxuiTip.h"
 
 
 
@@ -111,4 +112,44 @@ void IDxuiControl::SetTabIndex (int tabIndex)
     DXUI_ASSERT_UI_THREAD();
 
     m_tabIndex = tabIndex;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTip
+//
+//  The control's tip text over its bounds, relative to its top-left for a
+//  control that takes local points.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool IDxuiControl::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    RECT  bounds = m_boundsDip;
+
+
+
+    if (m_tip.empty() || !m_visible)
+    {
+        return false;
+    }
+
+    if (UsesLocalPoints())
+    {
+        OffsetRect (&bounds, -bounds.left, -bounds.top);
+    }
+
+    if (PtInRect (&bounds, pointPx) == FALSE)
+    {
+        return false;
+    }
+
+    tip        = DxuiTip();
+    tip.text   = m_tip;
+    tip.anchor = bounds;
+    return true;
 }

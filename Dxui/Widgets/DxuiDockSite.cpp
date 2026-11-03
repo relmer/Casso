@@ -5,6 +5,7 @@
 #include "Theme/IDxuiTheme.h"
 #include "Widgets/DxuiPaneFrame.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiTip.h"
 #include "Render/DxuiCoverageRaster.h"
 
 
@@ -1335,6 +1336,46 @@ bool DxuiDockSite::TryGetTitleExtraRect (const std::wstring & pane, RECT & rect)
     }
 
     return rect.right > rect.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TryGetTip
+//
+//  A tab's tip, or what the title-bar button under the point does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    RECT          rect = {};
+    std::wstring  text;
+
+
+
+    if (!IsVisible())
+    {
+        return false;
+    }
+
+    if (GetTabAt (pointPx, rect, text).empty() || text.empty())
+    {
+        text = GetTitleButtonTipAt (pointPx, rect);
+    }
+
+    if (text.empty())
+    {
+        return IDxuiControl::TryGetTip (pointPx, tip);
+    }
+
+    tip        = DxuiTip();
+    tip.text   = text;
+    tip.anchor = rect;
+    return true;
 }
 
 

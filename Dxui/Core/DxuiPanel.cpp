@@ -2,6 +2,7 @@
 
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiThread.h"
+#include "Core/DxuiTip.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Render/IDxuiPainter.h"
 
@@ -662,6 +663,63 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
     }
 
     return consumed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTip
+//
+//  The tip of the front child under the point that has one, last-added child
+//  first as OnMouse goes, then the panel's tip text. A child that takes local
+//  points gets the point relative to its top-left, and its anchor is moved
+//  back into the panel's pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPanel::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    {
+        const IDxuiControl  * child   = it->raw;
+        RECT                  bounds  = {};
+        POINT                 childPt = pointPx;
+        bool                  isLocal = false;
+
+
+
+        if (!child->IsVisible())
+        {
+            continue;
+        }
+
+        bounds  = child->GetBounds();
+        isLocal = child->UsesLocalPoints();
+
+        if (isLocal)
+        {
+            childPt = POINT { pointPx.x - bounds.left, pointPx.y - bounds.top };
+        }
+
+        if (!child->TryGetTip (childPt, tip))
+        {
+            continue;
+        }
+
+        if (isLocal)
+        {
+            OffsetRect (&tip.anchor, bounds.left, bounds.top);
+        }
+
+        return true;
+    }
+
+    return IDxuiControl::TryGetTip (pointPx, tip);
 }
 
 
