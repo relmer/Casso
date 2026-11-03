@@ -929,7 +929,7 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 //
 //  The pane the View menu chose comes forward once it shows: its tab is
 //  selected, an auto-hidden one slides out, and a floating one's window is
-//  raised.
+//  raised. It takes the focus, as a click on it would.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -948,6 +948,21 @@ void DebuggerWindow::ShowPendingPane()
     m_dockSite->ActivatePane (pane);
 
     m_floating->Show (pane);
+
+    //  The focus moves to the pane, in whichever window it is in.
+    if (m_dockSite->GetPaneLayout().IsFloating (pane))
+    {
+        FloatingPanes::RouteScope  scope (*m_floating, pane);
+
+        if (GetMainControl (pane) != nullptr)
+        {
+            SetFocusedControl (GetMainControl (pane));
+        }
+    }
+    else
+    {
+        FocusPane (pane);
+    }
 }
 
 

@@ -8,6 +8,7 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
 #include "../Dxui/MockDxuiPainter.h"
@@ -35,8 +36,8 @@ namespace DebuggerTests
     public:
         void  RunDebuggerCommand      (const std::string & line)                 override { commands.push_back (line); }
         void  PauseDebugger           ()                                         override {}
-        void  SetDebuggerCodeLines    (int, int)                                 override {}
-        void  SetDebuggerCodeAddress  (std::optional<Word>, int)                 override {}
+        void  SetDebuggerCodeLines    (int lines, int)                           override { codeCalls.push_back (std::format ("lines {}", lines)); }
+        void  SetDebuggerCodeAddress  (std::optional<Word> address, int)         override { codeCalls.push_back (std::format ("code {:04X}", address.value_or (0))); }
         void  SetDebuggerCodeTop      (Word, int)                                override {}
         void  SetDebuggerFollowView   (int)                                      override {}
         void  CloseDebuggerCodeView   (int)                                      override {}
@@ -67,6 +68,7 @@ namespace DebuggerTests
         std::vector<std::string>  goTos;
         std::vector<std::string>  commands;
         std::vector<std::string>  layouts;
+        std::vector<std::string>  codeCalls;   // the line counts and addresses sent to the code views, in order
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -123,6 +125,8 @@ namespace DebuggerTests
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetPaneOfFocus;
         using DebuggerWindow::IsPaneShown;
+        using DebuggerWindow::GetCodeGroup;
+        using DebuggerWindow::ShowPane;
 
         //  A key as the window's message handling delivers it: to the window
         //  first, then to the key scheme if nothing took it.
@@ -923,6 +927,40 @@ namespace DebuggerTests
         }
 
 
+        //  Going to an address in a disassembly view behind another tab
+        //  brings the view forward and sends its line count before the
+        //  address, which is centered for that count. Sent a frame later,
+        //  the count came after the address had been placed for the
+        //  default count, near the top of a tall view.
+        TEST_METHOD (GoingToCodeBehindATabSendsTheViewsLinesFirst)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiPaneLayout      layout;
+            DxuiDpiScaler       scaler;
+
+
+
+            //  The console in front from the start, so the disassembly has
+            //  never been measured.
+            scaler.SetDpi (96);
+            window.OnCreate();
+            layout = window.GetDockSite()->GetPaneLayout();
+            Assert::IsTrue (layout.TabWith (DebuggerLayout::kConsole, DebuggerLayout::kCode), L"the console is a tab of the disassembly's group");
+            (void) layout.Activate (DebuggerLayout::kConsole);
+            window.GetDockSite()->SetPaneLayout (layout);
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            host.codeCalls.clear();
+            window.GetCodeGroup().ShowCode (0x0800);
+
+            Assert::IsTrue   (host.codeCalls.size() >= 2, L"a line count and the address");
+            Assert::IsTrue   (host.codeCalls.front().starts_with ("lines "), L"the count first");
+            Assert::AreEqual (std::string ("code 0800"), host.codeCalls.back());
+        }
+
+
         TEST_METHOD (WatchUndoIsDroppedWithTheMachine)
         {
             CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
@@ -950,6 +988,25 @@ namespace DebuggerTests
             window.FocusControl (window.GetWatchesPane().GetList());
             window.Press ('Z', true);
             Assert::AreEqual (sent, host.commands.size(), L"another machine's value is not written into this one");
+        }
+
+
+        //  Showing a pane from the View menu or its key brings it to the
+        //  front of its group, and the focus moves to it.
+        TEST_METHOD (ShowingAPaneFocusesIt)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+
+
+
+            Build (window);
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetPaneOfFocus());
+
+            window.ShowPane (DebuggerLayout::kWatches);
+            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfFocus(), L"the pane has the focus");
         }
 
 
