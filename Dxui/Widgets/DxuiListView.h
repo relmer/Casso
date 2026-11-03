@@ -50,6 +50,10 @@ public:
         //  A filter of the host's is in force on the column: a funnel is
         //  drawn at the right end of its heading.
         bool            isFiltered = false;
+
+        //  Whether the cells are text to read and select. A strip of glyphs,
+        //  as a heat column's, is not, and the pointer is an arrow over it.
+        bool            isText     = true;
     };
 
     struct Cell

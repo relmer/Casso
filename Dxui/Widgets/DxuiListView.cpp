@@ -2837,7 +2837,8 @@ LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
 //
 //  Whether a point in list-local px is over a row's cell that has text, for
 //  the I-beam of a list that reads as text. A cell with no text, such as a
-//  gutter's or a heat strip's, and the space below the rows have the arrow.
+//  gutter's, a column whose cells are not text, such as a heat strip's, and
+//  the space below the rows have the arrow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2855,7 +2856,7 @@ bool DxuiListView::IsOverCellText (POINT localPx) const
 
     for (size_t c = 0; c < m_columns.size() && c < GetRowCells (row).size(); c++)
     {
-        if (!GetRowCells (row)[c].text.empty() && GetCellTextRectPx (row, c, cell) && localPx.x >= cell.left && localPx.x < cell.right)
+        if (m_columns[c].isText && !GetRowCells (row)[c].text.empty() && GetCellTextRectPx (row, c, cell) && localPx.x >= cell.left && localPx.x < cell.right)
         {
             return true;
         }

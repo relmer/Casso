@@ -111,6 +111,31 @@ public:
     }
 
 
+    //  A column whose cells are not text, as a heat strip's glyphs, has the
+    //  arrow though its cells have characters.
+    TEST_METHOD (TheArrowIsOverAColumnThatIsNotText)
+    {
+        DxuiListView                       list;
+        DxuiDpiScaler                      scaler;
+        std::vector<DxuiListView::Column>  cols;
+
+
+
+        scaler.SetDpi (96);
+        cols.push_back (DxuiListView::Column { L"Heat", 80 });
+        cols.push_back (DxuiListView::Column { L"Op",   80 });
+        cols[0].isText = false;
+
+        list.SetColumns       (std::move (cols));
+        list.SetRows          ({ { DxuiListView::Cell { L"####" }, DxuiListView::Cell { L"LDA" } } });
+        list.SetTextSelection (true);
+        list.Layout           (RECT { 0, 0, 400, 300 }, scaler);
+
+        Assert::IsNull (list.GetCursorForPoint (At (list, 0, 0, 1)), L"over the heat strip");
+        Assert::IsTrue (list.GetCursorForPoint (At (list, 0, 1, 1)) == IDC_IBEAM, L"over LDA");
+    }
+
+
     //  A Ctrl+drag selects only in the column the drag began in, however far
     //  the pointer strays into the next.
     TEST_METHOD (ACtrlDragSelectsOnlyItsColumn)

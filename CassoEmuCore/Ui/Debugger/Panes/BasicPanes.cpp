@@ -73,6 +73,7 @@ void BasicProgramPane::Configure (int gutterDip)
     columns[kValuesColumn].tip         = L"The values of the variables each line uses, at this stop. On the line the machine stopped at before, a value it changed reads old " + std::wstring (s_kpszRightArrow) + L" new.";
     columns[kHeatColumn].tip           = HeatStrip::GetHeadingTip (true).text;
     columns[kHeatColumn].tipLineScales = HeatStrip::GetHeadingTip (true).lineScales;
+    columns[kHeatColumn].isText        = false;
 
     m_list->SetColumns (std::move (columns));
 

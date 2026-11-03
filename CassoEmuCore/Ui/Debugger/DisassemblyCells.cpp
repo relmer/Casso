@@ -36,6 +36,7 @@ void DisassemblyCells::Configure (DxuiListView & list)
     columns.back().tip                 = L"The values each instruction reads, then on the PC's line the registers, memory and flags it changes";
     columns[kHeatColumn].tip           = HeatStrip::GetHeadingTip (false).text;
     columns[kHeatColumn].tipLineScales = HeatStrip::GetHeadingTip (false).lineScales;
+    columns[kHeatColumn].isText        = false;
 
     list.SetColumns         (std::move (columns));
     list.SetGlyphCenterDip  (kGlyphCenterDip);
