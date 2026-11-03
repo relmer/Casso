@@ -288,8 +288,13 @@ void DebuggerWindow::SetWindowMenus()
 
     //  Machine: the machine's own restarts. The main window's Restart under
     //  debugger is not here: with the debugger open, it is Power cycle.
-    add (machine, emulator (L"Reset",       IDM_MACHINE_RESET));
-    add (machine, emulator (L"Power cycle", IDM_MACHINE_POWERCYCLE));
+    row              = emulator (L"Reset", IDM_MACHINE_RESET);
+    row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) DebuggerKeySchemes::Action::Reset);
+    add (machine, row);
+
+    row              = emulator (L"Power cycle", IDM_MACHINE_POWERCYCLE);
+    row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) DebuggerKeySchemes::Action::PowerCycle);
+    add (machine, row);
 
     //  Tools: which editor's keys the window takes.
     for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })

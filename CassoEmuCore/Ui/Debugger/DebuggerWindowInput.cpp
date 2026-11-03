@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "resource.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -460,6 +461,16 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         else if (m_snapshot != nullptr)
         {
             GoToBookmark (action == DebuggerKeySchemes::Action::PreviousBookmark);
+        }
+
+        return true;
+    }
+
+    if (action == DebuggerKeySchemes::Action::Reset || action == DebuggerKeySchemes::Action::PowerCycle)
+    {
+        if (m_host != nullptr)
+        {
+            m_host->RunEmulatorCommand (action == DebuggerKeySchemes::Action::Reset ? IDM_MACHINE_RESET : IDM_MACHINE_POWERCYCLE);
         }
 
         return true;

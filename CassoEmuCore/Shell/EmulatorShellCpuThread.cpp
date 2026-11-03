@@ -373,18 +373,26 @@ void EmulatorShell::SetSerialCardSwitches (const std::string & sw1, const std::s
 //  RequestReset
 //
 //  UI thread. The keys are read here because GetKeyState answers for the
-//  calling thread's queue; the CPU thread has no queue to ask.
+//  calling thread's queue, and the CPU thread has no queue. They are read
+//  with any of the app's windows in front, so Ctrl+Shift+Alt+R in the
+//  debugger reboots as it does in the emulator window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::RequestReset()
 {
-    bool         foreground  = (GetForegroundWindow() == m_hwnd);
-    bool         openApple   = foreground && (GetKeyState (VK_LMENU) & 0x8000) != 0;
-    bool         closedApple = foreground && (GetKeyState (VK_RMENU) & 0x8000) != 0;
+    DWORD        processId   = 0;
+    bool         foreground  = false;
+    bool         openApple   = false;
+    bool         closedApple = false;
     std::string  payload;
 
 
+
+    GetWindowThreadProcessId (GetForegroundWindow(), &processId);
+    foreground  = processId == GetCurrentProcessId();
+    openApple   = foreground && (GetKeyState (VK_LMENU) & 0x8000) != 0;
+    closedApple = foreground && (GetKeyState (VK_RMENU) & 0x8000) != 0;
 
     if (openApple)
     {

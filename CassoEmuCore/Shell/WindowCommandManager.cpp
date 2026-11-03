@@ -470,14 +470,24 @@ void WindowCommandManager::OnMachineCommand (int id)
     switch (id)
     {
         case IDM_MACHINE_RESET:
-        {
-            m_shell.RequestReset();
-            break;
-        }
-
         case IDM_MACHINE_POWERCYCLE:
         {
-            m_shell.PostCommand (static_cast<WORD> (id));
+            if (id == IDM_MACHINE_RESET)
+            {
+                m_shell.RequestReset();
+            }
+            else
+            {
+                m_shell.PostCommand (static_cast<WORD> (id));
+            }
+
+            //  A restart runs the machine: a paused CPU thread drains its
+            //  queue, so the restart is done before the machine resumes.
+            if (m_shell.m_cpuManager.IsPaused())
+            {
+                OnMachineCommand (IDM_MACHINE_PAUSE);
+            }
+
             break;
         }
 

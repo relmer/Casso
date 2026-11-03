@@ -95,6 +95,20 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (EverySchemeRestartsWithTheEmulatorWindowsKeys)
+        {
+            for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+            {
+                const DxuiKeyMap &  map = DebuggerKeySchemes::GetMap (scheme);
+                int                 id  = 0;
+
+                Assert::IsTrue (Translate (scheme, 'R', true, true) == Action::Reset,      L"Ctrl+Shift+R resets");
+                Assert::IsTrue (Translate (scheme, 'P', true, true) == Action::PowerCycle, L"Ctrl+Shift+P power cycles");
+                Assert::IsTrue (map.TryTranslate ('R', true, true, true, id) && (Action) id == Action::Reset, L"Ctrl+Shift+Alt+R resets with the Open Apple key down");
+            }
+        }
+
+
         TEST_METHOD (EverySchemeFindsWithTheWindowsKeys)
         {
             for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
