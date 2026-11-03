@@ -860,7 +860,7 @@ void CassoExplorerLinkDialog::OnCreate()
     m_speed.SetSelected     (Choices::GetSpeedIndex (m_initial.baud));
     m_bootstrap.SetItems    (Choices::GetSpeedLabels());
     m_bootstrap.SetSelected (Choices::GetSpeedIndex (m_initial.bootstrapBaud));
-    m_verify.SetItems       ({ L"As in Casso Explorer's options", L"On", L"Off" });
+    m_verify.SetItems       ({ L"Use Casso Explorer's global setting in Options", L"Verify reads and writes", L"Never verify" });
     m_verify.SetSelected    (m_initial.verify);
 
     m_handshake.SetSingleLineLabel (true);
