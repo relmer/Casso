@@ -82,6 +82,7 @@ namespace DebuggerFindWidgetInputTests
 
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetCursorForPoint;
+        using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::AppendConsole;
 
@@ -268,6 +269,38 @@ namespace DebuggerFindWidgetInputTests
             }
 
             Assert::IsTrue (window.GetCursorForPoint (POINT { box.left + 6, (box.top + box.bottom) / 2 }) == IDC_IBEAM, L"the I-beam over the text");
+        }
+
+
+        //  A list takes a point relative to itself. Given the window's point,
+        //  each list with text selection had the I-beam over the menu bar and
+        //  the toolbar, where the list's rows would lie at the window's top left.
+        TEST_METHOD (TheMenuBarAndToolbarShowTheArrow)
+        {
+            CassoTheme                                    theme  = CassoTheme::MakeSkeuomorphic();
+            InputHost                                     host;
+            InputWindow                                   window (theme, host);
+            DxuiListView                                * list   = nullptr;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+            DxuiDpiScaler                                 scaler;
+
+
+
+            window.Build();
+
+            list = window.GetCodeList (0);
+            rows.assign (4, std::vector<DxuiListView::Cell> (list->GetColumnCount(), DxuiListView::Cell { L"LDA $0400" }));
+            list->SetRows (std::move (rows));
+            scaler.SetDpi (96);
+            list->Layout  (list->GetBounds(), scaler);
+
+            for (int y = 0; y < 70; y += 4)
+            {
+                for (int x = 0; x < 1100; x += 2)
+                {
+                    Assert::IsTrue (window.GetCursorForPoint (POINT { x, y }) != IDC_IBEAM, std::format (L"no I-beam at {}, {}", x, y).c_str());
+                }
+            }
         }
 
 
