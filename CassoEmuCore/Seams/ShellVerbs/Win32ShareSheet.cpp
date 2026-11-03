@@ -46,13 +46,14 @@ Win32ShareSheet::~Win32ShareSheet()
 
 HRESULT Win32ShareSheet::Show (HWND owner, const std::vector<std::wstring> & paths)
 {
-    HRESULT                              hr = S_OK;
+    HRESULT                              hr    = S_OK;
     ComPtr<IDataTransferManagerInterop>  interop;
     StorageItems                         items;
+    bool                                 valid = owner != nullptr && !paths.empty();
 
 
 
-    CBRAEx (owner != nullptr && !paths.empty(), E_INVALIDARG);
+    CBRAEx (valid, E_INVALIDARG);
 
     for (const std::wstring & path : paths)
     {
@@ -196,10 +197,11 @@ HRESULT Win32ShareSheet::Await (AbiFoundation::IAsyncOperation<Result *> * opera
     Event    done   (CreateEventExW (nullptr, nullptr, CREATE_EVENT_MANUAL_RESET, EVENT_ALL_ACCESS));
     DWORD    signal = 0;
     HANDLE   handle = done.Get();
+    bool     made   = done.IsValid();
 
 
 
-    CWR (done.IsValid());
+    CWR (made);
 
     hr = operation->put_Completed (Callback<Implements<RuntimeClassFlags<ClassicCom>, AbiFoundation::IAsyncOperationCompletedHandler<Result *>, FtmBase>> (
              [handle] (AbiFoundation::IAsyncOperation<Result *> *, AbiFoundation::AsyncStatus) { SetEvent (handle); return S_OK; }).Get());
@@ -292,12 +294,13 @@ void Win32ShareSheet::Unhook()
 
 IFACEMETHODIMP Win32ShareSheet::ItemIterator::get_Current (StorageItem ** current)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr      = S_OK;
+    bool     inRange = m_at < m_items.size();
 
 
 
     CBRAEx (current != nullptr, E_POINTER);
-    CBREx  (m_at < m_items.size(), E_BOUNDS);
+    CBREx  (inRange, E_BOUNDS);
 
     hr = m_items[m_at].CopyTo (current);
     CHR (hr);
