@@ -93,9 +93,8 @@ std::vector<std::string> FullSendScreen::GetRows() const
 std::string FullSendScreen::GetDuplicateText (const std::string & file, const char * mark)
 {
     static constexpr size_t  s_kWidth = 40 - 4;
-
-    std::string  text = "DUPE OF " + file;
-    size_t       room = s_kWidth - strlen (mark);
+    std::string              text     = "DUPE OF " + file;
+    size_t                   room     = s_kWidth - strlen (mark);
 
 
 
