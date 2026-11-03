@@ -651,6 +651,7 @@
     <ClCompile Include="Dxui\DxuiCommandSurfacesTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusClickTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewWrapTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />

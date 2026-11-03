@@ -38,6 +38,9 @@ public:
     //  expands the rows under them, and those rows are indented.
     void  SetGrouped  (bool isGrouped) { m_isGrouped = isGrouped; }
 
+    //  A long value wraps onto more lines instead of being cut.
+    void  SetWrapsText (bool isWrapped) { m_list.SetWrapsText (isWrapped); }
+
     //  A line inside the list, under its header, while it has no rows.
     void  SetEmptyText (const std::wstring & text) { m_emptyText = text; }
     void  SetOnSelect (SelectFn select) { m_select = std::move (select); }

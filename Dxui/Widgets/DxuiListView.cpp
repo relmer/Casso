@@ -88,7 +88,8 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
     m_virtual     = false;
     m_rowProvider = nullptr;
 
-    m_rows = std::move (rows);
+    m_rows        = std::move (rows);
+    m_wrapWidthPx = -1;
 
     if (m_preciseAutoFit)
     {
@@ -303,6 +304,7 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
     // Appending to a materialized set leaves provider (virtual) mode.
     m_virtual     = false;
     m_rowProvider = nullptr;
+    m_wrapWidthPx = -1;
 
     m_rows.insert (m_rows.end(),
                    std::make_move_iterator (rows.begin()),
@@ -775,7 +777,7 @@ void DxuiListView::EnsureVisible (int row)
     }
     else if (row >= m_topRow + cap)
     {
-        SetTopRow (row - cap + 1);
+        SetTopRow (IsWrapped() ? GetTopRowEndingAt (row) : (row - cap + 1));
     }
 }
 
@@ -835,6 +837,12 @@ int DxuiListView::GetColumnNaturalWidthPx (size_t c) const
         if (c < m_overrideWPx.size() && m_overrideWPx[c] >= 0)
         {
             wpx = m_overrideWPx[c];
+        }
+        else if (IsWrapped() && m_columns[c].stretch)
+        {
+            // A wrapped column fills the width the other columns don't use.
+            // This is its narrowest width before the list scrolls sideways.
+            wpx = m_scaler.ToPx (s_kWrapMinWidthDip);
         }
         else if (m_columns[c].widthDip > 0)
         {
@@ -930,13 +938,246 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
 
         layout.hBar     = m_hScrollEnabled && (viewportW > 0) && (layout.contentW > viewportW);
         bodyH           = (fullH - hgTop) - (layout.hBar ? barW : 0);
-        cap             = (rowH > 0 && bodyH > 0) ? (bodyH / rowH) : 0;
+        cap             = IsWrapped() ? CountRowsFitting (m_topRow, bodyH) : ((rowH > 0 && bodyH > 0) ? (bodyH / rowH) : 0);
         layout.rowCap   = cap;
-        layout.vBar     = (cap > 0) && (rows > cap);
+        layout.bodyH    = bodyH;
+        layout.vBar     = IsWrapped() ? (bodyH > 0 && CountRowsFitting (0, bodyH) < rows) : ((cap > 0) && (rows > cap));
         layout.viewportW = fullW - (layout.vBar ? barW : 0);
     }
 
     return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureRows
+//
+//  Measures the columns and, while wrapping, each row's height, then
+//  resolves the scroll layout for them. When the wrapped rows are taller
+//  than the body, the scroll bar narrows the wrapped column, so the rows
+//  are measured again at that width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::ScrollLayout DxuiListView::MeasureRows (IDxuiTextRenderer & text) const
+{
+    ScrollLayout  layout;
+    int           pass   = 0;
+
+
+
+    if (m_theme != nullptr && !m_columns.empty() && (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty)))
+    {
+        MeasureColumnsPx (text);
+        m_measureDirty = false;
+    }
+
+    layout = ComputeScrollLayout();
+
+    for (pass = 0; IsWrapped() && m_theme != nullptr && pass < 2; ++pass)
+    {
+        MeasureRowHeights (text, layout.viewportW);
+        layout = ComputeScrollLayout();
+    }
+
+    return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureRowHeights
+//
+//  Each row's height for its wrapped cells at the wrapped column's width:
+//  the uniform row height, plus the height of every line past the first.
+//  The rows are measured again only when they or that width change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::MeasureRowHeights (IDxuiTextRenderer & text, int viewportW) const
+{
+    HRESULT           hr     = S_OK;
+    int               rowH   = m_scaler.ToPx (s_kRowHeightDip);
+    float             fontPx = m_scaler.ToPxf (s_kFontDip);
+    float             padPx  = (float) (m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip));
+    int               wrapW  = -1;
+    float             lineW  = 0.0f;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    ComputeColumnLayout ((float) viewportW, colXPx, colWPx);
+
+    for (size_t c = 0; c < m_columns.size() && wrapW < 0; ++c)
+    {
+        wrapW = (m_columns[c].visible && m_columns[c].stretch) ? colWPx[c] : -1;
+    }
+
+    if (wrapW != m_wrapWidthPx || m_rowHeightsPx.size() != m_rows.size())
+    {
+        m_wrapWidthPx = wrapW;
+        m_rowHeightsPx.assign (m_rows.size(), rowH);
+
+        hr = text.MeasureString (L"Ag", fontPx, DxuiTheme::kBodyFace, lineW, m_wrapLinePx);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        for (size_t r = 0; r < m_rows.size(); ++r)
+        {
+            for (size_t c = 0; c < m_columns.size() && c < m_rows[r].size(); ++c)
+            {
+                float  cellW = (float) colWPx[c] - padPx;
+                float  textW = 0.0f;
+                float  textH = 0.0f;
+
+                if (IsWrappedCell (c, m_rows[r][c]) && cellW > 0.0f)
+                {
+                    hr = text.MeasureStringWrapped (m_rows[r][c].text.c_str(), fontPx, DxuiTheme::kBodyFace, cellW, textW, textH);
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+
+                    m_rowHeightsPx[r] = std::max (m_rowHeightsPx[r], rowH + (int) std::ceil (std::max (0.0f, textH - m_wrapLinePx)));
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsWrappedCell
+//
+//  A stretch-column cell with `elide == DxuiElide::None`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsWrappedCell (size_t c, const Cell & cell) const
+{
+    return IsWrapped() && c < m_columns.size() && m_columns[c].stretch && cell.elide == DxuiElide::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRowHeightPx
+//
+//  The uniform row height, or while wrapping, the row's measured height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetRowHeightPx (int r) const
+{
+    int  rowH = m_scaler.ToPx (s_kRowHeightDip);
+
+
+
+    return (IsWrapped() && r >= 0 && r < (int) m_rowHeightsPx.size()) ? std::max (rowH, m_rowHeightsPx[(size_t) r]) : rowH;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CountRowsFitting
+//
+//  How many whole rows from `topRow` fit in `bodyH`. A row taller than the
+//  body counts as one, so it is painted cut off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::CountRowsFitting (int topRow, int bodyH) const
+{
+    int  rows  = GetRowCount();
+    int  used  = 0;
+    int  count = 0;
+
+
+
+    for (int r = std::max (topRow, 0); r < rows && used + GetRowHeightPx (r) <= bodyH; ++r)
+    {
+        used += GetRowHeightPx (r);
+        count++;
+    }
+
+    return (count == 0 && bodyH > 0 && topRow < rows) ? 1 : count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTopRowEndingAt
+//
+//  The smallest top row for which `lastRow` is the last whole row in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetTopRowEndingAt (int lastRow) const
+{
+    int  bodyH = ComputeScrollLayout().bodyH;
+    int  top   = std::clamp (lastRow, 0, std::max (GetRowCount() - 1, 0));
+    int  used  = GetRowHeightPx (top);
+
+
+
+    while (top > 0 && used + GetRowHeightPx (top - 1) <= bodyH)
+    {
+        top--;
+        used += GetRowHeightPx (top);
+    }
+
+    return top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindVisibleRow
+//
+//  The row at `bodyY` below the header, counted from the top row, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::FindVisibleRow (int bodyY) const
+{
+    int  rowH  = m_scaler.ToPx (s_kRowHeightDip);
+    int  found = -1;
+    int  top   = 0;
+
+
+
+    if (!IsWrapped())
+    {
+        found = (bodyY < 0 || rowH <= 0) ? -1 : (bodyY / rowH);
+    }
+
+    for (int r = m_topRow; IsWrapped() && bodyY >= 0 && found < 0 && r < GetRowCount() && top <= bodyY; ++r)
+    {
+        found = (bodyY < top + GetRowHeightPx (r)) ? (r - m_topRow) : -1;
+        top  += GetRowHeightPx (r);
+    }
+
+    return found;
 }
 
 
@@ -1068,7 +1309,7 @@ int DxuiListView::GetMaxTopRow() const
 
 
 
-    return (rows > cap) ? (rows - cap) : 0;
+    return IsWrapped() ? ((rows > 0) ? GetTopRowEndingAt (rows - 1) : 0) : ((rows > cap) ? (rows - cap) : 0);
 }
 
 
@@ -1829,10 +2070,16 @@ int DxuiListView::GetRequiredHeightPx() const
     int  rowH    = m_scaler.ToPx (s_kRowHeightDip);
     int  headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
     int  hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
+    int  body    = IsWrapped() ? 0 : rows * rowH;
 
 
 
-    return headerH + hdrGap + rows * rowH;
+    for (int r = 0; IsWrapped() && r < rows; ++r)
+    {
+        body += GetRowHeightPx (r);
+    }
+
+    return headerH + hdrGap + body;
 }
 
 
@@ -2003,11 +2250,10 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
 {
     HRESULT  hr      = S_OK;
     int      result  = -1;
-    int      rowH    = m_scaler.ToPx (s_kRowHeightDip);
     int      headerH = m_showHeader ? m_scaler.ToPx (s_kHeaderHeightDip) : 0;
     int      hdrGap  = m_showHeader ? m_scaler.ToPx (s_kHeaderGapDip)    : 0;
     int      body    = yPx - headerH - hdrGap;
-    int      visIdx  = (body < 0 || rowH <= 0) ? -1 : (body / rowH);
+    int      visIdx  = FindVisibleRow (body);
     int      cap     = GetVisibleRowCapacity();
     int      abs     = (visIdx < 0) ? -1 : (m_topRow + visIdx);
     int      rowW    = (m_boundsDip.right - m_boundsDip.left) - (GetRowCount() > cap ? GetScrollbarWidthPx() : 0);
@@ -2084,7 +2330,7 @@ bool DxuiListView::GetClippedCellText (int xPx, int yPx, std::wstring & outText)
 void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT          hr         = S_OK;
-    ScrollLayout     layout     = ComputeScrollLayout();
+    ScrollLayout     layout     = MeasureRows (text);
     float            x          = (float) m_boundsDip.left;
     float            y          = (float) m_boundsDip.top;
     float            fullW      = (float) (m_boundsDip.right - m_boundsDip.left);
@@ -2107,12 +2353,6 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     BAIL_OUT_IF (m_theme == nullptr || m_columns.empty(), S_OK);
 
     pal = MakePalette();
-
-    if (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty))
-    {
-        MeasureColumnsPx (text);
-        m_measureDirty = false;
-    }
 
     ComputeColumnLayout (layoutW, colXPx, colWPx);
 
@@ -2429,6 +2669,8 @@ void DxuiListView::PaintDataRows (
     float    cellPadR = (float) m_scaler.ToPx (s_kCellPadRightDip);
     float    fontPx   = (float) m_scaler.ToPxf (s_kFontDip);
     float    colOff   = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
+    float    rowTop   = y + headerH + hdrGap;
+    float    linePad  = (rowH - m_wrapLinePx) / 2;
 
 
 
@@ -2439,9 +2681,11 @@ void DxuiListView::PaintDataRows (
     // its top.
     for (int r = (std::max) (firstRow, 0); r < (std::min) (lastRow, GetRowCount()); ++r)
     {
-        const std::vector<Cell> &  cells = GetRowCells (r);
-        float                      ry    = y + headerH + hdrGap + (float) (r - firstRow) * rowH;
-        bool                       isHov = (r == m_hovered);
+        const std::vector<Cell>  & cells  = GetRowCells (r);
+        float                      ry     = rowTop;
+        float                      thisH  = (float) GetRowHeightPx (r);
+        bool                       isTall = thisH > rowH;
+        bool                       isHov  = (r == m_hovered);
         bool                       isSel = ((m_listFocused || m_alwaysShowSelection) &&
                                             r == m_selectedRow);
 
@@ -2449,12 +2693,12 @@ void DxuiListView::PaintDataRows (
         {
             uint32_t  selArgb = (pal.bgHover & 0x00FFFFFFu) | 0xFF000000u;
 
-            painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), selArgb);
+            painter.FillRoundedRect (x, ry, layoutW, thisH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), selArgb);
         }
 
         if (isHov)
         {
-            painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
+            painter.FillRoundedRect (x, ry, layoutW, thisH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
@@ -2513,15 +2757,16 @@ void DxuiListView::PaintDataRows (
 
             // A column that elides cuts a cell too wide for it, and the cell
             // is noted for a tooltip with its full text.
-            std::wstring  shown = cells[c].text;
-            float         fitW  = (float) colWPx[c] - cellPadL - cellPadR;
-            float         textW = 0.0f;
-            float         textH = 0.0f;
-            HRESULT       hrW   = S_OK;
+            std::wstring  shown  = cells[c].text;
+            float         fitW   = (float) colWPx[c] - cellPadL - cellPadR;
+            float         textW  = 0.0f;
+            float         textH  = 0.0f;
+            HRESULT       hrW    = S_OK;
+            bool          isWrap = IsWrappedCell (c, cells[c]);
 
             DxuiElide     mode  = (cells[c].elide != DxuiElide::None) ? cells[c].elide : m_columns[c].elide;
 
-            hrW = (mode != DxuiElide::None) ? text.MeasureString (shown.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH) : E_FAIL;
+            hrW = (mode != DxuiElide::None && !isWrap) ? text.MeasureString (shown.c_str(), fontPx, DxuiTheme::kBodyFace, textW, textH) : E_FAIL;
 
             if (SUCCEEDED (hrW) && textW > fitW)
             {
@@ -2549,18 +2794,20 @@ void DxuiListView::PaintDataRows (
 
             hr = text.DrawString (shown.c_str(),
                                   x + colOff + (float) colXPx[c] + cellPadL,
-                                  ry,
+                                  isTall ? ry + linePad : ry,
                                   (float) colWPx[c] - cellPadL - cellPadR,
-                                  rowH,
+                                  isTall ? thisH - 2 * linePad : rowH,
                                   argb, 
                                   fontPx, 
                                   DxuiTheme::kBodyFace,
                                   m_columns[c].align,
-                                  DxuiTextVAlign::CenterOnCapHeight,
+                                  isTall ? DxuiTextVAlign::Top : DxuiTextVAlign::CenterOnCapHeight,
                                   cells[c].isStrong ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal,
-                                  false);
+                                  isWrap);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
+
+        rowTop += thisH;
     }
 }
 

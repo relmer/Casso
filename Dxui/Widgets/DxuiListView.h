@@ -294,6 +294,11 @@ public:
     // selection visible regardless, like a real list view.
     void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
 
+    // Opt-in word wrap for pushed rows. When on, a stretch-column cell with
+    // `elide == DxuiElide::None` wraps inside the column, and its row grows by
+    // the extra lines. Default off.
+    void  SetWrapsText             (bool enabled)                { m_wrapsText = enabled; m_wrapWidthPx = -1; }
+
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
     // Lets a host that owns a persisted column model (e.g. the debug
@@ -340,6 +345,7 @@ private:
     static constexpr int    s_kSortGlyphWidthDip = 10;
     static constexpr int    s_kScrollbarWidthDip = 10;
     static constexpr int    s_kMinColWidthDip    = 48;
+    static constexpr int    s_kWrapMinWidthDip   = 160;
     static constexpr int    s_kResizeGrabDip     = 4;
     static constexpr int    s_kHScrollStepDip    = 32;
     static constexpr int    s_kKbResizeStepDip   = 8;
@@ -397,6 +403,7 @@ private:
         int   rowCap    = 0;
         int   viewportW = 0;
         int   contentW  = 0;
+        int   bodyH     = 0;
     };
 
     // Fill `out` with row `r`'s cells: from the provider in virtual mode, or
@@ -415,6 +422,14 @@ private:
 
     Palette      MakePalette         () const;
     ScrollLayout ComputeScrollLayout () const;
+    ScrollLayout MeasureRows         (IDxuiTextRenderer & text) const;
+    void         MeasureRowHeights   (IDxuiTextRenderer & text, int viewportW) const;
+    bool         IsWrapped           () const { return m_wrapsText && !m_virtual; }
+    bool         IsWrappedCell       (size_t c, const Cell & cell) const;
+    int          GetRowHeightPx      (int r) const;
+    int          CountRowsFitting    (int topRow, int bodyH) const;
+    int          GetTopRowEndingAt   (int lastRow) const;
+    int          FindVisibleRow      (int bodyY) const;
     int          GetColumnNaturalWidthPx (size_t c) const;
     void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
@@ -545,6 +560,13 @@ private:
 
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;
-    int      m_lastClickRow          = -1;
-    int64_t  m_lastClickMs           = 0;
+    bool     m_wrapsText             = false;
+
+    // Each pushed row's height while wrapping, from the last paint, and the
+    // wrapped column's width they were measured at (-1 when rows changed).
+    mutable std::vector<int>  m_rowHeightsPx;
+    mutable int               m_wrapWidthPx  = -1;
+    mutable float             m_wrapLinePx   = 0.0f;
+    int                       m_lastClickRow = -1;
+    int64_t                   m_lastClickMs  = 0;
 };

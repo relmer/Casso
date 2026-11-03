@@ -578,6 +578,7 @@ void DiskInspectorWindow::OnCreate()
     m_session.views.tracks->SetOnSelect   ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.views.issues->SetOnSelect ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.views.image->SetGrouped   (true);
+    m_session.views.image->SetWrapsText (true);
     m_session.views.image->SetOnSelect  ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.context.edits = &m_session.edits;
     m_copySector->SetOnClick ([this] () { m_selection->CopySector(); });
