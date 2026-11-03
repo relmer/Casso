@@ -2122,3 +2122,29 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1282 Console help: a listing run while the console was narrow stays wrapped after the console is widened, and one run while it was wide stays wide after it is narrowed. Lay the rows out again at each width. **Done:** `80c62db21`. Help run from the debugger's console comes back with tabbed rows (`CommandModeHelp::TabbedRows`, set in `DebuggerViewState::ExecuteLine`), and `ConsoleOutput::Reflow` lays each command's output out again with `CommandModeHelp::LayOutTabbedRows` whenever the view's width changes. A script's file and the command line get the capped layout. `TabbedRowsAreLaidOutAtTheConsolesWidth` covers it; checked on screen by narrowing the window after HELP ALL.
 - [X] T1283 F7 history: bring the list's right edge in a little from the console's. **Done:** `80c62db21`. The list ends 24 DIP short of the console's right edge. Checked on screen.
 - [X] T1284 File > Open source file, Open symbol or debug file and Load file into memory open in the folder of the file last picked with each, saved with the window's state. **Done:** `2e35a18a2`. `DebuggerWindow::PickFileToOpen` saves the folder of each picked file as `folder.source`, `folder.symbols` or `folder.load` in the window's state and opens the picker there next time.
+
+
+
+## Phase 56: Owner's walk, 2026-11-02 (third pass)
+
+- [X] T1285 Pointer: the pointer is an I-beam over the menu bar, the toolbar, the heat column and tips. **Done:** `a5833dbd3`. The window's walk of its controls passed each list the window's point, which a list takes as relative to the list, so any list with text selection had the I-beam over the whole window. `DebuggerWindow::GetCursorOutsideLists` skips the lists, which are called first with a point relative to each. `TheMenuBarAndToolbarShowTheArrow` fails without the fix.
+- [X] T1286 Tooltips: no hover tip opens while another app is in front, and an instant tip closes a frame after it opens. **Done:** `61841f768`. `DxuiTooltip::IsPointerOverApp` tests whether the window under the pointer is the process's, in place of which app is in front.
+- [X] T1287 Ctrl+Shift+Alt+R reboots in the emulator window and the debugger; Reset and Power cycle run a paused machine. **Done:** `17a4b7ca2`. The accelerator table and every key scheme have Ctrl+Shift+R, Ctrl+Shift+Alt+R and Ctrl+Shift+P; `EmulatorShell::RequestReset` reads the Apple keys with any of the app's windows in front; a restart while paused resumes after the command is queued.
+- [X] T1288 F7 history: the list is in the command line's face, and Up and Down stop at its ends. **Done:** `c2d625fea`. `DxuiPopupMenu::SetWrapping`, set from `DxuiContextMenu::ListLook::isWrapping`.
+- [X] T1289 Flame graph: the selected routine's other bars are ringed in white. **Done:** `1f7ef940c`.
+- [X] T1290 Tabs: a right-click on a tab brings its pane forward before the menu opens. **Done:** `4f8f44ec2`. `RightClickingATabBringsItsPaneForward`.
+- [X] T1291 Source tabs: the tip is the file's full path. **Done:** `aadf21f11`.
+- [X] T1292 Disk II log: no track, sector or volume in the Detail column; the find bar's count fits on one line and its icons are a pane toolbar's size. **Done:** `d44a639f9`.
+- [X] T1293 Text boxes: every box has an edit menu at a right-click (Undo, Cut, Copy, Paste, Delete, Select all), in every Dxui window; a drag selects in the debugger's boxes; the pointer is an I-beam over a grid cell's edit box and the new watch row. **Done:** `e9b16aca2`. `DxuiContextMenu::MakeEditItems`, `DxuiWindow::TryShowTextBoxMenu`, `DebuggerWindow::GetTextBoxAt`.
+- [X] T1294 Disassembly menu: rows grouped with separators and a Mark as data submenu; Set or Remove breakpoint, and Enable or Disable breakpoint. **Done:** `e84ffd7ce`. `DebuggerWindow::MakePaneMenuRows`, `PaneMenu::MakeInSubmenu` and `PaneMenu::MakeSeparator`.
+- [X] T1295 Floating window: the right edge can be grabbed over the console's scroll bar, and a resize waits for the composited frame. **Done:** `415575df6`. The outer half of a resize band resizes over a scroll bar. Not checked on screen: the gap appears only during a real drag.
+- [X] T1296 Floating window: a press on a pane's title bar or a tear-off pauses the app. **Done:** `c6a944ec6`. `DxuiDockedWindow::BeginMove` moves the window with the pointer in place of the system's move loop. `ATitleBarPressMovesTheWindowWithThePointer`.
+- [X] T1297 BASIC: a dropped .bas file loads into memory as the program, after a question; the File menu and a bar on the BASIC program pane load and save a listing; a .bas dropped on the window doesn't reload the debug file any more. **Done:** `ce0262860`. New commands BASICLOAD and BASICSAVE.
+- [X] T1298 Profiler: Top level's tip in plain words. **Done:** `168a8f667`.
+- [X] T1299 BASIC program pane: a line's cut-off values are laid over their cell as the disassembly's operands are, and the listing has a menu with Copy, the line's breakpoint, and Load and Save. **Done:** `c696001ed`.
+- [X] T1300 Memory window: with heat on, a byte's tip has its counts and its tint's scale. **Done:** `622667df5`.
+- [X] T1301 Heat map: zooming in scrolls the rows across rather than refitting them, so the cell under the pointer stays under it; a notch zooms 1.5 times; the button reads Zoom; no tip during a zoom. **Done:** `9c36bcef5`.
+- [X] T1302 Mockingboard panel: a tip on each part with what it means; rows of the AY's sixteen registers; the envelope's dot moves along the ramps. **Done:** `e63fd12f4`. `SoundBoardTips`; checked on screen with the music disk.
+- [ ] T1303 One button and one key to pause and resume. Waiting on the owner's choice.
+- [ ] T1304 Console: a time on each line. Waiting on the owner's choice.
+- [ ] T1305 Mockingboard: a phoneme history to scroll back through. Waiting on the owner's choice.
