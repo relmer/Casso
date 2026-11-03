@@ -21,4 +21,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_MODULE_INITIALIZE (ModuleSetup)
 {
     UnitTestHelpers::SetupForUnitTests();
+
+    //  No window of the test process is ever under the pointer.
+    DxuiTooltip::SetDefaultActiveTest ([] () { return true; });
 }

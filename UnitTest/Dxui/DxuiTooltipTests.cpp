@@ -128,24 +128,25 @@ public:
     }
 
     //
-    //  A hover tip is hidden once another app is in the foreground, since no
-    //  pointer message dismisses it then.
+    //  A hover tip is hidden once the pointer is over another app's window,
+    //  since no pointer message dismisses it then. It is shown while the
+    //  pointer is over this app's, whichever app is in front.
     //
-    TEST_METHOD (Visible_HoverTipHidesWhenTheAppIsInactive)
+    TEST_METHOD (Visible_HoverTipHidesWhenThePointerIsOverAnotherApp)
     {
-        static bool  s_isActive = true;
+        static bool  s_isOverApp = true;
         DxuiTooltip  t;
         t.SetDwellOpenMs (100);
-        t.SetActiveTest ([] () { return s_isActive; });
+        t.SetActiveTest ([] () { return s_isOverApp; });
 
-        s_isActive = true;
+        s_isOverApp = true;
         t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
         t.Tick (100);
         Assert::IsTrue (t.IsVisible());
 
-        s_isActive = false;
+        s_isOverApp = false;
         t.Tick (200);
-        Assert::IsFalse (t.IsVisible(), L"A hover tip must hide when another app is in the foreground.");
+        Assert::IsFalse (t.IsVisible(), L"A hover tip must hide when the pointer is over another app's window.");
     }
 
     //

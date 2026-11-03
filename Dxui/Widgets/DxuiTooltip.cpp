@@ -707,26 +707,36 @@ void DxuiTooltip::RequestHide (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsAppActive
+//  IsPointerOverApp
 //
-//  A WM_ACTIVATEAPP can be missed, which left every tip hidden while the
-//  app was in front, so a foreground window of this process counts too.
+//  Whether the window under the pointer is one of this process's. A test of
+//  the app in front hid every tip while the user hovered the debugger with
+//  another app in front, and closed the instant ones a frame after they
+//  opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTooltip::IsAppActive()
+bool DxuiTooltip::IsPointerOverApp()
 {
-    HWND   foreground = GetForegroundWindow();
-    DWORD  processId  = 0;
+    POINT  pointer   = {};
+    HWND   under     = nullptr;
+    DWORD  processId = 0;
 
 
 
-    if (s_isAppActive || foreground == nullptr)
+    if (GetCursorPos (&pointer) == FALSE)
     {
-        return s_isAppActive;
+        return true;
     }
 
-    GetWindowThreadProcessId (foreground, &processId);
+    under = WindowFromPoint (pointer);
+
+    if (under == nullptr)
+    {
+        return false;
+    }
+
+    GetWindowThreadProcessId (under, &processId);
     return processId == GetCurrentProcessId();
 }
 
@@ -742,9 +752,10 @@ bool DxuiTooltip::IsAppActive()
 
 void DxuiTooltip::Tick (int64_t nowMs)
 {
-    //  A hover tip is hidden when another app is in the foreground, since the
-    //  app's windows don't get the pointer messages that dismiss it. A timed notice
-    //  ends at its set time.
+    //  A hover tip is hidden once the pointer is over another app's window,
+    //  such as one brought over this one, since this app's windows get no
+    //  pointer messages to dismiss it then. A timed notice ends at its set
+    //  time.
     if (m_isPointerTip && (m_pending || m_visible) && m_pfnIsActive != nullptr && !m_pfnIsActive())
     {
         m_pending = false;

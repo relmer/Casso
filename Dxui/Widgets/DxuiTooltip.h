@@ -75,15 +75,17 @@ public:
     //  Replaces LocatePointer, so a test can put the pointer anywhere.
     void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
 
-    //  Whether a window of this process is in the foreground, as the last
-    //  WM_ACTIVATEAPP to a DxuiHwndSource indicated or the foreground window
-    //  is one of this process's.
+    //  Whether the pointer is over a window of this process. A window under
+    //  the pointer receives its moves whether or not its app is in front.
     using ActiveTest = bool (*) ();
 
-    static bool  IsAppActive  ();
-    static void  SetAppActive (bool isActive) { s_isAppActive = isActive; }
+    static bool  IsPointerOverApp ();
 
-    //  Replaces IsAppActive for a test.
+    //  Replaces IsPointerOverApp for a test: for this tip, or as the default
+    //  for every tip made after it, since a test's pointer is never over a
+    //  window of the test's process.
+    static void  SetDefaultActiveTest (ActiveTest test)  { s_pfnDefaultIsActive = test; }
+
     void  SetActiveTest      (ActiveTest test)          { m_pfnIsActive = test; }
 
     //  The rect the tip is placed against: the anchor, or for a tip that
@@ -270,10 +272,11 @@ private:
     static constexpr float  kGradientHeightDip = 10.0f;
     static constexpr float  kLineScaleWidthDip = 64.0f;
 
-    static inline bool      s_isAppActive     = true;
     static constexpr float  kGradientArrowDip = 6.0f;
     static constexpr float  kGradientWidthDip = 200.0f;
     static constexpr int    kGradientSlices   = 64;
+
+    static inline ActiveTest  s_pfnDefaultIsActive = IsPointerOverApp;
 
     float  GetGradientExtraPx () const;
     void   DrawGradient       (IDxuiPainter & painter, float left, float width, float bottom) const;
@@ -360,7 +363,7 @@ private:
     DxuiPopupHost                       * m_activePopup       = nullptr;
     PointerMeasurer                       m_pfnMeasurePointer = MeasurePointerExtent;
     PointerLocator                        m_pfnLocatePointer  = LocatePointer;
-    ActiveTest                            m_pfnIsActive       = IsAppActive;
+    ActiveTest                            m_pfnIsActive       = s_pfnDefaultIsActive;
     DxuiPopupPlacement                    m_placement         = DxuiPopupPlacement::Below;
     bool                                  m_hasLifetime       = false;
     PointerExtent                         m_pointerExtent     = {};
