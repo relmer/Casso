@@ -113,10 +113,12 @@ void WatchesPane::Configure()
         }
     });
 
+    //  Every column fits its text and the last takes the room left, so Type
+    //  is beside the values rather than at the pane's far edge.
     m_grid->SetGridColumns ({ { { L"ID",    0, false, DxuiTextHAlign::Left }, false, false },
                               { { L"Watch", 0, false, DxuiTextHAlign::Left }, true,  true  },
-                              { { L"Value", 0, true,  DxuiTextHAlign::Left }, true,  false },
-                              { { L"Type",  0, false, DxuiTextHAlign::Left }, false, false } });
+                              { { L"Value", 0, false, DxuiTextHAlign::Left }, true,  false },
+                              { { L"Type",  0, true,  DxuiTextHAlign::Left }, false, false } });
 
     m_grid->SetAddRowText      (L"Add new watch");
     m_grid->SetAddsOnFirstField (true);
