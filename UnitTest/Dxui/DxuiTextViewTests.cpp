@@ -188,9 +188,9 @@ public:
     //  line's end, and the top line stays the same.
     TEST_METHOD (TheHorizontalWheelScrollsSideways)
     {
-        DxuiTextView    view;
+        DxuiTextView                    view;
         std::vector<DxuiTextView::Row>  rows;
-        DxuiMouseEvent  ev;
+        DxuiMouseEvent                  ev;
 
 
 
