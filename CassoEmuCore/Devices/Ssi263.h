@@ -212,7 +212,7 @@ public:
 
     static constexpr size_t  kScopeSamples        = 1024;
     static constexpr int     kScopeCaptureSeconds = 2;
-    static constexpr int     kRecentCount         = 32;
+    static constexpr int     kRecentCount         = 256;
 
     // Nominal vocal-tract filter clock; the filter register scales formants
     // relative to it, changing "voice type" as the datasheet describes.
@@ -226,7 +226,7 @@ public:
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'I', ' ');
-    static constexpr uint16_t  kStateVersion = 2;
+    static constexpr uint16_t  kStateVersion = 3;
 
 private:
     void    CaptureScope        (float sample);

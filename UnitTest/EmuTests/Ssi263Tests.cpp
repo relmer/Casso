@@ -2,6 +2,9 @@
 
 #include "Devices/Ssi263.h"
 #include "Machines/Apple2/Common/Ssi263AudioSource.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1410,6 +1413,50 @@ namespace Ssi263TestNs
         }
 
         // Bring the chip up in the common mode and start one phoneme sounding.
+        //  The recent phonemes, as many as the panel scrolls back through,
+        //  are saved with the machine, oldest first, and come back in order.
+        TEST_METHOD (TheRecentPhonemesComeBackFromASavedState)
+        {
+            Ssi263                 chip;
+            Ssi263                 loaded;
+            StateWriter            writer;
+            DiagnosticsSoundVoice  before;
+            DiagnosticsSoundVoice  after;
+            HRESULT                hr     = S_OK;
+
+
+
+            StartSpeaking (chip, 0x0A);
+
+            for (int i = 0; i < 40; i++)
+            {
+                chip.WriteRegister (Ssi263::kRegDurationPhoneme, (Byte) (0x01 + i % 0x30));
+                chip.Tick (2000);
+            }
+
+            hr = chip.SaveState (writer);
+            Assert::IsTrue (SUCCEEDED (hr), L"SaveState");
+
+            {
+                StateReader  reader (writer.GetBytes());
+
+                hr = loaded.LoadState (reader);
+                Assert::IsTrue (SUCCEEDED (hr), L"LoadState");
+            }
+
+            chip.AppendSoundBoard   (before);
+            loaded.AppendSoundBoard (after);
+
+            Assert::IsTrue   (before.recent.size() > 32, L"more than a version 2 state had room for");
+            Assert::AreEqual (before.recent.size(), after.recent.size());
+
+            for (size_t i = 0; i < before.recent.size(); i++)
+            {
+                Assert::AreEqual (before.recent[i].name, after.recent[i].name, L"in the same order");
+            }
+        }
+
+
         static void StartSpeaking (Ssi263 & chip, Byte phoneme)
         {
             LeavePowerDown (chip, Ssi263::kModePhonemeTransitioned);

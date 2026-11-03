@@ -212,6 +212,35 @@ namespace DebuggerTests
         }
 
 
+        //  The phoneme strip scrolls back through the history a few
+        //  phonemes a notch, to the oldest the chip has and back to the
+        //  newest, and no further either way.
+        TEST_METHOD (ThePhonemeStripScrollsBackThroughTheHistory)
+        {
+            SoundBoardView         view;
+            DiagnosticsSoundBoard  board = MakeBoard (true);
+
+
+
+            for (int i = 0; i < 10; i++)
+            {
+                board.voice->recent.push_back ({ "E (meet)", 0.05f });
+            }
+
+            LayOut (view);
+            view.SetBoard (board);
+
+            view.ScrollPhonemes (SoundBoardView::kPhonemesPerNotch);
+            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetPhonemesBack());
+
+            view.ScrollPhonemes (1000);
+            Assert::AreEqual ((size_t) 9, view.GetPhonemesBack(), L"the oldest at the strip's right end");
+
+            view.ScrollPhonemes (-1000);
+            Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the newest again");
+        }
+
+
         //  Every part with data in it, in the three kinds of theme.
         TEST_METHOD (AFullBoardPaintsInEachTheme)
         {

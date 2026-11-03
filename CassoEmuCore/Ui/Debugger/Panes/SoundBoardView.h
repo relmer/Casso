@@ -58,6 +58,15 @@ public:
     int   GetContentHeight () const { return m_contentHeight; }
     int   GetScrollTop     () const { return m_scrollTop; }
 
+    //  The phoneme strip scrolled back through the history by `count`
+    //  phonemes, forward for a negative one, from the newest to the oldest
+    //  the speech chip has; and how far back it is.
+    void    ScrollPhonemes   (int count);
+    size_t  GetPhonemesBack  () const { return m_phonemesBack; }
+
+    //  A notch of the wheel over the strip.
+    static constexpr int  kPhonemesPerNotch = 4;
+
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
@@ -117,6 +126,7 @@ private:
     void  AddRegion         (const RECT & rect, std::wstring tip, int muteChannel = -1);
     void  SyncScrollbar     ();
     void  ScrollTo          (int top);
+    bool  IsOverPhonemeStrip (POINT clientPx) const;
 
     RECT  GetChannelRect    (const RECT & card, int channel) const;
     RECT  GetMuteOfChannel  (const RECT & row) const;
@@ -135,8 +145,8 @@ private:
     void  PaintRegisters    (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const;
     static void  AddSpot    (const Painting & p, const RECT & rect, std::wstring tip);
     void  PaintVoice        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & card) const;
-    void  PaintStrip        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect, size_t count) const;
-    size_t  PaintHistory    (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
+    void  PaintStrip        (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect, size_t count) const;
+    size_t  PaintHistory    (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const;
     RECT  GetStripArea      (const RECT & card) const;
     void  PaintFormants     (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
     void  PaintScope        (const Painting & p, const std::vector<float> & scope, const RECT & rect, uint32_t color, double hz, bool isBipolar) const;
@@ -160,5 +170,6 @@ private:
     std::array<float, 6>      m_peaks         = {};
     int                       m_contentHeight = 0;
     int                       m_scrollTop     = 0;
+    size_t                    m_phonemesBack  = 0;   // how many of the newest phonemes the strip is scrolled back past
     bool                      m_hasScrollbar  = false;
 };

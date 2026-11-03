@@ -1460,11 +1460,13 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
     StateFloat::Write  (writer, m_outLp);
     StateFloat::Write  (writer, m_outLp2);
 
-    writer.WriteUInt32 (static_cast<uint32_t> (m_recentAt));
+    //  The recent phonemes in use, oldest first.
     writer.WriteUInt32 (static_cast<uint32_t> (m_recentCount));
 
-    for (const RecentPhoneme & entry : m_recent)
+    for (int each = 0; each < m_recentCount; each++)
     {
+        const RecentPhoneme  & entry = m_recent[(size_t) ((m_recentAt + kRecentCount - m_recentCount + each) % kRecentCount)];
+
         writer.WriteByte  (entry.code);
         StateFloat::Write (writer, entry.seconds);
     }
@@ -1488,6 +1490,8 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
 HRESULT Ssi263::LoadState (StateReader & reader)
 {
     constexpr uint16_t  kFirstWithRecent = 2;
+    constexpr uint16_t  kFirstInOrder    = 3;
+    constexpr uint32_t  kVersion2Count   = 32;
     HRESULT             hr               = S_OK;
     uint16_t            version          = 0;
     int                 i                = 0;
@@ -1530,15 +1534,38 @@ HRESULT Ssi263::LoadState (StateReader & reader)
     StateFloat::Read  (reader, m_outLp);
     StateFloat::Read  (reader, m_outLp2);
 
-    if (version >= kFirstWithRecent)
+    m_recent = {};
+
+    //  Version 3 has the phonemes in use, oldest first; version 2 had a ring
+    //  of 32 and its next slot, put back here oldest first.
+    if (version >= kFirstInOrder)
     {
+        reader.ReadUInt32 (recentCount);
+        CBREx (recentCount <= (uint32_t) kRecentCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        for (uint32_t each = 0; each < recentCount; each++)
+        {
+            reader.ReadByte  (m_recent[each].code);
+            StateFloat::Read (reader, m_recent[each].seconds);
+        }
+    }
+    else if (version >= kFirstWithRecent)
+    {
+        std::array<RecentPhoneme, kVersion2Count>  ring = {};
+
         reader.ReadUInt32 (recentAt);
         reader.ReadUInt32 (recentCount);
+        CBREx (recentAt < kVersion2Count && recentCount <= kVersion2Count, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        for (RecentPhoneme & entry : m_recent)
+        for (RecentPhoneme & entry : ring)
         {
             reader.ReadByte  (entry.code);
             StateFloat::Read (reader, entry.seconds);
+        }
+
+        for (uint32_t each = 0; each < recentCount; each++)
+        {
+            m_recent[each] = ring[(recentAt + kVersion2Count - recentCount + each) % kVersion2Count];
         }
     }
 
@@ -1546,10 +1573,9 @@ HRESULT Ssi263::LoadState (StateReader & reader)
     CHR (hr);
 
     CBREx (m_mode <= kModePhonemeTransitioned, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (recentAt < (uint32_t) kRecentCount && recentCount <= (uint32_t) kRecentCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    m_recentAt    = (int) recentAt;
     m_recentCount = (int) recentCount;
+    m_recentAt    = (int) (recentCount % (uint32_t) kRecentCount);
 
 Error:
     return hr;
