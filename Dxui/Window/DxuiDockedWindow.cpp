@@ -575,7 +575,7 @@ void DxuiDockedWindow::PollCaptionDrag()
 //
 //  DxuiDockedWindow::OnNcLButtonDown
 //
-//  A press on the title bar starts BeginMove's move.
+//  A press on the title bar calls BeginMove.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
