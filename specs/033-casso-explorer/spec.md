@@ -2111,7 +2111,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-131**: The tree MUST animate a connection's icon and the receiving folder during a transfer, and MUST badge the Full Send and ADTPro folders with a count of received files not yet rendered in the list, across restarts.
 - **FR-132**: Casso Explorer MUST read and write Apple Pascal and CP/M 140K disks, on images and over CassoLink. CP/M detection MAY be heuristic, with a manual choice.
 - **FR-133**: A WOZ image's Properties MUST have a page that edits its INFO and META fields, as in Session 2026-11-02, and saves them into the image in place.
-- **FR-134**: Casso Explorer MUST append every CassoLink connection's activity and each packet sent and received to one `CassoLink.csv` under Casso's Logs folder in local app data, a row each with the date and time, the connection, Activity, Sent or Received, and the message in plain English, and MUST drop the rows older than 30 days.
+- **FR-134**: Casso Explorer MUST append every CassoLink connection's activity and each packet sent and received to one `CassoLink Log.csv` under Casso's Logs folder in local app data, a row each with the date and time, the connection, Activity, Sent or Received, and the message in plain English, and MUST drop the rows older than 30 days.
 - **FR-135**: A folder in Details view with no column width the user set MUST fit each column but Name to its values, wider or narrower, measuring every row up to 500 and the rows on screen past that. A width the user set by dragging or fitting a column MUST be the folder's from then on, and an automatic fit MUST NOT be saved as one.
 
 ### Key Entities

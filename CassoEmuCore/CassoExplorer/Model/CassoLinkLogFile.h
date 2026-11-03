@@ -11,7 +11,7 @@
 //  CassoLinkLogFile
 //
 //  Every connection's activity and the packets on each line, as rows of
-//  CassoLink.csv in a folder: the local time, the connection, what the row is
+//  CassoLink Log.csv in a folder: the local time, the connection, what the row is
 //  (Activity, Sent or Received) and the message in plain English. Rows older
 //  than kKeepDays are dropped when the file is first opened and each day
 //  after. With no folder set, nothing is written.
@@ -31,7 +31,7 @@ public:
     static constexpr const char     * kSent     = "Sent";
     static constexpr const char     * kReceived = "Received";
     static constexpr const char     * kHeader   = "Time,Connection,Kind,Message";
-    static constexpr const wchar_t  * kFileName = L"CassoLink.csv";
+    static constexpr const wchar_t  * kFileName = L"CassoLink Log.csv";
     static constexpr int              kKeepDays = 30;
 
     void  SetFolder (const std::filesystem::path & folder);
