@@ -66,6 +66,9 @@ public:
     //  smaller icon, or the next view past the smallest. Whether it changed.
     bool                  StepIconSize       (int notches);
 
+    //  Whether the user set a column width in the folder on display.
+    bool                  HasFolderColumnWidths () const;
+
 private:
     ExplorerListPane                   & m_pane;
     ExplorerContext                    & m_context;

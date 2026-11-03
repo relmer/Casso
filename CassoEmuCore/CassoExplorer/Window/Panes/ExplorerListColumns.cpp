@@ -489,6 +489,20 @@ bool ExplorerListColumns::IsFolderViewSaved (const std::wstring & key) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListColumns::HasFolderColumnWidths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::HasFolderColumnWidths() const
+{
+    return !m_viewKey.empty() && !m_context.prefs.folderViews.GetEntry (m_viewKey, FolderViews::FolderType::Generic).columnWidthsDip.empty();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListColumns::RememberFolderSort
 //
 //  Kept only when the user sorts or groups, so a folder merely visited keeps

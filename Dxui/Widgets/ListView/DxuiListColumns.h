@@ -39,6 +39,10 @@ public:
     void  GrowColumnToVisibleContent (size_t idx);
     void  GrowColumnToContent        (size_t idx);
 
+    //  As FitColumnToContent, with no report of the width to the host, as it
+    //  isn't a width the user chose.
+    void  AutoFitColumnToContent     (size_t idx);
+
     void  FitAllColumnsToContent    ();
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
@@ -101,6 +105,7 @@ private:
     bool                      m_preciseAutoFit = false;
     mutable bool              m_measureDirty   = false;
     std::vector<size_t>       m_pendingFits;
+    std::vector<size_t>       m_pendingAutoFits;
     std::vector<size_t>       m_pendingVisibleFits;
     std::vector<size_t>       m_pendingVisibleGrows;
     std::vector<size_t>       m_pendingGrows;

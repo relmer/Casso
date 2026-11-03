@@ -692,6 +692,29 @@ void DxuiListColumns::GrowColumnToContent (size_t idx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AutoFitColumnToContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::AutoFitColumnToContent (size_t idx)
+{
+    if (idx >= m_list.m_columns.size() || !m_list.m_columns[idx].visible)
+    {
+        return;
+    }
+
+    if (std::find (m_pendingAutoFits.begin(), m_pendingAutoFits.end(), idx) == m_pendingAutoFits.end())
+    {
+        m_pendingAutoFits.push_back (idx);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FitAllColumnsToContent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -723,6 +746,7 @@ void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
         size_t  idx;
         bool    visibleRows;
         bool    growOnly;
+        bool    report;      // a user's fit, so the host is told the width
     };
 
     int                                    minPx     = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
@@ -734,30 +758,36 @@ void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
 
     for (size_t idx : m_pendingFits)
     {
-        pending.push_back ({ idx, false, false });
+        pending.push_back ({ idx, false, false, true });
+    }
+
+    for (size_t idx : m_pendingAutoFits)
+    {
+        pending.push_back ({ idx, false, false, false });
     }
 
     for (size_t idx : m_pendingVisibleFits)
     {
-        pending.push_back ({ idx, true, false });
+        pending.push_back ({ idx, true, false, false });
     }
 
     for (size_t idx : m_pendingVisibleGrows)
     {
-        pending.push_back ({ idx, true, true });
+        pending.push_back ({ idx, true, true, false });
     }
 
     for (size_t idx : m_pendingGrows)
     {
-        pending.push_back ({ idx, false, true });
+        pending.push_back ({ idx, false, true, false });
     }
 
     m_pendingFits.clear();
+    m_pendingAutoFits.clear();
     m_pendingVisibleFits.clear();
     m_pendingVisibleGrows.clear();
     m_pendingGrows.clear();
 
-    for (const auto & [idx, visibleRows, growOnly] : pending)
+    for (const auto & [idx, visibleRows, growOnly, report] : pending)
     {
         contentPx = visibleRows ? GetColumnContentWidthPx (text, idx, topRow, topRow + m_list.GetVisibleRowCapacity() + 1)
                                 : GetColumnContentWidthPx (text, idx);
@@ -771,7 +801,7 @@ void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
 
         //  Reported here rather than at the double-click, since this is where
         //  the width the host would store is finally known.
-        if (m_list.m_onColumnResized)
+        if (report && m_list.m_onColumnResized)
         {
             m_list.m_onColumnResized ((int) idx, GetColumnOverrideWidthPx (idx));
         }

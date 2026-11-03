@@ -1018,24 +1018,25 @@ void ExplorerListPane::FillList()
     {
         m_grownLocation = m_listLocation;
 
-        //  Elsewhere a column too narrow for its rows widens, so its values
-        //  are not cut short, and a wider one keeps its width. A large folder
-        //  is measured a screenful at a time. The name keeps its width, as a
+        //  Elsewhere a folder with widths the user set opens with them. In any
+        //  other, each column fits its rows, so its values are not cut short
+        //  and no column is wider than its widest value. A large folder is
+        //  measured a screenful at a time. The name's width doesn't change, as a
         //  long name is cut short in File Explorer too.
-        for (size_t column = (size_t) CatalogModel::Column::Name + 1; column < m_columns.GetChosen().size(); column++)
+        for (size_t column = (size_t) CatalogModel::Column::Name + 1; column < m_columns.GetChosen().size() && !m_columns.HasFolderColumnWidths(); column++)
         {
             if (!ExplorerListColumns::IsListColumnShown (column, m_columns.GetChosen()[column], m_listLocation.kind, false))
             {
                 continue;
             }
 
-            if (count <= s_kGrowAllRowsMax)
+            if (count <= s_kFitAllRowsMax)
             {
-                m_list->GrowColumnToContent (column);
+                m_list->AutoFitColumnToContent (column);
             }
             else
             {
-                m_list->GrowColumnToVisibleContent (column);
+                m_list->FitColumnToVisibleContent (column);
             }
         }
     }

@@ -124,6 +124,11 @@ public:
     void  GrowColumnToVisibleContent (size_t idx) { m_columnSizing.GrowColumnToVisibleContent (idx); }
     void  GrowColumnToContent        (size_t idx) { m_columnSizing.GrowColumnToContent (idx); }
 
+    //  As FitColumnToContent, with no report through SetOnColumnResized, for
+    //  a fit the host makes that the user didn't choose. The fits above that
+    //  measure only the rows on screen, or only grow, are not reported either.
+    void  AutoFitColumnToContent     (size_t idx) { m_columnSizing.AutoFitColumnToContent (idx); }
+
     //  Every shown column fitted to its content, as FitColumnToContent does
     //  one.
     void  FitAllColumnsToContent    () { m_columnSizing.FitAllColumnsToContent(); }
