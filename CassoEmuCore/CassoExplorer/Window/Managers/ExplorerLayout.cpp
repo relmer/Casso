@@ -218,8 +218,9 @@ void ExplorerLayout::RecomputeLayout()
 
     m_context.toolbars.Layout (m_menuBand.GetBounds(), m_toolbarBand.GetBounds());
 
+    //  With View > Show's Navigation pane off, the list takes the tree's width.
     panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_context.scaler.GetDpi()),
-                      m_context.prefs.treeWidthDip, preview ? m_context.prefs.previewWidthDip : 0);
+                      m_context.prefs.navigationPane ? m_context.prefs.treeWidthDip : 0, preview ? m_context.prefs.previewWidthDip : 0);
 
     m_context.addressBar.Layout (m_context.toolbars.GetFreeRect(), m_toolbarBand.GetBounds(), body.right - body.left - m_context.scaler.ToPx (panes.tree));
 
@@ -227,12 +228,13 @@ void ExplorerLayout::RecomputeLayout()
 
     //  A narrow window has already taken each pane below its minimum, so
     //  the sash can go no further than where the fit put it.
+    m_treeSplitter->SetVisible (m_context.prefs.navigationPane);
     m_treeSplitter->Layout (body, m_context.scaler);
     m_treeSplitter->SetLimitsDip ((std::min) (kMinTreeWidthDip, panes.tree),
                                            (std::min) (kMinListWidthDip, panes.list) + (preview ? (std::min) (kMinPreviewWidthDip, panes.preview) + DxuiSplitter::kSashDip : 0));
     m_treeSplitter->SetPositionDip (panes.tree);
 
-    sashRect = m_treeSplitter->GetSashRect();
+    sashRect = m_context.prefs.navigationPane ? m_treeSplitter->GetSashRect() : RECT { body.left, body.top, body.left, body.bottom };
     m_context.treePane.Layout (RECT { body.left, body.top, sashRect.left, body.bottom });
 
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
@@ -373,6 +375,28 @@ ExplorerLayout::PaneWidths ExplorerLayout::FitPanes (int bodyDip, int treeDip, i
 int ExplorerLayout::GetListRowHeightPx (UINT dpi)
 {
     int  half    = (int) ((kListRowHalfDip * dpi + 95) / 96);
+    int  partial = (dpi % 96 != 0) ? 1 : 0;
+
+
+
+    return 2 * half + partial;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerLayout::GetCompactRowHeightPx
+//
+//  File Explorer's Compact view row, the same rule with 11 dip to the half.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerLayout::GetCompactRowHeightPx (UINT dpi)
+{
+    int  half    = (int) ((kCompactRowHalfDip * dpi + 95) / 96);
     int  partial = (dpi % 96 != 0) ? 1 : 0;
 
 

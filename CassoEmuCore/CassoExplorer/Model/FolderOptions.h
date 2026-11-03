@@ -33,10 +33,31 @@ struct FolderOptions
     bool  paneShowsAllFolders  = false;
     bool  paneExpandsToCurrent = false;
 
+    //  View > Show's File name extensions, Item check boxes and Compact view.
+    bool  showExtensions = true;
+    bool  checkBoxes     = false;
+    bool  compactView    = false;
+
+    enum class Option
+    {
+        HiddenItems,
+        Extensions,
+        CheckBoxes,
+        CompactView,
+    };
+
     bool  IsShown (const FileSystemEntry & entry) const;
 
     bool  operator== (const FolderOptions &) const = default;
 
     //  The user's own settings, as Explorer reads them.
     static FolderOptions  ReadFromShell ();
+
+    //  One of View > Show's settings changed for every File Explorer window, as
+    //  its menu changes it.
+    static HRESULT        SetInShell    (Option option, bool on);
+
+    //  A file's name with its extension removed when the extension has a type
+    //  registered, as names appear in File Explorer with extensions hidden.
+    static std::wstring   HideKnownExtension (const std::wstring & name);
 };

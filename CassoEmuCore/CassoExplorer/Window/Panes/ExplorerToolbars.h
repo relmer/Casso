@@ -82,6 +82,7 @@ private:
     RECT                   m_tipMuteRect = {};
 
     void                                    SetCommandBarEntries ();
+    DxuiPopupMenuItem                       GetShowSubmenu       ();
 
     //  The location's buttons on the command bar, if any.
     CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;

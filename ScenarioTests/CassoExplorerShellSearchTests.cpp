@@ -179,6 +179,18 @@ public:
         Assert::IsFalse  (items[0].folderShown.empty());
     }
 
+    //  A saved search is the query, every kind of item, and each folder on the
+    //  disk it covered, escaped for XML.
+    TEST_METHOD (SavedSearch_HasTheQueryAndTheFolders)
+    {
+        std::string  xml = Win32ShellSearch::MakeSavedSearch (L"*.h & <x>", { L"C:\\Repo", L"pc:" });
+
+        Assert::IsTrue (xml.find ("value=\"*.h &amp; &lt;x&gt;\"") != std::string::npos);
+        Assert::IsTrue (xml.find ("<include path=\"C:\\Repo\"/>") != std::string::npos);
+        Assert::IsTrue (xml.find ("pc:") == std::string::npos, L"This PC has no folder to include");
+        Assert::IsTrue (xml.find ("<kind name=\"item\"/>") != std::string::npos);
+    }
+
     //  The labels and the group of a real drive.
     TEST_METHOD (DriveProperties_GroupByWindowsRanges)
     {

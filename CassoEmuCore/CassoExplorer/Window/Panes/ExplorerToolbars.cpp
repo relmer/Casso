@@ -1,4 +1,6 @@
 #include "Pch.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Model/FolderOptions.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Model/SearchQuery.h"
@@ -595,6 +597,71 @@ void ExplorerToolbars::SetCommandBarEntries()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerToolbars::GetShowSubmenu
+//
+//  File Explorer's View > Show: the navigation pane, which is Casso Explorer's
+//  alone, then Windows' Compact view, Item check boxes, File name
+//  extensions and Hidden items, which File Explorer's windows share.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPopupMenuItem ExplorerToolbars::GetShowSubmenu()
+{
+    std::vector<DxuiPopupMenuItem>  rows;
+    std::shared_ptr<DxuiCommand>    show = std::make_shared<DxuiCommand>();
+    auto                            row  = [this, &rows] (const wchar_t * label, const wchar_t * svg, std::function<bool()> checked, std::function<void()> dispatch)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->label     = label;
+        command->menuSvg   = m_context.menus.GetMenuSvg (svg);
+        command->isChecked = std::move (checked);
+        command->dispatch  = std::move (dispatch);
+
+        rows.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+    };
+    auto                            shell = [this] (FolderOptions::Option option, bool on)
+    {
+        HRESULT  hr = FolderOptions::SetInShell (option, on);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_context.commandManager.Dispatch (CassoExplorerCommands::kRefresh);
+    };
+
+
+
+    row (L"Navigation pane", L"windows.navpane", [this]() { return m_context.prefs.navigationPane; }, [this]()
+    {
+        m_context.prefs.navigationPane = !m_context.prefs.navigationPane;
+        m_context.layout.RecomputeLayout();
+        m_context.window.SaveSession();
+    });
+
+    rows.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    row (L"Compact view", L"windows.compactmode", [this]() { return m_context.explorerOptions.compactView; },
+         [this, shell]() { shell (FolderOptions::Option::CompactView, !m_context.explorerOptions.compactView); });
+
+    rows.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    row (L"Item check boxes", L"windows.selectioncheckboxes", [this]() { return m_context.explorerOptions.checkBoxes; },
+         [this, shell]() { shell (FolderOptions::Option::CheckBoxes, !m_context.explorerOptions.checkBoxes); });
+    row (L"File name extensions", L"windows.showfileextensions", [this]() { return m_context.explorerOptions.showExtensions; },
+         [this, shell]() { shell (FolderOptions::Option::Extensions, !m_context.explorerOptions.showExtensions); });
+    row (L"Hidden items", L"windows.showhiddenfiles", [this]() { return m_context.explorerOptions.showHidden; },
+         [this, shell]() { shell (FolderOptions::Option::HiddenItems, !m_context.explorerOptions.showHidden); });
+
+    show->label = L"Show";
+
+    return DxuiPopupMenuItem::ForSubmenu (std::move (show), std::move (rows));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerToolbars::SetCommandBarDropDowns
 //
 //  The rows of New, Sort, View and Theme. They are commands, so each reads
@@ -627,6 +694,9 @@ void ExplorerToolbars::SetCommandBarDropDowns()
         viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
         viewItems.push_back (DxuiPopupMenuItem::ForCommand (std::move (preview)));
     }
+
+    viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
+    viewItems.push_back (GetShowSubmenu());
 
     //  Group by is at the foot of Explorer's Sort menu.
     sortItems.push_back (DxuiPopupMenuItem::ForSeparator());

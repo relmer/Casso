@@ -50,6 +50,7 @@ public:
     static constexpr float  kCommandBarDip        = 47.0f;
     static constexpr float  kNavStripFillDip      = 48.0f;
     static constexpr UINT   kListRowHalfDip       = 14;
+    static constexpr UINT   kCompactRowHalfDip    = 11;
     static constexpr int    kMinTreeWidthDip      = 140;
     static constexpr int    kMinListWidthDip      = 220;
     static constexpr int    kMinPreviewWidthDip   = 280;   // wide enough for the hex view's toolbar
@@ -58,7 +59,8 @@ public:
     static constexpr int     kMessageWidthDip = 400;
 
     static PaneWidths        FitPanes           (int bodyDip, int treeDip, int previewDip);
-    static int               GetListRowHeightPx (UINT dpi);
+    static int               GetListRowHeightPx    (UINT dpi);
+    static int               GetCompactRowHeightPx (UINT dpi);
     void                     ConfigureWidgets   ();
     void                     RecomputeLayout    ();
     void                     UpdateCommandBar   ();

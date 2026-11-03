@@ -712,6 +712,155 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellSearch::SaveSearch
+//
+//  The save dialog opens in Saved Searches, with the query as the name, as
+//  File Explorer's Save search does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellSearch::SaveSearch (HWND owner, const std::wstring & id)
+{
+    static constexpr COMDLG_FILTERSPEC  s_kTypes[] = { { L"Saved search", L"*.search-ms" } };
+    HRESULT                             hr       = S_OK;
+    std::wstring                        scope;
+    std::wstring                        query;
+    bool                                parsed   = SearchQuery::TryParseId (id, scope, query);
+    ComPtr<IFileSaveDialog>             dialog;
+    ComPtr<IShellItem>                  folder;
+    ComPtr<IShellItem>                  chosen;
+    PWSTR                               path     = nullptr;
+    std::string                         xml;
+    std::wstring                        name;
+    HRESULT                             hrFolder = S_OK;
+
+
+
+    CBRAEx (parsed, E_INVALIDARG);
+
+    xml  = MakeSavedSearch (query, SearchQuery::SplitScopes (scope));
+    name = query;
+    std::replace_if (name.begin(), name.end(), [] (wchar_t ch) { return wcschr (L"\\/:*?\"<>|", ch) != nullptr; }, L'_');
+
+    hr = CoCreateInstance (CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&dialog));
+    CHR (hr);
+
+    hr = dialog->SetFileTypes ((UINT) std::size (s_kTypes), s_kTypes);
+    CHR (hr);
+
+    hr = dialog->SetDefaultExtension (L"search-ms");
+    CHR (hr);
+
+    hr = dialog->SetFileName (name.c_str());
+    CHR (hr);
+
+    hrFolder = SHGetKnownFolderItem (FOLDERID_SavedSearches, KF_FLAG_DEFAULT, nullptr, IID_PPV_ARGS (&folder));
+
+    if (SUCCEEDED (hrFolder))
+    {
+        hr = dialog->SetFolder (folder.Get());
+        CHR (hr);
+    }
+
+    hr = dialog->Show (owner);
+    CHR (hr);
+
+    hr = dialog->GetResult (&chosen);
+    CHR (hr);
+
+    hr = chosen->GetDisplayName (SIGDN_FILESYSPATH, &path);
+    CHR (hr);
+
+    {
+        std::ofstream  out (path, std::ios::binary | std::ios::trunc);
+
+        out.write (xml.data(), (std::streamsize) xml.size());
+        CBREx (out.good(), HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+    }
+
+Error:
+    CoTaskMemFree (path);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::MakeSavedSearch
+//
+//  The persisted query Windows reads a .search-ms file as: the query as the
+//  box's words, every item kind, and each folder searched with its subfolders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Win32ShellSearch::MakeSavedSearch (const std::wstring & query, const std::vector<std::wstring> & scopes)
+{
+    std::string  xml = "<?xml version=\"1.0\"?>\r\n<persistedQuery version=\"1.0\">\r\n"
+                       "\t<viewInfo viewMode=\"details\" iconSize=\"16\" stackIconSize=\"0\" autoListFlags=\"0\"/>\r\n"
+                       "\t<query>\r\n\t\t<conditions>\r\n";
+
+
+
+    xml += "\t\t\t<condition type=\"leafCondition\" property=\"System.Generic.String\" operator=\"wordmatch\" propertyType=\"string\" value=\""
+         + EscapeXml (TextEncoding::WideToUtf8 (query)) + "\"/>\r\n";
+    xml += "\t\t</conditions>\r\n\t\t<kindList>\r\n\t\t\t<kind name=\"item\"/>\r\n\t\t</kindList>\r\n\t\t<scope>\r\n";
+
+    //  Home's and This PC's searches have no folder; the whole index is theirs.
+    for (const std::wstring & folder : scopes)
+    {
+        if (folder.size() < 3 || folder[1] != L':')
+        {
+            continue;
+        }
+
+        xml += "\t\t\t<include path=\"" + EscapeXml (TextEncoding::WideToUtf8 (folder)) + "\"/>\r\n";
+    }
+
+    xml += "\t\t</scope>\r\n\t</query>\r\n</persistedQuery>\r\n";
+
+    return xml;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::EscapeXml
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Win32ShellSearch::EscapeXml (const std::string & text)
+{
+    std::string  escaped;
+
+
+
+    for (char ch : text)
+    {
+        switch (ch)
+        {
+            case '&':  escaped += "&amp;";  break;
+            case '<':  escaped += "&lt;";   break;
+            case '>':  escaped += "&gt;";   break;
+            case '"':  escaped += "&quot;"; break;
+            default:   escaped += ch;       break;
+        }
+    }
+
+    return escaped;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellSearch::QueryIndex
 //
 //  The index's own helper turns the query into its SQL, so the query means

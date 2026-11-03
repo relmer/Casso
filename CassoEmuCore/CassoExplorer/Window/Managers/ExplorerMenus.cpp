@@ -624,9 +624,16 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
 
 
 
+    //  File Explorer's Folder and Shortcut have the shell's colored icons.
     if (folder != nullptr)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (folder));
+        std::shared_ptr<DxuiCommand>  colored = std::make_shared<DxuiCommand> (*folder);
+
+        colored->menuSvg   = nullptr;
+        colored->menuGlyph = nullptr;
+        colored->menuImage = GetStockMenuImage (SIID_FOLDER);
+        m_menuCommands.push_back (colored);
+        items.push_back (DxuiPopupMenuItem::ForCommand (std::move (colored)));
     }
 
     for (const Win32PackagedCommands::NewChoice & choice : choices)
@@ -634,7 +641,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         if (host && _wcsicmp (choice.verb.c_str(), Win32PackagedCommands::kNewLinkVerb) == 0)
         {
             AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
-            m_menuCommands.back()->menuSvg = GetMenuSvg (L"link");
+            m_menuCommands.back()->menuImage = GetStockMenuImage (SIID_LINK);
         }
     }
 
@@ -659,6 +666,59 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
         m_menuCommands.back()->menuImage = m_context.shellIcons.GetForExtension (choice.verb);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::GetStockMenuImage
+//
+//  A shell stock icon at the menu's icon size, as File Explorer's New draws
+//  Folder and Shortcut; null when the shell doesn't have one. Cached for the
+//  window's life.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetStockMenuImage (SHSTOCKICONID id)
+{
+    int                          sizePx = m_context.scaler.ToPx (kMenuIconDip);
+    std::wstring                 key    = std::format (L"{}:stock:{}", sizePx, (int) id);
+    SHSTOCKICONINFO              info   = { sizeof (info) };
+    HICON                        icon   = nullptr;
+    HRESULT                      hr     = S_OK;
+    auto                         image  = std::make_shared<DxuiIconImage>();
+
+
+
+    if (m_openMenuImages.count (key) != 0)
+    {
+        return m_openMenuImages[key];
+    }
+
+    m_openMenuImages[key] = nullptr;
+
+    hr = SHGetStockIconInfo (id, SHGSI_ICONLOCATION, &info);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = SHDefExtractIconW (info.szPath, info.iIcon, 0, &icon, nullptr, (UINT) sizePx);
+    }
+
+    if (SUCCEEDED (hr) && icon != nullptr)
+    {
+        hr = DxuiIconImage::FromHicon (icon, sizePx, *image);
+        DestroyIcon (icon);
+
+        if (SUCCEEDED (hr))
+        {
+            m_openMenuImages[key] = image;
+        }
+    }
+
+    return m_openMenuImages[key];
 }
 
 
@@ -1008,18 +1068,8 @@ void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & ite
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    //  A sync client's group comes first, in a group of its own.
-    for (const Win32PackagedCommands::Entry & entry : entries)
-    {
-        if (entry.cloud)
-        {
-            AddPackagedEntry (items, entry, paths);
-            items.push_back (DxuiPopupMenuItem::ForSeparator());
-        }
-    }
-
-    std::erase_if (entries, [] (const Win32PackagedCommands::Entry & entry) { return entry.cloud; });
-
+    //  A sync client's commands, as OneDrive's, are among the rest in the order
+    //  Windows lists them, as in File Explorer.
     for (const Win32PackagedCommands::Entry & entry : entries)
     {
         AddPackagedEntry (items, entry, paths);

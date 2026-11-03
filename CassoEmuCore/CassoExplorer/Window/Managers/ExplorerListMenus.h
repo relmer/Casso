@@ -47,6 +47,7 @@ public:
     std::vector<DxuiPopupMenuItem>  GetGroupChoices        (bool commandBar);
     std::vector<DxuiPopupMenuItem>  GetColumnGroupChoices  (bool grouped);
     bool                            IsSearchIndexed        ();
+    static std::wstring             GetSearchScopeFolder   (const Location & shown);
     std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
     std::vector<DxuiPopupMenuItem>  GetViewChoices         (bool withKeys);
 

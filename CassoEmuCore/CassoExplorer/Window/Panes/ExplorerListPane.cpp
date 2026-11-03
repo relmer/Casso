@@ -87,7 +87,7 @@ void ExplorerListPane::Configure()
     m_list->SetIconColumn (0);
     m_list->SetExplorerDetails (true);
     ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kProse);
-    m_list->SetRowHeightPxFn (&ExplorerLayout::GetListRowHeightPx);
+    m_list->SetRowHeightPxFn (m_context.explorerOptions.compactView ? &ExplorerLayout::GetCompactRowHeightPx : &ExplorerLayout::GetListRowHeightPx);
     m_columns.LoadPropertyColumns();
     m_columns.ChooseAll (m_columns.GetListColumns().size());
 
@@ -133,6 +133,24 @@ void ExplorerListPane::Configure()
     m_list->SetClock (&CassoExplorerWindow::GetNowMs);
 
     m_list->SetOnSelectionChanged ([this] (int) { OnSelectionChanged(); });
+
+    //  An item's check box adds it to the selection or takes it out.
+    m_list->SetOnCheckToggled ([this] (int row)
+    {
+        std::vector<int>  rows    = m_list->GetSelectedRows();
+        auto              checked = std::find (rows.begin(), rows.end(), row);
+
+        if (checked != rows.end())
+        {
+            rows.erase (checked);
+        }
+        else
+        {
+            rows.push_back (row);
+        }
+
+        SetListSelection (std::move (rows));
+    });
 
     m_list->SetView (m_columns.GetView());
     m_context.toolbars.ShowViewOnButton();
@@ -1148,6 +1166,13 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         std::vector<DxuiListView::Cell> & cells = m_rowCells[(size_t) row];
 
         cells         = BrowserCells::ToCells (rows[(size_t) row], m_rowLocation, &m_listIcons);
+
+        //  With extensions hidden, a host file's known extension is left off.
+        if (!m_context.browser.GetFolderOptions().showExtensions && !rows[(size_t) row].isDirectory && !rows[(size_t) row].hostPath.empty() && rows[(size_t) row].label.empty())
+        {
+            cells[0].text = FolderOptions::HideKnownExtension (cells[0].text);
+        }
+
         cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_context.browser.GetFolderOptions(), m_rowDark);
 
         ApplyPropertyCells (row, cells);
@@ -1172,6 +1197,11 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
 
         m_rowBuilt[(size_t) row] = true;
     }
+
+    //  Item check boxes in Details mark the selection, as File Explorer's do.
+    m_rowCells[(size_t) row][0].check = (m_context.browser.GetFolderOptions().checkBoxes && m_columns.GetView() == DxuiListView::View::Details)
+                                      ? (m_list->IsRowSelected (row) ? DxuiListView::Cell::Check::On : DxuiListView::Cell::Check::Off)
+                                      : DxuiListView::Cell::Check::None;
 
     return m_rowCells[(size_t) row];
 }

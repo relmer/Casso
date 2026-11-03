@@ -667,7 +667,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     {
         POINT         screen  = { x, y };
         std::wstring  shellId = GetBackgroundShellId (shown);
-        bool          onDisk  = shown.kind == Location::Kind::HostFolder || m_pane.GetColumns().GetGroupFolder() == GroupChoices::Folder::Zip;
+        bool          onDisk  = shown.kind == Location::Kind::HostFolder || m_pane.GetColumns().GetGroupFolder() == GroupChoices::Folder::Zip || SearchQuery::IsId (shown.path);
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
@@ -971,9 +971,11 @@ bool ExplorerListMenus::IsListVerbOffered (CassoExplorerActions::Verb verb) cons
 
 std::wstring ExplorerListMenus::GetBackgroundShellId (const Location & shown) const
 {
+    //  A search's background has the commands of the folder it searched, as
+    //  File Explorer's does.
     if (SearchQuery::IsId (shown.path))
     {
-        return std::wstring();
+        return GetSearchScopeFolder (shown);
     }
 
     if (m_context.browser.IsHomeLocation())
@@ -1004,9 +1006,39 @@ std::wstring ExplorerListMenus::GetBackgroundShellId (const Location & shown) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListMenus::GetSearchScopeFolder
+//
+//  The folder a search covers, when that is one folder on the disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerListMenus::GetSearchScopeFolder (const Location & shown)
+{
+    std::wstring               scope;
+    std::wstring               query;
+    bool                       parsed = SearchQuery::TryParseId (shown.path, scope, query);
+    std::vector<std::wstring>  scopes = parsed ? SearchQuery::SplitScopes (scope) : std::vector<std::wstring>();
+
+
+
+    if (scopes.size() != 1 || scopes[0].size() < 3 || scopes[0][1] != L':')
+    {
+        return std::wstring();
+    }
+
+    return scopes[0];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListMenus::AddBackgroundRows
 //
-//  The rows File Explorer has on the background of these folders alone.
+//  The rows File Explorer has on the background of these folders alone, and
+//  Save search on a search's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1040,7 +1072,19 @@ void ExplorerListMenus::AddBackgroundRows (std::vector<DxuiPopupMenuItem> & item
 
     std::transform (lower.begin(), lower.end(), lower.begin(), towlower);
 
-    if (shown.kind == Location::Kind::Root && shown.path == TreeModel::kThisPcRootId)
+    if (SearchQuery::IsId (shown.path))
+    {
+        m_context.menus.AddMenuCommand (items, L"Save search", [this, shown]()
+        {
+            HRESULT  hr = m_context.shellVerbs.SaveSearch (m_context.window.GetHwnd(), shown.path);
+
+            if (FAILED (hr) && hr != HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+            {
+                m_context.window.ShowMessage (std::format (L"The search could not be saved (0x{:08X}).", (uint32_t) hr), MB_ICONWARNING);
+            }
+        });
+    }
+    else if (shown.kind == Location::Kind::Root && shown.path == TreeModel::kThisPcRootId)
     {
         m_context.menus.AddMenuCommand (items, L"Add a &network location", []()
         {

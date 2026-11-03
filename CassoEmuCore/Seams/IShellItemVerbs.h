@@ -254,6 +254,10 @@ public:
     //  Windows' share sheet for the items, as Explorer's Share opens it.
     virtual HRESULT  Share             (HWND owner, const std::vector<std::wstring> & paths) = 0;
 
+    //  A search saved as a .search-ms file where the user picks, as File
+    //  Explorer's Save search saves one; ERROR_CANCELLED when the user cancels.
+    virtual HRESULT  SaveSearch        (HWND owner, const std::wstring & id) { UNREFERENCED_PARAMETER (owner); UNREFERENCED_PARAMETER (id); return E_NOTIMPL; }
+
     //  Whether the Windows search index covers a folder.
     virtual bool     IsIndexed         (const std::wstring & folder) { UNREFERENCED_PARAMETER (folder); return true; }
 };

@@ -87,6 +87,7 @@ public:
     void                                    ApplyMenuSvgs          ();
     const std::string                     * GetMenuSvg             (const wchar_t * name);
     std::shared_ptr<const DxuiIconImage>    GetOpenMenuImage       (bool browsable, const std::wstring & path);
+    std::shared_ptr<const DxuiIconImage>    GetStockMenuImage      (SHSTOCKICONID id);
 
 private:
     ExplorerContext  & m_context;

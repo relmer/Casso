@@ -76,6 +76,7 @@ public:
     HRESULT      CreateFolder           (HWND owner, const std::wstring & parent, const std::wstring & name) override { return m_transfers.CreateFolder (owner, parent, name); }
     HRESULT      Share                  (HWND owner, const std::vector<std::wstring> & paths) override { return m_transfers.Share (owner, paths); }
     bool         IsIndexed              (const std::wstring & folder) override { return Win32ShellSearch::IsIndexed (folder); }
+    HRESULT      SaveSearch             (HWND owner, const std::wstring & id) override { return Win32ShellSearch::SaveSearch (owner, id); }
 
 private:
     static constexpr UINT            s_kFirstCommandId = 1;

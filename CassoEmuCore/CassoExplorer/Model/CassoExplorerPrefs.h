@@ -43,6 +43,7 @@ struct CassoExplorerPrefs
 
     std::string            theme           = kThemeFollowSystem;
     bool                   previewVisible  = false;
+    bool                   navigationPane  = true;    // View > Show's Navigation pane
 
     //  File Explorer's Search options that apply to every search.
     bool                   searchSystemFiles = true;
