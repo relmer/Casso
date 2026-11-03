@@ -136,6 +136,11 @@ public:
     //  one used to one.
     virtual void                   GoToCode         (Word address) = 0;
     virtual void                   ShowPcCode       () = 0;
+
+    //  An Applesoft listing the user picks, loaded as the program in memory,
+    //  and the program saved to a file the user picks.
+    virtual void                   OpenBasicProgram () = 0;
+    virtual void                   SaveBasicProgram () = 0;
     virtual void                   ShowMemoryAddress (Word address) = 0;
     virtual void                   GoToMemory       (Word address) = 0;
 

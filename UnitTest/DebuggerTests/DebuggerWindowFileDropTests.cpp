@@ -114,6 +114,13 @@ namespace DebuggerWindowFileDropTests
         using DebuggerWindow::GetViewMenuPanes;
         using DebuggerWindow::GetPaneLayout;
         using DebuggerWindow::EditPaneLayout;
+        using DebuggerWindow::ShowMessageBox;
+
+        //  The message box of a load, which returns `answer`.
+        int  ShowMessageBox (HWND, const std::wstring &, const wchar_t *, UINT) override { asked++; return answer; }
+
+        int  answer = IDYES;
+        int  asked  = 0;
     };
 
 
@@ -150,6 +157,31 @@ namespace DebuggerWindowFileDropTests
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Work\\game.dbg\""), host.commands[0]);
             Assert::AreEqual (std::string ("SYM LOAD \"C:\\Work\\rom.SYM\""),  host.commands[1]);
             Assert::IsTrue   (host.verbs[0] == DebugVerb::LoadSymbols, L"a typed action, not a line to parse");
+        }
+
+
+        //  An Applesoft listing loads as the program in memory after Yes in
+        //  the message box, and is not loaded after No.
+        TEST_METHOD (DroppingABasicListingLoadsItAsTheProgram)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            FileDropHost    host;
+            FileDropWindow  window (theme, host);
+
+
+
+            window.OnCreate();
+
+            window.answer = IDNO;
+            Assert::IsTrue   (window.OnFilesDropped ({ L"C:\\Work\\game.bas" }));
+            Assert::AreEqual (1, window.asked, L"the program in memory may be replaced, so a message box opens");
+            Assert::IsTrue   (host.commands.empty(), L"No loads nothing");
+
+            window.answer = IDYES;
+            Assert::IsTrue   (window.OnFilesDropped ({ L"C:\\Work\\game.bas" }));
+            Assert::AreEqual ((size_t) 1, host.commands.size());
+            Assert::AreEqual (std::string ("BASICLOAD \"C:\\Work\\game.bas\""), host.commands[0]);
+            Assert::IsTrue   (host.verbs[0] == DebugVerb::LoadBasic, L"not SYM LOAD, which closed the debug file's sources");
         }
 
 

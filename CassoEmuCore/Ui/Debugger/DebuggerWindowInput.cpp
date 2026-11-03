@@ -357,6 +357,12 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
             continue;
         }
 
+        if (kind == DroppedFiles::Kind::Basic)
+        {
+            LoadBasicProgram (path);
+            continue;
+        }
+
         if (kind == DroppedFiles::Kind::Other)
         {
             lookup  = m_host->MatchDroppedDebuggerSource ({}, path, std::string(), index);

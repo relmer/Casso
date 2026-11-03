@@ -166,6 +166,8 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "U",           H::DisassemblyAndData, "U [addr[,len|:last]]",                           "Disassemble, or continue the last listing"                                               },
     { "X",           H::DisassemblyAndData, "X addr[,len|:last]",                             "Make a data block code again"                                                            },
 
+    { "BASICLOAD",   H::SymbolsAndSource,   "BASICLOAD file",                                 "Replace the Applesoft program in memory with the listing in a text file"                },
+    { "BASICSAVE",   H::SymbolsAndSource,   "BASICSAVE file",                                 "Save the Applesoft program in memory to a text file as a listing"                        },
     { "BASICSTACK",  H::SymbolsAndSource,   "BASICSTACK",                                     "List the Applesoft program's active GOSUB returns and FOR loops"                         },
     { "BASICVARS",   H::SymbolsAndSource,   "BASICVARS",                                      "List the Applesoft program's variables and arrays with their values"                     },
     { "SRC",         H::SymbolsAndSource,   "SRC [ON|OFF]",                                   "Show the source line at PC, or step by source lines"                                     },

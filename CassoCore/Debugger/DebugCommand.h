@@ -247,6 +247,8 @@ enum class DebugVerb
     BasicStepOut,
     ShowBasicVariables,
     ShowBasicStack,
+    LoadBasic,
+    SaveBasic,
     ShowHistory,
     SetHistory,
     SaveHistory,

@@ -905,6 +905,48 @@ DebuggerAction DebuggerActions::GetLoadSymbols (const std::string & path, Comman
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetLoadBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetLoadBasic (const std::string & path, CommandMode mode)
+{
+    std::string     quoted = std::format ("\"{}\"", path);
+    DebuggerAction  action = Make (DebugVerb::LoadBasic, "BASICLOAD " + quoted, mode);
+
+
+
+    action.command.text = quoted;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSaveBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSaveBasic (const std::string & path, CommandMode mode)
+{
+    std::string     quoted = std::format ("\"{}\"", path);
+    DebuggerAction  action = Make (DebugVerb::SaveBasic, "BASICSAVE " + quoted, mode);
+
+
+
+    action.command.text = quoted;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetSaveBreakpoints
 //
 ////////////////////////////////////////////////////////////////////////////////

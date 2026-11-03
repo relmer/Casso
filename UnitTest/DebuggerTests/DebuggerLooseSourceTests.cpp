@@ -184,6 +184,7 @@ namespace DebuggerLooseSourceTests
             Assert::IsTrue (DroppedFiles::GetKind (L"C:\\Work\\main.a65")  == DroppedFiles::Kind::Source);
             Assert::IsTrue (DroppedFiles::GetKind (L"C:\\Work\\MAIN.S")    == DroppedFiles::Kind::Source, L"a Merlin source");
             Assert::IsTrue (DroppedFiles::GetKind (L"C:\\Work\\boot.asm")  == DroppedFiles::Kind::Source);
+            Assert::IsTrue (DroppedFiles::GetKind (L"C:\\Work\\GAME.BAS")  == DroppedFiles::Kind::Basic, L"an Applesoft listing");
             Assert::IsTrue (DroppedFiles::GetKind (L"C:\\Work\\defs.inc")  == DroppedFiles::Kind::Source);
             Assert::IsTrue (DroppedFiles::GetKind (L"C:\\Work\\game.lst")  == DroppedFiles::Kind::Other);
             Assert::IsTrue (DroppedFiles::GetKind (L"C:\\Work\\T.MACROS")  == DroppedFiles::Kind::Other);

@@ -1638,7 +1638,8 @@ bool AppleWinParser::TryParseEngineArguments (const Arguments & args, DebugComma
     }
 
     //  A file name keeps its case.
-    if (command.verb == DebugVerb::SaveState || command.verb == DebugVerb::LoadState)
+    if (command.verb == DebugVerb::SaveState || command.verb == DebugVerb::LoadState ||
+        command.verb == DebugVerb::LoadBasic || command.verb == DebugVerb::SaveBasic)
     {
         command.text = args.rest;
 

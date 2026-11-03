@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 
+#include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -18,7 +19,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 BasicProgramController::BasicProgramController (IDebuggerPaneHost & host) :
-    IDebuggerPane (host)
+    IDebuggerPane (host),
+    m_bar         (host, DebuggerLayout::kBasicProgram, L"BASIC program toolbar")
 {
 }
 
@@ -63,6 +65,8 @@ void BasicProgramController::CreateControls()
 {
     m_list  = m_host.GetControlParent().CreateChild<DxuiListView>();
     m_model = std::make_unique<BasicProgramPane> (m_list, [this] (Word line) { ToggleBreakpoint (line); });
+
+    m_bar.Create();
 }
 
 
@@ -79,6 +83,58 @@ void BasicProgramController::Configure()
 {
     m_model->Configure (DisassemblyCells::kGutterColumnDip);
     m_list->SetOwnerWindow (m_host.GetOwnerHwnd());
+
+    m_bar.Configure();
+    m_bar.GetBar()->SetEntries (MakeBarEntries());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::MakeBarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> BasicProgramController::MakeBarEntries() const
+{
+    struct Row
+    {
+        const wchar_t          * label;
+        const wchar_t          * glyph;
+        const wchar_t          * tip;
+        std::function<void()>    dispatch;
+    };
+
+    std::vector<Row>                 rows    =
+    {
+        { L"Load", s_kpszMdl2Import, L"Load an Applesoft listing from a file as the program in memory", [this] { m_host.OpenBasicProgram(); } },
+        { L"Save", s_kpszMdl2Save,   L"Save the program in memory to a file as a listing",              [this] { m_host.SaveBasicProgram(); } },
+    };
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (Row & row : rows)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        DxuiToolbar::Entry            entry;
+
+        command->id       = (int) entries.size() + 1;
+        command->label    = row.label;
+        command->glyph    = row.glyph;
+        command->tip      = row.tip;
+        command->dispatch = std::move (row.dispatch);
+
+        entry.command  = command;
+        entry.kind     = DxuiToolbar::Kind::Command;
+        entry.iconOnly = true;
+        entries.push_back (std::move (entry));
+    }
+
+    return entries;
 }
 
 
@@ -94,6 +150,7 @@ void BasicProgramController::Configure()
 void BasicProgramController::AddToDock (DxuiDockSite & dock)
 {
     m_frame = std::make_unique<DebuggerPaneFrame> (L"BASIC program");
+    m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
     m_frame->AddPart (m_list);
 
     dock.AddPane (DebuggerLayout::kBasicProgram, L"BASIC program", m_frame.get());

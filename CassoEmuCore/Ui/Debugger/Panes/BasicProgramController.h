@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 
 class BasicProgramPane;
@@ -13,8 +14,9 @@ class DebuggerPaneFrame;
 //
 //  BasicProgramController
 //
-//  The Applesoft program pane (FR-173): the list alone, with no toolbar. The
-//  program's breakpoints are set by activating a row, and with the keys in
+//  The Applesoft program pane (FR-173): a bar that loads a listing as the
+//  program and saves the program as one, over the list. The program's
+//  breakpoints are set by activating a row, and with the keys in
 //  the list a step is the interpreter's. Its variables are in the Watches
 //  pane and its frames in the Call stack pane. While the machine runs, its
 //  thread reads the program for the snapshots only while the pane is open
@@ -47,6 +49,10 @@ public:
     std::vector<IDxuiControl *>      GetControls    () const override { return { m_list }; }
     int                              GetStopFocusRank () const override { return m_isStop ? 2 : 0; }
     std::vector<DxuiListView *>      GetLists       () const override { return { m_list }; }
+    std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
+    void                             PlaceBar       () override { m_bar.Place(); }
+    bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
+    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick           (int64_t nowMs) override;
     bool                             OnMappedAction (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;
@@ -58,6 +64,9 @@ private:
     bool                             UpdateWrap     ();
     void                             ToggleBreakpoint (Word line);
 
+    std::vector<DxuiToolbar::Entry>      MakeBarEntries () const;
+
+    PaneBarSlot                           m_bar;
     DxuiListView                        * m_list      = nullptr;
     std::unique_ptr<BasicProgramPane>     m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_frame;

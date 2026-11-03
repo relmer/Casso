@@ -74,6 +74,7 @@ namespace DebuggerTests
             if (name == "MODE")   { return "MODE APPLEWIN"; }
             if (name == "OUTPUT") { return "OUTPUT APPLEWIN"; }
             if (name == "SAVESTATE" || name == "LOADSTATE") { return name + " game.cassostate"; }
+            if (name == "BASICLOAD" || name == "BASICSAVE") { return name + " game.bas"; }
             return name;
         }
 

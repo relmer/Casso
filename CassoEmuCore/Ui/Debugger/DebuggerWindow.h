@@ -507,6 +507,12 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::string  GetUndoHistoriesText () const;
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
+
+    //  A listing replaces the program in memory, after a question when there
+    //  may be one there, and the BASIC program pane comes forward.
+    void     LoadBasicProgram     (const std::wstring & path);
+    void     OpenBasicProgram     () override;
+    void     SaveBasicProgram     () override;
     DxuiToolbar::Entry  MakeFindEntry (const std::wstring & pane);
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     bool     IsDocumentPane     (const std::wstring & pane) const;

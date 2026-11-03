@@ -210,6 +210,8 @@ public:
     static std::string     ToText      (const DebuggerAction & action);
     static bool            TryFromText (const std::string & text, DebuggerAction & action);
     static DebuggerAction  GetLoadSymbols      (const std::string & path, CommandMode mode);
+    static DebuggerAction  GetLoadBasic        (const std::string & path, CommandMode mode);
+    static DebuggerAction  GetSaveBasic        (const std::string & path, CommandMode mode);
     static DebuggerAction  GetSaveBreakpoints  (const std::string & path, CommandMode mode);
     static DebuggerAction  GetProject          (const std::string & subcommand, const std::string & path, CommandMode mode);
     static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);

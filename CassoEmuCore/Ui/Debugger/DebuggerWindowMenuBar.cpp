@@ -208,6 +208,8 @@ void DebuggerWindow::SetWindowMenus()
     row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };
     add (file, row);
     add (file, DebuggerMenuCommand::Make (L"Save memory to file...", false, [this] { SaveMemoryToFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", false, [this] { OpenBasicProgram(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", false, [this] { SaveBasicProgram(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Open project...", false, [this] { OpenProject(); }));
     add (file, DebuggerMenuCommand::Make (L"Save project as...", false, [this] { SaveProjectAs(); }));
@@ -854,6 +856,108 @@ void DebuggerWindow::SaveMemoryToFile()
     {
         RunAction (action);
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::LoadBasicProgram
+//
+//  With no BASIC pane open the snapshot has no program to look at, so the
+//  message box opens then too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::LoadBasicProgram (const std::wstring & path)
+{
+    bool          isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
+    std::wstring  name         = std::filesystem::path (path).filename().wstring();
+
+
+
+    if (!isKnownEmpty &&
+        ShowMessageBox (GetHwnd(), std::format (L"Replace the BASIC program in memory with {}?", name), L"Load BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+    {
+        return;
+    }
+
+    RunAction (DebuggerActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), GetMode()));
+    ShowPane  (DebuggerLayout::kBasicProgram);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenBasicProgram
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenBasicProgram()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    spec.filters = { { L"Applesoft listings", L"*.bas" }, { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
+
+    hr = PickFileToOpen ("basic", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    LoadBasicProgram (chosen.wstring());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveBasicProgram
+//
+//  In the folder of the listing loaded or saved last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveBasicProgram()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
+
+    spec.filters          = { { L"Applesoft listings", L"*.bas" }, { L"All files", L"*.*" } };
+    spec.defaultExtension = L"bas";
+    spec.defaultFileName  = L"program.bas";
+    spec.initialFolder    = SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("folder.basic"));
+
+    hr = m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    m_host->SetDebuggerWindowState ("folder.basic", SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
+    RunAction (DebuggerActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), GetMode()));
 
 Error:
     return;
