@@ -28,7 +28,10 @@ public:
 
     //  A search stops at this many results, as a folder too large to read
     //  whole would otherwise never finish.
-    static constexpr size_t  s_kMaxResults = 5000;
+    static constexpr size_t  s_kMaxResults = 50000;
+
+    //  The most threads a search uses for its results and its disk images.
+    static constexpr size_t  s_kMaxThreads = 16;
 
     //  A file's contents are read in pieces of this size, each starting far
     //  enough back to find a word across the join.
@@ -63,12 +66,15 @@ public:
     static constexpr size_t  s_kMaxImageDirectories = 256;   // in one image, so a looping catalog cannot run on
 
     static void     SearchImages    (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder = false);
+    static void     SearchImage     (const std::wstring & image, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
     static void     WalkForImages   (const std::wstring & scope, std::vector<std::wstring> & outImages, bool currentFolder = false);
 
     static bool                    FileContainsWords (const std::wstring & path, const std::vector<std::wstring> & words);
     static void                    WalkZip           (IShellItem * zip, const std::wstring & path, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, int depth);
     static bool                    IsSystemItem      (const std::wstring & path);
     static SearchQuery::ItemFacts  GetItemFacts      (IShellItem2 * item, const IShellItemVerbs::ShellFolderItem & entry);
+    static bool                    DescribeFound     (const std::wstring & path, const std::wstring & query, bool filters, bool systemFiles, const RowGrouping::Today & today, IShellItemVerbs::ShellFolderItem & outEntry);
+    static void                    RunInParallel     (size_t count, const std::function<void (size_t)> & work);
 
 private:
     friend class Win32ShellItemVerbs;

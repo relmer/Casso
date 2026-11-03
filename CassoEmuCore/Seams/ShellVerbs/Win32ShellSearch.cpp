@@ -43,16 +43,18 @@ Win32ShellSearch::Win32ShellSearch (Win32ShellItemVerbs & verbs)
 
 HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
 {
-    HRESULT                      hr      = S_OK;
-    std::wstring                 scope;
-    std::wstring                 query;
-    std::vector<std::wstring>    paths;
-    bool                         indexed = false;
-    bool                         parsed  = SearchQuery::TryParseId (id, scope, query);
-    bool                         filters = SearchQuery::HasFilters (query);
-    RowGrouping::Today           today   = RowGrouping::GetToday();
-    WalkOptions                  walk;
-    std::map<std::wstring, int>  ranks;
+    HRESULT                                        hr      = S_OK;
+    std::wstring                                   scope;
+    std::wstring                                   query;
+    std::vector<std::wstring>                      paths;
+    bool                                           indexed = false;
+    bool                                           parsed  = SearchQuery::TryParseId (id, scope, query);
+    bool                                           filters = SearchQuery::HasFilters (query);
+    RowGrouping::Today                             today   = RowGrouping::GetToday();
+    WalkOptions                                    walk;
+    std::map<std::wstring, int>                    ranks;
+    std::vector<IShellItemVerbs::ShellFolderItem>  described;
+    std::vector<char>                              kept;
 
 
 
@@ -105,46 +107,24 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         paths.insert (paths.end(), found.begin(), found.end());
     }
 
-    for (const std::wstring & path : paths)
+    //  Each result costs the shell a few milliseconds, so the shell is asked for
+    //  them on several threads, and they are listed in the order found.
+    described.resize (paths.size());
+    kept.assign (paths.size(), 0);
+
+    RunInParallel (paths.size(), [&] (size_t at)
     {
-        ComPtr<IShellItem>                item;
-        IShellItemVerbs::ShellFolderItem  entry;
-        HRESULT                           hrItem = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
+        kept[at] = DescribeFound (paths[at], query, filters, walk.search.systemFiles, today, described[at]) ? 1 : 0;
+    });
 
-        if (SUCCEEDED (hrItem))
+    for (size_t at = 0; at < paths.size(); at++)
+    {
+        if (kept[at] != 0)
         {
-            hrItem = Win32ShellNamespace::DescribeShellItem (item.Get(), entry);
-        }
+            auto  rank = ranks.find (paths[at]);
 
-        if (SUCCEEDED (hrItem) && (walk.search.systemFiles || !IsSystemItem (path)))
-        {
-            ComPtr<IShellItem2>  item2;
-            PWSTR                shown    = nullptr;
-            PROPERTYKEY          shownKey = {};
-            HRESULT              hrShown  = item.As (&item2);
-
-            if (SUCCEEDED (hrShown) && filters && !SearchQuery::MatchesFilters (query, GetItemFacts (item2.Get(), entry), today))
-            {
-                continue;
-            }
-
-            //  Explorer displays a known folder by its display name, as Recent
-            //  Items for Recent.
-            hrShown = SUCCEEDED (hrShown) ? PSGetPropertyKeyFromName (L"System.ItemFolderPathDisplay", &shownKey) : hrShown;
-            hrShown = SUCCEEDED (hrShown) ? item2->GetString (shownKey, &shown) : hrShown;
-
-            if (SUCCEEDED (hrShown) && shown != nullptr)
-            {
-                entry.folderShown = shown;
-            }
-
-            CoTaskMemFree (shown);
-
-            auto  rank = ranks.find (path);
-
-            entry.searchRank = (rank != ranks.end()) ? rank->second : 0;
-            entry.folder     = std::filesystem::path (path).parent_path().wstring();
-            outItems.push_back (std::move (entry));
+            described[at].searchRank = (rank != ranks.end()) ? rank->second : 0;
+            outItems.push_back (std::move (described[at]));
         }
     }
 
@@ -186,6 +166,105 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::DescribeFound
+//
+//  A found path as a result: false for one the shell cannot read, a system
+//  item when those are left out, or one that fails the query's filters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellSearch::DescribeFound (const std::wstring & path, const std::wstring & query, bool filters, bool systemFiles, const RowGrouping::Today & today, IShellItemVerbs::ShellFolderItem & outEntry)
+{
+    ComPtr<IShellItem>   item;
+    ComPtr<IShellItem2>  item2;
+    PWSTR                shown    = nullptr;
+    PROPERTYKEY          shownKey = {};
+    HRESULT              hr       = SHCreateItemFromParsingName (path.c_str(), nullptr, IID_PPV_ARGS (&item));
+
+
+
+    hr = SUCCEEDED (hr) ? Win32ShellNamespace::DescribeShellItem (item.Get(), outEntry) : hr;
+
+    if (FAILED (hr) || (!systemFiles && IsSystemItem (path)))
+    {
+        return false;
+    }
+
+    hr = item.As (&item2);
+
+    if (SUCCEEDED (hr) && filters && !SearchQuery::MatchesFilters (query, GetItemFacts (item2.Get(), outEntry), today))
+    {
+        return false;
+    }
+
+    //  Explorer displays a known folder by its display name, as Recent Items
+    //  for Recent.
+    hr = SUCCEEDED (hr) ? PSGetPropertyKeyFromName (L"System.ItemFolderPathDisplay", &shownKey) : hr;
+    hr = SUCCEEDED (hr) ? item2->GetString (shownKey, &shown) : hr;
+
+    if (SUCCEEDED (hr) && shown != nullptr)
+    {
+        outEntry.folderShown = shown;
+    }
+
+    CoTaskMemFree (shown);
+
+    outEntry.folder = std::filesystem::path (path).parent_path().wstring();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::RunInParallel
+//
+//  work for each index from 0 to count, on up to s_kMaxThreads threads, each
+//  in the multithreaded apartment. Returns when every index is done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::RunInParallel (size_t count, const std::function<void (size_t)> & work)
+{
+    std::atomic<size_t>       next    { 0 };
+    size_t                    threads = (std::min) ({ count, (size_t) (std::max) (1u, std::thread::hardware_concurrency()), s_kMaxThreads });
+    std::vector<std::thread>  workers;
+
+
+
+    for (size_t t = 0; t < threads; t++)
+    {
+        workers.emplace_back ([&next, &work, count] ()
+        {
+            HRESULT  hrCom = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+
+            for (size_t at = next++; at < count; at = next++)
+            {
+                work (at);
+            }
+
+            if (SUCCEEDED (hrCom))
+            {
+                CoUninitialize();
+            }
+        });
+    }
+
+    for (std::thread & worker : workers)
+    {
+        worker.join();
+    }
 }
 
 
@@ -417,9 +496,8 @@ Error:
 
 void Win32ShellSearch::SearchImages (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder)
 {
-    std::vector<std::wstring>  images;
-    Win32DiskFileIo            fileIo;
-    DiskOperations             operations (fileIo);
+    std::vector<std::wstring>                                   images;
+    std::vector<std::vector<IShellItemVerbs::ShellFolderItem>>  found;
 
 
 
@@ -430,64 +508,99 @@ void Win32ShellSearch::SearchImages (const std::wstring & scope, const std::vect
 
     WalkForImages (scope, images, currentFolder);
 
-    for (const std::wstring & image : images)
+    //  Each image is read on one of several threads, and its matches are
+    //  listed in the order of the images.
+    found.resize (images.size());
+
+    RunInParallel (images.size(), [&] (size_t at)
     {
-        std::vector<std::string>  pending = { std::string() };
-        size_t                    read    = 0;
+        SearchImage (images[at], words, found[at]);
+    });
 
-        //  Every directory in the image, the volume's first, as far as the
-        //  limits allow: a subdirectory's files match as the volume's do.
-        while (!pending.empty() && read < s_kMaxImageDirectories && outItems.size() < s_kMaxResults)
+    for (std::vector<IShellItemVerbs::ShellFolderItem> & matches : found)
+    {
+        for (IShellItemVerbs::ShellFolderItem & entry : matches)
         {
-            std::string             directory = pending.back();
-            VolumeListing           listing;
-            VolumeKind              kind      = VolumeKind::Dos33;
-            DiskOperations::Result  result    = operations.List (TextEncoding::WideToNarrow (image), directory, listing, kind);
-            std::wstring            shownIn   = image;
+            if (outItems.size() < s_kMaxResults)
+            {
+                outItems.push_back (std::move (entry));
+            }
+        }
+    }
+}
 
-            pending.pop_back();
-            read++;
 
-            if (!result.Succeeded())
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellSearch::SearchImage
+//
+//  Every directory in the image, the volume's first, as far as the limits
+//  allow: a subdirectory's files match as the volume's do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellSearch::SearchImage (const std::wstring & image, const std::vector<std::wstring> & words, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
+{
+    Win32DiskFileIo           fileIo;
+    DiskOperations            operations (fileIo);
+    std::vector<std::string>  pending = { std::string() };
+    size_t                    read    = 0;
+
+
+
+    while (!pending.empty() && read < s_kMaxImageDirectories && outItems.size() < s_kMaxResults)
+    {
+        std::string             directory = pending.back();
+        VolumeListing           listing;
+        VolumeKind              kind      = VolumeKind::Dos33;
+        DiskOperations::Result  result    = operations.List (TextEncoding::WideToNarrow (image), directory, listing, kind);
+        std::wstring            shownIn   = image;
+
+        pending.pop_back();
+        read++;
+
+        if (!result.Succeeded())
+        {
+            continue;
+        }
+
+        if (!directory.empty())
+        {
+            shownIn += L"\\" + AppleFileName::ToDisplay (directory);
+            std::replace (shownIn.begin(), shownIn.end(), L'/', L'\\');
+        }
+
+        for (const FileEntry & file : listing.entries)
+        {
+            IShellItemVerbs::ShellFolderItem  entry;
+
+            if (file.isDirectory)
+            {
+                pending.push_back (directory.empty() ? file.name : directory + "/" + file.name);
+            }
+
+            entry.name = AppleFileName::ToDisplay (file.name);
+
+            if (!SearchQuery::MatchesName (entry.name, words) || outItems.size() >= s_kMaxResults)
             {
                 continue;
             }
 
-            if (!directory.empty())
-            {
-                shownIn += L"\\" + AppleFileName::ToDisplay (directory);
-                std::replace (shownIn.begin(), shownIn.end(), L'/', L'\\');
-            }
-
-            for (const FileEntry & file : listing.entries)
-            {
-                IShellItemVerbs::ShellFolderItem  entry;
-
-                if (file.isDirectory)
-                {
-                    pending.push_back (directory.empty() ? file.name : directory + "/" + file.name);
-                }
-
-                entry.name = AppleFileName::ToDisplay (file.name);
-
-                if (!SearchQuery::MatchesName (entry.name, words) || outItems.size() >= s_kMaxResults)
-                {
-                    continue;
-                }
-
-                entry.id             = shownIn + L"\\" + entry.name;
-                entry.typeText       = CatalogModel::GetEntryTypeText (file, kind);
-                entry.sizeBytes      = file.hasEofBytes ? file.eofBytes : (uint64_t) file.sizeUnits * CatalogModel::GetUnitBytes (kind);
-                entry.modifiedUnix   = file.modifiedUnix;
-                entry.hasModified    = file.hasModified;
-                entry.modifiedLocal  = true;
-                entry.isFolder       = file.isDirectory;
-                entry.folder         = shownIn;
-                entry.imagePath      = image;
-                entry.catalogIndex   = file.catalogIndex;
-                entry.imageDirectory = directory;
-                outItems.push_back (std::move (entry));
-            }
+            entry.id             = shownIn + L"\\" + entry.name;
+            entry.typeText       = CatalogModel::GetEntryTypeText (file, kind);
+            entry.sizeBytes      = file.hasEofBytes ? file.eofBytes : (uint64_t) file.sizeUnits * CatalogModel::GetUnitBytes (kind);
+            entry.modifiedUnix   = file.modifiedUnix;
+            entry.hasModified    = file.hasModified;
+            entry.modifiedLocal  = true;
+            entry.isFolder       = file.isDirectory;
+            entry.folder         = shownIn;
+            entry.imagePath      = image;
+            entry.catalogIndex   = file.catalogIndex;
+            entry.imageDirectory = directory;
+            outItems.push_back (std::move (entry));
         }
     }
 }

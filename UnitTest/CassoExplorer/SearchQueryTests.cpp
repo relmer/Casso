@@ -141,7 +141,7 @@ public:
     }
 
     //  The parts of a name a search marks, as File Explorer highlights them.
-    TEST_METHOD (FindNameMatches_MarksWordsAndTheTextBetweenWildcards)
+    TEST_METHOD (FindNameMatches_MarksWords_AndNothingForAWildcard)
     {
         std::vector<std::pair<int, int>>  plain    = SearchQuery::FindNameMatches (L"JoystickTest.bas", SearchQuery::GetNameWords (L"joystick"));
         std::vector<std::pair<int, int>>  pattern  = SearchQuery::FindNameMatches (L"JoystickTest.bas", SearchQuery::GetNameWords (L"*.bas"));
@@ -151,9 +151,7 @@ public:
         Assert::AreEqual (0, plain[0].first, L"whatever the case of the name");
         Assert::AreEqual (8, plain[0].second);
 
-        Assert::AreEqual ((size_t) 1, pattern.size());
-        Assert::AreEqual (12, pattern[0].first, L"the text after the wildcard");
-        Assert::AreEqual (16, pattern[0].second);
+        Assert::IsTrue (pattern.empty(), L"File Explorer marks no match of *.bas");
 
         Assert::AreEqual ((size_t) 1, overlaps.size(), L"touching matches merge");
         Assert::AreEqual (0, overlaps[0].first);

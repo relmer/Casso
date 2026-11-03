@@ -90,7 +90,7 @@ public:
 
     //  The parts of a name the words match, as File Explorer highlights them:
     //  half-open character ranges, sorted and merged. A word with * or ? marks
-    //  the text between its wildcards.
+    //  nothing.
     static std::vector<std::pair<int, int>>  FindNameMatches (const std::wstring & name, const std::vector<std::wstring> & words);
 
     //  A word with * or ? matches the whole name as a pattern, as in File

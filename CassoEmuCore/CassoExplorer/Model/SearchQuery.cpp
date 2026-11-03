@@ -564,30 +564,14 @@ std::vector<std::pair<int, int>> SearchQuery::FindNameMatches (const std::wstrin
         lower += (wchar_t) towlower (c);
     }
 
+    //  A word with a wildcard is not marked, as in File Explorer.
     for (const std::wstring & word : words)
     {
-        size_t  from  = 0;
-        size_t  start = 0;
+        size_t  at = (word.empty() || word.find_first_of (L"*?") != std::wstring::npos) ? std::wstring::npos : lower.find (word);
 
-        //  Each run of text between wildcards, in order, after the last found.
-        while (start <= word.size())
+        if (at != std::wstring::npos)
         {
-            size_t        end   = word.find_first_of (L"*?", start);
-            std::wstring  piece = word.substr (start, (end == std::wstring::npos) ? std::wstring::npos : end - start);
-            size_t        at    = piece.empty() ? std::wstring::npos : lower.find (piece, from);
-
-            if (at != std::wstring::npos)
-            {
-                ranges.emplace_back ((int) at, (int) (at + piece.size()));
-                from = at + piece.size();
-            }
-
-            if (end == std::wstring::npos)
-            {
-                break;
-            }
-
-            start = end + 1;
+            ranges.emplace_back ((int) at, (int) (at + word.size()));
         }
     }
 
