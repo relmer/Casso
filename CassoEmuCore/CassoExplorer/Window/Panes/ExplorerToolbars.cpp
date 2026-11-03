@@ -185,6 +185,10 @@ void ExplorerToolbars::ApplyTheme (const DxuiTheme & theme)
     m_toolbar->SetEdgeColor      (theme.Border());
     m_commandBar->SetStripColors (theme.ContentBackground(), theme.navItemText);
     m_commandBar->SetEdgeColor   (theme.Border());
+
+    //  The buttons' icons and the drop-downs' icons come in a set per theme.
+    SetCommandBarEntries();
+    SetCommandBarDropDowns();
 }
 
 
@@ -556,13 +560,30 @@ void ExplorerToolbars::UpdateCommandBar()
 
     m_commandBarExtra = extra;
 
-    //  Explorer's own icons for the buttons, in the theme's set.
+    SetCommandBarEntries();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerToolbars::SetCommandBarEntries
+//
+//  The command bar's buttons for the location's extras, with Explorer's own
+//  icons in the theme's set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerToolbars::SetCommandBarEntries()
+{
     m_context.commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, m_context.menus.GetMenuSvg (L"windows.recyclebin.empty"));
     m_context.commands.SetSvg (CassoExplorerCommands::kRestoreItems,    m_context.menus.GetMenuSvg (L"windows.recyclebin.restoreall"));
     m_context.commands.SetSvg (CassoExplorerCommands::kExtractAll,      m_context.menus.GetMenuSvg (L"windows.compressedfile.extract"));
     m_context.commands.SetSvg (CassoExplorerCommands::kSearchOptions,   m_context.menus.GetMenuSvg (L"SearchAdvancedOptions"));
     m_context.commands.SetSvg (CassoExplorerCommands::kCloseSearch,     m_context.menus.GetMenuSvg (L"windows.searchclosetab"));
-    m_commandBar->SetEntries (m_context.commands.BuildCommandBarEntries (extra));
+    m_commandBar->SetEntries (m_context.commands.BuildCommandBarEntries (m_commandBarExtra));
     m_commandBar->Layout     (m_context.layout.GetMenuBand().GetBounds(), m_context.scaler);
     m_context.window.Invalidate();
 }

@@ -526,7 +526,8 @@ void DxuiListRows::Paint (
 
                     if (hw > 0.0f)
                     {
-                        painter.FillRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, pal.matchBg);
+                        painter.FillRect    (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, pal.matchBg);
+                        painter.OutlineRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, 1.0f, pal.matchEdge);
                     }
                 }
             }

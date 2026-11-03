@@ -142,6 +142,8 @@ private:
     std::vector<size_t>          m_columnsToFit;   // property columns fitted as their values arrive
     std::wstring                 m_fittedSearch;   // the search whose columns were last fitted to its results
     size_t                       m_fittedRows      = 0;
+    Location                     m_grownLocation;   // the folder whose columns were last widened to its rows
+    static constexpr size_t      s_kGrowAllRowsMax = 500;    // past this many rows, only those on screen are measured
     static constexpr uint64_t    s_kArrivalWaitMs  = 10000;
 
     std::wstring               m_arrivalFolder;   // see SelectWhenListed

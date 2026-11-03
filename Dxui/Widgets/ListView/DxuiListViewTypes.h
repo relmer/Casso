@@ -235,6 +235,7 @@ struct DxuiListViewTypes
         uint32_t  bgHeader = 0;
         uint32_t  border   = 0;
         uint32_t  matchBg  = 0;
+        uint32_t  matchEdge = 0;   // the outline around a search match, as File Explorer draws it
     };
 
     // Resolved scrollbar state for the current rect, columns, and rows.

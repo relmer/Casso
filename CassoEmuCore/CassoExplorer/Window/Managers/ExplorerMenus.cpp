@@ -196,6 +196,8 @@ void ExplorerMenus::ApplyMenuSvgs()
     m_context.commands.SetMenuSvg (CassoExplorerCommands::kTogglePreview, GetMenuSvg (L"windows.previewpane"));
     m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewFolder,     GetMenuSvg (L"newfolder"));
     m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewDisk,       GetMenuSvg (L"casso.floppy525"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kOptions,       GetMenuSvg (L"windows.folderoptions"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kAddLink,       GetMenuSvg (L"windows.addnetworklocation"));
 }
 
 

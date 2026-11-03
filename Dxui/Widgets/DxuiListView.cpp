@@ -3,6 +3,7 @@
 
 #include "Widgets/DxuiListView.h"
 #include "Core/DxuiIconImage.h"
+#include "Theme/DxuiColor.h"
 
 
 
@@ -802,7 +803,9 @@ DxuiListView::Palette DxuiListView::MakePalette() const
     pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
     pal.border   = m_theme->ContentHeaderDivider();
-    pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
+    //  File Explorer's search match: a yellow box, filled faintly and edged.
+    pal.matchBg   = 0x59E8D44Du;
+    pal.matchEdge = (DxuiColor::ComputeRelativeLuminance (pal.bgRow) < 0.5f) ? 0xFFC8B43Cu : 0xFFB59B00u;
 
     return pal;
 }

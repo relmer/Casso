@@ -547,6 +547,72 @@ bool SearchQuery::MatchesName (const std::wstring & name, const std::vector<std:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SearchQuery::FindNameMatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<int, int>> SearchQuery::FindNameMatches (const std::wstring & name, const std::vector<std::wstring> & words)
+{
+    std::vector<std::pair<int, int>>  ranges;
+    std::vector<std::pair<int, int>>  merged;
+    std::wstring                      lower;
+
+
+
+    for (wchar_t c : name)
+    {
+        lower += (wchar_t) towlower (c);
+    }
+
+    for (const std::wstring & word : words)
+    {
+        size_t  from  = 0;
+        size_t  start = 0;
+
+        //  Each run of text between wildcards, in order, after the last found.
+        while (start <= word.size())
+        {
+            size_t        end   = word.find_first_of (L"*?", start);
+            std::wstring  piece = word.substr (start, (end == std::wstring::npos) ? std::wstring::npos : end - start);
+            size_t        at    = piece.empty() ? std::wstring::npos : lower.find (piece, from);
+
+            if (at != std::wstring::npos)
+            {
+                ranges.emplace_back ((int) at, (int) (at + piece.size()));
+                from = at + piece.size();
+            }
+
+            if (end == std::wstring::npos)
+            {
+                break;
+            }
+
+            start = end + 1;
+        }
+    }
+
+    std::sort (ranges.begin(), ranges.end());
+
+    for (const std::pair<int, int> & range : ranges)
+    {
+        if (!merged.empty() && range.first <= merged.back().second)
+        {
+            merged.back().second = (std::max) (merged.back().second, range.second);
+            continue;
+        }
+
+        merged.push_back (range);
+    }
+
+    return merged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SearchQuery::HasWildcards
 //
 ////////////////////////////////////////////////////////////////////////////////

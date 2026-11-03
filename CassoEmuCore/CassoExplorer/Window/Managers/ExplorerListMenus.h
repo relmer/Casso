@@ -41,6 +41,7 @@ public:
 
     bool                            IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
     std::vector<DxuiPopupMenuItem>  GetSortChoices         ();
+    std::vector<DxuiPopupMenuItem>  GetSearchSortChoices   ();
     std::vector<DxuiPopupMenuItem>  GetGroupChoices        ();
     std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
     std::vector<DxuiPopupMenuItem>  GetViewChoices         ();

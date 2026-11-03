@@ -13,6 +13,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/SearchQuery.h"
 #include "AssetBootstrap.h"
 #include "Config/UserConfigStore.h"
 #include "Core/JsonWriter.h"
@@ -326,6 +327,16 @@ void ExplorerFileOps::EndRename (bool commit)
             {
                 PushUndo (UndoStep { UndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
             }
+        }
+
+        //  A search's row takes the new name at once, since searching again
+        //  would find the old one until the index catches up.
+        if (SUCCEEDED (hr) && SearchQuery::IsId (m_context.browser.GetLocation().path))
+        {
+            m_context.browser.RenameSearchRow (row, newName);
+            m_context.listPane.FillList();
+            m_context.listPane.SelectRowNamed (newName);
+            return;
         }
 
         m_context.folderSync.RefreshAfterHostChange();

@@ -377,13 +377,13 @@ void ExplorerCommandManager::Dispatch (int id)
     {
         int  column = (id == CassoExplorerCommands::kSortByRelevance) ? (int) CatalogModel::kRelevance : id - CassoExplorerCommands::kSortByColumn;
 
-        //  A new column sorts ascending; the column already in use keeps its
-        //  direction.
+        //  A new column sorts ascending, and Relevance descending, as File
+        //  Explorer sorts them; the column already in use keeps its direction.
         if (!IsChecked (id))
         {
             m_context.browser.SortByColumn (column);
 
-            if (m_context.browser.GetBrowserModel().GetActiveTab().sortDescending)
+            if (m_context.browser.GetBrowserModel().GetActiveTab().sortDescending != (id == CassoExplorerCommands::kSortByRelevance))
             {
                 m_context.browser.SortByColumn (column);
             }
@@ -1012,7 +1012,13 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
         case CassoExplorerActions::Verb::Share:
             m_context.browser.GetSelectedHostPaths (hostPaths);
-            hr = m_context.shellVerbs.Share (m_context.window.GetHwnd(), hostPaths);
+            hr = hostPaths.empty() ? E_NOT_SET : m_context.shellVerbs.Share (m_context.window.GetHwnd(), hostPaths);
+
+            if (FAILED (hr))
+            {
+                m_context.window.ShowMessage (std::format (L"Windows could not open the share window for the selected files (0x{:08X}).", (uint32_t) hr), MB_ICONWARNING);
+            }
+
             break;
 
         case CassoExplorerActions::Verb::ExtractAll:
@@ -1045,10 +1051,16 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                     break;
                 }
 
-                //  An item a shell folder such as Home lists may be a recent or
-                //  a cloud file with no path of its own; its own Delete
-                //  command removes it, as File Explorer's does.
-                if (m_context.fileOps.TryGetSelectedShellIds (hostPaths))
+                //  A search's file goes to the Recycle Bin, with an undo, as it
+                //  does from its own folder. An item a shell folder such as Home
+                //  lists may be a recent or a cloud file with no path of its
+                //  own; its own Delete command removes it, as File Explorer's does.
+                if (m_context.browser.AreSelectedRowsSearchFiles())
+                {
+                    m_context.browser.GetSelectedHostPaths (hostPaths);
+                    hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
+                }
+                else if (m_context.fileOps.TryGetSelectedShellIds (hostPaths))
                 {
                     hr = (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
                        ? m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), hostPaths, "delete")
@@ -1060,7 +1072,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
                     m_context.window.ShowMessage (L"The selected items could not be deleted.", MB_ICONWARNING);
                 }
 
-                if (SUCCEEDED (hr) && !hostPaths.empty() && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+                if (SUCCEEDED (hr) && !hostPaths.empty() && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.AreSelectedRowsSearchFiles()))
                 {
                     m_context.fileOps.PushUndo (ExplorerFileOps::UndoStep { ExplorerFileOps::UndoStep::Kind::Recycle, Location(), hostPaths });
                 }

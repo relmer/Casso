@@ -1135,6 +1135,11 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
 
 
 
+    if (SearchQuery::IsId (m_context.browser.GetLocation().path))
+    {
+        return GetSearchSortChoices();
+    }
+
     for (column = 0; column < (size_t) m_context.commandManager.GetSortColumnCount(); column++)
     {
         bool                          chosen  = column >= m_pane.GetColumns().GetChosen().size() || m_pane.GetColumns().GetChosen()[column];
@@ -1162,12 +1167,98 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
         items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
     }
 
-    //  A search's results by relevance, as File Explorer offers there.
-    if (SearchQuery::IsId (m_context.browser.GetLocation().path))
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortAscending)));
+    items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortDescending)));
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::GetSearchSortChoices
+//
+//  File Explorer's Sort menu for search results: Name, Date modified and
+//  Type, then the rest of its Group by choices under More, Relevance among
+//  them. A property the list has no column for gets one only when chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchSortChoices()
+{
+    static constexpr size_t  s_kTopChoices = 3;
+
+    std::vector<DxuiPopupMenuItem>     items;
+    std::vector<DxuiPopupMenuItem>     more;
+    std::vector<int>                   moreIds;
+    std::vector<GroupChoices::Choice>  choices = GroupChoices::GetChoices (GroupChoices::Folder::Search);
+    std::shared_ptr<DxuiCommand>       parent  = std::make_shared<DxuiCommand>();
+    auto                               idFor   = [this] (const GroupChoices::Choice & choice) -> int
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortByRelevance)));
+        const std::vector<std::wstring> &  names = m_context.prefs.propertyColumns;
+        auto                               found = (choice.property != nullptr) ? std::find (names.begin(), names.end(), choice.property) : names.end();
+
+        switch (choice.field)
+        {
+            case RowGrouping::Field::Name:         return CassoExplorerCommands::kSortByColumn + (int) CatalogModel::Column::Name;
+            case RowGrouping::Field::DateModified: return CassoExplorerCommands::kSortByColumn + (int) CatalogModel::Column::Modified;
+            case RowGrouping::Field::Type:         return CassoExplorerCommands::kSortByColumn + (int) CatalogModel::Column::Type;
+            case RowGrouping::Field::Size:         return CassoExplorerCommands::kSortByColumn + (int) CatalogModel::Column::Size;
+            case RowGrouping::Field::Folder:       return CassoExplorerCommands::kSortByColumn + (int) CatalogModel::Column::Folder;
+            case RowGrouping::Field::Relevance:    return CassoExplorerCommands::kSortByRelevance;
+            default:                               return (found != names.end()) ? CassoExplorerCommands::kSortByColumn + (int) (CatalogModel::kColumnCount + (size_t) (found - names.begin())) : 0;
+        }
+    };
+
+
+
+    for (size_t index = 0; index < choices.size(); index++)
+    {
+        GroupChoices::Choice          choice  = choices[index];
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        int                           id      = idFor (choice);
+
+        command->label     = choice.label;
+        command->radio     = true;
+        command->isChecked = [this, id]() { return id != 0 && m_context.commandManager.IsChecked (id); };
+        command->dispatch  = [this, choice, idFor]()
+        {
+            int  sortId = idFor (choice);
+
+            //  A property with no column yet is given one, hidden, to sort by.
+            if (sortId == 0 && choice.property != nullptr)
+            {
+                RowGrouping::Field  field = m_pane.GetColumns().GetPropertyField (choice.property);
+
+                sortId = CassoExplorerCommands::kSortByColumn + (int) CatalogModel::kColumnCount + ((int) field - RowGrouping::kFirstPropertyField);
+            }
+
+            m_context.commandManager.Dispatch (sortId);
+        };
+
+        if (index < s_kTopChoices)
+        {
+            items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+            continue;
+        }
+
+        moreIds.push_back (id);
+        more.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
     }
 
+    //  More is marked while the sort is one of its choices, as in File Explorer.
+    parent->label     = L"More";
+    parent->radio     = true;
+    parent->isChecked = [this, moreIds]()
+    {
+        return std::any_of (moreIds.begin(), moreIds.end(), [this] (int id) { return id != 0 && m_context.commandManager.IsChecked (id); });
+    };
+
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (std::move (parent), std::move (more)));
     items.push_back (DxuiPopupMenuItem::ForSeparator());
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortAscending)));
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortDescending)));
@@ -1191,6 +1282,8 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
     std::vector<GroupChoices::Choice>  choices = GroupChoices::GetChoices (m_pane.GetColumns().GetGroupFolder());
     std::vector<std::wstring>          listed;
     std::shared_ptr<DxuiCommand>       more    = std::make_shared<DxuiCommand>();
+    bool                               search  = SearchQuery::IsId (m_context.browser.GetLocation().path);
+    bool                               grouped = m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetBrowserModel().GetActiveTab().groupBy != RowGrouping::Field::None;
     auto                               isGroup = [this] (RowGrouping::Field field)
     {
         return m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetBrowserModel().GetActiveTab().groupBy == field;
@@ -1231,8 +1324,9 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
              });
     }
 
-    //  A column on display can be grouped by too, as Explorer's Path can.
-    for (size_t index = 0; index < m_context.prefs.propertyColumns.size(); index++)
+    //  A column on display can be grouped by too, as Explorer's Path can. A
+    //  search's menu has File Explorer's choices only.
+    for (size_t index = 0; !search && index < m_context.prefs.propertyColumns.size(); index++)
     {
         size_t              column = CatalogModel::kColumnCount + index;
         bool                shown  = column < m_pane.GetColumns().GetChosen().size() && m_pane.GetColumns().GetChosen()[column];
@@ -1247,14 +1341,23 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
     }
 
     //  (None) only while grouped, as File Explorer's.
-    if (m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetBrowserModel().GetActiveTab().groupBy != RowGrouping::Field::None)
+    if (grouped)
     {
         items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupByField)));
     }
 
-    more->label    = L"More";
-    more->dispatch = [this]() { m_pane.GetColumns().ChooseDetails(); };
-    items.push_back (DxuiPopupMenuItem::ForCommand (std::move (more)));
+    if (!search)
+    {
+        more->label    = L"More";
+        more->dispatch = [this]() { m_pane.GetColumns().ChooseDetails(); };
+        items.push_back (DxuiPopupMenuItem::ForCommand (std::move (more)));
+    }
+
+    //  A search's results have a direction to group in only while grouped.
+    if (search && !grouped)
+    {
+        return items;
+    }
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupAscending)));

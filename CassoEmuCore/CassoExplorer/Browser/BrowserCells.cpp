@@ -292,10 +292,19 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     std::vector<DxuiListView::Cell>  cells;
     DxuiListView::Cell               name;
     bool                             hostItem = at.kind == Location::Kind::HostFolder || !row.hostPath.empty();
+    std::wstring                     scope;
+    std::wstring                     query;
 
 
 
     name.text = CatalogModel::GetDisplayName (row.label.empty() ? row.name : row.label, name.dimRanges);
+
+    //  A search's result has the words it matched marked in its name, as File
+    //  Explorer marks them.
+    if (SearchQuery::TryParseId (at.path, scope, query))
+    {
+        name.matches = SearchQuery::FindNameMatches (name.text, SearchQuery::GetNameWords (query));
+    }
 
     cells.push_back (name);
     cells.push_back (DxuiListView::Cell { row.hasModified ? FormatModified (row.modifiedUnix, row.modifiedIsWallClock) : std::wstring(), false });

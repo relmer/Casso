@@ -88,6 +88,11 @@ public:
     static std::vector<std::wstring>  GetNameWords (const std::wstring & query);
     static bool                       MatchesName  (const std::wstring & name, const std::vector<std::wstring> & words);
 
+    //  The parts of a name the words match, as File Explorer highlights them:
+    //  half-open character ranges, sorted and merged. A word with * or ? marks
+    //  the text between its wildcards.
+    static std::vector<std::pair<int, int>>  FindNameMatches (const std::wstring & name, const std::vector<std::wstring> & words);
+
     //  A word with * or ? matches the whole name as a pattern, as in File
     //  Explorer's box; the index is left out of such a search.
     static bool  HasWildcards   (const std::wstring & query);

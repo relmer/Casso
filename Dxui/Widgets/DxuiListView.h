@@ -120,6 +120,10 @@ public:
     //  list costs the same as a short one.
     void  FitColumnToVisibleContent (size_t idx) { m_columnSizing.FitColumnToVisibleContent (idx); }
 
+    //  As FitColumnToVisibleContent and FitColumnToContent, but only ever wider.
+    void  GrowColumnToVisibleContent (size_t idx) { m_columnSizing.GrowColumnToVisibleContent (idx); }
+    void  GrowColumnToContent        (size_t idx) { m_columnSizing.GrowColumnToContent (idx); }
+
     //  Every shown column fitted to its content, as FitColumnToContent does
     //  one.
     void  FitAllColumnsToContent    () { m_columnSizing.FitAllColumnsToContent(); }
@@ -618,7 +622,7 @@ private:
     float  m_fontDip         = s_kFontDip;
     std::function<int (UINT)> m_rowHeightPxFn;
     DxuiDpiScaler             m_scaler;
-    // Virtual (provider) row model — see SetRowProvider. When m_virtual is
+    // Virtual (provider) row model ? see SetRowProvider. When m_virtual is
     // true, m_rowData is empty and rows are pulled on demand into m_providerScratch.
     bool                       m_virtual             = false;
     RowSource                  m_rowSource;

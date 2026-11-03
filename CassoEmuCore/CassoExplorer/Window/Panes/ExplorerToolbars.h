@@ -81,6 +81,8 @@ private:
     bool                   m_tipMuted    = false;
     RECT                   m_tipMuteRect = {};
 
+    void                                    SetCommandBarEntries ();
+
     //  The location's buttons on the command bar, if any.
     CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;
 };

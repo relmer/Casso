@@ -139,4 +139,26 @@ public:
         Assert::IsTrue  (SearchQuery::MatchesName (L"disk1.dsk",     SearchQuery::GetNameWords (L"disk?.dsk")), L"? stands for one character");
         Assert::IsFalse (SearchQuery::MatchesName (L"disk10.dsk",    SearchQuery::GetNameWords (L"disk?.dsk")));
     }
+
+    //  The parts of a name a search marks, as File Explorer highlights them.
+    TEST_METHOD (FindNameMatches_MarksWordsAndTheTextBetweenWildcards)
+    {
+        std::vector<std::pair<int, int>>  plain    = SearchQuery::FindNameMatches (L"JoystickTest.bas", SearchQuery::GetNameWords (L"joystick"));
+        std::vector<std::pair<int, int>>  pattern  = SearchQuery::FindNameMatches (L"JoystickTest.bas", SearchQuery::GetNameWords (L"*.bas"));
+        std::vector<std::pair<int, int>>  overlaps = SearchQuery::FindNameMatches (L"JoystickTest.bas", SearchQuery::GetNameWords (L"joy stick"));
+
+        Assert::AreEqual ((size_t) 1, plain.size());
+        Assert::AreEqual (0, plain[0].first, L"whatever the case of the name");
+        Assert::AreEqual (8, plain[0].second);
+
+        Assert::AreEqual ((size_t) 1, pattern.size());
+        Assert::AreEqual (12, pattern[0].first, L"the text after the wildcard");
+        Assert::AreEqual (16, pattern[0].second);
+
+        Assert::AreEqual ((size_t) 1, overlaps.size(), L"touching matches merge");
+        Assert::AreEqual (0, overlaps[0].first);
+        Assert::AreEqual (8, overlaps[0].second);
+
+        Assert::IsTrue (SearchQuery::FindNameMatches (L"HELLO.dsk", SearchQuery::GetNameWords (L"paint")).empty());
+    }
 };

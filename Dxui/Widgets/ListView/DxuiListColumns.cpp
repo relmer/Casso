@@ -646,6 +646,52 @@ void DxuiListColumns::FitColumnToVisibleContent (size_t idx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GrowColumnToVisibleContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::GrowColumnToVisibleContent (size_t idx)
+{
+    if (idx >= m_list.m_columns.size() || !m_list.m_columns[idx].visible)
+    {
+        return;
+    }
+
+    if (std::find (m_pendingVisibleGrows.begin(), m_pendingVisibleGrows.end(), idx) == m_pendingVisibleGrows.end())
+    {
+        m_pendingVisibleGrows.push_back (idx);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GrowColumnToContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::GrowColumnToContent (size_t idx)
+{
+    if (idx >= m_list.m_columns.size() || !m_list.m_columns[idx].visible)
+    {
+        return;
+    }
+
+    if (std::find (m_pendingGrows.begin(), m_pendingGrows.end(), idx) == m_pendingGrows.end())
+    {
+        m_pendingGrows.push_back (idx);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FitAllColumnsToContent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,32 +718,51 @@ void DxuiListColumns::FitAllColumnsToContent()
 
 void DxuiListColumns::ApplyPendingFit (IDxuiTextRenderer & text)
 {
+    struct Fit
+    {
+        size_t  idx;
+        bool    visibleRows;
+        bool    growOnly;
+    };
+
     int                                    minPx     = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
     int                                    contentPx = 0;
     int                                    topRow    = m_list.GetTopRow();
-    std::vector<std::pair<size_t, bool>>   pending;
+    std::vector<Fit>                       pending;
 
 
 
     for (size_t idx : m_pendingFits)
     {
-        pending.emplace_back (idx, false);
+        pending.push_back ({ idx, false, false });
     }
 
     for (size_t idx : m_pendingVisibleFits)
     {
-        pending.emplace_back (idx, true);
+        pending.push_back ({ idx, true, false });
+    }
+
+    for (size_t idx : m_pendingVisibleGrows)
+    {
+        pending.push_back ({ idx, true, true });
+    }
+
+    for (size_t idx : m_pendingGrows)
+    {
+        pending.push_back ({ idx, false, true });
     }
 
     m_pendingFits.clear();
     m_pendingVisibleFits.clear();
+    m_pendingVisibleGrows.clear();
+    m_pendingGrows.clear();
 
-    for (const auto & [idx, visibleRows] : pending)
+    for (const auto & [idx, visibleRows, growOnly] : pending)
     {
         contentPx = visibleRows ? GetColumnContentWidthPx (text, idx, topRow, topRow + m_list.GetVisibleRowCapacity() + 1)
                                 : GetColumnContentWidthPx (text, idx);
 
-        if (contentPx <= 0)
+        if (contentPx <= 0 || (growOnly && contentPx <= GetColumnEffectiveWidthPx (idx)))
         {
             continue;
         }

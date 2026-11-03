@@ -397,7 +397,7 @@ void ExplorerListColumns::ApplyFolderView()
     //  never given either opens by name and ungrouped.
     entry = m_context.prefs.folderViews.GetEntry (key, type);
 
-    if (entry.sortColumn > (int) CatalogModel::Column::DateDeleted && !m_context.browser.IsPropertyColumn (entry.sortColumn)
+    if (entry.sortColumn > (int) CatalogModel::Column::Folder && !m_context.browser.IsPropertyColumn (entry.sortColumn)
         && !(searching && entry.sortColumn == (int) CatalogModel::kRelevance))
     {
         entry.sortColumn = 0;
@@ -426,7 +426,7 @@ void ExplorerListColumns::ApplyFolderView()
         {
             //  Search results open by relevance, as File Explorer's do.
             entry.sortColumn     = (int) CatalogModel::kRelevance;
-            entry.sortDescending = false;
+            entry.sortDescending = true;
         }
         else if (IsDownloadsFolder() || (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.GetTreeModel().IsLinkFolder (m_context.browser.GetLocation().path)))
         {

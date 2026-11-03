@@ -178,6 +178,30 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
         });
     }
 
+    //  Content's rule between items, though not under a group's header. The
+    //  rules go first, so a selected item's fill and outline are drawn over
+    //  the rules above and below it.
+    for (const std::pair<int, RECT> & place : onScreen)
+    {
+        RECT   cell      = place.second;
+        float  ruleLeft  = 0.0f;
+        float  ruleRight = 0.0f;
+
+        if (m_list.m_view != DxuiListViewTypes::View::Content || m_list.m_theme == nullptr || place.first == 0
+            || (m_list.m_items.HasItemGroups() && m_list.m_items.IsFirstOfGroup (place.first)) || m_list.GetRowCells (place.first).empty()
+            || (slide.active && place.first >= slide.start && place.first < slide.end))
+        {
+            continue;
+        }
+
+        OffsetRect (&cell, (int) x, (int) y);
+
+        ruleLeft  = (float) cell.left  + m_list.m_scaler.ToPxf (s_kContentRuleInsetDip);
+        ruleRight = (float) cell.right - m_list.m_scaler.ToPxf (s_kContentRuleEndDip);
+
+        painter.FillRect (std::round (ruleLeft), (float) cell.top, std::round (ruleRight) - std::round (ruleLeft), 1.0f, m_list.m_theme->Divider());
+    }
+
     for (const std::pair<int, RECT> & place : onScreen)
     {
         int                                           item  = place.first;
@@ -270,15 +294,6 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
         }
 
 
-        //  Content's rule between items, though not under a group's header.
-        if (m_list.m_view == DxuiListViewTypes::View::Content && m_list.m_theme != nullptr && item > 0 && (!m_list.m_items.HasItemGroups() || !m_list.m_items.IsFirstOfGroup (item)))
-        {
-            float  ruleLeft  = (float) cell.left  + m_list.m_scaler.ToPxf (s_kContentRuleInsetDip);
-            float  ruleRight = (float) cell.right - m_list.m_scaler.ToPxf (s_kContentRuleEndDip);
-
-            painter.FillRect (std::round (ruleLeft), (float) cell.top, std::round (ruleRight) - std::round (ruleLeft), 1.0f, m_list.m_theme->Divider());
-        }
-
         if (item == m_list.m_dropRow && m_list.m_theme != nullptr)
         {
             painter.OutlineRect ((float) cell.left, (float) cell.top, (float) (cell.right - cell.left), (float) (cell.bottom - cell.top),
@@ -359,6 +374,35 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
             name    = DxuiTextElide::ToWidth (text, cells[0].text, fontPx * s_kContentNameScale, DxuiTheme::kBodyFace, leftEnd - (float) label.left,
                                               DxuiElide::Tail, 0, true);
 
+            //  A search's match in the name, boxed as File Explorer boxes it. A
+            //  name cut short has its ellipsis left out of a box.
+            for (const std::pair<int, int> & match : cells[0].matches)
+            {
+                float  nameFontPx = fontPx * s_kContentNameScale;
+                float  nameTop    = top - fontPx * (s_kContentNameScale - 1.0f);
+                float  nameH      = (float) lineH * s_kContentNameScale;
+                int    shownEnd   = (int) name.size() - ((name != cells[0].text) ? 1 : 0);
+                int    first      = std::clamp (match.first,  0, shownEnd);
+                int    last       = std::clamp (match.second, first, shownEnd);
+                float  startW     = 0.0f;
+                float  endW       = 0.0f;
+                float  ignored    = 0.0f;
+                float  inset      = nameH * 0.08f;
+
+                if (last <= first)
+                {
+                    continue;
+                }
+
+                hr = text.MeasureString (name.substr (0, (size_t) first).c_str(), nameFontPx, DxuiTheme::kBodyFace, startW, ignored);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+                hr = text.MeasureString (name.substr (0, (size_t) last).c_str(),  nameFontPx, DxuiTheme::kBodyFace, endW,   ignored);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                painter.FillRect    ((float) label.left + startW, nameTop + inset, endW - startW, nameH - 2.0f * inset, pal.matchBg);
+                painter.OutlineRect ((float) label.left + startW, nameTop + inset, endW - startW, nameH - 2.0f * inset, 1.0f, pal.matchEdge);
+            }
+
             //  The name in Explorer's larger face, 11 points to the body's 9,
             //  sitting on the same baseline as it would in the body face.
             hr = text.DrawString (name.c_str(), (float) label.left, top - fontPx * (s_kContentNameScale - 1.0f), leftEnd - (float) label.left,
@@ -387,7 +431,7 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
                     std::wstring  path;
 
                     restW   = MeasureContentLine (text, cells[0].contentLeft[0], fontPx);
-                    aligned = midX + restW <= leftEnd;
+                    aligned = midX + restW + gap <= leftEnd;
 
                     path = DxuiTextElide::ToWidth (text, cells[0].contentPath, fontPx, DxuiTheme::kBodyFace,
                                                    (std::max) (0.0f, aligned ? midX - lineX - gap : leftEnd - lineX - restW - 2.0f * gap), DxuiElide::Tail, 0, true);

@@ -264,8 +264,9 @@ public:
 
 
 
-    //  A search's results by relevance: the index's rank first, then the order
-    //  they were found in, with folders among the files.
+    //  A search's results by relevance, descending as File Explorer opens them:
+    //  the index's rank first, then the order they were found in, with folders
+    //  among the files.
     TEST_METHOD (Sort_ByRelevance_RankThenFoundOrder)
     {
         std::vector<CatalogRow>  rows (4);
@@ -276,7 +277,7 @@ public:
         rows[3].name = L"d";   rows[3].sourceIndex = 3;   rows[3].searchRank  = 9;
 
         CatalogModel::Sort (rows, Column::Name, true);
-        CatalogModel::Sort (rows, CatalogModel::kRelevance, false);
+        CatalogModel::Sort (rows, CatalogModel::kRelevance, true);
 
         Assert::AreEqual (std::wstring (L"d"), rows[0].name, L"the highest rank leads");
         Assert::AreEqual (std::wstring (L"b"), rows[1].name);

@@ -171,8 +171,7 @@ public:
     //  The count of fixed columns; a column after them is a shell property's.
     static constexpr size_t  kColumnCount = (size_t) Column::Folder + 1;
 
-    //  A search's results by the index's relevance, which is no column: the
-    //  most relevant first, and the rest in the order they were found.
+    //  A search's results by the index's relevance, which is no column.
     static constexpr Column  kRelevance   = (Column) 1000;
 
     //  A row's value of a shell property, as its column sorts by it: by number

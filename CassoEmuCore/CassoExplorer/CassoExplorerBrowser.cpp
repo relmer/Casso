@@ -862,7 +862,7 @@ void CassoExplorerBrowser::SortByColumn (int column)
 
 
 
-    if (!m_model.HasTabs() || column < 0 || (column > (int) CatalogModel::Column::DateDeleted && requested != CatalogModel::kRelevance && !IsPropertyColumn (column)))
+    if (!m_model.HasTabs() || column < 0 || (column > (int) CatalogModel::Column::Folder && requested != CatalogModel::kRelevance && !IsPropertyColumn (column)))
     {
         return;
     }
@@ -1648,6 +1648,35 @@ bool CassoExplorerBrowser::AreSelectedRowsSearchFiles() const
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::RenameSearchRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::RenameSearchRow (int row, const std::wstring & newName)
+{
+    CatalogRow  *  renamed = (row >= 0 && (size_t) row < m_rows.size()) ? &m_rows[(size_t) row] : nullptr;
+    std::wstring   oldPath;
+
+
+
+    if (renamed == nullptr || renamed->hostPath.empty())
+    {
+        return;
+    }
+
+    oldPath           = renamed->hostPath;
+    renamed->name     = newName;
+    renamed->label.clear();
+    renamed->hostPath = (std::filesystem::path (oldPath).parent_path() / newName).wstring();
+    renamed->shellId  = (renamed->shellId == oldPath) ? renamed->hostPath : renamed->shellId;
 }
 
 

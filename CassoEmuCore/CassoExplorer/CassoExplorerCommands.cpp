@@ -109,6 +109,10 @@ void CassoExplorerCommands::ApplyToolbarRows (std::span<const ToolbarRow> rows)
                 command->glyph      = row.glyph;
                 command->shortLabel = row.shortLabel;
                 command->tip        = row.tip;
+
+                //  A command only See more lists is a menu row, which has its
+                //  icon beside it, as File Explorer's See more rows do.
+                command->menuGlyph  = row.seeMoreOnly ? row.glyph : command->menuGlyph;
             }
         }
     }
