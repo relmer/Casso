@@ -341,7 +341,7 @@ void CassoLinkManager::ApplyFullSendPrefs()
 
     if (m_context.app.links != nullptr)
     {
-        m_context.app.links->SetFullSendTarget (TextEncoding::WideToNarrow (folder), m_context.prefs.fullSendExtension, TextEncoding::WideToNarrow (m_context.prefs.fullSendPrefix), [] (const std::string & path)
+        m_context.app.links->SetFullSendTarget (TextEncoding::WideToNarrow (folder), m_context.prefs.fullSendExtension, [] (const std::string & path)
         {
             std::error_code  error;
 
@@ -1991,13 +1991,6 @@ void CassoLinkManager::RefreshCassoLinkViews()
     {
         m_linkJobsShown = false;
         m_context.statusBar.Fill();
-    }
-
-    //  A prefix typed on the Apple is saved for the next Full Send.
-    if (TextEncoding::NarrowToWide (m_context.app.links->GetFullSendPrefix()) != m_context.prefs.fullSendPrefix)
-    {
-        m_context.prefs.fullSendPrefix = TextEncoding::NarrowToWide (m_context.app.links->GetFullSendPrefix());
-        m_context.window.SaveSession();
     }
 
     m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());

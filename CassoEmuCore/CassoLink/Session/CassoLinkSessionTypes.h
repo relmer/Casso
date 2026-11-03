@@ -161,7 +161,7 @@ public:
 
     //  The folder and extension of a Full Send started from the Apple, with
     //  the folder ready to use; false when there is no folder to send to.
-    virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); UNREFERENCED_PARAMETER (outPrefix); return false; }
+    virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); return false; }
 
     //  An operation the Apple started, so the window can track and cancel it.
     virtual void  OnOperationQueued (const std::shared_ptr<LinkOperation> & operation) { UNREFERENCED_PARAMETER (operation); }

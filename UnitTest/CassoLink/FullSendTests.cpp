@@ -1120,7 +1120,7 @@ public:
 
     //  A row whose fingerprint is from another way of taking it, and whose
     //  image has the disk's hash, as after a change to the fingerprint's tracks.
-    TEST_METHOD (Session_ADuplicateImage_IsDiscarded_WithARowAndTone)
+    TEST_METHOD (Session_ADuplicateImage_IsWritten_WithARowAndTone)
     {
         Rig               rig;
         Image             disk = Other (1);
@@ -1138,8 +1138,8 @@ public:
 
         auto  session = rig.Run();
 
-        Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "manifest.fullsend" }));
-        Assert::AreEqual (std::string ("D1: DUPE OF 0001.dsk"), session->GetScreen().GetRows()[3]);
+        Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0002.dsk", "manifest.fullsend" }));
+        Assert::AreEqual (std::string ("D1: SENT 2, DUPE OF 0001.dsk"), session->GetScreen().GetRows()[3]);
 
         const auto  & rows = session->GetManifest().GetRows();
 
@@ -1147,7 +1147,7 @@ public:
         Assert::AreEqual (2, rows[1].sequence, L"a duplicate has a sequence number");
         Assert::AreEqual (std::string ("duplicate"), rows[1].status);
         Assert::AreEqual (std::string ("0001.dsk"), rows[1].duplicateOf);
-        Assert::IsTrue (rows[1].file.empty());
+        Assert::AreEqual (std::string ("0002.dsk"), rows[1].file);
         Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & s) { return s.tone == FullSendTone::Duplicate; }));
     }
 
@@ -1234,12 +1234,10 @@ public:
 
         written.fullSendFolder    = L"D:\\Box";
         written.fullSendExtension = ".woz";
-        written.fullSendPrefix    = L"Box 3-";
         AssertSucceeded (read.FromJson (written.ToJson()));
 
         Assert::AreEqual (std::wstring (L"D:\\Box"), read.fullSendFolder);
         Assert::AreEqual (std::string (".woz"), read.fullSendExtension);
-        Assert::AreEqual (std::wstring (L"Box 3-"), read.fullSendPrefix);
 
         written.fullSendExtension = ".exe";
         AssertSucceeded (bad.FromJson (written.ToJson()));

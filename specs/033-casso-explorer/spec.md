@@ -510,7 +510,7 @@ hardware.
 
 ### Session 2026-11-01
 
-- Q: Can a Full Send's images have a file name prefix, as ADTPro's batch mode does? -> A: Yes. It is typed on the Apple, as ADTPro takes a file name there: P on the entry screen or in a pause opens a line for it, and the last one typed is the next session's. It goes before the sequence number exactly as typed, so the user chooses any separator.
+- Q: Can a Full Send's images have a file name prefix, as ADTPro's batch mode does? -> A: Yes. It is typed on the Apple, as ADTPro takes a file name there: P on the entry screen or in a pause opens a line for it, and each session begins with none. It goes before the sequence number exactly as typed, so the user chooses any separator.
 - Q: Why was a Full Send slower per disk than ADTPro's batch mode, and what changed? -> A: One drive's disk took 42 track reads against ADTPro's 35: a check of two tracks read twice each before the disk, the catalog track read again after it, and another check of the same drive. A track read whole now counts as one read, and a drive whose disk was just sent is not checked again before the pause, which is 36 reads. The check is required to separate a new disk from a repeat, and the whole-disk read skips its tracks.
 - Q: Where is the link to a Full Send's images? -> A: A Full Send row directly under CassoLink, a peer of the connections, in the list and the tree, once the folder exists, because every connection writes to the same folder. It opens the folder.
 - Q: Which connections start at launch, and what happens when two use one port? -> A: An ADTPro-compatible server doesn't start by default. Its list has its folder and help, with a floating Start server button over the list, as Bootstrap the Apple has. Other connections start at launch, except one the user disconnected, an any-port serial connection with no port that has connected to an Apple, and a Wi-Fi listener the firewall doesn't allow. On a shared port the most recent choice takes the port: starting or creating a connection disconnects the others on that port, each with its reason and a Connect button. A running transfer is never interrupted.
@@ -549,8 +549,8 @@ hardware.
 
 ### Session 2026-11-03
 
-- Q: Where is a Full Send's file name prefix set? -> A: On the Apple, as ADTPro takes a file name there, not in Casso Explorer's Options. P on the entry screen or in a pause opens a line; the last prefix typed is the next session's.
-- Q: What is on the Apple's screen for a disk that may already have been sent? -> A: DUPE OF and the matching file, with a ?, as the fingerprint compares only a few tracks. A drive's number sends it anyway, and the image is written with the next sequence number even when it is an exact copy. A disk whose whole-disk hash matches an earlier image, with no key, reads DUPE OF and that file with no ?.
+- Q: Where is a Full Send's file name prefix set? -> A: On the Apple, as ADTPro takes a file name there, not in Casso Explorer's Options. P on the entry screen or in a pause opens a line; the prefix lasts for that session only.
+- Q: What is on the Apple's screen for a disk that may already have been sent? -> A: DUPE OF and the matching file, with a ?, as the fingerprint compares only a few tracks. A drive's number sends it anyway, and the image is written with the next sequence number even when it is an exact copy. A disk whose whole-disk hash matches an earlier image, with no key, is written too, and its row adds DUPE OF and that file with no ?.
 - Q: Is there a log of what crossed the wire? -> A: Yes: a file a day under Casso's Logs folder with each connection's activity and every packet, for finding out afterward what a session did.
 - Q: Do Details columns narrow as well as widen? -> A: Yes, in a folder with no widths the user set; a folder with any opens with them.
 
@@ -1192,8 +1192,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
    user presses Space with no other new disk present, **Then** the disk isn't
    read, the prompt lists its drive, and pressing that drive's number sends it.
 6. **Given** a sent disk's whole-image hash matches an earlier image in the
-   session, **When** the read finishes, **Then** the second image is discarded, the
-   manifest lists the duplicate, and the duplicate tone sounds.
+   session, **When** the read finishes, **Then** the second image is written too, the
+   manifest lists it as a duplicate, and the duplicate tone sounds.
 7. **Given** a ProDOS, DOS 3.3 or other disk, **When** its image is written,
    **Then** its file name is the session's sequence number and a name from
    the catalog where one exists, and the sequence number alone otherwise.
@@ -2061,8 +2061,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
   check both drives. A disk already sent MUST NOT be read and MUST NOT change the duplicate count. The Apple MUST list the drives that
   may already have been sent, including a drive found in the round before the pause, and pressing a listed drive's number MUST send that drive's disk.
 - **FR-111**: An image whose whole-disk hash matches an earlier image in the
-  folder's manifest MUST be discarded, unless it was sent with its drive's number, and the manifest MUST list it as a duplicate of
-  that image. The drive's row MUST read DUPE OF and that image's file. A duplicate MUST have a manifest row and a sequence number, so the numbers match the disks fed in.
+  folder's manifest MUST still be written, and unless it was sent with its drive's number, the manifest MUST list it as a duplicate of
+  that image and the drive's row MUST add DUPE OF and that image's file. A duplicate MUST have a manifest row and a sequence number, so the numbers match the disks fed in.
 - **FR-112**: An image's file name MUST begin with the prefix typed on the Apple, as
   typed and with characters a file name cannot have replaced, then the session's sequence
   number, followed by the volume name on ProDOS or Apple Pascal, or the
@@ -2071,8 +2071,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
   overwritten.
 - **FR-113**: A Full Send MUST accept no label typed on the Apple but the file name
   prefix. P on its entry screen or in a pause MUST open a line for it, where Return takes
-  it, Esc puts back the prefix before, and Left arrow or Delete erases a letter. The last
-  prefix typed MUST begin each file name in the next session. Images MUST be renamed on the PC.
+  it, Esc puts back the prefix before, and Left arrow or Delete erases a letter. Each session
+  MUST begin with no prefix. Images MUST be renamed on the PC.
 - **FR-114**: The session MUST write a manifest to the destination folder,
   updated after each disk: each image's file name, drive, fingerprint, hash, time,
   unreadable sector count, whether it is a duplicate, its verification and its

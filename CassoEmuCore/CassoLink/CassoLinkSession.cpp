@@ -772,13 +772,13 @@ void CassoLinkSession::StartFullSendFromApple()
     HRESULT      logged = S_OK;
     std::string  folder;
     std::string  extension;
-    std::string  prefix;
 
 
 
-    if (m_sink.TryGetFullSendTarget (folder, extension, prefix))
+    //  Each session begins with no prefix; one is typed on the Apple.
+    if (m_sink.TryGetFullSendTarget (folder, extension))
     {
-        m_sink.OnOperationQueued (FullSend (folder, extension, prefix));
+        m_sink.OnOperationQueued (FullSend (folder, extension, std::string()));
     }
     else
     {

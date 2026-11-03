@@ -59,7 +59,6 @@ struct CassoExplorerPrefs
     //  .po on ProDOS and .dsk otherwise.
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
-    std::wstring           fullSendPrefix;
 
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.

@@ -28,7 +28,6 @@ enum class FullSendDriveState : Byte
     Sending,
     Empty,
     Repeat,
-    Duplicate,
     Sent,
     OnDeck,
     Protected,

@@ -61,7 +61,6 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Sending:  row += (verify ? "VERIFYING " : "SENDING ") + names[i]; break;
             case FullSendDriveState::Empty:    row += "NO READABLE DISK";   break;
             case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
-            case FullSendDriveState::Duplicate: row += GetDuplicateText (names[i], "");  break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
             case FullSendDriveState::Protected: row += "LIKELY COPY-PROTECTED " + names[i]; break;
             case FullSendDriveState::OnDeck:
@@ -871,7 +870,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     hr = FullSendDisk::ComputeHash (image, hash);
     CHR (hr);
 
-    //  A disk sent anyway is written even when it matches an earlier image.
+    //  Every disk read is written; one that matches an earlier image is noted as
+    //  its duplicate, unless it was sent anyway.
     earlier = anyway ? nullptr : m_manifest.FindImageByHash (hash);
 
     row.sequence    = sequence;
@@ -886,21 +886,22 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
                      : report.tracksVerified >= NibblizationLayer::kTrackCount ? FullSendManifest::kVerifyFull
                                                                                 : FullSendManifest::kVerifyPartial;
 
+    title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image), m_prefix);
+
+    hr = WriteImage (title, image, unreadable, report.marks, row.file);
+    CHRF (hr, m_fileFailed = true);
+
     if (earlier != nullptr)
     {
         row.status      = FullSendManifest::kStatusDuplicate;
         row.duplicateOf = earlier->file;
         m_screen.tone   = FullSendTone::Duplicate;
-        m_screen.names[(size_t) drive - 1] = earlier->file;
+        m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image)) + ", DUPE OF " + earlier->file;
+        m_screen.sent++;
         m_screen.duplicates++;
     }
     else
     {
-        title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image), m_prefix);
-
-        hr = WriteImage (title, image, unreadable, report.marks, row.file);
-        CHRF (hr, m_fileFailed = true);
-
         row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
         isProtected   = row.status == FullSendManifest::kStatusProtected;
         m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
@@ -917,8 +918,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         m_screen.recovered += (row.recovered != 0 || row.unreliable != 0) ? 1 : 0;
     }
 
-    m_link.Report (row.file.empty() ? std::format ("Disk {:04} is a duplicate of {}", sequence, row.duplicateOf)
-                                    : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
+    m_link.Report (!row.duplicateOf.empty() ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
+                                            : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
 
     m_manifest.Add (row);
 
@@ -946,7 +947,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     }
 
     m_lastSent = true;
-    SetDriveState (drive, row.file.empty() ? FullSendDriveState::Duplicate : isProtected ? FullSendDriveState::Protected : FullSendDriveState::Sent);
+    SetDriveState (drive, isProtected ? FullSendDriveState::Protected : FullSendDriveState::Sent);
 
     hr = m_link.ShowScreen (m_screen);
     m_screen.tone = FullSendTone::None;

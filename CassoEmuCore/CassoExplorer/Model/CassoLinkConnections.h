@@ -45,14 +45,11 @@ public:
     ~CassoLinkConnections ();
 
     //  Where a Full Send started from an Apple writes: the folder, made by
-    //  makeFolder when the session starts, the extension with its period, empty
-    //  for .po on ProDOS and .dsk otherwise, and what begins each file name.
+    //  makeFolder when the session starts, and the extension with its period,
+    //  empty for .po on ProDOS and .dsk otherwise.
     using MakeFolderFn = std::function<HRESULT (const std::string & folder)>;
 
-    void  SetFullSendTarget (const std::string & folder, const std::string & extension, const std::string & prefix, MakeFolderFn makeFolder);
-
-    //  The prefix the last Full Send ended with, as typed on the Apple.
-    std::string  GetFullSendPrefix () const { std::lock_guard<std::mutex>  lock (m_lock); return m_fullSendPrefix; }
+    void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
 
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
@@ -293,7 +290,7 @@ private:
         void  OnStateChanged       (LinkState state) override;
         void  OnProgress           (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
-        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) override;
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
         void  OnTrace              (const std::string & text) override;
@@ -366,7 +363,6 @@ private:
 
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
-    std::string           m_fullSendPrefix;
     bool                  m_verifyReads        = false;
     bool                  m_verifyWrites       = false;
     bool                  m_autoVerify         = true;

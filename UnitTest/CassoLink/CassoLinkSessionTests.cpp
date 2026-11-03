@@ -48,11 +48,10 @@ public:
         std::vector<std::shared_ptr<LinkOperation>>   queued;
         std::string                                   fullSendFolder;
 
-        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix) override
+        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
         {
             outFolder    = fullSendFolder;
             outExtension = ".do";
-            outPrefix.clear();
 
             return !fullSendFolder.empty();
         }

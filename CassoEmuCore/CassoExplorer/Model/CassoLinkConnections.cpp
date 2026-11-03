@@ -1938,7 +1938,7 @@ bool CassoLinkConnections::Sink::IsFullSending() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const std::string & extension, const std::string & prefix, MakeFolderFn makeFolder)
+void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder)
 {
     std::lock_guard<std::mutex>  lock (m_lock);
 
@@ -1946,7 +1946,6 @@ void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const 
 
     m_fullSendFolder     = folder;
     m_fullSendExtension  = extension;
-    m_fullSendPrefix     = prefix;
     m_makeFullSendFolder = std::move (makeFolder);
 }
 
@@ -2007,7 +2006,7 @@ void CassoLinkConnections::ApplyVerify (Link & link) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, std::string & outExtension, std::string & outPrefix)
+bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, std::string & outExtension)
 {
     std::lock_guard<std::mutex>  lock (m_owner.m_lock);
     bool                         ready = !m_owner.m_fullSendFolder.empty();
@@ -2023,7 +2022,6 @@ bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, 
 
     outFolder    = m_owner.m_fullSendFolder;
     outExtension = m_owner.m_fullSendExtension;
-    outPrefix    = m_owner.m_fullSendPrefix;
 
     return ready;
 }
@@ -2062,18 +2060,10 @@ void CassoLinkConnections::Sink::OnOperationQueued (const std::shared_ptr<LinkOp
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> & operation)
+void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
 {
     m_lastProgress = 0;
     m_fullSending  = false;
-
-    //  The prefix typed on the Apple begins the next session's names.
-    if (operation != nullptr && operation->kind == LinkOperationKind::FullSend)
-    {
-        std::lock_guard<std::mutex>  lock (m_owner.m_lock);
-
-        m_owner.m_fullSendPrefix = operation->imagePrefix;
-    }
 
     m_owner.Notify();
 }
