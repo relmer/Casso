@@ -877,9 +877,9 @@ namespace DebuggerToolPanesTests
             }
 
             Assert::IsTrue   (light > 0 && dark > 0, L"dashes in both colors");
-            Assert::AreEqual (2, outlined, L"PLOT's other bar has an accent ring and an ink line inside it");
-            Assert::IsTrue   (std::ranges::any_of (painter.Calls(), [&theme] (const RecordedPaintCall & call) { return call.kind == RecordedPaintKind::OutlineRect && call.argb == theme.FocusAccent(); }),
-                              L"the ring is in the theme's focus accent");
+            Assert::AreEqual (2, outlined, L"PLOT's other bar has a ring and a line inside it");
+            Assert::IsTrue   (std::ranges::any_of (painter.Calls(), [] (const RecordedPaintCall & call) { return call.kind == RecordedPaintKind::OutlineRect && call.argb == FlameGraphView::kOtherRingArgb; }),
+                              L"the ring is white");
             Assert::AreNotEqual (DxuiMarquee::GetPhasePx (4.0f, 0), DxuiMarquee::GetPhasePx (4.0f, DxuiMarquee::kStepMs), L"a step later the dashes have moved");
         }
 
