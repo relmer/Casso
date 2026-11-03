@@ -542,6 +542,11 @@ hardware.
 - Q: What is on a drive's row when it has no disk? -> A: NO READABLE DISK, after an operation on that drive found no address field for eight revolutions in a row, until an operation on it succeeds. A Disk II has no disk sensor, so an empty drive and an unformatted disk look the same. The Full Send screen has the same words.
 - Q: Are catalog reads and protocol commands added to the Apple's history? -> A: No. The history has the user's operations only, as a whole-disk read alone sends at least 35 requests and the history has 8 rows.
 
+### Session 2026-11-02
+
+- Q: Which disk image formats have metadata to edit? -> A: Only WOZ, among the formats Casso writes: its INFO chunk and its optional META chunk. .dsk, .do, .po, .nib and .nb2 have no header at all, and .2mg, which Casso does not write, has a creator and a comment. A WOZ image's Properties get a page that edits INFO's write protection, boot sector format, compatible hardware and required RAM, and META's standard keys (title, subtitle, publisher, developer, copyright, version, language, requires_ram, requires_machine, notes, side, side_name, contributor, image_date), saved into the image in place. INFO's creator is set by the program that writes the image and is shown, not edited.
+- Q: Which order does an automatic Full Send use for Apple Pascal and CP/M disks? -> A: .po for Apple Pascal, whose blocks are in ProDOS's interleave, and .dsk for CP/M, which applies its own skew on top of DOS order.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2093,6 +2098,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-130**: A disk assessed as likely copy-protected MUST have its remaining tracks read once, with no retries or verification, MUST save its partial image and list, MUST add to a PROT count with a distinct tone, and MUST NOT stop the session.
 - **FR-131**: The tree MUST animate a connection's icon and the receiving folder during a transfer, and MUST badge the Full Send and ADTPro folders with a count of received files not yet rendered in the list, across restarts.
 - **FR-132**: Casso Explorer MUST read and write Apple Pascal and CP/M 140K disks, on images and over CassoLink. CP/M detection MAY be heuristic, with a manual choice.
+- **FR-133**: A WOZ image's Properties MUST have a page that edits its INFO and META fields, as in Session 2026-11-02, and saves them into the image in place.
 
 ### Key Entities
 
