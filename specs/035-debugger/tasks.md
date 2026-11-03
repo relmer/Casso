@@ -2146,5 +2146,15 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1301 Heat map: zooming in scrolls the rows across rather than refitting them, so the cell under the pointer stays under it; a notch zooms 1.5 times; the button reads Zoom; no tip during a zoom. **Done:** `9c36bcef5`.
 - [X] T1302 Mockingboard panel: a tip on each part with what it means; rows of the AY's sixteen registers; the envelope's dot moves along the ramps. **Done:** `e63fd12f4`. `SoundBoardTips`; checked on screen with the music disk.
 - [ ] T1303 One button and one key to pause and resume. Waiting on the owner's choice.
-- [ ] T1304 Console: a time on each line. Waiting on the owner's choice.
+- [X] T1304 Console: a time on each line. **Done:** `21ce9b513`, the owner's choice in Phase 57.
 - [ ] T1305 Mockingboard: a phoneme history to scroll back through. Waiting on the owner's choice.
+
+
+## Phase 57: Owner's walk, 2026-11-03
+
+- [X] T1306 Tooltips: a toolbar button's tip doesn't open until the pointer moves off the button. **Done:** `6be3e9040`. `DxuiTooltip::WantsTick` is true while the balloon fades in. A hover tip without a lifetime stopped being ticked once it was up, so its fade stayed at transparent until the pointer moved off and set a close time. `AFadingInTipWantsTicksUntilTheFadeEnds` fails without the fix.
+- [X] T1307 Pointer: the I-beam over the disassembly's heat column. **Done:** `7ba4e0072`. `DxuiListView::Column::isText` is off for the heat columns of the disassembly and the BASIC listing. `TheArrowIsOverAColumnThatIsNotText`.
+- [X] T1308 Watches: the Type column is at the pane's far edge. **Done:** `db7796a52`, `ac6865ff1`. Type takes the room left over, and Value fits its text.
+- [X] T1309 Docking: over a tab set, the drop gap stops following the pointer once it opens. **Done:** `aeb397d9f`. The floating window's header fade was a modal overlay, which sends the window's mouse and keys to the overlay, so the window's move ended at the first step over a strip. The fade is painted in the drag layer. `MovingAlongATabStripMovesTheGap` fails without the fix.
+- [X] T1310 Console: each line starts with the time it was added in the user's short time format, and the tip over the time has the long date and the time. **Done:** `21ce9b513`. `ConsoleOutput::GetTimeStamp`, `ConsoleOutput::GetFullTime`, `ConsoleOutput::TryGetTimeTip`, and `CommandModeHelp::LayOutTabbedRows` with each line's source.
+- [ ] T1311 Resizing: the new edge of the main and debugger windows is black, and the desktop is visible at a floating window's new edge, until the next frame. Draw the window's content at the new size before the compositor composes the window at that size.
