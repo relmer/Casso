@@ -8,7 +8,6 @@
 #include "Ui/DiskInspector/Views/FilesView.h"
 #include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Machines/Apple2/Common/WozLoader.h"
-#include "Ui/DiskInspector/Views/FluxView.h"
 
 
 
@@ -73,16 +72,6 @@ void ViewTables::RefreshTables()
         vector<TableRow>  imageRows = m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr,
                                                                                                m_session.context.drive)
                                                                 : vector<TableRow>();
-
-        //  With no Flux view on a disk without flux tracks, the Image view has
-        //  the note on why the disk has no timing (FR-003).
-        if (m_session.context.hasDisk && m_session.analysis.copy != nullptr && m_session.analysis.summary.fluxTracks == 0)
-        {
-            TableRow  timing;
-
-            timing.cells = { L"Timing", FluxView::FormatNoTiming (m_session.analysis.copy->format, m_session.analysis.copy->woz.info.version) };
-            imageRows.push_back (timing);
-        }
 
         m_session.views.image->SetRows (std::move (imageRows));
         m_session.views.files->RefreshFileList();

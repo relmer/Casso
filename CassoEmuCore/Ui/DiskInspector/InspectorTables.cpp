@@ -752,7 +752,6 @@ vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image, const 
     else if (image.format == DiskFormat::Dsk || image.format == DiskFormat::Do || isProDos)
     {
         AddRow (rows, L"Sector order", isProDos ? L"ProDOS order" : L"DOS order");
-        AddRow (rows, L"Tracks",       L"Casso builds each track from the sectors with volume 254");
     }
 
     if (isSaved)

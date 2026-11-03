@@ -1651,19 +1651,13 @@ legend, and tilt the platter and back.
   only as FR-096 to FR-116 allow.
 - **FR-003**: The inspector MUST open DSK, DO, PO, NIB, NB2, WOZ 1, WOZ 2 and
   WOZ 2.1 images, with bit tracks, flux tracks or both. For a sector image it
-  MUST show the tracks Casso's drive plays. Since the Flux view is present
-  only for a disk with flux tracks (FR-160), the notes below MUST be in the
-  Image view for a disk with none, and in the Flux view for a track imaged
-  as bits on a disk with flux tracks. The Image view MUST
-  explain, naming the file's format (.dsk, .do or .po), that Casso builds the
-  tracks from its sector data, so they have no timing or copy protection. For
-  NIB and NB2 it MUST explain that a nibble image has no timing between
-  bits. For a WOZ file before 2.1, the note MUST be that only WOZ 2.1
-  or higher supports imaging a track as flux, which includes timing; for a
-  track imaged as bits in a WOZ 2.1 or later file, the note MUST have the
-  file's version and that only tracks imaged as flux include timing.
-  The track lengths of sector, NIB and NB2 images come from the format, so
-  those tracks get these notes and no track-length finding.
+  MUST show the tracks Casso's drive plays. A disk with no flux tracks has
+  no Flux view and no Timing mode (FR-160, FR-023), so the Image view MUST
+  NOT have a timing note. In the Flux view, a track imaged as bits in a WOZ
+  2.1 or later file MUST have a note with the file's version and that only
+  tracks imaged as flux include timing. The track lengths of sector, NIB and
+  NB2 images come from the format, so those tracks get no track-length
+  finding.
 - **FR-004**: The inspector MUST cover all 160 quarter tracks, 0 to 39.75, and
   MUST mark the ones past the head limit as beyond the emulated head's reach
   in the Tracks tab and the track header, and by a line on the platter at that
@@ -2185,8 +2179,8 @@ legend, and tilt the platter and back.
   when present, and the ID and size of any other chunk. It MUST list the track
   records the file has and, in Casso, the records the guest added since
   (FR-071), never an empty track Casso keeps for the guest to format (FR-005).
-  For a sector image it MUST show the sector order and a note that the tracks
-  are built with volume 254.
+  For a sector image it MUST show the sector order. A value too long for its
+  column MUST wrap onto more lines, not be cut short.
 - **FR-051**: The inspector MUST check the image file for these problems and
   report each one in Findings and the Image tab: a checksum mismatch; an INFO
   largest track smaller than the largest track record; a bit or byte count
