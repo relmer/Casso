@@ -263,6 +263,10 @@ public:
     //  Any Cancel ends the wait with ERROR_CANCELLED.
     HRESULT  WaitForKey   (const std::vector<std::string> & lines, Byte & outKey);
 
+    //  As WaitForKey, with every key the Apple's keyboard sends, for a line
+    //  typed there.
+    HRESULT  WaitForAnyKey (const std::vector<std::string> & lines, Byte & outKey);
+
     //  Whether Q was pressed during a Full Send, since the last call.
     bool     TakeQuit   () { bool  quit = m_quit; m_quit = false; return quit; }
 
@@ -292,7 +296,7 @@ private:
 
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
-    HRESULT  WaitForKeyOnce    (const std::vector<std::string> & lines, Byte & outKey);
+    HRESULT  WaitForKeyOnce    (const std::vector<std::string> & lines, Byte mode, Byte & outKey);
     HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
     HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);

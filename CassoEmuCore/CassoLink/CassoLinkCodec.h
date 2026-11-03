@@ -98,7 +98,9 @@ public:
     //  A Full Send's screen, and its pause for Space or Q. Key has the same
     //  command byte as Wait for key, and one byte: the key's code, kKeyQuit also
     //  unprompted during a Full Send, kKeyFullSend unprompted on the standard
-    //  screen, and kKeyNone once a second in a pause.
+    //  screen, and kKeyNone once a second in a pause. Wait for key's first byte
+    //  is kWaitTyped while a line is typed, when every key is sent, or
+    //  kWaitKeys for the session's keys alone; its lines follow it.
     static constexpr Byte  kSessionScreen = 0xE1;
     static constexpr Byte  kWaitForKey    = 0xE2;
     static constexpr Byte  kSetColumns    = 0xE3;
@@ -111,6 +113,13 @@ public:
     static constexpr Byte  kKeyDrive1     = 0xB1;
     static constexpr Byte  kKeyDrive2     = 0xB2;
     static constexpr Byte  kKeyVerify     = 0xD6;
+    static constexpr Byte  kKeyPrefix     = 0xD0;
+    static constexpr Byte  kKeyReturn     = 0x8D;
+    static constexpr Byte  kKeyEscape     = 0x9B;
+    static constexpr Byte  kKeyLeft       = 0x88;
+    static constexpr Byte  kKeyDelete     = 0xFF;
+    static constexpr Byte  kWaitKeys      = 0x00;
+    static constexpr Byte  kWaitTyped     = 0x01;
 
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;

@@ -191,13 +191,11 @@ bool CassoExplorerHostNamesPage::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & prefixLabel, DxuiTextInput & prefix, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel)
+void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel)
 {
     m_folderLabel    = &folderLabel;
     m_formatLabel    = &formatLabel;
-    m_prefixLabel    = &prefixLabel;
     m_esotericaLabel = &esotericaLabel;
-    m_prefix         = &prefix;
     m_note           = &note;
     m_folder         = &folder;
     m_browse         = &browse;
@@ -208,8 +206,6 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
     Adopt (formatLabel);
     Adopt (folder);
     Adopt (browse);
-    Adopt (prefixLabel);
-    Adopt (prefix);
     Adopt (format);
     Adopt (esotericaLabel);
 }
@@ -232,10 +228,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int                           folderTop      = folderLabelTop + labelH;
     int                           folderEnd      = folderTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int                           browseX        = boundsDip.right - scaler.ToPx (kBrowseWidthDip);
-    int                           prefixLabelTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int                           prefixTop      = prefixLabelTop + labelH;
-    int                           prefixEnd      = prefixTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int                           formatLabelTop = prefixEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int                           formatLabelTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int                           formatTop      = formatLabelTop + labelH;
     int                           optionH        = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip + kOptionGapDip);
     int                           esotericaTop   = formatTop + optionH * kCommonFormatCount + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
@@ -265,8 +258,6 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     m_folder->Layout (RECT { boundsDip.left, folderTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), folderEnd }, scaler);
     m_browse->SetDpi (scaler.GetDpi());
     m_browse->Layout (RECT { browseX, folderTop, boundsDip.right, folderEnd });
-    m_prefixLabel->Layout (RECT { boundsDip.left, prefixLabelTop, boundsDip.right, prefixTop }, scaler);
-    m_prefix->Layout (RECT { boundsDip.left, prefixTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), prefixEnd }, scaler);
     m_format->Layout (RECT { boundsDip.left, formatTop, boundsDip.right, formatEnd }, scaler);
     m_esotericaLabel->Layout (RECT { boundsDip.left, esotericaTop, boundsDip.right, esotericaEnd }, scaler);
 
@@ -285,7 +276,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 bool CassoExplorerFullSendPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_browse->OnMouse (ev) || m_prefix->OnMouse (ev) || m_format->OnMouse (ev);
+    return m_browse->OnMouse (ev) || m_format->OnMouse (ev);
 }
 
 
@@ -504,7 +495,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     WireFullSend();
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full Send");
-    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendPrefixLabel, m_fullSendPrefix, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel);
+    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel);
 
     WireVerify();
 
@@ -567,15 +558,6 @@ void CassoExplorerOptionsDialog::WireFullSend()
 
     m_fullSendEsotericaLabel.SetText (L"Esoterica, for the disk image format enthusiast");
     ExplorerTextStyles::Apply (m_fullSendEsotericaLabel, ExplorerTextStyles::kFormLabel);
-
-    m_fullSendPrefixLabel.SetText (L"File name prefix");
-    ExplorerTextStyles::Apply (m_fullSendPrefixLabel, ExplorerTextStyles::kFormLabel);
-
-    m_fullSendPrefix.SetTheme        (m_theme);
-    m_fullSendPrefix.SetHwnd         (GetHwnd());
-    m_fullSendPrefix.SetTextRenderer (GetTextRenderer());
-    m_fullSendPrefix.SetPlaceholder  (L"Goes before each image's number, such as Box 3-");
-    m_fullSendPrefix.SetText         (m_choices.fullSendPrefix);
 
     m_fullSendFolder.SetText (m_choices.fullSendFolder);
 
@@ -847,7 +829,6 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.registered  = m_register.IsChecked();
     m_choices.autoPreview = m_autoPreview.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) m_fullSendFormat.GetSelected()].extension;
-    m_choices.fullSendPrefix    = m_fullSendPrefix.GetText();
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
     m_choices.verifyWrites      = m_verifyRows[1].toggle.IsChecked();
     m_choices.autoVerify        = m_verifyRows[2].toggle.IsChecked();

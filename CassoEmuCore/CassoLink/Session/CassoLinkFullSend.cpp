@@ -49,7 +49,8 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 
     hr = session.Run();
 
-    operation.message = session.GetMessage();
+    operation.message     = session.GetMessage();
+    operation.imagePrefix = session.GetPrefix();
     m_session.m_sink.OnActivity (operation.message);
     m_operation       = nullptr;
 
@@ -386,6 +387,7 @@ HRESULT CassoLinkFullSend::WaitForKey (const std::vector<std::string> & lines, F
            : code == CassoLinkCodec::kKeyDrive1 ? FullSendKey::Drive1
            : code == CassoLinkCodec::kKeyDrive2 ? FullSendKey::Drive2
            : code == CassoLinkCodec::kKeyVerify ? FullSendKey::Verify
+           : code == CassoLinkCodec::kKeyPrefix ? FullSendKey::Prefix
                                                 : FullSendKey::Space;
 
 Error:
@@ -398,7 +400,29 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkFullSend::IsBootstrapped
+//  CassoLinkFullSend::WaitForAnyKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::WaitForAnyKey (const std::vector<std::string> & lines, Byte & outCode)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = CheckStop();
+    CHR (hr);
+
+    hr = m_session.m_host->WaitForAnyKey (lines, outCode);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
 //
 ////////////////////////////////////////////////////////////////////////////////
 

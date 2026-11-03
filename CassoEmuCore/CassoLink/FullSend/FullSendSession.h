@@ -50,6 +50,7 @@ enum class FullSendKey
     Drive1,
     Drive2,
     Verify,
+    Prefix,
 };
 
 struct FullSendScreen
@@ -136,6 +137,10 @@ public:
     //  then.
     virtual HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) = 0;
 
+    //  As WaitForKey, with any key's code, as the Apple's keyboard sends it, for
+    //  a line typed there.
+    virtual HRESULT  WaitForAnyKey (const std::vector<std::string> & lines, Byte & outCode) = 0;
+
     //  Whether verified reads are on; V on the Apple switches them.
     virtual bool     IsVerifying    () = 0;
     virtual void     ToggleVerify   () = 0;
@@ -203,6 +208,9 @@ public:
     const FullSendManifest  & GetManifest  () const { return m_manifest; }
     const FullSendScreen    & GetScreen    () const { return m_screen; }
 
+    //  What begins each image's file name, as typed on the Apple last.
+    const std::string       & GetPrefix    () const { return m_prefix; }
+
     //  The result for the user: the counts and why the session ended.
     const std::string       & GetMessage   () const { return m_message; }
 
@@ -224,10 +232,12 @@ private:
         std::vector<int>   wholeTracks;
     };
 
-    static constexpr int  kFingerprintReads = 3;
+    static constexpr int     kFingerprintReads = 3;
+    static constexpr size_t  kPrefixLength     = 16;
 
     HRESULT  LoadManifest    ();
     HRESULT  AwaitBegin      ();
+    HRESULT  EditPrefix      ();
     HRESULT  RunRound        ();
     HRESULT  Pause           ();
     HRESULT  CheckDrive      (int drive, CheckedDisk & outDisk);
@@ -240,7 +250,8 @@ private:
 
     void                             ReportRepeat  (int drive, const CheckedDisk & disk);
     Byte                             PickQuip      ();
-    static std::vector<std::string>  GetPauseLines (const std::array<bool, 2> & repeats);
+    std::vector<std::string>         GetPauseLines (const std::array<bool, 2> & repeats) const;
+    std::string                      GetPrefixLine () const;
     static std::string               GetScreenName (int sequence, const std::string & catalogTitle);
     void                             SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
     std::string                      GetPath       (const std::string & file) const;

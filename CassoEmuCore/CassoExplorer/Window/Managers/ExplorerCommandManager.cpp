@@ -687,7 +687,6 @@ void ExplorerCommandManager::ShowOptions()
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
-    choices.fullSendPrefix    = m_context.prefs.fullSendPrefix;
     choices.verifyReads       = m_context.prefs.verifyReads;
     choices.verifyWrites      = m_context.prefs.verifyWrites;
     choices.autoVerify        = m_context.prefs.autoVerify;
@@ -732,7 +731,6 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.autoPreview       = choices.autoPreview;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
-    m_context.prefs.fullSendPrefix    = choices.fullSendPrefix;
     m_context.prefs.verifyReads       = choices.verifyReads;
     m_context.prefs.verifyWrites      = choices.verifyWrites;
     m_context.prefs.autoVerify        = choices.autoVerify;

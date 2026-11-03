@@ -34,6 +34,7 @@ public:
     HRESULT  ReadDisk       (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) override;
     HRESULT  ShowScreen     (const FullSendScreen & screen) override;
     HRESULT  WaitForKey     (const std::vector<std::string> & lines, FullSendKey & outKey) override;
+    HRESULT  WaitForAnyKey  (const std::vector<std::string> & lines, Byte & outCode) override;
     bool     IsVerifying    () override { return m_verifying; }
     void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;

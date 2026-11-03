@@ -2,6 +2,7 @@
 
 #include "CassoLink/FullSend/FullSendSession.h"
 
+#include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -265,21 +266,23 @@ HRESULT FullSendSession::AwaitBegin()
 {
     HRESULT                   hr    = S_OK;
     FullSendKey               key   = FullSendKey::Drive1;
-    std::vector<std::string>  lines = { "V: VERIFY READS EACH TRACK THREE TIMES.", "SLOWER, BUT CATCHES BAD READS.", "" };
+    std::vector<std::string>  lines;
 
 
-
-    if (!m_link.IsBootstrapped())
-    {
-        lines.push_back ("REMOVE THE CASSOLINK DISK");
-    }
-
-    lines.push_back ("INSERT DISKS TO BE SENT INTO THE DRIVES");
-    lines.push_back ("");
-    lines.push_back ("PRESS <SPACE> TO BEGIN");
 
     while (key != FullSendKey::Space)
     {
+        lines = { "V: VERIFY READS EACH TRACK THREE TIMES.", "SLOWER, BUT CATCHES BAD READS.", GetPrefixLine(), "" };
+
+        if (!m_link.IsBootstrapped())
+        {
+            lines.push_back ("REMOVE THE CASSOLINK DISK");
+        }
+
+        lines.push_back ("INSERT DISKS TO BE SENT INTO THE DRIVES");
+        lines.push_back ("");
+        lines.push_back ("PRESS <SPACE> TO BEGIN");
+
         m_screen.verify = m_link.IsVerifying();
 
         hr = m_link.ShowScreen (m_screen);
@@ -294,10 +297,89 @@ HRESULT FullSendSession::AwaitBegin()
         {
             m_link.ToggleVerify();
         }
+
+        if (key == FullSendKey::Prefix)
+        {
+            hr = EditPrefix();
+            CHR (hr);
+        }
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::EditPrefix
+//
+//  The prefix typed on the Apple, as ADTPro takes a file name there. Return
+//  takes the line and Esc puts back the prefix as it was; Left arrow or
+//  Delete erases a letter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::EditPrefix()
+{
+    HRESULT      hr   = S_OK;
+    std::string  text = m_prefix;
+    Byte         code = 0;
+    char         ch   = 0;
+
+
+
+    for (;;)
+    {
+        hr = m_link.WaitForAnyKey ({ "TYPE A PREFIX FOR THE IMAGES' NAMES.", "PREFIX: " + text + "_", "", "RETURN: USE IT    ESC: CANCEL", "<- OR DELETE: ERASE A LETTER" }, code);
+        CHR (hr);
+
+        if (code == CassoLinkCodec::kKeyReturn)
+        {
+            m_prefix = text;
+            BAIL_OUT_IF (true, S_OK);
+        }
+
+        BAIL_OUT_IF (code == CassoLinkCodec::kKeyEscape, S_OK);
+
+        if (code == CassoLinkCodec::kKeyLeft || code == CassoLinkCodec::kKeyDelete)
+        {
+            if (!text.empty())
+            {
+                text.pop_back();
+            }
+
+            continue;
+        }
+
+        ch = (char) (code & 0x7F);
+
+        if (ch >= ' ' && ch <= '~' && text.size() < kPrefixLength)
+        {
+            text += ch;
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::GetPrefixLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FullSendSession::GetPrefixLine() const
+{
+    return "P: FILE NAME PREFIX: " + (m_prefix.empty() ? std::string ("NONE") : m_prefix);
 }
 
 
@@ -399,6 +481,13 @@ HRESULT FullSendSession::Pause()
             continue;
         }
 
+        if (key == FullSendKey::Prefix)
+        {
+            hr = EditPrefix();
+            CHR (hr);
+            continue;
+        }
+
         if (key == FullSendKey::Space)
         {
             for (int drive : order)
@@ -449,7 +538,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 2> & repeats)
+std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 2> & repeats) const
 {
     std::vector<std::string>  lines = { "PUT IN A NEW DISK AND PRESS SPACE" };
 
@@ -469,6 +558,8 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
         lines.push_back ("CHECK CASSO EXPLORER FOR DETAILS.");
         lines.push_back (std::format ("PRESS {} TO SEND D{} ANYWAY.", drive, drive));
     }
+
+    lines.push_back (GetPrefixLine());
 
     return lines;
 }

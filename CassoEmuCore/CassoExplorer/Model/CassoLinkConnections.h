@@ -51,6 +51,9 @@ public:
 
     void  SetFullSendTarget (const std::string & folder, const std::string & extension, const std::string & prefix, MakeFolderFn makeFolder);
 
+    //  The prefix the last Full Send ended with, as typed on the Apple.
+    std::string  GetFullSendPrefix () const { std::lock_guard<std::mutex>  lock (m_lock); return m_fullSendPrefix; }
+
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
 

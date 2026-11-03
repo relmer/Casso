@@ -1993,6 +1993,13 @@ void CassoLinkManager::RefreshCassoLinkViews()
         m_context.statusBar.Fill();
     }
 
+    //  A prefix typed on the Apple is saved for the next Full Send.
+    if (TextEncoding::NarrowToWide (m_context.app.links->GetFullSendPrefix()) != m_context.prefs.fullSendPrefix)
+    {
+        m_context.prefs.fullSendPrefix = TextEncoding::NarrowToWide (m_context.app.links->GetFullSendPrefix());
+        m_context.window.SaveSession();
+    }
+
     m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());
     UpdateUnseenFiles();
     UpdateTransferTimer();

@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/FullSend/FullSendSession.h"
+#include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Core/TextEncoding.h"
@@ -62,6 +63,8 @@ public:
         FullSendKey                           beginKey       = FullSendKey::Space;
         std::vector<std::string>              entryLines;
         std::vector<std::vector<std::string>> pauseLines;
+        std::deque<Byte>                      typed;                      // the codes of a line typed after P
+        std::vector<std::vector<std::string>> typedLines;
         bool                                  wholeTracksBad = false;     // badDisk's tracks are not read whole in a check
         std::vector<int>                      tracksRead;                 // the tracks of the whole-disk reads
 
@@ -178,6 +181,20 @@ public:
 
             outKey = keys.front();
             keys.pop_front();
+            return S_OK;
+        }
+
+        HRESULT  WaitForAnyKey (const std::vector<std::string> & lines, Byte & outCode) override
+        {
+            typedLines.push_back (lines);
+
+            if (typed.empty())
+            {
+                return HRESULT_FROM_WIN32 (ERROR_CANCELLED);
+            }
+
+            outCode = typed.front();
+            typed.pop_front();
             return S_OK;
         }
 
@@ -775,8 +792,8 @@ public:
         booted.Run();
         bootstrapped.Run();
 
-        Assert::AreEqual (std::string ("REMOVE THE CASSOLINK DISK"), booted.link.entryLines[3]);
-        Assert::AreEqual (std::string ("INSERT DISKS TO BE SENT INTO THE DRIVES"), bootstrapped.link.entryLines[3]);
+        Assert::AreEqual (std::string ("REMOVE THE CASSOLINK DISK"), booted.link.entryLines[4]);
+        Assert::AreEqual (std::string ("INSERT DISKS TO BE SENT INTO THE DRIVES"), bootstrapped.link.entryLines[4]);
     }
 
     //  Space with the disk just sent still in the drive changes nothing.
@@ -1015,8 +1032,42 @@ public:
         Assert::AreEqual (std::string ("Box 3-0001 HELLO.dsk"), session->GetManifest().GetRows()[0].file);
     }
 
-    TEST_METHOD (Title_Prefix_IsCleaned_AndEmptyAddsNothing)
+    TEST_METHOD (Session_PrefixTypedOnTheApple_BeginsEachImagesName)
     {
+        Rig  rig;
+
+        rig.link.beginKey   = FullSendKey::Prefix;
+        rig.link.keys       = { FullSendKey::Space };
+        rig.link.typed      = { (Byte) 0xC2, (Byte) 0xCF, (Byte) 0xD8, (Byte) 0xDA, CassoLinkCodec::kKeyLeft, (Byte) 0xAD, CassoLinkCodec::kKeyReturn };
+        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual (std::string ("BOX-"), session->GetPrefix());
+        Assert::IsTrue   (rig.io.files.contains ("C:\\Box\\BOX-0001 HELLO.dsk"));
+        Assert::AreEqual (std::string ("PREFIX: _"), rig.link.typedLines[0][1]);
+        Assert::AreEqual (std::string ("PREFIX: BOX-_"), rig.link.typedLines.back()[1]);
+        Assert::AreEqual (std::string ("P: FILE NAME PREFIX: BOX-"), rig.link.pauseLines[0][2]);
+    }
+
+    TEST_METHOD (Session_PrefixLine_EscPutsThePrefixBack)
+    {
+        Rig  rig;
+
+        rig.prefix          = "OLD-";
+        rig.link.beginKey   = FullSendKey::Prefix;
+        rig.link.keys       = { FullSendKey::Space };
+        rig.link.typed      = { CassoLinkCodec::kKeyDelete, (Byte) 0xD8, CassoLinkCodec::kKeyEscape };
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual (std::string ("OLD-"), session->GetPrefix());
+        Assert::AreEqual (std::string ("PREFIX: OLDX_"), rig.link.typedLines.back()[1]);
+    }
+
+    TEST_METHOD (Title_Prefix_IsCleaned_AndEmptyAddsNothing)    {
         Assert::AreEqual (std::string ("A_B0001 GAMES"), FullSendDisk::MakeImageTitle (1, "GAMES", "A/B"));
         Assert::AreEqual (std::string ("0001 GAMES"),    FullSendDisk::MakeImageTitle (1, "GAMES", ""));
     }

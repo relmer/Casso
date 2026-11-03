@@ -399,6 +399,46 @@ public:
 
 
 
+    //  P on the entry screen: a prefix typed on the Apple, with a letter erased,
+    //  begins the image's name.
+    TEST_METHOD (Prefix_TypedOnTheEntryScreen_BeginsTheImagesName)
+    {
+        static constexpr Word  s_kRowPrefix = 0x04D0;
+
+        Rig  rig;
+
+        rig.machine.GetDiskStore().Eject (kSlot, 1);
+        rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
+        rig.send = rig.session->FullSend ("C:\\Box", "", "");
+
+        rig.RunUntil ([&] () { return rig.Row (s_kRowPrefix) == "P: FILE NAME PREFIX: NONE"; }, L"the entry screen");
+        rig.Press ('p');
+        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2) == "PREFIX: _"; }, L"the prefix line");
+
+        for (char key : std::string ("BOXX"))
+        {
+            rig.Press (key);
+            rig.RunUntil ([&] () { return rig.Row (kRowPrompt2).ends_with (std::string (1, key) + "_"); }, L"the letter on the line");
+        }
+
+        rig.Press ('\x08');
+        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2) == "PREFIX: BOX_"; }, L"Left arrow erases a letter");
+        rig.Press ('-');
+        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2) == "PREFIX: BOX-_"; }, L"the hyphen");
+        rig.Press ('\r');
+        rig.RunUntil ([&] () { return rig.Row (s_kRowPrefix) == "P: FILE NAME PREFIX: BOX-"; }, L"Return takes the prefix");
+        rig.Press (' ');
+        rig.RunUntil ([&] () { return rig.Row (kRowCounts).starts_with ("SENT 1"); }, L"the disk is sent");
+        rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
+        rig.Press ('Q');
+        rig.Finish();
+
+        Assert::IsTrue (rig.Rows()[0].file.starts_with ("BOX-0001"), TextEncoding::NarrowToWide (rig.Rows()[0].file).c_str());
+        Assert::AreEqual (std::string ("BOX-"), rig.send->imagePrefix);
+    }
+
+
+
     //  A connection that doesn't ask for 40 columns gets 80 on a machine with them:
     //  odd columns are in main memory, and a bar has two cells a track.
     TEST_METHOD (ThePc_SelectsEightyColumns_OnAMachineWithThem)

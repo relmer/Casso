@@ -3737,7 +3737,7 @@ logrowhi: .byte $07, $04, $04, $05, $05, $06, $06, $07
 ; ---------------------------------------------------------------------------
 
 FSPROMPT = 0                    ; the first of Wait for key's lines, by its index in logrowlo
-FSPROMPTS = 6
+FSPROMPTS = 8                   ; every row of the history, so the longest prompt is cleared
 FSROWS   = 7                    ; Session screen's rows
 FSTONE   = 1                    ; its tone, in PKTBUF
 FSTEXT   = 2                    ; and the start of its rows' text
@@ -3760,13 +3760,17 @@ keyhdr: .byte $C1, $01, $00, CMDKEY, $C1 ^ $01 ^ $00 ^ CMDKEY
 keyend:
 
 ; dowaitkey: a Full Send's pause. The motor is off and a key pressed during the
-; transfer is dropped, so Space means the disks in the drives now.
+; transfer is dropped, so Space means the disks in the drives now. The request's
+; first byte is nonzero while a line is typed, and every key is sent; the lines
+; follow it.
 dowaitkey: jsr motoroff
         lda #OPDISK
         sta op
         jsr showop
         sta $C010
-        lda #0
+        lda PKTBUF
+        sta wkany
+        lda #1
         sta left
         lda #FSPROMPT
         sta sbyte
@@ -3787,6 +3791,8 @@ wksec:  lda #100
 wkpoll: lda $C000
         bpl wkhost
         sta $C010
+        ldx wkany
+        bne wkkey
         cmp #$A0
         beq wkkey
         cmp #$B1
@@ -3796,8 +3802,14 @@ wkpoll: lda $C000
         cmp #$D6
         beq wkkey
         cmp #$F6
-        bne wkquitq
+        bne wkprefq
         lda #$D6
+        bne wkkey
+wkprefq: cmp #$D0
+        beq wkkey
+        cmp #$F0
+        bne wkquitq
+        lda #$D0
         bne wkkey
 wkquitq:
         cmp #$F1
@@ -3823,6 +3835,8 @@ wkclear: jsr fsrow
         dex
         bpl wkclear
         jmp main
+
+wkany:  .byte 0                 ; nonzero while a line is typed
 
 ; doscreen: the Session screen's rows, its tone, and Ready again.
 doscreen: lda PKTBUF

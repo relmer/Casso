@@ -73,7 +73,7 @@ public:
     {
         const Byte  request[] = { 1, 17, 2, 5, 9, 0, 0 };
         const Byte  sector[]  = { 17, 5, 0xAA, 0xBB };
-        const Byte  prompt[]  = { 'P', 'R', 'E', 'S', 'S', 0, '1', 0 };
+        const Byte  prompt[]  = { CassoLinkCodec::kWaitKeys, 'P', 'R', 'E', 'S', 'S', 0, '1', 0 };
         const Byte  none[]    = { 0 };
 
         Assert::AreEqual (std::string ("> ReadSectors 01 11 02 05 09 00 00"), CassoLinkHost::DescribePacket (true,  CassoLinkCodec::kReadSectors, request));

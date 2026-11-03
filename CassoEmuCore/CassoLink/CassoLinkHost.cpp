@@ -876,7 +876,22 @@ Error:
 
 HRESULT CassoLinkHost::WaitForKey (const std::vector<std::string> & lines, Byte & outKey)
 {
-    return Resend ([&] () { return WaitForKeyOnce (lines, outKey); });
+    return Resend ([&] () { return WaitForKeyOnce (lines, CassoLinkCodec::kWaitKeys, outKey); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::WaitForAnyKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WaitForAnyKey (const std::vector<std::string> & lines, Byte & outKey)
+{
+    return Resend ([&] () { return WaitForKeyOnce (lines, CassoLinkCodec::kWaitTyped, outKey); });
 }
 
 
@@ -893,12 +908,12 @@ HRESULT CassoLinkHost::WaitForKey (const std::vector<std::string> & lines, Byte 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, Byte & outKey)
+HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, Byte mode, Byte & outKey)
 {
-    HRESULT            hr    = S_OK;
+    HRESULT            hr     = S_OK;
     CassoLinkPacket    packet;
-    bool               isKey = false;
-    std::vector<Byte>  prompt;
+    bool               isKey  = false;
+    std::vector<Byte>  prompt = { mode };
 
 
 
@@ -1291,7 +1306,8 @@ std::string CassoLinkHost::DescribePacket (bool sent, Byte command, std::span<co
     {
         line += " ";
 
-        for (Byte b : payload)
+        //  Wait for key's first byte is its mode, and its lines follow.
+        for (Byte b : payload.subspan (command == CassoLinkCodec::kWaitForKey ? 1 : 0))
         {
             char  ch = (char) (b & 0x7F);
 

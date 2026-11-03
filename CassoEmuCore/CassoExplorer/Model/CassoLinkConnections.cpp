@@ -2062,10 +2062,18 @@ void CassoLinkConnections::Sink::OnOperationQueued (const std::shared_ptr<LinkOp
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
+void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> & operation)
 {
     m_lastProgress = 0;
     m_fullSending  = false;
+
+    //  The prefix typed on the Apple begins the next session's names.
+    if (operation != nullptr && operation->kind == LinkOperationKind::FullSend)
+    {
+        std::lock_guard<std::mutex>  lock (m_owner.m_lock);
+
+        m_owner.m_fullSendPrefix = operation->imagePrefix;
+    }
 
     m_owner.Notify();
 }
