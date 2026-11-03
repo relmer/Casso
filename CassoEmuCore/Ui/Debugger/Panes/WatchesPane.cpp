@@ -329,7 +329,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         }
     }
 
-    if (!snapshot.autoWatches.empty() || !basicAutos.empty())
+    if (!snapshot.autoWatches.empty())
     {
         for (size_t i = 0; i < snapshot.autoWatches.size(); i++)
         {
@@ -360,28 +360,6 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
             //  only the value edits.
             rows.push_back ({ { MakeIdCell (L"Auto"), name, value, MakeTypeCell (GetAutoType (line.key)) }, {}, false, { true, true, false, true } });
             m_rows.push_back ({ RowKind::Automatic, (int) i });
-        }
-
-        //  The BASIC variables the statement being run uses, then those the
-        //  statement just run used, in italics as what the previous
-        //  instruction touched is.
-        for (const BasicAutoWatches::Row & basicAuto : basicAutos)
-        {
-            DxuiListView::Cell  name  = BasicWatches::MakeNameCell (basicAuto.item.name, otherLabels);
-            DxuiListView::Cell  value = { TextEncoding::NarrowToWide (basicAuto.item.value) };
-
-            name.weight  = basicAuto.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
-            value.weight = name.weight;
-            name.tip     = basicAuto.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousStatement) : L"";
-
-            if (basicAuto.isChanged)
-            {
-                value.argb = changed;
-                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
-            }
-
-            rows.push_back ({ { MakeIdCell (L"Auto"), name, value, MakeTypeCell (L"BASIC") }, {}, true });
-            m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
     }
 
@@ -465,7 +443,26 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*snapshot.basic) : std::vector<BasicWatches::Item>())
         {
-            rows.push_back ({ { DxuiListView::Cell { L"" }, BasicWatches::MakeNameCell (item.name, otherLabels), { TextEncoding::NarrowToWide (item.value) }, MakeTypeCell (L"BASIC") }, {}, true });
+            DxuiListView::Cell  name  = BasicWatches::MakeNameCell (item.name, otherLabels);
+            DxuiListView::Cell  value = { TextEncoding::NarrowToWide (item.value) };
+            auto                used  = std::ranges::find_if (basicAutos, [&item] (const BasicAutoWatches::Row & each) { return each.item.name == item.name; });
+
+            //  A variable the statement just run used is in italics, as the
+            //  Auto rows mark what the previous instruction touched.
+            if (used != basicAutos.end() && used->isPrevious)
+            {
+                name.weight  = DxuiFontWeight::Italic;
+                value.weight = name.weight;
+                name.tip     = ColorLegend::GetText (ColorLegend::Meaning::PreviousStatement);
+            }
+
+            if (used != basicAutos.end() && used->isChanged)
+            {
+                value.argb = changed;
+                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
+            }
+
+            rows.push_back ({ { DxuiListView::Cell { L"" }, name, value, MakeTypeCell (L"BASIC") }, {}, true });
             m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
     }
