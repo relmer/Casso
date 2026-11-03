@@ -244,7 +244,8 @@ HRESULT FullSendSession::AwaitBegin()
     }
 
     lines.push_back ("INSERT DISKS TO BE SENT INTO THE DRIVES");
-    lines.push_back ("THEN PRESS SPACE TO BEGIN");
+    lines.push_back ("");
+    lines.push_back ("PRESS <SPACE> TO BEGIN");
 
     while (key != FullSendKey::Space)
     {

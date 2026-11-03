@@ -221,7 +221,8 @@ public:
     //  percentages of the whole, for the bar on the program's status row; 0 and
     //  0, with which the bar is not redrawn, until set. Only a whole-disk transfer
     //  sets them, as the bar has a cell for each track.
-    void     SetProgress  (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
+    void     SetProgress    (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
+    Byte     GetProgressEnd () const                { return m_progressEnd; }
 
     //  The client acknowledges at the old speed and then switches; the
     //  caller switches the line after this returns.

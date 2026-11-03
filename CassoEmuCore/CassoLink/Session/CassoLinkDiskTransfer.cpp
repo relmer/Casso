@@ -336,6 +336,11 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
 
         Io (CassoLinkHost & hostIn, int driveIn, int trackIn) : host (hostIn), drive ((Byte) driveIn), track ((Byte) trackIn) {}
 
+        //  The track's first read moves the Apple's percentage across the
+        //  track, and every read after it holds it at the track's end, so the
+        //  percentage and the bar never step back while a track is verified.
+        void  Settle() { host.SetProgress (host.GetProgressEnd(), host.GetProgressEnd()); }
+
         HRESULT  ReadData (std::span<const Byte> list, std::vector<Byte> & outData, std::vector<bool> & outRead) override
         {
             HRESULT            hr      = S_OK;
@@ -347,6 +352,7 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
             outRead.assign (list.size(), false);
 
             hr = host.ReadSectors (drive, track, list, outData, status);
+            Settle();
             CHR (hr);
 
             damaged = status.error == CassoLinkHost::kErrorNotFound || status.error == CassoLinkHost::kErrorData;
@@ -384,8 +390,11 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
         HRESULT  ReadCrcs (std::span<const Byte> list, std::vector<Word> & outCrcs, std::vector<bool> & outRead) override
         {
             CassoLinkStatus  status;
+            HRESULT          hr = host.ReadCrcs (drive, track, list, outCrcs, outRead, status);
 
-            return host.ReadCrcs (drive, track, list, outCrcs, outRead, status);
+            Settle();
+
+            return hr;
         }
 
         HRESULT  MoveHead() override
@@ -394,8 +403,11 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
             std::vector<Word>  crcs;
             std::vector<bool>  read;
             CassoLinkStatus    status;
+            HRESULT            hr = host.ReadCrcs (drive, (Byte) (track == 0 ? 1 : track - 1), first, crcs, read, status);
 
-            return host.ReadCrcs (drive, (Byte) (track == 0 ? 1 : track - 1), first, crcs, read, status);
+            Settle();
+
+            return hr;
         }
     };
 
