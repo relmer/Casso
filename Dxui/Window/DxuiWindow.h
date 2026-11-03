@@ -10,6 +10,7 @@
 
 
 class DxuiButton;
+class DxuiTextInput;
 
 
 
@@ -278,6 +279,12 @@ public:
     static bool  TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx);
 
     //
+    //  The front-most visible text box under a point among the controls under
+    //  `node`, or null.
+    //
+    static DxuiTextInput *  FindTextBoxAt (const IDxuiControl & node, POINT clientPx);
+
+    //
     //  Like FitToMaxSize, but never shrinks the window. For content that
     //  grows while the window is open.
     //
@@ -422,6 +429,14 @@ protected:
     virtual bool  OnOverlayMouse    (const DxuiMouseEvent & ev) { UNREFERENCED_PARAMETER (ev); return false; }
     virtual bool  OnOverlayChar     (wchar_t ch)                { UNREFERENCED_PARAMETER (ch); return false; }
     virtual bool  OnOverlayKey      (WPARAM vk)                 { UNREFERENCED_PARAMETER (vk); return false; }
+
+    //
+    //  A right-press over a text box in the window's controls focuses the box
+    //  and opens its edit menu, ahead of OnMouse. False when no box is under
+    //  the point. A window that routes presses to its boxes itself returns
+    //  false.
+    //
+    virtual bool  TryShowTextBoxMenu (POINT clientPx);
 
     //
     //  What a drag shows over the window, as a dock site's drop preview and

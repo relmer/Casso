@@ -2,6 +2,9 @@
 
 #include "DxuiContextMenu.h"
 #include "Window/DxuiHwndSource.h"
+#include "Core/DxuiCommand.h"
+#include "Core/DxuiStandardCommand.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -197,4 +200,60 @@ void DxuiContextMenu::ClearListLook (DxuiPopupMenu & menu)
     menu.SetWrapping    (true);
     menu.SetFace        (nullptr);
     menu.ClearMetrics();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiContextMenu::MakeEditItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiContextMenu::MakeEditItems (IDxuiControl & control)
+{
+    struct Row
+    {
+        DxuiStandardCommand  command;
+        const wchar_t      * label;
+        const wchar_t      * keys;
+        bool                 isSeparatorAfter;
+    };
+
+    static constexpr Row  s_kRows[] =
+    {
+        { DxuiStandardCommand::Undo,      L"Undo",       L"Ctrl+Z", true  },
+        { DxuiStandardCommand::Cut,       L"Cut",        L"Ctrl+X", false },
+        { DxuiStandardCommand::Copy,      L"Copy",       L"Ctrl+C", false },
+        { DxuiStandardCommand::Paste,     L"Paste",      L"Ctrl+V", false },
+        { DxuiStandardCommand::Delete,    L"Delete",     L"Del",    true  },
+        { DxuiStandardCommand::SelectAll, L"Select all", L"Ctrl+A", false },
+    };
+
+    std::vector<DxuiPopupMenuItem>  items;
+    IDxuiControl                  * target = &control;
+
+
+
+    for (const Row & row : s_kRows)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        DxuiStandardCommand           which   = row.command;
+
+        command->label       = row.label;
+        command->accelerator = row.keys;
+        command->dispatch    = [target, which] { (void) DxuiCommandRouter::Invoke (target, which); };
+        command->isEnabled   = [target, which] { bool enabled = false; return DxuiCommandRouter::Query (target, which, enabled) && enabled; };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+
+        if (row.isSeparatorAfter)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+    }
+
+    return items;
 }

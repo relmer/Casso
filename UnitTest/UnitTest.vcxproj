@@ -742,6 +742,7 @@
     <ClCompile Include="Dxui\DxuiTextInputCaretTests.cpp" />
     <ClCompile Include="Dxui\DxuiShimmerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputDegenerateTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextInputEditMenuTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputWordSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiOrbitControlTests.cpp" />
     <ClCompile Include="Dxui\DxuiSliderTests.cpp" />

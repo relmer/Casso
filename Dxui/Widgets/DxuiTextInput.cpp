@@ -1051,7 +1051,7 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 //
 //  DxuiTextInput::QueryCommand  (IDxuiControl override)
 //
-//  Copy and Cut require a selection; Select all requires text.
+//  Copy, Cut and Delete require a selection; Select all requires text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1068,6 +1068,7 @@ bool DxuiTextInput::QueryCommand (DxuiStandardCommand command, bool & outEnabled
         return true;
 
     case DxuiStandardCommand::Cut:
+    case DxuiStandardCommand::Delete:
         outEnabled = hasSelection;
         return true;
 
@@ -1128,6 +1129,10 @@ bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
 
     case DxuiStandardCommand::Paste:
         PasteFromClipboard();
+        break;
+
+    case DxuiStandardCommand::Delete:
+        DeleteSelection();
         break;
 
     case DxuiStandardCommand::SelectAll:

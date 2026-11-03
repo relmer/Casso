@@ -159,6 +159,10 @@ protected:
     bool     TryStopReplay   ();
     bool     OnFilesDropped  (const std::vector<std::wstring> & paths) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+
+    //  OnMouse opens a box's menu, for this window and the floating ones whose
+    //  presses it is given.
+    bool     TryShowTextBoxMenu (POINT clientPx) override { (void) clientPx; return false; }
     void     PaintTopLayer   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasTopLayer     () const override;
     void     PaintDragLayer  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -649,6 +653,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static bool     HasListWithin         (const IDxuiControl & node, const std::vector<DxuiListView *> & lists);
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
+    DxuiTextInput *              GetTextBoxAt      (POINT clientPx) const;
+    void                         ShowTextBoxMenu   (DxuiTextInput & box, POINT clientPx);
 
     DxuiDpiScaler                           m_scaler;
     SymbolComments                          m_symbolComments;

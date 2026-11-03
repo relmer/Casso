@@ -1237,15 +1237,29 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 //  DxuiEditableGrid::GetCursorForPoint
 //
 //  The point is relative to the grid, as the list takes it. Over a gripper,
-//  and while a row is dragged, the cursor is the up-and-down arrow.
+//  and while a row is dragged, the cursor is the up-and-down arrow; over the
+//  box of a cell being edited, or the row a new entry is typed into, the
+//  I-beam.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
 {
-    int  row = HitTestRow (localPx.x, localPx.y);
+    int    row    = HitTestRow (localPx.x, localPx.y);
+    RECT   bounds = GetBounds();
+    POINT  client = { localPx.x + bounds.left, localPx.y + bounds.top };
 
 
+
+    if (IsEditing() && m_editor.GetCursorForPoint (client) != nullptr)
+    {
+        return m_editor.GetCursorForPoint (client);
+    }
+
+    if (!IsEditing() && row >= 0 && IsAddRow (row) && GetGridColumnAt (localPx.x) >= 0)
+    {
+        return IDC_IBEAM;
+    }
 
     if (IsDraggingRow() || (m_isMovable && row >= 0 && row < GetDataRowCount() && GetGridColumnAt (localPx.x) < 0))
     {

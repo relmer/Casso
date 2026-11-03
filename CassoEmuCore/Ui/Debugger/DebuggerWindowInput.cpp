@@ -948,6 +948,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
     {
+        //  Over a text box, the box's edit menu rather than its pane's.
+        if (DxuiTextInput * box = GetTextBoxAt (ev.positionDip); box != nullptr)
+        {
+            ShowTextBoxMenu (*box, ev.positionDip);
+            return true;
+        }
+
         pane = m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane();
 
         //  Over a pane's content, the content's own menu (FR-084); over its
@@ -1002,9 +1009,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         m_gutter->Hover (ev.positionDip);
         m_gutter->Drag  (ev.positionDip);
 
+        //  Each box is given the move: a hover, or a drag begun in the box,
+        //  which selects text.
         if (IsRoutable (m_consolePane->GetCommandLine().GetBox()))
         {
-            m_consolePane->GetCommandLine().GetBox()->SetMouseHover (x, y);
+            (void) m_consolePane->GetCommandLine().GetBox()->OnMouse (ev);
         }
 
         for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
@@ -1013,7 +1022,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             {
                 if (IsRoutable (box))
                 {
-                    box->SetMouseHover (x, y);
+                    (void) box->OnMouse (ev);
                 }
             }
         }
@@ -1510,6 +1519,92 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTextBoxAt
+//
+//  The text box under a point in the window the event came from: the command
+//  line, a pane's box, a find widget's box, or the box of a list cell being
+//  edited, as a new watch's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetTextBoxAt (POINT clientPx) const
+{
+    std::vector<DxuiTextInput *>  boxes = { m_consolePane->GetCommandLine().GetBox() };
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetTextBoxes(), std::back_inserter (boxes));
+    }
+
+    for (IDxuiControl * control : m_finds->GetPressTargets())
+    {
+        if (DxuiTextInput * box = dynamic_cast<DxuiTextInput *> (control); box != nullptr)
+        {
+            boxes.push_back (box);
+        }
+    }
+
+    for (DxuiTextInput * box : boxes)
+    {
+        if (box != nullptr && IsRoutable (box) && box->IsVisible() && box->HitTest (clientPx.x, clientPx.y))
+        {
+            return box;
+        }
+    }
+
+    for (DxuiListView * list : GetLists())
+    {
+        DxuiEditableGrid  * grid = dynamic_cast<DxuiEditableGrid *> (list);
+
+        if (grid != nullptr && grid->IsEditing() && IsRoutable (grid) && grid->IsVisible() && grid->GetEditor().HitTest (clientPx.x, clientPx.y))
+        {
+            return &grid->GetEditor();
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowTextBoxMenu
+//
+//  A box takes the focus on a right-click, as an edit control does, with its
+//  selection left as it is for the menu to act on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowTextBoxMenu (DxuiTextInput & box, POINT clientPx)
+{
+    DxuiHwndSource  * host = GetMenuHost();
+
+
+
+    GetRoutedTooltip().HideImmediate();
+
+    if (!box.IsFocused())
+    {
+        SetFocusedControl (&box);
+    }
+
+    if (host != nullptr)
+    {
+        DxuiContextMenu::Show (*host, clientPx.x, clientPx.y, DxuiContextMenu::MakeEditItems (box));
+    }
 }
 
 

@@ -276,6 +276,25 @@ public:
 
 
 
+    //  The I-beam is over the row a new entry is typed into, and over the box
+    //  of a cell being edited.
+    TEST_METHOD (TheIBeamIsOverTheHintRowAndTheEditBox)
+    {
+        Host  host;
+        RECT  box  = {};
+
+
+
+        Assert::IsTrue (host.grid.GetCursorForPoint (host.GetCellCenter (3, 0)) == IDC_IBEAM, L"over the hint row");
+
+        host.Click (1, 1);
+        box = host.grid.GetEditor().GetBounds();
+
+        Assert::IsTrue (host.grid.GetCursorForPoint (POINT { box.left + 4, (box.top + box.bottom) / 2 }) == IDC_IBEAM, L"over the edit box");
+    }
+
+
+
     TEST_METHOD (AnUnchangedCellIsNotCommitted)
     {
         Host  host;

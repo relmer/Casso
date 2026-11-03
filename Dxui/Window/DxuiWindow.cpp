@@ -6,6 +6,8 @@
 #include "Core/DxuiWindowFrame.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiContextMenu.h"
+#include "Widgets/DxuiTextInput.h"
 
 
 static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
@@ -667,6 +669,68 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
                           (int) (short) LOWORD (lParam),
                           (int) (short) HIWORD (lParam),
                           0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryShowTextBoxMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::TryShowTextBoxMenu (POINT clientPx)
+{
+    DxuiTextInput  * box = FindTextBoxAt (*this, clientPx);
+
+
+
+    if (box == nullptr || GetPopupHost() == nullptr)
+    {
+        return false;
+    }
+
+    m_focus.SetFocused (box);
+    DxuiContextMenu::Show (*GetPopupHost(), clientPx.x, clientPx.y, DxuiContextMenu::MakeEditItems (*box));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindTextBoxAt
+//
+//  The front-most visible text box under a point, among the controls under
+//  `node`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DxuiWindow::FindTextBoxAt (const IDxuiControl & node, POINT clientPx)
+{
+    DxuiTextInput  * found = nullptr;
+
+
+
+    for (size_t i = node.GetChildCount(); i > 0 && found == nullptr; i--)
+    {
+        IDxuiControl  * child = node.GetChild (i - 1);
+
+        if (child == nullptr || !child->IsVisible())
+        {
+            continue;
+        }
+
+        found = dynamic_cast<DxuiTextInput *> (child);
+        found = (found != nullptr && found->HitTest (clientPx.x, clientPx.y)) ? found : FindTextBoxAt (*child, clientPx);
+    }
+
+    return found;
 }
 
 
@@ -1619,7 +1683,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             Invalidate();
         }
 
-        if (RunMouseFilters (ev) || OnMouse (ev))
+        if ((kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && TryShowTextBoxMenu (ev.positionDip)) || RunMouseFilters (ev) || OnMouse (ev))
         {
             // Repaint immediately when a control consumes the event so drags
             // (slider thumbs, scrubbing) and hover states track the cursor every

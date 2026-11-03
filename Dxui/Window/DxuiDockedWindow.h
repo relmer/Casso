@@ -119,6 +119,9 @@ protected:
     void  OnWindowClose () override;
     void  Layout        (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse       (const DxuiMouseEvent & ev) override;
+
+    //  In a window whose presses go to an owner, the owner opens the menu.
+    bool  TryShowTextBoxMenu (POINT clientPx) override { return m_onMouse ? false : DxuiWindow::TryShowTextBoxMenu (clientPx); }
     bool  OnKey         (const DxuiKeyEvent   & ev) override;
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
     bool  OnMappedCommand (int commandId) override;
