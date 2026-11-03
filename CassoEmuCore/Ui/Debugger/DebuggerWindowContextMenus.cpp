@@ -245,19 +245,93 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     m_menuCommands.clear();
     SetWindowMenus();
 
-    //  A row with no action is disabled, such as Delete on a row that cannot
-    //  be deleted.
-    for (auto & [label, action] : items)
-    {
-        bool  isEnabled = (bool) action;
-
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
-        m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
+    menu = MakePaneMenuRows (items);
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MakePaneMenuRows
+//
+//  A pane's rows as the menu draws them. A row with no action is disabled,
+//  such as Delete on a row that cannot be deleted; one with no label either
+//  is a separator, dropped at either end and where two are next to each
+//  other. A row whose label starts with a submenu's goes into the submenu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DebuggerWindow::MakePaneMenuRows (const PaneMenuItems & items)
+{
+    std::vector<DxuiPopupMenuItem>  menu;
+    std::wstring                    submenu;
+    std::vector<DxuiPopupMenuItem>  children;
+    bool                            isSeparatorDue = false;
+
+
+
+    auto  addRow = [&menu, &isSeparatorDue] (DxuiPopupMenuItem row)
+    {
+        if (isSeparatorDue && !menu.empty())
+        {
+            menu.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        isSeparatorDue = false;
+        menu.push_back (std::move (row));
+    };
+
+    auto  endSubmenu = [this, &submenu, &children, &addRow]
+    {
+        if (!children.empty())
+        {
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (submenu, false, nullptr));
+            addRow (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (children)));
+        }
+
+        children.clear();
+        submenu.clear();
+    };
+
+    for (const auto & [label, action] : items)
+    {
+        size_t        split     = label.find (PaneMenu::kSubmenu);
+        std::wstring  parent    = (split == std::wstring::npos) ? std::wstring() : label.substr (0, split);
+        std::wstring  rowLabel  = (split == std::wstring::npos) ? label : label.substr (split + 1);
+        bool          isEnabled = (bool) action;
+
+        if (parent != submenu)
+        {
+            endSubmenu();
+            submenu = parent;
+        }
+
+        if (label.empty() && !action)
+        {
+            isSeparatorDue = true;
+            continue;
+        }
+
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (rowLabel), PaneMenu::IsChecked (rowLabel), action));
+        m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
+
+        if (parent.empty())
+        {
+            addRow (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+        }
+        else
+        {
+            children.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+        }
+    }
+
+    endSubmenu();
+    return menu;
 }
 
 

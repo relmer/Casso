@@ -306,7 +306,7 @@ namespace DebuggerCodeMenuTests
 
             window.GetCodeEdits().AddItems (0, snapshot->code[1], 1, items);
 
-            Run (items, L"Mark as words");
+            Run (items, PaneMenu::MakeInSubmenu (L"Mark as data", L"Words"));
             Run (items, L"Clear data marking");
             Run (items, L"Never step into this routine");
             Run (items, L"Add bookmark");
@@ -392,6 +392,7 @@ namespace DebuggerCodeMenuTests
 
             snapshot->codeViews[1]                  = snapshot->codeViews[0];
             snapshot->codeViews[1][2].hasBreakpoint = true;
+            snapshot->breakpoints.push_back ({ 1, snapshot->codeViews[1][2].address, "BP", true });
             snapshot->codeViews[0].resize (1);
             snapshot->code                          = snapshot->codeViews[0];
             snapshot->codeOpen[1]                   = true;
@@ -405,7 +406,8 @@ namespace DebuggerCodeMenuTests
             Assert::IsTrue (second->AddMenuItems (second->GetList(), 2, items));
 
             Assert::IsTrue  (Has (items, L"Remove breakpoint"), L"the RTS in the second view has a breakpoint");
-            Assert::IsFalse (Has (items, L"Insert breakpoint"));
+            Assert::IsFalse (Has (items, L"Set breakpoint"));
+            Assert::IsTrue  (Has (items, L"Disable breakpoint"), L"and can turn it off");
         }
 
 

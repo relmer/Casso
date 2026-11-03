@@ -534,6 +534,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                           RequestFloatSync    () override;
     void                           PumpFloatFrame      () override { RunModalLoopTick(); }
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
+    std::vector<DxuiPopupMenuItem>  MakePaneMenuRows (const PaneMenuItems & items);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);
     std::vector<std::shared_ptr<DxuiCommand>>  GetConsoleMenuCommands();
     void     AddListMenuItems   (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items);

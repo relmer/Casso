@@ -86,7 +86,7 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
 {
     static constexpr std::pair<const wchar_t *, const char *>  kMarks[] =
     {
-        { L"Mark as bytes", "DB" }, { L"Mark as words", "DW" }, { L"Mark as addresses", "DA" }, { L"Mark as text", "ASC" }, { L"Mark as floats", "DF" },
+        { L"Bytes", "DB" }, { L"Words", "DW" }, { L"Addresses", "DA" }, { L"Text", "ASC" }, { L"Floats", "DF" },
     };
     const DebuggerViewSnapshot  & snapshot = *m_host.GetLatestSnapshot();
     Word                          at       = line.address;
@@ -105,14 +105,9 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
         name.clear();
     }
 
-    for (const auto & [label, directive] : kMarks)
-    {
-        items.push_back ({ label, [this, range, directive] { m_host.RunAction (DebuggerActions::GetMarkData (directive, range.first, range.second, m_host.GetMode())); } });
-    }
-
-    items.push_back ({ L"Clear data marking", [this, range] { m_host.RunAction (DebuggerActions::GetClearData (range.first, range.second, m_host.GetMode())); } });
-    items.push_back ({ L"Add symbol here...", [this, at]    { AddSymbolDialog::Run (m_host, at); } });
-    m_host.AddSkipItem (name, routine, items);
+    //  What is added at the line: a symbol, a bookmark, a step filter entry
+    //  and the stopwatch's ends.
+    items.push_back ({ L"Add symbol here...", [this, at] { AddSymbolDialog::Run (m_host, at); } });
 
     if (bookmark != snapshot.bookmarks.end())
     {
@@ -123,6 +118,7 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
         items.push_back ({ L"Add bookmark", [this, at] { m_host.RunAction (DebuggerActions::GetAddBookmark (at, m_host.GetMode())); } });
     }
 
+    m_host.AddSkipItem (name, routine, items);
     items.push_back ({ L"Start stopwatch here", [this, at] { m_stopwatchStart = at; } });
 
     if (m_stopwatchStart.has_value())
@@ -133,6 +129,19 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
             m_stopwatchStart.reset();
         } });
     }
+
+    //  How the bytes are read: as code, or as data of a kind.
+    items.push_back (PaneMenu::MakeSeparator());
+
+    for (const auto & [label, directive] : kMarks)
+    {
+        items.push_back ({ PaneMenu::MakeInSubmenu (L"Mark as data", label), [this, range, directive] { m_host.RunAction (DebuggerActions::GetMarkData (directive, range.first, range.second, m_host.GetMode())); } });
+    }
+
+    items.push_back ({ L"Clear data marking", [this, range] { m_host.RunAction (DebuggerActions::GetClearData (range.first, range.second, m_host.GetMode())); } });
+
+    //  Changes to the machine at the line.
+    items.push_back (PaneMenu::MakeSeparator());
 
     if (snapshot.isPaused)
     {

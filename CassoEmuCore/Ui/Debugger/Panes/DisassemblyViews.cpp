@@ -359,9 +359,10 @@ bool DisassemblyViewPane::RouteBarMouse (const DxuiMouseEvent & ev)
 //
 //  DisassemblyViewPane::AddMenuItems
 //
-//  What was right-clicked leads (FR-084): the instruction's operand,
-//  resolved through its addressing mode, or the line's own address; one
-//  entry for each memory pane open.
+//  In groups: running to the line, its breakpoint, copying and showing it in
+//  memory (FR-084: the instruction's operand, resolved through its
+//  addressing mode, or the line's address, one row for each memory pane
+//  open), then the line's edits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -384,10 +385,33 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
         return true;
     }
 
-    const DebuggerViewSnapshot::CodeLine  & line = m_group.GetCodeLines (m_view)[(size_t) index];
-    Word                                    at   = line.address;
+    const DebuggerViewSnapshot::CodeLine  & line       = m_group.GetCodeLines (m_view)[(size_t) index];
+    Word                                    at         = line.address;
+    auto                                    breakpoint = std::ranges::find_if (snapshot->breakpoints, [at] (const DebuggerViewSnapshot::BreakpointLine & each) { return each.address == at; });
 
 
+
+    items.push_back ({ L"Run to cursor", [this, at] { m_host.RunAction (DebuggerActions::GetRunToCursor (at)); } });
+
+    if (snapshot->isPaused && DisassemblyOptions::CanTakeBreakpoint (line))
+    {
+        items.push_back ({ L"Set next statement", [this, at] { m_group.GetGutter().SetNextStatement (at); } });
+    }
+
+    items.push_back ({ L"Show next statement", [this] { m_host.ShowPcCode(); } });
+    items.push_back (PaneMenu::MakeSeparator());
+
+    items.push_back ({ line.hasBreakpoint ? L"Remove breakpoint" : L"Set breakpoint",
+                       [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); } });
+
+    if (line.hasBreakpoint && breakpoint != snapshot->breakpoints.end())
+    {
+        items.push_back ({ breakpoint->enabled ? L"Disable breakpoint" : L"Enable breakpoint",
+                           [this, id = breakpoint->id, enable = !breakpoint->enabled] { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); } });
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
 
     if (column >= (int) DisassemblyCells::kInstructionColumn && !line.memoryOperand.empty())
     {
@@ -398,22 +422,12 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
         m_host.AddShowInMemoryItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
     }
 
-    items.push_back ({ line.hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
-                       [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); } });
-    items.push_back ({ L"Run to cursor",       [this, at] { m_host.RunAction (DebuggerActions::GetRunToCursor (at)); } });
-
-    if (snapshot->isPaused && DisassemblyOptions::CanTakeBreakpoint (line))
-    {
-        items.push_back ({ L"Set next statement", [this, at] { m_group.GetGutter().SetNextStatement (at); } });
-    }
-
-    items.push_back ({ L"Show next statement", [this]     { m_host.ShowPcCode(); } });
-    items.push_back ({ L"Copy",                [this]     { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
-
+    items.push_back (PaneMenu::MakeSeparator());
     m_group.GetEdits().AddItems (m_view, line, row, items);
 
     if (m_view > 0)
     {
+        items.push_back (PaneMenu::MakeSeparator());
         items.push_back ({ std::format (L"Close Disassembly {}", m_view + 1), [this] { (void) RequestClose(); } });
     }
 

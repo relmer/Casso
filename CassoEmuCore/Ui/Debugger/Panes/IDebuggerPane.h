@@ -23,14 +23,20 @@ class DebuggerPaneFrame;
 using PaneMenuItems = std::vector<std::pair<std::wstring, std::function<void()>>>;
 
 //  A menu row drawn with a check: its label starts with kChecked, which the
-//  menu takes off.
+//  menu takes off. A row in a submenu has the submenu's label and kSubmenu
+//  ahead of the row's label; rows of one submenu are next to each other. A
+//  row with no label and no action is a separator.
 struct PaneMenu
 {
     static constexpr wchar_t  kChecked = L'\x1F';
+    static constexpr wchar_t  kSubmenu = L'\x1E';
 
-    static std::wstring  MakeChecked (const std::wstring & label) { return std::wstring (1, kChecked) + label; }
-    static bool          IsChecked   (const std::wstring & label) { return !label.empty() && label[0] == kChecked; }
-    static std::wstring  GetText     (const std::wstring & label) { return IsChecked (label) ? label.substr (1) : label; }
+    static std::wstring  MakeChecked   (const std::wstring & label) { return std::wstring (1, kChecked) + label; }
+    static bool          IsChecked     (const std::wstring & label) { return !label.empty() && label[0] == kChecked; }
+    static std::wstring  GetText       (const std::wstring & label) { return IsChecked (label) ? label.substr (1) : label; }
+    static std::wstring  MakeInSubmenu (const std::wstring & submenu, const std::wstring & label) { return submenu + kSubmenu + label; }
+
+    static std::pair<std::wstring, std::function<void()>>  MakeSeparator () { return { std::wstring(), nullptr }; }
 };
 
 
