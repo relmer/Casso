@@ -1271,7 +1271,6 @@ std::string CassoLinkHost::DescribePacket (bool sent, Byte command, std::span<co
         { CassoLinkCodec::kReadCrcs,      "ReadCrcs"       },
         { CassoLinkCodec::kSectorCrcs,    "SectorCrcs"     },
     } };
-
     static constexpr size_t  s_kHexBytes = 8;
     std::string              line        = sent ? "> " : "< ";
     auto                     name        = std::find_if (s_kNames.begin(), s_kNames.end(), [command] (const auto & entry) { return entry.first == command; });

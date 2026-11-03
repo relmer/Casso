@@ -501,6 +501,7 @@ bool ExplorerListColumns::HasFolderColumnWidths() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerListColumns::RememberFolderSort
