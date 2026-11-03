@@ -169,6 +169,10 @@ public:
     void  EnableSeeMore    (const wchar_t * glyph, const wchar_t * tip, const DxuiVectorIcon * icon = nullptr);
     bool  IsInSeeMore      (int commandId) const;
 
+    //  Rows the host adds to the See more menu each time it opens, between the
+    //  entries that no longer fit and those marked seeMoreOnly.
+    void  SetSeeMoreRows   (std::function<std::vector<DxuiPopupMenuItem>()> rows) { m_seeMoreRows = std::move (rows); }
+
     //  The id on the See more button's command.
     static constexpr int  kSeeMoreId = -2;
     void  SetIconFace      (const wchar_t * face)        { m_iconFace = face; }
@@ -400,6 +404,7 @@ private:
 
     std::vector<Slot>      m_slots;
     std::map<int, Picker>  m_pickers;
+    std::function<std::vector<DxuiPopupMenuItem>()>  m_seeMoreRows;
     DxuiPopupMenu          m_dropdown;
     int                    m_openPicker  = -1;
     bool                   m_flat        = false;

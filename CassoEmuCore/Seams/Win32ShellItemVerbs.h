@@ -75,6 +75,7 @@ public:
     HRESULT      MoveItemsTo            (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets) override { return m_transfers.MoveItemsTo (owner, paths, targets); }
     HRESULT      CreateFolder           (HWND owner, const std::wstring & parent, const std::wstring & name) override { return m_transfers.CreateFolder (owner, parent, name); }
     HRESULT      Share                  (HWND owner, const std::vector<std::wstring> & paths) override { return m_transfers.Share (owner, paths); }
+    bool         IsIndexed              (const std::wstring & folder) override { return Win32ShellSearch::IsIndexed (folder); }
 
 private:
     static constexpr UINT            s_kFirstCommandId = 1;

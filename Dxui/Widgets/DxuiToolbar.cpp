@@ -1568,6 +1568,7 @@ void DxuiToolbar::OpenSeeMore()
     const Slot *                    moreSlot = FindSlot (kSeeMoreId);
     std::vector<DxuiPopupMenuItem>  overflow;
     std::vector<DxuiPopupMenuItem>  pinned;
+    std::vector<DxuiPopupMenuItem>  rows;
 
 
 
@@ -1598,7 +1599,21 @@ void DxuiToolbar::OpenSeeMore()
         }
     }
 
-    if (!overflow.empty() && !pinned.empty())
+    if (m_seeMoreRows)
+    {
+        rows = m_seeMoreRows();
+    }
+
+    //  The host's rows, with no separator next to another.
+    for (DxuiPopupMenuItem & item : rows)
+    {
+        if (overflow.empty() || item.kind != DxuiPopupMenuItem::Kind::Separator || overflow.back().kind != DxuiPopupMenuItem::Kind::Separator)
+        {
+            overflow.push_back (std::move (item));
+        }
+    }
+
+    if (!overflow.empty() && !pinned.empty() && overflow.back().kind != DxuiPopupMenuItem::Kind::Separator)
     {
         overflow.push_back (DxuiPopupMenuItem::ForSeparator());
     }

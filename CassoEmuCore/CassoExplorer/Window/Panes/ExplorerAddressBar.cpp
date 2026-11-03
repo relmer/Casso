@@ -917,18 +917,18 @@ void ExplorerAddressBar::ShowAddressContextMenu (int x, int y)
     m_context.menus.GetMenuCommands().clear();
 
     //  Explorer's two both put the path on as text; neither puts the folder.
-    m_context.menus.AddMenuCommand (items, L"&Copy address", [this, address]() { DxuiClipboard::SetText (m_context.window.GetHwnd(), address); });
+    m_context.menus.AddMenuCommand (items, L"&Copy Address", [this, address]() { DxuiClipboard::SetText (m_context.window.GetHwnd(), address); });
 
-    m_context.menus.AddMenuCommand (items, L"Copy address as &text", [this, address]() { DxuiClipboard::SetText (m_context.window.GetHwnd(), address); });
+    m_context.menus.AddMenuCommand (items, L"Copy Address as &Text", [this, address]() { DxuiClipboard::SetText (m_context.window.GetHwnd(), address); });
 
-    m_context.menus.AddMenuCommand (items, L"&Edit address", [this]()
+    m_context.menus.AddMenuCommand (items, L"&Edit Address", [this]()
     {
         m_context.input.SetFocusPane (ExplorerPane::Address);
         m_address->BeginEdit();
         m_context.window.Invalidate();
     });
 
-    m_context.menus.AddMenuCommand (items, L"&Delete history", [this]()
+    m_context.menus.AddMenuCommand (items, L"&Delete History", [this]()
     {
         HKEY  key = nullptr;
 

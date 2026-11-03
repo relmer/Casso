@@ -460,8 +460,11 @@ void ExplorerTabManager::ShowTabContextMenu (int x, int y, int index)
         m_context.listPane.FillList();
     });
 
+    //  File Explorer's icons: an X on Close tab and two squares on Duplicate.
+    m_context.menus.GetMenuCommands()[0]->menuSvg   = m_context.menus.GetMenuSvg (L"windows.close");
     m_context.menus.GetMenuCommands()[1]->isEnabled = [count]() { return count > 1; };
     m_context.menus.GetMenuCommands()[2]->isEnabled = [tab, count]() { return tab + 1 < count; };
+    m_context.menus.GetMenuCommands()[3]->menuGlyph = s_kpszMdl2Copy;
 
     DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items));
 }

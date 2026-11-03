@@ -45,6 +45,8 @@ public:
     ExplorerListColumns                    & GetColumns              () { return m_columns; }
     ExplorerListMenus                      & GetMenus                () { return m_menus; }
     void                                     FillList                ();
+    void                                     SetListSelection        (std::vector<int> rows);
+    void                                     OnSelectionChanged      ();
     bool                                     SelectRowNamed          (const std::wstring & name);
 
     //  Selects the items with these names in `folder` once a listing has every

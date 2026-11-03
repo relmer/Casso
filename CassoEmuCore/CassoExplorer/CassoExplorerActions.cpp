@@ -159,9 +159,15 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     {
         const CatalogRow &  row = m_browser.GetRows()[(size_t) m_browser.GetSelectedRows()[0]];
 
+        //  A disk image opens here, and in another program through Open with,
+        //  as File Explorer offers it.
         if (selected == 1 && !row.isDirectory && !row.isDiskImage)
         {
             verbs.push_back (Verb::Open);
+            verbs.push_back (Verb::OpenWith);
+        }
+        else if (selected == 1 && row.isDiskImage)
+        {
             verbs.push_back (Verb::OpenWith);
         }
 

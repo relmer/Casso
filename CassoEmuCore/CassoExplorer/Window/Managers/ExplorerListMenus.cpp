@@ -63,14 +63,14 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 
     if (column >= 0)
     {
-        m_context.menus.AddMenuCommand (items, L"Size column to &fit", [this, column]()
+        m_context.menus.AddMenuCommand (items, L"Size Column to &Fit", [this, column]()
         {
             m_pane.GetListView()->FitColumnToContent ((size_t) column);
             m_context.window.Invalidate();
         });
     }
 
-    m_context.menus.AddMenuCommand (items, L"Size &all columns to fit", [this]()
+    m_context.menus.AddMenuCommand (items, L"Size &All Columns to Fit", [this]()
     {
         m_pane.GetListView()->FitAllColumnsToContent();
         m_context.window.Invalidate();
@@ -1121,14 +1121,15 @@ Error:
 //  ExplorerListMenus::GetSortChoices
 //
 //  One row for each column in the list here, in Explorer's order, then the
-//  sort direction.
+//  sort direction. The command bar's for a host folder or a search is File
+//  Explorer's instead: three choices, then More.
 //
 //  The rows of the Sort, Group by and View menus, shared by the command
 //  bar and the list's background menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices (bool commandBar)
 {
     std::vector<DxuiPopupMenuItem>  items;
     size_t                          column = 0;
@@ -1137,7 +1138,12 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
 
     if (SearchQuery::IsId (m_context.browser.GetLocation().path))
     {
-        return GetSearchSortChoices();
+        return GetGroupedSortChoices (GroupChoices::Folder::Search);
+    }
+
+    if (commandBar && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+    {
+        return GetGroupedSortChoices (m_pane.GetColumns().GetGroupFolder());
     }
 
     for (column = 0; column < (size_t) m_context.commandManager.GetSortColumnCount(); column++)
@@ -1180,24 +1186,133 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerListMenus::GetSearchSortChoices
+//  ExplorerListMenus::GetSeeMoreRows
 //
-//  File Explorer's Sort menu for search results: Name, Date modified and
-//  Type, then the rest of its Group by choices under More, Relevance among
-//  them. A property the list has no column for gets one only when chosen.
+//  File Explorer's See more rows: Undo; Windows' Compress and Add to
+//  favorites with Copy path for a selection, or Pin to Quick access for the
+//  folder; the selection commands; and Properties.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchSortChoices()
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSeeMoreRows()
 {
-    static constexpr size_t  s_kTopChoices = 3;
+    std::vector<DxuiPopupMenuItem>   items;
+    std::vector<DxuiPopupMenuItem>   windows;
+    std::vector<std::wstring>        paths;
+    Win32PackagedCommands::ItemKind  kind     = Win32PackagedCommands::ItemKind::File;
+    Location                         location = m_context.browser.GetLocation();
+    bool                             selected = !m_context.browser.GetSelectedRows().empty();
+    bool                             search   = SearchQuery::IsId (location.path);
+    bool                             onHost   = location.kind == Location::Kind::HostFolder && !search;
+    auto                             row      = [this, &items] (const wchar_t * label, const wchar_t * svg, std::function<bool()> enabled, std::function<void()> dispatch)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->label     = label;
+        command->menuSvg   = m_context.menus.GetMenuSvg (svg);
+        command->isEnabled = std::move (enabled);
+        command->dispatch  = std::move (dispatch);
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+    };
+
+
+
+    row (L"Undo", L"windows.undo", [this]() { return m_context.commandManager.IsEnabled (CassoExplorerCommands::kUndo); },
+         [this]() { m_context.commandManager.Dispatch (CassoExplorerCommands::kUndo); });
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    if (selected && m_context.menus.GetSelectionKind (paths, kind))
+    {
+        if (m_context.menus.AddWindowsCommands (windows, paths, kind))
+        {
+            for (DxuiPopupMenuItem & command : windows)
+            {
+                const std::wstring  label = (command.command != nullptr) ? command.command->label : std::wstring();
+
+                if (label.find (L"Compress") != std::wstring::npos || label.find (L"favorites") != std::wstring::npos)
+                {
+                    items.push_back (std::move (command));
+                }
+            }
+        }
+
+        row (L"Copy path", L"windows.copyaspath", nullptr, [this]() { m_context.fileOps.CopySelectedPaths(); });
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+    else if (onHost)
+    {
+        m_context.menus.AddPinMenuCommand (items, location.path);
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    row (L"Select all", L"windows.selectall", nullptr, [this]()
+    {
+        m_pane.GetListView()->SelectAllRows();
+        m_pane.OnSelectionChanged();
+        m_context.window.Invalidate();
+    });
+
+    row (L"Select none", L"windows.selectnone", nullptr, [this]() { m_pane.SetListSelection ({}); });
+
+    row (L"Invert selection", L"windows.invertselection", nullptr, [this]()
+    {
+        const std::vector<int> &  current = m_pane.GetListView()->GetSelectedRows();
+        std::vector<int>          rows;
+
+        for (int at = 0; at < (int) m_pane.GetListView()->GetRowCount(); at++)
+        {
+            if (std::find (current.begin(), current.end(), at) == current.end())
+            {
+                rows.push_back (at);
+            }
+        }
+
+        m_pane.SetListSelection (std::move (rows));
+    });
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    row (L"Properties", L"windows.properties", [this, selected, onHost]() { return selected || onHost || m_context.browser.IsImageLocation(); }, [this, selected, location]()
+    {
+        if (selected)
+        {
+            m_context.fileOps.ShowRowProperties (m_context.browser.GetSelectedRows()[0]);
+        }
+        else
+        {
+            m_context.fileOps.ShowLocationProperties (location);
+        }
+    });
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::GetGroupedSortChoices
+//
+//  File Explorer's command bar Sort menu: the first three of its Group by
+//  choices, then up to five more under More. A property the list has no
+//  column for gets one only when chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupedSortChoices (GroupChoices::Folder folder)
+{
+    static constexpr size_t  s_kTopChoices  = 3;
+    static constexpr size_t  s_kMoreChoices = 5;
 
 
 
     std::vector<DxuiPopupMenuItem>     items;
     std::vector<DxuiPopupMenuItem>     more;
     std::vector<int>                   moreIds;
-    std::vector<GroupChoices::Choice>  choices = GroupChoices::GetChoices (GroupChoices::Folder::Search);
+    std::vector<GroupChoices::Choice>  choices = GroupChoices::GetChoices (folder);
     std::shared_ptr<DxuiCommand>       parent  = std::make_shared<DxuiCommand>();
     auto                               idFor   = [this] (const GroupChoices::Choice & choice) -> int
     {
@@ -1218,7 +1333,7 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchSortChoices()
 
 
 
-    for (size_t index = 0; index < choices.size(); index++)
+    for (size_t index = 0; index < choices.size() && index < s_kTopChoices + s_kMoreChoices; index++)
     {
         GroupChoices::Choice          choice  = choices[index];
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
@@ -1278,13 +1393,14 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchSortChoices()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices (bool commandBar)
 {
     std::vector<DxuiPopupMenuItem>     items;
     std::vector<GroupChoices::Choice>  choices = GroupChoices::GetChoices (m_pane.GetColumns().GetGroupFolder());
     std::vector<std::wstring>          listed;
     std::shared_ptr<DxuiCommand>       more    = std::make_shared<DxuiCommand>();
     bool                               search  = SearchQuery::IsId (m_context.browser.GetLocation().path);
+    bool                               brief   = commandBar || search;
     bool                               grouped = m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetBrowserModel().GetActiveTab().groupBy != RowGrouping::Field::None;
     auto                               isGroup = [this] (RowGrouping::Field field)
     {
@@ -1326,9 +1442,15 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
              });
     }
 
-    //  A column on display can be grouped by too, as Explorer's Path can. A
-    //  search's menu has File Explorer's choices only.
-    for (size_t index = 0; !search && index < m_context.prefs.propertyColumns.size(); index++)
+    //  File Explorer's background menu in a folder has the columns on display.
+    if (!brief && m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+    {
+        return GetColumnGroupChoices (grouped);
+    }
+
+    //  A column on display can be grouped by too, as Explorer's Path can. The
+    //  command bar's menu and a search's have File Explorer's choices only.
+    for (size_t index = 0; !brief && index < m_context.prefs.propertyColumns.size(); index++)
     {
         size_t              column = CatalogModel::kColumnCount + index;
         bool                shown  = column < m_pane.GetColumns().GetChosen().size() && m_pane.GetColumns().GetChosen()[column];
@@ -1348,15 +1470,15 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
         items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupByField)));
     }
 
-    if (!search)
+    if (!brief)
     {
         more->label    = L"More";
         more->dispatch = [this]() { m_pane.GetColumns().ChooseDetails(); };
         items.push_back (DxuiPopupMenuItem::ForCommand (std::move (more)));
     }
 
-    //  A search's results have a direction to group in only while grouped.
-    if (search && !grouped)
+    //  These have a direction to group in only while grouped.
+    if (brief && !grouped)
     {
         return items;
     }
@@ -1364,6 +1486,97 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetGroupChoices()
     items.push_back (DxuiPopupMenuItem::ForSeparator());
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupAscending)));
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupDescending)));
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::GetColumnGroupChoices
+//
+//  File Explorer's background Group by in a folder: a row for each column on
+//  display, the direction, grayed while ungrouped, and More..., which opens
+//  Choose Details.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetColumnGroupChoices (bool grouped)
+{
+    static constexpr std::pair<CatalogModel::Column, RowGrouping::Field>  s_kFixed[] =
+    {
+        { CatalogModel::Column::Name,     RowGrouping::Field::Name         },
+        { CatalogModel::Column::Modified, RowGrouping::Field::DateModified },
+        { CatalogModel::Column::Type,     RowGrouping::Field::Type         },
+        { CatalogModel::Column::Size,     RowGrouping::Field::Size         },
+    };
+
+    std::vector<DxuiPopupMenuItem>  items;
+    std::vector<bool> &             chosen  = m_pane.GetColumns().GetChosen();
+    std::shared_ptr<DxuiCommand>    more    = std::make_shared<DxuiCommand>();
+    auto                            isGroup = [this] (RowGrouping::Field field)
+    {
+        return m_context.browser.GetBrowserModel().HasTabs() && m_context.browser.GetBrowserModel().GetActiveTab().groupBy == field;
+    };
+    auto                            add     = [this, &items, isGroup] (const std::wstring & label, RowGrouping::Field field)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+        command->label     = label;
+        command->radio     = true;
+        command->isChecked = [isGroup, field]() { return isGroup (field); };
+        command->dispatch  = [this, field]() { m_context.commandManager.Dispatch (CassoExplorerCommands::kGroupByField + (int) field); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+    };
+
+
+
+    for (const auto & [column, field] : s_kFixed)
+    {
+        if ((size_t) column >= chosen.size() || chosen[(size_t) column])
+        {
+            add (m_pane.GetColumns().GetListColumns()[(size_t) column].title, field);
+        }
+    }
+
+    for (size_t index = 0; index < m_context.prefs.propertyColumns.size(); index++)
+    {
+        size_t  column = CatalogModel::kColumnCount + index;
+
+        if (column < chosen.size() && chosen[column])
+        {
+            add (m_pane.GetColumns().GetListColumns()[column].title, RowGrouping::MakePropertyField (index));
+        }
+    }
+
+    if (grouped)
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kGroupByField)));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    for (int id : { (int) CassoExplorerCommands::kGroupAscending, (int) CassoExplorerCommands::kGroupDescending })
+    {
+        std::shared_ptr<const DxuiCommand>  base    = m_context.commands.Find (id);
+        std::shared_ptr<DxuiCommand>        command = (base != nullptr) ? std::make_shared<DxuiCommand> (*base) : nullptr;
+
+        if (command != nullptr)
+        {
+            command->isEnabled = [grouped]() { return grouped; };
+            items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+        }
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    more->label    = L"More...";
+    more->dispatch = [this]() { m_pane.GetColumns().ChooseDetails(); };
+    items.push_back (DxuiPopupMenuItem::ForCommand (std::move (more)));
 
     return items;
 }
@@ -1396,7 +1609,8 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
                                            { L"Large (128 MB - 1 GB)", L"large" }, { L"Huge (1 - 4 GB)", L"huge" }, { L"Gigantic (>4 GB)", L"gigantic" } };
 
     std::vector<DxuiPopupMenuItem>  items;
-    ExplorerAddressBar *            bar    = &m_context.addressBar;
+    ExplorerAddressBar *            bar     = &m_context.addressBar;
+    bool                            indexed = IsSearchIndexed();
     auto                            option = [this] (const wchar_t * label, const wchar_t * svg, bool radio, std::function<bool()> checked, std::function<void()> dispatch)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
@@ -1423,8 +1637,10 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
                 [bar, prefix, value]() { bar->SetSearchQuery (SearchQuery::ToggleToken (bar->GetSearchQuery(), prefix, value)); })));
         }
 
-        parent->label   = label;
-        parent->menuSvg = m_context.menus.GetMenuSvg (svg);
+        //  File Explorer's filters are grayed in a folder the index doesn't cover.
+        parent->label     = label;
+        parent->menuSvg   = m_context.menus.GetMenuSvg (svg);
+        parent->isEnabled = [indexed]() { return indexed; };
         items.push_back (DxuiPopupMenuItem::ForSubmenu (std::move (parent), std::move (rows)));
     };
     std::shared_ptr<DxuiCommand>    current = option (L"Current folder", L"windows.searchoptionshallow", true, [bar]() { return bar->GetSearchOptions().currentFolder; },
@@ -1464,21 +1680,74 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerListMenus::GetViewChoices
+//  ExplorerListMenus::IsSearchIndexed
 //
-//  In Explorer's order.
+//  Whether the index covers the folder a search covers, or one of Casso's
+//  folders for a search from its root. Home's and This PC's are indexed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetViewChoices()
+bool ExplorerListMenus::IsSearchIndexed()
 {
-    std::vector<DxuiPopupMenuItem>  items;
+    std::wstring  scope;
+    std::wstring  query;
+    bool          parsed = SearchQuery::TryParseId (m_context.browser.GetLocation().path, scope, query);
+
+
+
+    if (!parsed)
+    {
+        return true;
+    }
+
+    for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
+    {
+        if (folder == SearchQuery::kThisPc || folder == SearchQuery::kEverywhere || m_context.shellVerbs.IsIndexed (folder))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListMenus::GetViewChoices
+//
+//  In Explorer's order. The background menu's rows have their keys, as File
+//  Explorer's do, and the command bar's don't.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetViewChoices (bool withKeys)
+{
+    static constexpr const wchar_t *  s_kKeys[] = { L"Ctrl+Shift+1", L"Ctrl+Shift+2", L"Ctrl+Shift+3", L"Ctrl+Shift+4", L"Ctrl+Shift+5", L"Ctrl+Shift+6", L"Ctrl+Shift+7", L"Ctrl+Shift+8" };
+    std::vector<DxuiPopupMenuItem>    items;
+    size_t                            at        = 0;
 
 
 
     for (int view : { 1, 2, 3, 4, 5, 0, 6, 7 })
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kViewFirst + view)));
+        std::shared_ptr<const DxuiCommand>  base    = m_context.commands.Find (CassoExplorerCommands::kViewFirst + view);
+        std::shared_ptr<DxuiCommand>        command = (base != nullptr && withKeys) ? std::make_shared<DxuiCommand> (*base) : nullptr;
+
+        if (command != nullptr)
+        {
+            command->accelerator = s_kKeys[at];
+            items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
+        }
+        else
+        {
+            items.push_back (DxuiPopupMenuItem::ForCommand (base));
+        }
+
+        at++;
     }
 
     return items;
@@ -1512,9 +1781,9 @@ void ExplorerListMenus::AddViewMenus (std::vector<DxuiPopupMenuItem> & items)
     group->label   = L"Grou&p by";
     group->menuSvg = m_context.menus.GetMenuSvg (L"windows.groupbycolumn");
 
-    items.push_back (DxuiPopupMenuItem::ForSubmenu (view,  GetViewChoices()));
-    items.push_back (DxuiPopupMenuItem::ForSubmenu (sort,  GetSortChoices()));
-    items.push_back (DxuiPopupMenuItem::ForSubmenu (group, GetGroupChoices()));
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (view,  GetViewChoices (true)));
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (sort,  GetSortChoices (false)));
+    items.push_back (DxuiPopupMenuItem::ForSubmenu (group, GetGroupChoices (false)));
 
     m_context.menus.GetMenuCommands().push_back (std::move (view));
     m_context.menus.GetMenuCommands().push_back (std::move (sort));

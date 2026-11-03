@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/Model/GroupChoices.h"
 
 struct ExplorerContext;
 class ExplorerListPane;
@@ -40,11 +41,14 @@ public:
     static bool                     IsFavorite          (const std::vector<std::wstring> & labels) { return std::find (labels.begin(), labels.end(), L"Remove from Favorites") != labels.end(); }
 
     bool                            IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
-    std::vector<DxuiPopupMenuItem>  GetSortChoices         ();
-    std::vector<DxuiPopupMenuItem>  GetSearchSortChoices   ();
-    std::vector<DxuiPopupMenuItem>  GetGroupChoices        ();
+    std::vector<DxuiPopupMenuItem>  GetSortChoices         (bool commandBar);
+    std::vector<DxuiPopupMenuItem>  GetGroupedSortChoices  (GroupChoices::Folder folder);
+    std::vector<DxuiPopupMenuItem>  GetSeeMoreRows         ();
+    std::vector<DxuiPopupMenuItem>  GetGroupChoices        (bool commandBar);
+    std::vector<DxuiPopupMenuItem>  GetColumnGroupChoices  (bool grouped);
+    bool                            IsSearchIndexed        ();
     std::vector<DxuiPopupMenuItem>  GetSearchOptionChoices ();
-    std::vector<DxuiPopupMenuItem>  GetViewChoices         ();
+    std::vector<DxuiPopupMenuItem>  GetViewChoices         (bool withKeys);
 
 private:
     std::wstring    GetBackgroundShellId (const Location & shown) const;

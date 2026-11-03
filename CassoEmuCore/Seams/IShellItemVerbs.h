@@ -253,4 +253,7 @@ public:
 
     //  Windows' share sheet for the items, as Explorer's Share opens it.
     virtual HRESULT  Share             (HWND owner, const std::vector<std::wstring> & paths) = 0;
+
+    //  Whether the Windows search index covers a folder.
+    virtual bool     IsIndexed         (const std::wstring & folder) { UNREFERENCED_PARAMETER (folder); return true; }
 };

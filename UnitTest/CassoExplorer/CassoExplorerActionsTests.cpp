@@ -416,10 +416,11 @@ public:
         Assert::IsTrue  (has (CassoExplorerActions::Verb::Paste));
         Assert::IsFalse (has (CassoExplorerActions::Verb::Cut));
 
-        //  An image opens here, so it gets no program to open it with.
+        //  An image opens here, and in another program through Open with, as
+        //  File Explorer offers it.
         host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
         verbs = host.actions.GetListVerbs();
-        Assert::IsFalse (has (CassoExplorerActions::Verb::OpenWith));
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::OpenWith));
         Assert::IsTrue  (has (CassoExplorerActions::Verb::MoreOptions));
 
         //  Nothing inside an image is a real file.

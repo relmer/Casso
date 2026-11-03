@@ -114,6 +114,7 @@ void ExplorerToolbars::Create()
     m_commandBar->SetFlatStyle (true);
 
     m_commandBar->EnableSeeMore      (s_kpszMdl2More, L"See more", &CassoExplorerIcons::s_kMore);
+    m_commandBar->SetSeeMoreRows     ([this]() { return m_context.listPane.GetMenus().GetSeeMoreRows(); });
     m_commandBar->SetEntries         (m_context.commands.BuildCommandBarEntries());
     m_commandBar->SetIconFace        (iconFace);
     m_commandBar->SetIconDip         (kCommandBarIconDip);
@@ -604,8 +605,8 @@ void ExplorerToolbars::SetCommandBarEntries()
 void ExplorerToolbars::SetCommandBarDropDowns()
 {
     std::vector<DxuiPopupMenuItem>  newItems;
-    std::vector<DxuiPopupMenuItem>  sortItems = m_context.listPane.GetMenus().GetSortChoices();
-    std::vector<DxuiPopupMenuItem>  viewItems = m_context.listPane.GetMenus().GetViewChoices();
+    std::vector<DxuiPopupMenuItem>  sortItems = m_context.listPane.GetMenus().GetSortChoices (true);
+    std::vector<DxuiPopupMenuItem>  viewItems = m_context.listPane.GetMenus().GetViewChoices (false);
     std::vector<DxuiPopupMenuItem>  themeItems;
 
 
@@ -613,9 +614,23 @@ void ExplorerToolbars::SetCommandBarDropDowns()
     m_context.menus.AddNewChoices (newItems, m_context.browser.GetLocation(), m_context.commands.Find (CassoExplorerCommands::kNewFolder),
                    m_context.commands.Find (CassoExplorerCommands::kNewDisk));
 
+    //  Explorer's View ends in its panes; the Details pane, which repeats the
+    //  preview's facts, is left out.
+    if (std::shared_ptr<const DxuiCommand> toggle = m_context.commands.Find (CassoExplorerCommands::kTogglePreview); toggle != nullptr)
+    {
+        std::shared_ptr<DxuiCommand>  preview = std::make_shared<DxuiCommand> (*toggle);
+
+        preview->label       = L"Preview pane";
+        preview->accelerator.clear();
+        preview->menuSvg     = m_context.menus.GetMenuSvg (L"windows.previewpane");
+
+        viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
+        viewItems.push_back (DxuiPopupMenuItem::ForCommand (std::move (preview)));
+    }
+
     //  Group by is at the foot of Explorer's Sort menu.
     sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_context.commands.Find (CassoExplorerCommands::kGroupBy), m_context.listPane.GetMenus().GetGroupChoices()));
+    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_context.commands.Find (CassoExplorerCommands::kGroupBy), m_context.listPane.GetMenus().GetGroupChoices (true)));
 
     for (int id : { (int) CassoExplorerCommands::kThemeSkeuomorphic, (int) CassoExplorerCommands::kThemeRetroTerminal, (int) CassoExplorerCommands::kThemeDarkModern,
                     (int) CassoExplorerCommands::kThemeDark, (int) CassoExplorerCommands::kThemeLight, (int) CassoExplorerCommands::kThemeSystem })

@@ -486,6 +486,16 @@ private:
         { 'L',      true,  false, false, kEditAddress   },
         { 'D',      false, true,  false, kEditAddress   },
         { VK_F4,    false, false, false, kAddressHistory },
+
+        //  File Explorer's view keys, in its menu's order.
+        { '1',      true,  false, true,  kViewFirst + 1 },
+        { '2',      true,  false, true,  kViewFirst + 2 },
+        { '3',      true,  false, true,  kViewFirst + 3 },
+        { '4',      true,  false, true,  kViewFirst + 4 },
+        { '5',      true,  false, true,  kViewFirst + 5 },
+        { '6',      true,  false, true,  kViewFirst + 0 },
+        { '7',      true,  false, true,  kViewFirst + 6 },
+        { '8',      true,  false, true,  kViewFirst + 7 },
     };
 
     //  The standard commands are NOT in the key table: DxuiCommandRouter
