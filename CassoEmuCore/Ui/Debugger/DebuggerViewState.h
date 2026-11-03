@@ -319,10 +319,11 @@ struct DebuggerViewSnapshot
     //  rebuilds its rows only then.
     struct SymbolTableRow
     {
-        std::string    name;
-        size_t         count   = 0;
-        bool           enabled = true;
-        SymbolTableId  id      = SymbolTableId::Main;
+        std::string               name;
+        size_t                    count   = 0;
+        bool                      enabled = true;
+        SymbolTableId             id      = SymbolTableId::Main;
+        std::vector<std::string>  origins;   // the files the table was loaded from, by file name
     };
 
     struct SymbolsState

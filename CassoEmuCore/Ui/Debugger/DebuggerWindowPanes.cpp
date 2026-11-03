@@ -117,7 +117,8 @@ void DebuggerWindow::CreatePanes()
         m_panes.push_back (std::move (window));
     }
 
-    m_panes.push_back (std::make_unique<SymbolsPane>    (host));
+    m_panes.push_back (std::make_unique<SymbolsPane>    (host, SymbolsPane::Kind::User));
+    m_panes.push_back (std::make_unique<SymbolsPane>    (host, SymbolsPane::Kind::Machine));
     m_panes.push_back (std::make_unique<BookmarksPane>  (host));
     m_panes.push_back (std::move (profiler));
     m_panes.push_back (std::make_unique<DataBlocksPane> (host));

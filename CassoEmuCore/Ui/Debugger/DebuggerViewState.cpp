@@ -274,7 +274,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         for (int table = 0; table < SymbolTable::kTableCount; table++)
         {
             state->tables.push_back ({ ReplyJson::GetSymbolTableName ((SymbolTableId) table), session.GetSymbols().GetCount ((SymbolTableId) table),
-                                       session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table });
+                                       session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table,
+                                       session.GetSymbols().GetOrigins ((SymbolTableId) table) });
             session.GetSymbols().GetAll ((SymbolTableId) table, state->symbols);
         }
 

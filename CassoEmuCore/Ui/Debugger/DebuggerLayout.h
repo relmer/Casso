@@ -45,6 +45,7 @@ public:
     static constexpr const wchar_t * kNetworkLog  = L"networklog";
     static constexpr const wchar_t * kBasicProgram   = L"basicprogram";
     static constexpr const wchar_t * kSymbols        = L"symbols";
+    static constexpr const wchar_t * kMachineSymbols = L"machinesymbols";
     static constexpr const wchar_t * kBookmarks      = L"bookmarks";
     static constexpr const wchar_t * kProfiler       = L"profiler";
     static constexpr const wchar_t * kDataBlocks     = L"datablocks";

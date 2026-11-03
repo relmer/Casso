@@ -64,16 +64,27 @@ protected:
 //
 //  SymbolsPane
 //
-//  The symbol tables, each a heading with its name, its count and a check
-//  that turns it on or off, and its symbols under it, each with its address.
-//  The pane's Find searches them. Activating a symbol moves the disassembly
-//  to its address. The rows are built again only when the symbols change.
+//  The user's symbol tables or the machine's, each a heading with its name,
+//  its count and a check that turns it on or off, and its symbols under it,
+//  each with its address. A user table loaded from a file has the file's
+//  name. A press on a heading opens or closes it; every heading starts
+//  closed. The pane's Find searches the open tables. Activating a symbol
+//  moves the disassembly to its address. The rows are built again only when
+//  the symbols change or a table opens or closes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class SymbolsPane : public ToolListPane
 {
 public:
+    //  Which tables the pane lists: those the user loads and adds to, or the
+    //  ROMs', the machine's and BASIC's.
+    enum class Kind
+    {
+        User,
+        Machine,
+    };
+
     //  What a row is: a table's heading, or one of its symbols.
     struct Row
     {
@@ -83,21 +94,36 @@ public:
         bool         isHeading = false;
     };
 
-    explicit SymbolsPane (IDebuggerPaneHost & host);
+    SymbolsPane (IDebuggerPaneHost & host, Kind kind);
 
-    void         Configure    () override;
-    void         Apply        (const DebuggerViewSnapshot & snapshot) override;
-    bool         AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
-    const Row *  GetRow       (int row) const;
+    void                 Configure         () override;
+    void                 Apply             (const DebuggerViewSnapshot & snapshot) override;
+    bool                 AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
+    bool                 RouteContentMouse (const DxuiMouseEvent & ev) override;
+    IDxuiFindTarget    * GetFindView       () const override { return m_list; }
+    DebuggerPaneFrame  * GetFindFrame      () const override { return m_frame.get(); }
+    const Row          * GetRow            (int row) const;
 
-    static std::vector<Row>                              GetRows  (const DebuggerViewSnapshot::SymbolsState & symbols);
-    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows);
+    //  A table's heading opened or closed, by the table's name.
+    void                 ToggleTable       (const std::string & table);
+
+    static bool          IsUserTable       (SymbolTableId table);
+
+    static std::vector<Row>                              GetRows  (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open);
+    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows, const std::set<std::string> & open);
 
 private:
-    void  SaveTable (const std::string & table);
+    void  SaveTable    (const std::string & table);
+    void  RebuildRows  ();
 
+    //  The file a table was loaded from, or empty for a table filled any
+    //  other way.
+    static std::string  GetFileOf (const DebuggerViewSnapshot::SymbolsState & symbols, const std::string & table);
+
+    Kind                                                         m_kind;
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_symbols;
     std::vector<Row>                                             m_rows;
+    std::set<std::string>                                        m_open;   // the tables whose headings are open
 };
 
 

@@ -179,21 +179,45 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  The user's tables are in one pane and the machine's in the other,
+        //  each a heading over its symbols while it is open.
         TEST_METHOD (EachTableIsAHeadingOverItsSymbols)
         {
             auto                                          symbols = MakeSymbols();
-            std::vector<SymbolsPane::Row>                 rows    = SymbolsPane::GetRows (*symbols);
-            std::vector<std::vector<DxuiListView::Cell>>  cells   = SymbolsPane::GetCells (*symbols, rows);
+            std::set<std::string>                         open    = { "main", "user" };
+            std::vector<SymbolsPane::Row>                 user    = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User,    open);
+            std::vector<SymbolsPane::Row>                 machine = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::Machine, open);
+            std::vector<std::vector<DxuiListView::Cell>>  cells   = SymbolsPane::GetCells (*symbols, user, open);
 
 
 
-            Assert::AreEqual ((size_t) 5, rows.size());
-            Assert::IsTrue   (rows[0].isHeading && rows[2].isHeading);
-            Assert::AreEqual (std::wstring (L"main (1)"), cells[0][0].text);
-            Assert::IsTrue   (cells[0][0].check.value_or (false), L"main is on");
-            Assert::IsFalse  (cells[2][0].check.value_or (true), L"user is off");
-            Assert::AreEqual (std::wstring (L"$0300"), cells[3][1].text);
-            Assert::AreEqual (std::wstring (L"0028 (constant)"), cells[4][1].text, L"a constant is not an address");
+            Assert::AreEqual ((size_t) 3, user.size(), L"the user table's heading and symbols");
+            Assert::AreEqual ((size_t) 2, machine.size(), L"main's heading and its symbol");
+            Assert::AreEqual (std::string ("main"), machine[0].table);
+            Assert::IsTrue   (user[0].isHeading);
+            Assert::AreEqual (std::format (L"{} user (2)", s_kpszTriangleDown), cells[0][0].text);
+            Assert::IsFalse  (cells[0][0].check.value_or (true), L"user is off");
+            Assert::AreEqual (std::wstring (L"$0300"), cells[1][1].text);
+            Assert::AreEqual (std::wstring (L"0028 (constant)"), cells[2][1].text, L"a constant is not an address");
+        }
+
+
+        //  A heading starts closed, with no symbols under it; a table loaded
+        //  from a file has the file's name.
+        TEST_METHOD (AHeadingStartsClosedAndHasItsFilesName)
+        {
+            auto                                          symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());
+            std::vector<SymbolsPane::Row>                 rows;
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+
+
+
+            symbols->tables[1].origins = { "demo.dbg" };
+            rows  = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, {});
+            cells = SymbolsPane::GetCells (*symbols, rows, {});
+
+            Assert::AreEqual ((size_t) 1, rows.size(), L"only the heading");
+            Assert::AreEqual (std::format (L"{} demo.dbg (2)", s_kpszTriangleRight), cells[0][0].text);
         }
 
 
@@ -1306,7 +1330,7 @@ namespace DebuggerToolPanesTests
             CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost     host;
             ToolWindow            window  (theme, host);
-            SymbolsPane           symbols (window.GetPaneHostForTest());
+            SymbolsPane           symbols (window.GetPaneHostForTest(), SymbolsPane::Kind::Machine);
             BookmarksPane         other   (window.GetPaneHostForTest());
             DebuggerViewSnapshot  snapshot;
             PaneMenuItems         items;
@@ -1320,6 +1344,7 @@ namespace DebuggerToolPanesTests
 
             snapshot.symbols = MakeSymbols();
             symbols.Apply (snapshot);
+            symbols.ToggleTable ("main");
 
             Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 1) == std::vector<std::wstring> { L"Go to", L"Remove", L"Clear table", L"Save table...", L"Copy" });
             Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 0) == std::vector<std::wstring> { L"Clear table", L"Save table...", L"Copy" });
@@ -1330,6 +1355,38 @@ namespace DebuggerToolPanesTests
 
             Assert::AreEqual ((size_t) 1, host.commands.size());
             Assert::IsTrue   (host.commands[0].find ("COUT") != std::string::npos, TextEncoding::NarrowToWide (host.commands[0]).c_str());
+        }
+
+
+        //  A user table loaded from a file unloads it, which clears the
+        //  table.
+        TEST_METHOD (AUserTableLoadedFromAFileUnloadsIt)
+        {
+            CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost     host;
+            ToolWindow            window  (theme, host);
+            SymbolsPane           symbols (window.GetPaneHostForTest(), SymbolsPane::Kind::User);
+            DebuggerViewSnapshot  snapshot;
+            PaneMenuItems         items;
+            auto                  state   = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());
+
+
+
+            window.OnCreate();
+            symbols.CreateControls();
+            symbols.Configure();
+
+            state->tables[1].origins = { "demo.dbg" };
+            snapshot.symbols         = state;
+            symbols.Apply (snapshot);
+
+            Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 0) == std::vector<std::wstring> { L"Unload demo.dbg", L"Save table...", L"Copy" });
+
+            (void) symbols.AddMenuItems (symbols.GetList(), 0, items);
+            items[0].second();
+
+            Assert::AreEqual ((size_t) 1, host.commands.size());
+            Assert::IsTrue   (host.commands[0].find ("CLEAR") != std::string::npos, TextEncoding::NarrowToWide (host.commands[0]).c_str());
         }
     };
 }
