@@ -2104,7 +2104,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1269 BASIC program pane: the listing wraps at about 40 columns in a wide pane. Wrap it at the pane's width. **Done:** `27d96c38d`. The listing wraps at two thirds of the list's width past the gutter and heat column, measured in the list's face (`BasicProgramController::UpdateWrap`), and wraps again on a resize. `TheListingWrapsAtTheWidthGiven` covers it.
 - [X] T1270 BASIC program pane: select text by dragging and copy it with Ctrl+C, as in the source pane. **Done:** `27d96c38d`. The list has text selection on (`DxuiListView::SetTextSelection`): a drag selects characters, Ctrl+C copies them, and the pointer is an I-beam over the rows.
 - [X] T1271 BASIC program pane: hovering a variable opens a tip with its value, and each line has annotations to its right with the values of the variables the line reads and writes, before and after, as in the disassembly. **Done:** `27d96c38d`. A Values column lists each line's variables and values at the stop, and on the line the machine stopped at before, a value it changed as old, arrow, new. The tip over a line's text lists its variables and values, a line each. The list doesn't map the pointer to a character yet, so the tip has the whole line's variables rather than the one under the pointer. `ALinesValuesShowWhatItChanged` covers it.
-- [ ] T1272 Watch pane: BASIC variables appear only in the BASIC variables section, not in Auto. The BASIC variables section opens and closes on the first click, at once. **Partly done:** `e9c3745b3`: a single press on the heading toggles it. Whether the statement's variables leave Auto is a question for the owner.
+- [ ] T1272 Watch pane: BASIC variables appear only in the BASIC variables section, not in Auto. The BASIC variables section opens and closes on the first click, at once. **Partly done:** `e9c3745b3`: a single press on the heading toggles it. On 2026-11-03 the owner chose to drop BASIC variables from Auto.
 - [ ] T1273 BASIC program pane: the heat column counts only the program's lines as BASIC runs them, not the machine's execution counters. Rewrite the column's tip in plain words: what the color indicates.
 - [ ] T1274 Source document heat: draw it as the other panes do, color only with no bar length. Count a hit on a source line only while the bytes in memory match the line's assembled bytes, so a run of other code at the same addresses doesn't color the source. **Partly done:** `9b7591ce2`: a line's heat is one fill of its hottest color, the same width on every line. Matching the source's bytes with memory is open.
 - [X] T1275 Profiler: the period defaults to the last 5 seconds, from a new setting. **Done:** `dd7b21f37`. The period list starts with Last 5 s, the default. The period chosen is saved as `debuggerProfilerPeriod` and read when the pane first builds. `TheProfilerPeriodDefaultsToFiveSecondsAndReadsTheSetting` covers it.
@@ -2145,9 +2145,9 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1300 Memory window: with heat on, a byte's tip has its counts and its tint's scale. **Done:** `622667df5`.
 - [X] T1301 Heat map: zooming in scrolls the rows across rather than refitting them, so the cell under the pointer stays under it; a notch zooms 1.5 times; the button reads Zoom; no tip during a zoom. **Done:** `9c36bcef5`.
 - [X] T1302 Mockingboard panel: a tip on each part with what it means; rows of the AY's sixteen registers; the envelope's dot moves along the ramps. **Done:** `e63fd12f4`. `SoundBoardTips`; checked on screen with the music disk.
-- [ ] T1303 One button and one key to pause and resume. Waiting on the owner's choice.
+- [ ] T1303 One button and one key to pause and resume: Run and Pause are one toolbar button whose icon follows the machine's state, and Pause/Break toggles in every key scheme. The owner agreed 2026-11-03.
 - [X] T1304 Console: a time on each line. **Done:** `21ce9b513`, the owner's choice in Phase 57.
-- [ ] T1305 Mockingboard: a phoneme history to scroll back through. Waiting on the owner's choice.
+- [ ] T1305 Mockingboard: a longer phoneme history, scrolled back through with the wheel over the strip. The owner agreed 2026-11-03.
 
 
 ## Phase 57: Owner's walk, 2026-11-03
@@ -2158,3 +2158,17 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1309 Docking: over a tab set, the drop gap stops following the pointer once it opens. **Done:** `aeb397d9f`. The floating window's header fade was a modal overlay, which sends the window's mouse and keys to the overlay, so the window's move ended at the first step over a strip. The fade is painted in the drag layer. `MovingAlongATabStripMovesTheGap` fails without the fix.
 - [X] T1310 Console: each line starts with the time it was added in the user's short time format, and the tip over the time has the long date and the time. **Done:** `21ce9b513`. `ConsoleOutput::GetTimeStamp`, `ConsoleOutput::GetFullTime`, `ConsoleOutput::TryGetTimeTip`, and `CommandModeHelp::LayOutTabbedRows` with each line's source.
 - [ ] T1311 Resizing: the new edge of the main and debugger windows is black, and the desktop is visible at a floating window's new edge, until the next frame. Draw the window's content at the new size before the compositor composes the window at that size.
+
+
+## Phase 58: Owner's walk, 2026-11-03 (second pass)
+
+- [ ] T1312 Panes: showing a pane from the View menu or its key brings it to the front of its group and focuses it.
+- [ ] T1313 Layout: the front tab of each group and the focused pane are saved and restored, and every pane open at exit is open again, the Symbols pane included.
+- [ ] T1314 Symbols: two panes, User symbols and Machine symbols. A loaded .dbg or .sym file's symbols, and the symbols of a BASIC program in memory, are user symbols; the symbols of the ROMs, the machine and BASIC itself are machine symbols. Each loaded file is a category with the file's name. Both lists are trees whose categories start collapsed, and both have Find.
+- [ ] T1315 Symbols: the user category lists BASIC keywords and the variables X and B with no BASIC program in memory. Find the cause and list none.
+- [ ] T1316 Symbols: unload a loaded .dbg or .sym file, from the User symbols pane's menu, the File menu and a console command.
+- [ ] T1317 Debug projects: a dropped .dbg file's project replaces the previous one's file. Find where the previous project went. A project also has the console's text and its command history, and they come back with it.
+- [ ] T1318 Source pane: a click doesn't go to the disassembly. The menu has Go to disassembly, which centers the line there. A press on the scroll bar goes to the scroll bar only, and a drag that goes off the pane ends with the button's release, with no selection after it.
+- [ ] T1319 Text views: the horizontal wheel scrolls sideways.
+- [ ] T1320 The "Show next statement" command: which pane follows the PC when a source file and the disassembly both have it, and which pane the command brings forward. A plan for the owner.
+- [ ] T1321 Resizing: measure the new edge of a test instance's windows during a resize, then fix T1311 and measure again.
