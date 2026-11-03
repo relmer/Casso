@@ -211,7 +211,9 @@ private:
     static constexpr int     kWidthDip        = 460;
     static constexpr int     kHeightDip       = 34;
     static constexpr int     kScrollDip       = 18;
-    static constexpr int     kCountDip        = 74;
+
+    //  Room for "99999 of 99999" on one line.
+    static constexpr int     kCountDip        = 112;
 
     void                 Create         (const std::wstring & pane, FindWidget & widget);
     void                 ApplySaved     (const std::wstring & pane, FindWidget & widget) const;

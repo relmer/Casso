@@ -130,7 +130,7 @@ namespace EventLogPaneTests
             Assert::AreEqual ((size_t) 4, pane.GetView().size());
             Assert::AreEqual (std::wstring (EventLogText::GetStartText()), GetColumn (pane, DiskLogPane::kDetail)[0]);
             Assert::AreEqual (std::wstring (L"Motor command on"),          GetColumn (pane, DiskLogPane::kEvent)[1]);
-            Assert::AreEqual (std::wstring (L"T17 S5 V254 (256 bytes)"),   GetColumn (pane, DiskLogPane::kDetail)[3]);
+            Assert::AreEqual (std::wstring (L"256 bytes"),                 GetColumn (pane, DiskLogPane::kDetail)[3], L"the place is in the Track, Sector and Volume columns");
             Assert::AreEqual (std::wstring (L"300"),                       GetColumn (pane, DiskLogPane::kCycle)[3]);
             Assert::AreEqual (4, list.GetRowCount());
         }
@@ -236,7 +236,7 @@ namespace EventLogPaneTests
 
             dump = cells[DiskLogPane::kDetail].tip;
 
-            Assert::AreEqual (std::wstring (L"T0 S0 V254 (256 bytes) 00 01 02 03 04 05 06 07 ..."), cells[DiskLogPane::kDetail].text);
+            Assert::AreEqual (std::wstring (L"256 bytes 00 01 02 03 04 05 06 07 ..."), cells[DiskLogPane::kDetail].text);
             Assert::IsTrue   (dump.starts_with (L"00: 00 01 02 03"), dump.c_str());
             Assert::IsTrue   (dump.find (L"\n10: C1 11 ") != std::wstring::npos, L"the second line starts at $10");
             Assert::IsTrue   (dump.find (L" A") != std::wstring::npos, L"$C1 is A with its high bit dropped");
@@ -462,8 +462,8 @@ namespace EventLogPaneTests
             details = GetColumn (pane, DiskLogPane::kDetail);
 
             Assert::AreEqual ((size_t) 4, details.size(), L"the start row, track 17's mark, the step to 17.25 and the unknown read");
-            Assert::AreEqual (std::wstring (L"T17 S1 V254"),            details[1]);
-            Assert::AreEqual (std::wstring (L"track 16.75 -> 17.25"), details[2]);
+            Assert::AreEqual (std::wstring (L"17"),                     GetColumn (pane, DiskLogPane::kTrack)[1]);
+            Assert::AreEqual (std::wstring (L"from track 16.75"),       details[2]);
 
             pane.SetTrackText (L"18.5");
             pane.Refresh();
@@ -599,12 +599,12 @@ namespace EventLogPaneTests
             pane.SetColumnShown (DiskLogPane::kTime,  false);
             pane.SetColumnShown (DiskLogPane::kCycle, true);
 
-            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t1\t\t0\t\tat track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t1\t\t0\t\t\r\n"), pane.GetText (false));
 
             pane.SetColumnShown (DiskLogPane::kDrive,  false);
             pane.SetColumnShown (DiskLogPane::kSector, false);
             pane.SetColumnShown (DiskLogPane::kVolume, false);
-            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t0\tat track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t0\t\r\n"), pane.GetText (false));
         }
 
 

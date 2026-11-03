@@ -467,14 +467,13 @@ const wchar_t * DiskLogPane::GetEventLabel (Disk2EventType type)
 //
 //  GetDetail
 //
-//  A track, sector or volume not known yet is "?": a data field read before
-//  any address field. A sector's detail ends with its first bytes.
+//  What is not in the Track, Sector and Volume columns: where a step came
+//  from, a sector's length and first bytes, and what went wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector<Byte> * bytes)
 {
-    auto          field  = [] (wchar_t prefix, int value) { return (value < 0) ? std::format (L"{}?", prefix) : std::format (L"{}{}", prefix, value); };
     auto          track  = [] (int quarterTrack) { return TextEncoding::NarrowToWide (DiskImage::FormatQuarterTrack (quarterTrack)); };
     std::wstring  detail;
     std::wstring  first;
@@ -492,44 +491,28 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
         first += L" ...";
     }
 
-
-
     switch (event.type)
     {
         case Disk2EventType::HeadStep:
-            detail = std::format (L"track {} -> {}", track (event.payload.step.prevQt), track (event.payload.step.newQt));
-            break;
-
-        case Disk2EventType::HeadBump:
-            detail = std::format (L"at track {}", track (event.payload.bump.atQt));
-            break;
-
-        case Disk2EventType::AddrMark:
-            detail = std::format (L"{} {} {}", field (L'T', event.payload.addrMark.track), field (L'S', event.payload.addrMark.sector),
-                                  field (L'V', event.payload.addrMark.volume));
+            detail = std::format (L"from track {}", track (event.payload.step.prevQt));
             break;
 
         case Disk2EventType::DataRead:
         case Disk2EventType::DataWrite:
         case Disk2EventType::DataNoAddress:
-            detail = std::format (L"{} {} {} ({} bytes){}", field (L'T', event.payload.dataMark.track), field (L'S', event.payload.dataMark.sector),
-                                  field (L'V', event.payload.dataMark.volume), event.payload.dataMark.byteCount, first);
+            detail = std::format (L"{} bytes{}", event.payload.dataMark.byteCount, first);
             break;
 
         case Disk2EventType::DataChecksumError:
-            detail = std::format (L"{} {} {}: the checksum does not match ({} bytes){}", field (L'T', event.payload.dataMark.track),
-                                  field (L'S', event.payload.dataMark.sector), field (L'V', event.payload.dataMark.volume),
-                                  event.payload.dataMark.byteCount, first);
+            detail = std::format (L"the checksum does not match ({} bytes){}", event.payload.dataMark.byteCount, first);
             break;
 
         case Disk2EventType::AddrChecksumError:
-            detail = std::format (L"{} {} {} as read: the checksum does not match", field (L'T', event.payload.addrMark.track),
-                                  field (L'S', event.payload.addrMark.sector), field (L'V', event.payload.addrMark.volume));
+            detail = L"the checksum does not match";
             break;
 
         case Disk2EventType::DataCutOff:
-            detail = std::format (L"after {} {} {}: no epilogue at either sector length", field (L'T', event.payload.addrMark.track),
-                                  field (L'S', event.payload.addrMark.sector), field (L'V', event.payload.addrMark.volume));
+            detail = L"no epilogue at either sector length";
             break;
 
         case Disk2EventType::WriteProtected:
@@ -537,7 +520,7 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
             break;
 
         case Disk2EventType::ReadStall:
-            detail = std::format (L"no address field in two revolutions at track {}", track (event.payload.bump.atQt));
+            detail = L"no address field in two revolutions";
             break;
 
         default:

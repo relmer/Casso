@@ -153,11 +153,12 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
 
     ShowOptions (widget);
 
-    //  Icon glyphs at Visual Studio Code's 16 pixels, which read at a glance
-    //  where a text face's arrows are thin and small.
+    //  Icon glyphs at a compact pane toolbar's size, beside the option
+    //  toggles' text, which read at a glance where a text face's arrows are
+    //  thin and small.
     for (DxuiButton * button : { widget.chevron, widget.prevButton, widget.nextButton, widget.selButton, widget.closeButton })
     {
-        button->SetGlyphFont (L"Segoe MDL2 Assets", (button == widget.chevron) ? 12.0f : 16.0f);
+        button->SetGlyphFont (L"Segoe MDL2 Assets", DxuiToolbar::kCompactIconDip);
     }
 
     widget.box->SetHwnd        (m_host.GetOwnerHwnd());
