@@ -68,7 +68,8 @@ private:
     float  GetLineTop     (int line) const;
     float  GetLineHeight  (int line) const;
     int    GetVisibleLines () const;
-    int    HitLine        (POINT pointPx) const;
+    bool   IsLineInView   (int line) const;
+    int    HitLine       (POINT pointPx) const;
     int    HitTest        (POINT pointPx) const;
     bool   IsOnChevron    (POINT pointPx) const;
     int    GetLastFirstLine () const;

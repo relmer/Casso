@@ -497,10 +497,27 @@ void NibblesView::ScrollTo (int nibble)
         }
     }
 
-    if (target >= 0)
+    if (target >= 0 && !IsLineInView (target))
     {
         m_firstLine = std::clamp (target - GetVisibleLines() / 3, 0, GetLastFirstLine());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblesView::IsLineInView
+//
+//  Whether the whole line is between the view's top and bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool NibblesView::IsLineInView (int line) const
+{
+    return line >= m_firstLine && GetLineTop (line) + GetLineHeight (line) <= static_cast<float> (m_boundsDip.bottom);
 }
 
 
