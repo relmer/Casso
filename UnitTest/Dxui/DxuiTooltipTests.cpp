@@ -297,6 +297,38 @@ public:
     //  moves it: hiding it and raising another at every step made it flicker
     //  from place to place. New text is put in place and starts its own
     //  lifetime; the same text moved along keeps the deadline it had.
+    //  A tip fades in over several ticks, so WantsTick is true until the
+    //  fade ends. Without that, a hover tip with no lifetime stopped at the
+    //  first frame of its fade and was invisible until the pointer moved off.
+    TEST_METHOD (AFadingInTipWantsTicksUntilTheFadeEnds)
+    {
+        DxuiHwndSource  host;
+        DxuiTooltip     t;
+
+
+
+        t.SetPopupHost       (&host);
+        t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindNoPointer);
+        t.SetDwellOpenMs     (100);
+
+        t.RequestShow (MakeRect (100, 200, 140, 220), L"Run", 0);
+        t.Tick (100);
+
+        Assert::IsTrue    (t.IsVisible(), L"up after its dwell");
+        Assert::IsNotNull (t.GetActivePopup());
+        Assert::IsFalse   (t.WantsTick(), L"a hover tip with no fade has no close time to wait for");
+
+        t.GetActivePopup()->SetRevealingForTest (true);
+        Assert::IsTrue (t.WantsTick(), L"fading in, so more ticks are wanted");
+
+        t.Tick (200);
+        Assert::IsFalse (t.WantsTick(), L"the fade is over");
+
+        t.HideImmediate();
+    }
+
+
     TEST_METHOD (RequestShowNow_MovesTheBalloonItHasUp)
     {
         DxuiHwndSource     host;

@@ -239,11 +239,14 @@ public:
     //  the pointer raises one and then moves it.
     int                  GetShowCount () const { return m_showCount; }
 
-    // True while a dwell timer (deferred open or timed close) is still
-    // pending, so a host that idle-blocks knows to keep calling Tick on a
-    // timeout rather than sleeping until the next input/frame.
+    // True while a dwell timer (deferred open or timed close) is pending or
+    // the balloon is fading in. While it is true, a host that idle-blocks
+    // calls Tick on a timeout rather than sleeping until the next input or
+    // frame. Unticked, a fade-in stops at transparent, and a hover tip with no
+    // lifetime is invisible until the pointer moves off it.
     bool                 WantsTick () const { return m_pending || m_fadingOut
-                                                   || (m_visible && m_hideAtMs != 0); }
+                                                   || (m_visible && m_hideAtMs != 0)
+                                                   || (m_activePopup != nullptr && m_activePopup->IsRevealing()); }
 
     //  The anchor a tip waiting out its open dwell is to be placed against.
     const RECT         & GetPendingAnchor() const { return m_pendingAnchor; }

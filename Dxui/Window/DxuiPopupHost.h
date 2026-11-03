@@ -298,6 +298,10 @@ public:
     void     ApplyReveal    (float t);
     bool     IsRevealing   () const { return m_revealing; }
 
+    //  A reveal in progress for a test, whose popup has no window to reveal;
+    //  the next AdvanceReveal ends it.
+    void     SetRevealingForTest (bool isRevealing) { m_revealing = isRevealing; m_revealDurationMs = 1; }
+
     //
     //  Measure the natural extent of `text` (in DIPs) through the
     //  popup's own text renderer. Available any time after Initialize()
