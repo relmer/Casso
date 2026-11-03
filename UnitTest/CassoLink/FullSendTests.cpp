@@ -796,7 +796,7 @@ public:
         Assert::AreEqual (std::string ("PRESS 1 TO SEND D1 ANYWAY."), rig.link.pauseLines.back()[3]);
     }
 
-    TEST_METHOD (Session_DriveKey_SendsTheListedDisk_AndAnExactCopyIsADuplicate)
+    TEST_METHOD (Session_DriveKey_SendsTheListedDisk_EvenAsAnExactCopy)
     {
         Rig  rig;
 
@@ -807,7 +807,9 @@ public:
         auto  session = rig.Run();
 
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
-        Assert::AreEqual (1, session->GetScreen().duplicates);
+        Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
+        Assert::AreEqual (0, session->GetScreen().duplicates);
+        Assert::AreEqual (std::string ("D1: SENT 2"), session->GetScreen().GetRows()[3]);
     }
 
     TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)
@@ -833,6 +835,9 @@ public:
 
         rig.Run();
 
+        //  The drive just sent isn't checked again before the first pause.
+        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[0][1]);
+        Assert::AreEqual (std::string ("D1: DUPE OF 0001.dsk?"), rig.link.screens[rig.link.screens.size() - 1].GetRows()[3]);
         Assert::AreEqual (std::string ("D1 AND D2 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[1][1]);
         Assert::AreEqual (std::string ("PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY."), rig.link.pauseLines[1][3]);
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 2, 2 }));
@@ -1062,20 +1067,28 @@ public:
 
     //  Images, duplicates and bad sectors.
 
+    //  A row whose fingerprint is from another way of taking it, and whose
+    //  image has the disk's hash, as after a change to the fingerprint's tracks.
     TEST_METHOD (Session_ADuplicateImage_IsDiscarded_WithARowAndTone)
     {
-        Rig    rig;
-        Image  first  = Other (1);
-        Image  second = first;
+        Rig               rig;
+        Image             disk = Other (1);
+        FullSendManifest  manifest;
+        FullSendRow       earlier = Row (1, "0001.dsk");
 
-        //  A copy has the first disk's fingerprint, so it is sent by its number.
-        rig.link.drives[0] = first;
-        rig.link.drives[1] = second;
-        rig.link.keys      = { FullSendKey::Space, FullSendKey::Drive2 };
+        AssertSucceeded (FullSendDisk::ComputeHash (disk, earlier.hash));
+
+        earlier.status = FullSendManifest::kStatusSent;
+        manifest.Add (earlier);
+
+        rig.io.files["C:\\Box\\manifest.fullsend"] = manifest.Format();
+        rig.link.drives[0]  = disk;
+        rig.link.present[1] = false;
 
         auto  session = rig.Run();
 
-        Assert::IsTrue (rig.Files() == std::vector<std::string> ({ "0001.dsk", "manifest.fullsend" }));
+        Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "manifest.fullsend" }));
+        Assert::AreEqual (std::string ("D1: DUPE OF 0001.dsk"), session->GetScreen().GetRows()[3]);
 
         const auto  & rows = session->GetManifest().GetRows();
 

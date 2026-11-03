@@ -59,7 +59,8 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Checking: row += "CHECKING";           break;
             case FullSendDriveState::Sending:  row += (verify ? "VERIFYING " : "SENDING ") + names[i]; break;
             case FullSendDriveState::Empty:    row += "NO READABLE DISK";   break;
-            case FullSendDriveState::Repeat:   row += "ALREADY SENT";       break;
+            case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
+            case FullSendDriveState::Duplicate: row += GetDuplicateText (names[i], "");  break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
             case FullSendDriveState::Protected: row += "LIKELY COPY-PROTECTED " + names[i]; break;
             case FullSendDriveState::OnDeck:
@@ -73,6 +74,37 @@ std::vector<std::string> FullSendScreen::GetRows() const
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendScreen::GetDuplicateText
+//
+//  DUPE OF and the earlier disk's file, cut short so it and the mark fit after
+//  D1: on a 40-column row. A drive's check ends in ?, as a match compares only
+//  a few tracks; a match of the whole-disk hash has no mark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FullSendScreen::GetDuplicateText (const std::string & file, const char * mark)
+{
+    static constexpr size_t  s_kWidth = 40 - 4;
+
+    std::string  text = "DUPE OF " + file;
+    size_t       room = s_kWidth - strlen (mark);
+
+
+
+    if (text.size() > room)
+    {
+        text.resize (room);
+    }
+
+    return text + mark;
 }
 
 
@@ -304,7 +336,7 @@ HRESULT FullSendSession::RunRound()
 
         if (disk.check == DiskCheck::New)
         {
-            hr = SendDisk (drive, disk);
+            hr = SendDisk (drive, disk, false);
             CHR (hr);
             BAIL_OUT_IF (true, S_OK);
         }
@@ -327,17 +359,16 @@ Error:
 //
 //  Space checks both drives, and a new disk is sent. A repeated disk isn't read:
 //  the prompt lists its drive, and that drive's number checks it again and sends
-//  it. The whole-disk hash discards an exact copy.
+//  it, even when it is an exact copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::Pause()
 {
-    HRESULT                   hr      = S_OK;
-    FullSendKey               key     = FullSendKey::Space;
-    std::array<int, 2>        order   = { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
-    std::array<bool, 2>       repeats = { false, false };
-    int                       chosen  = 0;
+    HRESULT                   hr     = S_OK;
+    FullSendKey               key    = FullSendKey::Space;
+    std::array<int, 2>        order  = { m_lastRead == 1 ? 2 : 1, m_lastRead == 1 ? 1 : 2 };
+    int                       chosen = 0;
     CheckedDisk               disk;
     std::vector<std::string>  lines;
 
@@ -352,7 +383,7 @@ HRESULT FullSendSession::Pause()
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
 
-        lines = GetPauseLines (repeats);
+        lines = GetPauseLines (m_repeats);
         lines.push_back (FullSendScreen::GetQuipText (m_screen.quip));
 
         hr = m_link.WaitForKey (lines, key);
@@ -371,8 +402,6 @@ HRESULT FullSendSession::Pause()
 
         if (key == FullSendKey::Space)
         {
-            repeats = { false, false };
-
             for (int drive : order)
             {
                 hr = CheckDrive (drive, disk);
@@ -380,15 +409,9 @@ HRESULT FullSendSession::Pause()
 
                 if (disk.check == DiskCheck::New)
                 {
-                    hr = SendDisk (drive, disk);
+                    hr = SendDisk (drive, disk, false);
                     CHR (hr);
                     BAIL_OUT_IF (true, S_OK);
-                }
-
-                if (disk.check == DiskCheck::Repeat)
-                {
-                    repeats[(size_t) drive - 1] = true;
-                    ReportRepeat (drive, disk);
                 }
             }
 
@@ -397,16 +420,16 @@ HRESULT FullSendSession::Pause()
 
         chosen = key == FullSendKey::Drive1 ? 1 : 2;
 
-        if (repeats[(size_t) chosen - 1])
+        if (m_repeats[(size_t) chosen - 1])
         {
             hr = CheckDrive (chosen, disk);
             CHR (hr);
 
-            repeats[(size_t) chosen - 1] = false;
+            m_repeats[(size_t) chosen - 1] = false;
 
             if (disk.check != DiskCheck::None)
             {
-                hr = SendDisk (chosen, disk);
+                hr = SendDisk (chosen, disk, true);
                 CHR (hr);
                 BAIL_OUT_IF (true, S_OK);
             }
@@ -468,6 +491,8 @@ void FullSendSession::ReportRepeat (int drive, const CheckedDisk & disk)
 
 
 
+    m_screen.names[(size_t) drive - 1] = match == nullptr ? std::string ("AN EARLIER READ") : file;
+
     m_link.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, file, drive));
 }
 
@@ -526,6 +551,7 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
 
 
     outDisk = {};
+    m_repeats[(size_t) drive - 1] = false;
 
     BAIL_OUT_IF (!present, S_OK);
 
@@ -541,6 +567,12 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     if (stable)
     {
         outDisk.check = (m_manifest.HasFingerprint (outDisk.fingerprint) || m_changed.contains (outDisk.fingerprint)) ? DiskCheck::Repeat : DiskCheck::New;
+    }
+
+    if (outDisk.check == DiskCheck::Repeat)
+    {
+        m_repeats[(size_t) drive - 1] = true;
+        ReportRepeat (drive, outDisk);
     }
 
     SetDriveState (drive, outDisk.check == DiskCheck::None   ? FullSendDriveState::Empty
@@ -668,7 +700,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
+HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool anyway)
 {
     HRESULT                             hr               = S_OK;
     int                                 sequence         = m_manifest.GetNextSequence();
@@ -749,7 +781,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     hr = FullSendDisk::ComputeHash (image, hash);
     CHR (hr);
 
-    earlier = m_manifest.FindImageByHash (hash);
+    //  A disk sent anyway is written even when it matches an earlier image.
+    earlier = anyway ? nullptr : m_manifest.FindImageByHash (hash);
 
     row.sequence    = sequence;
     row.drive       = drive;
@@ -768,7 +801,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
         row.status      = FullSendManifest::kStatusDuplicate;
         row.duplicateOf = earlier->file;
         m_screen.tone   = FullSendTone::Duplicate;
-        m_screen.names[(size_t) drive - 1] = std::to_string (sequence);
+        m_screen.names[(size_t) drive - 1] = earlier->file;
         m_screen.duplicates++;
     }
     else
@@ -823,7 +856,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked)
     }
 
     m_lastSent = true;
-    SetDriveState (drive, isProtected ? FullSendDriveState::Protected : FullSendDriveState::Sent);
+    SetDriveState (drive, row.file.empty() ? FullSendDriveState::Duplicate : isProtected ? FullSendDriveState::Protected : FullSendDriveState::Sent);
 
     hr = m_link.ShowScreen (m_screen);
     m_screen.tone = FullSendTone::None;

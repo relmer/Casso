@@ -28,6 +28,7 @@ enum class FullSendDriveState : Byte
     Sending,
     Empty,
     Repeat,
+    Duplicate,
     Sent,
     OnDeck,
     Protected,
@@ -72,7 +73,10 @@ struct FullSendScreen
     std::vector<std::string>  GetRows () const;
 
     //  A prompt line, from 1. Each fits after ON DECK-- on a 40-column row.
-    static const char *  GetQuipText (Byte quip);
+    static const char *  GetQuipText      (Byte quip);
+
+    //  DUPE OF and an earlier disk's file, cut short to fit a drive's row.
+    static std::string   GetDuplicateText (const std::string & file, const char * mark);
 };
 
 
@@ -229,7 +233,7 @@ private:
     HRESULT  CheckDrive      (int drive, CheckedDisk & outDisk);
     HRESULT  ReadFingerprint (int drive, CheckedDisk & outDisk, bool & outStable);
     HRESULT  ReadStableTrack (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
-    HRESULT  SendDisk        (int drive, const CheckedDisk & checked);
+    HRESULT  SendDisk        (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  WriteImage      (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
     HRESULT  WriteManifest   ();
     void     End             (HRESULT hr);
@@ -255,6 +259,7 @@ private:
     int                      m_lastRead   = 0;
     bool                     m_lastSent   = false;
     std::array<bool, 2>      m_deckShown  = { false, false };
+    std::array<bool, 2>      m_repeats    = { false, false };   // drives whose last check matched the manifest
     uint64_t                 m_commitTag  = 1;
     std::mt19937             m_random     { std::random_device{}() };
     std::vector<Byte>        m_quips;         // the prompt lines left before any repeats

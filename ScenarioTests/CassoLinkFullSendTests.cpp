@@ -480,9 +480,9 @@ public:
 
 
 
-    //  A duplicate and a disk with an unreadable sector: both listed, no second
-    //  image, and the session goes on past each.
-    TEST_METHOD (ADuplicateAndABadSector_AreListed_AndTheSessionContinues)
+    //  A repeat sent anyway is written as a second image, a disk with an
+    //  unreadable sector is listed, and the session goes on past each.
+    TEST_METHOD (ARepeatSentAnyway_IsWritten_AndABadSector_IsListed)
     {
         Rig    rig;
         Image  dos    = Sectors (rig.dosFile, "d.dsk");
@@ -499,10 +499,10 @@ public:
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"a pause, as drive 2's disk repeats drive 1's");
         pauses++;
 
-        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: ALREADY SENT"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
+        Assert::IsTrue (rig.Row (kRowDrive2).starts_with ("D2: DUPE OF ") && rig.Row (kRowDrive2).ends_with ("?"), TextEncoding::NarrowToWide (rig.Row (kRowDrive2)).c_str());
 
         //  Space reads neither disk and lists both. Drive 2's number sends its
-        //  disk, and its hash makes it a duplicate.
+        //  disk anyway.
         rig.Press (' ');
         rig.RunUntil ([&] () { return rig.Row (kRowPrompt2).find ("MAY ALREADY HAVE BEEN SENT") != std::string::npos; }, L"the already-sent prompt");
 
@@ -513,7 +513,7 @@ public:
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the next pause");
         pauses++;
 
-        Assert::IsTrue (rig.Row (kRowCounts).find ("DUP 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
+        Assert::IsTrue (rig.Row (kRowCounts).find ("SENT 2   DUP 0") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
 
         //  The next disk has an unreadable sector.
         rig.Mount (1, DiskFormat::Nib, WithUnreadableSector (bad));
@@ -531,14 +531,13 @@ public:
         Assert::AreEqual (2, pauses);
         Assert::AreEqual ((size_t) 3, rows.size());
         Assert::AreEqual (std::string ("sent"), rows[0].status);
-        Assert::AreEqual (std::string ("duplicate"), rows[1].status);
-        Assert::AreEqual (rows[0].file, rows[1].duplicateOf);
-        Assert::IsTrue (rows[1].file.empty());
+        Assert::AreEqual (std::string ("sent"), rows[1].status);
+        Assert::AreNotEqual (rows[0].file, rows[1].file);
         Assert::AreEqual (std::string ("likely-damaged"), rows[2].status);
         Assert::AreEqual (1, rows[2].unreadable);
 
-        //  The two images, the manifest and the unreadable list, and no duplicate.
-        Assert::AreEqual ((size_t) 4, rig.fileIo.files.size());
+        //  The three images, the manifest and the unreadable list.
+        Assert::AreEqual ((size_t) 5, rig.fileIo.files.size());
         Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\" + rows[2].file + ".unreadable.txt"));
     }
 
