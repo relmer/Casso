@@ -11,6 +11,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/Handlers/SymbolHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
 #include "Debugger/ReplyJson.h"
 
@@ -181,7 +182,9 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
 
 
 
-        if (!isLoaded)
+        //  A BASIC program an earlier Casso loaded as symbols is passed
+        //  over, so the next save drops it from the project.
+        if (!isLoaded && !SymbolHandlers::IsBasicListing (TextEncoding::WideToNarrow (file.path), std::string()))
         {
             run (std::format ("SYM{} LOAD \"{}\",{:04X}", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (file.table)),
                               TextEncoding::WideToNarrow (file.path), file.offset));

@@ -28,6 +28,11 @@ class SymbolHandlers : public IDebugCommandHandler
 public:
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
+    //  An Applesoft listing rather than a symbol file: a .bas file, or three
+    //  lines or more, each a rising line number and a statement starting
+    //  with a keyword. Read as symbols, `10 HOME` was HOME at $0010.
+    static bool  IsBasicListing (const std::string & path, const std::string & content);
+
 private:
     static void  Lookup   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  LookupPattern (DebugSession & session, const DebugCommand & command, const std::string & pattern, Reply & reply);

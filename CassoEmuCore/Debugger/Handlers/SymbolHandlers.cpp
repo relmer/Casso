@@ -2,6 +2,7 @@
 
 #include "Debugger/Handlers/SymbolHandlers.h"
 
+#include "ApplesoftTokenizer.h"
 #include "Config/IFileSystem.h"
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/SymbolFileReader.h"
@@ -312,6 +313,12 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
         return;
     }
 
+    if (IsBasicListing (name, content))
+    {
+        reply.SetError (CommandStatus::Error, "not a symbol file", std::format ("{} is a BASIC program; BASICLOAD loads it into memory.", name));
+        return;
+    }
+
     if (DebugFileReader::IsDebugFile (content))
     {
         LoadDebugFile (session, table, name, content, offset, false, reply);
@@ -482,6 +489,76 @@ void SymbolHandlers::AddRegisterNameNote (DebugSession & session, SymbolTableId 
     lines.push_back (found.size() == 1
                          ? std::format ("The file defines {0}, a register's name. {0} is now the symbol; {1} is the register.", names, ats)
                          : std::format ("The file defines {0}, the names of registers. Each is now the symbol; {1} are the registers.", names, ats));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::IsBasicListing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolHandlers::IsBasicListing (const std::string & path, const std::string & content)
+{
+    std::istringstream  in (content);
+    std::string         line;
+    size_t              digits = 0;
+    size_t              start  = 0;
+    long                number = -1;
+    long                last   = -1;
+    int                 count  = 0;
+
+
+
+    if (path.size() >= 4 && SymbolTable::ToUpper (path.substr (path.size() - 4)) == ".BAS")
+    {
+        return true;
+    }
+
+    while (std::getline (in, line))
+    {
+        bool  isKeyword = false;
+
+        if (line.find_first_not_of (" \t\r") == std::string::npos)
+        {
+            continue;
+        }
+
+        digits = line.find_first_not_of ("0123456789");
+        start  = (digits == std::string::npos) ? std::string::npos : line.find_first_not_of (' ', digits);
+
+        //  Applesoft lists a line's number with no leading zero, and each
+        //  number is above the one before.
+        number = (digits > 0 && digits <= 5) ? std::stol (line.substr (0, digits)) : -1;
+
+        if (digits == std::string::npos || number <= last || (line[0] == '0' && digits > 1) || start == std::string::npos)
+        {
+            return false;
+        }
+
+        last = number;
+
+        for (Byte token = ApplesoftTokenizer::kFirstToken; token <= ApplesoftTokenizer::kLastToken && !isKeyword; token++)
+        {
+            const char  * keyword = ApplesoftTokenizer::GetKeyword (token);
+
+            isKeyword = keyword != nullptr && SymbolTable::ToUpper (line.substr (start)).starts_with (keyword);
+        }
+
+        if (!isKeyword)
+        {
+            return false;
+        }
+
+        count++;
+    }
+
+    //  A few lines at least: a symbol file of one or two symbols that start
+    //  with keywords, such as PRINTIT, isn't taken for a program.
+    return count >= 3;
 }
 
 
