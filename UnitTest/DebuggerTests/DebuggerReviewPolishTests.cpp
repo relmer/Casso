@@ -207,6 +207,85 @@ namespace DebuggerReviewPolishTests
             Assert::AreEqual (std::wstring(), rows[2].cells[0], L"and blank");
             Assert::AreEqual (1.0f,           rows[3].height, L"the command's own line is whole");
         }
+
+
+        //  Each line the console adds, the command typed with the rest,
+        //  starts with the time it was added, in the first column. The gap
+        //  between commands doesn't have a time.
+        TEST_METHOD (EachConsoleLineStartsWithTheTimeItWasAdded)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            PolishHost                 host;
+            PolishWindow               window (theme, host);
+            std::vector<std::string>   lines  = { "> R", "A=00" };
+            SYSTEMTIME                 time   = { 2026, 11, 2, 3, 14, 5, 9, 0 };
+            ConsoleOutput            * output = nullptr;
+
+
+
+            window.Build();
+            output = &window.GetConsolePane().GetOutput();
+            DebuggerViewState::AddCommandGap (lines);
+            output->Append (lines, time);
+
+            const std::vector<DxuiTextView::Row> & rows = output->GetView()->GetRows();
+
+            Assert::AreEqual ((size_t) 5, rows.size());
+            Assert::AreEqual (ConsoleOutput::GetTimeStamp (time), rows[3].cells[0], L"the command typed");
+            Assert::AreEqual (std::wstring (L"> R"),              rows[3].cells[1]);
+            Assert::AreEqual (ConsoleOutput::GetTimeStamp (time), rows[4].cells[0], L"its output");
+            Assert::AreEqual ((size_t) 1,                         rows[2].cells.size(), L"the gap");
+        }
+
+
+        //  The stamp is the short time in brackets; the tip over it has the
+        //  long date and the time with its seconds.
+        TEST_METHOD (TheTimeStampIsTheShortTimeAndItsTipTheFullDateAndTime)
+        {
+            SYSTEMTIME  time = { 2026, 11, 2, 3, 14, 5, 9, 0 };
+
+
+
+            Assert::AreEqual (std::wstring (L"[2:05 PM]"),                          ConsoleOutput::GetTimeStamp (time, L"en-US"));
+            Assert::AreEqual (std::wstring (L"[14:05]"),                            ConsoleOutput::GetTimeStamp (time, L"de-DE"));
+            Assert::AreEqual (std::wstring (L"Tuesday, November 3, 2026 2:05:09 PM"), ConsoleOutput::GetFullTime (time, L"en-US"));
+        }
+
+
+        //  The pointer over a line's stamp has the full time; over its text,
+        //  none.
+        TEST_METHOD (TheTipOverALinesStampHasItsFullTime)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            PolishHost       host;
+            PolishWindow     window (theme, host);
+            SYSTEMTIME       time   = { 2026, 11, 2, 3, 14, 5, 9, 0 };
+            ConsoleOutput  * output = nullptr;
+            DxuiDpiScaler    scaler;
+            RECT             anchor = {};
+            std::wstring     text;
+            float            stampX = 0.0f;
+            float            textX  = 0.0f;
+            float            middle = 0.0f;
+            int              row    = 0;
+
+
+
+            scaler.SetDpi (96);
+            window.Build();
+            output = &window.GetConsolePane().GetOutput();
+            output->GetView()->SetCellSize (8, 16);
+            output->GetView()->Layout (RECT { 0, 0, 400, 300 }, scaler);
+            output->Append ({ "> R" }, time);
+            row = (int) output->GetView()->GetRows().size() - 1;
+
+            Assert::IsTrue (output->GetView()->GetCellAnchorPx (row, 0, stampX, middle), L"the last row is drawn");
+            Assert::IsTrue (output->GetView()->GetCellAnchorPx (row, 1, textX,  middle));
+
+            Assert::IsTrue   (output->TryGetTimeTip (POINT { (LONG) stampX + 2, (LONG) middle }, anchor, text), L"over the stamp");
+            Assert::AreEqual (ConsoleOutput::GetFullTime (time), text);
+            Assert::IsFalse  (output->TryGetTimeTip (POINT { (LONG) textX + 4, (LONG) middle }, anchor, text), L"over the text");
+        }
     };
 
 

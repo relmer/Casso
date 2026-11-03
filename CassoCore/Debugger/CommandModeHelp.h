@@ -92,6 +92,10 @@ public:
     //  they are.
     static std::vector<std::string>  LayOutTabbedRows (const std::vector<std::string> & lines, int consoleColumns);
 
+    //  The same, with the index in `lines` of each line laid out, in order:
+    //  a row whose syntax is too long for its column is two lines of one.
+    static std::vector<std::string>  LayOutTabbedRows (const std::vector<std::string> & lines, int consoleColumns, std::vector<size_t> & sources);
+
     //  The syntax column's width for rows of this syntax and description
     //  width: the widest syntax where every row fits the console unwrapped,
     //  otherwise no wider than kMaxSyntaxColumn.

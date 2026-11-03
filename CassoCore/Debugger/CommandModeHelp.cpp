@@ -1226,12 +1226,33 @@ void CommandModeHelp::AppendRow (const std::string & syntax, const std::string &
 
 std::vector<std::string> CommandModeHelp::LayOutTabbedRows (const std::vector<std::string> & lines, int consoleColumns)
 {
+    std::vector<size_t>  sources;
+
+
+
+    return LayOutTabbedRows (lines, consoleColumns, sources);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::LayOutTabbedRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandModeHelp::LayOutTabbedRows (const std::vector<std::string> & lines, int consoleColumns, std::vector<size_t> & sources)
+{
     std::vector<std::string>  laidOut;
     size_t                    syntax      = 0;
     size_t                    description = 0;
     size_t                    width       = 0;
 
 
+
+    sources.clear();
 
     for (const std::string & line : lines)
     {
@@ -1246,17 +1267,21 @@ std::vector<std::string> CommandModeHelp::LayOutTabbedRows (const std::vector<st
 
     width = GetSyntaxColumn (syntax, description, consoleColumns);
 
-    for (const std::string & line : lines)
+    for (size_t i = 0; i < lines.size(); i++)
     {
-        size_t  tab = line.find ('\t');
+        const std::string  & line = lines[i];
+        size_t               tab  = line.find ('\t');
 
         if (tab == std::string::npos)
         {
             laidOut.push_back (line);
-            continue;
+        }
+        else
+        {
+            AppendRow (line.substr ((std::min) (tab, kRowIndent), tab - (std::min) (tab, kRowIndent)), line.substr (tab + 1), width, laidOut);
         }
 
-        AppendRow (line.substr ((std::min) (tab, kRowIndent), tab - (std::min) (tab, kRowIndent)), line.substr (tab + 1), width, laidOut);
+        sources.resize (laidOut.size(), i);
     }
 
     return laidOut;

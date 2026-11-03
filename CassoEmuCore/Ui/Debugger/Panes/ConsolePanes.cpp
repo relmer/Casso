@@ -76,10 +76,31 @@ void ConsoleOutput::Configure()
 
 void ConsoleOutput::Append (const std::vector<std::string> & lines)
 {
-    bool  atEnd   = m_view->IsAtEnd();
-    int   top     = m_view->GetTopLine();
-    int   dropped = 0;
-    auto  first   = lines.begin();
+    SYSTEMTIME  now = {};
+
+
+
+    GetLocalTime (&now);
+    Append (lines, now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::Append
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEMTIME & time)
+{
+    bool          atEnd   = m_view->IsAtEnd();
+    int           top     = m_view->GetTopLine();
+    int           dropped = 0;
+    auto          first   = lines.begin();
+    std::wstring  stamp   = GetTimeStamp (time);
 
 
 
@@ -93,7 +114,10 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
         return;
     }
 
-    m_lines.insert (m_lines.end(), first, lines.end());
+    for (auto line = first; line != lines.end(); ++line)
+    {
+        m_lines.push_back (Line { *line, time, stamp });
+    }
 
     if ((int) m_lines.size() > kLineLimit)
     {
@@ -150,34 +174,66 @@ void ConsoleOutput::Reflow()
 //  ConsoleOutput::GetRows
 //
 //  Each command's output is laid out apart from the rest, so a help
-//  listing's syntax column fits its rows at the view's width.
+//  listing's syntax column fits its rows at the view's width less the time
+//  stamps' column. The time stamp is the first cell of a line's first row;
+//  a help row laid out as two has an empty first cell on the second.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTextView::Row> ConsoleOutput::GetRows() const
+std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
 {
     std::vector<DxuiTextView::Row>  rows;
-    auto                            start = m_lines.begin();
+    size_t                          start   = 0;
+    size_t                          stampAt = 0;
+    std::vector<std::string>        texts;
+    std::vector<std::string>        laidOut;
+    std::vector<size_t>             sources;
 
 
 
-    while (start != m_lines.end())
+    for (const Line & line : m_lines)
     {
-        auto  end = std::find_if (start + 1, m_lines.end(), [] (const std::string & line) { return DebuggerViewState::IsCommandGap (line); });
+        stampAt = (std::max) (stampAt, line.stamp.size() + 1);
+    }
 
-        for (const std::string & line : CommandModeHelp::LayOutTabbedRows (std::vector<std::string> (start, end), m_columns))
+    m_rowLines.clear();
+
+    while (start < m_lines.size())
+    {
+        size_t  end = start + 1;
+
+        while (end < m_lines.size() && !DebuggerViewState::IsCommandGap (m_lines[end].text))
         {
-            DxuiTextView::Row  row;
+            end++;
+        }
 
-            if (DebuggerViewState::IsCommandGap (line))
+        texts.clear();
+
+        for (size_t i = start; i < end; i++)
+        {
+            texts.push_back (m_lines[i].text);
+        }
+
+        laidOut = CommandModeHelp::LayOutTabbedRows (texts, (std::max) (0, m_columns - (int) stampAt), sources);
+
+        for (size_t r = 0; r < laidOut.size(); r++)
+        {
+            const std::string  & text   = laidOut[r];
+            size_t               source = start + sources[r];
+            bool                 isLead = r == 0 || sources[r - 1] != sources[r];
+            DxuiTextView::Row    row;
+
+            if (DebuggerViewState::IsCommandGap (text))
             {
                 row.cells  = { std::wstring() };
                 row.height = DebuggerViewState::kCommandGapHeight;
+                m_rowLines.push_back (-1);
             }
             else
             {
-                row.cells      = { TextEncoding::NarrowToWide (line) };
-                row.wrapIndent = GetWrapIndent (line);
+                row.cells      = { isLead ? m_lines[source].stamp : std::wstring(), TextEncoding::NarrowToWide (text) };
+                row.wrapIndent = GetWrapIndent (text);
+                m_rowLines.push_back (isLead ? (int) source : -1);
             }
 
             rows.push_back (std::move (row));
@@ -235,7 +291,119 @@ int ConsoleOutput::GetWrapIndent (const std::string & line)
 void ConsoleOutput::Clear()
 {
     m_lines.clear();
+    m_rowLines.clear();
     m_view->SetRows ({});
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::TryGetTimeTip
+//
+//  The time stamp is the first cell of a row's first line, so a point on a
+//  wrapped row's later lines is not over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsoleOutput::TryGetTimeTip (POINT point, RECT & anchor, std::wstring & text) const
+{
+    DxuiTextView::Position  pos    = {};
+    float                   left   = 0.0f;
+    float                   right  = 0.0f;
+    float                   middle = 0.0f;
+    float                   half   = 0.0f;
+    int                     line   = -1;
+
+
+
+    if (m_view == nullptr || !m_view->IsVisible() || !m_host.IsRoutable (m_view) || !DxuiDockSite::Contains (m_view->GetBounds(), point))
+    {
+        return false;
+    }
+
+    pos = m_view->HitTest (point);
+
+    if (pos.row < 0 || pos.row >= (int) m_rowLines.size() || m_rowLines[(size_t) pos.row] < 0)
+    {
+        return false;
+    }
+
+    line = m_rowLines[(size_t) pos.row];
+
+    if (!m_view->GetCellAnchorPx (pos.row, 0, left, middle) || !m_view->GetCellAnchorPx (pos.row, 1, right, middle))
+    {
+        return false;
+    }
+
+    half = (float) m_view->GetCellHeightPx() * 0.5f;
+
+    if ((float) point.x < left || (float) point.x >= right || (float) point.y < middle - half || (float) point.y >= middle + half)
+    {
+        return false;
+    }
+
+    anchor = RECT { (LONG) left, (LONG) (middle - half), (LONG) right, (LONG) (middle + half) };
+    text   = GetFullTime (m_lines[(size_t) line].time);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetTimeStamp
+//
+//  The short time format is the one the user picks in the region settings,
+//  which GetTimeFormatEx with no format would not use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ConsoleOutput::GetTimeStamp (const SYSTEMTIME & time, const wchar_t * locale)
+{
+    wchar_t  format[80]  = {};
+    wchar_t  stamp[80]   = {};
+
+
+
+    if (GetLocaleInfoEx (locale, LOCALE_SSHORTTIME, format, (int) std::size (format)) == 0 ||
+        GetTimeFormatEx (locale, 0, &time, format, stamp, (int) std::size (stamp)) == 0)
+    {
+        return std::format (L"[{:02}:{:02}]", time.wHour, time.wMinute);
+    }
+
+    return std::format (L"[{}]", stamp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetFullTime
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ConsoleOutput::GetFullTime (const SYSTEMTIME & time, const wchar_t * locale)
+{
+    wchar_t  date[128]  = {};
+    wchar_t  clock[80]  = {};
+
+
+
+    if (GetDateFormatEx (locale, DATE_LONGDATE, &time, nullptr, date, (int) std::size (date), nullptr) == 0 ||
+        GetTimeFormatEx (locale, 0, &time, nullptr, clock, (int) std::size (clock)) == 0)
+    {
+        return std::format (L"{:04}-{:02}-{:02} {:02}:{:02}:{:02}", time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond);
+    }
+
+    return std::format (L"{} {}", date, clock);
 }
 
 
@@ -1106,5 +1274,28 @@ bool ConsolePane::SubmitTextBox (DxuiTextInput * box)
     }
 
     m_commandLine.Submit();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsolePane::TryGetTip
+//
+//  Over a line's time stamp, the date and the time in full.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsolePane::TryGetTip (POINT clientPx, PaneTip & tip)
+{
+    if (!m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
+    {
+        return false;
+    }
+
+    tip.kind = PaneTip::Kind::Control;
     return true;
 }

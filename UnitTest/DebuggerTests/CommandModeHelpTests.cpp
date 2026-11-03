@@ -307,6 +307,23 @@ namespace DebuggerTests
         }
 
 
+        //  Each line laid out has the index of the line it came from, so the
+        //  two lines of a long syntax's row have one index.
+        TEST_METHOD (EachLaidOutLineHasTheIndexOfItsSource)
+        {
+            std::vector<std::string>  lines = { "Commands:", "    BP addr\tSet a breakpoint", "    " + std::string (30, 'S') + "\tA long one" };
+            std::vector<size_t>       sources;
+            std::vector<std::string>  narrow;
+
+
+
+            narrow = CommandModeHelp::LayOutTabbedRows (lines, 50, sources);
+
+            Assert::AreEqual ((size_t) 4, narrow.size());
+            Assert::IsTrue   ((std::vector<size_t> { 0, 1, 2, 2 }) == sources, L"the long syntax's two lines are from the third");
+        }
+
+
         TEST_METHOD (HelpIsByCategory_AndAlphabeticalWithinEach)
         {
             std::vector<std::string>  lines    = CommandModeHelp::BuildHelp (CommandMode::Casso);

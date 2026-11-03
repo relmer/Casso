@@ -37,10 +37,21 @@ public:
     void                 Configure      ();
 
     //  Lines added at the end, the oldest going past the limit; the text
-    //  emptied; and the text scrolled to its end.
+    //  emptied; and the text scrolled to its end. Each line is stamped with
+    //  the local time it was added, or with `time`.
     void                 Append         (const std::vector<std::string> & lines);
+    void                 Append         (const std::vector<std::string> & lines, const SYSTEMTIME & time);
     void                 Clear          ();
     void                 ScrollToEnd    ();
+
+    //  Over a line's time stamp: the time stamp's rect, and the date and the
+    //  time in full for the tip.
+    bool                 TryGetTimeTip  (POINT point, RECT & anchor, std::wstring & text) const;
+
+    //  A time in the locale's short time format in brackets, as each line
+    //  starts with; and the locale's long date and long time.
+    static std::wstring  GetTimeStamp   (const SYSTEMTIME & time, const wchar_t * locale = LOCALE_NAME_USER_DEFAULT);
+    static std::wstring  GetFullTime    (const SYSTEMTIME & time, const wchar_t * locale = LOCALE_NAME_USER_DEFAULT);
 
     //  The text laid out again once the view's width has changed, so a help
     //  listing's rows fit the width as it is now.
@@ -61,11 +72,20 @@ private:
     static constexpr float   kLineSpacing     = 1.2f;
     static constexpr size_t  kWrapIndentLimit = 48;
 
-    std::vector<DxuiTextView::Row>  GetRows () const;
+    struct Line
+    {
+        std::string   text;
+        SYSTEMTIME    time  = {};
+        std::wstring  stamp;
+    };
+
+    //  The rows, and the line each row's time stamp is from in m_rowLines.
+    std::vector<DxuiTextView::Row>  GetRows ();
 
     IDebuggerPaneHost         & m_host;
     DxuiTextView              * m_view    = nullptr;
-    std::vector<std::string>    m_lines;
+    std::vector<Line>           m_lines;
+    std::vector<int>            m_rowLines;        // -1 for a row with no time stamp
     int                         m_columns = 0;     // the view's width the rows were laid out for
 };
 
@@ -233,6 +253,7 @@ public:
     void                             PlaceBar       () override { m_modeBar.GetSlot().Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_modeBar.GetSlot().RouteMouse (ev); }
     const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_modeBar.GetSlot().GetTip (clientPx, anchor); }
+    bool                             TryGetTip      (POINT clientPx, PaneTip & tip) override;
 
 private:
     ConsoleOutput                         m_output;
