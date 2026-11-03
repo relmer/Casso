@@ -645,6 +645,78 @@ namespace FloatingPanesRoutingTests
         }
 
 
+        //  A floating window moved along a docked group's tabs opens the gap
+        //  where it would land at each step, ahead of the tab whose left half
+        //  the pointer is over.
+        TEST_METHOD (MovingAlongATabStripMovesTheGap)
+        {
+            DockingHost          host;
+            FloatingPanes        floats  (host);
+            DxuiDpiScaler        scaler;
+            DxuiDockedWindow   * window  = nullptr;
+            DxuiTabGroup       * group   = nullptr;
+            MockDxuiControl      mem;
+            MockDxuiControl      watch;
+            DxuiPaneLayout       layout  = DxuiPaneLayout::MakeSingle (L"code");
+            POINT                cursor  = { 500, 300 };
+            bool                 isDown  = true;
+            RECT                 tab     = {};
+
+
+
+            layout.Add (L"mem",   L"code");
+            layout.Add (L"watch", L"code");
+            layout.Add (L"regs",  L"");
+            (void) layout.Float (L"regs", L"", RECT { 0, 0, 300, 200 });
+            host.site.AddPane       (L"mem",   L"Memory",  &mem);
+            host.site.AddPane       (L"watch", L"Watches", &watch);
+            host.site.SetPaneLayout (layout);
+
+            host.floats = &floats;
+            scaler.SetDpi (96);
+            host.site.Layout (RECT { 0, 0, 1000, 600 }, scaler);
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"regs floats in a window");
+
+            for (size_t g = 0; g < host.site.GetGroupCount() && group == nullptr; g++)
+            {
+                group = (host.site.GetGroup (g)->GetTabCount() == 3) ? host.site.GetGroup (g) : nullptr;
+            }
+
+            Assert::IsNotNull (group, L"code, mem and watch are tabs of one group");
+
+            host.isThemed = false;
+            window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
+            window->SetScreenRect (RECT { 2000, 2000, 2300, 2200 });
+            cursor = POINT { 2010, 2010 };
+            SendMessageW (window->GetHwnd(), WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
+
+            for (int t = 2; t >= 0; t--)
+            {
+                tab    = group->GetTabRect (t);
+                cursor = POINT { tab.left + 2, (tab.top + tab.bottom) / 2 };
+                SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
+                Assert::AreEqual (t, host.site.GetStripTargetIndex(), L"moving left, ahead of the tab under the pointer");
+                Assert::AreEqual (cursor.x - 10, window->GetScreenRect().left, L"the faded window follows the pointer");
+                Assert::IsTrue   (window->IsHeaderFaded());
+            }
+
+            for (int t = 0; t < 3; t++)
+            {
+                tab    = group->GetTabRect (t);
+                cursor = POINT { tab.right - 2, (tab.top + tab.bottom) / 2 };
+                SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
+                Assert::AreEqual (t + 1, host.site.GetStripTargetIndex(), L"moving right, after the tab under the pointer");
+            }
+
+            SendMessageW (window->GetHwnd(), WM_KEYDOWN, VK_ESCAPE, 0);
+            Assert::IsFalse (window->IsMoving(), L"Escape over the strip ends the move");
+        }
+
+
     private:
 
         //  The window moved by its title bar and let go with the pointer at

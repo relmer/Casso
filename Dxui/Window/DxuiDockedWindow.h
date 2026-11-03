@@ -137,9 +137,7 @@ protected:
     void  OnWindowPlaced () override;
     void  OnDpiChanged   (UINT newDpi) override;
     void  OnWindowFocusChanged (bool focused) override;
-    bool  HasModalOverlay   () const override { return m_headerFade; }
-    void  PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  HasDragLayer      () const override { return m_site != nullptr && m_site->HasDragLayer(); }
+    bool  HasDragLayer      () const override { return m_site != nullptr && (m_headerFade || m_site->HasDragLayer()); }
     void  PaintDragLayer    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:

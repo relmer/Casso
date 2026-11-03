@@ -108,37 +108,6 @@ std::vector<DxuiDockDragMark> DxuiDockedWindow::GetHeaderFade (const RECT & rowP
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockedWindow::PaintModalOverlay
-//
-//  The header fade, drawn after the page's text so it fades that too. In a
-//  composited window the bands, drawn in erase mode, lower the alpha of what
-//  is under them, so the desktop shows through.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockedWindow::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    RECT  row = {};
-
-
-
-    UNREFERENCED_PARAMETER (text);
-    UNREFERENCED_PARAMETER (theme);
-
-    if (m_site == nullptr || !TryGetHeaderFadeRow (*m_site, row))
-    {
-        return;
-    }
-
-    PaintHeaderFade (painter, row);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockedWindow::TryGetHeaderFadeRow
 //
 //  The site lays its groups out in pixels at its DPI, so the row is used as
@@ -172,7 +141,14 @@ bool DxuiDockedWindow::TryGetHeaderFadeRow (const DxuiDockSite & site, RECT & ou
 //
 //  DxuiDockedWindow::PaintDragLayer
 //
-//  The marks of a drag in the site, over the panes and their pictures.
+//  The marks of a drag in the site, over the panes and their pictures, then
+//  the header fade, drawn after the page's text so it fades that too. In a
+//  composited window the fade's bands, drawn in erase mode, lower the alpha
+//  of what is under them, and the desktop is visible through them.
+//
+//  The fade is not a modal overlay: an overlay's input routing sends the
+//  mouse and keys of a move to OnOverlayMouse and OnOverlayKey, and the
+//  window stops following the pointer once the fade is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,9 +157,20 @@ void DxuiDockedWindow::PaintDragLayer (
     IDxuiTextRenderer  & text,
     const IDxuiTheme   & theme)
 {
-    if (m_site != nullptr)
+    RECT  row = {};
+
+
+
+    if (m_site == nullptr)
     {
-        m_site->PaintDragLayer (painter, text, theme);
+        return;
+    }
+
+    m_site->PaintDragLayer (painter, text, theme);
+
+    if (m_headerFade && TryGetHeaderFadeRow (*m_site, row))
+    {
+        PaintHeaderFade (painter, row);
     }
 }
 
