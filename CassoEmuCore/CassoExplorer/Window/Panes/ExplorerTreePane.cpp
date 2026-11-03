@@ -1117,6 +1117,7 @@ void ExplorerTreePane::AddRootRows (std::vector<DxuiPopupMenuItem> & items, cons
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerTreePane::AddTreeIconRow
