@@ -926,10 +926,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     if (hasFolder && m_context.browser.CanRemoveFromCasso (id))
     {
         m_context.menus.AddMenuCommand (items, L"&Remove from Casso", [this, folder]() { m_context.folderSync.ChangeKnownFolder (folder, false); });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.unpinfromhome");
     }
     else if (hasFolder && m_context.browser.CanAddToCasso (id))
     {
         m_context.menus.AddMenuCommand (items, L"&Add to Casso", [this, folder]() { m_context.folderSync.ChangeKnownFolder (folder, true); });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.pintohome");
     }
 
     m_context.cassoLinkManager.AddConnectionRows (items, hasLocation, location);

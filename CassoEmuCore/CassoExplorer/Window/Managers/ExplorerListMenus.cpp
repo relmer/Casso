@@ -619,8 +619,9 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                 m_context.menus.GetMenuCommands().push_back (std::move (child));
             }
 
-            parent->label = L"&Advanced";
+            parent->label     = L"&Advanced";
             parent->menuGlyph = s_kpszMdl2Setting;
+            parent->menuSvg   = m_context.menus.GetMenuSvg (L"windows.otheractionsflyout");
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (advanced)));
             m_context.menus.GetMenuCommands().push_back (std::move (parent));
         }
@@ -646,6 +647,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         {
             m_context.folderSync.ChangeKnownFolder (folderForCasso, !known);
         });
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (known ? L"windows.unpinfromhome" : L"windows.pintohome");
     }
 
     //  From the current folder's background: Properties, then the commands

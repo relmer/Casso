@@ -193,11 +193,16 @@ void ExplorerMenus::ApplyMenuSvgs()
         m_context.commands.SetMenuSvg (CassoExplorerCommands::kViewFirst + (int) view, GetMenuSvg (name));
     }
 
-    m_context.commands.SetMenuSvg (CassoExplorerCommands::kTogglePreview, GetMenuSvg (L"windows.previewpane"));
-    m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewFolder,     GetMenuSvg (L"newfolder"));
-    m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewDisk,       GetMenuSvg (L"casso.floppy525"));
-    m_context.commands.SetMenuSvg (CassoExplorerCommands::kOptions,       GetMenuSvg (L"windows.folderoptions"));
-    m_context.commands.SetMenuSvg (CassoExplorerCommands::kAddLink,       GetMenuSvg (L"windows.addnetworklocation"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kTogglePreview,       GetMenuSvg (L"windows.previewpane"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewFolder,           GetMenuSvg (L"newfolder"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kNewDisk,             GetMenuSvg (L"casso.floppy525"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kOptions,             GetMenuSvg (L"windows.folderoptions"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kAddLink,             GetMenuSvg (L"windows.addnetworklocation"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kAbout,               GetMenuSvg (L"casso.about"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kTheme,               GetMenuSvg (L"Personalize"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kReadDiskToImage,     GetMenuSvg (L"casso.floppy525"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kWriteImageToDisk,    GetMenuSvg (L"windows.discimage.burn"));
+    m_context.commands.SetMenuSvg (CassoExplorerCommands::kCancelLinkOperation, GetMenuSvg (L"windows.close"));
 }
 
 
@@ -223,6 +228,10 @@ const wchar_t * ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb ve
         case CassoExplorerActions::Verb::InsertDrive1: return L"casso.floppy525";
         case CassoExplorerActions::Verb::InsertDrive2: return L"casso.floppy525";
         case CassoExplorerActions::Verb::Format:       return L"windows.diskformat";
+        case CassoExplorerActions::Verb::OpenInNewCasso: return L"windows.openinnewwindow";
+        case CassoExplorerActions::Verb::Krunch:       return L"Windows.Zip.Action";
+        case CassoExplorerActions::Verb::Lock:         return L"casso.lock";
+        case CassoExplorerActions::Verb::Unlock:       return L"casso.unlock";
         case CassoExplorerActions::Verb::Refresh:      return L"windows.refresh";
         case CassoExplorerActions::Verb::MoreOptions:  return L"expandtoclassic";
         case CassoExplorerActions::Verb::Cut:          return L"windows.cut";
@@ -418,15 +427,19 @@ const std::string * ExplorerMenus::GetMenuSvg (const wchar_t * name)
 
     if (wcsncmp (name, L"casso.", 6) == 0)
     {
-        svg = kFloppy525Svg;
-
-        for (auto [from, to] : { std::pair<const char *, const char *> { "{INK}",  dark ? "#E0DFDF" : "#555" },
-                                 std::pair<const char *, const char *> { "{ACC}",  dark ? "#4CC2FF" : "#0078D4" },
-                                 std::pair<const char *, const char *> { "{BODY}", dark ? "none"    : "#FAFAFA" } })
+        static constexpr std::pair<const wchar_t *, const char *>  s_kArt[] =
         {
-            for (size_t at = svg.find (from); at != std::string::npos; at = svg.find (from, at))
+            { L"casso.floppy525", kFloppy525Svg },
+            { L"casso.about",     kAboutSvg     },
+            { L"casso.lock",      kLockSvg      },
+            { L"casso.unlock",    kUnlockSvg    },
+        };
+
+        for (const auto & [artName, art] : s_kArt)
+        {
+            if (wcscmp (name, artName) == 0)
             {
-                svg.replace (at, strlen (from), to);
+                svg = ApplyIconPalette (art, dark);
             }
         }
     }
@@ -454,11 +467,74 @@ const std::string * ExplorerMenus::GetMenuSvg (const wchar_t * name)
         {
             svg.assign (std::istreambuf_iterator<char> (file), std::istreambuf_iterator<char>());
         }
+
+        //  An icon the light theme has no file for takes its colors from the dark.
+        if (svg.empty() && !dark)
+        {
+            std::ifstream  darkFile (std::wstring (windows, length) + kExplorerIconFolder + L"theme-dark\\" + name + L".svg", std::ios::binary);
+
+            if (darkFile)
+            {
+                svg = ConvertDarkToLight (std::string (std::istreambuf_iterator<char> (darkFile), std::istreambuf_iterator<char>()));
+            }
+        }
     }
 
     m_menuSvgs[key] = svg.empty() ? nullptr : std::make_unique<std::string> (std::move (svg));
 
     return m_menuSvgs[key] ? m_menuSvgs[key].get() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::ApplyIconPalette
+//
+//  The one place the theme's icon colors are set: Casso's art has them as
+//  tokens, and File Explorer's dark icons are mapped to its light colors by
+//  ConvertDarkToLight below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerMenus::ApplyIconPalette (std::string svg, bool dark)
+{
+    for (auto [from, to] : { std::pair<const char *, const char *> { "{INK}",  dark ? kDarkInk    : kLightInk    },
+                             std::pair<const char *, const char *> { "{ACC}",  dark ? kDarkAccent : kLightAccent },
+                             std::pair<const char *, const char *> { "{BODY}", dark ? "none"      : kLightBody   } })
+    {
+        for (size_t at = svg.find (from); at != std::string::npos; at = svg.find (from, at))
+        {
+            svg.replace (at, strlen (from), to);
+        }
+    }
+
+    return svg;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::ConvertDarkToLight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerMenus::ConvertDarkToLight (std::string svg)
+{
+    for (auto [from, to] : { std::pair<const char *, const char *> { kDarkInk, kLightInk }, std::pair<const char *, const char *> { kDarkAccent, kLightAccent } })
+    {
+        for (size_t at = svg.find (from); at != std::string::npos; at = svg.find (from, at))
+        {
+            svg.replace (at, strlen (from), to);
+        }
+    }
+
+    return svg;
 }
 
 

@@ -40,6 +40,44 @@ public:
         "<circle cx=\"4.5\" cy=\"6.5\" r=\".6\" fill=\"{INK}\"/>"
         "<rect x=\"7.25\" y=\"10\" width=\"1.5\" height=\"4\" rx=\".75\" fill=\"{ACC}\"/>"
         "</svg>";
+
+    //  Info, for About: a ring with the i in the accent.
+    static constexpr const char *     kAboutSvg =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\">"
+        "<circle cx=\"8\" cy=\"8\" r=\"7\" fill=\"{BODY}\" stroke=\"{INK}\"/>"
+        "<rect x=\"7.25\" y=\"6.5\" width=\"1.5\" height=\"5.5\" rx=\".75\" fill=\"{ACC}\"/>"
+        "<circle cx=\"8\" cy=\"4.5\" r=\".9\" fill=\"{ACC}\"/>"
+        "</svg>";
+
+    //  A padlock, shut for Lock, its shackle swung open for Unlock, with the
+    //  keyhole in the accent.
+    static constexpr const char *     kLockSvg =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\">"
+        "<path stroke=\"{INK}\" d=\"M5 7.5v-3a3 3 0 0 1 6 0v3\"/>"
+        "<rect x=\"2.5\" y=\"7.5\" width=\"11\" height=\"7\" rx=\"1.5\" fill=\"{BODY}\" stroke=\"{INK}\"/>"
+        "<rect x=\"7.25\" y=\"9.5\" width=\"1.5\" height=\"3\" rx=\".75\" fill=\"{ACC}\"/>"
+        "</svg>";
+    static constexpr const char *     kUnlockSvg =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\">"
+        "<path stroke=\"{INK}\" d=\"M5 7.5v-3a3 3 0 0 1 5.8-1.1\"/>"
+        "<rect x=\"2.5\" y=\"7.5\" width=\"11\" height=\"7\" rx=\"1.5\" fill=\"{BODY}\" stroke=\"{INK}\"/>"
+        "<rect x=\"7.25\" y=\"9.5\" width=\"1.5\" height=\"3\" rx=\".75\" fill=\"{ACC}\"/>"
+        "</svg>";
+
+    //  File Explorer's three icon colors in each theme: its outline, its accent
+    //  and the light theme's fill inside an outline.
+    static constexpr const char *     kDarkInk     = "#E0DFDF";
+    static constexpr const char *     kDarkAccent  = "#4CC2FF";
+    static constexpr const char *     kLightInk    = "#555";
+    static constexpr const char *     kLightAccent = "#0078D4";
+    static constexpr const char *     kLightBody   = "#FAFAFA";
+
+    //  Casso's art with its {INK}, {ACC} and {BODY} set for the theme.
+    static std::string  ApplyIconPalette   (std::string svg, bool dark);
+
+    //  A dark theme icon of File Explorer's in its light theme's colors, for one
+    //  the light theme has no file for.
+    static std::string  ConvertDarkToLight (std::string svg);
     static constexpr int       kMenuIconDip        = 16;     // DxuiPopupMenu's row icon
 
     //  The commands of the menu open now, alive for as long as it is open.
