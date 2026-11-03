@@ -238,6 +238,52 @@ namespace DebuggerReviewPolishTests
         }
 
 
+        //  The console's text, each line with its time, is saved to the
+        //  project once output stops for a moment, and comes back with the
+        //  project: on opening ahead of what was written since, on a
+        //  project's switch in place of it.
+        TEST_METHOD (TheConsolesTextIsSavedAndComesBack)
+        {
+            class TextHost : public PolishHost
+            {
+            public:
+                void  SetDebuggerWindowState (const std::string & name, const std::string & text) override { state[name] = text; }
+
+                std::map<std::string, std::string>  state;
+            };
+
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            TextHost         host;
+            PolishWindow     window (theme, host);
+            SYSTEMTIME       time   = { 2026, 11, 2, 3, 14, 5, 9, 0 };
+            ConsoleOutput  * output = nullptr;
+            std::string      saved;
+
+
+
+            window.Build();
+            output = &window.GetConsolePane().GetOutput();
+            output->Clear();
+            output->Append ({ "> R", "A=00\tX=01" }, time);
+
+            output->SaveIfChanged ((int64_t) GetTickCount64());
+            Assert::IsFalse (host.state.contains ("consoleText"), L"not while output may still come");
+
+            output->SaveIfChanged ((int64_t) GetTickCount64() + 60000);
+            saved = host.state["consoleText"];
+            Assert::AreEqual (std::string ("2026-11-03 14:05:09\t> R\n2026-11-03 14:05:09\tA=00\tX=01\n"), saved);
+
+            output->Clear();
+            output->Append ({ "notice" }, time);
+            output->RestoreSaved (saved, true);
+            Assert::AreEqual (std::string ("2026-11-03 14:05:09\t> R\n2026-11-03 14:05:09\tA=00\tX=01\n2026-11-03 14:05:09\tnotice\n"), output->FormatSaved(), L"ahead of what was written");
+
+            output->RestoreSaved (saved, false);
+            Assert::AreEqual (saved, output->FormatSaved(), L"in place of it");
+            Assert::AreEqual (ConsoleOutput::GetTimeStamp (time), output->GetView()->GetRows().front().cells[0], L"with its time stamp");
+        }
+
+
         //  The stamp is the short time in brackets; the tip over it has the
         //  long date and the time with its seconds.
         TEST_METHOD (TheTimeStampIsTheShortTimeAndItsTipTheFullDateAndTime)

@@ -127,6 +127,7 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEM
 
     m_columns = m_view->GetVisibleColumns();
     m_view->SetRowsDroppingFront (GetRows(), dropped);
+    m_changedMs = (std::max) ((int64_t) 1, (int64_t) GetTickCount64());
     m_view->SetTopLine (atEnd ? m_view->GetLineCount() : top - dropped);
 
     if (!m_view->IsVisible())
@@ -293,6 +294,122 @@ void ConsoleOutput::Clear()
     m_lines.clear();
     m_rowLines.clear();
     m_view->SetRows ({});
+    m_changedMs = (std::max) ((int64_t) 1, (int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::FormatSaved
+//
+//  A line's time is its local date and time, as YYYY-MM-DD HH:MM:SS.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ConsoleOutput::FormatSaved() const
+{
+    std::string  text;
+
+
+
+    for (const Line & line : m_lines)
+    {
+        text += std::format ("{:04}-{:02}-{:02} {:02}:{:02}:{:02}\t{}\n", line.time.wYear, line.time.wMonth, line.time.wDay,
+                             line.time.wHour, line.time.wMinute, line.time.wSecond, line.text);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::RestoreSaved
+//
+//  A line whose time cannot be read is passed over. With `keepCurrent`, the
+//  lines written since the window opened follow the saved ones.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::RestoreSaved (const std::string & text, bool keepCurrent)
+{
+    std::istringstream  in (text);
+    std::string         line;
+    std::vector<Line>   current = keepCurrent ? std::move (m_lines) : std::vector<Line>();
+
+
+
+    m_lines.clear();
+
+    while (std::getline (in, line))
+    {
+        SYSTEMTIME  time   = {};
+        size_t      tab    = line.find ('\t');
+        int         year   = 0;
+        int         month  = 0;
+        int         day    = 0;
+        int         hour   = 0;
+        int         minute = 0;
+        int         second = 0;
+
+        if (tab == std::string::npos ||
+            sscanf_s (line.substr (0, tab).c_str(), "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second) != 6)
+        {
+            continue;
+        }
+
+        time.wYear   = (WORD) year;
+        time.wMonth  = (WORD) month;
+        time.wDay    = (WORD) day;
+        time.wHour   = (WORD) hour;
+        time.wMinute = (WORD) minute;
+        time.wSecond = (WORD) second;
+
+        m_lines.push_back (Line { line.substr (tab + 1), time, GetTimeStamp (time) });
+    }
+
+    m_lines.insert (m_lines.end(), std::make_move_iterator (current.begin()), std::make_move_iterator (current.end()));
+
+    if ((int) m_lines.size() > kLineLimit)
+    {
+        m_lines.erase (m_lines.begin(), m_lines.end() - kLineLimit);
+    }
+
+    m_columns = m_view->GetVisibleColumns();
+    m_view->SetRows (GetRows());
+    m_view->SetTopLine (m_view->GetLineCount());
+    m_changedMs = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::SaveIfChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::SaveIfChanged (int64_t nowMs)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+    if (m_changedMs == 0 || nowMs - m_changedMs < kSaveDelayMs || host == nullptr)
+    {
+        return;
+    }
+
+    host->SetDebuggerWindowState ("consoleText", FormatSaved());
+    m_changedMs = 0;
 }
 
 
@@ -1198,9 +1315,8 @@ void ConsolePane::SetTextZoom (float zoom)
 
 bool ConsolePane::Tick (int64_t nowMs)
 {
-    (void) nowMs;
-
     m_output.Reflow();
+    m_output.SaveIfChanged (nowMs);
     return false;
 }
 

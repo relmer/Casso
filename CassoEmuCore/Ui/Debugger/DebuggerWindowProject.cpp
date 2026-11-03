@@ -210,6 +210,11 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
     m_consolePane->GetCommandLine().GetHistory().SetLines (std::move (lines));
 
+    //  The console's text comes back with its history: on a project's
+    //  switch in place of the last project's, on opening ahead of what the
+    //  opening has written.
+    m_consolePane->GetOutput().RestoreSaved (m_host->GetDebuggerWindowState ("consoleText"), !isProjectSwitch);
+
     m_finds->LoadSaved (SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("find")));
 
     m_columnWidths.clear();

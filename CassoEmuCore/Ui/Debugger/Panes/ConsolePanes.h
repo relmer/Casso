@@ -48,6 +48,15 @@ public:
     //  time in full for the tip.
     bool                 TryGetTimeTip  (POINT point, RECT & anchor, std::wstring & text) const;
 
+    //  The text as the project saves it, a line each, its time, a tab and
+    //  its text; and the text put back from it, ahead of the lines written
+    //  so far or in place of them. SaveIfChanged writes it to the project
+    //  kSaveDelayMs after the last change, so a burst of output is written
+    //  once.
+    std::string          FormatSaved    () const;
+    void                 RestoreSaved   (const std::string & text, bool keepCurrent);
+    void                 SaveIfChanged  (int64_t nowMs);
+
     //  A time in the locale's short time format in brackets, as each line
     //  starts with; and the locale's long date and long time.
     static std::wstring  GetTimeStamp   (const SYSTEMTIME & time, const wchar_t * locale = LOCALE_NAME_USER_DEFAULT);
@@ -68,9 +77,10 @@ public:
     static int           GetWrapIndent  (const std::string & line);
 
 private:
-    static constexpr int     kLineLimit       = 2000;
-    static constexpr float   kLineSpacing     = 1.2f;
-    static constexpr size_t  kWrapIndentLimit = 48;
+    static constexpr int      kLineLimit       = 2000;
+    static constexpr float    kLineSpacing     = 1.2f;
+    static constexpr size_t   kWrapIndentLimit = 48;
+    static constexpr int64_t  kSaveDelayMs     = 2000;
 
     struct Line
     {
@@ -82,11 +92,12 @@ private:
     //  The rows, and the line each row's time stamp is from in m_rowLines.
     std::vector<DxuiTextView::Row>  GetRows ();
 
-    IDebuggerPaneHost         & m_host;
-    DxuiTextView              * m_view    = nullptr;
-    std::vector<Line>           m_lines;
-    std::vector<int>            m_rowLines;        // -1 for a row with no time stamp
-    int                         m_columns = 0;     // the view's width the rows were laid out for
+    IDebuggerPaneHost  & m_host;
+    DxuiTextView       * m_view      = nullptr;
+    std::vector<Line>    m_lines;
+    std::vector<int>     m_rowLines;   // -1 for a row with no time stamp
+    int                  m_columns   = 0;   // the view's width the rows were laid out for
+    int64_t              m_changedMs = 0;   // when the text last changed and was not yet saved; 0 for saved
 };
 
 
