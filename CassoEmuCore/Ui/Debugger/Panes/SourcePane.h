@@ -43,7 +43,6 @@ public:
     using FindFn = std::function<SourceLookup (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                                const std::string & programKey)>;
     using RunFn  = std::function<void (const DebuggerActionBuilder & build)>;
-    using GoToFn = std::function<void (Word address)>;
 
     //  How the PC's line and breakpoints are drawn: the disassembly pane's
     //  own marker color, row fill, breakpoint icons and PC arrow, so the two
@@ -73,7 +72,7 @@ public:
     static constexpr int  kTextCell         = 2;
     static constexpr int  kAnnotationColumn = 40;
 
-    SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run, GoToFn goTo);
+    SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run);
 
     SourcePane (const SourcePane &)             = delete;
     SourcePane & operator= (const SourcePane &) = delete;
@@ -138,10 +137,10 @@ public:
     void  ShowLine      (int fileId, int line);
     void  FollowMarkedLine ();
 
-    //  A click on a line moves the code pane to the line's address; a double
-    //  click toggles a breakpoint on it.
-    void  OnClick       (POINT atDip);
-    void  OnDoubleClick (POINT atDip);
+    //  The address of the line under a point, for Go to disassembly; a
+    //  double click toggles a breakpoint on the line.
+    std::optional<Word>  GetAddressAt  (POINT atDip) const;
+    void                 OnDoubleClick (POINT atDip);
 
     //  The tip of the heat strip under a point, and where to put it: by the
     //  start of the strip on its row. False off a strip, or while heat is off.
@@ -239,7 +238,6 @@ private:
     DxuiActionBanner                                 * m_banner  = nullptr;
     FindFn                                             m_find;
     RunFn                                              m_run;
-    GoToFn                                             m_goTo;
 
     std::function<void ()>                            m_onToggleBody;
     std::function<void ()>                            m_onLoadSymbols;

@@ -17,12 +17,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run, GoToFn goTo) :
+SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run) :
     m_view   (view),
     m_banner (banner),
     m_find   (std::move (find)),
-    m_run    (std::move (run)),
-    m_goTo   (std::move (goTo))
+    m_run    (std::move (run))
 {
 }
 
@@ -730,11 +729,11 @@ bool SourcePane::TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourcePane::OnClick
+//  SourcePane::GetAddressAt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SourcePane::OnClick (POINT atDip)
+std::optional<Word> SourcePane::GetAddressAt (POINT atDip) const
 {
     std::optional<int>  line = GetLineAt (atDip);
     auto                map  = (m_state.has_value()) ? m_state->lineAddresses : nullptr;
@@ -743,10 +742,10 @@ void SourcePane::OnClick (POINT atDip)
 
     if (!line.has_value() || map == nullptr || !map->contains ({ m_fileId, *line }))
     {
-        return;
+        return std::nullopt;
     }
 
-    m_goTo (map->at ({ m_fileId, *line }));
+    return map->at ({ m_fileId, *line });
 }
 
 

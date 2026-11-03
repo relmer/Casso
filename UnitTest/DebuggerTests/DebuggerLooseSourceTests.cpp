@@ -120,6 +120,8 @@ namespace DebuggerLooseSourceTests
         using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::TakeSnapshot;
+        using DebuggerWindow::GetDockSite;
+        using DebuggerWindow::Layout;
 
 
         //  The slot of the one document shown, or -1.
@@ -296,6 +298,51 @@ namespace DebuggerLooseSourceTests
             Assert::IsTrue   (host.commands.empty(), L"text is not loaded as symbols");
             Assert::IsTrue   (window.GetFirstRow().find (L"Remember the stack") != std::wstring::npos, window.GetFirstRow().c_str());
             Assert::IsTrue   (window.GetSourceGroup().GetDocument (window.GetShownSlot()).GetModel().GetBanner()->GetText().empty(), L"only a source offers symbols");
+        }
+
+
+        //  A press in a document's text starts a selection; when the
+        //  document goes behind another tab before the button comes up, the
+        //  release ends the drag all the same, so the pointer coming back
+        //  over the text selects nothing.
+        TEST_METHOD (ADragEndsWithItsReleaseAfterItsDocumentIsHidden)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            LooseSourceHost    host;
+            LooseSourceWindow  window (theme, host);
+            DxuiTextView     * view   = nullptr;
+            DxuiPaneLayout     layout;
+            DxuiDpiScaler      scaler;
+            DxuiMouseEvent     ev;
+            int                slot   = -1;
+
+
+
+            host.files[L"C:\\Work\\notes.txt"] = "Remember the stack\nand the zero page\n";
+            Assert::IsTrue (window.OnFilesDropped ({ L"C:\\Work\\notes.txt" }));
+
+            slot = window.GetShownSlot();
+            view = window.GetSourceGroup().GetDocument (slot).GetView();
+
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { view->GetBounds().left + 80, view->GetBounds().top + 12 };
+            Assert::IsTrue (window.GetSourceGroup().RouteMouse (ev));
+            Assert::IsTrue (view->IsInteracting(), L"the press starts a selection");
+
+            scaler.SetDpi (96);
+            layout = window.GetDockSite()->GetPaneLayout();
+            Assert::IsTrue  (layout.TabWith (DebuggerLayout::kConsole, DebuggerLayout::GetSourcePaneId (slot)), L"the console is a tab of the document's group");
+            (void) layout.Activate (DebuggerLayout::kConsole);
+            window.GetDockSite()->SetPaneLayout (layout);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot>());
+            Assert::IsFalse (view->IsVisible(), L"the document is behind the console");
+
+            ev.kind = DxuiMouseEventKind::Up;
+            (void) window.GetSourceGroup().RouteMouse (ev);
+
+            Assert::IsFalse (view->IsInteracting(), L"the release ended the drag");
         }
 
 

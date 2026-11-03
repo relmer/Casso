@@ -1155,10 +1155,13 @@ void DisassemblyGroup::ShowCode (std::optional<Word> address)
     m_navigatedTo   = address;
     m_navigatedView = view;
 
+    //  A view brought forward from behind another tab sends its line count
+    //  ahead of the address, which is centered for the count the view has.
     if (m_isOpen[(size_t) view])
     {
         m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (view));
         m_host.RelayoutDock();
+        UpdateLines();
     }
 
     if (host != nullptr)

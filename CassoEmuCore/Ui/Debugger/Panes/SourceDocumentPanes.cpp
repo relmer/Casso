@@ -89,8 +89,7 @@ void SourceDocumentPane::CreateControls()
 
             return (host != nullptr) ? host->FindDebuggerSource (record, path, key) : SourceLookup();
         },
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); },
-        [this] (Word address)                        { m_host.GoToCode (address); });
+        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); });
 
     m_model->SetOnToggleBody   ([this] { m_group.ToggleMacroBody(); });
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
@@ -268,6 +267,43 @@ bool SourceDocumentPane::TryGetTip (POINT clientPx, PaneTip & tip)
     tip.gradient     = std::move (heat.gradient);
     tip.gradientMark = heat.mark;
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentPane::AddContentMenuItems
+//
+//  Copy, with text selected; and on a line with code, Go to disassembly,
+//  which brings the line's address to the middle of the disassembly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
+{
+    std::optional<Word>  address;
+
+
+
+    if (!m_isShown || !m_view->IsVisible() || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx))
+    {
+        return;
+    }
+
+    if (m_view->HasSelection())
+    {
+        items.push_back ({ L"Copy", [this] { m_view->CopySelection(); } });
+    }
+
+    address = m_model->GetAddressAt (clientPx);
+
+    if (address.has_value())
+    {
+        items.push_back ({ L"Go to disassembly", [this, at = *address] { m_host.GoToCode (at); } });
+    }
 }
 
 
@@ -769,6 +805,15 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
     inside   = DxuiDockSite::Contains (view->GetBounds(),   at);
     onBanner = DxuiDockSite::Contains (banner->GetBounds(), at);
 
+    //  A drag under way ends with its button's release, even after its
+    //  document went behind another tab, so a later move over the text
+    //  doesn't select to the pointer.
+    if (view->IsInteracting() && ev.kind == DxuiMouseEventKind::Up)
+    {
+        (void) view->OnMouse (ev);
+        return document->IsShown();
+    }
+
     //  A document behind another tab takes no input.
     if (!document->IsShown() || !view->IsVisible() || !m_host.IsRoutable (view))
     {
@@ -803,6 +848,8 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
+    //  A click selects in the text; a double-click on a line toggles its
+    //  breakpoint. A press on a scroll bar is the scroll bar's only.
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
         isDouble = (now - m_clickMs) <= (uint64_t) GetDoubleClickTime() &&
@@ -812,13 +859,9 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         m_clickMs = isDouble ? 0 : now;
         m_clickAt = at;
 
-        if (isDouble)
+        if (isDouble && !view->IsOverScrollbar (at))
         {
             document->GetModel().OnDoubleClick (at);
-        }
-        else
-        {
-            document->GetModel().OnClick (at);
         }
 
         m_activeSlot = slot;
