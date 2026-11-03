@@ -493,6 +493,18 @@ void CatalogModel::Sort (std::vector<CatalogRow> & rows, Column column, bool des
                       {
                           bool  shellByName = column == Column::Name && !descending && a.shellOrder > 0 && b.shellOrder > 0;
 
+                          //  Folders and files are mixed, as File Explorer mixes them,
+                          //  and results of equal rank go in the order they were found.
+                          if (column == kRelevance && a.searchRank != b.searchRank)
+                          {
+                              return descending ? a.searchRank < b.searchRank : a.searchRank > b.searchRank;
+                          }
+
+                          if (column == kRelevance)
+                          {
+                              return descending ? a.sourceIndex > b.sourceIndex : a.sourceIndex < b.sourceIndex;
+                          }
+
                           if (a.isDirectory != b.isDirectory && !shellByName)
                           {
                               return a.isDirectory;

@@ -327,9 +327,9 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
 
     //  Explorer's Content row, until the shell's own lines for a host item
     //  replace it: the date and the size in the right column, each with its
-    //  name. A file in a disk image, which has no shell properties, and a
-    //  drive have their type under their name.
-    if ((!row.isDirectory || row.isDrive) && (row.isDrive || !hostItem))
+    //  name. A file in a disk image, which has no shell properties, a search
+    //  result and a drive have their type under their name.
+    if ((!row.isDirectory || row.isDrive) && (row.isDrive || !hostItem || !row.folderPath.empty()))
     {
         cells[0].contentLeft = { MakeContentLine (L"Type:", row.typeText) };
     }

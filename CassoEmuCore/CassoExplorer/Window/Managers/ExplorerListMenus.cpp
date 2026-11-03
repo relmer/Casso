@@ -325,6 +325,42 @@ void ExplorerListMenus::AddHomeItemRows (std::vector<DxuiPopupMenuItem> & items,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListMenus::AddOpenLocationRow
+//
+//  Open file location, ahead of Add to Favorites and Compress to, where File
+//  Explorer lists it among Windows' commands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListMenus::AddOpenLocationRow (std::vector<DxuiPopupMenuItem> & items, int row)
+{
+    std::vector<DxuiPopupMenuItem>  rows;
+    size_t                          place = items.size();
+
+
+
+    for (size_t index = items.size(); index > 0; index--)
+    {
+        const DxuiPopupMenuItem &  item = items[index - 1];
+
+        if (item.command != nullptr && (item.command->label.find (L"Favorites") != std::wstring::npos || item.command->label.starts_with (L"Compress")))
+        {
+            place = index - 1;
+        }
+    }
+
+    m_context.menus.AddMenuCommand (rows, L"Open file &location", [this, row]() { m_pane.HandleHomeRowAction (row, 0); });
+    m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.shortcut.opencontaining");
+
+    items.insert (items.begin() + (std::ptrdiff_t) place, std::make_move_iterator (rows.begin()), std::make_move_iterator (rows.end()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListMenus::ShowListContextMenu
 //
 //  The rows come from the actions' verb list; each command runs its verb.
@@ -667,7 +703,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
         //  Windows' own commands lead into Copy as path in one group, as in
         //  File Explorer; without them the group starts here.
-        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation()) && m_context.menus.GetSelectionKind (selectedPaths, kind))
+        if ((m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles())
+            && m_context.menus.GetSelectionKind (selectedPaths, kind))
         {
             std::vector<std::wstring>  homeIds;
 
@@ -689,6 +726,13 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         if (m_context.browser.IsHomeLocation() && m_context.browser.GetSelectedRows().size() == 1)
         {
             AddHomeItemRows (items, m_context.browser.GetRows()[(size_t) m_context.browser.GetSelectedRows()[0]].shellId);
+        }
+
+        //  A search's file opens its folder with it selected, as File
+        //  Explorer's Open file location does there.
+        if (m_context.browser.AreSelectedRowsSearchFiles() && m_context.browser.GetSelectedRows().size() == 1)
+        {
+            AddOpenLocationRow (items, m_context.browser.GetSelectedRows()[0]);
         }
 
         //  Drives, from This PC or wherever they are listed, by each row's path.
@@ -771,7 +815,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
     //  The commands installed apps add for these items, as Explorer lists
     //  them, above the shell's own menu.
-    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation()))
+    if (moreOptions && (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || m_context.browser.IsHomeLocation() || m_context.browser.AreSelectedRowsSearchFiles()))
     {
         m_context.menus.AddPackagedCommands (items);
         m_context.menus.SetCommandItemIds ({});
@@ -1118,6 +1162,12 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices()
         items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
     }
 
+    //  A search's results by relevance, as File Explorer offers there.
+    if (SearchQuery::IsId (m_context.browser.GetLocation().path))
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortByRelevance)));
+    }
+
     items.push_back (DxuiPopupMenuItem::ForSeparator());
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortAscending)));
     items.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kSortDescending)));
@@ -1242,18 +1292,19 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
 
     std::vector<DxuiPopupMenuItem>  items;
     ExplorerAddressBar *            bar    = &m_context.addressBar;
-    auto                            option = [] (const wchar_t * label, bool radio, std::function<bool()> checked, std::function<void()> dispatch)
+    auto                            option = [this] (const wchar_t * label, const wchar_t * svg, bool radio, std::function<bool()> checked, std::function<void()> dispatch)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
         command->label     = label;
+        command->menuSvg   = m_context.menus.GetMenuSvg (svg);
         command->radio     = radio;
         command->isChecked = std::move (checked);
         command->dispatch  = std::move (dispatch);
 
         return command;
     };
-    auto                            submenu = [&] (const wchar_t * label, const wchar_t * prefix, const Value * values, size_t count)
+    auto                            submenu = [&] (const wchar_t * label, const wchar_t * svg, const wchar_t * prefix, const Value * values, size_t count)
     {
         std::vector<DxuiPopupMenuItem>  rows;
         std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
@@ -1262,38 +1313,39 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSearchOptionChoices()
         {
             std::wstring  value = values[at].value;
 
-            rows.push_back (DxuiPopupMenuItem::ForCommand (option (values[at].label, true,
+            rows.push_back (DxuiPopupMenuItem::ForCommand (option (values[at].label, nullptr, true,
                 [bar, prefix, value]() { return SearchQuery::HasToken (bar->GetSearchQuery(), prefix, value); },
                 [bar, prefix, value]() { bar->SetSearchQuery (SearchQuery::ToggleToken (bar->GetSearchQuery(), prefix, value)); })));
         }
 
-        parent->label = label;
+        parent->label   = label;
+        parent->menuSvg = m_context.menus.GetMenuSvg (svg);
         items.push_back (DxuiPopupMenuItem::ForSubmenu (std::move (parent), std::move (rows)));
     };
-    std::shared_ptr<DxuiCommand>    current = option (L"Current folder", true, [bar]() { return bar->GetSearchOptions().currentFolder; },
+    std::shared_ptr<DxuiCommand>    current = option (L"Current folder", L"windows.searchoptionshallow", true, [bar]() { return bar->GetSearchOptions().currentFolder; },
                                                       [bar]() { bar->SetSearchFolderOnly (true); });
 
 
 
     current->isEnabled = [bar]() { return bar->CanSearchCurrentFolderOnly(); };
 
-    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"All subfolders", true, [bar]() { return !bar->GetSearchOptions().currentFolder; }, [bar]() { bar->SetSearchFolderOnly (false); })));
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"All subfolders", L"windows.searchoptiondeep", true, [bar]() { return !bar->GetSearchOptions().currentFolder; }, [bar]() { bar->SetSearchFolderOnly (false); })));
     items.push_back (DxuiPopupMenuItem::ForCommand (std::move (current)));
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    submenu (L"Date modified", SearchQuery::kDateToken, s_kDates, std::size (s_kDates));
-    submenu (L"Kind",          SearchQuery::kKindToken, s_kKinds, std::size (s_kKinds));
-    submenu (L"Size",          SearchQuery::kSizeToken, s_kSizes, std::size (s_kSizes));
+    submenu (L"Date modified", L"windows.searchfilterdate", SearchQuery::kDateToken, s_kDates, std::size (s_kDates));
+    submenu (L"Kind",          L"windows.searchfilterkind", SearchQuery::kKindToken, s_kKinds, std::size (s_kKinds));
+    submenu (L"Size",          L"windows.searchfiltersize", SearchQuery::kSizeToken, s_kSizes, std::size (s_kSizes));
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
-    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"System files", false, [this]() { return m_context.prefs.searchSystemFiles; },
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"System files", L"windows.searchoptionsystem", false, [this]() { return m_context.prefs.searchSystemFiles; },
         [this, bar]() { m_context.prefs.searchSystemFiles = !m_context.prefs.searchSystemFiles; bar->ApplySearchPrefs(); })));
-    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Zipped (compressed) folders", false, [this]() { return m_context.prefs.searchZipped; },
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Zipped (compressed) folders", L"windows.searchoptioncompressed", false, [this]() { return m_context.prefs.searchZipped; },
         [this, bar]() { m_context.prefs.searchZipped = !m_context.prefs.searchZipped; bar->ApplySearchPrefs(); })));
-    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"File contents", false, [this]() { return m_context.prefs.searchContents; },
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"File contents", L"windows.searchoptioncontents", false, [this]() { return m_context.prefs.searchContents; },
         [this, bar]() { m_context.prefs.searchContents = !m_context.prefs.searchContents; bar->ApplySearchPrefs(); })));
     items.push_back (DxuiPopupMenuItem::ForSeparator());
-    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Change indexed locations", false, nullptr, []()
+    items.push_back (DxuiPopupMenuItem::ForCommand (option (L"Change indexed locations", L"windows.changeindexedlocations", false, nullptr, []()
     {
         ShellExecuteW (nullptr, L"open", L"control.exe", L"srchadmin.dll", nullptr, SW_SHOWNORMAL);
     })));

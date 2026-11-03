@@ -205,6 +205,7 @@ HRESULT BrowserLoader::LoadShellFolder (const std::wstring & id)
         row.sizeBytes    = items[index].sizeBytes;
         row.modifiedUnix = items[index].modifiedUnix;
         row.hasModified  = items[index].hasModified;
+        row.modifiedIsWallClock = items[index].modifiedLocal;
         row.isDirectory  = items[index].isFolder;
         //  A folder that is a file too has no folder on the disk to open as one.
         row.hostPath     = (items[index].isFolder && items[index].isFile) ? std::wstring() : items[index].path;

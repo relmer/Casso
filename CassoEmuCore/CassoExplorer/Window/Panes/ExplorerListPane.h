@@ -140,6 +140,8 @@ private:
     ULONGLONG                    m_lastRearrangeMs = 0;
     bool                         m_propertiesShown = false;   // a property column is visible for the folder on display
     std::vector<size_t>          m_columnsToFit;   // property columns fitted as their values arrive
+    std::wstring                 m_fittedSearch;   // the search whose columns were last fitted to its results
+    size_t                       m_fittedRows      = 0;
     static constexpr uint64_t    s_kArrivalWaitMs  = 10000;
 
     std::wstring               m_arrivalFolder;   // see SelectWhenListed

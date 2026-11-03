@@ -49,6 +49,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     size_t                  selected = m_browser.GetSelectedRows().size();
     Location                location = m_browser.GetLocation();
     bool                    nested   = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
+    bool                    onDisk   = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
 
 
 
@@ -152,8 +153,9 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     AddFilesystemVerbs (verbs);
 
     //  A real file opens in its own program, and anything real has the shell's
-    //  own menu. A folder or an image opens here instead.
-    if (!m_browser.IsImageLocation() && location.kind == Location::Kind::HostFolder && selected > 0)
+    //  own menu. A folder or an image opens here instead. A search's file has
+    //  the menu it has in its own folder, as in File Explorer.
+    if (!m_browser.IsImageLocation() && onDisk && selected > 0)
     {
         const CatalogRow &  row = m_browser.GetRows()[(size_t) m_browser.GetSelectedRows()[0]];
 
@@ -221,7 +223,7 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     //  What the shell lists, such as the files inside a zip, copies, cuts and
     //  deletes through the shell, and has the shell's own menu; a match inside
     //  a disk image is the image's to act on.
-    else if (location.kind == Location::Kind::ShellFolder && selected > 0 && !m_browser.AreSelectedRowsSearchMatches())
+    else if (location.kind == Location::Kind::ShellFolder && selected > 0 && !onDisk && !m_browser.AreSelectedRowsSearchMatches())
     {
         verbs.push_back (Verb::Cut);
         verbs.push_back (Verb::Copy);

@@ -8,6 +8,7 @@
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/SearchQuery.h"
 #include "Config/FileAssociations.h"
 #include "Seams/Win32UserClasses.h"
 #include "Update/Win32InstallEnvironment.h"
@@ -233,6 +234,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kDeleteItems:       return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kCloseSearch:
         case CassoExplorerCommands::kSearchOptions:     return true;
+        case CassoExplorerCommands::kSortByRelevance:   return SearchQuery::IsId (m_context.browser.GetLocation().path);
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_context.browser.GetLocation().kind == Location::Kind::RecycleBin && !m_context.browser.GetRows().empty();
         case CassoExplorerCommands::kNew:               return !m_context.browser.IsVolumeLocation() ? m_context.browser.GetLocation().kind == Location::Kind::HostFolder
@@ -268,6 +270,11 @@ bool ExplorerCommandManager::IsChecked (int id) const
     if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + GetSortColumnCount())
     {
         return model.HasTabs() && (int) model.GetActiveTab().sortColumn == id - CassoExplorerCommands::kSortByColumn;
+    }
+
+    if (id == CassoExplorerCommands::kSortByRelevance)
+    {
+        return model.HasTabs() && model.GetActiveTab().sortColumn == CatalogModel::kRelevance;
     }
 
     if (id >= CassoExplorerCommands::kViewFirst && id < CassoExplorerCommands::kViewFirst + CassoExplorerPrefs::kViewCount)
@@ -366,17 +373,19 @@ void ExplorerCommandManager::Dispatch (int id)
         return;
     }
 
-    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + GetSortColumnCount())
+    if ((id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + GetSortColumnCount()) || id == CassoExplorerCommands::kSortByRelevance)
     {
+        int  column = (id == CassoExplorerCommands::kSortByRelevance) ? (int) CatalogModel::kRelevance : id - CassoExplorerCommands::kSortByColumn;
+
         //  A new column sorts ascending; the column already in use keeps its
         //  direction.
         if (!IsChecked (id))
         {
-            m_context.browser.SortByColumn (id - CassoExplorerCommands::kSortByColumn);
+            m_context.browser.SortByColumn (column);
 
             if (m_context.browser.GetBrowserModel().GetActiveTab().sortDescending)
             {
-                m_context.browser.SortByColumn (id - CassoExplorerCommands::kSortByColumn);
+                m_context.browser.SortByColumn (column);
             }
 
             m_context.listPane.GetColumns().RememberFolderSort();

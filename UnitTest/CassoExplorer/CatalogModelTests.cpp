@@ -264,6 +264,28 @@ public:
 
 
 
+    //  A search's results by relevance: the index's rank first, then the order
+    //  they were found in, with folders among the files.
+    TEST_METHOD (Sort_ByRelevance_RankThenFoundOrder)
+    {
+        std::vector<CatalogRow>  rows (4);
+
+        rows[0].name = L"a";   rows[0].sourceIndex = 0;
+        rows[1].name = L"b";   rows[1].sourceIndex = 1;   rows[1].searchRank  = 5;
+        rows[2].name = L"c";   rows[2].sourceIndex = 2;   rows[2].isDirectory = true;
+        rows[3].name = L"d";   rows[3].sourceIndex = 3;   rows[3].searchRank  = 9;
+
+        CatalogModel::Sort (rows, Column::Name, true);
+        CatalogModel::Sort (rows, CatalogModel::kRelevance, false);
+
+        Assert::AreEqual (std::wstring (L"d"), rows[0].name, L"the highest rank leads");
+        Assert::AreEqual (std::wstring (L"b"), rows[1].name);
+        Assert::AreEqual (std::wstring (L"a"), rows[2].name, L"equal ranks go in the order found, not the last sort's");
+        Assert::AreEqual (std::wstring (L"c"), rows[3].name, L"a folder is not moved ahead");
+    }
+
+
+
     TEST_METHOD (Sort_EveryColumnBothDirections_FoldersFirst)
     {
         std::vector<CatalogRow>  rows;

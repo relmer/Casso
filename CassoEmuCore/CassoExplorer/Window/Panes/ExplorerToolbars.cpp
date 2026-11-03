@@ -560,6 +560,8 @@ void ExplorerToolbars::UpdateCommandBar()
     m_context.commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, m_context.menus.GetMenuSvg (L"windows.recyclebin.empty"));
     m_context.commands.SetSvg (CassoExplorerCommands::kRestoreItems,    m_context.menus.GetMenuSvg (L"windows.recyclebin.restoreall"));
     m_context.commands.SetSvg (CassoExplorerCommands::kExtractAll,      m_context.menus.GetMenuSvg (L"windows.compressedfile.extract"));
+    m_context.commands.SetSvg (CassoExplorerCommands::kSearchOptions,   m_context.menus.GetMenuSvg (L"SearchAdvancedOptions"));
+    m_context.commands.SetSvg (CassoExplorerCommands::kCloseSearch,     m_context.menus.GetMenuSvg (L"windows.searchclosetab"));
     m_commandBar->SetEntries (m_context.commands.BuildCommandBarEntries (extra));
     m_commandBar->Layout     (m_context.layout.GetMenuBand().GetBounds(), m_context.scaler);
     m_context.window.Invalidate();

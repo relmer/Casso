@@ -997,6 +997,24 @@ void ExplorerListPane::FillList()
 
     m_columns.ShowChosenColumns();
 
+    //  A search's columns are fitted to its results as they arrive, as File
+    //  Explorer's are, since its folders and names are longer than any one
+    //  folder's.
+    if (SearchQuery::IsId (m_listLocation.path) && m_columns.GetView() == DxuiListView::View::Details && count > 0
+        && (m_fittedSearch != m_listLocation.path || m_fittedRows != count))
+    {
+        m_fittedSearch = m_listLocation.path;
+        m_fittedRows   = count;
+
+        for (size_t column = 0; column < m_columns.GetChosen().size(); column++)
+        {
+            if (ExplorerListColumns::IsListColumnShown (column, m_columns.GetChosen()[column], m_listLocation.kind, true))
+            {
+                m_list->FitColumnToVisibleContent (column);
+            }
+        }
+    }
+
     m_list->UpdateAutoFitFromRows();
 
     m_list->SetSelectedRows (m_context.browser.GetSelectedRows(), m_context.browser.GetSelectedRows().empty() ? -1 : m_context.browser.GetSelectedRows()[0]);
@@ -1828,7 +1846,7 @@ void ExplorerListPane::HandleContentDetailsArrived()
         static constexpr ULONGLONG  s_kRearrangeMs = 1000;
 
         ULONGLONG  now      = GetTickCount64();
-        bool       property = model.HasTabs() && (RowGrouping::IsPropertyField (model.GetActiveTab().groupBy) || (size_t) model.GetActiveTab().sortColumn >= CatalogModel::kColumnCount);
+        bool       property = model.HasTabs() && (RowGrouping::IsPropertyField (model.GetActiveTab().groupBy) || m_context.browser.IsPropertyColumn ((int) model.GetActiveTab().sortColumn));
 
         //  Rows sorted or grouped by a property move as its values arrive: at
         //  most once a second, so a large folder stays usable, and when the

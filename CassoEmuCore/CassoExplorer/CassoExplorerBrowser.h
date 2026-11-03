@@ -284,6 +284,10 @@ public:
     //  Whether the selected rows are all disk images in a host folder.
     bool  AreSelectedRowsImages() const;
 
+    //  Whether the selected rows are all files or folders on a disk that a
+    //  search found, which act as they do in their own folders.
+    bool  AreSelectedRowsSearchFiles() const;
+
     //  Every row's key, in row order, as a selection stores them: a name and
     //  its occurrence among rows with that name. What a refresh matches rows
     //  by, since an index moves whenever a row is added or removed above it.

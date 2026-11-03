@@ -87,6 +87,7 @@ public:
         std::wstring  sharedBy;
         std::wstring  activity;                // System.ActivityInfo
         int64_t       sharedUnix    = 0;
+        bool          modifiedLocal = false;   // a file in a disk image, whose date has no time zone
     };
 
     //  What a paste did: each item it took and the item it made, in the same

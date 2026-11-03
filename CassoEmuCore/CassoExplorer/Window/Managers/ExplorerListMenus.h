@@ -34,6 +34,7 @@ public:
     void                            ShowListContextMenu (int x, int y, int group = -1);
     void                            ShowHomeItemMenu    (int x, int y, int row);
     void                            AddHomeItemRows     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & id);
+    void                            AddOpenLocationRow  (std::vector<DxuiPopupMenuItem> & items, int row);
 
     //  Windows' row is Add to Favorites even for a favorite; its verbs tell them apart.
     static bool                     IsFavorite          (const std::vector<std::wstring> & labels) { return std::find (labels.begin(), labels.end(), L"Remove from Favorites") != labels.end(); }

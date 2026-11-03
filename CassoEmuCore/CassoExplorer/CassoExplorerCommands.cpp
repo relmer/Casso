@@ -38,7 +38,7 @@ CassoExplorerCommands::CassoExplorerCommands (Handlers handlers)
 
         //  A choice of one among several -- a sort, a view, a theme -- is marked
         //  with a dot, as Explorer marks it.
-        command->radio       = (row.id >= kSortByColumn) || (row.id >= kSortAscending && row.id <= kSortDescending)
+        command->radio       = (row.id >= kSortByColumn) || (row.id == kSortByRelevance) || (row.id >= kSortAscending && row.id <= kSortDescending)
                             || (row.id >= kGroupAscending && row.id <= kGroupDescending)
                             || (row.id >= kThemeLight && row.id <= kThemeRetroTerminal)
                             || (row.id >= kPictureMonochrome && row.id <= kPictureColor);

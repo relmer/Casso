@@ -387,7 +387,7 @@ void CassoExplorerBrowser::SortRows()
 
     FilterRows();
 
-    if ((size_t) m_model.GetActiveTab().sortColumn >= CatalogModel::kColumnCount && m_propertyKey)
+    if (m_model.GetActiveTab().sortColumn != CatalogModel::kRelevance && (size_t) m_model.GetActiveTab().sortColumn >= CatalogModel::kColumnCount && m_propertyKey)
     {
         std::vector<CatalogModel::PropertyKey>  keys;
 
@@ -862,7 +862,7 @@ void CassoExplorerBrowser::SortByColumn (int column)
 
 
 
-    if (!m_model.HasTabs() || column < 0 || (column > (int) CatalogModel::Column::DateDeleted && !IsPropertyColumn (column)))
+    if (!m_model.HasTabs() || column < 0 || (column > (int) CatalogModel::Column::DateDeleted && requested != CatalogModel::kRelevance && !IsPropertyColumn (column)))
     {
         return;
     }
@@ -1596,8 +1596,9 @@ void CassoExplorerBrowser::GetSelectedHostPaths (std::vector<std::wstring> & out
 
     outPaths.clear();
 
-    //  Home's items are anywhere on the disk, and a cloud item isn't on it.
-    if (IsHomeLocation())
+    //  Home's and a search's items are anywhere on the disk, and a cloud item
+    //  isn't on it.
+    if (IsHomeLocation() || AreSelectedRowsSearchFiles())
     {
         for (int row : m_selectedRows)
         {
@@ -1619,6 +1620,34 @@ void CassoExplorerBrowser::GetSelectedHostPaths (std::vector<std::wstring> & out
     {
         outPaths.push_back (JoinPath (location.path, m_rows[row].name));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::AreSelectedRowsSearchFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::AreSelectedRowsSearchFiles() const
+{
+    if (m_selectedRows.empty() || !SearchQuery::IsId (GetLocation().path))
+    {
+        return false;
+    }
+
+    for (int row : m_selectedRows)
+    {
+        if (row < 0 || (size_t) row >= m_rows.size() || m_rows[(size_t) row].hostPath.empty() || !m_rows[(size_t) row].imagePath.empty())
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 

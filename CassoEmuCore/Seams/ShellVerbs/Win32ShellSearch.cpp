@@ -478,6 +478,9 @@ void Win32ShellSearch::SearchImages (const std::wstring & scope, const std::vect
                 entry.id             = shownIn + L"\\" + entry.name;
                 entry.typeText       = CatalogModel::GetEntryTypeText (file, kind);
                 entry.sizeBytes      = file.hasEofBytes ? file.eofBytes : (uint64_t) file.sizeUnits * CatalogModel::GetUnitBytes (kind);
+                entry.modifiedUnix   = file.modifiedUnix;
+                entry.hasModified    = file.hasModified;
+                entry.modifiedLocal  = true;
                 entry.isFolder       = file.isDirectory;
                 entry.folder         = shownIn;
                 entry.imagePath      = image;

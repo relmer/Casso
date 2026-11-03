@@ -372,19 +372,25 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
             {
                 float  lineX = (float) label.left;
 
-                //  A result's folder leads the first line, cut short so the
-                //  line after it still fits with a gap before the column beside it.
+                //  A result's folder leads the first line, cut short at the
+                //  middle column, where the line after it starts, as in File
+                //  Explorer. Where the middle column has no room, the folder is
+                //  cut so the line after it fits with a gap before the column
+                //  beside it.
                 if (at == 0 && !cells[0].contentPath.empty())
                 {
-                    float         restW = 0.0f;
-                    float         restH = 0.0f;
-                    float         pathW = 0.0f;
+                    float         restW   = 0.0f;
+                    float         restH   = 0.0f;
+                    float         pathW   = 0.0f;
+                    float         gap     = m_list.m_scaler.ToPxf (s_kContentPathGapDip);
+                    bool          aligned = false;
                     std::wstring  path;
 
-                    restW = MeasureContentLine (text, cells[0].contentLeft[0], fontPx);
+                    restW   = MeasureContentLine (text, cells[0].contentLeft[0], fontPx);
+                    aligned = midX + restW <= leftEnd;
 
                     path = DxuiTextElide::ToWidth (text, cells[0].contentPath, fontPx, DxuiTheme::kBodyFace,
-                                                   (std::max) (0.0f, leftEnd - lineX - restW - 2.0f * m_list.m_scaler.ToPxf (s_kContentPathGapDip)), DxuiElide::Tail, 0, true);
+                                                   (std::max) (0.0f, aligned ? midX - lineX - gap : leftEnd - lineX - restW - 2.0f * gap), DxuiElide::Tail, 0, true);
 
                     hr = text.MeasureString (path.c_str(), fontPx, DxuiTheme::kBodyFace, pathW, restH);
                     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -393,7 +399,7 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
                                           pal.fg, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
                     IGNORE_RETURN_VALUE (hr, S_OK);
 
-                    lineX += pathW + m_list.m_scaler.ToPxf (s_kContentPathGapDip);
+                    lineX = aligned ? midX : lineX + pathW + gap;
                 }
 
                 PaintContentLine (text, pal, cells[0].contentLeft[at], lineX, top + (float) ((at + 1) * lineH), leftEnd - lineX, (float) lineH, fontPx);

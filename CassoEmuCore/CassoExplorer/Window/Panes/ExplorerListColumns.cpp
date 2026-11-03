@@ -351,8 +351,9 @@ std::wstring ExplorerListColumns::GetFolderViewKey (FolderViews::FolderType * ou
 
 void ExplorerListColumns::ApplyFolderView()
 {
-    FolderViews::FolderType  type     = FolderViews::FolderType::Generic;
-    std::wstring             key      = GetFolderViewKey (nullptr);
+    FolderViews::FolderType  type      = FolderViews::FolderType::Generic;
+    std::wstring             key       = GetFolderViewKey (nullptr);
+    bool                     searching = SearchQuery::IsId (m_context.browser.GetLocation().path);
     FolderViewEntry          entry;
 
 
@@ -396,7 +397,8 @@ void ExplorerListColumns::ApplyFolderView()
     //  never given either opens by name and ungrouped.
     entry = m_context.prefs.folderViews.GetEntry (key, type);
 
-    if (entry.sortColumn > (int) CatalogModel::Column::DateDeleted && !m_context.browser.IsPropertyColumn (entry.sortColumn))
+    if (entry.sortColumn > (int) CatalogModel::Column::DateDeleted && !m_context.browser.IsPropertyColumn (entry.sortColumn)
+        && !(searching && entry.sortColumn == (int) CatalogModel::kRelevance))
     {
         entry.sortColumn = 0;
     }
@@ -419,6 +421,12 @@ void ExplorerListColumns::ApplyFolderView()
         else if (folder == GroupChoices::Folder::Drives)
         {
             entry.groupBy = (int) RowGrouping::Field::Type;
+        }
+        else if (searching)
+        {
+            //  Search results open by relevance, as File Explorer's do.
+            entry.sortColumn     = (int) CatalogModel::kRelevance;
+            entry.sortDescending = false;
         }
         else if (IsDownloadsFolder() || (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && m_context.browser.GetTreeModel().IsLinkFolder (m_context.browser.GetLocation().path)))
         {

@@ -139,6 +139,9 @@ public:
         //  The search's options, on the command bar only there.
         kSearchOptions,
 
+        //  A search's results by relevance, on the Sort menu only there.
+        kSortByRelevance,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -346,6 +349,7 @@ private:
         { kSortByColumn + 6,  Menu::Count, L"&Original location",  nullptr,     true  },
         { kSortByColumn + 7,  Menu::Count, L"Date d&eleted",       nullptr,     true  },
         { kSortByColumn + 8,  Menu::Count, L"&Folder",             nullptr,     true  },
+        { kSortByRelevance,   Menu::Count, L"&Relevance",          nullptr,     true  },
         { kGroupBy,           Menu::Count, L"&Group by",           nullptr,     false },
         { kGroupByField + 1,  Menu::Count, L"&Name",               nullptr,     true  },
         { kGroupByField + 2,  Menu::Count, L"&Date modified",      nullptr,     true  },
