@@ -586,6 +586,65 @@ namespace FloatingPanesRoutingTests
         }
 
 
+        //  A press on the title bar moves the window with the pointer in a
+        //  loop of the window's, with the message pump running, drops it
+        //  where the button is let go, and puts it back on Escape.
+        TEST_METHOD (ATitleBarPressMovesTheWindowWithThePointer)
+        {
+            DockingHost          host;
+            FloatingPanes        floats  (host);
+            DxuiDpiScaler        scaler;
+            DxuiDockedWindow   * window  = nullptr;
+            POINT                cursor  = { 500, 300 };
+            bool                 isDown  = true;
+            RECT                 start   = {};
+            RECT                 rect    = {};
+
+
+
+            host.floats = &floats;
+            scaler.SetDpi (96);
+            host.site.Layout (RECT { 0, 0, 1000, 600 }, scaler);
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"regs floats in a window");
+
+            host.isThemed = false;
+            window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
+            start = window->GetScreenRect();
+
+            SendMessageW (window->GetHwnd(), WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
+            Assert::IsTrue (window->IsMoving(), L"the press starts the window's move");
+
+            cursor = POINT { 530, 320 };
+            SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
+
+            rect = window->GetScreenRect();
+            Assert::AreEqual (start.left + 30, rect.left, L"the window follows the pointer");
+            Assert::AreEqual (start.top  + 20, rect.top);
+
+            host.saves = 0;
+            isDown     = false;
+            SendMessageW (window->GetHwnd(), WM_LBUTTONUP, 0, 0);
+
+            Assert::IsFalse  (window->IsMoving());
+            Assert::AreEqual (1, host.saves, L"the drop saves the layout");
+
+            start  = window->GetScreenRect();
+            isDown = true;
+            SendMessageW (window->GetHwnd(), WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
+            cursor = POINT { 600, 400 };
+            SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
+            SendMessageW (window->GetHwnd(), WM_KEYDOWN, VK_ESCAPE, 0);
+
+            rect = window->GetScreenRect();
+            Assert::IsFalse (window->IsMoving(), L"Escape ends the move");
+            Assert::IsTrue  (EqualRect (&rect, &start) != FALSE, L"where it began");
+        }
+
+
     private:
 
         //  The window moved by its title bar and let go with the pointer at

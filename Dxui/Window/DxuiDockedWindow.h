@@ -22,12 +22,14 @@
 //  own input in the application that owns them, so the window offers each
 //  mouse and key event to the site and hands the rest on unchanged.
 //
-//  A CAPTION DRAG IS REPORTED. While the user moves the window by its title
-//  bar the OS runs its move loop; each tick reports the cursor, in screen
-//  pixels, so the owner can show its drop zones under it, and the first
-//  end of the move loop reports where it ended, so the owner can dock the
-//  pane there. A resize is not reported, and a drag that turns out to be one
-//  is reported canceled, so the owner can take its drop zones down.
+//  A CAPTION DRAG IS REPORTED. The window is moved with the pointer while
+//  its title bar is pressed, rather than in the system's move loop, which
+//  stops the message pump, and with it every frame of the app, until a
+//  press with no motion turns into a drag. Each move reports the cursor, in
+//  screen pixels, for the owner to draw its drop zones under, and the
+//  release reports where it ended, for the owner to dock the pane there. A resize
+//  runs the system's loop and is not reported; a drag that turns out to be
+//  one is reported canceled, so the owner can take its drop zones down.
 //
 //  A DRAG INSIDE THE SITE is the window's own. Its marks paint in the drag
 //  layer, over the panes' pictures, and Escape or the window losing the
@@ -86,6 +88,12 @@ public:
     //  loop did not.
     void  PollCaptionDrag ();
 
+    //  Moves the window with the pointer until the left button is released,
+    //  as a press on its title bar does, for a pane torn off with the button
+    //  down. Escape puts it back where it was.
+    void  BeginMove ();
+    bool  IsMoving  () const { return m_isMoving; }
+
     //  What a caption drag reads: whether the left button is down, and the
     //  cursor in screen pixels. The system's unless a test sets one.
     void  SetPointerReader (PointerFn fn) { m_readPointer = std::move (fn); }
@@ -141,6 +149,10 @@ private:
     void  OnMoveLoopTick ();
     void  Report         (DxuiCaptionDragTracker::Event ev);
     SIZE  GetScreenSize  () const;
+    void  MoveWithPointer ();
+    void  EndMove        (bool isCanceled);
+
+    DxuiMessageResult  OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen) override;
 
     DxuiDockSite            * m_site         = nullptr;
     MouseFn                   m_onMouse;
@@ -157,6 +169,9 @@ private:
     DxuiCaptionDragTracker    m_drag;
     PointerFn                 m_readPointer  = [] (POINT & cursorPx) { GetCursorPos (&cursorPx); return (GetKeyState (VK_LBUTTON) & 0x8000) != 0; };
     bool                      m_headerFade   = false;
+    bool                      m_isMoving     = false;
+    POINT                     m_moveGrab     = {};   // the pointer from the window's top left, in screen pixels
+    RECT                      m_moveStart    = {};
 
     //  The look and border color last applied, so DWM is called only when
     //  one of them changes.

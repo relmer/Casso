@@ -362,6 +362,20 @@ void DxuiDockedWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
 bool DxuiDockedWindow::OnMouse (const DxuiMouseEvent & ev)
 {
+    if (m_isMoving)
+    {
+        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
+        {
+            EndMove (false);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Move)
+        {
+            MoveWithPointer();
+        }
+
+        return true;
+    }
+
     if (m_site != nullptr && m_site->OnMouse (ev))
     {
         return true;
@@ -384,6 +398,12 @@ bool DxuiDockedWindow::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiDockedWindow::OnKey (const DxuiKeyEvent & ev)
 {
+    if (m_isMoving && ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE)
+    {
+        EndMove (true);
+        return true;
+    }
+
     if (m_site != nullptr && m_site->OnDragKey (ev))
     {
         return true;
@@ -482,12 +502,18 @@ void DxuiDockedWindow::OnMoveLoopTick()
 //
 //  DxuiDockedWindow::OnWindowPlaced
 //
-//  The move loop ended, which is where a caption drag ends.
+//  The move loop ended, which is where a caption drag ends. Each step of a
+//  move by BeginMove places the window too, and ends nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockedWindow::OnWindowPlaced()
 {
+    if (m_isMoving)
+    {
+        return;
+    }
+
     Report (m_drag.OnLoopEnd (GetScreenSize()));
 }
 
@@ -528,7 +554,130 @@ void DxuiDockedWindow::PollCaptionDrag()
 
 
 
-    Report (m_drag.OnPoll (buttonDown, GetScreenSize()));
+    //  A move whose capture went elsewhere, as to a menu, ends there.
+    if (m_isMoving && GetCapture() != GetHwnd())
+    {
+        EndMove (false);
+        return;
+    }
+
+    if (!m_isMoving)
+    {
+        Report (m_drag.OnPoll (buttonDown, GetScreenSize()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::OnNcLButtonDown
+//
+//  A press on the title bar starts BeginMove's move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiDockedWindow::OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen)
+{
+    UNREFERENCED_PARAMETER (xScreen);
+    UNREFERENCED_PARAMETER (yScreen);
+
+    if (hitTest != HTCAPTION)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    BeginMove();
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::BeginMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::BeginMove()
+{
+    POINT  cursor = {};
+    RECT   rect   = GetScreenRect();
+    HWND   hwnd   = GetHwnd();
+
+
+
+    if (hwnd == nullptr || m_isMoving || !m_readPointer (cursor))
+    {
+        return;
+    }
+
+    m_isMoving  = true;
+    m_moveGrab  = POINT { cursor.x - rect.left, cursor.y - rect.top };
+    m_moveStart = rect;
+
+    SetCapture (hwnd);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::MoveWithPointer
+//
+//  The window follows the pointer, and each step reports a move, as a tick
+//  of the system's move loop did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::MoveWithPointer()
+{
+    POINT  cursor     = {};
+    bool   buttonDown = m_readPointer (cursor);
+    SIZE   size       = GetScreenSize();
+
+
+
+    SetWindowPos (GetHwnd(), nullptr, cursor.x - m_moveGrab.x, cursor.y - m_moveGrab.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+    Report (m_drag.OnTick (buttonDown, size));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::EndMove
+//
+//  A canceled move puts the window back where it began.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::EndMove (bool isCanceled)
+{
+    m_isMoving = false;
+
+    if (GetCapture() == GetHwnd())
+    {
+        ReleaseCapture();
+    }
+
+    if (isCanceled)
+    {
+        SetScreenRect (m_moveStart);
+        Report (m_drag.Cancel());
+        return;
+    }
+
+    OnWindowPlaced();
 }
 
 

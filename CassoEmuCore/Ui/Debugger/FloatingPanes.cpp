@@ -607,9 +607,9 @@ RECT FloatingPanes::GetTearOffRect (const std::wstring & pane, POINT clientPx) c
 //
 //  Start a title-bar drag of the floating window a pane was just torn off
 //  into, while the mouse button that started the tear-off is down. The
-//  system's move loop then draws the debugger window's drop zones, and the
-//  pane is docked where the button is released, as for a drag of any
-//  floating window.
+//  window's move then draws the debugger window's drop zones, and the pane
+//  is docked where the button is released, as for a drag of any floating
+//  window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -633,7 +633,7 @@ void FloatingPanes::CarryTornOff()
     if (hwnd != nullptr && IsWindowVisible (hwnd))
     {
         PlaceUnderGrab (pane);
-        PostMessage (hwnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
+        Find (pane)->BeginMove();
     }
 }
 
