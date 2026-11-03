@@ -1513,7 +1513,6 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetColumnGroupChoices (bool gr
         { CatalogModel::Column::Type,     RowGrouping::Field::Type         },
         { CatalogModel::Column::Size,     RowGrouping::Field::Size         },
     };
-
     std::vector<DxuiPopupMenuItem>  items;
     std::vector<bool> &             chosen  = m_pane.GetColumns().GetChosen();
     std::shared_ptr<DxuiCommand>    more    = std::make_shared<DxuiCommand>();
