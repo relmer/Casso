@@ -35,7 +35,7 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
     { L".dsk: DOS-order sectors, the type every emulator opens",
       L"A '94 Civic with 400,000 miles on it. Every mechanic on Earth has parts for it.",                          ".dsk" },
     { L".woz: WOZ 2 bit stream, as Applesauce and current emulators use",
-      L"A Cybertruck with every feature. A load of metadata in the frunk and flux in the bed.",                   ".woz" },
+      L"A Cybertruck with every feature but full self-driving. Metadata in the frunk, flux data in the bed.",      ".woz" },
     { L".do: The same bytes as .dsk, with an extension that settles the sector-order debate",
       L"The same Civic with Acura badges glued on. Same engine, better standing at the car show.",                 ".do"  },
     { L".po: ProDOS-order sectors, even for a DOS 3.3 disk, if that's your thing",
