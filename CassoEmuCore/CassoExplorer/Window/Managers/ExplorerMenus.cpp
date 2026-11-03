@@ -717,7 +717,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         if (host && _wcsicmp (choice.verb.c_str(), Win32PackagedCommands::kNewLinkVerb) == 0)
         {
             AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
-            m_menuCommands.back()->menuImage = GetStockMenuImage (SIID_LINK);
+            m_menuCommands.back()->menuImage = GetIconFileMenuImage (L"shell32.dll", -16769);
         }
     }
 
@@ -760,12 +760,10 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
 
 std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetStockMenuImage (SHSTOCKICONID id)
 {
-    int                          sizePx = m_context.scaler.ToPx (kMenuIconDip);
-    std::wstring                 key    = std::format (L"{}:stock:{}", sizePx, (int) id);
-    SHSTOCKICONINFO              info   = { sizeof (info) };
-    HICON                        icon   = nullptr;
-    HRESULT                      hr     = S_OK;
-    auto                         image  = std::make_shared<DxuiIconImage>();
+    int              sizePx = m_context.scaler.ToPx (kMenuIconDip);
+    std::wstring     key    = std::format (L"{}:stock:{}", sizePx, (int) id);
+    SHSTOCKICONINFO  info   = { sizeof (info) };
+    HRESULT          hr     = S_OK;
 
 
 
@@ -780,8 +778,44 @@ std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetStockMenuImage (SHSTOCKIC
 
     if (SUCCEEDED (hr))
     {
-        hr = SHDefExtractIconW (info.szPath, info.iIcon, 0, &icon, nullptr, (UINT) sizePx);
+        m_openMenuImages[key] = GetIconFileMenuImage (info.szPath, info.iIcon);
     }
+
+    return m_openMenuImages[key];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerMenus::GetIconFileMenuImage
+//
+//  An icon in a file, by its index or, when negative, its resource id, at the
+//  menu's icon size, as New's Shortcut is in shell32.dll. Cached for the
+//  window's life.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetIconFileMenuImage (const std::wstring & file, int index)
+{
+    int           sizePx = m_context.scaler.ToPx (kMenuIconDip);
+    std::wstring  key    = std::format (L"{}:{}:{}", sizePx, file, index);
+    HICON         icon   = nullptr;
+    HRESULT       hr     = S_OK;
+    auto          image  = std::make_shared<DxuiIconImage>();
+
+
+
+    if (m_openMenuImages.count (key) != 0)
+    {
+        return m_openMenuImages[key];
+    }
+
+    m_openMenuImages[key] = nullptr;
+
+    hr = SHDefExtractIconW (file.c_str(), index, 0, &icon, nullptr, (UINT) sizePx);
 
     if (SUCCEEDED (hr) && icon != nullptr)
     {

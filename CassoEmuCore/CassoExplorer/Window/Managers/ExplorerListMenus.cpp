@@ -669,7 +669,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     {
         POINT         screen  = { x, y };
         std::wstring  shellId = GetBackgroundShellId (shown);
-        bool          onDisk  = shown.kind == Location::Kind::HostFolder || m_pane.GetColumns().GetGroupFolder() == GroupChoices::Folder::Zip || SearchQuery::IsId (shown.path);
+        bool          onDisk  = shown.kind == Location::Kind::HostFolder || m_pane.GetColumns().GetGroupFolder() == GroupChoices::Folder::Zip;
 
         ClientToScreen (m_context.window.GetHwnd(), &screen);
 
