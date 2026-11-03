@@ -250,7 +250,7 @@ public:
 
         request = client.ReceivePacket();
         Assert::AreEqual<int> (CassoLinkCodec::kReadSectors, request.command);
-        Assert::IsTrue (request.payload == std::vector<Byte> { 1, 17, 2, 5, 9, 0, 100 });
+        Assert::IsTrue (request.payload == std::vector<Byte> { 1, 17, 2, 5, 9, 0, 0 });
 
         client.SendSector (17, 5, first);
         client.SendSector (17, 9, second);
@@ -325,7 +325,7 @@ public:
 
         packet = client.ReceivePacket();
         Assert::AreEqual<int> (CassoLinkCodec::kWriteSectors, packet.command);
-        Assert::IsTrue (packet.payload == std::vector<Byte> { 1, 3, 2, 2, 7, 0, 100 });
+        Assert::IsTrue (packet.payload == std::vector<Byte> { 1, 3, 2, 2, 7, 0, 0 });
         Assert::IsTrue (client.IsQuiet(), L"no data before the client's Acknowledge");
 
         client.SendAcknowledge (CassoLinkCodec::kAck, 2, 3);
@@ -408,7 +408,7 @@ public:
 
         packet = client.ReceivePacket();
         Assert::AreEqual<int> (CassoLinkCodec::kFormatTrack, packet.command);
-        Assert::IsTrue (packet.payload == std::vector<Byte> { 2, 34, 254, 0, 100, 0 }, L"the gap byte last, 0 for the program's own");
+        Assert::IsTrue (packet.payload == std::vector<Byte> { 2, 34, 254, 0, 0, 0 }, L"no share of a bar, then the gap byte, 0 for the program's default");
 
         client.SendStatus (3, 2, 34, 1, CassoLinkHost::kErrorNone);
 
