@@ -260,4 +260,44 @@ public:
         found = std::search (disk.begin(), disk.end(), shim.begin(), shim.begin() + 0x40) != disk.end();
         Assert::IsTrue (found, L"the shim's header, with slot 4, is on the disk");
     }
+
+
+
+
+    //  An Apple keeps the program it has while its version matches the
+    //  host's, so a change to the program with no new version never reaches
+    //  it. These are the hashes of the builds at kProgramVersion: a program
+    //  changed with no new version fails here.
+    TEST_METHOD (Program_ChangesOnlyWithANewVersion)
+    {
+        static constexpr Word      s_kHashedVersion = 69;
+        static constexpr uint64_t  s_kAciaHash      = 0x304217105515B1A3;
+        static constexpr uint64_t  s_kW5100Hash     = 0xFEE1893F374AC430;
+
+        std::vector<Byte>  acia;
+        std::vector<Byte>  w5100;
+        std::string        errors;
+        HRESULT            hr = LinkProgram::AssembleProgram (acia, errors, LinkChip::Acia);
+        uint64_t           aciaHash  = 14695981039346656037ull;
+        uint64_t           w5100Hash = 14695981039346656037ull;
+
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+
+        hr = LinkProgram::AssembleProgram (w5100, errors, LinkChip::W5100);
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+
+        for (Byte value : acia)
+        {
+            aciaHash = (aciaHash ^ value) * 1099511628211ull;
+        }
+
+        for (Byte value : w5100)
+        {
+            w5100Hash = (w5100Hash ^ value) * 1099511628211ull;
+        }
+
+        Assert::AreEqual<int> (s_kHashedVersion, LinkProgram::kProgramVersion, L"a new version has new hashes: set them from this test's message");
+        Assert::IsTrue (aciaHash == s_kAciaHash && w5100Hash == s_kW5100Hash,
+                        std::format (L"The program changed with no new version. Raise LinkProgram::kProgramVersion, then set these to 0x{:016X} and 0x{:016X}.", aciaHash, w5100Hash).c_str());
+    }
 };
