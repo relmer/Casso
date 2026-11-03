@@ -92,7 +92,7 @@ public:
     bool                             RouteBarMouse       (const DxuiMouseEvent & ev) override;
     bool                             RouteContentMouse   (const DxuiMouseEvent & ev) override;
     const wchar_t                  * GetBarTip           (POINT clientPx, RECT & anchor) const override;
-    bool                             TryGetTip           (POINT clientPx, PaneTip & tip) override;
+    bool                             TryGetTip           (POINT clientPx, DxuiTip & tip) override;
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:

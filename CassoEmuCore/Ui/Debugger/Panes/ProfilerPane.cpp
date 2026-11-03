@@ -1630,9 +1630,9 @@ bool ProfilerPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProfilerPane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool ProfilerPane::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
-    tip.kind = PaneTip::Kind::Pointer;
+    tip.placement = DxuiTip::Placement::FollowPointer;
 
     if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, tip.text, tip.lineSwatches))
     {

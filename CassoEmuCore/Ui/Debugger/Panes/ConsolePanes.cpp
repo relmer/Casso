@@ -1405,13 +1405,13 @@ bool ConsolePane::SubmitTextBox (DxuiTextInput * box)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ConsolePane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool ConsolePane::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
     if (!m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
     {
         return false;
     }
 
-    tip.kind = PaneTip::Kind::Control;
+    tip.placement = DxuiTip::Placement::AtPointer;
     return true;
 }

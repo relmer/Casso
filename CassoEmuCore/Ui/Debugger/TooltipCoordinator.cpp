@@ -19,87 +19,41 @@
 
 void TooltipCoordinator::Update (POINT clientPx)
 {
-    RECT                   cell        = {};
-    RECT                   spot        = {};
     int64_t                now         = (int64_t) GetTickCount64();
-    std::wstring           text;
-    std::wstring           colorTip;
-    bool                   isPending   = false;
-    DxuiTooltip          & tip         = m_sources.GetRoutedTooltip();
+    DxuiTipService       & tips        = m_sources.GetRoutedTips();
     OperandTipController & operandTips = m_sources.GetOperandTips();
+    DxuiTip                tip;
+    bool                   isColorTip  = false;
 
 
 
     operandTips.SetColorTip (nullptr);
+    tips.SetSuppressed (m_sources.IsAnyMenuOpen());
 
-    //  Only the P register's flags color their lines, only a heat cell has a
-    //  scale, and only a pane's tip has swatches. A bar's tip after a tip with
-    //  swatches was indented by the swatches' width.
-    tip.SetLineColors   ({});
-    tip.SetLineSwatches ({});
-    tip.SetLineScales   ({});
-    tip.SetGradient     ({}, -1.0f);
-
-    if (m_sources.IsAnyMenuOpen())
-    {
-        tip.HideImmediate();
-        return;
-    }
-
-    if (TryShowBarTip (clientPx, tip, now) || TryShowPaneTip (clientPx, tip, now, isPending) || isPending)
+    if (tips.IsSuppressed())
     {
         return;
     }
 
-    if (m_sources.TryGetBranchTip (clientPx, cell, text))
+    if (!TryGetTip (clientPx, tip, isColorTip))
     {
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
+        tips.Hide (now);
         return;
     }
 
-    if (m_sources.TryGetSymbolTip (clientPx, cell, text))
+    //  Under the operand tip when there is one, so the two stack.
+    if (isColorTip)
     {
-        (void) TryGetCellTip (clientPx, spot, colorTip);
-        tip.SetMonospace (true);
-        tip.RequestShow  (cell, ColorLegend::JoinLines ({ text, colorTip }), now);
-        return;
-    }
+        operandTips.SetColorTip (&tips.GetTooltip());
 
-    //  Over anything else drawn in a color that means something, what it
-    //  means.
-    if (TryGetCellTip (clientPx, cell, text) || m_sources.TryGetGraphicTip (clientPx, cell, text))
-    {
-        operandTips.SetColorTip (&tip);
-
-        //  A sector's hex dump in the Disk II log lines up in columns.
-        tip.SetMonospace (std::ranges::any_of (m_sources.GetTipPanes(), [clientPx] (const std::unique_ptr<IDebuggerPane> & pane) { return pane->IsMonospaceTipAt (clientPx); }));
-
-        //  Under the operand tip when there is one, so the two stack.
         if (operandTips.HasTip())
         {
-            tip.RequestShow (operandTips.GetColorTipAnchor (cell), text, now, false);
+            tip.anchor    = operandTips.GetColorTipAnchor (tip.anchor);
+            tip.placement = DxuiTip::Placement::AtAnchor;
         }
-        else
-        {
-            tip.RequestShow (cell, text, now);
-        }
-
-        return;
     }
 
-    //  A tab's or title-bar button's tip is a sentence, not a table, so it
-    //  reads in the body face.
-    text = m_sources.GetChromeTipAt (clientPx, cell);
-
-    if (!text.empty())
-    {
-        tip.SetMonospace (false);
-        tip.RequestShow  (cell, text, now);
-        return;
-    }
-
-    tip.RequestHide (now);
+    tips.Show (tip, clientPx, now);
 }
 
 
@@ -108,17 +62,84 @@ void TooltipCoordinator::Update (POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipCoordinator::TryShowBarTip
+//  TooltipCoordinator::TryGetTip
+//
+//  A symbol's tip is code, so it reads in the fixed-width face, and adds what
+//  the color of the cell under it means. A tab's or title-bar button's tip
+//  is a sentence, so it reads in the body face.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TooltipCoordinator::TryGetTip (POINT clientPx, DxuiTip & tip, bool & isColorTip) const
+{
+    DxuiTip       colorTip;
+    std::wstring  text;
+
+
+
+    isColorTip = false;
+    tip        = DxuiTip();
+
+    if (TryGetBarTip (clientPx, tip) || TryGetPaneTip (clientPx, tip))
+    {
+        return true;
+    }
+
+    tip = DxuiTip();
+
+    if (m_sources.TryGetBranchTip (clientPx, tip.anchor, tip.text))
+    {
+        return true;
+    }
+
+    if (m_sources.TryGetSymbolTip (clientPx, tip.anchor, text))
+    {
+        (void) TryGetCellTip (clientPx, colorTip);
+
+        tip.text         = ColorLegend::JoinLines ({ text, colorTip.text });
+        tip.isMonospace  = true;
+        tip.gradient     = std::move (colorTip.gradient);
+        tip.gradientMark = colorTip.gradientMark;
+        tip.lineScales   = std::move (colorTip.lineScales);
+        return true;
+    }
+
+    //  Over anything else drawn in a color that means something, what it
+    //  means.
+    if (TryGetCellTip (clientPx, tip))
+    {
+        isColorTip = true;
+        return true;
+    }
+
+    tip = DxuiTip();
+
+    if (m_sources.TryGetGraphicTip (clientPx, tip.anchor, tip.text))
+    {
+        isColorTip = true;
+        return true;
+    }
+
+    tip = DxuiTip();
+    return m_sources.TryGetChromeTip (clientPx, tip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TooltipCoordinator::TryGetBarTip
 //
 //  The command bar's entries, what each does and its key in the scheme in
 //  force; then each pane's bar, then the find widgets'.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TooltipCoordinator::TryShowBarTip (POINT clientPx, DxuiTooltip & tip, int64_t now)
+bool TooltipCoordinator::TryGetBarTip (POINT clientPx, DxuiTip & tip) const
 {
-    RECT             cell   = {};
-    const wchar_t  * barTip = m_sources.GetCommandBarTip (clientPx, cell);
+    const wchar_t  * barTip = m_sources.GetCommandBarTip (clientPx, tip.anchor);
 
 
 
@@ -126,13 +147,13 @@ bool TooltipCoordinator::TryShowBarTip (POINT clientPx, DxuiTooltip & tip, int64
     {
         if (barTip == nullptr || *barTip == L'\0')
         {
-            barTip = pane->GetBarTip (clientPx, cell);
+            barTip = pane->GetBarTip (clientPx, tip.anchor);
         }
     }
 
     if (barTip == nullptr || *barTip == L'\0')
     {
-        barTip = m_sources.GetFindTip (clientPx, cell);
+        barTip = m_sources.GetFindTip (clientPx, tip.anchor);
     }
 
     if (barTip == nullptr || *barTip == L'\0')
@@ -140,8 +161,7 @@ bool TooltipCoordinator::TryShowBarTip (POINT clientPx, DxuiTooltip & tip, int64
         return false;
     }
 
-    tip.SetMonospace (false);
-    tip.RequestShow  (cell, barTip, now);
+    tip.text = barTip;
     return true;
 }
 
@@ -151,55 +171,27 @@ bool TooltipCoordinator::TryShowBarTip (POINT clientPx, DxuiTooltip & tip, int64
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipCoordinator::TryShowPaneTip
+//  TooltipCoordinator::TryGetPaneTip
 //
 //  Over what a pane draws, such as the heat map or the profiler's timeline:
-//  a control's tip, one at once following the pointer, or none yet while
-//  what it lists is read, with a tip already up left up.
+//  a control's tip, one at once following the pointer, or a pending one
+//  while what it lists is read, after which a tip already up stays up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TooltipCoordinator::TryShowPaneTip (POINT clientPx, DxuiTooltip & tip, int64_t now, bool & isPending)
+bool TooltipCoordinator::TryGetPaneTip (POINT clientPx, DxuiTip & tip) const
 {
-    isPending = false;
-
     for (const std::unique_ptr<IDebuggerPane> & pane : m_sources.GetTipPanes())
     {
-        PaneTip  paneTip;
+        DxuiTip  paneTip;
 
 
 
-        if (!pane->TryGetTip (clientPx, paneTip))
+        if (pane->TryGetTip (clientPx, paneTip))
         {
-            continue;
+            tip = std::move (paneTip);
+            return true;
         }
-
-        if (paneTip.kind == PaneTip::Kind::Pending)
-        {
-            isPending = true;
-            return false;
-        }
-
-        tip.SetMonospace (paneTip.isMonospace);
-
-        if (!paneTip.lineColors.empty())
-        {
-            tip.SetLineColors (std::move (paneTip.lineColors));
-        }
-
-        tip.SetLineSwatches (std::move (paneTip.lineSwatches));
-        tip.SetGradient     (std::move (paneTip.gradient), paneTip.gradientMark);
-
-        if (paneTip.kind == PaneTip::Kind::Control)
-        {
-            tip.RequestShow (paneTip.anchor, paneTip.text, now);
-        }
-        else
-        {
-            tip.RequestShowNow (GetPointerAnchor (clientPx), paneTip.text, now);
-        }
-
-        return true;
     }
 
     return false;
@@ -213,16 +205,15 @@ bool TooltipCoordinator::TryShowPaneTip (POINT clientPx, DxuiTooltip & tip, int6
 //
 //  TooltipCoordinator::TryGetCellTip
 //
+//  The front list under the point. A list takes points relative to itself,
+//  so the point is moved there and the tip's anchor moved back.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TooltipCoordinator::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+bool TooltipCoordinator::TryGetCellTip (POINT clientPx, DxuiTip & tip) const
 {
-    const std::vector<DxuiListView::Cell>  * cells  = nullptr;
-    DxuiListView                           * list   = nullptr;
-    RECT                                     bounds = {};
-    int                                      row    = -1;
-    int                                      column = -1;
-    int                                      right  = 0;
+    DxuiListView  * list   = nullptr;
+    RECT            bounds = {};
 
 
 
@@ -240,55 +231,12 @@ bool TooltipCoordinator::TryGetCellTip (POINT clientPx, RECT & anchor, std::wstr
     }
 
     bounds = list->GetBounds();
-    row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    column = m_sources.GetListColumnAt (list, clientPx.x - bounds.left);
-    right  = list->GetPaneLeadPx() - list->GetLeftPx();
 
-    for (size_t c = 0; c < list->GetColumnCount(); c++)
-    {
-        right += list->GetColumnEffectiveWidthPx (c);
-    }
-
-    if (column < 0 || clientPx.x - bounds.left >= right)
+    if (!list->TryGetTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, tip))
     {
         return false;
     }
 
-    if (clientPx.y - bounds.top < list->GetHeaderHeightPx())
-    {
-        text   = list->GetColumnAt ((size_t) column).tip;
-        anchor = GetPointerAnchor (clientPx);
-
-        m_sources.GetRoutedTooltip().SetLineScales (list->GetColumnAt ((size_t) column).tipLineScales);
-        return !text.empty();
-    }
-
-    if (row < 0 || row >= list->GetRowCount())
-    {
-        return false;
-    }
-
-    cells = &list->GetCellsOfRow (row);
-
-    if ((size_t) column >= cells->size() || (*cells)[(size_t) column].tip.empty())
-    {
-        return false;
-    }
-
-    //  A cell with only an icon, such as a breakpoint's dot, has no text to
-    //  anchor on, so the tip goes by the pointer.
-    if (!list->GetCellTextRectPx (row, (size_t) column, anchor))
-    {
-        anchor = RECT { clientPx.x - bounds.left, clientPx.y - bounds.top, clientPx.x - bounds.left + 1, clientPx.y - bounds.top + 1 };
-    }
-
-    OffsetRect (&anchor, bounds.left, bounds.top);
-    text = (*cells)[(size_t) column].tip;
-
-    if (!(*cells)[(size_t) column].tipGradient.empty())
-    {
-        m_sources.GetRoutedTooltip().SetGradient ((*cells)[(size_t) column].tipGradient, (*cells)[(size_t) column].tipGradientMark);
-    }
-
+    OffsetRect (&tip.anchor, bounds.left, bounds.top);
     return true;
 }

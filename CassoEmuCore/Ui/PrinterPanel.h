@@ -223,6 +223,7 @@ private:
     // button's enabled state: feeding mid-print would interleave a page
     // break into the guest's stream, so it only arms once the print idles.
     DxuiTooltip         m_tooltip;
+    DxuiTipService      m_tips                 { m_tooltip };
     int64_t             m_lastActivityChangeMs = 0;
 
     // Live-viewport state (FR-033). m_renderedSpan/-Activity detect "something

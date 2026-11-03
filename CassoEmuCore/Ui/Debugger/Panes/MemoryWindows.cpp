@@ -1431,7 +1431,7 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MemoryWindowGroup::TryGetTip (POINT clientPx, PaneTip & tip)
+bool MemoryWindowGroup::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
     for (MemoryWindowPane * window : GetOpenWindows())
     {
@@ -1449,7 +1449,7 @@ bool MemoryWindowGroup::TryGetTip (POINT clientPx, PaneTip & tip)
                 tip.gradientMark = heat.mark;
             }
 
-            tip.kind        = PaneTip::Kind::Pointer;
+            tip.placement   = DxuiTip::Placement::FollowPointer;
             tip.isMonospace = true;
             return true;
         }

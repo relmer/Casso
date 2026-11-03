@@ -450,6 +450,7 @@ private:
     DxuiToolbarEditBox     m_goToBox;
     DxuiAddressBar       * m_address         = nullptr;
     DxuiTooltip            m_tooltip;
+    DxuiTipService         m_tips        { m_tooltip };
 
     //  The window's edges, docked. Each band is stamped with the thickness
     //  its widget needs and comes back with the rect that widget is laid

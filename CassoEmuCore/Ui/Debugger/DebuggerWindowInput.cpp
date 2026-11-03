@@ -766,7 +766,7 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
         return m_commandBar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:
-        GetRoutedTooltip().HideImmediate();
+        GetRoutedTips().OnPress();
         return m_commandBar->OnToolbarLButtonDown (x, y);
 
     case DxuiMouseEventKind::Up:
@@ -824,7 +824,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  or a menu, and the tip would stay up over it.
     if (ev.kind == DxuiMouseEventKind::Down)
     {
-        GetRoutedTooltip().HideImmediate();
+        GetRoutedTips().OnPress();
         m_openingFocus.OnUserInput();
         m_stopFocus.OnInput (IsCommandPane (m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane()));
         m_lastPressPx = POINT { x, y };

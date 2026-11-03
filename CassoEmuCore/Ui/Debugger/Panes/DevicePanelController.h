@@ -44,7 +44,7 @@ public:
     std::optional<PaneColorKeySpec>  GetColorKey    () const override;
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick           (int64_t nowMs) override;
-    bool                             TryGetTip      (POINT clientPx, PaneTip & tip) override;
+    bool                             TryGetTip      (POINT clientPx, DxuiTip & tip) override;
 
     //  The Video panel's menu opens the video log, the Mockingboard panel's
     //  the sound log.

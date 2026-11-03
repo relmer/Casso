@@ -62,7 +62,7 @@ public:
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
-    bool                             TryGetTip      (POINT clientPx, PaneTip & tip) override;
+    bool                             TryGetTip      (POINT clientPx, DxuiTip & tip) override;
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:

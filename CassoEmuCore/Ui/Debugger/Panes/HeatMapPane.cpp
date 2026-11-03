@@ -934,7 +934,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapPane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool HeatMapPane::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
     bool  isShown = m_host.IsRoutable (m_view) && m_view->IsVisible();
 
@@ -942,7 +942,7 @@ bool HeatMapPane::TryGetTip (POINT clientPx, PaneTip & tip)
 
     if (isShown && m_view->TryGetZoomTipAt (clientPx, tip.anchor, tip.text))
     {
-        tip.kind = PaneTip::Kind::Control;
+        tip.placement = DxuiTip::Placement::AtPointer;
         return true;
     }
 
@@ -961,7 +961,8 @@ bool HeatMapPane::TryGetTip (POINT clientPx, PaneTip & tip)
 
     m_tipAt        = clientPx;
     m_isTipPending = !m_view->IsTipComplete (clientPx);
-    tip.kind       = m_isTipPending ? PaneTip::Kind::Pending : PaneTip::Kind::Pointer;
+    tip.placement  = DxuiTip::Placement::FollowPointer;
+    tip.isPending  = m_isTipPending;
 
     return true;
 }

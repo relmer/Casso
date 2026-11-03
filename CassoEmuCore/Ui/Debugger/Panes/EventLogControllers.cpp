@@ -421,6 +421,9 @@ void DiskLogController::CreateControls()
 
     CreateListAndBar();
 
+    //  A sector's hex dump in a row's tip lines up in columns.
+    m_list->SetMonospaceTips (true);
+
     m_trackBox  = parent.CreateChild<DxuiTextInput>();
     m_sectorBox = parent.CreateChild<DxuiTextInput>();
     m_error     = parent.CreateChild<DxuiLabel>();
@@ -720,23 +723,6 @@ bool DiskLogController::RouteBarMouse (const DxuiMouseEvent & ev)
     }
 
     return m_bar.RouteMouse (ev);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskLogController::IsMonospaceTipAt
-//
-//  A sector's hex dump in the log lines up in columns.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskLogController::IsMonospaceTipAt (POINT clientPx) const
-{
-    return m_list->IsVisible() && DxuiDockSite::Contains (m_list->GetBounds(), clientPx);
 }
 
 

@@ -59,20 +59,20 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetRoutedTooltip
+//  DebuggerWindow::GetRoutedTips
 //
-//  The tooltip of the window the event being routed came from, since a
-//  tooltip shows only over the window that owns it.
+//  The tip service of the window the event being routed came from, since a
+//  tooltip is drawn only over its window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTooltip & DebuggerWindow::GetRoutedTooltip()
+DxuiTipService & DebuggerWindow::GetRoutedTips()
 {
-    DxuiTooltip  * tip = m_floating->GetRoutedTip();
+    DxuiTipService  * tips = m_floating->GetRoutedTips();
 
 
 
-    return (tip != nullptr) ? *tip : m_tooltip;
+    return (tips != nullptr) ? *tips : m_tipService;
 }
 
 
@@ -124,26 +124,15 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 //  DebuggerWindow::TickTooltip
 //
 //  A tip requested before a press opened a drop-down's menu would otherwise
-//  appear over the menu once its delay ran out, so it is hidden while any
-//  menu is open. True while the tip is fading or waiting to appear.
+//  appear over the menu once its delay ran out, so no tip opens while a menu
+//  is open. True while the tip is fading or waiting to appear.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::TickTooltip (int64_t now)
 {
-    if (IsAnyMenuOpen())
-    {
-        m_tooltip.HideImmediate();
-        return false;
-    }
-
-    if (!m_tooltip.WantsTick())
-    {
-        return false;
-    }
-
-    m_tooltip.Tick (now);
-    return true;
+    m_tipService.SetSuppressed (IsAnyMenuOpen());
+    return m_tipService.Tick (now);
 }
 
 
@@ -382,32 +371,21 @@ bool DebuggerWindow::Meets (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetChromeTipAt
+//  DebuggerWindow::TryGetChromeTip
 //
-//  A tab's tip in this window, then a pane's title-bar buttons from the
-//  dock site of the window the mouse is in: this one's, or the floating
-//  window's the event was routed from.
+//  A tab's tip, or a pane's title-bar button's, from the dock site of the
+//  window the mouse is in: this one's, or the floating window's the event
+//  was routed from.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DebuggerWindow::GetChromeTipAt (POINT clientPx, RECT & anchor) const
+bool DebuggerWindow::TryGetChromeTip (POINT clientPx, DxuiTip & tip) const
 {
     const DxuiDockSite  * site = m_floating->GetRoutingPane().empty() ? m_dockSite : m_floating->FindSite (m_floating->GetRoutingPane());
-    std::wstring          text;
 
 
 
-    if (m_floating->GetRoutingPane().empty() && m_dockSite != nullptr && !m_dockSite->GetTabAt (clientPx, anchor, text).empty() && !text.empty())
-    {
-        return text;
-    }
-
-    if (site == nullptr)
-    {
-        return std::wstring();
-    }
-
-    return site->GetTitleButtonTipAt (clientPx, anchor);
+    return site != nullptr && site->TryGetTip (clientPx, tip);
 }
 
 

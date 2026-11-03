@@ -1447,6 +1447,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
                                   std::chrono::steady_clock::now().time_since_epoch()).count();
     const wchar_t  * tip    = nullptr;
     RECT             anchor = {};
+    DxuiTip          captionTip;
 
 
 
@@ -1464,11 +1465,14 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
     if (tip != nullptr && m_host != nullptr &&
         m_host->GetNcSystemButtonRectPx (POINT { xScreen, yScreen }, anchor))
     {
-        m_chrome->GetCaptionTooltip().RequestShow (anchor, tip, nowMs);
+        captionTip.text   = tip;
+        captionTip.anchor = anchor;
+
+        m_chrome->GetCaptionTips().Show (captionTip, POINT { xScreen, yScreen }, nowMs);
     }
     else
     {
-        m_chrome->GetCaptionTooltip().RequestHide (nowMs);
+        m_chrome->GetCaptionTips().Hide (nowMs);
     }
 
     // The host owns caption / system-button hover now. Our only stake in
@@ -1498,7 +1502,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseLeave()
 
 
     // Caption-button hover teardown is the host's job. The tooltip is ours.
-    m_chrome->GetCaptionTooltip().RequestHide (nowMs);
+    m_chrome->GetCaptionTips().OnLeave (nowMs);
 
     return DxuiMessageResult::NotHandled;
 }

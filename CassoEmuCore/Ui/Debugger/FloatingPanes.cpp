@@ -70,15 +70,15 @@ DxuiHwndSource * FloatingPanes::GetRoutedPopupHost() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FloatingPanes::GetRoutedTip
+//  FloatingPanes::GetRoutedTips
 //
 //  A tooltip is drawn only over its own window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTooltip * FloatingPanes::GetRoutedTip() const
+DxuiTipService * FloatingPanes::GetRoutedTips() const
 {
-    return m_routingPane.empty() ? nullptr : FindTip (m_routingPane);
+    return m_routingPane.empty() ? nullptr : FindTips (m_routingPane);
 }
 
 
@@ -759,6 +759,22 @@ void FloatingPanes::SaveRects (DxuiPaneLayout & layout) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FloatingPanes::SetTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::SetTip (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip)
+{
+    m_tipServices[key] = std::make_unique<DxuiTipService> (*tip);
+    m_tips[key]        = std::move (tip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FloatingPanes::EraseTip
 //
 //  A floating window's tooltip goes with the window.
@@ -776,7 +792,27 @@ void FloatingPanes::EraseTip (const std::wstring & key)
         m_host.OnFloatTipErased (found->second.get());
     }
 
+    m_tipServices.erase (key);
     m_tips.erase (key);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::FindTips
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTipService * FloatingPanes::FindTips (const std::wstring & key) const
+{
+    auto  found = m_tipServices.find (GetKeyOf (key));
+
+
+
+    return (found != m_tipServices.end()) ? found->second.get() : nullptr;
 }
 
 
@@ -1191,7 +1227,7 @@ void FloatingPanes::Float (const std::wstring & key)
         tip->SetTheme     (*theme);
         tip->SetDpi       (GetDpiForWindow (window->GetHwnd()));
         tip->ApplyVisualStudioLook();
-        m_tips[key] = std::move (tip);
+        SetTip (key, std::move (tip));
     }
 
     m_windows[key]     = std::move (window);

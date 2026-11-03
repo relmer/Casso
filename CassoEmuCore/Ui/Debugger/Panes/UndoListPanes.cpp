@@ -954,7 +954,7 @@ bool RegistersPane::RouteBarMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RegistersPane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool RegistersPane::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
     RECT                 bounds  = m_list->GetBounds();
     RECT                 cell    = {};
@@ -992,9 +992,9 @@ bool RegistersPane::TryGetTip (POINT clientPx, PaneTip & tip)
 
     OffsetRect (&cell, bounds.left, bounds.top);
 
-    tip.kind   = PaneTip::Kind::Control;
-    tip.anchor = cell;
-    tip.text   = FlagsDialog::Describe (*p);
+    tip.placement = DxuiTip::Placement::AtPointer;
+    tip.anchor    = cell;
+    tip.text      = FlagsDialog::Describe (*p);
     return true;
 }
 

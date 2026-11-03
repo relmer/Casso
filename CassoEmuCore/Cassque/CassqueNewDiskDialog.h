@@ -108,9 +108,9 @@ public:
     void  Init (const Children & children, bool showNameRows);
     void  SetOnChildPressed (std::function<void (IDxuiControl *)> fn) { m_onPressed = std::move (fn); }
 
-    //  The tooltip a hovered field shows, and the text for each field; a field
-    //  with no text shows none.
-    void  SetTooltip (DxuiTooltip * tooltip, TipFn tipFor) { m_tooltip = tooltip; m_tipFor = std::move (tipFor); }
+    //  The tip service for a hovered field's tip, and the text for each field;
+    //  a field with no text has no tip.
+    void  SetTips (DxuiTipService * tips, TipFn tipFor) { m_tips = tips; m_tipFor = std::move (tipFor); }
 
     //  What the panel measures its errors with. Without both, an error is taken
     //  to need a single line.
@@ -137,7 +137,7 @@ private:
     Children                               m_kids;
     bool                                   m_showNameRows = true;
     std::function<void (IDxuiControl *)>   m_onPressed;
-    DxuiTooltip                          * m_tooltip      = nullptr;
+    DxuiTipService                       * m_tips         = nullptr;
     TipFn                                  m_tipFor;
     IDxuiTextRenderer                    * m_text         = nullptr;
     const IDxuiTheme                     * m_theme        = nullptr;
@@ -195,6 +195,7 @@ private:
     DxuiButton             * m_ok         = nullptr;
     DxuiFieldValidator       m_validator;
     DxuiTooltip              m_tooltip;
+    DxuiTipService           m_tips       { m_tooltip };
     Outcome                  m_outcome;
     DxuiLabel                m_nameLabel;
     DxuiTextInput            m_name;

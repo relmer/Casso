@@ -339,14 +339,14 @@ void CommLogController::UpdateGraph()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommLogController::TryGetTip (POINT clientPx, PaneTip & tip)
+bool CommLogController::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
     if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->TryGetTipAt (clientPx, tip.text))
     {
         return false;
     }
 
-    tip.kind = PaneTip::Kind::Pointer;
+    tip.placement = DxuiTip::Placement::FollowPointer;
     return true;
 }
 

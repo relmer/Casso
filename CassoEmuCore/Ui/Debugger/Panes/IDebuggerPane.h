@@ -45,48 +45,6 @@ struct PaneMenu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaneTip
-//
-//  The tip a pane has under a point: a control's tip over its anchor, one
-//  that follows the pointer at once, or none yet, with a tip already up left
-//  as it is, while what it lists is being read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct PaneTip
-{
-    enum class Kind
-    {
-        Control,
-        Pointer,
-        Pending,
-    };
-
-    Kind                   kind        = Kind::Pointer;
-    RECT                   anchor      = {};
-    std::wstring           text;
-    bool                   isMonospace = false;
-
-    //  A color for each line, 0 for the tip's own; none for a tip in one
-    //  color.
-    std::vector<uint32_t>  lineColors;
-
-    //  A swatch of color before each line, 0 for none (DxuiTooltip::
-    //  SetLineSwatches).
-    std::vector<uint32_t>  lineSwatches;
-
-    //  A color scale under the text and a mark on it (DxuiTooltip::
-    //  SetGradient); no stops for none.
-    std::vector<uint32_t>  gradient;
-    float                  gradientMark = -1.0f;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PaneColorKeySpec
 //
 //  A pane's info button: the slot at the top of the pane it sits at the end
@@ -510,10 +468,7 @@ public:
     //  The tip of the bar entry under a point, or null; and the tip of what
     //  the pane draws under a point.
     virtual const wchar_t              * GetBarTip      (POINT clientPx, RECT & anchor) const { (void) clientPx; (void) anchor; return nullptr; }
-    virtual bool                         TryGetTip      (POINT clientPx, PaneTip & tip) { (void) clientPx; (void) tip; return false; }
-
-    //  Whether a cell's tip at a point lines up in columns.
-    virtual bool                         IsMonospaceTipAt (POINT clientPx) const { (void) clientPx; return false; }
+    virtual bool                         TryGetTip      (POINT clientPx, DxuiTip & tip) { (void) clientPx; (void) tip; return false; }
 
     //  A press on one of the pane's lists ended at a point, the list having
     //  had it.

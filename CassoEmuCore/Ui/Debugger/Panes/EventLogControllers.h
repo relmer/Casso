@@ -129,7 +129,6 @@ public:
     void                              ApplyLogDeltas   (const DebugLogDeltas & deltas, bool isWindowVisible) override;
     void                              PlaceBar         () override;
     bool                              RouteBarMouse    (const DxuiMouseEvent & ev) override;
-    bool                              IsMonospaceTipAt (POINT clientPx) const override;
     bool                              AddMenuItems     (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 protected:

@@ -141,7 +141,7 @@ void PrinterPanel::DarkenPerf (uint32_t & px)
 
 struct ToolbarTip
 {
-    const DxuiButton *  button;
+    DxuiButton       *  button;
     const wchar_t    *  enabledText;
     const wchar_t    *  disabledText;
 };
@@ -622,16 +622,16 @@ Error:
 //
 //  PrinterPanel::UpdateTooltip
 //
-//  Hover help for the toolbar. A disabled button's tip says WHY it is
-//  disabled instead of what it would do, which is the whole reason each
-//  row carries two strings.
+//  Hover help for the toolbar. A disabled button's tip is the reason it is
+//  disabled instead of what it would do, which is why each row has two
+//  strings. Each button's tip is set for its state, and the tip service
+//  finds the button under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::UpdateTooltip (int x, int y)
 {
     int64_t   now   = GetNowMs();
-    bool      shown = false;
 
 
 
@@ -674,20 +674,13 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
     for (const ToolbarTip & tip : tips)
     {
-        if (!shown && tip.button != nullptr && tip.button->HitTest (x, y))
+        if (tip.button != nullptr)
         {
-            m_tooltip.RequestShow (tip.button->GetBounds(),
-                                   tip.button->IsEnabled() ? tip.enabledText : tip.disabledText,
-                                   now);
-            shown = true;
+            tip.button->SetTip (tip.button->IsEnabled() ? tip.enabledText : tip.disabledText);
         }
     }
 
-    // Pointer is over the panel but not over any button.
-    if (!shown)
-    {
-        m_tooltip.RequestHide (now);
-    }
+    m_tips.Update (*this, POINT { x, y }, now);
 }
 
 
@@ -1638,7 +1631,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
     {
         // A left-press on the paper begins a pan-drag; presses on the toolbar
         // fall through so the buttons get their clicks.
-        m_tooltip.RequestHide (GetNowMs());
+        m_tips.OnPress();
         m_panZoom.OnMouse (ev);
         handled = true;
     }
@@ -1657,7 +1650,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
         }
         else if (isDown)
         {
-            m_tooltip.RequestHide (GetNowMs());
+            m_tips.OnPress();
         }
 
         handled = DxuiWindow::OnMouse (ev);

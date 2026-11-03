@@ -164,7 +164,7 @@ public:
     void                           Apply           (const DebuggerViewSnapshot & snapshot) override;
     bool                           RouteBarMouse   (const DxuiMouseEvent & ev) override;
     void                           OnListReleased  (DxuiListView * list, POINT clientPx) override;
-    bool                           TryGetTip       (POINT clientPx, PaneTip & tip) override;
+    bool                           TryGetTip       (POINT clientPx, DxuiTip & tip) override;
     bool                           AddMenuItems    (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                           CanUndo         (bool redo) const override;
     std::wstring                   GetUndoText     (bool redo) const override;

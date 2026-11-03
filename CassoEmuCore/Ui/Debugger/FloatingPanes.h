@@ -118,10 +118,10 @@ public:
     bool          IsRoutable        (const std::wstring & pane) const;
     std::wstring  GetBarRoutingPane (const std::wstring & pane) const;
 
-    //  The floating window, popup host, tooltip and HWND of the event being
-    //  routed, null for the debugger window's own.
+    //  The floating window, popup host, tip service and HWND of the event
+    //  being routed; null for an event of the debugger window.
     DxuiHwndSource *  GetRoutedPopupHost () const;
-    DxuiTooltip *     GetRoutedTip       () const;
+    DxuiTipService *  GetRoutedTips      () const;
     HWND              GetRoutedHwnd      () const;
 
     //  An event routed as the debugger window's own under `pane`: a floating
@@ -157,10 +157,12 @@ public:
     //  or sizing one is not a layout operation.
     void  SaveRects (DxuiPaneLayout & layout) const;
 
-    //  A tooltip by its key, a pane's or the floating command bar's.
-    void  SetTip   (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip) { m_tips[key] = std::move (tip); }
-    void  EraseTip (const std::wstring & key);
-    DxuiTooltip *  FindTip (const std::wstring & key) const;
+    //  A tooltip and its tip service by their key, a pane's or the floating
+    //  command bar's.
+    void              SetTip    (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip);
+    void              EraseTip  (const std::wstring & key);
+    DxuiTooltip *     FindTip   (const std::wstring & key) const;
+    DxuiTipService *  FindTips  (const std::wstring & key) const;
 
     //  Every floating window at once.
     void  ApplyTheme       (const DxuiTheme * theme);
@@ -200,6 +202,7 @@ private:
     std::map<std::wstring, std::vector<std::wstring>>            m_windowPanes;
     std::map<std::wstring, IDxuiControl *>                       m_focus;         // each floating pane's focused control, by pane
     std::map<std::wstring, std::unique_ptr<DxuiTooltip>>         m_tips;
+    std::map<std::wstring, std::unique_ptr<DxuiTipService>>      m_tipServices;
     DxuiDragOverlay                                              m_dragOverlay;
     std::wstring                                                 m_routingPane;
     std::wstring                                                 m_tornOffPane;

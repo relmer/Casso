@@ -594,7 +594,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiWindow * GetPaneHost    (const std::wstring & pane);
     std::wstring GetBarRoutingPane (const std::wstring & pane) const;
     DxuiHwndSource * GetMenuHost () const;
-    DxuiTooltip &    GetRoutedTooltip () override;
+    DxuiTipService & GetRoutedTips    () override;
+    DxuiTooltip &    GetRoutedTooltip () { return GetRoutedTips().GetTooltip(); }
     void     ClipPaneControls   ();
     void     NoteViewFocus      (bool isSource) override;
     void     NoteTabFocus       (POINT pointDip);
@@ -628,7 +629,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     const std::vector<std::unique_ptr<IDebuggerPane>> &  GetTipPanes () const override { return m_panes; }
     const wchar_t *              GetCommandBarTip (POINT clientPx, RECT & anchor) const override;
     const wchar_t *              GetFindTip       (POINT clientPx, RECT & anchor) const override { return m_finds->GetTip (clientPx, anchor); }
-    std::wstring                 GetChromeTipAt   (POINT clientPx, RECT & anchor) const override;
+    bool                         TryGetChromeTip  (POINT clientPx, DxuiTip & tip) const override;
     std::vector<DxuiListView *>  GetTipLists      () const override;
     bool                         TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;
 
@@ -715,6 +716,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     int                                   m_openViewsSettling   = 0;
     float                                 m_textZoom            = 1.0f;
     DxuiTooltip                           m_tooltip;
+    DxuiTipService                        m_tipService          { m_tooltip };
 
     //  A disassembly row's operand and result that the pane cuts off, shown
     //  whole over their cell.

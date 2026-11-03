@@ -264,7 +264,7 @@ public:
     void                             PlaceBar       () override { m_modeBar.GetSlot().Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_modeBar.GetSlot().RouteMouse (ev); }
     const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_modeBar.GetSlot().GetTip (clientPx, anchor); }
-    bool                             TryGetTip      (POINT clientPx, PaneTip & tip) override;
+    bool                             TryGetTip      (POINT clientPx, DxuiTip & tip) override;
 
 private:
     ConsoleOutput                         m_output;

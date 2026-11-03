@@ -6329,7 +6329,7 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
     int              y      = ev.positionDip.y;
     bool             took   = false;
     RECT             anchor = {};
-    const wchar_t *  tip    = nullptr;
+    DxuiTip          tip;
     int64_t          nowMs  = GetNowMs();
 
 
@@ -6338,15 +6338,14 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
     {
         case DxuiMouseEventKind::Move:
             took = toolbar.OnToolbarMouseMove (x, y);
-            tip  = took ? toolbar.GetTooltipAt (x, y, anchor) : nullptr;
 
-            if (tip != nullptr && *tip != L'\0')
+            if (took && toolbar.TryGetTip (ev.positionDip, tip))
             {
-                m_tooltip.RequestShow (anchor, tip, nowMs);
+                m_tips.Show (tip, ev.positionDip, nowMs);
             }
             else
             {
-                m_tooltip.RequestHide (nowMs);
+                m_tips.Hide (nowMs);
             }
 
             break;
@@ -6369,7 +6368,7 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
 
             if (took)
             {
-                m_tooltip.HideImmediate();
+                m_tips.OnPress();
             }
 
             break;
@@ -6380,7 +6379,7 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
 
         case DxuiMouseEventKind::Leave:
             toolbar.OnToolbarMouseLeave();
-            m_tooltip.RequestHide (nowMs);
+            m_tips.OnLeave (nowMs);
             break;
 
         default:

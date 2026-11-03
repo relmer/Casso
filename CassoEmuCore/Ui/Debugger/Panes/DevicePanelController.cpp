@@ -544,7 +544,7 @@ bool DevicePanelController::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
+bool DevicePanelController::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
     MemoryMapBar    * map   = m_model->GetMap();
     DiskHeadView    * head  = m_model->GetHead();
@@ -554,7 +554,7 @@ bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
 
     if (map != nullptr && m_host.IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, tip.text))
     {
-        tip.kind = PaneTip::Kind::Pointer;
+        tip.placement = DxuiTip::Placement::FollowPointer;
         return true;
     }
 
@@ -569,8 +569,8 @@ bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
             m_boardTipAnchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
         }
 
-        tip.kind   = PaneTip::Kind::Control;
-        tip.anchor = m_boardTipAnchor;
+        tip.placement = DxuiTip::Placement::AtPointer;
+        tip.anchor    = m_boardTipAnchor;
         return true;
     }
 
@@ -588,8 +588,8 @@ bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
         return false;
     }
 
-    tip.kind   = PaneTip::Kind::Control;
-    tip.anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+    tip.placement = DxuiTip::Placement::AtPointer;
+    tip.anchor    = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }
 

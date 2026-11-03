@@ -251,7 +251,7 @@ bool SourceDocumentPane::Contains (POINT atDip) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SourceDocumentPane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool SourceDocumentPane::TryGetTip (POINT clientPx, DxuiTip & tip)
 {
     HeatStrip::Tip  heat;
 
@@ -262,7 +262,7 @@ bool SourceDocumentPane::TryGetTip (POINT clientPx, PaneTip & tip)
         return false;
     }
 
-    tip.kind         = PaneTip::Kind::Control;
+    tip.placement    = DxuiTip::Placement::AtPointer;
     tip.text         = std::move (heat.text);
     tip.gradient     = std::move (heat.gradient);
     tip.gradientMark = heat.mark;

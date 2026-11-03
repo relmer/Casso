@@ -407,6 +407,10 @@ bool CassqueNewDiskPanel::OnMouse (const DxuiMouseEvent & ev)
     {
         UpdateTooltip (ev.positionDip.x, ev.positionDip.y);
     }
+    else if (ev.kind == DxuiMouseEventKind::Down && m_tips != nullptr)
+    {
+        m_tips->OnPress();
+    }
 
     for (IDxuiControl * field : fields)
     {
@@ -439,7 +443,7 @@ bool CassqueNewDiskPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 //  CassqueNewDiskPanel::UpdateTooltip
 //
-//  The field under the pointer shows what it takes; anywhere else, no tip.
+//  Over a field, the tip of what it takes; anywhere else, no tip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -448,32 +452,27 @@ void CassqueNewDiskPanel::UpdateTooltip (int x, int y)
     IDxuiControl *  fields[] = { m_kids.name, m_kids.container, m_kids.format, m_kids.volume, m_kids.bootable };
     int64_t         now      = (int64_t) GetTickCount64();
     POINT           pt       = { x, y };
-    std::wstring    tip;
+    DxuiTip         tip;
 
 
 
-    if (m_tooltip == nullptr || !m_tipFor)
+    if (m_tips == nullptr || !m_tipFor)
     {
         return;
     }
 
     for (IDxuiControl * field : fields)
     {
-        RECT  bounds = field->GetBounds();
+        field->SetTip (m_tipFor (field));
 
-        if (field->IsVisible() && PtInRect (&bounds, pt))
+        if (field->TryGetTip (pt, tip))
         {
-            tip = m_tipFor (field);
-
-            if (!tip.empty())
-            {
-                m_tooltip->RequestShow (bounds, tip, now);
-                return;
-            }
+            m_tips->Show (tip, pt, now);
+            return;
         }
     }
 
-    m_tooltip->RequestHide (now);
+    m_tips->Hide (now);
 }
 
 
@@ -567,7 +566,7 @@ void CassqueNewDiskDialog::OnCreate()
         m_tooltip.SetTheme (*m_theme);
     }
 
-    m_body->SetTooltip (&m_tooltip, [this] (IDxuiControl * field) -> std::wstring
+    m_body->SetTips (&m_tips, [this] (IDxuiControl * field) -> std::wstring
     {
         std::wstring  tip;
 
