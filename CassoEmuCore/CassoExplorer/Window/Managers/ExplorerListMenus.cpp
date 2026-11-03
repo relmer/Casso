@@ -1567,6 +1567,7 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetColumnGroupChoices (bool gr
         if (command != nullptr)
         {
             command->isEnabled = [grouped]() { return grouped; };
+            command->isChecked = [grouped, base]() { return grouped && base->isChecked && base->isChecked(); };
             items.push_back (DxuiPopupMenuItem::ForCommand (std::move (command)));
         }
     }
