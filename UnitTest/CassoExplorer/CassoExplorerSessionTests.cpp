@@ -108,8 +108,8 @@ public:
 
     TEST_METHOD (Read_LeavesOutWhatDoesNotReadBack)
     {
-        // A tab with a sort this build does not have is left out; a window
-        // with no tab left is left out; the rest opens.
+        // A tab with a negative sort column is left out; a window with no tab
+        // left is left out; the rest opens.
         std::vector<CassoExplorerSessionWindow>  read;
         std::string                              text = CassoExplorerSession::Write ({ MakeWindow(), MakeWindow() });
         size_t                                   key  = text.find ("\"sortColumn\"", text.find ("\"sortColumn\"") + 1);   // the first window's second tab
@@ -117,7 +117,7 @@ public:
 
         Assert::IsTrue   (key != std::string::npos && at != std::string::npos);
         Assert::AreEqual ('3', text[at], L"The sort column is written as a number");
-        text.replace (at, 1, "99");
+        text.replace (at, 1, "-1");
 
         Assert::IsTrue   (CassoExplorerSession::TryRead (text, read));
         Assert::AreEqual ((size_t) 2, read.size());
@@ -129,6 +129,23 @@ public:
 
         Assert::IsFalse  (CassoExplorerSession::TryRead ("not json", read));
         Assert::IsFalse  (CassoExplorerSession::TryRead ("{\"tabs\":[]}", read));
+    }
+
+
+    //  A search's sort by relevance, and a sort by a shell property, are past
+    //  the fixed columns and come back.
+    TEST_METHOD (RoundTrip_KeepsASortByRelevanceOrAProperty)
+    {
+        std::vector<CassoExplorerSessionWindow>  read;
+        CassoExplorerSessionWindow               window = MakeWindow();
+
+        window.tabs[0].sortColumn = CatalogModel::kRelevance;
+        window.tabs[1].sortColumn = (CatalogModel::Column) ((int) CatalogModel::Column::Folder + 3);
+
+        Assert::IsTrue   (CassoExplorerSession::TryRead (CassoExplorerSession::Write ({ window }), read));
+        Assert::AreEqual ((size_t) 2, read[0].tabs.size());
+        Assert::IsTrue   (read[0].tabs[0].sortColumn == CatalogModel::kRelevance);
+        Assert::IsTrue   (read[0].tabs[1].sortColumn == window.tabs[1].sortColumn);
     }
 
 

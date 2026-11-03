@@ -313,7 +313,10 @@ bool CassoExplorerSession::TryTabFromJson (const JsonValue & value, BrowserModel
         && value.HasInt  ("previewScroll",   tab.previewScroll)
         && value.HasBool ("disassemble",     tab.disassemble);
 
-    read = read && column >= 0 && column <= (int) CatalogModel::Column::Folder && group >= 0;
+    //  A sort by a shell property or by relevance is past the fixed columns; a
+    //  column no longer known falls back to Name when the folder's view is
+    //  applied.
+    read = read && column >= 0 && group >= 0;
 
     for (i = 0; read && i < selection->GetArraySize(); i++)
     {
