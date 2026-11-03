@@ -636,46 +636,14 @@ void Win32ShellTransfers::OperationRecorder::Record (IShellItem * item, HRESULT 
 //
 //  Win32ShellTransfers::Share
 //
-//  Invoked by its verb on the items' own menu, so no WinRT is needed here:
-//  the shell's handler talks to the share sheet itself.
+//  Through the share window Windows documents for desktop apps. Explorer's
+//  Share verb has no handler outside Explorer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ShellTransfers::Share (HWND owner, const std::vector<std::wstring> & paths)
 {
-    HRESULT                 hr     = S_OK;
-    ComPtr<IContextMenu>    menu;
-    HMENU                   popup  = nullptr;
-    CMINVOKECOMMANDINFOEX   invoke = { sizeof (invoke) };
-
-
-
-    hr = m_verbs.m_menus.GetItemsMenu (owner, paths, &menu);
-    CHR (hr);
-
-    //  Some handlers add their verbs only once asked to fill a menu.
-    popup = CreatePopupMenu();
-    CWR (popup != nullptr);
-
-    hr = menu->QueryContextMenu (popup, 0, Win32ShellItemVerbs::s_kFirstCommandId, Win32ShellItemVerbs::s_kLastCommandId, CMF_NORMAL);
-    CHR (hr);
-
-    invoke.fMask   = CMIC_MASK_UNICODE;
-    invoke.hwnd    = owner;
-    invoke.lpVerb  = s_kShareVerb;
-    invoke.lpVerbW = s_kShareVerbW;
-    invoke.nShow   = SW_SHOWNORMAL;
-
-    hr = menu->InvokeCommand ((LPCMINVOKECOMMANDINFO) &invoke);
-    CHR (hr);
-
-Error:
-    if (popup != nullptr)
-    {
-        DestroyMenu (popup);
-    }
-
-    return hr;
+    return m_shareSheet.Show (owner, paths);
 }
 
 

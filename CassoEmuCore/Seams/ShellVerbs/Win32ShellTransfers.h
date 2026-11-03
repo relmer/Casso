@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Seams/IShellItemVerbs.h"
+#include "Seams/ShellVerbs/Win32ShareSheet.h"
 
 class Win32ShellItemVerbs;
 
@@ -34,11 +35,6 @@ public:
     HRESULT  MoveItemsTo       (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets);
     HRESULT  CreateFolder      (HWND owner, const std::wstring & parent, const std::wstring & name);
     HRESULT  Share             (HWND owner, const std::vector<std::wstring> & paths);
-
-    //  The canonical verb of Explorer's Share command, which opens the same
-    //  share sheet an app would through the data transfer manager.
-    static constexpr const char    * s_kShareVerb      = "Windows.ModernShare";
-    static constexpr const wchar_t * s_kShareVerbW     = L"Windows.ModernShare";
 
     static bool  IsFromFolder (IDataObject * data, const std::wstring & folder);
 
@@ -89,4 +85,5 @@ private:
     friend class Win32ShellItemVerbs;
 
     Win32ShellItemVerbs  & m_verbs;
+    Win32ShareSheet        m_shareSheet;
 };

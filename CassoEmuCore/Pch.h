@@ -125,6 +125,8 @@
 #include <eventtoken.h>
 #include <windows.foundation.h>
 #include <windows.graphics.printing.h>
+#include <windows.storage.h>
+#include <windows.applicationmodel.datatransfer.h>
 #include <printmanagerinterop.h>
 #include <documentsource.h>
 #include <documenttarget.h>
