@@ -2095,9 +2095,9 @@ void CassoLinkConnections::Sink::OnActivity (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::Sink::OnTrace (const std::string & text)
+void CassoLinkConnections::Sink::OnTrace (bool sent, const std::string & text)
 {
-    m_owner.m_logFile.Append (m_name, text);
+    m_owner.m_logFile.Append (m_name, sent ? CassoLinkLogFile::kSent : CassoLinkLogFile::kReceived, text);
 }
 
 
@@ -2138,7 +2138,7 @@ void CassoLinkConnections::Sink::Log (Activity entry, const std::string & text)
     entry.connection = TextEncoding::NarrowToWide (m_name);
     entry.text       = TextEncoding::NarrowToWide (text);
 
-    m_owner.m_logFile.Append (m_name, "- " + text);
+    m_owner.m_logFile.Append (m_name, CassoLinkLogFile::kActivity, text);
 
     {
         std::lock_guard<std::mutex>  lock (m_owner.m_lock);

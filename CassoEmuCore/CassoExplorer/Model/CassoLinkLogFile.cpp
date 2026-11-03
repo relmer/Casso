@@ -49,11 +49,11 @@ void CassoLinkLogFile::SetFolder (const std::filesystem::path & folder)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkLogFile::Append (const std::string & connection, const std::string & text)
+void CassoLinkLogFile::Append (const std::string & connection, const char * kind, const std::string & text)
 {
     std::lock_guard<std::mutex>  lock (m_lock);
     SYSTEMTIME                   now     = {};
-    std::string                  line;
+    std::string                  row;
     DWORD                        written = 0;
     BOOL                         wrote   = FALSE;
 
@@ -66,6 +66,7 @@ void CassoLinkLogFile::Append (const std::string & connection, const std::string
 
     GetLocalTime (&now);
 
+    //  The first row of a day drops the rows past the cutoff.
     if (m_file == INVALID_HANDLE_VALUE || m_day != now.wYear * 10000 + now.wMonth * 100 + now.wDay)
     {
         Open (now);
@@ -76,8 +77,8 @@ void CassoLinkLogFile::Append (const std::string & connection, const std::string
         return;
     }
 
-    line  = FormatLine (now, connection, text);
-    wrote = WriteFile (m_file, line.data(), (DWORD) line.size(), &written, nullptr);
+    row   = FormatRow (now, connection, kind, text);
+    wrote = WriteFile (m_file, row.data(), (DWORD) row.size(), &written, nullptr);
     IGNORE_RETURN_VALUE (wrote, TRUE);
 }
 
@@ -89,14 +90,19 @@ void CassoLinkLogFile::Append (const std::string & connection, const std::string
 //
 //  CassoLinkLogFile::Open
 //
-//  The day's file, appended to, and opened for others to read while it is
-//  written.
+//  The file pruned, then opened to append to, and for others to read while
+//  it is written. A new file begins with the header.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkLogFile::Open (const SYSTEMTIME & time)
 {
     std::error_code  ec;
+    LARGE_INTEGER    size    = {};
+    BOOL             sized   = FALSE;
+    DWORD            written = 0;
+    BOOL             wrote   = FALSE;
+    std::string      header  = std::string (kHeader) + "\r\n";
 
 
 
@@ -108,11 +114,24 @@ void CassoLinkLogFile::Open (const SYSTEMTIME & time)
 
     std::filesystem::create_directories (m_folder, ec);
 
-    m_day  = time.wYear * 10000 + time.wMonth * 100 + time.wDay;
-    m_file = CreateFileW ((m_folder / GetFileName (time)).c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+    m_day = time.wYear * 10000 + time.wMonth * 100 + time.wDay;
+    Prune (time);
+
+    m_file = CreateFileW ((m_folder / kFileName).c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                           nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
-    Prune (time);
+    if (m_file == INVALID_HANDLE_VALUE)
+    {
+        return;
+    }
+
+    sized = GetFileSizeEx (m_file, &size);
+
+    if (sized && size.QuadPart == 0)
+    {
+        wrote = WriteFile (m_file, header.data(), (DWORD) header.size(), &written, nullptr);
+        IGNORE_RETURN_VALUE (wrote, TRUE);
+    }
 }
 
 
@@ -123,16 +142,34 @@ void CassoLinkLogFile::Open (const SYSTEMTIME & time)
 //
 //  CassoLinkLogFile::Prune
 //
+//  The file rewritten with the rows of the last kKeepDays, through a file
+//  beside it that replaces it, so the old file is whole after a failure.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkLogFile::Prune (const SYSTEMTIME & time)
 {
-    FILETIME         now    = {};
-    ULARGE_INTEGER   ticks  = {};
-    SYSTEMTIME       cutoff = {};
-    std::error_code  ec;
+    FILETIME                now    = {};
+    ULARGE_INTEGER          ticks  = {};
+    SYSTEMTIME              cutoff = {};
+    std::filesystem::path   path   = m_folder / kFileName;
+    std::filesystem::path   temp   = m_folder / (std::wstring (kFileName) + L".tmp");
+    std::string             text;
+    std::string             kept;
+    std::error_code         ec;
 
 
+
+    {
+        std::ifstream  in (path, std::ios::binary);
+
+        if (!in)
+        {
+            return;
+        }
+
+        text.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+    }
 
     SystemTimeToFileTime (&time, &now);
 
@@ -145,13 +182,25 @@ void CassoLinkLogFile::Prune (const SYSTEMTIME & time)
 
     FileTimeToSystemTime (&now, &cutoff);
 
-    for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (m_folder, ec))
+    kept = KeepFrom (text, FormatDate (cutoff));
+
+    if (kept.size() == text.size())
     {
-        if (IsExpired (entry.path().filename().wstring(), cutoff.wYear * 10000 + cutoff.wMonth * 100 + cutoff.wDay))
+        return;
+    }
+
+    {
+        std::ofstream  out (temp, std::ios::binary | std::ios::trunc);
+
+        out.write (kept.data(), (std::streamsize) kept.size());
+
+        if (!out)
         {
-            std::filesystem::remove (entry.path(), ec);
+            return;
         }
     }
+
+    std::filesystem::rename (temp, path, ec);
 }
 
 
@@ -160,20 +209,14 @@ void CassoLinkLogFile::Prune (const SYSTEMTIME & time)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkLogFile::FormatLine
+//  CassoLinkLogFile::FormatRow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CassoLinkLogFile::FormatLine (const SYSTEMTIME & time, const std::string & connection, const std::string & text)
+std::string CassoLinkLogFile::FormatRow (const SYSTEMTIME & time, const std::string & connection, const char * kind, const std::string & text)
 {
-    std::string  line = std::format ("{:02}:{:02}:{:02}.{:03}  {}  {}", time.wHour, time.wMinute, time.wSecond, time.wMilliseconds, connection, text);
-
-
-
-    std::replace (line.begin(), line.end(), '\r', ' ');
-    std::replace (line.begin(), line.end(), '\n', ' ');
-
-    return line + "\r\n";
+    return std::format ("{} {:02}:{:02}:{:02}.{:03},{},{},{}\r\n", FormatDate (time), time.wHour, time.wMinute, time.wSecond, time.wMilliseconds,
+                        QuoteField (connection), kind, QuoteField (text));
 }
 
 
@@ -182,43 +225,86 @@ std::string CassoLinkLogFile::FormatLine (const SYSTEMTIME & time, const std::st
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkLogFile::GetFileName
+//  CassoLinkLogFile::QuoteField
+//
+//  A field with a comma, a quote or a line break, in quotes with each quote
+//  doubled; any other field as it is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoLinkLogFile::GetFileName (const SYSTEMTIME & time)
+std::string CassoLinkLogFile::QuoteField (const std::string & field)
 {
-    return std::format (L"CassoLink-{:04}-{:02}-{:02}.log", time.wYear, time.wMonth, time.wDay);
-}
+    std::string  quoted = "\"";
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkLogFile::IsExpired
-//
-//  Only a file with the log's name is ever expired, so nothing else in the
-//  folder is deleted.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkLogFile::IsExpired (const std::wstring & fileName, int cutoffDay)
-{
-    int  year  = 0;
-    int  month = 0;
-    int  day   = 0;
-    int  read  = 0;
-
-
-
-    if (fileName.size() != std::wstring (L"CassoLink-0000-00-00.log").size() || !fileName.starts_with (L"CassoLink-") || !fileName.ends_with (L".log"))
+    if (field.find_first_of (",\"\r\n") == std::string::npos)
     {
-        return false;
+        return field;
     }
 
-    read = swscanf_s (fileName.c_str(), L"CassoLink-%4d-%2d-%2d.log", &year, &month, &day);
+    for (char ch : field)
+    {
+        quoted += (ch == '"') ? std::string ("\"\"") : std::string (1, ch);
+    }
 
-    return read == 3 && year * 10000 + month * 100 + day < cutoffDay;
+    return quoted + "\"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkLogFile::FormatDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkLogFile::FormatDate (const SYSTEMTIME & time)
+{
+    return std::format ("{:04}-{:02}-{:02}", time.wYear, time.wMonth, time.wDay);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkLogFile::KeepFrom
+//
+//  A quoted message can span lines, so a line that doesn't begin with a date
+//  goes with the row before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkLogFile::KeepFrom (const std::string & text, const std::string & cutoffDate)
+{
+    std::string  kept;
+    size_t       at   = 0;
+    bool         keep = true;
+
+
+
+    while (at < text.size())
+    {
+        size_t       end   = text.find ('\n', at);
+        std::string  line  = text.substr (at, (end == std::string::npos) ? std::string::npos : end + 1 - at);
+        bool         dated = line.size() >= 10 && isdigit ((unsigned char) line[0]) && line[4] == '-' && line[7] == '-';
+
+        if (dated)
+        {
+            keep = line.compare (0, 10, cutoffDate) >= 0;
+        }
+
+        if (keep)
+        {
+            kept += line;
+        }
+
+        at = (end == std::string::npos) ? text.size() : end + 1;
+    }
+
+    return kept;
 }

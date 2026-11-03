@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/CassoLinkPacketText.h"
 #include "Seams/IByteStream.h"
 
 
@@ -122,7 +123,7 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 
         if (complete && m_trace && !(outPacket.command == CassoLinkCodec::kWaitForKey && outPacket.payload.size() == 1 && outPacket.payload[0] == CassoLinkCodec::kKeyNone))
         {
-            m_trace (DescribePacket (false, outPacket.command, outPacket.payload));
+            m_trace (false, CassoLinkPacketText::Describe (outPacket.command, outPacket.payload));
         }
 
         BAIL_OUT_IF (complete, S_OK);
@@ -1236,7 +1237,7 @@ HRESULT CassoLinkHost::SendPacket (Byte command, std::span<const Byte> payload)
 
     if (m_trace)
     {
-        m_trace (DescribePacket (true, command, payload));
+        m_trace (true, CassoLinkPacketText::Describe (command, payload));
     }
 
     hr = Send (encoded);
@@ -1244,90 +1245,6 @@ HRESULT CassoLinkHost::SendPacket (Byte command, std::span<const Byte> payload)
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkHost::DescribePacket
-//
-//  A packet with text, such as a screen's rows, has its text, each line
-//  after a |.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string CassoLinkHost::DescribePacket (bool sent, Byte command, std::span<const Byte> payload)
-{
-    static constexpr std::array<std::pair<Byte, const char *>, 22>  s_kNames =
-    { {
-        { CassoLinkCodec::kReady,         "Ready"          },
-        { CassoLinkCodec::kIdle,          "Idle"           },
-        { CassoLinkCodec::kSectorData,    "SectorData"     },
-        { CassoLinkCodec::kSectorNibbles, "SectorNibbles"  },
-        { CassoLinkCodec::kLoadProgram,   "LoadProgram"    },
-        { CassoLinkCodec::kSetSpeed,      "SetSpeed"       },
-        { CassoLinkCodec::kReadSectors,   "ReadSectors"    },
-        { CassoLinkCodec::kWriteSectors,  "WriteSectors"   },
-        { CassoLinkCodec::kFormatTrack,   "FormatTrack"    },
-        { CassoLinkCodec::kWriteTrack,    "WriteTrack"     },
-        { CassoLinkCodec::kStatus,        "Status"         },
-        { CassoLinkCodec::kCancel,        "Cancel"         },
-        { CassoLinkCodec::kLabel,         "Label"          },
-        { CassoLinkCodec::kLog,           "Log"            },
-        { CassoLinkCodec::kTimeDrive,     "TimeDrive"      },
-        { CassoLinkCodec::kExit,          "Exit"           },
-        { CassoLinkCodec::kSectorBlank,   "SectorBlank"    },
-        { CassoLinkCodec::kSessionScreen, "SessionScreen"  },
-        { CassoLinkCodec::kWaitForKey,    "WaitForKey"     },
-        { CassoLinkCodec::kSetColumns,    "SetColumns"     },
-        { CassoLinkCodec::kReadCrcs,      "ReadCrcs"       },
-        { CassoLinkCodec::kSectorCrcs,    "SectorCrcs"     },
-    } };
-    static constexpr size_t  s_kHexBytes = 8;
-    std::string              line        = sent ? "> " : "< ";
-    auto                     name        = std::find_if (s_kNames.begin(), s_kNames.end(), [command] (const auto & entry) { return entry.first == command; });
-    bool                     isText      = command == CassoLinkCodec::kLabel || command == CassoLinkCodec::kLog || command == CassoLinkCodec::kSessionScreen
-                                        || (command == CassoLinkCodec::kWaitForKey && payload.size() > 1);
-    bool                     isSector    = (command == CassoLinkCodec::kSectorData || command == CassoLinkCodec::kSectorNibbles || command == CassoLinkCodec::kSectorBlank) && payload.size() >= 2;
-
-
-
-    line += (name != s_kNames.end()) ? std::string (name->second) : std::format ("{:02X}", command);
-
-    if (isSector)
-    {
-        return line + std::format (" T{} S{}", payload[0], payload[1]);
-    }
-
-    if (isText)
-    {
-        line += " ";
-
-        //  Wait for key's first byte is its mode, and its lines follow.
-        for (Byte b : payload.subspan (command == CassoLinkCodec::kWaitForKey ? 1 : 0))
-        {
-            char  ch = (char) (b & 0x7F);
-
-            line += (ch == 0) ? std::string (" | ") : (ch >= 0x20 && ch < 0x7F) ? std::string (1, ch) : std::format ("\\x{:02X}", b);
-        }
-
-        return line;
-    }
-
-    for (size_t i = 0; i < payload.size() && i < s_kHexBytes; i++)
-    {
-        line += std::format (" {:02X}", payload[i]);
-    }
-
-    if (payload.size() > s_kHexBytes)
-    {
-        line += std::format (" ... ({} bytes)", payload.size());
-    }
-
-    return line;
 }
 
 

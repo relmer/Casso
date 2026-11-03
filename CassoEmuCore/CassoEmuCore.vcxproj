@@ -227,6 +227,7 @@
     <ClCompile Include="CassoLink\CassoLinkCodec.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFolder.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
@@ -1000,6 +1001,7 @@
     <ClInclude Include="CassoLink\CassoLinkCodec.h" />
     <ClInclude Include="CassoLink\CassoLinkFolder.h" />
     <ClInclude Include="CassoLink\CassoLinkHost.h" />
+    <ClInclude Include="CassoLink\CassoLinkPacketText.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkAdtProServer.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkHostTypes.h" />
     <ClInclude Include="CassoLink\LinkProgram.h" />

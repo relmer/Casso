@@ -551,7 +551,7 @@ hardware.
 
 - Q: Where is a Full Send's file name prefix set? -> A: On the Apple, as ADTPro takes a file name there, not in Casso Explorer's Options. P on the entry screen or in a pause opens a line; the prefix lasts for that session only.
 - Q: What is on the Apple's screen for a disk that may already have been sent? -> A: DUPE OF and the matching file, with a ?, as the fingerprint compares only a few tracks. A drive's number sends it anyway, and the image is written with the next sequence number even when it is an exact copy. A disk whose whole-disk hash matches an earlier image, with no key, is written too, and its row adds DUPE OF and that file with no ?.
-- Q: Is there a log of what crossed the wire? -> A: Yes: a file a day under Casso's Logs folder with each connection's activity and every packet, for finding out afterward what a session did.
+- Q: Is there a log of what crossed the wire? -> A: Yes: one CSV file under Casso's Logs folder with each connection's activity and every packet in plain English, its rows past 30 days dropped, so a session across midnight stays in one file.
 - Q: Do Details columns narrow as well as widen? -> A: Yes, in a folder with no widths the user set; a folder with any opens with them.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -2108,7 +2108,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-131**: The tree MUST animate a connection's icon and the receiving folder during a transfer, and MUST badge the Full Send and ADTPro folders with a count of received files not yet rendered in the list, across restarts.
 - **FR-132**: Casso Explorer MUST read and write Apple Pascal and CP/M 140K disks, on images and over CassoLink. CP/M detection MAY be heuristic, with a manual choice.
 - **FR-133**: A WOZ image's Properties MUST have a page that edits its INFO and META fields, as in Session 2026-11-02, and saves them into the image in place.
-- **FR-134**: Casso Explorer MUST append every CassoLink connection's activity and each packet sent and received to `CassoLink-<date>.log` under Casso's Logs folder in local app data, a file a day, and MUST delete a log older than 30 days.
+- **FR-134**: Casso Explorer MUST append every CassoLink connection's activity and each packet sent and received to one `CassoLink.csv` under Casso's Logs folder in local app data, a row each with the date and time, the connection, Activity, Sent or Received, and the message in plain English, and MUST drop the rows older than 30 days.
 - **FR-135**: A folder in Details view with no column width the user set MUST fit each column but Name to its values, wider or narrower, measuring every row up to 500 and the rows on screen past that. A width the user set by dragging or fitting a column MUST be the folder's from then on, and an automatic fit MUST NOT be saved as one.
 
 ### Key Entities

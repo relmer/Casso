@@ -10,10 +10,11 @@
 //
 //  CassoLinkLogFile
 //
-//  Every connection's activity and the packets on each line, appended to a
-//  file a day in a folder: CassoLink-2026-11-03.log. A file older than
-//  kKeepDays is deleted when the first line of a day is written. With no
-//  folder set, nothing is written.
+//  Every connection's activity and the packets on each line, as rows of
+//  CassoLink.csv in a folder: the local time, the connection, what the row is
+//  (Activity, Sent or Received) and the message in plain English. Rows older
+//  than kKeepDays are dropped when the file is first opened and each day
+//  after. With no folder set, nothing is written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,21 +27,26 @@ public:
     CassoLinkLogFile (const CassoLinkLogFile &)             = delete;
     CassoLinkLogFile & operator= (const CassoLinkLogFile &) = delete;
 
+    static constexpr const char     * kActivity = "Activity";
+    static constexpr const char     * kSent     = "Sent";
+    static constexpr const char     * kReceived = "Received";
+    static constexpr const char     * kHeader   = "Time,Connection,Kind,Message";
+    static constexpr const wchar_t  * kFileName = L"CassoLink.csv";
+    static constexpr int              kKeepDays = 30;
+
     void  SetFolder (const std::filesystem::path & folder);
 
-    //  One line, from any thread. A file that cannot be written is skipped.
-    void  Append    (const std::string & connection, const std::string & text);
+    //  One row, from any thread. A file that cannot be written is skipped.
+    void  Append    (const std::string & connection, const char * kind, const std::string & text);
 
-    //  The line as written: the local time to the millisecond, the
-    //  connection and the text, with any line break in it as a space.
-    static std::string   FormatLine  (const SYSTEMTIME & time, const std::string & connection, const std::string & text);
-    static std::wstring  GetFileName (const SYSTEMTIME & time);
+    //  The row as written, with each field quoted where CSV requires it.
+    static std::string  FormatRow   (const SYSTEMTIME & time, const std::string & connection, const char * kind, const std::string & text);
+    static std::string  QuoteField  (const std::string & field);
+    static std::string  FormatDate  (const SYSTEMTIME & time);
 
-    //  Whether a file in the folder is a log written before the cutoff day,
-    //  as yyyymmdd.
-    static bool          IsExpired   (const std::wstring & fileName, int cutoffDay);
-
-    static constexpr int  kKeepDays = 30;
+    //  The rows of a file's text from the cutoff day, as yyyy-mm-dd, on, with
+    //  the header and any row that doesn't begin with a date.
+    static std::string  KeepFrom    (const std::string & text, const std::string & cutoffDate);
 
 private:
     void  Open  (const SYSTEMTIME & time);
@@ -48,6 +54,6 @@ private:
 
     std::filesystem::path  m_folder;
     HANDLE                 m_file = INVALID_HANDLE_VALUE;
-    int                    m_day  = 0;     // the open file's day, as yyyymmdd
+    int                    m_day  = 0;     // the day the file was last pruned, as yyyymmdd
     std::mutex             m_lock;
 };

@@ -293,7 +293,7 @@ private:
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
-        void  OnTrace              (const std::string & text) override;
+        void  OnTrace              (bool sent, const std::string & text) override;
         void  OnFinished           (const LinkOperation & operation, const std::string & text) override;
 
         //  Whether a transfer reported progress lately. A Full Send waiting for

@@ -152,9 +152,9 @@ public:
     //  operation finished, or a request of ADTPro's served.
     virtual void  OnActivity     (const std::string & text)                            { UNREFERENCED_PARAMETER (text); }
 
-    //  A packet on the line, as CassoLinkHost::DescribePacket has it, for a log
-    //  file alone.
-    virtual void  OnTrace        (const std::string & text)                            { UNREFERENCED_PARAMETER (text); }
+    //  A packet on the line, as CassoLinkPacketText describes it, for the log
+    //  file alone; sent is false for one received.
+    virtual void  OnTrace        (bool sent, const std::string & text)                 { UNREFERENCED_PARAMETER (sent); UNREFERENCED_PARAMETER (text); }
 
     //  An operation finished, for the log with the time it started.
     virtual void  OnFinished     (const LinkOperation & operation, const std::string & text) { UNREFERENCED_PARAMETER (operation); OnActivity (text); }
