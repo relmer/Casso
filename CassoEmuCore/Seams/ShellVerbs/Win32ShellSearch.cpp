@@ -733,6 +733,7 @@ HRESULT Win32ShellSearch::SaveSearch (HWND owner, const std::wstring & id)
     std::string                         xml;
     std::wstring                        name;
     HRESULT                             hrFolder = S_OK;
+    bool                                written  = false;
 
 
 
@@ -775,7 +776,8 @@ HRESULT Win32ShellSearch::SaveSearch (HWND owner, const std::wstring & id)
         std::ofstream  out (path, std::ios::binary | std::ios::trunc);
 
         out.write (xml.data(), (std::streamsize) xml.size());
-        CBREx (out.good(), HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+        written = out.good();
+        CBREx (written, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
 
 Error:
@@ -855,6 +857,7 @@ std::string Win32ShellSearch::EscapeXml (const std::string & text)
 
     return escaped;
 }
+
 
 
 

@@ -87,7 +87,7 @@ void ExplorerListPane::Configure()
     m_list->SetIconColumn (0);
     m_list->SetExplorerDetails (true);
     ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kProse);
-    m_list->SetRowHeightPxFn (m_context.explorerOptions.compactView ? &ExplorerLayout::GetCompactRowHeightPx : &ExplorerLayout::GetListRowHeightPx);
+    m_list->SetRowHeightPxFn (m_context.explorerOptions.compactView ? &ExplorerLayout::GetCompactRowPx : &ExplorerLayout::GetListRowHeightPx);
     m_columns.LoadPropertyColumns();
     m_columns.ChooseAll (m_columns.GetListColumns().size());
 

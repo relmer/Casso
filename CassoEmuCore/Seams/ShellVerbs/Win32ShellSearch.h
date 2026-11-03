@@ -55,6 +55,7 @@ public:
     static HRESULT      SaveSearch      (HWND owner, const std::wstring & id);
     static std::string  MakeSavedSearch (const std::wstring & query, const std::vector<std::wstring> & scopes);
     static std::string  EscapeXml       (const std::string & text);
+
     static HRESULT  QueryIndex      (const std::wstring & scope, const std::wstring & query, std::vector<std::wstring> & outPaths, bool currentFolder = false, std::map<std::wstring, int> * outRanks = nullptr);
     static void     WalkForNames    (const std::wstring & scope, const std::vector<std::wstring> & words, std::vector<std::wstring> & outPaths, const WalkOptions & options = {});
     static void     WalkFixedDrives (const std::vector<std::wstring> & words, std::vector<std::wstring> & ioPaths, const WalkOptions & options = {});

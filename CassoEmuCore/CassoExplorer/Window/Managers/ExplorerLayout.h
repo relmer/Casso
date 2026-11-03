@@ -59,8 +59,8 @@ public:
     static constexpr int     kMessageWidthDip = 400;
 
     static PaneWidths        FitPanes           (int bodyDip, int treeDip, int previewDip);
-    static int               GetListRowHeightPx    (UINT dpi);
-    static int               GetCompactRowHeightPx (UINT dpi);
+    static int               GetListRowHeightPx (UINT dpi);
+    static int               GetCompactRowPx    (UINT dpi);
     void                     ConfigureWidgets   ();
     void                     RecomputeLayout    ();
     void                     UpdateCommandBar   ();

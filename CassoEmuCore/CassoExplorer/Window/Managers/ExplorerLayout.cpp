@@ -388,13 +388,13 @@ int ExplorerLayout::GetListRowHeightPx (UINT dpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerLayout::GetCompactRowHeightPx
+//  ExplorerLayout::GetCompactRowPx
 //
 //  File Explorer's Compact view row, the same rule with 11 dip to the half.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int ExplorerLayout::GetCompactRowHeightPx (UINT dpi)
+int ExplorerLayout::GetCompactRowPx (UINT dpi)
 {
     int  half    = (int) ((kCompactRowHalfDip * dpi + 95) / 96);
     int  partial = (dpi % 96 != 0) ? 1 : 0;

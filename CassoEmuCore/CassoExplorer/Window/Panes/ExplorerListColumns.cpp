@@ -565,7 +565,7 @@ bool ExplorerListColumns::ReadFolderOptions()
 
     //  The pane's options Casso Explorer still follows change with them.
     m_context.explorerOptions = options;
-    m_pane.GetListView()->SetRowHeightPxFn (options.compactView ? &ExplorerLayout::GetCompactRowHeightPx : &ExplorerLayout::GetListRowHeightPx);
+    m_pane.GetListView()->SetRowHeightPxFn (options.compactView ? &ExplorerLayout::GetCompactRowPx : &ExplorerLayout::GetListRowHeightPx);
     m_context.browser.SetFolderOptions (options);
     m_context.treePane.ApplyNavPaneOptions();
     m_context.browser.GetTreeModel().InvalidateAll();
