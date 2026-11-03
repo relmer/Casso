@@ -77,8 +77,8 @@ private:
     void     Unhook          ();
 
     Microsoft::WRL::ComPtr<ABI::Windows::ApplicationModel::DataTransfer::IDataTransferManager>  m_manager;
-    Microsoft::WRL::ComPtr<ItemList>                                                           m_items;
-    std::wstring                                                                               m_title;
-    HWND                                                                                       m_owner   = nullptr;
-    EventRegistrationToken                                                                     m_token   = {};
+    Microsoft::WRL::ComPtr<ItemList>                                                            m_items;
+    std::wstring                                                                                m_title;
+    HWND                                                                                        m_owner   = nullptr;
+    EventRegistrationToken                                                                      m_token   = {};
 };
