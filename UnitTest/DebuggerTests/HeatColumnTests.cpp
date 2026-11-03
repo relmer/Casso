@@ -138,6 +138,34 @@ namespace DebuggerTests
 
 
 
+        //  While heat is on, a memory byte's tip has its counts and the scale
+        //  of its tint, as a heat cell's does; with heat off, none.
+        TEST_METHOD (AMemoryBytesTipExplainsItsTintWhileHeatIsOn)
+        {
+            auto                levels = std::make_shared<DebuggerViewSnapshot::HeatColumnLevels> (MakeLevels());
+            DxuiHexView         view;
+            MemoryPane          pane   (1, &view, [] (int, Word) {}, [] (const DebuggerActionBuilder &) {}, [] (const std::string &) {});
+            HeatStrip::Tip      tip;
+
+
+
+            levels->executeCount.assign (0x10000, 0);
+            levels->readCount.assign    (0x10000, 0);
+            levels->writeCount.assign   (0x10000, 0);
+
+            pane.Configure (nullptr);
+            pane.SetHeat   (levels, MakePalette());
+
+            Assert::IsTrue (pane.GetHeatTip (0).text.empty(), L"heat is off");
+
+            pane.SetHeatOn (true);
+            tip = pane.GetHeatTip (0);
+
+            Assert::IsTrue (tip.text.starts_with (L"Byte"), tip.text.c_str());
+        }
+
+
+
         //  A memory window's byte is tinted halfway from the page toward its
         //  heat map color, and a byte nothing touched is not tinted.
         TEST_METHOD (AMemoryBytesTintIsHalfwayToItsColor)

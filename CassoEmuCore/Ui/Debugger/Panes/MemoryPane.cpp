@@ -125,6 +125,26 @@ void MemoryPane::SetHeat (std::shared_ptr<const DebuggerViewSnapshot::HeatColumn
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryPane::GetHeatTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatStrip::Tip MemoryPane::GetHeatTip (uint64_t offset) const
+{
+    if (!m_isHeatOn || m_heatLevels == nullptr)
+    {
+        return {};
+    }
+
+    return HeatStrip::GetTip (*m_heatLevels, m_model.GetAddressOf (offset), 1, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryPane::GetHeatFill
 //
 //  Halfway, so the byte's own ink stays readable over it.

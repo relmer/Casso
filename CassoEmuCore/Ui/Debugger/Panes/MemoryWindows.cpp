@@ -1426,7 +1426,8 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 //  MemoryWindowGroup::TryGetTip
 //
 //  Over a byte of an open window, in either column, its address, at once and
-//  following the pointer itself rather than snapping from byte to byte.
+//  following the pointer itself rather than snapping from byte to byte; and
+//  while heat is on, its counts and what its tint means.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1439,6 +1440,15 @@ bool MemoryWindowGroup::TryGetTip (POINT clientPx, PaneTip & tip)
         if (m_host.IsRoutable (view) && view->IsVisible() && DxuiDockSite::Contains (view->GetBounds(), clientPx) &&
             view->TryGetByteTipAt (clientPx, tip.anchor, tip.text))
         {
+            HeatStrip::Tip  heat = window->GetModel().GetHeatTip (view->HitTestPoint (clientPx).offset);
+
+            if (!heat.text.empty())
+            {
+                tip.text        += L"\n\n" + heat.text;
+                tip.gradient     = std::move (heat.gradient);
+                tip.gradientMark = heat.mark;
+            }
+
             tip.kind        = PaneTip::Kind::Pointer;
             tip.isMonospace = true;
             return true;
