@@ -277,7 +277,7 @@ public:
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;
         std::string        errors;
-        HRESULT            hr = LinkProgram::AssembleProgram (acia, errors, LinkChip::Acia);
+        HRESULT            hr        = LinkProgram::AssembleProgram (acia, errors, LinkChip::Acia);
         uint64_t           aciaHash  = 14695981039346656037ull;
         uint64_t           w5100Hash = 14695981039346656037ull;
 

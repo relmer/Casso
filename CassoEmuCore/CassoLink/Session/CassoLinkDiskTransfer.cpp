@@ -403,7 +403,7 @@ HRESULT CassoLinkDiskTransfer::ReadVerifiedTrack (int drive, int track, std::vec
             std::vector<Word>  crcs;
             std::vector<bool>  read;
             CassoLinkStatus    status;
-            HRESULT            hr = host.ReadCrcs (drive, (Byte) (track == 0 ? 1 : track - 1), first, crcs, read, status);
+            HRESULT            hr      = host.ReadCrcs (drive, (Byte) (track == 0 ? 1 : track - 1), first, crcs, read, status);
 
             Settle();
 
