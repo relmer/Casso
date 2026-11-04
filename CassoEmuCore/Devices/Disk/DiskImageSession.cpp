@@ -389,7 +389,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
 
     if (!woz.meta.empty())
     {
-        text += FormatDetailHeading ("WOZ metadata");
+        text += FormatDetailHeading (kMetaHeading);
     }
 
     // The named fields first, then whatever else the image chose to record.

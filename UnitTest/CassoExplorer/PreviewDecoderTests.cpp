@@ -624,7 +624,7 @@ public:
         Assert::IsTrue   (PreviewDecoder::ParseDetails (message, details));
         auto  has = [&details] (const wchar_t * label, const wchar_t * value) { return std::find (details.begin(), details.end(), std::pair<std::wstring, std::wstring> { label, value }) != details.end(); };
 
-        Assert::IsTrue (has (L"Title", L"Choplifter"),      L"a standard key and value still start with a capital");
+        Assert::IsTrue (has (L"Title", L"choplifter"),      L"a standard key starts with a capital, and its value is as stored");
         Assert::IsTrue (has (L"Custom", L""),               L"the custom keys' heading");
         Assert::IsTrue (has (L"requires_rom", L"any|either"), L"and a custom key and value as stored");
     }

@@ -150,6 +150,10 @@ public:
     //  values are listed exactly as the image has them.
     static constexpr const char *  kCustomHeading = "Custom";
 
+    //  The heading of the standard META keys, whose values are listed as the
+    //  image has them, but for those Casso describes, such as the machines.
+    static constexpr const char *  kMetaHeading   = "WOZ metadata";
+
     //  What the decoded surface shows: geometry, how the tracks read, and
     //  whether the first sector a boot reads carries anything.
     static std::string  DescribeSurface (const OpenedImage & opened);
