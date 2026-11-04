@@ -190,8 +190,12 @@ void ExplorerToolbars::ApplyTheme (const DxuiTheme & theme)
     m_commandBar->SetEdgeColor   (theme.Border());
 
     //  The buttons' icons and the drop-downs' icons come in a set per theme.
-    SetCommandBarEntries();
+    //  The buttons are updated in place: a theme previewed from the Theme
+    //  menu is applied while that menu is open, and a new table of entries
+    //  would close it.
+    SetCommandBarSvgs();
     SetCommandBarDropDowns();
+    m_context.window.Invalidate();
 }
 
 
@@ -581,14 +585,32 @@ void ExplorerToolbars::UpdateCommandBar()
 
 void ExplorerToolbars::SetCommandBarEntries()
 {
+    SetCommandBarSvgs();
+    m_commandBar->SetEntries (m_context.commands.BuildCommandBarEntries (m_commandBarExtra));
+    m_commandBar->Layout     (m_context.layout.GetMenuBand().GetBounds(), m_context.scaler);
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerToolbars::SetCommandBarSvgs
+//
+//  File Explorer's icons for the buttons that have no Fluent glyph, in the
+//  theme's set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerToolbars::SetCommandBarSvgs()
+{
     m_context.commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, m_context.menus.GetMenuSvg (L"windows.recyclebin.empty"));
     m_context.commands.SetSvg (CassoExplorerCommands::kRestoreItems,    m_context.menus.GetMenuSvg (L"windows.recyclebin.restoreall"));
     m_context.commands.SetSvg (CassoExplorerCommands::kExtractAll,      m_context.menus.GetMenuSvg (L"windows.compressedfile.extract"));
     m_context.commands.SetSvg (CassoExplorerCommands::kSearchOptions,   m_context.menus.GetMenuSvg (L"SearchAdvancedOptions"));
     m_context.commands.SetSvg (CassoExplorerCommands::kCloseSearch,     m_context.menus.GetMenuSvg (L"windows.searchclosetab"));
-    m_commandBar->SetEntries (m_context.commands.BuildCommandBarEntries (m_commandBarExtra));
-    m_commandBar->Layout     (m_context.layout.GetMenuBand().GetBounds(), m_context.scaler);
-    m_context.window.Invalidate();
 }
 
 
