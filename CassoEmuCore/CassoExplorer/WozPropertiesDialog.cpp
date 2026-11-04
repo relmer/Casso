@@ -240,10 +240,11 @@ void WozPropertiesDialog::BuildMetaPage()
         }
     }
 
-    //  The custom keys under a heading, each as the file has it.
+    //  The custom keys, the ones the reference doesn't define, under a heading,
+    //  each as the file has it.
     ExplorerTextStyles::Apply (m_customHeading, ExplorerTextStyles::kFormNote);
     m_customHeading.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    m_customHeading.SetText      (L"Custom fields, which the WOZ reference doesn't define:");
+    m_customHeading.SetText      (L"Custom fields");
 
     for (const WozLoader::MetaField & field : m_woz.meta)
     {
@@ -784,7 +785,7 @@ void WozPropertiesDialog::SetMetaRows()
 
 
 
-    rows.push_back ({ &m_customHeading, {}, true });
+    rows.push_back ({ &m_customHeading, {}, true, AppleFilePropertiesPanel::kRowHeightDip, true });
 
     for (const std::unique_ptr<MetaText> & text : m_metaTexts)
     {

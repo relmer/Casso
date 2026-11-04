@@ -203,4 +203,19 @@ public:
         text.assign (bytes.begin(), bytes.end());
         Assert::IsTrue (text.find ("subtitle\t\n") != std::string::npos);
     }
+
+    TEST_METHOD (Choplifter_Details_ListCustomKeysAsStored_UnderCustom)
+    {
+        std::vector<Byte>                                   bytes = GuestSession::RequireRepoImage ("Apple2/Demos/Choplifter.woz");
+        std::vector<std::pair<std::wstring, std::wstring>>  details;
+        size_t                                              custom = 0;
+
+        Assert::IsTrue (PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes), details));
+
+        custom = (size_t) (std::find_if (details.begin(), details.end(), [] (const auto & d) { return d.first == L"Custom" && d.second.empty(); }) - details.begin());
+
+        Assert::IsTrue (custom < details.size(), L"a Custom heading");
+        Assert::IsTrue (std::find (details.begin() + (ptrdiff_t) custom, details.end(), std::pair<std::wstring, std::wstring> { L"requires_rom", L"Any" }) != details.end());
+        Assert::IsTrue (std::find (details.begin() + (ptrdiff_t) custom, details.end(), std::pair<std::wstring, std::wstring> { L"collection", L"wozaday" }) != details.end());
+    }
 };

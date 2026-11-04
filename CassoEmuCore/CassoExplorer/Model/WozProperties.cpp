@@ -185,11 +185,7 @@ const std::vector<std::wstring> & WozProperties::GetLanguages()
 
 bool WozProperties::IsStandardKey (const std::string & key)
 {
-    const std::vector<MetaKey>  & keys = GetMetaKeys();
-
-
-
-    return std::any_of (keys.begin(), keys.end(), [&key] (const MetaKey & standard) { return key == standard.key; });
+    return WozLoader::IsStandardMetaKey (key);
 }
 
 

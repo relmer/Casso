@@ -608,6 +608,28 @@ public:
 
 
 
+    //  Under the custom keys' heading, a key and its value are as the image
+    //  has them, with no capital added and no underscore changed.
+    TEST_METHOD (Details_CustomKeys_AreAsStored)
+    {
+        std::vector<std::pair<std::wstring, std::wstring>>  details;
+        std::string                                         message;
+
+        message = "C:\\disks\\x.woz: does not have a DOS or ProDOS file system\n"
+                + DiskImageSession::FormatDetailHeading ("WOZ metadata")
+                + DiskImageSession::FormatDetailLine ("title", "choplifter")
+                + DiskImageSession::FormatDetailHeading (DiskImageSession::kCustomHeading)
+                + DiskImageSession::FormatDetailLine ("requires_rom", "any|either");
+
+        Assert::IsTrue   (PreviewDecoder::ParseDetails (message, details));
+        auto  has = [&details] (const wchar_t * label, const wchar_t * value) { return std::find (details.begin(), details.end(), std::pair<std::wstring, std::wstring> { label, value }) != details.end(); };
+
+        Assert::IsTrue (has (L"Title", L"Choplifter"),      L"a standard key and value still start with a capital");
+        Assert::IsTrue (has (L"Custom", L""),               L"the custom keys' heading");
+        Assert::IsTrue (has (L"requires_rom", L"any|either"), L"and a custom key and value as stored");
+    }
+
+
     //  A value of several lines has each line after the first in the value
     //  column, and each is a separate row with no label.
     TEST_METHOD (Details_ReadAValueOfSeveralLines)

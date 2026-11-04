@@ -188,6 +188,9 @@ public:
     //  and ERROR_INVALID_DATA for a key or value with a tab or a line break.
     static HRESULT  ApplyEdits (vector<Byte> & fileBytes, const Edits & edits);
 
+    //  Whether META's key is one of the 14 the WOZ reference defines.
+    static bool     IsStandardMetaKey (const std::string & key);
+
     static HRESULT  BuildSyntheticV2 (
         Byte                  diskType,
         bool                  writeProtected,

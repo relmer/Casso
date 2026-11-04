@@ -132,7 +132,7 @@ void AppleFilePropertiesPanel::Layout (const RECT & boundsDip, const DxuiDpiScal
 
         if (row.label != nullptr)
         {
-            row.label->Layout (row.fields.empty() ? RECT { fieldX, y, boundsDip.right, y + height } : RECT { boundsDip.left, y, fieldX, y + height }, scaler);
+            row.label->Layout (row.fields.empty() ? RECT { x, y, boundsDip.right, y + height } : RECT { boundsDip.left, y, fieldX, y + height }, scaler);
         }
 
         for (const Field & field : row.fields)

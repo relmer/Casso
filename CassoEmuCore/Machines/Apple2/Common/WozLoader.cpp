@@ -61,6 +61,13 @@ static constexpr Byte    kCleaned             = 1;
 // preservation dump loses the one record of where it came from.
 static constexpr char    kCassoCreator[]      = "Casso " VERSION_STRING;
 
+// The META keys the WOZ reference defines.
+static constexpr const char *  s_kStandardMetaKeys[] =
+{
+    "title", "subtitle", "publisher", "developer", "copyright", "version", "language", "requires_ram",
+    "requires_machine", "notes", "side", "side_name", "contributor", "image_date",
+};
+
 
 
 
@@ -654,6 +661,21 @@ HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::IsStandardMetaKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozLoader::IsStandardMetaKey (const std::string & key)
+{
+    return std::any_of (std::begin (s_kStandardMetaKeys), std::end (s_kStandardMetaKeys), [&key] (const char * standard) { return key == standard; });
 }
 
 

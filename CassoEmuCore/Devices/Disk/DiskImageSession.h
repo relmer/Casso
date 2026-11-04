@@ -146,6 +146,10 @@ public:
     //  how much of the surface the track map claims.
     static std::string  DescribeWozChunks (const std::vector<Byte> & fileBytes);
 
+    //  The heading of the keys the WOZ reference doesn't define, whose keys and
+    //  values are listed exactly as the image has them.
+    static constexpr const char *  kCustomHeading = "Custom";
+
     //  What the decoded surface shows: geometry, how the tracks read, and
     //  whether the first sector a boot reads carries anything.
     static std::string  DescribeSurface (const OpenedImage & opened);

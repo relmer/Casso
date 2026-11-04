@@ -16,6 +16,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/DiskImageSession.h"
 
 
 
@@ -825,6 +826,9 @@ std::wstring PreviewDecoder::FormatProDosDate (const FileEntry & entry)
 //  colon is a section's heading, a detail with an empty value. Any other
 //  line, such as the headline with the image's path, is not a detail.
 //
+//  A label and its value start with a capital, except under the custom
+//  keys' heading, where both are as the image has them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std::pair<std::wstring, std::wstring>> & outDetails)
@@ -840,6 +844,7 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
     std::string  label;
     std::string  value;
     bool         hasHeading = false;
+    bool         asStored   = false;   // under the custom keys' heading
 
 
 
@@ -856,13 +861,14 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
         {
             outDetails.emplace_back (TextEncoding::NarrowToWide (line.substr (0, line.size() - 1)), std::wstring());
             hasHeading = true;
+            asStored   = line.substr (0, line.size() - 1) == DiskImageSession::kCustomHeading;
             continue;
         }
 
         if (!outDetails.empty() && line.size() > s_kValueColumn && line.find_first_not_of (' ') == s_kValueColumn)
         {
             value    = line.substr (s_kValueColumn);
-            value[0] = (char) toupper ((unsigned char) value[0]);
+            value[0] = asStored ? value[0] : (char) toupper ((unsigned char) value[0]);
             outDetails.emplace_back (std::wstring(), TextEncoding::NarrowToWide (value));
             continue;
         }
@@ -880,10 +886,15 @@ bool PreviewDecoder::ParseDetails (const std::string & message, std::vector<std:
         label.erase (label.find_last_not_of (' ') + 1);
         value.erase (0, value.find_first_not_of (' '));
 
-        if (!label.empty() && !value.empty())
+        //  Custom keys and their values are as the image has them.
+        if (!label.empty() && !value.empty() && !asStored)
         {
             label[0] = (char) toupper ((unsigned char) label[0]);
             value[0] = (char) toupper ((unsigned char) value[0]);
+        }
+
+        if (!label.empty() && !value.empty())
+        {
             outDetails.emplace_back (TextEncoding::NarrowToWide (label), TextEncoding::NarrowToWide (value));
         }
     }

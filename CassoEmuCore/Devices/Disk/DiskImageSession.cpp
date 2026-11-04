@@ -32,7 +32,6 @@ static constexpr const char *  s_kppszMetaHighlights[][2] =
     { "language",         "language"  },
     { "requires_machine", "machine"   },
     { "requires_ram",     "RAM"       },
-    { "requires_rom",     "requires ROM" },
     { "notes",            "notes"     },
 };
 
@@ -351,6 +350,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
     std::string             text;
     std::string             media;
     char                    note[160] = {};
+    bool                    customs   = false;
 
 
 
@@ -420,7 +420,7 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
             }
         }
 
-        if (!highlighted)
+        if (!highlighted && WozLoader::IsStandardMetaKey (field.key))
         {
             std::string  label = field.key;
 
@@ -432,6 +432,17 @@ std::string DiskImageSession::DescribeWozChunks (const std::vector<Byte> & fileB
             std::string  value = TextEncoding::Utf8ToNarrow (field.value);
 
             text += FormatDetailLine (label.c_str(), (field.key == "image_date") ? DescribeImageDate (value) : SplitMetaValues (value));
+        }
+    }
+
+    //  The keys the WOZ reference doesn't define, as the image has them.
+    for (const WozLoader::MetaField & field : woz.meta)
+    {
+        if (!WozLoader::IsStandardMetaKey (field.key))
+        {
+            text += customs ? std::string() : FormatDetailHeading (kCustomHeading);
+            text += FormatDetailLine (field.key.c_str(), TextEncoding::Utf8ToNarrow (field.value));
+            customs = true;
         }
     }
 
