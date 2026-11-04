@@ -23,6 +23,11 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
     switch (command)
     {
         case CassoLinkCodec::kReady:
+            if (size >= 11)
+            {
+                return std::format ("Ready: program version {}, drive map {}, program CRC {:04X}", payload[0] | (payload[1] << 8), payload[3], payload[9] | (payload[10] << 8));
+            }
+
             return (size >= 4) ? std::format ("Ready: program version {}, drive map {}", payload[0] | (payload[1] << 8), payload[3]) : std::string ("Ready");
 
         case CassoLinkCodec::kIdle:

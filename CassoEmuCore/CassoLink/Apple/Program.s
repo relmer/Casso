@@ -1,7 +1,8 @@
 ; Casso's CassoLink: the program.
 ;
-; Loaded at $0800 by the shim. It sends Ready, with its version, the shim's
-; and its drive map, and the host's reply is the next operation:
+; Loaded at $0800 by the shim. It sends Ready, with its version, the shim's,
+; its drive map, the ROM's identification and a CRC of the program as loaded,
+; and the host's reply is the next operation:
 ;
 ;   Idle            nothing to do; Ready again after 100 ms
 ;   Set speed       a 6551 control byte; ACK, then the new speed
@@ -284,6 +285,8 @@ entry:  sei
         cld
         ldx #$FF
         txs
+        jsr mktables            ; the CRC table, for selfcrc
+        jsr selfcrc             ; ahead of the stores below into the program's code
         lda slotx
         bne slotok
         lda #$20
@@ -333,7 +336,6 @@ slotok:
         sta $03F3
         eor #$A5
         sta $03F4
-        jsr mktables
         jsr probe
         jsr readid
         jsr drawscreen
@@ -1075,7 +1077,8 @@ drvok:  jsr motoron
 ; ---------------------------------------------------------------------------
 
 ; sendready: Ready with this program's version, the shim's and the drives:
-; bit 0 for drive 1, bit 1 for drive 2.
+; bit 0 for drive 1, bit 1 for drive 2. Then the ROM's identification bytes,
+; and the program's CRC as selfcrc computed it.
 sendready: ldx #0
 srloop: lda readypkt,x
         jsr putb
@@ -1084,10 +1087,11 @@ srloop: lda readypkt,x
         bne srloop
         rts
 
-readypkt: .byte $C1, $09, $00, CMDREADY, $C1 ^ $09 ^ $00 ^ CMDREADY
+readypkt: .byte $C1, $0B, $00, CMDREADY, $C1 ^ $0B ^ $00 ^ CMDREADY
           .byte <PROGVER, >PROGVER, READYVER
 readymap: .byte $03                ; probe sets it
 readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
+readycrc: .byte 0, 0                ; selfcrc sets it, low byte first
 readychk: .byte 0
 readyend:
 
@@ -1119,7 +1123,7 @@ readid: lda $FBB3
         sta readyrom+4
 ridsum: lda #<PROGVER ^ >PROGVER ^ READYVER
         eor readymap
-        ldx #4
+        ldx #6                  ; readyrom's 5 bytes and readycrc's 2
 ridnext: eor readyrom,x
         dex
         bpl ridnext
@@ -1483,6 +1487,39 @@ crcupd: sty savex
         lda CRCLO,y
         sta crclo
         ldy savex
+        rts
+
+; selfcrc: the CRC-16/XMODEM of the program as loaded, $0800 up to progend,
+; into readycrc, for the host to compare with the image it sent. If a byte
+; differs, as from a failing RAM chip, the host loads the program again. It
+; runs before entry stores into the program's code, and takes about a third
+; of a second.
+selfcrc: ldy #0
+        sty crclo
+        sty crchi
+        sty ptr
+        lda #$08
+        sta ptr+1
+slfloop: lda (ptr),y
+        eor crchi
+        tax
+        lda crclo
+        eor CRCHI,x
+        sta crchi
+        lda CRCLO,x
+        sta crclo
+        iny
+        bne slfend
+        inc ptr+1
+slfend: cpy #<progend
+        bne slfloop
+        ldx ptr+1
+        cpx #>progend
+        bne slfloop
+        lda crclo
+        sta readycrc
+        lda crchi
+        sta readycrc+1
         rts
 
         ifdef W5100
@@ -4026,3 +4063,6 @@ bpwait: nop
         rts
 
         .byte 0
+
+; The end of the program, where selfcrc stops.
+progend:

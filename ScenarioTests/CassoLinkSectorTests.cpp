@@ -124,12 +124,24 @@ public:
             return result.get();
         }
 
-        //  The program loaded, and the line at 115,200 baud.
+        //  The program loaded, and the line at 115,200 baud. The program's
+        //  Ready has the CRC of the image it was loaded from.
         void  Connect()
         {
             Assert::AreEqual (S_OK, Run ([this] () { return host->SetSpeed (kFastControl); }));
             Assert::AreEqual<int> (LinkProgram::kProgramVersion, host->GetClient().programVersion);
             Assert::AreEqual<int> (0x03, host->GetClient().driveMap);
+            Assert::IsTrue (host->GetClient().hasProgramCrc, L"Ready has the program's CRC");
+            Assert::AreEqual<int> (CassoLinkCodec::ComputeCrc (Program()), host->GetClient().programCrc);
+        }
+
+        static std::vector<Byte>  Program()
+        {
+            std::vector<Byte>  program;
+            std::string        errors;
+
+            Assert::AreEqual (S_OK, LinkProgram::AssembleProgram (program, errors));
+            return program;
         }
 
         std::vector<Byte>  Read (Byte drive, Byte track, std::span<const Byte> sectors, Byte expectedError = CassoLinkHost::kErrorNone)
@@ -280,6 +292,35 @@ public:
         }
 
         Assert::AreNotEqual (std::string::npos, rig.screens.back().find ("PRESS ESC TO EXIT"), L"the last row has how to leave");
+    }
+
+
+
+
+    //  A byte of the program changed in the Apple's memory, as by a failing
+    //  RAM chip, fails the program's CRC when it starts again, and the program
+    //  is loaded again before the next operation runs.
+    TEST_METHOD (AProgramThatFailsItsCrc_IsLoadedAgain)
+    {
+        Rig                       rig;
+        std::vector<Byte>         program  = Rig::Program();
+        Word                      last     = (Word) (LinkProgram::kProgramAddress + program.size() - 1);
+        std::vector<std::string>  activity;
+        bool                      reported = false;
+
+        rig.Connect();
+
+        rig.host->SetActivitySink ([&activity] (const std::string & text) { activity.push_back (text); });
+        rig.machine.GetCpu()->WriteByte (last, (Byte) (program.back() ^ 0x55));
+        rig.machine.GetCpu()->SetPC (LinkProgram::kProgramAddress);
+
+        rig.Read (1, 17, std::array<Byte, 1> { 0 });
+
+        reported = std::any_of (activity.begin(), activity.end(), [] (const std::string & text) { return text.find ("failed its CRC check") != std::string::npos; });
+
+        Assert::IsTrue (reported, L"the failed check is in the activity");
+        Assert::AreEqual<int> (program.back(), rig.machine.GetCpu()->ReadByte (last), L"the program is loaded again");
+        Assert::AreEqual<int> (CassoLinkCodec::ComputeCrc (program), rig.host->GetClient().programCrc);
     }
 
 

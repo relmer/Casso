@@ -102,12 +102,12 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr));
 
-        at = FindReady (bytes, 0x09);
-        Assert::IsTrue (at + 10 <= bytes.size());
+        at = FindReady (bytes, 0x0B);
+        Assert::IsTrue (at + 12 <= bytes.size());
         Assert::AreEqual<int> (LinkProgram::kProgramVersion & 0xFF, bytes[at + 5]);
         Assert::AreEqual<int> (LinkProgram::kProgramVersion >> 8,   bytes[at + 6]);
         Assert::AreEqual<int> (LinkProgram::kShimVersion,           bytes[at + 7]);
-        Assert::AreEqual<int> (9, bytes[at + 1], L"versions, the drives, and the ROM's five identification bytes, set at startup with the EOR");
+        Assert::AreEqual<int> (11, bytes[at + 1], L"versions, the drives, the ROM's five identification bytes and the program's CRC, set at startup with the EOR");
     }
 
 
@@ -130,8 +130,8 @@ public:
         Assert::AreEqual<int> (LinkProgram::kShimVersion | LinkProgram::kW5100ReadyFlag, shim[at + 7]);
         Assert::AreEqual<int> (CassoLinkCodec::ComputeEor (std::span<const Byte> (shim).subspan (at + 5, 4)), shim[at + 9]);
 
-        at = FindReady (program, 0x09);
-        Assert::IsTrue (at + 10 <= program.size());
+        at = FindReady (program, 0x0B);
+        Assert::IsTrue (at + 12 <= program.size());
         Assert::AreEqual<int> (LinkProgram::kShimVersion | LinkProgram::kW5100ReadyFlag, program[at + 7]);
     }
 
@@ -270,9 +270,9 @@ public:
     //  changed with no new version fails here.
     TEST_METHOD (Program_ChangesOnlyWithANewVersion)
     {
-        static constexpr Word      s_kHashedVersion = 70;
-        static constexpr uint64_t  s_kAciaHash      = 0x2E6E986D43D29A10;
-        static constexpr uint64_t  s_kW5100Hash     = 0x77CD176B76E461B2;
+        static constexpr Word      s_kHashedVersion = 71;
+        static constexpr uint64_t  s_kAciaHash      = 0x94A5738580A50256;
+        static constexpr uint64_t  s_kW5100Hash     = 0x794A7B238BB71285;
 
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;

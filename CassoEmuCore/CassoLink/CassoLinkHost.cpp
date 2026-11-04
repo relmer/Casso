@@ -992,14 +992,17 @@ Error:
 //
 //  CassoLinkHost::ServeReady
 //
-//  A client of another version is sent the current program.
+//  A client of another version is sent the current program, and so is one
+//  whose CRC differs from the image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
 {
-    HRESULT  hr    = S_OK;
-    bool     whole = packet.payload.size() == 4 || packet.payload.size() == 9;
+    HRESULT  hr      = S_OK;
+    bool     whole   = IsWholeReady (packet);
+    bool     current = false;
+    bool     intact  = false;
 
 
 
@@ -1007,7 +1010,28 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
 
     ReadClient (packet);
 
-    if (m_client.programVersion == LinkProgram::kProgramVersion)
+    current = m_client.programVersion == LinkProgram::kProgramVersion;
+    intact  = current;
+
+    if (current)
+    {
+        hr = CheckProgramCrc (intact);
+        CHR (hr);
+    }
+
+    m_badProgramLoads = (current && !intact) ? m_badProgramLoads + 1 : 0;
+
+    if (m_badProgramLoads > 0 && m_adtProServer.m_activity)
+    {
+        m_adtProServer.m_activity (std::format ("The program on the Apple failed its CRC check: it computed {:04X}, and the image sent is {:04X}",
+                                                m_client.programCrc, CassoLinkCodec::ComputeCrc (m_program)));
+    }
+
+    //  A program that fails again after it is loaded again points to the
+    //  Apple's memory, which another load would not fix.
+    CBREx (m_badProgramLoads <= kMaxProgramReloads, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    if (intact)
     {
         hr = SendPacket (CassoLinkCodec::kIdle, {});
         CHR (hr);
@@ -1028,10 +1052,42 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::CheckProgramCrc
+//
+//  Whether the CRC in the client's Ready matches the image of the program
+//  for its chip. A Ready with no CRC, from an earlier program, passes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::CheckProgramCrc (bool & outIntact)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outIntact = true;
+
+    BAIL_OUT_IF (!m_client.hasProgramCrc, S_OK);
+
+    hr = AssembleProgram();
+    CHR (hr);
+
+    outIntact = CassoLinkCodec::ComputeCrc (m_program) == m_client.programCrc;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::ReadClient
 //
-//  A Ready's versions and drives, and the program's ROM identification;
-//  the payload is 4 or 9 bytes.
+//  A Ready's versions and drives, and the program's ROM identification and
+//  CRC; the payload is 4, 9 or 11 bytes.
 //
 //  The program sent is the build for the chip the Ready indicates, whatever
 //  the link's transport: a link of the wrong kind at the Apple's address,
@@ -1054,7 +1110,9 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
     m_client.shimVersion    = (Byte) (packet.payload[2] & ~LinkProgram::kW5100ReadyFlag);
     m_client.driveMap       = packet.payload[3];
-    m_client.hasRomId       = packet.payload.size() == 9;
+    m_client.hasRomId       = packet.payload.size() >= 9;
+    m_client.hasProgramCrc  = packet.payload.size() == 11;
+    m_client.programCrc     = m_client.hasProgramCrc ? (Word) (packet.payload[9] | (packet.payload[10] << 8)) : (Word) 0;
     m_hasClient             = true;
 
     if (m_client.hasRomId)
@@ -1113,13 +1171,17 @@ HRESULT CassoLinkHost::AwaitReady()
             continue;
         }
 
-        current = (packet.payload.size() == 4 || packet.payload.size() == 9) && (Word) (packet.payload[0] | (packet.payload[1] << 8)) == LinkProgram::kProgramVersion;
+        current = IsWholeReady (packet) && (Word) (packet.payload[0] | (packet.payload[1] << 8)) == LinkProgram::kProgramVersion;
 
         if (current)
         {
             ReadClient (packet);
+
+            hr = CheckProgramCrc (current);
+            CHR (hr);
         }
-        else
+
+        if (!current)
         {
             hr = ServeReady (packet);
             CHR (hr);
@@ -1278,6 +1340,45 @@ std::string CassoLinkHost::DescribeAssemblyFailure (const std::string & errors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::AssembleProgram
+//
+//  The program for the client's chip, assembled once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::AssembleProgram()
+{
+    HRESULT      hr = S_OK;
+    std::string  errors;
+
+
+
+    BAIL_OUT_IF (!m_program.empty(), S_OK);
+
+    hr = LinkProgram::AssembleProgram (m_program, errors, m_programChip);
+
+    if (FAILED (hr))
+    {
+        //  Assembled again next time, rather than a partial image sent.
+        m_program.clear();
+        if (m_adtProServer.m_activity)
+        {
+            m_adtProServer.m_activity (DescribeAssemblyFailure (errors));
+        }
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::LoadProgram
 //
 //  Load program and the program's pages, each followed by the shim's bare
@@ -1289,7 +1390,6 @@ std::string CassoLinkHost::DescribeAssemblyFailure (const std::string & errors)
 HRESULT CassoLinkHost::LoadProgram()
 {
     HRESULT            hr      = S_OK;
-    std::string        errors;
     std::vector<Byte>  page (kSectorSize, 0);
     std::vector<Byte>  encoded;
     Byte               count[1] = {};
@@ -1303,22 +1403,8 @@ HRESULT CassoLinkHost::LoadProgram()
 
 
 
-    if (m_program.empty())
-    {
-        hr = LinkProgram::AssembleProgram (m_program, errors, m_programChip);
-
-        if (FAILED (hr))
-        {
-            //  Assembled again next time, rather than a partial image sent.
-            m_program.clear();
-            if (m_adtProServer.m_activity)
-            {
-                m_adtProServer.m_activity (DescribeAssemblyFailure (errors));
-            }
-        }
-
-        CHR (hr);
-    }
+    hr = AssembleProgram();
+    CHR (hr);
 
     pages    = (m_program.size() + kSectorSize - 1) / kSectorSize;
     count[0] = (Byte) pages;

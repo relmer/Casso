@@ -1575,4 +1575,5 @@ Session 2026-11-01, from the owner's //c passes. In this order; T079 and T082 fo
 - [X] T387 Draw every menu icon in File Explorer's colors through one palette transform in `CassoEmuCore/CassoExplorer/Window/Managers/ExplorerMenus.cpp`, with Casso art for About, Lock and Unlock
 - [X] T388 Open Windows' share window through `IDataTransferManagerInterop` in `CassoEmuCore/Seams/ShellVerbs/Win32ShareSheet.cpp`
 - [X] T389 Restore a search tab and any tab sorted by a shell property, read a search's results and disk images on several threads, and mark no match for a wildcard
+- [X] T390 Send the program's CRC-16 in Ready from `CassoEmuCore/CassoLink/Apple/Program.s`, and load the program again on a mismatch in `CassoEmuCore/CassoLink/CassoLinkHost.cpp` (FR-136)
 

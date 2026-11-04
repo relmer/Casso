@@ -69,6 +69,11 @@ struct CassoLinkClient
     bool                 hasRomId = false;
     std::array<Byte, 5>  romId    = {};
 
+    //  The CRC-16/XMODEM the program computed over itself as loaded, which
+    //  the host compares with the image it sent. Earlier programs sent none.
+    bool                 hasProgramCrc = false;
+    Word                 programCrc    = 0;
+
     //  The model the bytes identify, as Apple //c (ROM 4); empty without them.
     std::wstring  GetModelName () const;
 };
@@ -120,6 +125,10 @@ class CassoLinkHost : public CassoLinkHostTypes
 public:
 
     static constexpr int     kMaxResends         = 5;
+
+    //  Loads in a row of a program whose CRC differs from the image, after
+    //  which the link fails with HRESULT_FROM_WIN32 (ERROR_CRC).
+    static constexpr int     kMaxProgramReloads  = 2;
 
     //  A request the client did not take: it sent Ready again, idle, in
     //  place of a reply. HRESULT_FROM_WIN32 (ERROR_RETRY).
@@ -292,6 +301,8 @@ private:
 
     HRESULT  ServeReady        (const CassoLinkPacket & packet);
     void     ReadClient        (const CassoLinkPacket & packet);
+    HRESULT  CheckProgramCrc   (bool & outIntact);
+    HRESULT  AssembleProgram   ();
 
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
@@ -303,9 +314,10 @@ private:
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);
 
-    static bool  IsKeyReport (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend || packet.payload[0] == CassoLinkCodec::kKeyVerify); }
-    void         NoteKey     (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; m_verifyToggle = m_verifyToggle != (packet.payload[0] == CassoLinkCodec::kKeyVerify); }
-    static bool  IsBlank     (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
+    static bool  IsKeyReport  (const CassoLinkPacket & packet) { return packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && (packet.payload[0] == CassoLinkCodec::kKeyQuit || packet.payload[0] == CassoLinkCodec::kKeyFullSend || packet.payload[0] == CassoLinkCodec::kKeyVerify); }
+    void         NoteKey      (const CassoLinkPacket & packet) { m_quit = m_quit || packet.payload[0] == CassoLinkCodec::kKeyQuit; m_fullSendRequest = m_fullSendRequest || packet.payload[0] == CassoLinkCodec::kKeyFullSend; m_verifyToggle = m_verifyToggle != (packet.payload[0] == CassoLinkCodec::kKeyVerify); }
+    static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11; }
+    static bool  IsBlank      (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
 
     //  An operation sent again while its request is lost, up to
     //  kMaxResends times.
@@ -345,6 +357,7 @@ private:
     CassoLinkClient                 m_client;
     std::vector<Byte>               m_program;
     LinkChip                        m_programChip     = LinkChip::Acia;
+    int                             m_badProgramLoads = 0;
     std::atomic<bool>               m_cancelRequested { false };
     std::atomic<bool>               m_writing         { false };
     std::mutex                      m_sendLock;
