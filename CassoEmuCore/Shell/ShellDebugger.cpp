@@ -1329,7 +1329,7 @@ void ShellDebugger::RedrawDebugFrame()
 void ShellDebugger::PublishDebuggerView()
 {
     HRESULT               hr         = S_OK;
-    ULONGLONG             now        = GetTickCount64();
+    ULONGLONG             now        = m_clock();
     bool                  isDue      = false;
     bool                  isBreaking = false;
     bool                  isTaken    = true;
@@ -1431,6 +1431,7 @@ void ShellDebugger::PublishDebuggerView()
 
     GatherDebugView (input, live);
     m_debugViewPublisher.Submit (std::move (input), std::move (live));
+    m_buildsSubmitted++;
 
     m_debugViewBuiltAt      = now;
     m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();

@@ -33,8 +33,10 @@ namespace ShellDebuggerViewStateTests
     {
     public:
         static constexpr int  kViewWaitMs     = 5000;
-        static constexpr int  kNoViewWaitMs   = 200;
         static constexpr int  kBuildPassingMs = (int) DebuggerViewState::kBuildIntervalMs * 3;
+
+        //  The shell's clock, which PassLater moves on.
+        uint64_t                         nowMs = 1000000;
 
         InMemoryPipeTransport            transport;
         InMemoryFileSystem               files;
@@ -58,6 +60,7 @@ namespace ShellDebuggerViewStateTests
 
             shell->GetMachine().PowerCycle();
             shell->GetDebugger().PrepareFramebuffers();
+            shell->GetDebugger().SetClock ([this] () { return nowMs; });
 
             controller = std::make_unique<DebuggerController> (shell->GetMachine(), ControllerRig::Paused (shell->GetCpuManager()), transport, files, nullptr, 1);
 
@@ -112,10 +115,32 @@ namespace ShellDebuggerViewStateTests
 
 
         //  A pass once the next build is due.
+        //  A pass of the shell's loop a few build intervals on, by its clock.
         void PassLater()
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (kBuildPassingMs));
+            nowMs += kBuildPassingMs;
             shell->GetDebugger().ServiceDebugger();
+        }
+
+
+        //  Whether a pass sent a view to be built, found at once from the
+        //  shell's count rather than after waiting out a timeout.
+        bool PassBuilds (bool isLater)
+        {
+            uint64_t  before = shell->GetDebugger().GetBuildsSubmitted();
+
+
+
+            if (isLater)
+            {
+                PassLater();
+            }
+            else
+            {
+                shell->GetDebugger().ServiceDebugger();
+            }
+
+            return shell->GetDebugger().GetBuildsSubmitted() != before;
         }
 
 
@@ -127,11 +152,13 @@ namespace ShellDebuggerViewStateTests
             shell->GetDebugger().ServiceDebugger();
             Assert::IsTrue (TryTakeView (kViewWaitMs), L"the window's first view");
 
-            PassLater();
-            (void) TryTakeView (kNoViewWaitMs);
+            //  A second view comes only while something is rebuilt.
+            if (PassBuilds (true))
+            {
+                Assert::IsTrue (TryTakeView (kViewWaitMs), L"the view a second pass built");
+            }
 
-            PassLater();
-            Assert::IsFalse (TryTakeView (kNoViewWaitMs), L"a stopped machine builds no more");
+            Assert::IsFalse (PassBuilds (true), L"a stopped machine doesn't build again");
         }
     };
 
@@ -208,8 +235,7 @@ namespace ShellDebuggerViewStateTests
             Assert::IsTrue (rig.shell->GetDebugger().StepSession(), L"the step starts");
             Assert::IsFalse (rig.shell->GetCpuManager().IsPaused(), L"and runs");
 
-            rig.shell->GetDebugger().ServiceDebugger();
-            Assert::IsFalse (rig.TryTakeView (ViewRig::kNoViewWaitMs), L"no view while the step is under way");
+            Assert::IsFalse (rig.PassBuilds (false), L"no view while the step is under way");
 
             rig.PassLater();
             Assert::IsTrue (rig.TryTakeView (ViewRig::kViewWaitMs), L"a view a build interval later");

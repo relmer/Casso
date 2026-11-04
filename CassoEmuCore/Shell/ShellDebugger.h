@@ -192,6 +192,14 @@ public:
     // build reads. Any thread.
     std::mutex & GetViewStateLock () noexcept { return m_debugViewStateLock; }
 
+    //  The milliseconds a view build is timed by, which a test replaces with
+    //  a clock it moves on rather than sleeping; and how many views have been
+    //  sent to be built, so a test checks that a pass built nothing without
+    //  waiting out a timeout.
+    using Clock = std::function<uint64_t()>;
+    void      SetClock          (Clock clock)    { m_clock = std::move (clock); }
+    uint64_t  GetBuildsSubmitted () const noexcept { return m_buildsSubmitted; }
+
     // Whether the beam mark is drawn: turned on and the session stopped.
     bool  IsBeamMarkShown  ();
 
@@ -519,6 +527,8 @@ private:
     bool                             m_wasCallRebuilding     = false;   // the last build's call stack awaited its rebuilt record
     bool                             m_wasStepping           = false;   // a step or a trace run was under way at the last pass
     ULONGLONG                        m_steppingSince         = 0;       // the first pass during it
+    Clock                            m_clock                 = [] () -> uint64_t { return GetTickCount64(); };
+    uint64_t                         m_buildsSubmitted       = 0;
 
     // While the window is closed and BRKUNINIT keeps the heat map on, how
     // often it is folded, and when it last was.
