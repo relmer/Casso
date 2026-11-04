@@ -151,6 +151,29 @@ public:
                              L"the seed carries a previous run in");
     }
 
+
+    //  A saved state file stores the hash of its payload, and a load compares
+    //  it, so the values are fixed: another value fails every file saved
+    //  before it. These cover the four lanes, the tail, the empty run and a
+    //  seed.
+    TEST_METHOD (StateHashValuesMatchTheSavedFiles)
+    {
+        std::vector<Byte>  bytes (103);
+        size_t             i     = 0;
+
+
+
+        for (i = 0; i < bytes.size(); i++)
+        {
+            bytes[i] = (Byte) (i * 37 + 11);
+        }
+
+        Assert::AreEqual (0xDE896A3354695628ULL, StateHash::Hash (bytes.data(), bytes.size()));
+        Assert::AreEqual (0x9F668A08F2815B80ULL, StateHash::Hash (bytes.data(), 5));
+        Assert::AreEqual (0x5B2CF09CA96B6C6BULL, StateHash::Hash (bytes.data(), 0));
+        Assert::AreEqual (0x1B4F8A2A48173981ULL, StateHash::Hash (bytes.data(), bytes.size(), 0x1234));
+    }
+
 private:
 
     static std::shared_ptr<const std::vector<Byte>> MakeBuffer (size_t size, Byte step)
