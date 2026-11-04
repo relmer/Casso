@@ -581,28 +581,32 @@ std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> DebuggerViewState:
 
     if (m_heatMapOptions.cumulative)
     {
-        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
-        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
-        map.GetTotalLevels (HeatSpace::Cpu, write,             levels->write);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Execute,   levels->execute);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Read,      levels->read);
+        map.GetTotalLevels (HeatSpace::Cpu, write,               levels->write);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Statement, levels->statement);
     }
     else
     {
-        map.GetLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
-        map.GetLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
-        map.GetLevels (HeatSpace::Cpu, write,             levels->write);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Execute,   levels->execute);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Read,      levels->read);
+        map.GetLevels (HeatSpace::Cpu, write,               levels->write);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Statement, levels->statement);
     }
 
-    levels->executeCount.resize (0x10000);
-    levels->readCount.resize    (0x10000);
-    levels->writeCount.resize   (0x10000);
+    levels->executeCount.resize   (0x10000);
+    levels->readCount.resize      (0x10000);
+    levels->writeCount.resize     (0x10000);
+    levels->statementCount.resize (0x10000);
 
     for (size_t address = 0; address < 0x10000; address++)
     {
         auto  clamp = [] (uint64_t count) { return (uint32_t) std::min<uint64_t> (count, UINT32_MAX); };
 
-        levels->executeCount[address] = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Execute, (Word) address));
-        levels->readCount[address]    = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Read,    (Word) address));
-        levels->writeCount[address]   = clamp (map.GetTotal (HeatSpace::Cpu, write,             (Word) address));
+        levels->executeCount[address]   = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Execute,   (Word) address));
+        levels->readCount[address]      = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Read,      (Word) address));
+        levels->writeCount[address]     = clamp (map.GetTotal (HeatSpace::Cpu, write,               (Word) address));
+        levels->statementCount[address] = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Statement, (Word) address));
     }
 
     return levels;

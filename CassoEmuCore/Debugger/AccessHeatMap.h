@@ -27,6 +27,7 @@ enum class HeatKind
     Write,
     UnwrittenRead,
     ChangedWrite,
+    Statement,       // an Applesoft statement begun at its first token
 };
 
 
@@ -109,7 +110,15 @@ class AccessHeatMap : public IWatchSink, public IFetchSink
 {
 public:
     static constexpr size_t    kAddressCount    = 0x10000;
-    static constexpr size_t    kKindCount       = 5;
+
+    //  Applesoft's statement loop, NEWSTT, calls CHRGET at kNewStatement at
+    //  the start of every statement; CHRGET runs from kChrGet in zero page,
+    //  and its LDA at kChrGetRead reads the token at TXTPTR, its operand.
+    static constexpr Word      kNewStatement    = 0xD81D;
+    static constexpr Word      kChrGet          = 0x00B1;
+    static constexpr Word      kChrGetRead      = 0x00B7;
+    static constexpr Byte      kJsr             = 0x20;
+    static constexpr size_t    kKindCount       = 6;
     static constexpr size_t    kSpaceCount      = 4;
     static constexpr size_t    kSpaceEntryCount = kKindCount * kAddressCount;
     static constexpr size_t    kEntryCount      = kSpaceCount * kSpaceEntryCount;
@@ -390,6 +399,10 @@ private:
     //  it raised, if it raised one.
     bool                                 m_isLastReadUnwritten = false;
     bool                                 m_isLastReadStop      = false;
+
+    //  Whether Applesoft's statement loop called CHRGET and CHRGET hasn't
+    //  yet read the statement's first token.
+    bool                                 m_isStatementPending  = false;
 
     //  The byte the write the CPU is about to make replaces, and where.
     std::optional<Byte>                  m_previous;

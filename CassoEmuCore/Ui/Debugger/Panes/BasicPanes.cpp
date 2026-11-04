@@ -485,12 +485,11 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
 
         AddSyntaxColors (line, row, style.syntax, rowCells[kListingColumn]);
 
-        //  The tokens run from past the link and the line number, one piece a
-        //  byte. The zero that ends the line is left out: a GOTO to the next
-        //  line reads it, whether or not this line ever runs.
+        //  The line's first token is past its link and its number, and the
+        //  statements BASIC began there are the line's runs.
         if (heat != nullptr && palette != nullptr && row.isFirst)
         {
-            rowCells[kHeatColumn] = HeatStrip::GetCell (*heat, (Word) (line.address + 4), line.pieces.size(), *palette, true);
+            rowCells[kHeatColumn] = HeatStrip::GetLineCell (*heat, (Word) (line.address + 4), *palette);
         }
 
         if (isCurrent)

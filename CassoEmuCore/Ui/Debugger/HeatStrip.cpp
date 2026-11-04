@@ -183,6 +183,58 @@ DxuiListView::Cell HeatStrip::GetCell (const DebuggerViewSnapshot::HeatColumnLev
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatStrip::GetLineCell
+//
+//  The count at the line's first token is how often BASIC began the line, so
+//  the interpreter's other reads of the tokens, such as LIST's or a skipped
+//  IF's, don't color it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word firstToken, const HeatMapView::Palette & palette)
+{
+    constexpr float     kTop  = 255.0f;
+    DxuiListView::Cell  cell;
+    Byte                level = 0;
+    uint32_t            count = 0;
+
+
+
+    if (levels.statement.size() != 0x10000 || levels.statementCount.size() != 0x10000)
+    {
+        return cell;
+    }
+
+    level = levels.statement[firstToken];
+    count = levels.statementCount[firstToken];
+
+    if (level == 0)
+    {
+        cell.tip = (count == 0) ? L"This line hasn't run since counting began."
+                                : std::format (L"This line ran {} times since counting began, none of them lately.", TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)));
+        return cell;
+    }
+
+    cell.background      = GetScaleColor (Kind::Run, level, palette);
+    cell.tip             = std::format (L"This line ran {} {} since counting began.\n\n{}, from least to most. This one is {}% of the way up.",
+                                        TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)), (count == 1) ? L"time" : L"times",
+                                        GetScaleName (Kind::Run), std::lround ((float) level * 100.0f / kTop));
+    cell.tipGradientMark = (float) level / kTop;
+
+    for (uint32_t stop : GetScaleStops (Kind::Run))
+    {
+        cell.tipGradient.push_back (stop);
+    }
+
+    return cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatStrip::GetTip
 //
 //  A table of the bytes' counts, a row a byte, with a blank line and the
@@ -282,13 +334,12 @@ std::wstring HeatStrip::GetScaleName (Kind kind)
 HeatStrip::HeadingTip HeatStrip::GetHeadingTip (bool isTokens)
 {
     HeadingTip         tip;
-    std::vector<Kind>  kinds = isTokens ? std::vector<Kind> { Kind::Run, Kind::Write } : std::vector<Kind> { Kind::Run, Kind::Read, Kind::Write };
+    std::vector<Kind>  kinds = isTokens ? std::vector<Kind> { Kind::Run } : std::vector<Kind> { Kind::Run, Kind::Read, Kind::Write };
 
 
 
-    tip.text = isTokens ? L"How often BASIC ran the line's statements, from its reads\n"
-                          L"of the line's tokens, and how often the tokens were written.\n"
-                          L"A line that hasn't run has no color.\n"
+    tip.text = isTokens ? L"How often BASIC ran the line: the hotter the color, the\n"
+                          L"more often. A line that hasn't run has no color.\n"
                         : L"How often the line's bytes were run, read or written.\n"
                           L"Each block is a byte, or a share of a long line's bytes,\n"
                           L"in the color of what was done to it most.\n"

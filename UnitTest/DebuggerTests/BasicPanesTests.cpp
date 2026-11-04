@@ -73,6 +73,20 @@ namespace DebuggerTests
             return state;
         }
 
+        static DebuggerViewSnapshot::HeatColumnLevels MakeHeat()
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  heat;
+
+
+
+            heat.execute.assign        (0x10000, 0);
+            heat.read.assign           (0x10000, 0);
+            heat.write.assign          (0x10000, 0);
+            heat.statement.assign      (0x10000, 0);
+            heat.statementCount.assign (0x10000, 0);
+            return heat;
+        }
+
         static DebuggerViewSnapshot::BreakpointLine MakeLineBreakpoint (int id, Word line, bool enabled)
         {
             DebuggerViewSnapshot::BreakpointLine  bp;
@@ -105,59 +119,54 @@ namespace DebuggerTests
             Assert::IsTrue (BasicProgramPane::GetStatement (line, 14) == std::pair<int, int> (11, 15));
         }
 
-        //  The heat column's strip is over each line's tokens, on its first
-        //  row: the interpreter's reads of them are the line running.
-        TEST_METHOD (TheHeatColumnIsOverEachLinesTokens)
+        //  A line's heat is how often BASIC began it, from the statements
+        //  counted at its first token, past its link and its number, on its
+        //  first row. The interpreter's reads of its tokens color nothing.
+        TEST_METHOD (TheHeatColumnIsHowOftenEachLineRan)
         {
-            BasicLine                                  first  = MakeLine (0x0801, 10, { "A", "=", "1" });
-            BasicLine                                  second = MakeLine (0x0809, 20, { "B", "=", "2" });
+            BasicLine                                     first  = MakeLine (0x0801, 10, { "A", "=", "1" });
+            BasicLine                                     second = MakeLine (0x0809, 20, { "B", "=", "2" });
             DebuggerViewSnapshot::BasicState              state  = MakeState ({ first, second }, 0, 0);
             std::vector<BasicProgramPane::Row>            rows   = BasicProgramPane::GetRows (state.lines);
-            DebuggerViewSnapshot::HeatColumnLevels        heat;
+            DebuggerViewSnapshot::HeatColumnLevels        heat   = MakeHeat();
             HeatMapView::Palette                          palette;
             std::vector<std::vector<DxuiListView::Cell>>  cells;
 
 
 
-            heat.execute.assign (0x10000, 0);
-            heat.read.assign    (0x10000, 0);
-            heat.write.assign   (0x10000, 0);
-            heat.read[0x0805]  = 255;
+            heat.statement[0x0805]      = 255;
+            heat.statementCount[0x0805] = 3;
+            heat.read[0x0805]           = 255;
+            heat.read[0x080D]           = 255;
 
             cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
 
-            Assert::AreEqual ((size_t) 3, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"three bytes of tokens, a fill each");
-            Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[2], cells[0][BasicProgramPane::kHeatColumn].background, L"the token read is the line running");
-            Assert::AreEqual ((size_t) 3, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line has its own tokens, too");
-            Assert::IsTrue   (BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style())[0][BasicProgramPane::kHeatColumn].text.empty(), L"no levels, no strip");
+            Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[2], cells[0][BasicProgramPane::kHeatColumn].background, L"the line ran");
+            Assert::IsTrue   (cells[0][BasicProgramPane::kHeatColumn].text.empty(), L"one fill, no blocks");
+            Assert::IsTrue   (cells[0][BasicProgramPane::kHeatColumn].tip.find (L"3 times") != std::wstring::npos, cells[0][BasicProgramPane::kHeatColumn].tip.c_str());
+            Assert::AreEqual ((uint32_t) 0, cells[1][BasicProgramPane::kHeatColumn].background, L"a read of a line's token is not the line running");
+            Assert::AreEqual ((uint32_t) 0, BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style())[0][BasicProgramPane::kHeatColumn].background, L"no levels, no color");
         }
 
-        //  A GOTO to a line reads the zero ending the line before it, and the
-        //  variables follow the last line. Neither heats a line that never ran.
-        TEST_METHOD (TheHeatColumnLeavesOutTheLinesEndAndWhatFollowsTheProgram)
+        //  A statement begun after a colon is part of a line already running:
+        //  only a statement at the line's first token counts as a run.
+        TEST_METHOD (AStatementAfterAColonIsNotTheLineRunning)
         {
-            BasicLine                                  first  = MakeLine (0x0801, 10, { "A", "=", "1" });
-            BasicLine                                  second = MakeLine (0x0809, 20, { "B", "=", "2" });
-            DebuggerViewSnapshot::BasicState              state  = MakeState ({ first, second }, 0, 0);
-            std::vector<BasicProgramPane::Row>            rows   = BasicProgramPane::GetRows (state.lines);
-            DebuggerViewSnapshot::HeatColumnLevels        heat;
+            BasicLine                                     line  = MakeLine (0x0801, 10, { "A", "=", "1", ":", "B", "=", "2" });
+            DebuggerViewSnapshot::BasicState              state = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows  = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat  = MakeHeat();
             HeatMapView::Palette                          palette;
             std::vector<std::vector<DxuiListView::Cell>>  cells;
 
 
 
-            heat.execute.assign (0x10000, 0);
-            heat.read.assign    (0x10000, 0);
-            heat.write.assign   (0x10000, 0);
-            heat.read[0x0808]  = 255;
-            heat.read[0x0810]  = 255;
-            palette.cold       = 0xFF112233;
-            palette.execute    = 0xFF0000FF;
+            heat.statement[0x0809]      = 255;
+            heat.statementCount[0x0809] = 5;
 
             cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
 
-            Assert::AreEqual (0xFF112233u, cells[0][BasicProgramPane::kHeatColumn].background, L"the zero ending the line");
-            Assert::AreEqual (0xFF112233u, cells[1][BasicProgramPane::kHeatColumn].background, L"past the last line");
+            Assert::AreEqual ((uint32_t) 0, cells[0][BasicProgramPane::kHeatColumn].background);
         }
 
 

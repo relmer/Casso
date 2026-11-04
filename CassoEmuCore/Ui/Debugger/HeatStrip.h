@@ -76,6 +76,11 @@ public:
     static DxuiListView::Cell  GetCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word first, size_t count,
                                         const HeatMapView::Palette & palette, bool isTokens);
 
+    //  A BASIC line's cell: one fill in the run scale's color for how often
+    //  BASIC began the line, from the statement count at its first token,
+    //  and a tip with the count. A line that hasn't run has no color.
+    static DxuiListView::Cell  GetLineCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word firstToken, const HeatMapView::Palette & palette);
+
     //  The bytes a disassembly line's code bytes text lists, as "A9 00".
     static size_t  CountBytes (const std::string & bytes);
 

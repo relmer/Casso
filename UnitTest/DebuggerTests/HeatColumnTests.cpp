@@ -55,9 +55,10 @@ namespace DebuggerTests
 
 
 
-            levels.execute.assign (0x10000, 0);
-            levels.read.assign    (0x10000, 0);
-            levels.write.assign   (0x10000, 0);
+            levels.execute.assign   (0x10000, 0);
+            levels.read.assign      (0x10000, 0);
+            levels.write.assign     (0x10000, 0);
+            levels.statement.assign (0x10000, 0);
             return levels;
         }
 
@@ -222,7 +223,8 @@ namespace DebuggerTests
 
         //  A heading's tip has a line for each scale with that scale's colors,
         //  under lines short enough for a tip that doesn't wrap; a BASIC
-        //  program's has no read scale.
+        //  program's has the run scale alone, with no mention of tokens or
+        //  writes.
         TEST_METHOD (AHeadingsTipDrawsEachScale)
         {
             for (bool isTokens : { false, true })
@@ -234,7 +236,8 @@ namespace DebuggerTests
 
 
                 Assert::AreEqual (lines, tip.lineScales.size(), L"an entry for every line");
-                Assert::AreEqual (isTokens ? (size_t) 2 : (size_t) 3, drawn);
+                Assert::AreEqual (isTokens ? (size_t) 1 : (size_t) 3, drawn);
+                Assert::IsTrue   (!isTokens || (tip.text.find (L"token") == std::wstring::npos && tip.text.find (L"ritten") == std::wstring::npos), tip.text.c_str());
                 Assert::AreEqual (HeatStrip::GetScaleStops (HeatStrip::Kind::Run)[2], tip.lineScales[lines - drawn].back(), L"the first scale is the run scale, ending at its hottest");
                 Assert::IsTrue   (tip.text.find (L"gray") == std::wstring::npos, L"an untouched byte has no color");
 
@@ -244,6 +247,40 @@ namespace DebuggerTests
                     Assert::IsTrue (end - from <= 64, tip.text.substr (from, end - from).c_str());
                 }
             }
+        }
+
+
+
+        //  A BASIC line's cell is one fill in the run scale's color for how
+        //  often BASIC began the line, from the statement count at its first
+        //  token; the interpreter's other reads of its tokens don't count. Its
+        //  tip has the count.
+        TEST_METHOD (ABasicLinesCellIsHowOftenItRan)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
+            DxuiListView::Cell                      cell;
+
+
+
+            levels.statementCount.assign (0x10000, 0);
+            levels.statement[0x0805]      = 255;
+            levels.statementCount[0x0805] = 12;
+            levels.read[0x0805]           = 255;
+            levels.read[0x0806]           = 255;
+
+            cell = HeatStrip::GetLineCell (levels, 0x0805, MakePalette());
+
+            Assert::AreEqual (kRunTop, cell.background, L"the hottest run color");
+            Assert::IsTrue   (cell.text.empty(), L"one fill, no blocks");
+            Assert::IsTrue   (cell.tip.find (L"12 times") != std::wstring::npos, cell.tip.c_str());
+            Assert::AreEqual (1.0f, cell.tipGradientMark, L"the mark at the top of the scale");
+
+            levels.statement[0x0805]      = 0;
+            levels.statementCount[0x0805] = 0;
+            cell = HeatStrip::GetLineCell (levels, 0x0805, MakePalette());
+
+            Assert::AreEqual ((uint32_t) 0, cell.background, L"a line that hasn't run has no color, whatever read its tokens");
+            Assert::IsTrue   (cell.tip.find (L"hasn't run") != std::wstring::npos, cell.tip.c_str());
         }
 
 

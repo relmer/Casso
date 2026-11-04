@@ -103,6 +103,7 @@ void AccessHeatMap::Begin (uint64_t cycle)
     m_isKeptChanged    = true;
     m_isLastReadUnwritten = false;
     m_isLastReadStop      = false;
+    m_isStatementPending  = false;
 
     FillBytes (m_written, m_isStartedClear ? 0 : 0xFF);
 
@@ -1024,6 +1025,12 @@ void AccessHeatMap::OnRead (Word address, Byte value)
         m_lastReadWasBank = m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)];
     }
 
+    if (m_isStatementPending && m_instruction.has_value() && m_instruction->GetPc() == kChrGetRead)
+    {
+        CountAlso (HeatKind::Statement, address, m_lastReadLanding);
+        m_isStatementPending = false;
+    }
+
     if (m_isLastReadUnwritten)
     {
         CountAlso (HeatKind::UnwrittenRead, address, m_lastReadLanding);
@@ -1601,6 +1608,12 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
     m_isLastReadUnwritten = false;
     m_isLastReadStop      = false;
     m_isStore             = m_instructionSet != nullptr && IsStore (m_instructionSet[opcode].operation);
+
+    //  A statement begins at the statement loop's call of CHRGET, and its
+    //  first token is the next byte CHRGET reads. Any other code between
+    //  the call and that read ends the wait.
+    m_isStatementPending  = (pc == kNewStatement && opcode == kJsr) ||
+                            (m_isStatementPending && pc >= kChrGet && pc <= kChrGetRead);
 
     MarkOpcode (pc, Count (HeatKind::Execute, pc, false));
 
