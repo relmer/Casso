@@ -1600,14 +1600,14 @@ std::wstring CassoLinkConnections::DescribeFailure (const LinkOperation & operat
 
 void CassoLinkConnections::SetChosenKind (const std::string & name, int drive, VolumeKind kind)
 {
-    {
-        std::lock_guard<std::mutex>  lock (m_lock);
-        Link                       * link = FindLink (name);
+    //  FindLink locks m_lock, which isn't recursive.
+    Link  * link = FindLink (name);
 
-        if (link != nullptr && link->session != nullptr)
-        {
-            link->session->SetChosenKind (drive, kind);
-        }
+
+
+    if (link != nullptr && link->session != nullptr)
+    {
+        link->session->SetChosenKind (drive, kind);
     }
 
     Invalidate (name, drive);
@@ -1625,8 +1625,8 @@ void CassoLinkConnections::SetChosenKind (const std::string & name, int drive, V
 
 VolumeKind CassoLinkConnections::GetChosenKind (const std::string & name, int drive) const
 {
-    std::lock_guard<std::mutex>  lock (m_lock);
-    const Link                 * link = FindLink (name);
+    //  FindLink locks m_lock, which isn't recursive.
+    const Link  * link = FindLink (name);
 
 
 

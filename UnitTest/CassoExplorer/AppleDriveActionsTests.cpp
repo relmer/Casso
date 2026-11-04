@@ -805,4 +805,21 @@ public:
         Assert::IsFalse (dataDisk, L"a DOS 3.3 disk");
         Assert::IsTrue  (linkDisk, L"the link boot disk");
     }
+
+
+
+    //  GetChosenKind returns the kind SetChosenKind set on a running link.
+    TEST_METHOD (ChosenKind_OnARunningLink_ReadsBack)
+    {
+        Rig  rig;
+
+
+
+        rig.Open (1);
+        Assert::IsTrue (rig.links->GetChosenKind ("Test", 1) == VolumeKind::Unknown, L"no choice yet");
+
+        rig.links->SetChosenKind ("Test", 1, VolumeKind::Cpm);
+        Assert::IsTrue (rig.links->GetChosenKind ("Test", 1) == VolumeKind::Cpm);
+        Assert::IsTrue (rig.links->GetChosenKind ("Test", 2) == VolumeKind::Unknown, L"the choice was for the other drive");
+    }
 };
