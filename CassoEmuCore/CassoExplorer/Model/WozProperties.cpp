@@ -343,59 +343,6 @@ std::vector<WozLoader::MetaField> WozProperties::MakeMeta (const std::vector<std
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WozProperties::GetSummary
-//
-//  The title, publisher, developer, copyright and required machines, those
-//  the image has. Machines with the reference's codes are listed as the
-//  drive's info icon lists them, and the values of any other key separated
-//  by | are listed with commas.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::pair<std::wstring, std::wstring>> WozProperties::GetSummary (const std::vector<WozLoader::MetaField> & meta)
-{
-    static constexpr const char *                       s_kKeys[] = { kTitle, "publisher", "developer", "copyright", kRequiresMachine };
-    std::vector<std::pair<std::wstring, std::wstring>>  lines;
-
-
-
-    for (const char * key : s_kKeys)
-    {
-        auto  found = std::find_if (meta.begin(), meta.end(), [key] (const WozLoader::MetaField & field) { return field.key == key; });
-
-        if (found == meta.end() || found->value.empty())
-        {
-            continue;
-        }
-
-        for (const MetaKey & standard : GetMetaKeys())
-        {
-            if (found->key == standard.key)
-            {
-                uint16_t      machines = (found->key == kRequiresMachine) ? ParseMachineCodes (found->value) : 0;
-                std::wstring  value    = (machines != 0) ? WozCompatibility::FormatHardwareList (machines) : TextEncoding::Utf8ToWide (found->value);
-                size_t        bar      = value.find (L'|');
-
-                while (machines == 0 && bar != std::wstring::npos)
-                {
-                    value.replace (bar, 1, L", ");
-                    bar = value.find (L'|', bar);
-                }
-
-                lines.emplace_back (standard.label, value);
-            }
-        }
-    }
-
-    return lines;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WozProperties::FormatEditError
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,30 +365,4 @@ std::wstring WozProperties::FormatEditError (HRESULT hr)
     }
 
     return L"The changes weren't written: " + TextEncoding::NarrowToWide (std::system_category().message (HRESULT_CODE (hr)));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WozProperties::FormatSummary
-//
-//  A line for each: the label, a colon and the value.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring WozProperties::FormatSummary (const std::vector<std::pair<std::wstring, std::wstring>> & lines)
-{
-    std::wstring  text;
-
-
-
-    for (const std::pair<std::wstring, std::wstring> & line : lines)
-    {
-        text += (text.empty() ? L"" : L"\n") + line.first + L": " + line.second;
-    }
-
-    return text;
 }

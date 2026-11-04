@@ -11,7 +11,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
-#include "CassoExplorer/Model/WozProperties.h"
+#include "CassoExplorer/Model/PreviewText.h"
 
 
 
@@ -51,10 +51,10 @@ void ExplorerPreviewManager::Create()
     ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
     m_message->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
-    m_summary = m_context.window.CreateChild<DxuiLabel>();
-    ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kProse);
-    m_summary->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-    m_summary->SetVisible   (false);
+    m_summary = m_context.window.CreateChild<DxuiTextView>();
+    ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
+    m_summary->SetProportional (true);
+    m_summary->SetVisible      (false);
 
     m_find.Create();
 }
@@ -101,6 +101,7 @@ void ExplorerPreviewManager::Configure()
 
     m_message->SetTextRenderer (m_context.window.GetTextRenderer());
     m_message->SetOwnerWindow  (m_context.window.GetHwnd());
+    m_summary->SetOwnerWindow  (m_context.window.GetHwnd());
 }
 
 
@@ -117,10 +118,10 @@ void ExplorerPreviewManager::Configure()
 
 void ExplorerPreviewManager::Layout (const RECT & rect)
 {
-    const DxuiDpiScaler  & scaler  = m_context.scaler;
-    RECT                   content = rect;
-    int                    barPx   = 0;
-    int                    padPx   = scaler.ToPx (kSummaryPadDip);
+    const DxuiDpiScaler  & scaler    = m_context.scaler;
+    RECT                   content   = rect;
+    int                    barPx     = 0;
+    int                    summaryPx = 0;
 
 
 
@@ -137,11 +138,17 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
-    //  A WOZ image's metadata, between the toolbar and the catalog.
-    if (m_summaryRows > 0)
+    //  A WOZ image's details, between the toolbar and the catalog, as tall as
+    //  their lines at the pane's width, up to a share of the pane.
+    if (m_summary->IsVisible())
     {
-        m_summary->Layout (RECT { content.left + padPx, content.top + padPx, content.right - padPx, content.top + padPx + scaler.ToPx (kSummaryLineDip * m_summaryRows) }, scaler);
-        content.top += padPx + scaler.ToPx (kSummaryLineDip * m_summaryRows) + padPx;
+        m_summary->Layout  (content, scaler);
+        m_summary->Measure (*m_context.window.GetTextRenderer(), *m_context.theme);
+
+        summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
+
+        m_summary->Layout (RECT { content.left, content.top, content.right, content.top + summaryPx }, scaler);
+        content.top += summaryPx;
     }
 
     m_content = content;
@@ -213,7 +220,8 @@ void ExplorerPreviewManager::FillPreview()
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
     bool                    woz      = !preview.wozPath.empty();
-    int                     rows     = (visible && woz && preview.kind == PreviewContent::Kind::Catalog) ? (int) preview.wozSummary.size() : 0;
+    bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
+    bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
                                      : disasm   ? CassoExplorerCommands::kPreviewBarHex
@@ -238,14 +246,13 @@ void ExplorerPreviewManager::FillPreview()
     m_listing.Fill   (preview, columns);
     m_text.Fill      (preview);
 
-    //  A WOZ image's metadata above its catalog, which moves the catalog down.
-    //  An image with no file system has its metadata in its details.
-    m_summary->SetText    (WozProperties::FormatSummary (preview.wozSummary));
-    m_summary->SetVisible (rows > 0);
+    //  A WOZ image's details above its catalog, which moves the catalog down.
+    //  An image with no file system has its details in place of a catalog.
+    m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details) : std::vector<DxuiTextView::Row>());
+    m_summary->SetVisible (details);
 
-    if (rows != m_summaryRows)
+    if (details || hadThem)
     {
-        m_summaryRows = rows;
         m_context.layout.RecomputeLayout();
     }
 

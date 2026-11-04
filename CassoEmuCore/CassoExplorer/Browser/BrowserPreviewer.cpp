@@ -6,7 +6,8 @@
 #include "CassoExplorer/Model/ArchiveProbe.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/SearchQuery.h"
-#include "CassoExplorer/Model/WozProperties.h"
+#include "Devices/Disk/DiskImageSession.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -368,7 +369,7 @@ void BrowserPreviewer::UpdatePreview()
         if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
         {
             m_preview.kind = PreviewContent::Kind::Details;
-            AddWozSummary (imagePath);
+            AddWozDetails (imagePath);
             return;
         }
 
@@ -383,7 +384,7 @@ void BrowserPreviewer::UpdatePreview()
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
-    AddWozSummary (imagePath);
+    AddWozDetails (imagePath);
 }
 
 
@@ -392,20 +393,23 @@ void BrowserPreviewer::UpdatePreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowserPreviewer::AddWozSummary
+//  BrowserPreviewer::AddWozDetails
 //
-//  A WOZ image's META, read from the file, for the lines above its catalog
-//  and for Edit metadata. Any other image, or a file that can't be read, has
-//  neither.
+//  A WOZ image's path, for Edit metadata, and for a catalog, the image's WOZ
+//  info and metadata as an image with no file system has them in its
+//  details, to list above the catalog. Any other image, or a file that can't
+//  be read, has neither.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BrowserPreviewer::AddWozSummary (const std::wstring & imagePath)
+void BrowserPreviewer::AddWozDetails (const std::wstring & imagePath)
 {
-    HRESULT                 hr    = S_OK;
-    bool                    isWoz = _wcsicmp (fs::path (imagePath).extension().wstring().c_str(), L".woz") == 0;
+    HRESULT                 hr     = S_OK;
+    bool                    isWoz  = _wcsicmp (fs::path (imagePath).extension().wstring().c_str(), L".woz") == 0;
     std::vector<Byte>       bytes;
     WozLoader::Description  woz;
+    bool                    parsed = false;
+    DetailIterator          analysis;
 
 
 
@@ -417,8 +421,18 @@ void BrowserPreviewer::AddWozSummary (const std::wstring & imagePath)
     WozLoader::Describe (bytes, woz);
     CBR (woz.isWoz);
 
-    m_preview.wozPath    = imagePath;
-    m_preview.wozSummary = WozProperties::GetSummary (woz.meta);
+    m_preview.wozPath = imagePath;
+
+    //  The analysis after the WOZ sections is about an image with no catalog,
+    //  so a catalog has only the WOZ sections.
+    if (m_preview.kind == PreviewContent::Kind::Catalog)
+    {
+        parsed   = PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes), m_preview.details);
+        analysis = std::find_if (m_preview.details.begin(), m_preview.details.end(), [] (const std::pair<std::wstring, std::wstring> & d) { return d.first == kAnalysisHeading && d.second.empty(); });
+
+        m_preview.details.erase (analysis, m_preview.details.end());
+        IGNORE_RETURN_VALUE (parsed, false);
+    }
 
 Error:
     return;

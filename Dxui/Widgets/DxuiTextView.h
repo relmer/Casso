@@ -104,9 +104,14 @@ public:
 
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
-    int   GetTopLine   () const { return m_topLine; }
-    void  SetTopLine   (int line);
-    void  ScrollLines  (int delta) { SetTopLine (m_topLine + delta); }
+
+    //  The text measured and laid out at its bounds' width before it is drawn,
+    //  and the height its lines take there, for a view sized to its text.
+    void  Measure            (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    int   GetContentHeightPx () const;
+    int   GetTopLine         () const { return m_topLine; }
+    void  SetTopLine         (int line);
+    void  ScrollLines        (int delta) { SetTopLine (m_topLine + delta); }
 
     //  The character column at the view's left edge, when rows don't wrap.
     int   GetLeftColumn   () const { return m_leftColumn; }

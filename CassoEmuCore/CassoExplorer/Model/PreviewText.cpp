@@ -48,6 +48,45 @@ SourceSyntax::Colors PreviewText::GetSourceColors (const IDxuiTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewText::BuildDetailRows
+//
+//  A label and its value a row. A section's heading is a row of one cell,
+//  under a blank row unless it starts the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildDetailRows (const std::vector<std::pair<std::wstring, std::wstring>> & details)
+{
+    std::vector<DxuiTextView::Row>  rows;
+
+
+
+    for (const std::pair<std::wstring, std::wstring> & field : details)
+    {
+        if (field.second.empty())
+        {
+            if (!rows.empty())
+            {
+                rows.push_back (DxuiTextView::Row { { std::wstring() } });
+            }
+
+            rows.push_back (DxuiTextView::Row { { field.first } });
+            rows.back().heading = true;
+            continue;
+        }
+
+        rows.push_back (DxuiTextView::Row { { field.first, field.second } });
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewText::BuildTextRows
 //
 //  A listing that is not a valid program ends with a blank row and the
@@ -94,24 +133,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {
-        for (const std::pair<std::wstring, std::wstring> & field : preview.details)
-        {
-            //  A section's heading is a row of one cell, under a blank row
-            //  unless it starts the text.
-            if (field.second.empty())
-            {
-                if (!rows.empty())
-                {
-                    rows.push_back (DxuiTextView::Row { { std::wstring() } });
-                }
-
-                rows.push_back (DxuiTextView::Row { { field.first } });
-                rows.back().heading = true;
-                continue;
-            }
-
-            rows.push_back (DxuiTextView::Row { { field.first, field.second } });
-        }
+        rows = BuildDetailRows (preview.details);
     }
     else if (preview.source)
     {

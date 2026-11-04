@@ -70,7 +70,4 @@ public:
     //  read or write of the file.
     static std::wstring  FormatEditError (HRESULT hr);
 
-    //  The lines listed above a WOZ image's catalog: a label and a value each.
-    static std::vector<std::pair<std::wstring, std::wstring>>  GetSummary    (const std::vector<WozLoader::MetaField> & meta);
-    static std::wstring                                        FormatSummary (const std::vector<std::pair<std::wstring, std::wstring>> & lines);
 };

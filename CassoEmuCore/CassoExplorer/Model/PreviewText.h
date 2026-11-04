@@ -33,6 +33,7 @@ public:
     //  The text view's rows for a preview; given colors, an assembler's source
     //  has its syntax colored.
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
+    static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
 
     //  Visual Studio's code colors for the theme's background, dark or light,
     //  as Casso's debugger colors its source.

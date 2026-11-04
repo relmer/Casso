@@ -1024,6 +1024,56 @@ void DxuiTextView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::Measure
+//
+//  What Paint measures, done ahead of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::Measure (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    DxuiFontHandle  font = m_proportional ? theme.BodyFont() : theme.MonospaceFont();
+
+
+
+    EnsureCellSize (text, theme);
+
+    if (m_proportional && m_charX.size() != m_rows.size() && m_cellWidthPx > 0)
+    {
+        font.sizeDip = m_scaler.ToPxf (font.sizeDip * m_zoom);
+
+        MeasureCharacters (text, font);
+        Rebuild();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetContentHeightPx
+//
+//  Zero before the text is measured.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetContentHeightPx() const
+{
+    int  bar = m_horzVisible ? m_scaler.ToPx (s_kScrollbarWidthDip) : 0;
+
+
+
+    return (m_cellHeightPx > 0) ? (int) m_lines.size() * m_cellHeightPx + m_scaler.ToPx (s_kPadDip) * 2 + bar : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::EnsureCellSize
 //
 //  Measured at the size the face is drawn at, so cells and glyphs agree.

@@ -1,7 +1,8 @@
 #include "Pch.h"
 #include "EhmTestHelper.h"
-#include "CassoExplorer/Model/WozProperties.h"
+#include "CassoExplorer/Model/PreviewDecoder.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImageSession.h"
 #include "Devices/Disk/DiskImage.h"
 #include "GuestSession.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -138,19 +139,24 @@ public:
         Assert::IsFalse  (image.IsDamaged());
     }
 
-
-    TEST_METHOD (Woz2_Summary_ListsTheRealImagesTitleAndMachines)
+    TEST_METHOD (Woz2_Details_HaveBothHeadings_AndAValuePerLine)
     {
         std::vector<Byte>                                   bytes = GuestSession::RequireRepoImage (kWoz2Path);
-        WozLoader::Description                              woz;
-        std::vector<std::pair<std::wstring, std::wstring>>  lines;
+        std::vector<std::pair<std::wstring, std::wstring>>  details;
+        auto                                                is    = [&details] (size_t at, const wchar_t * label, const wchar_t * value)
+        {
+            return at < details.size() && details[at].first == label && details[at].second == value;
+        };
+        size_t                                              developer = 0;
 
-        WozLoader::Describe (bytes, woz);
-        lines = WozProperties::GetSummary (woz.meta);
+        Assert::IsTrue (PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes), details));
 
-        Assert::IsFalse  (lines.empty());
-        Assert::AreEqual (std::wstring (L"Title"), lines.front().first);
-        Assert::AreEqual (std::wstring (L"Requires"), lines.back().first);
-        Assert::IsTrue   (lines.back().second.find (L"IIgs") != std::wstring::npos, lines.back().second.c_str());
+        Assert::IsTrue (std::any_of (details.begin(), details.end(), [] (const auto & d) { return d.first == L"WOZ info"     && d.second.empty(); }));
+        Assert::IsTrue (std::any_of (details.begin(), details.end(), [] (const auto & d) { return d.first == L"WOZ metadata" && d.second.empty(); }));
+
+        developer = (size_t) (std::find_if (details.begin(), details.end(), [] (const auto & d) { return d.first == L"Developer"; }) - details.begin());
+
+        Assert::IsTrue (is (developer,     L"Developer", L"David Balsam"), L"the first of the values on the label's line");
+        Assert::IsTrue (is (developer + 1, L"",          L"Martin Kahn"),  L"and the next on a line of its own");
     }
 };
