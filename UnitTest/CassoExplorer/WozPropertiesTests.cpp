@@ -65,12 +65,13 @@ public:
     TEST_METHOD (GetSummary_ListsTheImagesOfTheFiveKeys_WithMachinesByLabel)
     {
         std::vector<std::pair<std::wstring, std::wstring>>  lines = WozProperties::GetSummary ({ { "requires_machine", "2|2+" }, { "title",   "Karateka" },
-                                                                                                 { "version",          "1.0" },  { "developer", "Jordan Mechner" } });
+                                                                                                 { "version",          "1.0" },  { "developer", "David Balsam|Martin Kahn" } });
 
         Assert::AreEqual (size_t (3), lines.size());
         Assert::AreEqual (std::wstring (L"Title"),          lines[0].first);
         Assert::AreEqual (std::wstring (L"Karateka"),       lines[0].second);
         Assert::AreEqual (std::wstring (L"Developer"),      lines[1].first);
+        Assert::AreEqual (std::wstring (L"David Balsam, Martin Kahn"), lines[1].second);
         Assert::AreEqual (std::wstring (L"Requires"),       lines[2].first);
         Assert::AreEqual (WozCompatibility::FormatHardwareList (WozCompatibility::kApple2 | WozCompatibility::kApple2Plus), lines[2].second);
     }

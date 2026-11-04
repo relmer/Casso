@@ -1592,5 +1592,5 @@ Session 2026-11-04. In this order; T079 and T082 follow.
 - [ ] T399 Route each query to the index or the walk by FR-137 in `Win32ShellSearch::RunSearch`, and list the walked syntax in the search box's help
 - [ ] T400 Measure a search of C:\Windows with File contents off against the Windows search folder, and a contents search's first result (SC-044, SC-045)
 - [X] T401 Close the preview pane when no file is selected and open it again when one is, in `CassoEmuCore/CassoExplorer/Window/Panes/` (FR-143)
-- [ ] T402 Add Disk properties in `CassoEmuCore/CassoExplorer/WozPropertiesDialog.h/.cpp`: an INFO tab and a META tab, the creator as read-only text, WOZ 1's missing fields disabled, and the machine and RAM choices from the WOZ reference (FR-133)
-- [ ] T403 Add Disk properties to a .woz file's menu in the list and the tree, and list META's title, publisher, developer, copyright and required machines with an Edit metadata link above a .woz preview's catalog, opening Disk properties on its META tab (FR-133)
+- [X] T402 Add Disk properties in `CassoEmuCore/CassoExplorer/WozPropertiesDialog.h/.cpp`: an INFO tab and a META tab, the creator as read-only text, WOZ 1's missing fields disabled, and the machine and RAM choices from the WOZ reference (FR-133)
+- [X] T403 Add Disk properties to a .woz file's menu in the list and the tree, list META's title, publisher, developer, copyright and required machines above a .woz preview's catalog, and add Edit metadata to its preview's toolbar, opening Disk properties on its META tab (FR-133)

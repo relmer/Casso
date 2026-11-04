@@ -212,8 +212,8 @@ void ExplorerPreviewManager::FillPreview()
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
-    bool                    woz      = preview.kind == PreviewContent::Kind::Catalog && !preview.wozPath.empty();
-    int                     rows     = (visible && woz) ? (int) preview.wozSummary.size() : 0;
+    bool                    woz      = !preview.wozPath.empty();
+    int                     rows     = (visible && woz && preview.kind == PreviewContent::Kind::Catalog) ? (int) preview.wozSummary.size() : 0;
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
                                      : disasm   ? CassoExplorerCommands::kPreviewBarHex
@@ -238,7 +238,8 @@ void ExplorerPreviewManager::FillPreview()
     m_listing.Fill   (preview, columns);
     m_text.Fill      (preview);
 
-    //  A WOZ image's metadata, which moves its catalog down.
+    //  A WOZ image's metadata above its catalog, which moves the catalog down.
+    //  An image with no file system has its metadata in its details.
     m_summary->SetText    (WozProperties::FormatSummary (preview.wozSummary));
     m_summary->SetVisible (rows > 0);
 

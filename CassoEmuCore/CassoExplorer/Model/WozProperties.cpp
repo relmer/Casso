@@ -347,7 +347,8 @@ std::vector<WozLoader::MetaField> WozProperties::MakeMeta (const std::vector<std
 //
 //  The title, publisher, developer, copyright and required machines, those
 //  the image has. Machines with the reference's codes are listed as the
-//  drive's info icon lists them.
+//  drive's info icon lists them, and the values of any other key separated
+//  by | are listed with commas.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -373,6 +374,13 @@ std::vector<std::pair<std::wstring, std::wstring>> WozProperties::GetSummary (co
             {
                 uint16_t      machines = (found->key == kRequiresMachine) ? ParseMachineCodes (found->value) : 0;
                 std::wstring  value    = (machines != 0) ? WozCompatibility::FormatHardwareList (machines) : TextEncoding::Utf8ToWide (found->value);
+                size_t        bar      = value.find (L'|');
+
+                while (machines == 0 && bar != std::wstring::npos)
+                {
+                    value.replace (bar, 1, L", ");
+                    bar = value.find (L'|', bar);
+                }
 
                 lines.emplace_back (standard.label, value);
             }

@@ -175,6 +175,7 @@
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />
     <ClCompile Include="GuestVisiblePlacementTests.cpp" />
     <ClCompile Include="CassoExplorerShellSearchTests.cpp" />
+    <ClCompile Include="WozEditRealImageTests.cpp" />
     <ClCompile Include="DurableCommitFileTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />

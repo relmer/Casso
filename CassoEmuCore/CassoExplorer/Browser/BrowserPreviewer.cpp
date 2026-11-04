@@ -368,6 +368,7 @@ void BrowserPreviewer::UpdatePreview()
         if (!result.Succeeded() && PreviewDecoder::ParseDetails (result.message, m_preview.details))
         {
             m_preview.kind = PreviewContent::Kind::Details;
+            AddWozSummary (imagePath);
             return;
         }
 
@@ -394,7 +395,7 @@ void BrowserPreviewer::UpdatePreview()
 //  BrowserPreviewer::AddWozSummary
 //
 //  A WOZ image's META, read from the file, for the lines above its catalog
-//  and Edit metadata. Any other image, or a file that can't be read, has
+//  and for Edit metadata. Any other image, or a file that can't be read, has
 //  neither.
 //
 ////////////////////////////////////////////////////////////////////////////////
