@@ -323,6 +323,11 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Are the speech chip's writes decoded in the sound log? -> A: Yes, now (FR-333).
 - Q: Does the rest of T627's Mockingboard panel wait for a later spec? -> A: No. The owner: "just do all of 627 here... make it super sexy." A graphical view replaces the list and meters on the panel's pane, and the rows remain for the PANEL text (FR-334 to FR-341).
 
+### Session 2026-11-03 (owner decisions: Show next statement; tooltips)
+
+- Q: With a source file and the disassembly both following the PC, which one comes forward at a stop, and which one does Show next statement bring forward? -> A: At a stop at a source line, the source file; at a stop with no source line after one at a line, the disassembly view following the PC. On Show next statement, the view of the step mode comes forward. The step mode follows the view last used: the PC's line in its file while steps go by source line, the disassembly while they go by instruction or when the PC has no source line. No "Prefer source" option: the source is used whenever the PC has a line and steps go by source line (T1320).
+- Q: Does each control have a tip, displayed by a window-level service, as with Win32's tooltip control and WPF's ToolTipService? -> A: Yes. Every control has a tip (`IDxuiControl::SetTip`, `TryGetTip`) and returns a `DxuiTip` with its text, anchor, placement (by the pointer where it rests, against the anchor, or following the pointer at once), lifetime (until the pointer moves out of it, a reading time, or a set time) and look. One `DxuiTipService` per window displays it, by these rules: the pointer has to rest for the open delay; a repeat of the tip that is up changes nothing; after a press the tip is hidden until the pointer is over another tip or none; no tip opens while a menu is open (T1322).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
