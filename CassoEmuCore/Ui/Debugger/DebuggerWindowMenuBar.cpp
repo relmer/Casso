@@ -2,6 +2,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Debugger/SymbolTable.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
@@ -16,6 +17,7 @@
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/ViewMenuRows.h"
 
@@ -197,6 +199,7 @@ void DebuggerWindow::SetWindowMenus()
     //  File: what the window reads and writes.
     add (file, DebuggerMenuCommand::Make (L"Open source file...", false, [this] { OpenSourceFile(); }));
     add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", false, [this] { OpenSymbolFile(); }));
+    AddUnloadSymbolsRow (file);
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", false, [this] { m_breakpointsPane->Import(); }));
     row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { m_breakpointsPane->Export(); });
@@ -364,6 +367,85 @@ void DebuggerWindow::SetWindowMenus()
     {
         m_menuBar->SetItems (m_menuBarItems);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddUnloadSymbolsRow
+//
+//  File's Unload symbol file: a row for each symbol or debug file loaded,
+//  which clears its table as SYM<table> CLEAR does; disabled with none loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
+{
+    std::vector<DxuiPopupMenuItem>  files;
+    std::shared_ptr<DxuiCommand>    row;
+
+
+
+    for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
+    {
+        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), false, [this, name = table.name]
+        {
+            RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
+        });
+
+        m_menuCommands.push_back (row);
+        files.push_back (DxuiPopupMenuItem::ForCommand (row));
+    }
+
+    row = DebuggerMenuCommand::Make (L"Unload symbol file", false, [] {});
+    m_menuCommands.push_back (row);
+
+    if (files.empty())
+    {
+        row->isEnabled = [] { return false; };
+        file.push_back (DxuiPopupMenuItem::ForCommand (row));
+        return;
+    }
+
+    file.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (files)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetLoadedSymbolTables
+//
+//  The user symbol tables loaded from a file. A load replaces its table, so
+//  each has one file, its last origin.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DebuggerViewSnapshot::SymbolTableRow> DebuggerWindow::GetLoadedSymbolTables() const
+{
+    std::vector<DebuggerViewSnapshot::SymbolTableRow>  loaded;
+
+
+
+    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+    {
+        return loaded;
+    }
+
+    for (const DebuggerViewSnapshot::SymbolTableRow & table : m_snapshot->symbols->tables)
+    {
+        if (SymbolsPane::IsUserTable (table.id) && !table.origins.empty())
+        {
+            loaded.push_back (table);
+        }
+    }
+
+    return loaded;
 }
 
 

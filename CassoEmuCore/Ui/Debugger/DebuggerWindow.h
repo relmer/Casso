@@ -473,6 +473,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
     std::string  GetMenuState   () const;
+    void                                               AddUnloadSymbolsRow   (std::vector<DxuiPopupMenuItem> & file);
+    std::vector<DebuggerViewSnapshot::SymbolTableRow>  GetLoadedSymbolTables () const;
     void     RunCommandBarEntry  (int id) override;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
     bool     RouteMenuKey         (const DxuiKeyEvent & ev);

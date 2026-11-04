@@ -373,8 +373,8 @@ void DebuggerWindow::ConfigureCommandBar()
 //
 //  DebuggerWindow::GetMenuState
 //
-//  What the drop-downs show: the command mode, and each panel and whether it
-//  is open.
+//  What the drop-downs list: the command mode, each panel and whether it is
+//  open, and each symbol file loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,6 +394,11 @@ std::string DebuggerWindow::GetMenuState() const
     for (const DebuggerViewSnapshot::PanelInfo & panel : m_snapshot->panels)
     {
         state += std::format ("|{}={}", panel.id, panel.open ? 1 : 0);
+    }
+
+    for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
+    {
+        state += std::format ("|{}:{}", table.name, table.origins.back());
     }
 
     return state;

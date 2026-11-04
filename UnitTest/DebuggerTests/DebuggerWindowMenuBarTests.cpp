@@ -414,6 +414,44 @@ namespace DebuggerMenuBarTests
         }
 
 
+        //  File's Unload symbol file lists each symbol file loaded, by its
+        //  file name, and a row clears its table; with none loaded the row
+        //  is disabled.
+        TEST_METHOD (UnloadSymbolFileListsEachLoadedFile)
+        {
+            CassoTheme                                             theme    = CassoTheme::MakeSkeuomorphic();
+            MenuBarHost                                            host;
+            MenuBarWindow                                          window   (theme, host);
+            std::shared_ptr<DebuggerViewSnapshot>                  snapshot = std::make_shared<DebuggerViewSnapshot>();
+            std::shared_ptr<DebuggerViewSnapshot::SymbolsState>    symbols  = std::make_shared<DebuggerViewSnapshot::SymbolsState>();
+            const DxuiPopupMenuItem                              * row      = nullptr;
+
+
+
+            window.OnCreate();
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol file");
+            Assert::IsNotNull (row);
+            Assert::IsFalse   (row->command->isEnabled(), L"on with no file loaded");
+
+            symbols->tables.push_back ({ "user", 12, true, SymbolTableId::User, { "symbols-demo.dbg" } });
+            symbols->tables.push_back ({ "main", 400, true, SymbolTableId::Main, { "Apple2e.sym" } });
+            snapshot->symbols = symbols;
+            window.SetSnapshotForTest (snapshot);
+            window.SetWindowMenus();
+
+            row = MenuRows::GetRow (window.GetMenuBarItems(), L"&File", L"Unload symbol file");
+            Assert::IsNotNull (row);
+            Assert::IsTrue    (row->kind == DxuiPopupMenuItem::Kind::Submenu, L"no submenu of files");
+            Assert::AreEqual  ((size_t) 1, row->children.size(), L"a machine table's file is listed");
+            Assert::AreEqual  (std::wstring (L"symbols-demo.dbg"), row->children[0].command->label);
+
+            row->children[0].command->dispatch();
+            Assert::IsTrue   (host.lastAction.command.verb == DebugVerb::ClearSymbols);
+            Assert::AreEqual (std::string ("SYMUSER CLEAR"), host.lastAction.echo);
+        }
+
+
         TEST_METHOD (ResetWindowLayoutPutsAFloatingPaneBack)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
