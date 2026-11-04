@@ -350,6 +350,8 @@
     <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostAppleFile.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesDialog.cpp" />
+    <ClCompile Include="CassoExplorer\WozPropertiesDialog.cpp" />
+    <ClCompile Include="CassoExplorer\WozPropertiesPage.cpp" />
     <ClCompile Include="CassoExplorer\Model\FolderOptions.cpp" />
     <ClCompile Include="CassoExplorer\Model\FolderViews.cpp" />
     <ClCompile Include="CassoExplorer\Model\ContentSniffer.cpp" />
@@ -856,6 +858,8 @@
     <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
     <ClInclude Include="CassoExplorer\Model\HostAppleFile.h" />
     <ClInclude Include="CassoExplorer\AppleFilePropertiesDialog.h" />
+    <ClInclude Include="CassoExplorer\WozPropertiesDialog.h" />
+    <ClInclude Include="CassoExplorer\WozPropertiesPage.h" />
     <ClInclude Include="CassoExplorer\Model\FolderOptions.h" />
     <ClInclude Include="CassoExplorer\Model\FolderViews.h" />
     <ClInclude Include="CassoExplorer\Model\ContentSniffer.h" />

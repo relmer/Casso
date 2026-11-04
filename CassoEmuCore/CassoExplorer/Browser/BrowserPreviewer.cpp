@@ -6,6 +6,8 @@
 #include "CassoExplorer/Model/ArchiveProbe.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/SearchQuery.h"
+#include "CassoExplorer/Model/WozProperties.h"
+#include "Devices/Disk/IDiskFileIo.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
@@ -380,6 +382,45 @@ void BrowserPreviewer::UpdatePreview()
     }
 
     PreviewDecoder::RenderCatalog (listing, kind, m_preview);
+    AddWozSummary (imagePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::AddWozSummary
+//
+//  A WOZ image's META, read from the file, for the lines above its catalog
+//  and Edit metadata. Any other image, or a file that can't be read, has
+//  neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::AddWozSummary (const std::wstring & imagePath)
+{
+    HRESULT                 hr    = S_OK;
+    bool                    isWoz = _wcsicmp (fs::path (imagePath).extension().wstring().c_str(), L".woz") == 0;
+    std::vector<Byte>       bytes;
+    WozLoader::Description  woz;
+
+
+
+    CBR (isWoz);
+
+    hr = m_browser.m_operations.GetFileIo().ReadAllBytes (TextEncoding::WideToNarrow (imagePath), bytes);
+    CHR (hr);
+
+    WozLoader::Describe (bytes, woz);
+    CBR (woz.isWoz);
+
+    m_preview.wozPath    = imagePath;
+    m_preview.wozSummary = WozProperties::GetSummary (woz.meta);
+
+Error:
+    return;
 }
 
 

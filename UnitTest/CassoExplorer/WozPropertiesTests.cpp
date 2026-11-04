@@ -83,4 +83,23 @@ public:
         Assert::AreEqual (size_t (1), lines.size());
         Assert::AreEqual (std::wstring (L"9x"), lines[0].second);
     }
+
+
+    TEST_METHOD (FormatEditError_EachRefusal_HasItsOwnReason)
+    {
+        std::wstring  crc     = WozProperties::FormatEditError (HRESULT_FROM_WIN32 (ERROR_CRC));
+        std::wstring  order   = WozProperties::FormatEditError (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+        std::wstring  denied  = WozProperties::FormatEditError (E_ACCESSDENIED);
+
+        Assert::IsTrue (crc.find (L"CRC") != std::wstring::npos);
+        Assert::IsTrue (order.find (L"in place") != std::wstring::npos);
+        Assert::IsTrue (denied.starts_with (L"The changes weren't written: "));
+        Assert::IsTrue (denied.size() > wcslen (L"The changes weren't written: "), L"with the system's reason");
+    }
+
+    TEST_METHOD (FormatSummary_PutsEachLineOnItsOwnRow)
+    {
+        Assert::AreEqual (std::wstring (L"Title: Karateka\nPublisher: Broderbund"), WozProperties::FormatSummary ({ { L"Title", L"Karateka" }, { L"Publisher", L"Broderbund" } }));
+        Assert::AreEqual (std::wstring(), WozProperties::FormatSummary ({}));
+    }
 };

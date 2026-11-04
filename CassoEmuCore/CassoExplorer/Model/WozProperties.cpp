@@ -381,3 +381,59 @@ std::vector<std::pair<std::wstring, std::wstring>> WozProperties::GetSummary (co
 
     return lines;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::FormatEditError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::FormatEditError (HRESULT hr)
+{
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CRC))
+    {
+        return L"The image is damaged: its CRC doesn't match its contents. It wasn't changed, since a new CRC would hide the damage.";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED))
+    {
+        return L"The image's chunks are in an order that can't be rewritten in place, so it wasn't changed.";
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+    {
+        return L"The image isn't a WOZ image that can be changed in place, so it wasn't changed.";
+    }
+
+    return L"The changes weren't written: " + TextEncoding::NarrowToWide (std::system_category().message (HRESULT_CODE (hr)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::FormatSummary
+//
+//  A line for each: the label, a colon and the value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::FormatSummary (const std::vector<std::pair<std::wstring, std::wstring>> & lines)
+{
+    std::wstring  text;
+
+
+
+    for (const std::pair<std::wstring, std::wstring> & line : lines)
+    {
+        text += (text.empty() ? L"" : L"\n") + line.first + L": " + line.second;
+    }
+
+    return text;
+}

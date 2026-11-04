@@ -130,6 +130,9 @@ public:
         //  The previewed Apple picture written to a PNG file.
         kSavePicture,
 
+        //  The previewed WOZ image's Disk properties, on its META tab.
+        kEditWozMetadata,
+
         //  Help > Check for updates.
         kCheckForUpdates,
 
@@ -200,6 +203,9 @@ public:
 
     //  A picture with no color choice: Save as PNG alone.
     static constexpr int  kPreviewBarSave    = 4;
+
+    //  A WOZ image's catalog: Edit metadata.
+    static constexpr int  kPreviewBarWoz     = 5;
 
     std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
     static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
@@ -367,6 +373,7 @@ private:
         { kCancelLinkOperation, Menu::Count, L"Cancel",            nullptr,     false },
         { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
         { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
+        { kEditWozMetadata,   Menu::Count, L"&Edit metadata...",   nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -458,6 +465,7 @@ private:
         { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Monochrome",   L"Draw the picture as its bits, on a monochrome monitor" },
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, nullptr, L"Color",        L"Draw the picture in color, on the color monitor"      },
         { kSavePicture,       DxuiToolbar::Kind::Command, 1, nullptr, L"Save as PNG",  L"Save the picture as a PNG file"                      },
+        { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, nullptr, L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
     };
 
     static constexpr Key  kKeys[] =

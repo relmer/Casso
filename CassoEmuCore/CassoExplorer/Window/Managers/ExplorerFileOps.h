@@ -84,6 +84,8 @@ public:
     void                                 ShowAppleProperties         ();
     void                                 ShowHostAppleProperties     (const std::wstring & path);
     static bool                          IsHostAppleFile             (const std::wstring & path);
+    void                                 ShowWozProperties           (const std::wstring & path, int tab);
+    static bool                          IsWozImage                  (const std::wstring & path);
 
     //  Copy and the shell's commands reach a selected row by its place in the shell.
     static bool                          HasShellRows                (Location::Kind kind, bool home) { return kind == Location::Kind::ShellFolder || home; }

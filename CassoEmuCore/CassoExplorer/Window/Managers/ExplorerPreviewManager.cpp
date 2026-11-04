@@ -11,6 +11,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Model/WozProperties.h"
 
 
 
@@ -49,6 +50,11 @@ void ExplorerPreviewManager::Create()
     m_message = m_context.window.CreateChild<DxuiSelectableText>();
     ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
     m_message->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+
+    m_summary = m_context.window.CreateChild<DxuiLabel>();
+    ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kProse);
+    m_summary->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    m_summary->SetVisible   (false);
 
     m_find.Create();
 }
@@ -114,6 +120,7 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
     const DxuiDpiScaler  & scaler  = m_context.scaler;
     RECT                   content = rect;
     int                    barPx   = 0;
+    int                    padPx   = scaler.ToPx (kSummaryPadDip);
 
 
 
@@ -128,6 +135,13 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         m_toolbar->SetHostClientRect (m_context.layout.GetClient());
         m_toolbar->Layout (RECT { rect.left, rect.top, rect.right, rect.top + barPx }, scaler);
         content.top += barPx;
+    }
+
+    //  A WOZ image's metadata, between the toolbar and the catalog.
+    if (m_summaryRows > 0)
+    {
+        m_summary->Layout (RECT { content.left + padPx, content.top + padPx, content.right - padPx, content.top + padPx + scaler.ToPx (kSummaryLineDip * m_summaryRows) }, scaler);
+        content.top += padPx + scaler.ToPx (kSummaryLineDip * m_summaryRows) + padPx;
     }
 
     m_content = content;
@@ -162,6 +176,7 @@ void ExplorerPreviewManager::Hide()
     }
 
     m_message->SetVisible (false);
+    m_summary->SetVisible (false);
     m_toolbar->SetVisible (false);
 }
 
@@ -197,12 +212,15 @@ void ExplorerPreviewManager::FillPreview()
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
+    bool                    woz      = preview.kind == PreviewContent::Kind::Catalog && !preview.wozPath.empty();
+    int                     rows     = (visible && woz) ? (int) preview.wozSummary.size() : 0;
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
                                      : disasm   ? CassoExplorerCommands::kPreviewBarHex
                                      : program  ? CassoExplorerCommands::kPreviewBarListing
                                      : forms    ? CassoExplorerCommands::kPreviewBarPicture
                                      : picture  ? CassoExplorerCommands::kPreviewBarSave
+                                     : woz      ? CassoExplorerCommands::kPreviewBarWoz
                                                 : CassoExplorerCommands::kPreviewBarNone;
 
 
@@ -219,6 +237,16 @@ void ExplorerPreviewManager::FillPreview()
     m_picture.Fill   (preview, picture, shell && m_shell.IsPicture());
     m_listing.Fill   (preview, columns);
     m_text.Fill      (preview);
+
+    //  A WOZ image's metadata, which moves its catalog down.
+    m_summary->SetText    (WozProperties::FormatSummary (preview.wozSummary));
+    m_summary->SetVisible (rows > 0);
+
+    if (rows != m_summaryRows)
+    {
+        m_summaryRows = rows;
+        m_context.layout.RecomputeLayout();
+    }
 
     if (mode != m_barMode)
     {

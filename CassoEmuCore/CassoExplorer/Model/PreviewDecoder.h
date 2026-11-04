@@ -111,6 +111,11 @@ struct PreviewContent
     PicturePreview::Mode       pictureMode   = PicturePreview::Mode::None;
     PicturePreview::Mode       pictureChosen = PicturePreview::Mode::None;
 
+    //  A WOZ image's catalog: the image, for Disk properties, and its META's
+    //  summary, as label and value, listed above the catalog.
+    std::wstring                                        wozPath;
+    std::vector<std::pair<std::wstring, std::wstring>>  wozSummary;
+
     bool  operator== (const PreviewContent &) const = default;
 };
 

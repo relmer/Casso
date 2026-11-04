@@ -4,6 +4,8 @@
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/AppleFilePropertiesDialog.h"
+#include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Model/WozProperties.h"
 #include "CassoExplorer/CassoExplorerProperties.h"
 #include "CassoExplorer/Model/HostAppleFile.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
@@ -29,6 +31,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 
 
 
@@ -1023,6 +1026,83 @@ bool ExplorerFileOps::IsHostAppleFile (const std::wstring & path)
     }
 
     return HostFileNaming::Parse (leaf, parsed) && parsed.hasType && parsed.converted == ParsedHostName::ConvertedKind::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::IsWozImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFileOps::IsWozImage (const std::wstring & path)
+{
+    return _wcsicmp (std::filesystem::path (path).extension().wstring().c_str(), L".woz") == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::ShowWozProperties
+//
+//  A WOZ image's INFO and META in Disk properties. Each Apply reads the file
+//  again, makes the edits in its bytes and writes it, then previews it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::ShowWozProperties (const std::wstring & path, int tab)
+{
+    IDiskFileIo             & io    = m_context.browser.GetOperations().GetFileIo();
+    std::string               file  = TextEncoding::WideToNarrow (path);
+    std::wstring              leaf  = std::filesystem::path (path).filename().wstring();
+    std::vector<Byte>         bytes;
+    WozLoader::Description    woz;
+    HRESULT                   hr    = S_OK;
+
+
+
+    hr = io.ReadAllBytes (file, bytes);
+
+    if (SUCCEEDED (hr))
+    {
+        WozLoader::Describe (bytes, woz);
+    }
+
+    if (!woz.isWoz)
+    {
+        m_context.window.ShowMessage (leaf + L" can't be read as a WOZ image.", MB_ICONINFORMATION);
+        return;
+    }
+
+    WozPropertiesDialog::Show (m_context.window.GetHwnd(), m_context.theme, leaf, woz, tab, [this, &io, file] (const WozLoader::Edits & edits) -> std::wstring
+    {
+        std::vector<Byte>  fresh;
+        HRESULT            result = io.ReadAllBytes (file, fresh);
+
+        if (SUCCEEDED (result))
+        {
+            result = WozLoader::ApplyEdits (fresh, edits);
+        }
+
+        if (SUCCEEDED (result))
+        {
+            result = io.WriteAllBytes (file, fresh);
+        }
+
+        if (SUCCEEDED (result))
+        {
+            m_context.browser.RefreshPreview();
+            m_context.preview.FillPreview();
+        }
+
+        return SUCCEEDED (result) ? std::wstring() : WozProperties::FormatEditError (result);
+    });
 }
 
 

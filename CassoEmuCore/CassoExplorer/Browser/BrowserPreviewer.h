@@ -66,6 +66,7 @@ public:
     //  Why an archive the shell lists nothing in is empty, by its name;
     //  empty when it has nothing in it.
     std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
+    void          AddWozSummary        (const std::wstring & imagePath);
 
     //  The largest archive read whole for the reason it lists nothing.
     static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;

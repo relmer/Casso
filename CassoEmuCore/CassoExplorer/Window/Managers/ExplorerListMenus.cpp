@@ -19,6 +19,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
+#include "CassoExplorer/WozPropertiesDialog.h"
 
 
 
@@ -794,6 +795,15 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             m_context.menus.AddMenuCommand (items, L"&Apple properties", [this, path]() { m_context.fileOps.ShowHostAppleProperties (path); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
+        }
+
+        //  A WOZ image on the PC has its INFO and META beside Windows' properties.
+        if (selectedPaths.size() == 1 && ExplorerFileOps::IsWozImage (selectedPaths[0]))
+        {
+            std::wstring  path = selectedPaths[0];
+
+            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, path]() { m_context.fileOps.ShowWozProperties (path, WozPropertiesDialog::kInfoTab); });
+            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
 
         if (m_context.browser.GetSelectedRows().size() > 1 && m_context.browser.IsVolumeLocation())

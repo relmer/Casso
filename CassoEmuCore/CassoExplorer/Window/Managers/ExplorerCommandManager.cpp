@@ -32,6 +32,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/WozPropertiesDialog.h"
 
 
 
@@ -200,6 +201,7 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_context.browser.CanTogglePictureColor();
         case CassoExplorerCommands::kSavePicture:       return m_context.browser.GetPreview().kind == PreviewContent::Kind::Picture && !m_context.browser.GetPreview().bgra.empty();
+        case CassoExplorerCommands::kEditWozMetadata:   return !m_context.browser.GetPreview().wozPath.empty();
         case CassoExplorerCommands::kFindNext:          return m_context.preview.GetFind().CanFindNext();
         case CassoExplorerCommands::kFind:
         case CassoExplorerCommands::kNoData:
@@ -516,6 +518,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kPictureMonochrome:  m_context.preview.GetPicture().ShowForm (false);                               break;
         case CassoExplorerCommands::kPictureColor:       m_context.preview.GetPicture().ShowForm (true);                                break;
         case CassoExplorerCommands::kSavePicture:        m_context.preview.GetPicture().SavePicture();                                  break;
+        case CassoExplorerCommands::kEditWozMetadata:    m_context.fileOps.ShowWozProperties (m_context.browser.GetPreview().wozPath, WozPropertiesDialog::kMetaTab); break;
 
         case CassoExplorerCommands::kGoToOffset:
             m_context.preview.GetFind().FocusGoTo();

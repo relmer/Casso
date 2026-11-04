@@ -34,6 +34,8 @@ public:
     explicit ExplorerPreviewManager (ExplorerContext & context);
 
     static constexpr uint32_t         kBackgroundLift  = 7;       // the dark pane over the list, per channel
+    static constexpr int              kSummaryLineDip  = 20;      // a WOZ image's metadata line above its catalog
+    static constexpr int              kSummaryPadDip   = 8;
 
     void                              Create                 ();
     void                              CreateToolbar          ();
@@ -92,6 +94,8 @@ private:
     PreviewFindBar                  m_find        { *this, m_context };
     std::array<PreviewView *, 5>    m_views       { &m_listing, &m_picture, &m_hex, &m_text, &m_shell };   // in creation order, which is drawing order
     DxuiSelectableText            * m_message     = nullptr;
+    DxuiLabel                     * m_summary     = nullptr;   // a WOZ image's metadata, above its catalog
+    int                             m_summaryRows = 0;
     DxuiToolbar                   * m_toolbar     = nullptr;
     int                             m_barMode     = CassoExplorerCommands::kPreviewBarNone;   // one of CassoExplorerCommands' preview bars
     int                             m_barFocus    = 0;   // the toolbar's focused button

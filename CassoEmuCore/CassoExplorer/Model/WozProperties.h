@@ -41,6 +41,7 @@ public:
         const wchar_t  * label     = nullptr;
     };
 
+    static constexpr size_t        kMachineCount    = 9;
     static constexpr const char *  kTitle           = "title";
     static constexpr const char *  kRequiresRam     = "requires_ram";
     static constexpr const char *  kRequiresMachine = "requires_machine";
@@ -65,6 +66,11 @@ public:
     //  order given. A key with no value is left out.
     static std::vector<WozLoader::MetaField>  MakeMeta (const std::vector<std::pair<std::string, std::wstring>> & typed);
 
+    //  Why Disk properties' edits weren't saved, from WozLoader::ApplyEdits or a
+    //  read or write of the file.
+    static std::wstring  FormatEditError (HRESULT hr);
+
     //  The lines listed above a WOZ image's catalog: a label and a value each.
-    static std::vector<std::pair<std::wstring, std::wstring>>  GetSummary (const std::vector<WozLoader::MetaField> & meta);
+    static std::vector<std::pair<std::wstring, std::wstring>>  GetSummary    (const std::vector<WozLoader::MetaField> & meta);
+    static std::wstring                                        FormatSummary (const std::vector<std::pair<std::wstring, std::wstring>> & lines);
 };

@@ -607,6 +607,7 @@ int CassoExplorerCommands::GetPreviewBar (int id)
 {
     return (id == kLineAddresses)                                                  ? kPreviewBarListing
          : (id == kPictureMonochrome || id == kPictureColor || id == kSavePicture) ? kPreviewBarPicture
+         : (id == kEditWozMetadata)                                                ? kPreviewBarWoz
                                                                                    : kPreviewBarHex;
 }
 

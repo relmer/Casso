@@ -22,6 +22,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/WozPropertiesDialog.h"
 
 
 
@@ -920,6 +921,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
                 m_context.actions.ChooseImageFilesystem (image, chosen ? VolumeKind::Unknown : VolumeKind::Cpm);
                 m_context.listPane.FillList();
             });
+        }
+
+        if (ExplorerFileOps::IsWozImage (image))
+        {
+            m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, image]() { m_context.fileOps.ShowWozProperties (image, WozPropertiesDialog::kInfoTab); });
+            m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
     }
 
