@@ -35,6 +35,8 @@ public:
 
     static constexpr uint32_t         kBackgroundLift  = 7;       // the dark pane over the list, per channel
     static constexpr int              kSummaryShare    = 2;       // a WOZ image's details above its catalog take at most 1/2 of the pane
+    static constexpr int              kRuleBandDip     = 13;      // the band between those details and the catalog, with a rule across it
+    static constexpr int              kRuleInsetDip    = 8;
 
     void                              Create                 ();
     void                              CreateToolbar          ();
@@ -94,6 +96,7 @@ private:
     std::array<PreviewView *, 5>    m_views       { &m_listing, &m_picture, &m_hex, &m_text, &m_shell };   // in creation order, which is drawing order
     DxuiSelectableText            * m_message     = nullptr;
     DxuiTextView                  * m_summary     = nullptr;   // a WOZ image's details, above its catalog
+    RECT                            m_ruleBand    = {};        // between them, empty without them
     DxuiToolbar                   * m_toolbar     = nullptr;
     int                             m_barMode     = CassoExplorerCommands::kPreviewBarNone;   // one of CassoExplorerCommands' preview bars
     int                             m_barFocus    = 0;   // the toolbar's focused button

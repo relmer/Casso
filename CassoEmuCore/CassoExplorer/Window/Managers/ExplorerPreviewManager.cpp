@@ -125,7 +125,8 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
 
 
 
-    m_rect = rect;
+    m_rect     = rect;
+    m_ruleBand = RECT {};
     m_toolbar->SetVisible (m_barMode != CassoExplorerCommands::kPreviewBarNone);
 
     if (m_barMode != CassoExplorerCommands::kPreviewBarNone)
@@ -148,7 +149,9 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         summaryPx = (std::min) (m_summary->GetContentHeightPx(), (int) (content.bottom - content.top) / kSummaryShare);
 
         m_summary->Layout (RECT { content.left, content.top, content.right, content.top + summaryPx }, scaler);
-        content.top += summaryPx;
+
+        m_ruleBand  = RECT { content.left, content.top + summaryPx, content.right, content.top + summaryPx + scaler.ToPx (kRuleBandDip) };
+        content.top = m_ruleBand.bottom;
     }
 
     m_content = content;
@@ -475,6 +478,11 @@ bool ExplorerPreviewManager::UpdateShown()
 
 void ExplorerPreviewManager::PaintBackground (IDxuiPainter & painter, const IDxuiTheme & theme) const
 {
+    int  insetPx     = m_context.scaler.ToPx (kRuleInsetDip);
+    int  lineThickPx = (std::max) (1, m_context.scaler.ToPx (1));
+
+
+
     if (!m_shown || m_rect.right <= m_rect.left)
     {
         return;
@@ -483,6 +491,18 @@ void ExplorerPreviewManager::PaintBackground (IDxuiPainter & painter, const IDxu
     painter.FillRect ((float) m_rect.left, (float) m_rect.top,
                       (float) (m_rect.right - m_rect.left), (float) (m_rect.bottom - m_rect.top),
                       GetBackground (theme));
+
+    //  The band between a WOZ image's details and its catalog has their
+    //  background, with a rule across its middle.
+    if (m_ruleBand.bottom > m_ruleBand.top)
+    {
+        painter.FillRect ((float) m_ruleBand.left, (float) m_ruleBand.top,
+                          (float) (m_ruleBand.right - m_ruleBand.left), (float) (m_ruleBand.bottom - m_ruleBand.top),
+                          theme.ContentBackground());
+        painter.FillRect ((float) (m_ruleBand.left + insetPx), (float) ((m_ruleBand.top + m_ruleBand.bottom) / 2),
+                          (float) (m_ruleBand.right - m_ruleBand.left - insetPx - insetPx), (float) lineThickPx,
+                          theme.Divider());
+    }
 }
 
 
