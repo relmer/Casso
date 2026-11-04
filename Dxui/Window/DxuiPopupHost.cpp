@@ -53,13 +53,13 @@ RECT  DxuiPopupHost::GetWorkAreaForRect (const RECT & rectScreenPx)
 
     // Either lookup failing leaves the synthetic 1920x1080 fallback, so a
     // popup always gets a usable rect to clamp against.
-    monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
+    monitor = DxuiDisplay::Get().MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
 
     if (monitor != nullptr)
     {
         info.cbSize = sizeof (info);
 
-        if (GetMonitorInfoW (monitor, &info))
+        if (DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
         {
             work = info.rcWork;
         }
@@ -150,7 +150,7 @@ std::vector<RECT> DxuiPopupHost::GetMonitorWorkAreas()
 
 
 
-    isListed = EnumDisplayMonitors (nullptr, nullptr, CollectWorkArea, (LPARAM) &areas) != FALSE;
+    isListed = DxuiDisplay::Get().EnumDisplayMonitors (nullptr, nullptr, CollectWorkArea, (LPARAM) &areas) != FALSE;
     IGNORE_RETURN_VALUE (isListed, false);
 
     return areas;
@@ -185,7 +185,7 @@ BOOL CALLBACK DxuiPopupHost::CollectWorkArea (
     UNREFERENCED_PARAMETER (rect);
 
     info.cbSize = sizeof (info);
-    isRead      = GetMonitorInfoW (monitor, &info) != FALSE;
+    isRead      = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info) != FALSE;
     CBR (isRead);
 
     areas.push_back (info.rcWork);
@@ -466,7 +466,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     // owner HWND was supplied — typical in tests).
     if (m_params.ownerHwnd != nullptr)
     {
-        dpi = GetDpiForWindow (m_params.ownerHwnd);
+        dpi = DxuiDisplay::Get().GetDpiForWindow (m_params.ownerHwnd);
         if (dpi == 0) { dpi = s_kDefaultDpi; }
     }
 
@@ -1270,7 +1270,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
                     if (msg == WM_RBUTTONDOWN)
                     {
-                        (void) RepostPress (WindowFromPoint (screen), screen, msg, wp);
+                        (void) RepostPress (DxuiDisplay::Get().WindowFromPoint (screen), screen, msg, wp);
                     }
                 }
             }
@@ -2445,19 +2445,56 @@ bool DxuiPopupHost::RepostPress (
     HRESULT  hr       = S_OK;
     POINT    client   = screenPx;
     bool     isOurs   = target != nullptr && GetWindowThreadProcessId (target, nullptr) == GetCurrentThreadId();
+    MSG      post     = {};
     BOOL     isPosted = FALSE;
 
 
 
-    BAIL_OUT_IF (!isOurs, S_OK);
+    if (isOurs)
+    {
+        ScreenToClient (target, &client);
+    }
 
-    ScreenToClient (target, &client);
+    BAIL_OUT_IF (!TryMakeRepost (target, isOurs, client, msg, wp, post), S_OK);
 
-    isPosted = PostMessageW (target, msg, wp, MAKELPARAM (client.x, client.y));
+    isPosted = PostMessageW (post.hwnd, post.message, post.wParam, post.lParam);
     CWR (isPosted);
 
 Error:
     return isPosted != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupHost::TryMakeRepost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::TryMakeRepost (
+    HWND     target,
+    bool     isThisThread,
+    POINT    clientPx,
+    UINT     msg,
+    WPARAM   wp,
+    MSG    & outPost)
+{
+    outPost = {};
+
+    if (target == nullptr || !isThisThread)
+    {
+        return false;
+    }
+
+    outPost.hwnd    = target;
+    outPost.message = msg;
+    outPost.wParam  = wp;
+    outPost.lParam  = MAKELPARAM (clientPx.x, clientPx.y);
+
+    return true;
 }
 
 

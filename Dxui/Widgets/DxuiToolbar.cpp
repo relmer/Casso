@@ -590,8 +590,8 @@ bool DxuiToolbar::HandleKey (WPARAM vk)
 
             ev.kind  = DxuiKeyEventKind::Down;
             ev.vk    = vk;
-            ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-            ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+            ev.shift = DxuiInputState::IsKeyDown (VK_SHIFT);
+            ev.ctrl  = DxuiInputState::IsKeyDown (VK_CONTROL);
 
             handled = m_flyoutControl->OnKey (ev);
         }
@@ -2092,7 +2092,7 @@ void DxuiToolbar::OpenDropDown (int commandId)
 
 bool DxuiToolbar::TryOpenDropDownAt (POINT screenPx, const DxuiToolbar * closing, int closedId)
 {
-    HWND  under = WindowFromPoint (screenPx);
+    HWND  under = DxuiDisplay::Get().WindowFromPoint (screenPx);
 
 
 

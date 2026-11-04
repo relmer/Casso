@@ -148,7 +148,7 @@ void EmulatorShell::UpdateChromeFocusVisuals()
 
 bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
 {
-    bool  shift       = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    bool  shift       = DxuiInputState::IsKeyDown (VK_SHIFT);
     int   dir         = shift ? -1 : 1;
     int   index       = m_chromeFocusIndex;
     bool  exitVk      = (vk == VK_ESCAPE || vk == VK_F10);
@@ -526,7 +526,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     // Short-circuit order matters: the cursor is only read once that holds.
     overGuest = hitTest == HTCLIENT
                 && m_input->GetMouseInput().IsGuestMouseLive()
-                && GetCursorPos (&pt)
+                && DxuiInputState::GetCursorPos (&pt)
                 && ScreenToClient (m_hwnd, &pt);
 
     if (overGuest && CrtMonitorActive())
@@ -549,7 +549,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
         result = DxuiMessageResult::Handled;
     }
     else if (hitTest == HTCLIENT && DeskSceneActive() &&
-             GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) && m_scene->IsGrabbableAt (pt.x, pt.y))
+             DxuiInputState::GetCursorPos (&pt) && ScreenToClient (m_hwnd, &pt) && m_scene->IsGrabbableAt (pt.x, pt.y))
     {
         // IDC_HAND over what the left button can drag: the recorder's volume
         // wheel and the bezel's tilt marks.
@@ -1297,7 +1297,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // the guest never sees the press.
     if (vk == VK_CAPITAL)
     {
-        if (!isRepeat && m_input->GetCapsLock().OnCapsLockPressed ((GetKeyState (VK_CAPITAL) & 1) != 0))
+        if (!isRepeat && m_input->GetCapsLock().OnCapsLockPressed ((DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0))
         {
             m_chrome->ShowNotice (CapsLockTracker::kpszNowFollowingHostNotice);
         }
@@ -1328,8 +1328,8 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     CBR (keyboard != nullptr);
 
-    ctrlHeld = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    altHeld  = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+    ctrlHeld = DxuiInputState::IsKeyDown (VK_CONTROL);
+    altHeld  = DxuiInputState::IsKeyDown (VK_MENU);
 
     consumed = HandleHostMetaShortcut (vk, ctrlHeld, altHeld);
     BAIL_OUT_IF (consumed, S_OK);
@@ -1350,7 +1350,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         ev.repeat = isRepeat;
         ev.ctrl   = ctrlHeld;
         ev.alt    = altHeld;
-        ev.shift  = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+        ev.shift  = DxuiInputState::IsKeyDown (VK_SHIFT);
 
         (void) m_viewport->OnKey (ev);
     }

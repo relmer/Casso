@@ -244,7 +244,7 @@ bool DxuiToolbarHost::IsLeftButtonDown()
 
 
 
-    return (GetKeyState (VK_LBUTTON) & kKeyDown) != 0;
+    return (DxuiInputState::GetKeyState (VK_LBUTTON) & kKeyDown) != 0;
 }
 
 
@@ -1246,7 +1246,7 @@ RECT DxuiToolbarHost::GetFloatingRect (POINT topLeftPx)
 
 
 
-    if (MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) == nullptr && GetWindowRect (GetOwnerHwnd(), &owner))
+    if (DxuiDisplay::Get().MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) == nullptr && GetWindowRect (GetOwnerHwnd(), &owner))
     {
         OffsetRect (&rect, owner.left + band - rect.left, owner.top + band - rect.top);
     }

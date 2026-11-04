@@ -1772,7 +1772,7 @@ void DebuggerWindow::ConfigureCommandBarHost()
 
         tip->SetPopupHost (window.GetPopupHost());
         tip->SetTheme     (*m_theme);
-        tip->SetDpi       (GetDpiForWindow (window.GetHwnd()));
+        tip->SetDpi       (DxuiDisplay::Get().GetDpiForWindow (window.GetHwnd()));
         tip->SetMonospace (false);
         tip->ApplyVisualStudioLook();
         m_floating->SetTip (kBarFloatKey, std::move (tip));
@@ -1817,7 +1817,7 @@ void DebuggerWindow::SyncCommandBarFloatTip()
 
     if (GetClientRect (window->GetHwnd(), &client))
     {
-        tip->SetDpi          (GetDpiForWindow (window->GetHwnd()));
+        tip->SetDpi          (DxuiDisplay::Get().GetDpiForWindow (window->GetHwnd()));
         tip->SetViewportSize (client.right - client.left, client.bottom - client.top);
     }
 

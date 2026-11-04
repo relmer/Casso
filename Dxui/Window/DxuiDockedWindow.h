@@ -52,7 +52,8 @@ public:
     DxuiDockedWindow  () = default;
     ~DxuiDockedWindow () override = default;
 
-    HRESULT  Create (const CreateParams & params);
+    HRESULT  Create         (const CreateParams & params);
+    HRESULT  CreateHeadless (const CreateParams & params);
 
     DxuiDockSite &  GetSite () { return *m_site; }
 
@@ -98,9 +99,11 @@ public:
     //  cursor in screen pixels. The system's unless a test sets one.
     void  SetPointerReader (PointerFn fn) { m_readPointer = std::move (fn); }
 
-    //  Moves and sizes the window, in screen pixels.
-    void  SetScreenRect (const RECT & rectPx);
-    RECT  GetScreenRect () const;
+    //  Moves and sizes the window, in screen pixels, and fits it to the work
+    //  area.
+    void  SetScreenRect  (const RECT & rectPx);
+    RECT  GetScreenRect  () const;
+    void  FitToWorkArea  (DxuiWorkAreaFit fit);
 
     //  While on, the row of the site's carried tab, or of its title bar,
     //  fades so a tab strip under the window shows through it. It shows
@@ -144,6 +147,7 @@ private:
     static constexpr int    kFadeBands    = 16;
     static constexpr float  kFadeMaxErase = 0.7f;
 
+    void  FinishCreate   ();
     void  OnMoveLoopTick ();
     void  Report         (DxuiCaptionDragTracker::Event ev);
     SIZE  GetScreenSize  () const;
@@ -165,7 +169,7 @@ private:
     FilesFn                   m_onFiles;
     FocusChangedFn            m_onFocusChanged;
     DxuiCaptionDragTracker    m_drag;
-    PointerFn                 m_readPointer  = [] (POINT & cursorPx) { GetCursorPos (&cursorPx); return (GetKeyState (VK_LBUTTON) & 0x8000) != 0; };
+    PointerFn                 m_readPointer  = [] (POINT & cursorPx) { DxuiInputState::GetCursorPos (&cursorPx); return DxuiInputState::IsKeyDown (VK_LBUTTON); };
     bool                      m_headerFade   = false;
     bool                      m_isMoving     = false;
     POINT                     m_moveGrab     = {};   // the pointer from the window's top left, in screen pixels

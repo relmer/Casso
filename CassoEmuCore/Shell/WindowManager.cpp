@@ -90,7 +90,7 @@ bool WindowManager::TryLoadSavedWindowPlacement (
         wr.right  = bounds.x + bounds.w;
         wr.bottom = bounds.y + bounds.h;
 
-        hMon = MonitorFromRect (&wr, MONITOR_DEFAULTTONULL);
+        hMon = DxuiDisplay::Get().MonitorFromRect (&wr, MONITOR_DEFAULTTONULL);
     }
 
     if (hMon != nullptr)
@@ -201,7 +201,7 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
     {
         width   = wr.right - wr.left;
         height  = wr.bottom - wr.top;
-        hMon    = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+        hMon    = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
         savable = WindowPlacementProfile::IsPlaceableRect (wr) && hMon != nullptr;
     }
 

@@ -77,8 +77,8 @@ void  DxuiHwndSource::FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit)
     fOk = GetWindowRect (hwnd, &rect);
     CWR (fOk);
 
-    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-    if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
+    monitor = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    if (monitor != nullptr && DxuiDisplay::Get().GetMonitorInfoW (monitor, &info) != FALSE)
     {
         //  Fullscreen: exactly the monitor, taskbar included, on purpose.
         BAIL_OUT_IF (EqualRect (&rect, &info.rcMonitor), S_OK);
@@ -106,6 +106,176 @@ void  DxuiHwndSource::FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetWindowRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiHwndSource::GetWindowRectPx() const
+{
+    RECT  rect = m_syntheticRectPx;
+
+
+
+    if (m_hwnd != nullptr)
+    {
+        rect = {};
+        (void) GetWindowRect (m_hwnd, &rect);
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::SetWindowRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetWindowRectPx (const RECT & rectPx)
+{
+    bool  isResized = rectPx.right - rectPx.left != m_syntheticRectPx.right - m_syntheticRectPx.left ||
+                      rectPx.bottom - rectPx.top != m_syntheticRectPx.bottom - m_syntheticRectPx.top;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        m_syntheticRectPx = rectPx;
+
+        if (isResized)
+        {
+            LayoutSyntheticRoot();
+        }
+
+        return;
+    }
+
+    (void) SetWindowPos (m_hwnd, nullptr, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::FitToWorkArea
+//
+//  A host with no window has no invisible border, so its rect is the visible
+//  frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::FitToWorkArea (DxuiWorkAreaFit fit)
+{
+    RECT  work = { 0, 0, 1920, 1080 };
+
+
+
+    if (m_hwnd != nullptr)
+    {
+        FitWindowToWorkArea (m_hwnd, fit);
+        return;
+    }
+
+    if (m_readWorkArea)
+    {
+        work = m_readWorkArea (m_syntheticRectPx);
+    }
+
+    SetWindowRectPx (FitVisibleRectToWorkArea (m_syntheticRectPx, work, fit));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::LayoutSyntheticRoot
+//
+//  The content root of a host with no window, at the size of its rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::LayoutSyntheticRoot()
+{
+    RECT  boundsPx = { 0, 0, m_syntheticRectPx.right - m_syntheticRectPx.left, m_syntheticRectPx.bottom - m_syntheticRectPx.top };
+
+
+
+    if (m_rootRef != nullptr && m_synthetic && m_hwnd == nullptr)
+    {
+        m_rootRef->Layout (boundsPx, m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::CaptureMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::CaptureMouse()
+{
+    m_hasSyntheticCapture = m_hwnd == nullptr;
+
+    if (m_hwnd != nullptr)
+    {
+        (void) SetCapture (m_hwnd);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::ReleaseMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ReleaseMouse()
+{
+    m_hasSyntheticCapture = false;
+
+    if (m_hwnd != nullptr && GetCapture() == m_hwnd)
+    {
+        (void) ReleaseCapture();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::HasMouseCapture
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasMouseCapture() const
+{
+    return (m_hwnd != nullptr) ? GetCapture() == m_hwnd : m_hasSyntheticCapture;
 }
 
 
@@ -559,7 +729,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
 
     // Initial DPI seed. WM_DPICHANGED will rescale later if the
     // window straddles or moves between monitors.
-    dpiAtCreate = GetDpiForSystem();
+    dpiAtCreate = DxuiDisplay::Get().GetDpiForSystem();
     if (dpiAtCreate == 0)
     {
         dpiAtCreate = s_kDefaultDpi;
@@ -578,7 +748,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     // the two run at different scales.
     if (params.placement != DxuiWindowPlacement::Default && anchorHwnd != nullptr)
     {
-        ownerDpi = GetDpiForWindow (anchorHwnd);
+        ownerDpi = DxuiDisplay::Get().GetDpiForWindow (anchorHwnd);
         if (ownerDpi != 0)
         {
             dpiAtCreate = ownerDpi;
@@ -670,7 +840,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
 
     // Re-seed scaler from the per-window DPI now that the HWND knows
     // which monitor it landed on.
-    m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+    m_scaler.SetDpi (DxuiDisplay::Get().GetDpiForWindow (m_hwnd));
 
     // A CW_USEDEFAULT dialog can cascade with its lower edge -- and button
     // row -- beneath the taskbar, and a saved RECT can be larger than the
@@ -879,10 +1049,10 @@ void DxuiHwndSource::ClampMinTrackToMonitor (MINMAXINFO & info) const
 
 
 
-    monitor = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+    monitor = DxuiDisplay::Get().MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
     CWRA (monitor);
 
-    fOk = GetMonitorInfoW (monitor, &mi);
+    fOk = DxuiDisplay::Get().GetMonitorInfoW (monitor, &mi);
     CWR (fOk);
 
     ClampMinTrackToWorkArea (info, mi.rcWork, DxuiWindowFrame::GetBorder (m_hwnd));
@@ -932,16 +1102,16 @@ bool DxuiHwndSource::TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork)
 
         CWR (gotAnchor);
 
-        monitor = MonitorFromRect (&anchorRect, MONITOR_DEFAULTTONEAREST);
+        monitor = DxuiDisplay::Get().MonitorFromRect (&anchorRect, MONITOR_DEFAULTTONEAREST);
     }
     else
     {
-        monitor = MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+        monitor = DxuiDisplay::Get().MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     }
 
     CWRA (monitor);
 
-    gotInfo = GetMonitorInfoW (monitor, &info);
+    gotInfo = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info);
     CWR (gotInfo);
 
     outWork = info.rcWork;
@@ -1163,7 +1333,7 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
         // window itself is parked off-screen, so MonitorFromWindow would
         // answer for that parking spot rather than for the monitor the
         // restored window sits on. The two agree for a normal window.
-        monitor = MonitorFromRect (&ownerRect, MONITOR_DEFAULTTONEAREST);
+        monitor = DxuiDisplay::Get().MonitorFromRect (&ownerRect, MONITOR_DEFAULTTONEAREST);
     }
     else
     {
@@ -1174,7 +1344,7 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
         // near, the middle of the monitor beats the cascade's corner, and
         // at that point the dialog is the only thing on screen anyway.
         mode    = DxuiWindowPlacement::CenteredOnScreen;
-        monitor = MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+        monitor = DxuiDisplay::Get().MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     }
 
     // An anchor rect is a control inside the owner, and it is the anchor's
@@ -1182,12 +1352,12 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
     // monitors can have the control on either.
     if (mode == DxuiWindowPlacement::BelowAnchorRect)
     {
-        monitor = MonitorFromRect (&anchorRectPx, MONITOR_DEFAULTTONEAREST);
+        monitor = DxuiDisplay::Get().MonitorFromRect (&anchorRectPx, MONITOR_DEFAULTTONEAREST);
     }
 
     CWRA (monitor);
 
-    gotInfo = GetMonitorInfoW (monitor, &info);
+    gotInfo = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info);
     CWR (gotInfo);
 
     switch (mode)
@@ -1352,7 +1522,7 @@ HRESULT DxuiHwndSource::CreateInAdoptMode (
     // pixel-to-DIP math is coherent before the first WM_DPICHANGED.
     if (existingHwnd != nullptr)
     {
-        dpi = GetDpiForWindow (existingHwnd);
+        dpi = DxuiDisplay::Get().GetDpiForWindow (existingHwnd);
     }
 
     if (dpi == 0)
@@ -1821,6 +1991,14 @@ void DxuiHwndSource::SetContentRootRef (DxuiPanel * root)
 
     m_rootRef = root;
     m_focusManager.Attach (GetRootPanel());
+
+    //  The root of a host with no window is laid out at the host's rect, as a
+    //  window's root is at its client area.
+    if (m_rootRef != nullptr && m_hwnd == nullptr && m_synthetic)
+    {
+        LayoutSyntheticRoot();
+        return;
+    }
 
     if (m_rootRef != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &clientRectPx))
     {
@@ -3896,8 +4074,8 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
         //  A fullscreen window covers the monitor it arrives on, which the
         //  scaled suggested rect does not.
         if (GetWindowRect (m_hwnd, &window) != FALSE &&
-            GetMonitorInfoW (MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST), &oldInfo) != FALSE &&
-            GetMonitorInfoW (MonitorFromRect (suggested, MONITOR_DEFAULTTONEAREST), &newInfo) != FALSE)
+            DxuiDisplay::Get().GetMonitorInfoW (DxuiDisplay::Get().MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST), &oldInfo) != FALSE &&
+            DxuiDisplay::Get().GetMonitorInfoW (DxuiDisplay::Get().MonitorFromRect (suggested, MONITOR_DEFAULTTONEAREST), &newInfo) != FALSE)
         {
             rect = GetDpiChangeRect (window, oldInfo.rcMonitor, *suggested, newInfo.rcMonitor);
         }

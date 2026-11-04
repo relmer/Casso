@@ -826,7 +826,7 @@ void ShellDebugger::PressGuestMouseHeldBehindLive()
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
-    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool                                 isHostDown = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 
@@ -867,7 +867,7 @@ void ShellDebugger::ReleaseGuestMouseAfterClick()
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
-    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool                                 isHostDown = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 

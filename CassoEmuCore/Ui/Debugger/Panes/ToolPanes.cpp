@@ -228,7 +228,7 @@ void SymbolsPane::Configure()
         const Row  * each = GetRow (row);
 
         //  A double-click's press has opened or closed the heading already.
-        bool  isMouse = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+        bool  isMouse = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 

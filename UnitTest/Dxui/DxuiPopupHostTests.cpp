@@ -443,30 +443,25 @@ public:
 
     //  A right press that closes a menu is posted on to this thread's window
     //  under it, in its client coordinates, so a right-click on another
-    //  heading opens that heading's menu; no window has nothing to post to.
+    //  heading opens that heading's menu; no window, and another thread's,
+    //  have nothing posted to them. The target is a value, never a window.
     TEST_METHOD (ARightPressOutsideIsPostedToTheWindowUnderIt)
     {
         constexpr POINT  kClientPx = { 7, 5 };
-        HWND             target    = CreateWindowExW (0, L"STATIC", L"", WS_POPUP, 100, 200, 50, 50, nullptr, nullptr, GetModuleHandleW (nullptr), nullptr);
-        POINT            screen    = kClientPx;
-        MSG              msg       = {};
-        BOOL             isFound   = FALSE;
+        const HWND       target    = reinterpret_cast<HWND> (static_cast<uintptr_t> (0x1000));
+        MSG              post      = {};
 
 
 
-        Assert::IsNotNull (target);
-        ClientToScreen (target, &screen);
+        Assert::IsTrue   (DxuiPopupHost::TryMakeRepost (target, true, kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"posted");
+        Assert::IsTrue   (post.hwnd == target, L"to the window under the press");
+        Assert::AreEqual ((UINT) WM_RBUTTONDOWN, post.message);
+        Assert::AreEqual ((WPARAM) MK_RBUTTON, post.wParam);
+        Assert::AreEqual ((int) kClientPx.x, (int) (short) LOWORD (post.lParam), L"at the client x");
+        Assert::AreEqual ((int) kClientPx.y, (int) (short) HIWORD (post.lParam), L"and y");
 
-        Assert::IsTrue  (DxuiPopupHost::RepostPress (target, screen, WM_RBUTTONDOWN, MK_RBUTTON), L"posted");
-        Assert::IsFalse (DxuiPopupHost::RepostPress (nullptr, screen, WM_RBUTTONDOWN, MK_RBUTTON), L"no window");
-
-        isFound = PeekMessageW (&msg, target, WM_RBUTTONDOWN, WM_RBUTTONDOWN, PM_REMOVE);
-        DestroyWindow (target);
-
-        Assert::IsTrue   (isFound != FALSE, L"the press is in the window's queue");
-        Assert::AreEqual ((WPARAM) MK_RBUTTON, msg.wParam);
-        Assert::AreEqual ((int) kClientPx.x, (int) (short) LOWORD (msg.lParam), L"at the client x");
-        Assert::AreEqual ((int) kClientPx.y, (int) (short) HIWORD (msg.lParam), L"and y");
+        Assert::IsFalse (DxuiPopupHost::TryMakeRepost (nullptr, true,  kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"no window");
+        Assert::IsFalse (DxuiPopupHost::TryMakeRepost (target,  false, kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"another thread's window");
     }
 
 

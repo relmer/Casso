@@ -332,6 +332,23 @@ public:
     static void   FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit = DxuiWorkAreaFit::SizeAndPosition);
 
     //
+    //  The window's rect in screen pixels, its fit to the work area, and the
+    //  mouse capture. A host with no window has a rect and a capture flag
+    //  instead, and fits the rect to the work area the reader returns for it,
+    //  or to a 1920x1080 area at the origin without a reader. A test moves
+    //  and captures such a window with no call to the system.
+    //
+    using WorkAreaReader = std::function<RECT (const RECT & windowRectPx)>;
+
+    RECT  GetWindowRectPx   () const;
+    void  SetWindowRectPx   (const RECT & rectPx);
+    void  FitToWorkArea     (DxuiWorkAreaFit fit);
+    void  SetWorkAreaReader (WorkAreaReader reader) { m_readWorkArea = std::move (reader); }
+    void  CaptureMouse      ();
+    void  ReleaseMouse      ();
+    bool  HasMouseCapture   () const;
+
+    //
     //  Which side of the owner PlaceBesideOwner tries first. The other
     //  side is the fallback, so this is a preference, not a demand.
     //
@@ -765,6 +782,8 @@ public:
     static constexpr UINT  kBufferSparePx = 256;
 
 private:
+    void  LayoutSyntheticRoot ();
+
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 
     // What EnumResourceNamesW hands back for the exe's first RT_GROUP_ICON.
@@ -928,9 +947,13 @@ private:
     bool  m_ownsPaintPump           = false;
     bool  m_suppressInputInvalidate = false;
     bool  m_synthetic               = false;
+    bool  m_hasSyntheticCapture     = false;
     bool  m_adoptMode               = false;
     bool  m_classRegistered         = false;
     bool  m_sysKeyDownClaimed       = false;
+
+    RECT                              m_syntheticRectPx    = {};
+    WorkAreaReader                    m_readWorkArea;
 
     IDxuiHostClient *                 m_client             = nullptr;
 

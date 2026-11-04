@@ -907,9 +907,9 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
     //  breakpoint. A press on a scroll bar is the scroll bar's only.
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
-        isDouble = (now - m_clickMs) <= (uint64_t) GetDoubleClickTime() &&
-                   std::abs (at.x - m_clickAt.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
-                   std::abs (at.y - m_clickAt.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
+        isDouble = (now - m_clickMs) <= (uint64_t) DxuiSystemSettings::Instance().GetDoubleClickMs() &&
+                   std::abs (at.x - m_clickAt.x) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cx &&
+                   std::abs (at.y - m_clickAt.y) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cy;
 
         m_clickMs = isDouble ? 0 : now;
         m_clickAt = at;

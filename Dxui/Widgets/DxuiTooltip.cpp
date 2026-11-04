@@ -214,7 +214,7 @@ DxuiTooltip::PointerExtent DxuiTooltip::MeasurePointerExtent()
     constexpr WORD        kBitsPerPixel = 32;
     constexpr uint32_t    kRgbMask      = 0x00FFFFFFu;
     HRESULT               hr            = S_OK;
-    PointerExtent         extent        = { 0, GetSystemMetrics (SM_CYCURSOR) };
+    PointerExtent         extent        = { 0, DxuiSystemSettings::Instance().GetCursorHeightPx() };
     CURSORINFO            cursor        = { sizeof (cursor) };
     ICONINFO              icon          = {};
     BITMAP                mask          = {};
@@ -381,7 +381,7 @@ RECT DxuiTooltip::GetPlacementAnchor() const
 
 bool DxuiTooltip::LocatePointer (HWND owner, POINT & outClientPx)
 {
-    bool  isFound = GetCursorPos (&outClientPx) != FALSE;
+    bool  isFound = DxuiInputState::GetCursorPos (&outClientPx) != FALSE;
 
 
 
@@ -422,7 +422,7 @@ int64_t DxuiTooltip::GetHoverHideAtMs (int64_t nowMs) const
 
 int DxuiTooltip::GetSystemVisibleMs()
 {
-    UINT  doubleClickMs = GetDoubleClickTime();
+    UINT  doubleClickMs = (UINT) DxuiSystemSettings::Instance().GetDoubleClickMs();
 
 
 
@@ -724,12 +724,12 @@ bool DxuiTooltip::IsPointerOverApp()
 
 
 
-    if (GetCursorPos (&pointer) == FALSE)
+    if (DxuiInputState::GetCursorPos (&pointer) == FALSE)
     {
         return true;
     }
 
-    under = WindowFromPoint (pointer);
+    under = DxuiDisplay::Get().WindowFromPoint (pointer);
 
     if (under == nullptr)
     {

@@ -147,7 +147,7 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
         rect = RECT { m_prefs.placement.x, m_prefs.placement.y,
                       m_prefs.placement.x + m_prefs.placement.w, m_prefs.placement.y + m_prefs.placement.h };
 
-        if (MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) != nullptr)
+        if (DxuiDisplay::Get().MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) != nullptr)
         {
             place.rcNormalPosition = rect;
             place.showCmd          = SW_HIDE;
@@ -344,7 +344,7 @@ void CassqueWindow::OnCreate()
 
     //  Drawn by the shell at the pixel size a row's icon is laid out at, and
     //  handed to the browser before the first nodes and rows are built.
-    m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
+    m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) DxuiDisplay::Get().GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
     SizeListIcons();
 
@@ -2092,8 +2092,8 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
             m_dragArmed = false;
         }
         else if (ev.kind == DxuiMouseEventKind::Move && m_dragArmed
-              && (abs (point.x - m_dragStart.x) > GetSystemMetrics (SM_CXDRAG)
-               || abs (point.y - m_dragStart.y) > GetSystemMetrics (SM_CYDRAG)))
+              && (abs (point.x - m_dragStart.x) > DxuiSystemSettings::Instance().GetDragSizePx().cx
+               || abs (point.y - m_dragStart.y) > DxuiSystemSettings::Instance().GetDragSizePx().cy))
         {
             m_dragArmed = false;
             BeginDragOut();
@@ -4358,7 +4358,7 @@ void CassqueWindow::SizeListIcons()
 
 
 
-    m_listIcons.SetSizePx (MulDiv (dip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
+    m_listIcons.SetSizePx (MulDiv (dip, (int) DxuiDisplay::Get().GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
 }
 
 

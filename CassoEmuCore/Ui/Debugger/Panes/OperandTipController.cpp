@@ -324,7 +324,7 @@ void OperandTipController::FollowPointer()
 
     BAIL_OUT_IF (!isUp, S_OK);
 
-    isRead  = GetCursorPos (&pointer) != FALSE && ScreenToClient (hwnd, &pointer) != FALSE;
+    isRead  = DxuiInputState::GetCursorPos (&pointer) != FALSE && ScreenToClient (hwnd, &pointer) != FALSE;
     isShown = IsWindowVisible (hwnd) != FALSE && IsIconic (hwnd) == FALSE;
 
     CBRF (isRead,  Hide());

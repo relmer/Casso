@@ -102,7 +102,7 @@ void WatchesPane::Configure()
         const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
 
         //  A double-click's press has toggled the heading already.
-        bool  isMouse = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+        bool  isMouse = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 

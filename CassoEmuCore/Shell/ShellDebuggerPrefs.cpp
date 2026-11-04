@@ -769,7 +769,7 @@ bool ShellDebuggerPrefs::TryGetDebuggerPlacement (RECT & rectPx)
         {
             RECT  candidate = RECT { other.x, other.y, other.x + other.w, other.y + other.h };
 
-            if (other.w > 0 && other.h > 0 && MonitorFromRect (&candidate, MONITOR_DEFAULTTONULL) != nullptr)
+            if (other.w > 0 && other.h > 0 && DxuiDisplay::Get().MonitorFromRect (&candidate, MONITOR_DEFAULTTONULL) != nullptr)
             {
                 WindowTrace::LogRect ("restore.other", "debugger", candidate, "saved under key=" + otherKey);
                 rectPx = candidate;
@@ -782,7 +782,7 @@ bool ShellDebuggerPrefs::TryGetDebuggerPlacement (RECT & rectPx)
 
     saved = RECT { bounds.x, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h };
 
-    if (MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) == nullptr)
+    if (DxuiDisplay::Get().MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) == nullptr)
     {
         return false;
     }

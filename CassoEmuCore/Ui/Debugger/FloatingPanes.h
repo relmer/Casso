@@ -63,6 +63,13 @@ public:
     //  A frame for the debugger's windows, run while a floating window's
     //  title bar is pressed and the system's move loop runs on the thread.
     virtual void  PumpFloatFrame      () {}
+
+    //  A floating window, made by the system unless a test's host makes one
+    //  with no window behind it; and the key of the monitor a rect is on,
+    //  its device name, which stays the same while it is attached where it
+    //  is.
+    virtual HRESULT       CreateFloatWindow (DxuiDockedWindow & window, const DxuiWindow::CreateParams & params);
+    virtual std::wstring  GetMonitorKey     (const RECT & rectPx) const;
 };
 
 
@@ -123,6 +130,7 @@ public:
     DxuiHwndSource *  GetRoutedPopupHost () const;
     DxuiTipService *  GetRoutedTips      () const;
     HWND              GetRoutedHwnd      () const;
+    DxuiDockedWindow *GetRoutedWindow    () const { return Find (m_routingPane); }
 
     //  An event routed as the debugger window's own under `pane`: a floating
     //  pane's, or one over a pane slid out from an edge; and a key-scheme
@@ -173,8 +181,6 @@ public:
     void  Tick             (int64_t now);
     void  SetFocusedLooks  (const std::wstring & focusedPane, const DxuiTheme & theme);
     bool  IsAnyMenuOpen    () const;
-
-    static std::wstring  GetMonitorKey (const RECT & rectPx);
 
 private:
     //  A point outside every dock site, where a drag over another floating

@@ -149,6 +149,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
+    <ResourceCompile Include="EmuTests\MachineConfigs.rc" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
@@ -470,6 +471,7 @@
     <ClCompile Include="HarteTestRunner.cpp" />
     <ClCompile Include="TestCpu65C02Tests.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
+    <ClCompile Include="TestSystemState.cpp" />
     <ClCompile Include="RegressionTests.cpp" />
     <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
     <ClCompile Include="EmuTests\JsonParserTests.cpp" />
@@ -962,7 +964,6 @@
     <ClCompile Include="Dxui\MockDxuiTheme.cpp" />
     <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
-    <ClCompile Include="ExeManifestTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
@@ -1086,6 +1087,7 @@
     <ClInclude Include="MerlinCorpus\MerlinFixture.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
+    <ClInclude Include="TestSystemState.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="HResultAssert.h" />
     <ClInclude Include="UiTests\InMemoryFileSystem.h" />

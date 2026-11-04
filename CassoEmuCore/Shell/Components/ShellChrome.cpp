@@ -388,7 +388,7 @@ void ShellChrome::TickFullscreenTopChrome()
     toolbarH = m_shell.m_scaler.ToPx (m_toolbar.GetBandDp());
     bandH    = menuH + toolbarH;
 
-    if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
+    if (DxuiInputState::GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
     {
         // The edge zone summons; the whole band holds it open, so the
         // pointer can travel down onto the buttons without dismissing them.
@@ -1201,7 +1201,7 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
     {
         case Apple2cSwitchBar::Part::Reset:
             // Only a modifier-qualified press resets, matching the case key.
-            if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+            if (DxuiInputState::IsKeyDown (VK_CONTROL))
             {
                 if (m_shell.m_machine.GetRefs().keyboard != nullptr)
                 {

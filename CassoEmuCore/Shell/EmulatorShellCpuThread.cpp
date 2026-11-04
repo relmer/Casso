@@ -391,8 +391,8 @@ void EmulatorShell::RequestReset()
 
     GetWindowThreadProcessId (GetForegroundWindow(), &processId);
     foreground  = processId == GetCurrentProcessId();
-    openApple   = foreground && (GetKeyState (VK_LMENU) & 0x8000) != 0;
-    closedApple = foreground && (GetKeyState (VK_RMENU) & 0x8000) != 0;
+    openApple   = foreground && DxuiInputState::IsKeyDown (VK_LMENU);
+    closedApple = foreground && DxuiInputState::IsKeyDown (VK_RMENU);
 
     if (openApple)
     {

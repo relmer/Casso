@@ -202,8 +202,8 @@ void ShellInput::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
 
     if (isAlt)
     {
-        m_appleModifierContribution.buttons.set (kOpenAppleButton,  (GetKeyState (VK_LMENU) & 0x8000) != 0);
-        m_appleModifierContribution.buttons.set (kSolidAppleButton, (GetKeyState (VK_RMENU) & 0x8000) != 0);
+        m_appleModifierContribution.buttons.set (kOpenAppleButton,  DxuiInputState::IsKeyDown (VK_LMENU));
+        m_appleModifierContribution.buttons.set (kSolidAppleButton, DxuiInputState::IsKeyDown (VK_RMENU));
     }
     else
     {
@@ -553,7 +553,7 @@ void ShellInput::RouteKeyToGamePort (const DxuiKeyEvent & ev)
 Byte ShellInput::MapHostCharToApple (WPARAM ch)
 {
     Byte  code         = static_cast<Byte> (ch);
-    bool  hostCapsLock = (GetKeyState (VK_CAPITAL) & 1) != 0;
+    bool  hostCapsLock = (DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0;
 
 
 
@@ -680,10 +680,10 @@ void ShellInput::UpdateJoystickAxesFromKeys()
 
 
 
-    left  = (GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
-    right = (GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
-    up    = (GetAsyncKeyState (VK_UP)    & 0x8000) != 0;
-    down  = (GetAsyncKeyState (VK_DOWN)  & 0x8000) != 0;
+    left  = (DxuiInputState::GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
+    right = (DxuiInputState::GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
+    up    = (DxuiInputState::GetAsyncKeyState (VK_UP)    & 0x8000) != 0;
+    down  = (DxuiInputState::GetAsyncKeyState (VK_DOWN)  & 0x8000) != 0;
 
     if (left && right)
     {
@@ -766,10 +766,10 @@ void ShellInput::UpdateJoystickButtonsFromKeys()
     // elsewhere (GetForegroundWindow() != m_host.GetMainWindow()).
     if (GetForegroundWindow() == m_host.GetMainWindow())
     {
-        xDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
-        zDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
-        leftAltDown  = (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
-        rightAltDown = (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+        xDown        = (DxuiInputState::GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
+        zDown        = (DxuiInputState::GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
+        leftAltDown  = DxuiInputState::IsKeyDown (VK_LMENU);
+        rightAltDown = DxuiInputState::IsKeyDown (VK_RMENU);
     }
 
     buttons = InputModeRules::GetFireKeyButtons (xDown, zDown, leftAltDown, rightAltDown,
@@ -1277,7 +1277,7 @@ void ShellInput::ToggleInputMappingMode (InputMappingMode target)
 void ShellInput::PasteClipboardText()
 {
     bool    hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
-    bool    hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
+    bool    hostCapsLock   = (DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
     bool    raisedLetters  = false;
     bool    isBehindLive   = m_debugger.IsBehindLiveForUi();

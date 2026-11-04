@@ -817,7 +817,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 {
     int           x       = ev.positionDip.x;
     int           y       = ev.positionDip.y;
-    bool          lbDown  = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool          lbDown  = DxuiInputState::IsKeyDown (VK_LBUTTON);
     bool          handled = false;
     std::wstring  pane;
 

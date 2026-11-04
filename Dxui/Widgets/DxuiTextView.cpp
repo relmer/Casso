@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiTextView.h"
@@ -2430,7 +2431,7 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         else if (ev.button == DxuiMouseButton::Left)
         {
             pos   = HitTest (point);
-            twice = (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime() && pos == m_lastClick;
+            twice = (nowMs - m_lastClickMs) <= (int64_t) DxuiSystemSettings::Instance().GetDoubleClickMs() && pos == m_lastClick;
 
             m_lastClickMs = twice ? 0 : nowMs;
             m_lastClick   = pos;

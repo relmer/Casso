@@ -978,9 +978,9 @@ bool DxuiPopupMenu::OpensUpward (int originX, int originY, int heightPx, Anchori
     }
 
     ClientToScreen (owner, &origin);
-    monitor = MonitorFromPoint (origin, MONITOR_DEFAULTTONEAREST);
+    monitor = DxuiDisplay::Get().MonitorFromPoint (origin, MONITOR_DEFAULTTONEAREST);
 
-    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    if (monitor == nullptr || !DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
     {
         return false;
     }
@@ -1195,9 +1195,9 @@ int DxuiPopupMenu::GetHeightLimitPx (const RECT & anchor, Anchoring anchoring) c
 
     ClientToScreen (owner, &top);
     ClientToScreen (owner, &bottom);
-    monitor = MonitorFromPoint (bottom, MONITOR_DEFAULTTONEAREST);
+    monitor = DxuiDisplay::Get().MonitorFromPoint (bottom, MONITOR_DEFAULTTONEAREST);
 
-    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    if (monitor == nullptr || !DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
     {
         return 0;
     }

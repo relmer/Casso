@@ -188,7 +188,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     if (dpi == 0)
     {
-        dpi = GetDpiForSystem();
+        dpi = DxuiDisplay::Get().GetDpiForSystem();
     }
 
     // Seed our authoritative DPI so the chrome-band dock (which scales
@@ -269,12 +269,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     if (hadSavedPlacement)
     {
         RECT         saved     = { windowX, windowY, windowX + windowW, windowY + windowH };
-        HMONITOR     savedMon  = MonitorFromRect (&saved, MONITOR_DEFAULTTONEAREST);
+        HMONITOR     savedMon  = DxuiDisplay::Get().MonitorFromRect (&saved, MONITOR_DEFAULTTONEAREST);
         MONITORINFO  savedInfo = { sizeof (savedInfo) };
 
 
 
-        if (savedMon != nullptr && GetMonitorInfoW (savedMon, &savedInfo))
+        if (savedMon != nullptr && DxuiDisplay::Get().GetMonitorInfoW (savedMon, &savedInfo))
         {
             work     = savedInfo.rcWork;
             haveWork = true;
@@ -368,7 +368,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     CHR (hr);
 
     m_hwnd = m_host->GetHwnd();
-    m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+    m_scaler.SetDpi (DxuiDisplay::Get().GetDpiForWindow (m_hwnd));
 
     // There is a window to parent a dialog to now, so anything reported
     // during startup can finally be shown.
@@ -472,7 +472,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         // another monitor. The actual chrome metrics need to match
         // the monitor the window is actually on so the framebuffer
         // aspect-fit produces no pillarbox at default size.
-        windowDpi = GetDpiForWindow (m_hwnd);
+        windowDpi = DxuiDisplay::Get().GetDpiForWindow (m_hwnd);
         if (windowDpi != 0)
         {
             dpi = windowDpi;

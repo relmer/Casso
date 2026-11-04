@@ -2737,7 +2737,7 @@ int DiskMruPickerSession::Run()
 
 
 
-    m_dpi = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
+    m_dpi = (m_hwndParent != nullptr) ? DxuiDisplay::Get().GetDpiForWindow (m_hwndParent) : DxuiDisplay::Get().GetDpiForSystem();
 
     ConfigureWidgets();
     m_search.SetTheme (&theme);

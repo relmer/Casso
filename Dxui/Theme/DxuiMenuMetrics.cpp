@@ -59,7 +59,7 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
 
 
 
-    if (SystemParametersInfoForDpi (SPI_GETNONCLIENTMETRICS, sizeof (ncm), &ncm, 0, effective))
+    if (DxuiDisplay::Get().SystemParametersInfoForDpi (SPI_GETNONCLIENTMETRICS, sizeof (ncm), &ncm, 0, effective))
     {
         emPx  = (int) std::abs (ncm.lfMenuFont.lfHeight);
         menuH = ncm.iMenuHeight;
@@ -75,7 +75,7 @@ DxuiMenuMetrics DxuiMenuMetrics::FromSystem (UINT dpi)
         menuH = MulDiv (kDefaultMenuHeightDip, (int) effective, (int) kBaseDpi);
     }
 
-    m.checkGutterPx = GetSystemMetricsForDpi (SM_CXMENUCHECK, effective);
+    m.checkGutterPx = DxuiDisplay::Get().GetSystemMetricsForDpi (SM_CXMENUCHECK, effective);
 
     if (m.checkGutterPx <= 0)
     {

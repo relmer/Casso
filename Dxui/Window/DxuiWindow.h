@@ -125,6 +125,18 @@ public:
     //  the subclass can populate its children. Call Show() to display.
     //
     HRESULT  Create      (const CreateParams & params);
+
+    //
+    //  The window with no OS window behind it, for a test: a host with no
+    //  HWND and no device, at the initial window rect, or at the initial
+    //  size at the origin. Its messages arrive through Deliver, its rect
+    //  and capture are the host's, and nothing is drawn.
+    //
+    HRESULT  CreateHeadless (const CreateParams & params);
+
+    //  A message to the window's procedure, as the system sends one, for a
+    //  window CreateHeadless made.
+    LRESULT  Deliver     (UINT msg, WPARAM wp, LPARAM lp) { return m_source != nullptr ? m_source->WndProc (msg, wp, lp) : 0; }
     // activate=false shows the window without pulling foreground/focus (for
     // windows that pop up on their own and must not steal keystrokes).
     void     Show        (bool activate = true);
@@ -474,8 +486,13 @@ protected:
     //
     void  DestroyBackend ();
 
+    //  The host, for a subclass that moves the window or takes the mouse
+    //  through it, so a window CreateHeadless made moves and captures too.
+    DxuiHwndSource *  GetSource () const { return m_source.get(); }
+
 
 private:
+    void               AttachSource  ();
     DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;

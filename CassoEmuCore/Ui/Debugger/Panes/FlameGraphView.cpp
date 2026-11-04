@@ -534,9 +534,9 @@ bool FlameGraphView::OnMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    isDouble = m_click.has_value() && now - m_click->time <= (ULONGLONG) GetDoubleClickTime() &&
-               std::abs (ev.positionDip.x - m_click->at.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
-               std::abs (ev.positionDip.y - m_click->at.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
+    isDouble = m_click.has_value() && now - m_click->time <= (ULONGLONG) DxuiSystemSettings::Instance().GetDoubleClickMs() &&
+               std::abs (ev.positionDip.x - m_click->at.x) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cx &&
+               std::abs (ev.positionDip.y - m_click->at.y) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cy;
 
     node = m_bars[*bar].node;
 

@@ -164,6 +164,7 @@
     <ClCompile Include="Core\DxuiGridLayout.cpp" />
     <ClCompile Include="Core\DxuiHitTester.cpp" />
     <ClCompile Include="Core\DxuiInput.cpp" />
+    <ClCompile Include="Core\DxuiDisplay.cpp" />
     <ClCompile Include="Core\DxuiPanel.cpp" />
     <ClCompile Include="Core\DxuiPanZoom.cpp" />
     <ClCompile Include="Core\DxuiSlide.cpp" />
@@ -283,6 +284,8 @@
     <ClInclude Include="Core\DxuiHitTester.h" />
     <ClInclude Include="Core\DxuiLayoutBand.h" />
     <ClInclude Include="Core\DxuiInput.h" />
+    <ClInclude Include="Core\DxuiInputState.h" />
+    <ClInclude Include="Core\DxuiDisplay.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />
     <ClInclude Include="Core\DxuiSlide.h" />

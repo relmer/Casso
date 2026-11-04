@@ -1086,7 +1086,7 @@ Error:
 HRESULT EmulatorShell::FinishUiShellLayout()
 {
     HRESULT  hr         = S_OK;
-    UINT     initialDpi = GetDpiForWindow (m_hwnd);
+    UINT     initialDpi = DxuiDisplay::Get().GetDpiForWindow (m_hwnd);
     bool     fHasDisk   = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
 
 

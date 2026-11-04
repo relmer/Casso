@@ -4530,7 +4530,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     {
         int64_t  nowMs = (int64_t) GetTickCount64();
         bool     fit   = (resizeCol == m_lastDividerCol)
-                         && (nowMs - m_lastDividerMs) <= (int64_t) GetDoubleClickTime();
+                         && (nowMs - m_lastDividerMs) <= (int64_t) DxuiSystemSettings::Instance().GetDoubleClickMs();
 
         m_lastDividerCol = fit ? -1 : resizeCol;
         m_lastDividerMs  = nowMs;
@@ -4864,7 +4864,7 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
             int64_t  nowMs = (int64_t) GetTickCount64();
 
             activate = (row == m_lastClickRow) &&
-                       (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime();
+                       (nowMs - m_lastClickMs) <= (int64_t) DxuiSystemSettings::Instance().GetDoubleClickMs();
 
             // A completed double-click consumes the pair so a third click
             // starts a fresh count instead of chaining activations.

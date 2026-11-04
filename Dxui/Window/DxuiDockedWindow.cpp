@@ -13,15 +13,11 @@
 //
 //  DxuiDockedWindow::Create
 //
-//  Windows 11 rounds the window's corners, and the site, which fills the
-//  window, draws the panes on them to the same radius.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiDockedWindow::Create (const CreateParams & params)
 {
-    HRESULT  hr        = S_OK;
-    bool     isRounded = false;
+    HRESULT  hr = S_OK;
 
 
 
@@ -30,13 +26,61 @@ HRESULT DxuiDockedWindow::Create (const CreateParams & params)
 
     CBRA (m_site != nullptr);
 
-    isRounded = DxuiDwm::IsWindows11OrGreater();
-    m_site->SetWindowCornerDip (isRounded ? DxuiPaneMetrics::kWindowCornerDip : 0);
-
-    SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
+    FinishCreate();
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::CreateHeadless
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDockedWindow::CreateHeadless (const CreateParams & params)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = DxuiWindow::CreateHeadless (params);
+    CHR (hr);
+
+    CBRA (m_site != nullptr);
+
+    FinishCreate();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::FinishCreate
+//
+//  Windows 11 rounds the window's corners, and the site, which fills the
+//  window, draws the panes on them to the same radius.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::FinishCreate()
+{
+    bool  isRounded = DxuiDwm::IsWindows11OrGreater();
+
+
+
+    m_site->SetWindowCornerDip (isRounded ? DxuiPaneMetrics::kWindowCornerDip : 0);
+
+    SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
 }
 
 
@@ -237,7 +281,11 @@ void DxuiDockedWindow::SetFocusedLook (bool focused, const IDxuiTheme & theme)
     m_focusedLook = focused;
     m_borderArgb  = argb;
 
-    DxuiDwm::ApplyBorderColor (GetHwnd(), argb);
+    if (GetHwnd() != nullptr)
+    {
+        DxuiDwm::ApplyBorderColor (GetHwnd(), argb);
+    }
+
     Invalidate();
 }
 
@@ -283,7 +331,7 @@ void DxuiDockedWindow::OnCreate()
 
     filter.onMouseLost = [this] (UINT)
     {
-        m_site->OnDragMouseLost ((GetKeyState (VK_LBUTTON) & 0x8000) != 0);
+        m_site->OnDragMouseLost (DxuiInputState::IsKeyDown (VK_LBUTTON));
     };
 
     AddInputFilter (m_site, std::move (filter));
@@ -542,7 +590,7 @@ void DxuiDockedWindow::PollCaptionDrag()
 
 
     //  A move whose capture went elsewhere, as to a menu, ends there.
-    if (m_isMoving && GetCapture() != GetHwnd())
+    if (m_isMoving && !GetSource()->HasMouseCapture())
     {
         EndMove (false);
         return;
@@ -594,11 +642,10 @@ void DxuiDockedWindow::BeginMove()
 {
     POINT  cursor = {};
     RECT   rect   = GetScreenRect();
-    HWND   hwnd   = GetHwnd();
 
 
 
-    if (hwnd == nullptr || m_isMoving || !m_readPointer (cursor))
+    if (!IsCreated() || m_isMoving || !m_readPointer (cursor))
     {
         return;
     }
@@ -607,7 +654,7 @@ void DxuiDockedWindow::BeginMove()
     m_moveGrab  = POINT { cursor.x - rect.left, cursor.y - rect.top };
     m_moveStart = rect;
 
-    SetCapture (hwnd);
+    GetSource()->CaptureMouse();
 }
 
 
@@ -628,10 +675,16 @@ void DxuiDockedWindow::MoveWithPointer()
     POINT  cursor     = {};
     bool   buttonDown = m_readPointer (cursor);
     SIZE   size       = GetScreenSize();
+    RECT   rect       = {};
 
 
 
-    SetWindowPos (GetHwnd(), nullptr, cursor.x - m_moveGrab.x, cursor.y - m_moveGrab.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    rect.left   = cursor.x - m_moveGrab.x;
+    rect.top    = cursor.y - m_moveGrab.y;
+    rect.right  = rect.left + size.cx;
+    rect.bottom = rect.top  + size.cy;
+
+    GetSource()->SetWindowRectPx (rect);
 
     Report (m_drag.OnTick (buttonDown, size));
 }
@@ -652,10 +705,7 @@ void DxuiDockedWindow::EndMove (bool isCanceled)
 {
     m_isMoving = false;
 
-    if (GetCapture() == GetHwnd())
-    {
-        ReleaseCapture();
-    }
+    GetSource()->ReleaseMouse();
 
     if (isCanceled)
     {
@@ -755,12 +805,16 @@ SIZE DxuiDockedWindow::GetScreenSize() const
 
 void DxuiDockedWindow::SetScreenRect (const RECT & rectPx)
 {
-    SetWindowPos (GetHwnd(), nullptr, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top,
-                  SWP_NOZORDER | SWP_NOACTIVATE);
+    if (!IsCreated())
+    {
+        return;
+    }
+
+    GetSource()->SetWindowRectPx (rectPx);
 
     //  A rect saved on a larger screen can exceed this one. Size only: a pane
     //  torn off is put under the pointer, wherever on the screen that is.
-    DxuiHwndSource::FitWindowToWorkArea (GetHwnd(), DxuiWorkAreaFit::SizeOnly);
+    GetSource()->FitToWorkArea (DxuiWorkAreaFit::SizeOnly);
 }
 
 
@@ -775,10 +829,23 @@ void DxuiDockedWindow::SetScreenRect (const RECT & rectPx)
 
 RECT DxuiDockedWindow::GetScreenRect() const
 {
-    RECT  rect = {};
+    return IsCreated() ? GetSource()->GetWindowRectPx() : RECT {};
+}
 
 
 
-    GetWindowRect (GetHwnd(), &rect);
-    return rect;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::FitToWorkArea
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::FitToWorkArea (DxuiWorkAreaFit fit)
+{
+    if (IsCreated())
+    {
+        GetSource()->FitToWorkArea (fit);
+    }
 }

@@ -2,7 +2,6 @@
 
 #include "Ui/Debugger/FloatingPanes.h"
 #include "Dxui/MockDxuiControl.h"
-#include "EhmTestHelper.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 #include "CppUnitTest.h"
@@ -59,10 +58,30 @@ namespace FloatingPanesRoutingTests
         void  OnFloatTipErased    (const DxuiTooltip *) override {}
         void  PumpFloatFrame      () override { framePumps++; }
 
-        FloatingPanes              * floats       = nullptr;
+        //  A window with none of the system's behind it, in the host's work
+        //  area, or none when isCreateFailing.
+        HRESULT  CreateFloatWindow (DxuiDockedWindow & window, const DxuiWindow::CreateParams & params) override
+        {
+            HRESULT  hr = isCreateFailing ? E_FAIL : window.CreateHeadless (params);
+
+
+
+            if (SUCCEEDED (hr))
+            {
+                window.GetPopupHost()->SetWorkAreaReader ([this] (const RECT &) { return workArea; });
+            }
+
+            return hr;
+        }
+
+        std::wstring  GetMonitorKey (const RECT &) const override { return L"test"; }
+
+        FloatingPanes              * floats          = nullptr;
         std::vector<std::wstring>    routed;
-        int                          syncRequests = 0;
-        int                          framePumps   = 0;
+        int                          syncRequests    = 0;
+        int                          framePumps      = 0;
+        bool                         isCreateFailing = false;
+        RECT                         workArea        = { 0, 0, 1920, 1040 };
 
     private:
         DxuiDpiScaler  m_scaler;
@@ -77,8 +96,7 @@ namespace FloatingPanesRoutingTests
     //  DockingHost
     //
     //  A host whose dock site has "code" docked and "regs" floating alone,
-    //  regs's only control a mock that tracks its focus. The debugger window
-    //  is none, so the floating window is created and stays hidden.
+    //  regs's only control a mock that tracks its focus.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +117,6 @@ namespace FloatingPanesRoutingTests
             site.SetPaneLayout (layout);
         }
 
-        HINSTANCE                    GetFloatInstance() const override { return GetModuleHandleW (nullptr); }
         DxuiDockSite *               GetFloatDockSite() const override { return &site; }
         const DxuiTheme *            GetTheme() const override         { return isThemed ? &theme : nullptr; }
         void                         SaveLayout() override             { saves++; savedRect = (floats != nullptr && floats->Find (L"regs") != nullptr) ? floats->Find (L"regs")->GetScreenRect() : RECT {}; }
@@ -156,8 +173,6 @@ namespace FloatingPanesRoutingTests
             site.SetPaneLayout (layout);
         }
 
-        HWND                         GetFloatOwner() const override    { return owner; }
-        HINSTANCE                    GetFloatInstance() const override { return GetModuleHandleW (nullptr); }
         DxuiDockSite *               GetFloatDockSite() const override { return &site; }
         const DxuiTheme *            GetTheme() const override         { return &theme; }
 
@@ -194,7 +209,6 @@ namespace FloatingPanesRoutingTests
         MockDxuiControl                                         code;
         std::map<std::wstring, std::unique_ptr<IDxuiControl>>   owned;
         std::map<std::wstring, IDxuiControl *>                  controls;
-        HWND                                                    owner = nullptr;   // a handle that is no window makes the floating window fail to create
     };
 
 
@@ -339,18 +353,11 @@ namespace FloatingPanesRoutingTests
 
 
 
-            host.floats = &floats;
-            host.owner  = reinterpret_cast<HWND> (static_cast<uintptr_t> (0x7FFFFFF0));
+            host.floats          = &floats;
+            host.isCreateFailing = true;
 
-            //  A window that cannot be created asserts in DxuiHwndSource.
-            {
-                UnitTestHelpers::ExpectedEhmAssert  expect;
-
-
-
-                floats.MarkSyncNeeded();
-                floats.Sync();
-            }
+            floats.MarkSyncNeeded();
+            floats.Sync();
 
             Assert::IsNull  (floats.Find (L"regs"), L"no window was made");
             Assert::IsFalse (host.site.GetPaneLayout().IsFloating (L"regs"),  L"regs is docked");
@@ -384,14 +391,11 @@ namespace FloatingPanesRoutingTests
         //  one, opens inside the work area, not only no larger than it.
         TEST_METHOD (ARestoredWindowOpensInsideTheWorkArea)
         {
-            static constexpr LONG   kFrameSlackPx = 32;   // the window rect's invisible borders, past its visible frame
             DockingHost             host;
             FloatingPanes           floats (host);
             DxuiPaneLayout          layout = host.site.GetPaneLayout();
             DxuiDockedWindow      * window = nullptr;
-            MONITORINFO             info   = { sizeof (info) };
             RECT                    rect   = {};
-            BOOL                    isRead = FALSE;
 
 
 
@@ -405,12 +409,11 @@ namespace FloatingPanesRoutingTests
             window = floats.Find (L"regs");
             Assert::IsNotNull (window, L"regs floats in a window");
 
-            rect   = window->GetScreenRect();
-            isRead = GetMonitorInfoW (MonitorFromWindow (window->GetHwnd(), MONITOR_DEFAULTTONEAREST), &info);
-            Assert::IsTrue (isRead != FALSE, L"the window's monitor");
+            rect = window->GetScreenRect();
 
-            Assert::IsTrue (rect.top    >= info.rcWork.top    - kFrameSlackPx, L"not above the work area");
-            Assert::IsTrue (rect.bottom <= info.rcWork.bottom + kFrameSlackPx, L"not below the work area");
+            Assert::IsTrue (rect.top    >= host.workArea.top,    L"not above the work area");
+            Assert::IsTrue (rect.bottom <= host.workArea.bottom, L"not below the work area");
+            Assert::AreEqual (300L, rect.right - rect.left, L"at the width it was saved with");
         }
 
 
@@ -477,10 +480,10 @@ namespace FloatingPanesRoutingTests
             {
                 FloatingPanes::RouteScope  scope (floats, L"regs");
 
-                Assert::IsTrue (floats.GetRoutedHwnd() == window->GetHwnd(), L"the floating window, during the route");
+                Assert::IsTrue (floats.GetRoutedWindow() == window, L"the floating window, during the route");
             }
 
-            Assert::IsNull (floats.GetRoutedHwnd(), L"none outside it");
+            Assert::IsNull (floats.GetRoutedWindow(), L"none outside it");
         }
 
 
@@ -510,19 +513,19 @@ namespace FloatingPanesRoutingTests
             window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
 
             //  Moved by its title bar, and let go over the site. The move
-            //  loop's messages are sent as the system sends them.
-            SendMessageW (window->GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            //  loop's messages are delivered as the system sends them.
+            window->Deliver (WM_ENTERSIZEMOVE, 0, 0);
             isDown = true;
             window->RunModalLoopTick();
             isDown = false;
             host.saves = 0;
-            SendMessageW (window->GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
+            window->Deliver (WM_EXITSIZEMOVE, 0, 0);
 
             Assert::AreEqual (1, host.saves, L"a drop over the site saves the layout");
 
             //  Pressed on its border instead: the second tick finds another
             //  size, which cancels the drag.
-            SendMessageW (window->GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            window->Deliver (WM_ENTERSIZEMOVE, 0, 0);
             isDown = true;
             window->RunModalLoopTick();
 
@@ -541,7 +544,7 @@ namespace FloatingPanesRoutingTests
 
             host.saves = 0;
             isDown     = false;
-            SendMessageW (window->GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
+            window->Deliver (WM_EXITSIZEMOVE, 0, 0);
 
             Assert::IsTrue (host.saves > 0, L"the end of a resize saves the layout");
             Assert::IsTrue (EqualRect (&host.savedRect, &rect) != FALSE, L"with the window's final rect");
@@ -574,7 +577,7 @@ namespace FloatingPanesRoutingTests
             host.isThemed = false;
             window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
 
-            SendMessageW (window->GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            window->Deliver (WM_ENTERSIZEMOVE, 0, 0);
             host.framePumps = 0;
             window->RunModalLoopTick();
             window->RunModalLoopTick();
@@ -582,7 +585,7 @@ namespace FloatingPanesRoutingTests
             Assert::AreEqual (2, host.framePumps, L"a frame on each tick of the move loop");
 
             isDown = false;
-            SendMessageW (window->GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
+            window->Deliver (WM_EXITSIZEMOVE, 0, 0);
         }
 
 
@@ -615,11 +618,11 @@ namespace FloatingPanesRoutingTests
             window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
             start = window->GetScreenRect();
 
-            SendMessageW (window->GetHwnd(), WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
+            window->Deliver (WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
             Assert::IsTrue (window->IsMoving(), L"the press starts the window's move");
 
             cursor = POINT { 530, 320 };
-            SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
+            window->Deliver (WM_MOUSEMOVE, MK_LBUTTON, 0);
 
             rect = window->GetScreenRect();
             Assert::AreEqual (start.left + 30, rect.left, L"the window follows the pointer");
@@ -627,17 +630,17 @@ namespace FloatingPanesRoutingTests
 
             host.saves = 0;
             isDown     = false;
-            SendMessageW (window->GetHwnd(), WM_LBUTTONUP, 0, 0);
+            window->Deliver (WM_LBUTTONUP, 0, 0);
 
             Assert::IsFalse  (window->IsMoving());
             Assert::AreEqual (1, host.saves, L"the drop saves the layout");
 
             start  = window->GetScreenRect();
             isDown = true;
-            SendMessageW (window->GetHwnd(), WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
+            window->Deliver (WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
             cursor = POINT { 600, 400 };
-            SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
-            SendMessageW (window->GetHwnd(), WM_KEYDOWN, VK_ESCAPE, 0);
+            window->Deliver (WM_MOUSEMOVE, MK_LBUTTON, 0);
+            window->Deliver (WM_KEYDOWN, VK_ESCAPE, 0);
 
             rect = window->GetScreenRect();
             Assert::IsFalse (window->IsMoving(), L"Escape ends the move");
@@ -692,13 +695,13 @@ namespace FloatingPanesRoutingTests
             window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
             window->SetScreenRect (RECT { 2000, 2000, 2300, 2200 });
             cursor = POINT { 2010, 2010 };
-            SendMessageW (window->GetHwnd(), WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
+            window->Deliver (WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM (cursor.x, cursor.y));
 
             for (int t = 2; t >= 0; t--)
             {
                 tab    = group->GetTabRect (t);
                 cursor = POINT { tab.left + 2, (tab.top + tab.bottom) / 2 };
-                SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
+                window->Deliver (WM_MOUSEMOVE, MK_LBUTTON, 0);
                 Assert::AreEqual (t, host.site.GetStripTargetIndex(), L"moving left, ahead of the tab under the pointer");
                 Assert::AreEqual (cursor.x - 10, window->GetScreenRect().left, L"the faded window follows the pointer");
                 Assert::IsTrue   (window->IsHeaderFaded());
@@ -708,11 +711,11 @@ namespace FloatingPanesRoutingTests
             {
                 tab    = group->GetTabRect (t);
                 cursor = POINT { tab.right - 2, (tab.top + tab.bottom) / 2 };
-                SendMessageW (window->GetHwnd(), WM_MOUSEMOVE, MK_LBUTTON, 0);
+                window->Deliver (WM_MOUSEMOVE, MK_LBUTTON, 0);
                 Assert::AreEqual (t + 1, host.site.GetStripTargetIndex(), L"moving right, after the tab under the pointer");
             }
 
-            SendMessageW (window->GetHwnd(), WM_KEYDOWN, VK_ESCAPE, 0);
+            window->Deliver (WM_KEYDOWN, VK_ESCAPE, 0);
             Assert::IsFalse (window->IsMoving(), L"Escape over the strip ends the move");
         }
 
@@ -720,7 +723,8 @@ namespace FloatingPanesRoutingTests
     private:
 
         //  The window moved by its title bar and let go with the pointer at
-        //  a point, its move loop's messages sent as the system sends them.
+        //  a point, its move loop's messages delivered as the system sends
+        //  them.
         static void Drop (DxuiDockedWindow & window, POINT cursor)
         {
             bool  isDown = false;
@@ -729,11 +733,11 @@ namespace FloatingPanesRoutingTests
 
             window.SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
 
-            SendMessageW (window.GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            window.Deliver (WM_ENTERSIZEMOVE, 0, 0);
             isDown = true;
             window.RunModalLoopTick();
             isDown = false;
-            SendMessageW (window.GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
+            window.Deliver (WM_EXITSIZEMOVE, 0, 0);
         }
     };
 }

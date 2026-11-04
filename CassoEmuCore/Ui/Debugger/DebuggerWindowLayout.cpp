@@ -606,7 +606,7 @@ void DebuggerWindow::ConfigureDockSite()
     //  button comes up, with the button already up, which is no loss.
     dragFilter.onMouseLost = [this] (UINT)
     {
-        m_dockSite->OnDragMouseLost ((GetKeyState (VK_LBUTTON) & 0x8000) != 0);
+        m_dockSite->OnDragMouseLost (DxuiInputState::IsKeyDown (VK_LBUTTON));
     };
 
     AddInputFilter (m_dockSite, std::move (dragFilter));
@@ -1201,7 +1201,7 @@ std::vector<DxuiPaneLayout::Monitor> DebuggerWindow::GetMonitors()
 
 
 
-    EnumDisplayMonitors (nullptr, nullptr,
+    DxuiDisplay::Get().EnumDisplayMonitors (nullptr, nullptr,
         [] (HMONITOR monitor, HDC, LPRECT, LPARAM data) -> BOOL
         {
             MONITORINFOEXW            info = {};
@@ -1209,7 +1209,7 @@ std::vector<DxuiPaneLayout::Monitor> DebuggerWindow::GetMonitors()
 
             info.cbSize = sizeof (info);
 
-            if (GetMonitorInfoW (monitor, &info))
+            if (DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
             {
                 entry.key       = info.szDevice;
                 entry.workDip   = info.rcWork;

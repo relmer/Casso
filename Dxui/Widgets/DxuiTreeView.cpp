@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiTreeView.h"
@@ -437,7 +438,7 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
             ULONGLONG             nowMs = GetTickCount64();
             const DxuiTreeNode *  n     = GetNodeAt (row);
             bool                  twice = row == m_lastClickRow
-                                          && (nowMs - m_lastClickMs) <= (ULONGLONG) GetDoubleClickTime();
+                                          && (nowMs - m_lastClickMs) <= (ULONGLONG) DxuiSystemSettings::Instance().GetDoubleClickMs();
 
             //  A second click on the same row within the double-click time
             //  expands or collapses it, as in File Explorer.

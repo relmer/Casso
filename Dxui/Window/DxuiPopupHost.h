@@ -402,6 +402,13 @@ public:
     //
     static bool  RepostPress (HWND target, POINT screenPx, UINT msg, WPARAM wp);
 
+    //
+    //  The message RepostPress posts, from what it reads about the target:
+    //  the press at the client point. False for no window, or a window of
+    //  another thread or process.
+    //
+    static bool  TryMakeRepost (HWND target, bool isThisThread, POINT clientPx, UINT msg, WPARAM wp, MSG & outPost);
+
 private:
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
     static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);

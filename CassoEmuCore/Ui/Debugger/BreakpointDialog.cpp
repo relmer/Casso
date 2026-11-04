@@ -1658,7 +1658,7 @@ std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiThem
 void BreakpointDialog::OnDialogTick()
 {
     int64_t  nowMs     = (int64_t) GetTickCount64();
-    bool     isPressed = (GetAsyncKeyState (VK_LBUTTON) & 0x8000) != 0 || (GetAsyncKeyState (VK_RBUTTON) & 0x8000) != 0;
+    bool     isPressed = (DxuiInputState::GetAsyncKeyState (VK_LBUTTON) & 0x8000) != 0 || (DxuiInputState::GetAsyncKeyState (VK_RBUTTON) & 0x8000) != 0;
 
 
 

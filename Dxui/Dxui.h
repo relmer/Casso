@@ -86,6 +86,8 @@
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiHitTester.h"
 #include "Core/DxuiInput.h"
+#include "Core/DxuiInputState.h"
+#include "Core/DxuiDisplay.h"
 #include "Core/DxuiThread.h"
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiTip.h"

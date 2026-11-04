@@ -191,9 +191,9 @@ private:
     bool   OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool alt);
     void   ResetBlink () const { m_blinkAnchorMs = 0; }
 
-    static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
-    static bool IsControlKeyDown () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
-    static bool IsAltKeyDown     () { return (GetKeyState (VK_MENU)    & 0x8000) != 0; }
+    static bool IsShiftKeyDown   () { return DxuiInputState::IsKeyDown (VK_SHIFT); }
+    static bool IsControlKeyDown () { return DxuiInputState::IsKeyDown (VK_CONTROL); }
+    static bool IsAltKeyDown     () { return DxuiInputState::IsKeyDown (VK_MENU); }
     std::wstring         m_text;
     std::wstring         m_placeholder;
     std::wstring         m_prompt;
