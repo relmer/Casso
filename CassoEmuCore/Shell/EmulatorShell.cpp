@@ -150,6 +150,7 @@ EmulatorShell::EmulatorShell()
     m_serialCard    = std::make_unique<ShellSerialCard> (*this);
     m_scene         = std::make_unique<ShellDeskScene> (*this);
     m_chrome        = std::make_unique<ShellChrome> (*this);
+    m_chrome->SetDriveTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetDriveTip (clientPx, tip); });
     m_renderer      = std::make_unique<ShellRenderer> (*this);
 
     m_debuggerHost = std::make_unique<DebuggerHost> (*this);

@@ -84,6 +84,25 @@
 ShellChrome::ShellChrome (EmulatorShell & shell)
     : m_shell (shell)
 {
+    constexpr LONG  kWholeClient = 32767;
+
+
+
+    m_driveTipArea.SetBounds (RECT { 0, 0, kWholeClient, kWholeClient });
+    m_driveTipArea.SetTipFn  ([this] (POINT clientPx, DxuiTip & tip)
+    {
+        if (m_driveTipFn == nullptr || !m_driveTipFn (clientPx, tip))
+        {
+            return false;
+        }
+
+        m_driveTipText = tip.text;
+        return true;
+    });
+
+    m_tipRoot.Adopt (m_driveTipArea);
+    m_tipRoot.Adopt (m_toolbar);
+    m_tipRoot.Adopt (m_switchBar);
 }
 
 
@@ -1544,19 +1563,16 @@ bool ShellChrome::OnLButtonUp (int x, int y, Apple2cSwitchBar::Part & outSwitchP
 //  ShellChrome::OnMouseMove
 //
 //  The command toolbar's hover and slider drag, and on the //c the switch
-//  bar's hover. The window has one tip: the toolbar button's, its label in
-//  icon-only mode; else the switch bar part's; else the drive's. The tip
-//  service opens it once the pointer rests, so none appears during a fast
-//  pass over several controls.
+//  bar's hover. The window has one tip, the tip of the control the hit test
+//  finds under the pointer: a toolbar button's, its label in icon-only mode,
+//  a switch bar part's, or the drives'. The tip service opens it once the
+//  pointer rests, so none appears during a fast pass over several controls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellChrome::OnMouseMove (int x, int y, const DxuiTip & driveTip, int64_t nowMs)
+void ShellChrome::OnMouseMove (int x, int y, int64_t nowMs)
 {
-    POINT            pointer   = { x, y };
-    DxuiTip          tip;
-    const wchar_t *  switchTip = nullptr;
-    bool             hasTip    = false;
+    POINT    pointer = { x, y };
 
 
 
@@ -1564,8 +1580,6 @@ void ShellChrome::OnMouseMove (int x, int y, const DxuiTip & driveTip, int64_t n
     {
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
-
-    hasTip = m_toolbar.TryGetTip (pointer, tip);
 
     if (m_shell.MachineHasCaseSwitches())
     {
@@ -1579,33 +1593,10 @@ void ShellChrome::OnMouseMove (int x, int y, const DxuiTip & driveTip, int64_t n
             m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
         }
 
-        switchTip = hasTip ? nullptr : m_switchBar.GetTooltipTextAt (x, y);
-    }
-
-    if (switchTip != nullptr)
-    {
-        tip.text   = switchTip;
-        tip.anchor = m_switchBar.GetBounds();
-        hasTip     = true;
     }
 
     m_driveTipText.clear();
-
-    if (!hasTip && !driveTip.text.empty())
-    {
-        tip            = driveTip;
-        m_driveTipText = driveTip.text;
-        hasTip         = true;
-    }
-
-    if (hasTip)
-    {
-        m_tips.Show (tip, pointer, nowMs);
-    }
-    else
-    {
-        m_tips.Hide (nowMs);
-    }
+    m_tips.Update (m_tipRoot, pointer, nowMs);
 }
 
 

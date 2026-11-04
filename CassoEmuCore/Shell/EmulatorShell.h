@@ -238,6 +238,9 @@ private:
     DxuiMessageResult  OnGesture       (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;
+
+    //  The drives' tip at a point in the client area, for the chrome's hit test.
+    bool               TryGetDriveTip  (POINT clientPx, DxuiTip & tip);
     DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;

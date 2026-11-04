@@ -261,6 +261,67 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::TryGetDriveTip
+//
+//  The drives' tip at a point. On the desk and the fullscreen strip the scene
+//  finds it. The flat row has the info icon's, and a tip for a protected drive
+//  only, since the name is on the widget's marquee label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryGetDriveTip (POINT clientPx, DxuiTip & tip)
+{
+    DriveWidget  * wpDrive   = nullptr;
+    DriveWidget  * infoDrive = nullptr;
+
+
+
+    tip = DxuiTip();
+
+    if (DeskSceneActive())
+    {
+        m_scene->GetDriveTooltip (clientPx.x, clientPx.y, tip.text, tip.anchor);
+        return !tip.text.empty();
+    }
+
+    for (DriveWidget & drive : m_disks->GetDriveChrome())
+    {
+        RECT  outer    = drive.GetOuterRect();
+        RECT  iconRect = drive.GetInfoIconRect();
+
+        if (drive.HasWozConflict() && PtInRect (&iconRect, clientPx))
+        {
+            infoDrive = &drive;
+        }
+        else if (PtInRect (&outer, clientPx) && drive.IsWriteProtected())
+        {
+            wpDrive = &drive;
+        }
+    }
+
+    if (infoDrive != nullptr)
+    {
+        tip.anchor = infoDrive->GetInfoIconRect();
+        tip.text   = m_disks->ComposeDriveInfoTooltip (infoDrive->GetDrive());
+    }
+    else if (wpDrive != nullptr)
+    {
+        std::wstring  imageName = std::filesystem::path (
+            m_machine.GetDiskStore().GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
+
+        tip.anchor = wpDrive->GetOuterRect();
+        tip.text   = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());
+    }
+
+    return !tip.text.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseMove
 //
 //  Routes one pointer move through every chrome consumer, in priority order.
@@ -302,9 +363,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     POINT              pointer      = { x, y };
     bool               leftDown     = (wParam & MK_LBUTTON) != 0;
     bool               shellHandled = false;
-    DriveWidget *      wpDrive      = nullptr;
-    DriveWidget *      infoDrive    = nullptr;
-    DxuiTip            driveTip;
     int64_t            nowMs        = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                           std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -366,16 +424,6 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             // the highlight would land on whatever frame happened next.
             m_renderer->GetD3D().MarkRedrawNeeded();
         }
-
-        if (inside && drive.IsWriteProtected())
-        {
-            wpDrive = &drive;
-        }
-
-        if (onIcon)
-        {
-            infoDrive = &drive;
-        }
     }
 
     if (m_tapeDeck->GetWidget().UpdateHover (x, y))
@@ -392,29 +440,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (shellHandled, S_OK);
 
-    // The drive tip. On the desk and the fullscreen strip the scene finds it.
-    // The flat row has the info icon's, and a tip for a protected drive only,
-    // since the name is on the widget's marquee label.
-    if (DeskSceneActive())
-    {
-        m_scene->GetDriveTooltip (x, y, driveTip.text, driveTip.anchor);
-    }
-    else if (infoDrive != nullptr)
-    {
-        driveTip.anchor = infoDrive->GetInfoIconRect();
-        driveTip.text   = m_disks->ComposeDriveInfoTooltip (infoDrive->GetDrive());
-    }
-    else if (wpDrive != nullptr)
-    {
-        std::wstring  imageName = std::filesystem::path (
-            m_machine.GetDiskStore().GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
-
-        driveTip.anchor = wpDrive->GetOuterRect();
-        driveTip.text   = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());
-    }
-
     // The command toolbar and the //c switch bar, and the window's tip.
-    m_chrome->OnMouseMove (x, y, driveTip, nowMs);
+    m_chrome->OnMouseMove (x, y, nowMs);
 
 Error:
     return result;

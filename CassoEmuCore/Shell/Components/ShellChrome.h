@@ -118,10 +118,14 @@ public:
     bool  OnLButtonUp        (int x, int y, Apple2cSwitchBar::Part & outSwitchPart);
 
     // Pointer moves: the toolbar's and the switch bar's hover, and the window's
-    // tip, from the toolbar, the switch bar or the drive tip the shell found,
-    // which has no text off the drives; and the hover reset for a pointer
-    // outside the window.
-    void  OnMouseMove         (int x, int y, const DxuiTip & driveTip, int64_t nowMs);
+    // tip, from the control the hit test finds under the pointer; and the hover
+    // reset for a pointer outside the window.
+    void  OnMouseMove         (int x, int y, int64_t nowMs);
+
+    // The drives' tip, at a point in the client area, which the shell finds:
+    // the controls in front of the drives, the toolbar and the switch bar,
+    // cover it.
+    void  SetDriveTipFn       (IDxuiControl::TipFn fn) { m_driveTipFn = std::move (fn); }
     void  OnMouseLeave        (int64_t nowMs);
 
     // The caption buttons' tooltip and its tip service; the update indicator
@@ -288,6 +292,14 @@ private:
     // band collapses to zero height on every other machine. Manually
     // hit-tested / actioned by the mouse handlers, like the other chrome.
     Apple2cSwitchBar  m_switchBar;
+
+    // The client area's controls for the tip's hit test: the drives' area at
+    // the back, over the whole client area, then the toolbar and the switch
+    // bar in front of it. The root comes after every control it adopts, so it
+    // is destroyed first.
+    IDxuiControl::TipFn  m_driveTipFn;
+    DxuiPanel            m_driveTipArea;
+    DxuiPanel            m_tipRoot;
 
     // Hover tooltip for the caption's minimize, maximize and close buttons.
     // The stock system tooltip for those is suppressed at the host, so this

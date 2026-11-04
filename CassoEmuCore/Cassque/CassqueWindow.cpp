@@ -1896,6 +1896,12 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
+    //  The tip of the control the window's hit test finds under the pointer.
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        m_tips.Update (*this, point, GetNowMs());
+    }
+
     if (m_renameRow >= 0)
     {
         if (Contains (m_renameBox->GetBounds(), point) || (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel))
@@ -6319,7 +6325,8 @@ int64_t CassqueWindow::GetNowMs()
 //
 //  The toolbar takes its pointer input through its own calls rather than
 //  OnMouse. A move always reaches it, so its hover clears when the pointer
-//  leaves; it is consumed only over the strip. The tooltip follows the hover.
+//  moves off; it is consumed only over the strip. Its tip comes from the
+//  window's hit test, as every control's does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6329,7 +6336,6 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
     int              y      = ev.positionDip.y;
     bool             took   = false;
     RECT             anchor = {};
-    DxuiTip          tip;
     int64_t          nowMs  = GetNowMs();
 
 
@@ -6338,16 +6344,6 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
     {
         case DxuiMouseEventKind::Move:
             took = toolbar.OnToolbarMouseMove (x, y);
-
-            if (took && toolbar.TryGetTip (ev.positionDip, tip))
-            {
-                m_tips.Show (tip, ev.positionDip, nowMs);
-            }
-            else
-            {
-                m_tips.Hide (nowMs);
-            }
-
             break;
 
         case DxuiMouseEventKind::Down:
