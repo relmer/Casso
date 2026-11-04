@@ -34,6 +34,8 @@ const std::vector<WozProperties::MetaKey> & WozProperties::GetMetaKeys()
         { "image_date",       L"Image date" },
     };
 
+
+
     return s_keys;
 }
 
@@ -61,6 +63,8 @@ const std::vector<WozProperties::Machine> & WozProperties::GetMachines()
         { WozCompatibility::kApple3,          "3",   L"///" },
         { WozCompatibility::kApple3Plus,      "3+",  L"///+" },
     };
+
+
 
     return s_machines;
 }
@@ -94,6 +98,8 @@ const std::vector<WozProperties::RamSize> & WozProperties::GetRamSizes()
         { 1536, L"1.5 MB" },
     };
 
+
+
     return s_sizes;
 }
 
@@ -113,6 +119,8 @@ const std::vector<std::wstring> & WozProperties::GetBootSectorLabels()
 {
     static const std::vector<std::wstring>  s_labels = { L"Unknown", L"16-sector", L"13-sector", L"Both 16-sector and 13-sector" };
 
+
+
     return s_labels;
 }
 
@@ -130,6 +138,8 @@ const std::vector<std::wstring> & WozProperties::GetMetaRamValues()
 {
     static const std::vector<std::wstring>  s_values = { L"16K", L"24K", L"32K", L"48K", L"64K", L"128K", L"256K", L"512K", L"768K",
                                                          L"1M", L"1.25M", L"1.5M+", L"Unknown" };
+
+
 
     return s_values;
 }
@@ -153,6 +163,8 @@ const std::vector<std::wstring> & WozProperties::GetLanguages()
         L"Catalan", L"Croatian", L"Greek", L"Hebrew", L"Romanian", L"Slovak", L"Ukrainian", L"Indonesian", L"Malay", L"Vietnamese",
         L"Other",
     };
+
+
 
     return s_languages;
 }
@@ -341,8 +353,7 @@ std::vector<WozLoader::MetaField> WozProperties::MakeMeta (const std::vector<std
 
 std::vector<std::pair<std::wstring, std::wstring>> WozProperties::GetSummary (const std::vector<WozLoader::MetaField> & meta)
 {
-    static constexpr const char *  s_kKeys[] = { kTitle, "publisher", "developer", "copyright", kRequiresMachine };
-
+    static constexpr const char *                       s_kKeys[] = { kTitle, "publisher", "developer", "copyright", kRequiresMachine };
     std::vector<std::pair<std::wstring, std::wstring>>  lines;
 
 

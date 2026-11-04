@@ -574,6 +574,9 @@ HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
     vector<Byte>            bytes  = fileBytes;
     bool                    isWoz  = bytes.size() >= kHeaderSize && (MatchSig (bytes.data(), kSigV2) || MatchSig (bytes.data(), kSigV1));
     uint32_t                stored = 0;
+    uint32_t                crc    = 0;
+    bool                    intact = false;
+    bool                    atEnd  = false;
     std::vector<ChunkSpan>  chunks;
     size_t                  end    = 0;
     const ChunkSpan       * info   = nullptr;
@@ -589,7 +592,9 @@ HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
 
     //  Zero means the writer didn't compute a CRC.
     stored = Read32LE (bytes.data() + kSigLen);
-    CBREx (stored == 0 || stored == Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize), HRESULT_FROM_WIN32 (ERROR_CRC));
+    crc    = Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize);
+    intact = stored == 0 || stored == crc;
+    CBREx (intact, HRESULT_FROM_WIN32 (ERROR_CRC));
 
     hr = FormatMeta (edits.meta, text);
     CHR (hr);
@@ -632,13 +637,14 @@ HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
     //  TRKS chunk doesn't cover, can't be reached by a walk of the chunks.
     if (!text.empty())
     {
-        CBREx (end == bytes.size(), HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+        atEnd = end == bytes.size();
+        CBREx (atEnd, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
         at = bytes.size();
         bytes.resize (at + kChunkHeaderSize + text.size());
 
         memcpy    (bytes.data() + at, kMetaMagic, sizeof (kMetaMagic));
-        Write32LE (bytes.data() + at + 4, static_cast<uint32_t> (text.size()));
+        Write32LE (bytes.data() + at + sizeof (kMetaMagic), static_cast<uint32_t> (text.size()));
         memcpy    (bytes.data() + at + kChunkHeaderSize, text.data(), text.size());
     }
 
@@ -672,11 +678,11 @@ void WozLoader::WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & o
     while (more && pos + kChunkHeaderSize <= raw.size())
     {
         ChunkSpan  chunk;
-        bool       isId = std::all_of (raw.begin() + (ptrdiff_t) pos, raw.begin() + (ptrdiff_t) pos + 4, [] (Byte b) { return b >= 'A' && b <= 'Z'; });
+        bool       isId = std::all_of (raw.begin() + (ptrdiff_t) pos, raw.begin() + (ptrdiff_t) (pos + sizeof (chunk.id)), [] (Byte b) { return b >= 'A' && b <= 'Z'; });
 
         chunk.start   = pos;
         chunk.payload = pos + kChunkHeaderSize;
-        chunk.size    = Read32LE (raw.data() + pos + 4);
+        chunk.size    = Read32LE (raw.data() + pos + sizeof (chunk.id));
         more          = isId && chunk.payload + chunk.size <= raw.size();
 
         if (more)

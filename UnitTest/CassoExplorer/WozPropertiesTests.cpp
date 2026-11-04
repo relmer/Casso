@@ -39,7 +39,7 @@ public:
     TEST_METHOD (ToMetaValue_TabsAndLineBreaks_BecomeSpaces)
     {
         Assert::AreEqual (std::string ("Side A of the disk"), WozProperties::ToMetaValue (L"  Side A\tof\r\nthe disk "));
-        Assert::AreEqual (std::string (),                     WozProperties::ToMetaValue (L" \t "));
+        Assert::AreEqual (std::string(),                      WozProperties::ToMetaValue (L" \t "));
     }
 
 
