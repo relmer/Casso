@@ -457,15 +457,15 @@ private:
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
-        { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, nullptr, L"Show address", L"Show where each line starts in memory"                   },
-        { kToggleDisassembly, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Disassemble",  L"Show the bytes as 6502 instructions"                    },
+        { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
+        { kToggleDisassembly, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Code,      L"Disassemble",   L"Show the bytes as 6502 instructions"                    },
         //  The Go to and search boxes, which the host supplies as custom entries.
-        { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr, L"Go to",        L""                                                       },
-        { kFind,              DxuiToolbar::Kind::Command, 1, nullptr, L"Search",       L"",                                                       false, true },
-        { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, nullptr, L"Monochrome",   L"Draw the picture as its bits, on a monochrome monitor" },
-        { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, nullptr, L"Color",        L"Draw the picture in color, on the color monitor"      },
-        { kSavePicture,       DxuiToolbar::Kind::Command, 1, nullptr, L"Save as PNG",  L"Save the picture as a PNG file"                      },
-        { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, nullptr, L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
+        { kGoToOffset,        DxuiToolbar::Kind::Command, 0, nullptr,             L"Go to",         L""                                                       },
+        { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
+        { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Contrast,  L"Monochrome",    L"Draw the picture as its bits, on a monochrome monitor" },
+        { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
+        { kSavePicture,       DxuiToolbar::Kind::Command, 1, s_kpszMdl2SaveAs,    L"Save as PNG",   L"Save the picture as a PNG file"                      },
+        { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
     };
 
     static constexpr Key  kKeys[] =

@@ -74,6 +74,11 @@ static constexpr LPCWSTR s_kpszMdl2Save            = L"\xE74E";       // U+E74E 
 static constexpr LPCWSTR s_kpszMdl2HardDrive       = L"\xEDA2";       // U+EDA2 HardDrive
 static constexpr LPCWSTR s_kpszMdl2BackToWindow    = L"\xE73F";       // U+E73F BackToWindow (arrows pointing in), Krunch
 static constexpr LPCWSTR s_kpszMdl2Setting         = L"\xE713";       // U+E713 Setting (gear)
+static constexpr LPCWSTR s_kpszMdl2Edit            = L"\xE70F";       // U+E70F Edit (pencil)
+static constexpr LPCWSTR s_kpszMdl2SaveAs          = L"\xE792";       // U+E792 SaveAs (a floppy disk and a pencil)
+static constexpr LPCWSTR s_kpszMdl2Code            = L"\xE943";       // U+E943 Code (braces)
+static constexpr LPCWSTR s_kpszMdl2Tag             = L"\xE8EC";       // U+E8EC Tag (a label tag)
+static constexpr LPCWSTR s_kpszMdl2Contrast        = L"\xE7A1";       // U+E7A1 Contrast (a half-filled circle)
 static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe MDL2 PreviewLink
 static constexpr LPCWSTR s_kpszMdl2Search = L"\xE721";       // U+E721 Segoe MDL2 Search (magnifying glass)
 
