@@ -136,10 +136,12 @@ struct DiagnosticsSoundPsg
     int       envelopePeriod   = 0;
     int       envelopeLevel    = 0;      // 0 to 15
 
-    //  The ramps the envelope finished since R13 was written, and whether it
-    //  stopped at its last level; the two place the level on its picture.
-    int       envelopeRamps    = 0;
-    bool      isEnvelopeHeld   = false;
+    //  The ramps the envelope finished since R13 was written, whether it
+    //  stopped at its last level and the steps of 16 to a ramp since it did;
+    //  they place the level on its picture.
+    int       envelopeRamps     = 0;
+    bool      isEnvelopeHeld    = false;
+    int       envelopeHeldSteps = 0;
 
     double    envelopeRampMs   = 0.0;
     int       noisePeriod      = 0;

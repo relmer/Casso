@@ -148,6 +148,34 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (ATimeUnderAMillisecondHasTwoDecimals)
+        {
+            Assert::AreEqual (std::wstring (L"0.25 ms"),  SoundBoardLayout::GetMillisecondsText (0.2503));
+            Assert::AreEqual (std::wstring (L"512.6 ms"), SoundBoardLayout::GetMillisecondsText (512.6));
+        }
+
+
+        //  Close formants add, so the curve between them bends smoothly. The
+        //  taller of the two at each point bent up sharply where they crossed,
+        //  by 0.04 a column here.
+        TEST_METHOD (TheFormantCurveHasNoCornerBetweenCloseFormants)
+        {
+            constexpr int  kColumns = 201;
+            auto           curve    = SoundBoardLayout::GetFormantCurve ({ 350.0, 1700.0, 2400.0 }, kColumns);
+            float          sharpest = 0.0f;
+
+
+
+            for (size_t c = 1; c + 1 < curve.size(); c++)
+            {
+                sharpest = std::max (sharpest, curve[c - 1] + curve[c + 1] - 2.0f * curve[c]);
+            }
+
+            Assert::IsTrue (sharpest < 0.01f, L"a corner between two formants");
+            Assert::IsTrue (*std::max_element (curve.begin(), curve.end()) <= 1.0f, L"the curve tops 1");
+        }
+
+
         //  A strip of 300: a second is 360 wide, so 0.25 s is 90 and 0.05 s is 18.
         TEST_METHOD (ThePhonemeStripIsNewestAtTheRightInProportion)
         {

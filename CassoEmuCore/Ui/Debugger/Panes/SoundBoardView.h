@@ -73,10 +73,17 @@ public:
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    bool                OnKey             (const DxuiKeyEvent & ev) override;
+    void                OnFocusChanged    (bool focused) override;
+    void                OnFocusEntered    (bool forward) override;
     void                Tick              (int64_t nowMs) override;
     bool                IsOverScrollbar   (POINT clientPx) const override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
-    std::wstring        GetAccessibleName () const override { return L"Mockingboard"; }
+    std::wstring        GetAccessibleName () const override;
+
+    //  The channel of the mute the keyboard focused, or -1 while the view
+    //  doesn't have the focus.
+    int                 GetFocusedMute    () const;
 
 private:
     struct Region
@@ -92,6 +99,14 @@ private:
     {
         RECT          rect = {};
         std::wstring  tip;
+    };
+
+    //  A trace's glow, its bright line, or both.
+    enum class TraceLayer
+    {
+        Glow,
+        Core,
+        Both,
     };
 
     struct Painting
@@ -131,6 +146,12 @@ private:
     void  SyncScrollbar     ();
     void  ScrollTo          (int top);
 
+    int               FindMuteAt        (POINT clientPx) const;
+    std::vector<int>  GetMuteChannels   () const;
+    bool              IsChannelMuted    (int channel) const;
+    void              ToggleMute        (int channel);
+    void              RevealFocusedMute ();
+
     RECT  GetChannelRect    (const RECT & card, int channel) const;
     RECT  GetMuteOfChannel  (const RECT & row) const;
     RECT  GetMuteOfVoice    (const RECT & card) const;
@@ -154,8 +175,9 @@ private:
     RECT  GetStripArea      (const RECT & card) const;
     void  PaintFormants     (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
     void  PaintScope        (const Painting & p, const std::vector<float> & scope, const RECT & rect, uint32_t color, double hz, bool isBipolar) const;
-    void  PaintTrace        (const Painting & p, const std::vector<std::pair<float, float>> & points, uint32_t color) const;
+    void  PaintTrace        (const Painting & p, const std::vector<std::pair<float, float>> & points, uint32_t color, TraceLayer layer = TraceLayer::Both) const;
     void  PaintLamp         (const Painting & p, float x, float y, const wchar_t * label, bool isOn, uint32_t color, float width) const;
+    void  PaintMuteButton   (const Painting & p, const RECT & rect, int channel, bool isMuted, uint32_t color) const;
     void  PaintValue        (const Painting & p, const RECT & rect, const std::wstring & label, const std::wstring & value, int labelDip = kLabelDip) const;
     void  PaintString       (const Painting & p, const std::wstring & value, const RECT & rect, uint32_t color, const DxuiFontHandle & font, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
 
@@ -176,4 +198,7 @@ private:
     int                       m_scrollTop     = 0;
     size_t                    m_phonemesBack  = 0;   // how many of the newest phonemes the strip is scrolled back past
     bool                      m_hasScrollbar  = false;
+    bool                      m_isFocused     = false;
+    int                       m_focusMute     = 0;     // the mute the keyboard focused, by its place in GetMuteChannels
+    int                       m_hoverMute     = -1;    // the channel of the mute under the pointer
 };

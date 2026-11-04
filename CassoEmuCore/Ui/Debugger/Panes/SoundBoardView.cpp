@@ -423,19 +423,19 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
                    std::format (L"{} channel {}", channel.isMuted ? L"Unmute" : L"Mute", kNames[c]),
                    half.index * kChannels + c);
 
-        AddRegion (row, std::format (L"Channel {}: tone period ${:04X} (R{}, R{}), mixer ${:02X} (R7), amplitude {}{} (R{})",
-                                     kNames[c], channel.period, fine, fine + 1, half.psg.mixer, channel.level,
-                                     channel.usesEnvelope ? L" from the envelope" : L"", level));
+        AddRegion (row, std::format (L"The tone period is ${:04X} (R{} and R{}), the mixer ${:02X} (R7) and the amplitude {}{} (R{}).",
+                                     channel.period, fine, fine + 1, half.psg.mixer, channel.level,
+                                     channel.usesEnvelope ? L", from the envelope" : L"", level));
     }
 
-    AddRegion (envelope, std::format (L"Envelope period ${:04X} (R11, R12), R13 ${:02X}. Noise period ${:02X} (R6)",
+    AddRegion (envelope, std::format (L"The envelope period is ${:04X} (R11 and R12), its pattern ${:02X} (R13), and the noise period ${:02X} (R6).",
                                       half.psg.envelopePeriod, half.psg.envelopeRegister, half.psg.noisePeriod));
 
     AddRegion ({ card.left, card.top, card.right, card.top + pad + m_scaler.ToPx (kTitleDip) },
-               std::format (L"6522 #{} at ${:04X}. IFR ${:02X}, IER ${:02X}", half.index + 1, half.baseAddress, half.via.ifr, half.via.ier));
+               std::format (L"The 6522's interrupt flags are ${:02X} and its interrupt enable ${:02X}.", half.via.ifr, half.via.ier));
 
     AddRegion ({ envelope.left, envelope.bottom, envelope.right, card.bottom },
-               std::format (L"ORB ${:02X} and DDRB ${:02X} set the AY's bus lines. ACR ${:02X}, PCR ${:02X}", half.via.orb, half.via.ddrb, half.via.acr, half.via.pcr));
+               L"The 6522 that drives this AY: its ports, its timers and the AY's bus, then the AY's sixteen registers as written.");
 }
 
 
@@ -452,9 +452,9 @@ void SoundBoardView::BuildVoiceRegions (const DiagnosticsSoundVoice & voice, con
 {
     AddRegion (GetMuteOfVoice (card), voice.isMuted ? L"Unmute the speech chip" : L"Mute the speech chip", kVoiceMuteChannel);
 
-    AddRegion (GetStripArea (card), L"Recent phonemes: the ones before the one playing, oldest at the left. Each block is as wide as the phoneme lasted, and the row under it has their labels, with an arrow under the one playing. A line is a pause, which falls between words. The wheel scrolls back through the last 256.");
+    AddRegion (GetStripArea (card), SoundBoardTips::GetVoice (L"Recent phonemes", voice));
 
-    AddRegion (card, std::format (L"Phoneme ${:02X}, duration ${:X}, rate ${:X}, inflection ${:03X}, articulation ${:X}, amplitude ${:X}, filter ${:02X}",
+    AddRegion (card, std::format (L"The registers' fields: phoneme ${:02X}, duration ${:X}, rate ${:X}, inflection ${:03X}, articulation ${:X}, amplitude ${:X} and filter ${:02X}.",
                                   voice.phonemeCode, voice.durationSelect, voice.rateSelect, voice.inflection, voice.articulation, voice.amplitude, voice.filterRegister));
 }
 
@@ -601,6 +601,13 @@ bool SoundBoardView::OnMouse (const DxuiMouseEvent & ev)
         }
 
         (void) m_scrollbar.SetHover (IsOverScrollbar (at), at);
+        m_hoverMute = isOver ? FindMuteAt (at) : -1;
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Leave)
+    {
+        m_hoverMute = -1;
         return false;
     }
 
@@ -635,35 +642,356 @@ bool SoundBoardView::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    for (const Region & region : m_regions)
+    if (int channel = FindMuteAt (at); channel >= 0)
     {
-        RECT  placed  = ToClient (region.rect);
-        bool  isMuted = false;
+        std::vector<int>  mutes = GetMuteChannels();
+        auto              found = std::ranges::find (mutes, channel);
 
-        if (region.muteChannel < 0 || !PtInRect (&placed, at))
-        {
-            continue;
-        }
-
-        if (region.muteChannel == kVoiceMuteChannel)
-        {
-            isMuted = m_board.voice.has_value() && m_board.voice->isMuted;
-        }
-        else
-        {
-            isMuted = m_board.halves[(size_t) region.muteChannel / DiagnosticsSoundPsg::kChannelCount]
-                             .psg.channels[(size_t) region.muteChannel % DiagnosticsSoundPsg::kChannelCount].isMuted;
-        }
-
-        if (m_onMute)
-        {
-            m_onMute (region.muteChannel, !isMuted);
-        }
-
+        m_focusMute = (int) (found - mutes.begin());
+        ToggleMute (channel);
         return true;
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::FindMuteAt
+//
+//  The channel of the mute under a point, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SoundBoardView::FindMuteAt (POINT clientPx) const
+{
+    for (const Region & region : m_regions)
+    {
+        RECT  placed = ToClient (region.rect);
+
+        if (region.muteChannel >= 0 && PtInRect (&placed, clientPx))
+        {
+            return region.muteChannel;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::GetMuteChannels
+//
+//  The mutes in Tab order: the speech chip's, then each AY's channels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> SoundBoardView::GetMuteChannels() const
+{
+    std::vector<int>  channels;
+
+
+
+    for (const Region & region : m_regions)
+    {
+        if (region.muteChannel >= 0)
+        {
+            channels.push_back (region.muteChannel);
+        }
+    }
+
+    return channels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::IsChannelMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SoundBoardView::IsChannelMuted (int channel) const
+{
+    size_t  half  = (size_t) channel / DiagnosticsSoundPsg::kChannelCount;
+    size_t  index = (size_t) channel % DiagnosticsSoundPsg::kChannelCount;
+
+
+
+    if (channel == kVoiceMuteChannel)
+    {
+        return m_board.voice.has_value() && m_board.voice->isMuted;
+    }
+
+    return half < m_board.halves.size() && m_board.halves[half].psg.channels[index].isMuted;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::ToggleMute
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::ToggleMute (int channel)
+{
+    if (m_onMute)
+    {
+        m_onMute (channel, !IsChannelMuted (channel));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::GetFocusedMute
+//
+//  The channel of the mute with the keyboard focus, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SoundBoardView::GetFocusedMute() const
+{
+    std::vector<int>  mutes = GetMuteChannels();
+
+
+
+    return (m_isFocused && m_focusMute >= 0 && m_focusMute < (int) mutes.size()) ? mutes[(size_t) m_focusMute] : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::OnFocusChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::OnFocusChanged (bool focused)
+{
+    m_isFocused = focused;
+
+    if (focused && (m_focusMute < 0 || m_focusMute >= (int) GetMuteChannels().size()))
+    {
+        m_focusMute = 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::OnFocusEntered
+//
+//  Tab brings the focus to the first mute, and Shift+Tab to the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::OnFocusEntered (bool forward)
+{
+    int  count = (int) GetMuteChannels().size();
+
+
+
+    m_focusMute = (forward || count == 0) ? 0 : count - 1;
+    RevealFocusedMute();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::OnKey
+//
+//  Each mute is a button in the Tab order. Tab and Shift+Tab move between
+//  them and on to the next control after the last; the arrows move between
+//  them and stop at the ends; Space and Enter press the one focused.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SoundBoardView::OnKey (const DxuiKeyEvent & ev)
+{
+    int   count = (int) GetMuteChannels().size();
+    int   step  = 0;
+
+
+
+    if (ev.kind != DxuiKeyEventKind::Down || count == 0 || ev.ctrl || ev.alt)
+    {
+        return false;
+    }
+
+    m_focusMute = std::clamp (m_focusMute, 0, count - 1);
+
+    switch (ev.vk)
+    {
+    case VK_SPACE:
+    case VK_RETURN:
+        ToggleMute (GetMuteChannels()[(size_t) m_focusMute]);
+        return true;
+
+    case VK_TAB:
+        step = ev.shift ? -1 : 1;
+
+        if (m_focusMute + step < 0 || m_focusMute + step >= count)
+        {
+            return false;
+        }
+
+        break;
+
+    case VK_LEFT:
+    case VK_UP:
+        step = -1;
+        break;
+
+    case VK_RIGHT:
+    case VK_DOWN:
+        step = 1;
+        break;
+
+    default:
+        return false;
+    }
+
+    m_focusMute = std::clamp (m_focusMute + step, 0, count - 1);
+    RevealFocusedMute();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::RevealFocusedMute
+//
+//  Scrolls the view just far enough that the mute the keyboard focused is
+//  in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::RevealFocusedMute()
+{
+    std::vector<int>  mutes = GetMuteChannels();
+    int               gap   = m_scaler.ToPx (kGapDip);
+    int               page  = (int) (m_boundsDip.bottom - m_boundsDip.top) - 2 * gap;
+
+
+
+    for (const Region & region : m_regions)
+    {
+        if (m_focusMute < 0 || m_focusMute >= (int) mutes.size() || region.muteChannel != mutes[(size_t) m_focusMute])
+        {
+            continue;
+        }
+
+        if (region.rect.top < m_scrollTop)
+        {
+            ScrollTo (region.rect.top);
+        }
+        else if (region.rect.bottom > m_scrollTop + page)
+        {
+            ScrollTo (region.rect.bottom - page);
+        }
+
+        return;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::GetAccessibleName
+//
+//  The view, and the mute the keyboard focused in it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SoundBoardView::GetAccessibleName() const
+{
+    int  focused = GetFocusedMute();
+
+
+
+    for (const Region & region : m_regions)
+    {
+        if (focused >= 0 && region.muteChannel == focused)
+        {
+            return (focused == kVoiceMuteChannel) ? std::format (L"Mockingboard, {} button", region.tip)
+                                                  : std::format (L"Mockingboard, {} of AY #{} button", region.tip, focused / DiagnosticsSoundPsg::kChannelCount + 1);
+        }
+    }
+
+    return L"Mockingboard";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::PaintMuteButton
+//
+//  A mute is a button: an edge around its fill, a brighter fill under the
+//  pointer, and the focus ring while the keyboard has it, so it doesn't
+//  read as a label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::PaintMuteButton (const Painting & p, const RECT & rect, int channel, bool isMuted, uint32_t color) const
+{
+    constexpr float  kRadiusDip   = 4.0f;
+    constexpr float  kEdgeDip     = 1.0f;
+    constexpr float  kRingGapDip  = 2.0f;
+    constexpr float  kFillAlpha   = 0.16f;
+    constexpr float  kHoverAlpha  = 0.32f;
+    constexpr float  kEdgeAlpha   = 0.60f;
+    float            radius       = m_scaler.ToPxf (kRadiusDip);
+    float            x            = (float) rect.left;
+    float            y            = (float) rect.top;
+    float            w            = (float) (rect.right - rect.left);
+    float            h            = (float) (rect.bottom - rect.top);
+    float            ring         = m_scaler.ToPxf (kRingGapDip);
+    uint32_t         ink          = isMuted ? p.theme.ErrorForeground() : color;
+
+
+
+    p.painter.FillRoundedRect    (x, y, w, h, radius, WithAlpha (ink, channel == m_hoverMute ? kHoverAlpha : kFillAlpha));
+    p.painter.OutlineRoundedRect (x, y, w, h, radius, m_scaler.ToPxf (kEdgeDip), WithAlpha (ink, kEdgeAlpha));
+
+    if (channel == GetFocusedMute())
+    {
+        p.painter.OutlineRoundedRect (x - ring, y - ring, w + 2.0f * ring, h + 2.0f * ring, radius + ring,
+                                      m_scaler.ToPxf (p.theme.FocusRingWidthDip()), p.theme.FocusRing());
+    }
 }
 
 
@@ -895,11 +1223,16 @@ void SoundBoardView::PaintValue (const Painting & p, const RECT & rect, const st
 //
 //  SoundBoardView::PaintTrace
 //
-//  Wide faint passes under a thin bright one make the phosphor's glow.
+//  Wide faint passes under a thin bright one make the phosphor's glow. Each
+//  segment is a line with round ends, so two overlap at the point they
+//  share, and a pass drawn see-through was twice as bright there, which
+//  dotted the curve. Each pass is drawn solid instead, in the color it blends
+//  to over the screen and the passes under it: the same color, with no
+//  overlap to see.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SoundBoardView::PaintTrace (const Painting & p, const std::vector<std::pair<float, float>> & points, uint32_t color) const
+void SoundBoardView::PaintTrace (const Painting & p, const std::vector<std::pair<float, float>> & points, uint32_t color, TraceLayer layer) const
 {
     struct Pass
     {
@@ -909,16 +1242,23 @@ void SoundBoardView::PaintTrace (const Painting & p, const std::vector<std::pair
 
     static constexpr Pass  kPasses[]   = { { 5.0f, 0.10f }, { 3.0f, 0.22f }, { 1.3f, 1.0f } };
     constexpr int          kAlphaShift = 24;
+    constexpr uint32_t     kOpaque     = 0xFF000000;
     constexpr float        kFull       = 255.0f;
+    constexpr size_t       kCore       = std::size (kPasses) - 1;
     float                  strength    = (float) (color >> kAlphaShift) / kFull;
+    uint32_t               under       = p.screen | kOpaque;
 
 
 
-    for (const Pass & pass : kPasses)
+    for (size_t pass = 0; pass < std::size (kPasses); pass++)
     {
-        for (size_t i = 1; i < points.size(); i++)
+        bool  isDrawn = (pass == kCore) ? layer != TraceLayer::Glow : layer != TraceLayer::Core;
+
+        under = Mix (under, color | kOpaque, kPasses[pass].alpha * strength);
+
+        for (size_t i = 1; i < points.size() && isDrawn; i++)
         {
-            p.painter.DrawLine (points[i - 1].first, points[i - 1].second, points[i].first, points[i].second, m_scaler.ToPxf (pass.widthDip), WithAlpha (color, pass.alpha * strength));
+            p.painter.DrawLine (points[i - 1].first, points[i - 1].second, points[i].first, points[i].second, m_scaler.ToPxf (kPasses[pass].widthDip), under);
         }
     }
 }
@@ -1049,8 +1389,7 @@ void SoundBoardView::PaintChannel (const Painting & p, const DiagnosticsSoundPsg
 
     big.sizeDip *= 1.25f;
 
-    p.painter.FillRoundedRect ((float) mute.left, (float) mute.top, (float) (mute.right - mute.left), (float) (mute.bottom - mute.top), radius,
-                               channel.isMuted ? WithAlpha (p.theme.ErrorForeground(), kPillAlpha) : WithAlpha (color, kPillAlpha));
+    PaintMuteButton (p, mute, muteChannel, channel.isMuted, color);
     PaintString (p, kNames[index], mute, channel.isMuted ? p.theme.ErrorForeground() : color, p.theme.BodyBoldFont(), DxuiTextHAlign::Center);
 
     if (channel.isMuted)
@@ -1153,7 +1492,7 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
     p.painter.DrawLine (x + inset, markY, x + w - inset, markY, 1.0f, WithAlpha (p.theme.Foreground(), kMarkAlpha));
     p.painter.FillCircle (x + inset + GetEnvelopeMarkX (psg) * (w - 2.0f * inset), markY, m_scaler.ToPxf (3.0f), p.theme.Foreground());
 
-    PaintValue (p, { textLeft, rect.top, textMiddle, rect.top + line }, L"Ramp", std::format (L"{:.1f} ms", psg.envelopeRampMs));
+    PaintValue (p, { textLeft, rect.top, textMiddle, rect.top + line }, L"Ramp", SoundBoardLayout::GetMillisecondsText (psg.envelopeRampMs));
     PaintValue (p, { textMiddle, rect.top, rect.right, rect.top + line }, L"R13", std::format (L"${:02X} ({})", psg.envelopeRegister, psg.envelopeRegister));
     PaintValue (p, { textLeft, rect.top + line, rect.right, rect.top + 2 * line }, L"Noise", SoundBoardLayout::GetFrequencyText (psg.noiseHz));
 
@@ -1185,24 +1524,27 @@ void SoundBoardView::PaintEnvelope (const Painting & p, const DiagnosticsSoundPs
 //
 //  Where the envelope is along its picture's four ramps, from 0 to 1: the
 //  ramp it is on, from the ramps finished since R13 was written, and how far
-//  along that ramp its level is. A level stopped at its end is at the
-//  picture's right, where its line runs on.
+//  along that ramp its level is. A level stopped at its end moves on along
+//  the flat line at the same pace, one ramp for every 16 steps, and stays at
+//  the picture's right once it gets there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float SoundBoardView::GetEnvelopeMarkX (const DiagnosticsSoundPsg & psg)
 {
-    constexpr float  kMaxLevel = 15.0f;
-    constexpr Byte   kAttack   = 0x04;
-    constexpr Byte   kAlt      = 0x02;
-    int              ramp      = psg.envelopeRamps % SoundBoardLayout::kEnvelopeRamps;
-    bool             isRising  = (psg.envelopeRegister & kAttack) != 0;
+    constexpr float  kMaxLevel     = 15.0f;
+    constexpr float  kStepsPerRamp = 16.0f;
+    constexpr Byte   kAttack       = 0x04;
+    constexpr Byte   kAlt          = 0x02;
+    float            ramps         = (float) SoundBoardLayout::kEnvelopeRamps;
+    int              ramp          = psg.envelopeRamps % SoundBoardLayout::kEnvelopeRamps;
+    bool             isRising      = (psg.envelopeRegister & kAttack) != 0;
 
 
 
     if (psg.isEnvelopeHeld)
     {
-        return 1.0f;
+        return std::min (1.0f, ((float) psg.envelopeRamps + (float) psg.envelopeHeldSteps / kStepsPerRamp) / ramps);
     }
 
     //  With ALT, each ramp after the first runs the other way.
@@ -1211,7 +1553,7 @@ float SoundBoardView::GetEnvelopeMarkX (const DiagnosticsSoundPsg & psg)
         isRising = !isRising;
     }
 
-    return ((float) ramp + (isRising ? (float) psg.envelopeLevel : kMaxLevel - (float) psg.envelopeLevel) / kMaxLevel) / (float) SoundBoardLayout::kEnvelopeRamps;
+    return ((float) ramp + (isRising ? (float) psg.envelopeLevel : kMaxLevel - (float) psg.envelopeLevel) / kMaxLevel) / ramps;
 }
 
 
@@ -1562,7 +1904,8 @@ RECT SoundBoardView::GetStripArea (const RECT & card) const
 //
 //  The tract's response as a glowing curve over a filled area, on a logarithmic
 //  axis, with the pitch's harmonics rising under it as a comb. A voiced vowel
-//  reads as the comb under the three peaks.
+//  reads as the comb under the three peaks. The glow goes under the fill and
+//  the comb, and the bright line over them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1597,6 +1940,13 @@ void SoundBoardView::PaintFormants (const Painting & p, const DiagnosticsSoundVo
 
     p.painter.FillRoundedRect (x, y, w, h, m_scaler.ToPxf (kRadiusDip), p.screen);
 
+    for (int c = 0; c < columns; c++)
+    {
+        points.emplace_back (x + inset + (float) c * step, base - curve[(size_t) c] * plotH);
+    }
+
+    PaintTrace (p, points, voice.isSounding ? color : WithAlpha (color, fade), TraceLayer::Glow);
+
     for (double hz : kAxisHz)
     {
         float  ax = x + inset + SoundBoardLayout::GetFormantX (hz) * plotW;
@@ -1626,12 +1976,7 @@ void SoundBoardView::PaintFormants (const Painting & p, const DiagnosticsSoundVo
         }
     }
 
-    for (int c = 0; c < columns; c++)
-    {
-        points.emplace_back (x + inset + (float) c * step, base - curve[(size_t) c] * plotH);
-    }
-
-    PaintTrace (p, points, voice.isSounding ? color : WithAlpha (color, fade));
+    PaintTrace (p, points, voice.isSounding ? color : WithAlpha (color, fade), TraceLayer::Core);
 }
 
 
@@ -1711,8 +2056,7 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     PaintLamp (p, lampX + (float) m_scaler.ToPx (kLampWideDip),  lampY, L"Sounding",   voice.isSounding,     m_palette.voice, (float) m_scaler.ToPx (kLampWideDip));
     PaintLamp (p, lampX + (float) m_scaler.ToPx (2 * kLampWideDip), lampY, L"Request", voice.isRequesting,   m_palette.voice, (float) m_scaler.ToPx (kLampWideDip));
 
-    p.painter.FillRoundedRect ((float) mute.left, (float) mute.top, (float) (mute.right - mute.left), (float) (mute.bottom - mute.top), radius,
-                               WithAlpha (voice.isMuted ? p.theme.ErrorForeground() : m_palette.voice, 0.16f));
+    PaintMuteButton (p, mute, kVoiceMuteChannel, voice.isMuted, m_palette.voice);
     PaintString (p, L"M", mute, voice.isMuted ? p.theme.ErrorForeground() : m_palette.voice, p.theme.BodyBoldFont(), DxuiTextHAlign::Center);
 
     if (voice.isMuted)

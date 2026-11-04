@@ -84,6 +84,7 @@ void DevicePanelController::CreateControls()
 
     m_model = std::make_unique<DiagnosticsPane> (m_panelId, m_title, list, map, head, meters, board, m_bar->GetSlot());
     list->SetVisible (false);
+    board->SetFocusable (true);
 
     board->SetOnMute ([this] (int channel, bool isMuted)
     {

@@ -13,8 +13,10 @@
 //  SoundBoardTips
 //
 //  The tip of each part of the Mockingboard view: what the part is, the
-//  register behind it and its value now, and how the value becomes what is
-//  drawn. Pure text, so each is checked without a window.
+//  register behind it, and how the value becomes what is drawn. A tip is one
+//  paragraph. It doesn't begin with the part's label or repeat a value drawn
+//  beside it, and where a value means more than itself, the tip has what it
+//  means. Pure text, so each is checked without a window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +50,11 @@ public:
     static constexpr int  kRegisterCount = 16;
 
 private:
-    static wchar_t       GetChannelName (int channel);
-    static std::wstring  GetHex         (int value, int digits);
+    static wchar_t          GetChannelName     (int channel);
+    static std::wstring     GetHex             (int value, int digits);
+    static const wchar_t *  GetPattern         (Byte shape);
+    static const wchar_t *  GetRegisterPurpose (int reg);
+    static std::wstring     GetSentence        (const wchar_t * text);
+    static std::wstring     GetViaBits         (Byte value);
+    static std::wstring     GetMode            (const std::string & mode);
 };

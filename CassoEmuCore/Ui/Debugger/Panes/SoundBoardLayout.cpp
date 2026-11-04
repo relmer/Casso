@@ -82,6 +82,24 @@ std::wstring SoundBoardLayout::GetFrequencyText (double hz)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SoundBoardLayout::GetMillisecondsText
+//
+//  A time under a millisecond has two decimals, so the fastest envelope
+//  ramp, 0.25 ms, doesn't read as 0.3.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SoundBoardLayout::GetMillisecondsText (double ms)
+{
+    return (ms < 1.0) ? std::format (L"{:.2f} ms", ms) : std::format (L"{:.1f} ms", ms);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SoundBoardLayout::GetEnvelopePoints
 //
 //  The first ramp rises with ATT set and falls without. Without CONT the level
@@ -288,6 +306,10 @@ float SoundBoardLayout::GetFormantX (double hz)
 //
 //  SoundBoardLayout::GetFormantCurve
 //
+//  Each formant is a bell on the logarithmic axis, and the bells add, as
+//  resonances do, so between two close formants the curve dips smoothly.
+//  Taking the taller bell at each point made a sharp V where two crossed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<float> SoundBoardLayout::GetFormantCurve (const std::array<double, 3> & formantsHz, int columns)
@@ -295,6 +317,7 @@ std::vector<float> SoundBoardLayout::GetFormantCurve (const std::array<double, 3
     static constexpr float  kHeights[] = { 1.0f, 0.78f, 0.58f };
     constexpr float         kWidth     = 0.05f;
     std::vector<float>      out;
+    float                   peak       = 0.0f;
     int                     c          = 0;
     size_t                  f          = 0;
 
@@ -312,9 +335,17 @@ std::vector<float> SoundBoardLayout::GetFormantCurve (const std::array<double, 3
 
             if (formantsHz[f] > 0.0)
             {
-                out[(size_t) c] = std::max (out[(size_t) c], kHeights[f] * std::exp (-0.5f * away * away));
+                out[(size_t) c] += kHeights[f] * std::exp (-0.5f * away * away);
             }
         }
+
+        peak = std::max (peak, out[(size_t) c]);
+    }
+
+    //  Two formants close together add to more than the tallest alone.
+    for (float & each : out)
+    {
+        each = (peak > 1.0f) ? each / peak : each;
     }
 
     return out;

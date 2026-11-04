@@ -97,6 +97,115 @@ namespace DebuggerTests
         }
 
 
+
+        static DxuiKeyEvent MakeKey (WPARAM vk, bool shift = false)
+        {
+            DxuiKeyEvent  ev;
+
+
+
+            ev.kind  = DxuiKeyEventKind::Down;
+            ev.vk    = vk;
+            ev.shift = shift;
+            return ev;
+        }
+
+
+        //  Each mute is a button in the Tab order: Tab enters at the speech
+        //  chip's, moves through the channels and out of the view after the
+        //  last, Shift+Tab moves back, and Space presses the one focused.
+        TEST_METHOD (TheMutesAreTabStopsThatSpacePresses)
+        {
+            SoundBoardView         view;
+            DiagnosticsSoundBoard  board   = MakeBoard (true);
+            int                    channel = -1;
+            bool                   isMuted = false;
+
+
+
+            view.SetOnMute ([&] (int c, bool m) { channel = c; isMuted = m; });
+            LayOut (view);
+            view.SetBoard (board);
+
+            Assert::AreEqual (-1, view.GetFocusedMute(), L"a mute has the focus while the view doesn't");
+
+            view.OnFocusChanged (true);
+            view.OnFocusEntered (true);
+            Assert::AreEqual (SoundBoardView::kVoiceMuteChannel, view.GetFocusedMute(), L"Tab enters at the speech chip's mute");
+
+            Assert::IsTrue   (view.OnKey (MakeKey (VK_TAB)));
+            Assert::AreEqual (0, view.GetFocusedMute(), L"then channel A of AY #1");
+
+            Assert::IsTrue   (view.OnKey (MakeKey (VK_SPACE)));
+            Assert::AreEqual (0, channel);
+            Assert::IsTrue   (isMuted, L"Space mutes the focused channel");
+
+            for (int c = 1; c < 6; c++)
+            {
+                Assert::IsTrue (view.OnKey (MakeKey (VK_TAB)));
+            }
+
+            Assert::AreEqual (5,    view.GetFocusedMute(), L"channel C of AY #2 last");
+            Assert::IsFalse  (view.OnKey (MakeKey (VK_TAB)), L"Tab after the last moves out of the view");
+            Assert::IsTrue   (view.OnKey (MakeKey (VK_TAB, true)));
+            Assert::AreEqual (4,    view.GetFocusedMute(), L"Shift+Tab moves back");
+
+            view.OnFocusEntered (false);
+            Assert::AreEqual (5, view.GetFocusedMute(), L"Shift+Tab enters at the last");
+            Assert::IsTrue   (view.GetAccessibleName().find (L"channel C of AY #2") != std::wstring::npos, view.GetAccessibleName().c_str());
+        }
+
+
+        //  A mute is drawn as a button, with an edge around it and the focus
+        //  ring while the keyboard has it, so it doesn't read as a label.
+        TEST_METHOD (AMuteIsDrawnAsAButton)
+        {
+            SoundBoardView         view;
+            MockDxuiPainter        painter;
+            MockDxuiTextRenderer   text;
+            CassoTheme             theme   = CassoTheme::MakeSkeuomorphic();
+            RECT                   mute    = {};
+            auto                   edges   = [&] (const RECT & at)
+            {
+                int  count = 0;
+
+                for (const RecordedPaintCall & call : painter.Calls())
+                {
+                    bool  isAround = call.x <= (float) at.left && call.y <= (float) at.top &&
+                                     call.x + call.width >= (float) at.right && call.y + call.height >= (float) at.bottom &&
+                                     call.width <= (float) (at.right - at.left) + 12.0f;
+
+                    count += (call.kind == RecordedPaintKind::OutlineRoundedRect && isAround) ? 1 : 0;
+                }
+
+                return count;
+            };
+
+
+
+            LayOut (view);
+            view.SetBoard (MakeBoard (true));
+            mute = view.GetMuteRect (2);
+
+            view.Paint (painter, text, theme);
+            Assert::AreEqual (1, edges (mute), L"an edge around the mute");
+
+            view.OnFocusChanged (true);
+            view.OnFocusEntered (true);
+
+            for (int c = 0; c < 3; c++)
+            {
+                (void) view.OnKey (MakeKey (VK_RIGHT));
+            }
+
+            Assert::AreEqual (2, view.GetFocusedMute());
+
+            painter.Reset();
+            view.Paint (painter, text, theme);
+            Assert::AreEqual (2, edges (mute), L"and the focus ring around that");
+        }
+
+
         TEST_METHOD (ACardWithoutTheSpeechChipHasNoVoiceMute)
         {
             SoundBoardView  view;
@@ -381,8 +490,8 @@ namespace DebuggerTests
         }
 
 
-        //  After a paint, each part has a separate tip: an R13 bit, what it
-        //  does, and a register, its name and value.
+        //  After a paint, each part has a separate tip: an R13 bit and what it
+        //  does now, and a register and what its value means.
         TEST_METHOD (EachPaintedPartHasATipOfItsOwn)
         {
             SoundBoardView         view;
@@ -414,17 +523,73 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"ALT, alternate"); }), L"the ALT bit");
-            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"R7 = $38 (56): the mixer"); }), L"the mixer's register");
-            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"ACR, auxiliary control"); }), L"the 6522's ACR");
+            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"R13's bit 1, alternate"); }), L"the ALT bit");
+            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"The mixer:") && each.ends_with (L"Tone is on for A, B, C and noise for none."); }), L"the mixer's register");
+            Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"Auxiliary control"); }), L"the 6522's ACR");
             Assert::IsTrue (std::ranges::any_of (tips, [] (const std::wstring & each) { return each.starts_with (L"Channel A's output"); }), L"channel A's scope");
+        }
+
+
+
+        //  A tip is one paragraph, and it doesn't begin with the label drawn
+        //  beside its value: CONT's tip isn't "CONT, continue", and Writes'
+        //  isn't "Writes: 12".
+        TEST_METHOD (NoTipBeginsWithItsLabelOrBreaksALine)
+        {
+            static constexpr const wchar_t * kLabels[] =
+            {
+                L"CONT", L"ATT", L"ALT", L"HOLD", L"Ramp", L"R13", L"Noise", L"Tone",
+                L"Bus", L"Writes", L"Last", L"ORA", L"ORB", L"DDRA", L"DDRB", L"ACR", L"PCR", L"IFR", L"IER",
+                L"T1", L"Latch", L"T2", L"Rate", L"Run", L"Fired", L"T1 IRQ", L"IRQ",
+                L"Mode", L"Duration", L"Frame", L"Pitch", L"Formants", L"Articulation", L"Amplitude", L"Filter",
+                L"Power", L"Sounding", L"Request", L"Recent phonemes",
+            };
+            SoundBoardView          view;
+            DiagnosticsSoundBoard   board   = MakeBoard (true);
+            MockDxuiPainter         painter;
+            MockDxuiTextRenderer    text;
+            CassoTheme              theme   = CassoTheme::MakeSkeuomorphic();
+            std::wstring            tip;
+            std::set<std::wstring>  tips;
+            RECT                    bounds  = {};
+
+
+
+            LayOut (view);
+            view.SetBoard (board);
+            view.Paint (painter, text, theme);
+            bounds = view.GetBounds();
+
+            for (int y = bounds.top; y < bounds.bottom; y += 4)
+            {
+                for (int x = bounds.left; x < bounds.right; x += 4)
+                {
+                    if (view.TryGetTipAt ({ x, y }, tip))
+                    {
+                        tips.insert (tip);
+                    }
+                }
+            }
+
+            Assert::IsTrue (tips.size() > 40, L"the parts' tips are found");
+
+            for (const std::wstring & each : tips)
+            {
+                Assert::IsTrue (each.find (L'\n') == std::wstring::npos, each.c_str());
+
+                for (const wchar_t * label : kLabels)
+                {
+                    Assert::IsFalse (each.starts_with (std::format (L"{}:", label)) || each.starts_with (std::format (L"{},", label)), each.c_str());
+                }
+            }
         }
 
 
         //  The dot is where the envelope is along its picture's ramps: on a
         //  repeating triangle, the second ramp falls, so a high level there is
-        //  near the ramp's start; an envelope stopped at its end is at the
-        //  right.
+        //  near the ramp's start. An envelope stopped at its end moves on
+        //  along its flat line at the same pace, a ramp for each 16 steps,
+        //  and stays at the right once there.
         TEST_METHOD (TheEnvelopesDotFollowsItAlongTheRamps)
         {
             DiagnosticsSoundPsg  psg;
@@ -446,8 +611,18 @@ namespace DebuggerTests
             psg.envelopeRamps = 5;
             Assert::AreEqual (0.50f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"ramps after the fourth wrap around the picture");
 
-            psg.isEnvelopeHeld = true;
-            Assert::AreEqual (1.0f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"a stopped level at the right");
+            psg.envelopeRegister  = 0x0D;   // CONT, ATT, HOLD: rises once, then stays at 15
+            psg.envelopeRamps     = 1;
+            psg.envelopeLevel     = 15;
+            psg.isEnvelopeHeld    = true;
+            psg.envelopeHeldSteps = 0;
+            Assert::AreEqual (0.25f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"where the level stopped, at the end of its ramp");
+
+            psg.envelopeHeldSteps = 16;
+            Assert::AreEqual (0.50f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"a ramp's time later, along the flat line");
+
+            psg.envelopeHeldSteps = 64;
+            Assert::AreEqual (1.0f, SoundBoardView::GetEnvelopeMarkX (psg), 0.001f, L"at the right, and no further");
         }
 
 

@@ -426,7 +426,8 @@ void Ay8910::StepEnvelope()
 {
     if (m_envHolding)
     {
-        // Held at the last level; nothing to advance.
+        // At the last level until R13 is written; only the picture's time moves on.
+        m_envHeldSteps = std::min (m_envHeldSteps + 1, kEnvHeldStepCap);
     }
     else if (m_envDirUp && m_envLevel < kMaxEnvLevel)
     {
@@ -490,9 +491,10 @@ void Ay8910::RestartEnvelope (Byte shape)
     m_envAlt     = (shape & kEnvAlternate) != 0;
     m_envHold    = (shape & kEnvHold)      != 0;
 
-    m_envHolding = false;
-    m_envRamps   = 0;
-    m_envDirUp   = m_envAttack;
+    m_envHolding   = false;
+    m_envRamps     = 0;
+    m_envHeldSteps = 0;
+    m_envDirUp     = m_envAttack;
     m_envLevel   = m_envDirUp ? 0 : kMaxEnvLevel;
     m_envCounter = 2 * GetEnvPeriod();
 }
@@ -792,8 +794,9 @@ void Ay8910::AppendSoundBoard (DiagnosticsSoundPsg & out) const
     out.envelopeRegister = m_regs[kRegEnvShape];
     out.envelopePeriod   = GetEnvPeriod();
     out.envelopeLevel    = m_envLevel;
-    out.envelopeRamps    = m_envRamps;
-    out.isEnvelopeHeld   = m_envHolding;
+    out.envelopeRamps      = m_envRamps;
+    out.envelopeHeldSteps  = m_envHeldSteps;
+    out.isEnvelopeHeld     = m_envHolding;
     out.envelopeRampMs   = kEnvelopeDivisor * out.envelopePeriod / m_clockHz * kMsPerSecond;
     out.noisePeriod      = GetNoisePeriod();
     out.noiseHz          = m_clockHz / (kToneDivisor * out.noisePeriod);

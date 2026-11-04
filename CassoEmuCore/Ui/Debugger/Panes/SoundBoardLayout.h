@@ -52,6 +52,9 @@ public:
     //  "440.0 Hz", or "1.25 kHz" from 1 kHz up.
     static std::wstring  GetFrequencyText (double hz);
 
+    //  "512.6 ms", or "0.25 ms" under a millisecond.
+    static std::wstring  GetMillisecondsText (double ms);
+
     //  An envelope over kEnvelopeRamps ramps, from R13's four bits: x from 0 to
     //  1, and y from 0 at silence to 1 at full.
     static std::vector<Point>  GetEnvelopePoints (Byte shapeRegister);

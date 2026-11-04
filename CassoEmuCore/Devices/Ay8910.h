@@ -85,6 +85,9 @@ public:
 
     static constexpr int     kMaxEnvLevel = 15;
 
+    //  Four ramps of 16 steps, the span of the debugger's envelope picture.
+    static constexpr int     kEnvHeldStepCap = 64;
+
     explicit Ay8910 (double clockHz = kDefaultClockHz);
 
     void    SetSampleRate (uint32_t sampleRate);
@@ -210,8 +213,10 @@ protected:
     bool     m_envAlt     = false;
     bool     m_envHold    = false;
 
-    //  The ramps finished since R13 was written, for the debugger's
-    //  picture of the envelope only; not saved, since nothing the machine
-    //  does depends on it.
-    int      m_envRamps   = 0;
+    //  The ramps finished since R13 was written, and the steps since the
+    //  envelope stopped at its last level, up to kEnvHeldStepCap, for the
+    //  debugger's picture of the envelope only; not saved, since nothing the
+    //  machine does depends on them.
+    int      m_envRamps     = 0;
+    int      m_envHeldSteps = 0;
 };
