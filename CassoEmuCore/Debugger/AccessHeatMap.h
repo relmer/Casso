@@ -62,7 +62,9 @@ enum class HeatKind
 //  before (HeatHistory::LookUpLastAccess).
 //
 //  The tables are allocated by Start and freed by Stop; a map that is off
-//  holds no memory and ignores whatever it is told.
+//  has no memory and doesn't count accesses. Restart clears the tables of
+//  a map that is on and starts it again, for a caller that starts a map
+//  many times in a row.
 //
 //  Given the machine's position, the map counts only the instructions at
 //  or after the position it was started at, so a replay of the past from
@@ -130,9 +132,10 @@ public:
     //  steady one look hotter.
     static constexpr double    kHottestPerSecond = 50000.0;
 
-    void   Start (const Microcode * instructionSet, uint64_t cycle);
-    void   Stop  ();
-    bool   IsOn  () const { return !m_heat.empty(); }
+    void   Start   (const Microcode * instructionSet, uint64_t cycle);
+    void   Restart (const Microcode * instructionSet, uint64_t cycle);
+    void   Stop    ();
+    bool   IsOn    () const { return !m_heat.empty(); }
 
     //  The machine's position and cycle count, read on each access; a null
     //  position counts every access. Start counts from where it points then,
@@ -317,6 +320,20 @@ private:
     //  the list of such entries emptied, once nothing on it has any.
     void           Bump             (size_t entry);
     void           ClearListed      ();
+
+    //  Every table of a map that is on, cleared, and the state of a map just
+    //  started at a cycle.
+    void           Begin            (uint64_t cycle);
+
+    //  A table's bytes set to a value. A debug build fills a table of
+    //  structures or floats an element at a time, and a map's tables have
+    //  millions of elements.
+    template <typename T>
+    static void    FillBytes        (std::vector<T> & table, int value)
+    {
+        static_assert (std::is_trivially_copyable_v<T>);
+        memset (table.data(), value, table.size() * sizeof (T));
+    }
 
     const Microcode              * m_instructionSet = nullptr;
     const uint64_t               * m_position       = nullptr;
