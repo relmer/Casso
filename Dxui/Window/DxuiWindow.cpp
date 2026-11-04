@@ -794,6 +794,50 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouseLeave
+//
+//  WM_MOUSELEAVE. Without it a control's hover, a tip or a preview stayed up
+//  when the pointer moved to another of the app's windows or onto a popup,
+//  since this window then got no more moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnMouseLeave()
+{
+    SendMouseLeave();
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SendMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SendMouseLeave()
+{
+    bool  isDragging = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+
+
+
+    if (isDragging)
+    {
+        return;
+    }
+
+    (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, kOutsidePx, kOutsidePx, 0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseWheel
 //
 //  WM_MOUSEWHEEL packs the point in SCREEN coordinates; convert to the

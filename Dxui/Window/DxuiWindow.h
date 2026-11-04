@@ -321,6 +321,11 @@ protected:
     //  is awaited.
     bool  IsKeyPrefixPending () const { return m_keyPrefix.has_value(); }
 
+    //  The pointer left the client area: send the controls a Leave event, at
+    //  a point outside every control, so hover, tips and previews end.
+    //  Not while the left button is down, since a drag goes on outside.
+    void  SendMouseLeave ();
+
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
     //  the dialog enters dialog mode. A subclass that later SHOWS OR HIDES part
@@ -456,6 +461,9 @@ protected:
     //
     static constexpr UINT  kDefaultDialogTickMs = 250;
 
+    //  The point of a Leave event: left of and above every control.
+    static constexpr int   kOutsidePx = -32768;
+
     void  SetDialogTickIntervalMs (UINT ms);
 
     //
@@ -474,6 +482,7 @@ private:
     DxuiMessageResult  OnXButtonUp   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnMouseLeave  () override;
     DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor   (WORD hitTest) override;

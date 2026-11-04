@@ -88,6 +88,7 @@ namespace DebuggerCommandTipTests
         using DebuggerWindow::GetMenuBar;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::TickTooltip;
+        using DebuggerWindow::SendMouseLeave;
     };
 
 
@@ -219,6 +220,35 @@ namespace DebuggerCommandTipTests
             (void) window.OnMouse (press);
 
             Assert::IsFalse (window.GetTooltip().IsVisible(), L"the tip outlasted the press");
+        }
+
+
+        //  The pointer leaving the window, for another of the app's windows,
+        //  closes the tip, since the window then gets no more moves.
+        TEST_METHOD (LeavingTheWindowClosesItsTip)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost          host;
+            TipWindow        window (theme, host);
+            DxuiDpiScaler    scaler;
+            RECT             brk    = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
+
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
+
+            Move (window, GetCenter (brk));
+            (void) window.TickTooltip ((int64_t) GetTickCount64() + 10000);
+            Assert::IsTrue (window.GetTooltip().IsVisible(), L"no tip over Break");
+
+            window.SendMouseLeave();
+            (void) window.TickTooltip ((int64_t) GetTickCount64() + 20000);
+
+            Assert::IsFalse (window.GetTooltip().IsVisible(), L"the tip outlasted the pointer leaving the window");
         }
 
 

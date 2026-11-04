@@ -820,6 +820,12 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    //  The pointer left the window: its tip closes.
+    if (ev.kind == DxuiMouseEventKind::Leave)
+    {
+        GetRoutedTips().OnLeave ((int64_t) GetTickCount64());
+    }
+
     //  A press hides any tip at once: a button it lands on may open a dialog
     //  or a menu, and the tip would stay up over it.
     if (ev.kind == DxuiMouseEventKind::Down)
