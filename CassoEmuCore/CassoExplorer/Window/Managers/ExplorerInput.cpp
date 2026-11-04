@@ -332,6 +332,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 {
     POINT  point = ev.positionDip;
     bool   press = ev.kind == DxuiMouseEventKind::Down;
+    bool   took  = false;
 
 
 
@@ -455,8 +456,29 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         && (ExplorerLayout::Contains (m_context.preview.GetToolbar().GetBounds(), point) || ev.kind == DxuiMouseEventKind::Up)
         && m_context.toolbars.RouteToolbarMouse (m_context.preview.GetToolbar(), ev))
     {
+        m_overPreviewBar = true;
         m_context.window.Invalidate();
         return true;
+    }
+
+    //  The first move off the preview's toolbar, or out of the window, is
+    //  passed to the toolbar once, so its hover and tooltip are cleared, as the
+    //  window's toolbars' are.
+    if (m_overPreviewBar && (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave))
+    {
+        m_overPreviewBar = false;
+
+        if (ev.kind == DxuiMouseEventKind::Leave)
+        {
+            m_context.preview.GetToolbar().OnToolbarMouseLeave();
+        }
+        else
+        {
+            took = m_context.toolbars.RouteToolbarMouse (m_context.preview.GetToolbar(), ev);
+            IGNORE_RETURN_VALUE (took, false);
+        }
+
+        m_context.window.Invalidate();
     }
 
     if (m_context.toolbars.HandleMouse (ev))
