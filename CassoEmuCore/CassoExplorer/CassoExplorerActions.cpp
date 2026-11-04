@@ -318,7 +318,24 @@ void CassoExplorerActions::AddFilesystemVerbs (std::vector<Verb> & inOutVerbs) c
 
 bool CassoExplorerActions::CanChooseFilesystem (const std::wstring & image) const
 {
-    return m_browser.GetFilesystemChoices() != nullptr && m_browser.GetOperations().IsUnrecognized (TextEncoding::WideToNarrow (image));
+    ImageFacts  * facts = nullptr;
+
+
+
+    if (m_browser.GetFilesystemChoices() == nullptr)
+    {
+        return false;
+    }
+
+    facts = &GetImageFacts (image);
+
+    if (!facts->checkedFormat)
+    {
+        facts->unrecognized  = m_browser.GetOperations().IsUnrecognized (TextEncoding::WideToNarrow (image));
+        facts->checkedFormat = true;
+    }
+
+    return facts->unrecognized;
 }
 
 
@@ -1117,6 +1134,7 @@ void CassoExplorerActions::FinishWrite (const std::wstring & imagePath)
 
 
     m_browser.GetBrowserModel().InvalidateCatalog (imagePath);
+    m_imageFacts.erase (imagePath);
     hr = m_browser.Refresh();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1985,13 +2003,70 @@ bool CassoExplorerActions::IsTargetPascal() const
 
 bool CassoExplorerActions::IsImagePascal (const std::wstring & image) const
 {
-    VolumeListing  listing;
-    VolumeKind     kind = VolumeKind::Unknown;
-    bool           read = !image.empty() && m_browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded();
+    VolumeListing    listing;
+    VolumeKind       kind  = VolumeKind::Unknown;
+    ImageFacts     * facts = nullptr;
+    bool             read  = false;
 
 
 
-    return read && kind == VolumeKind::Pascal;
+    if (image.empty())
+    {
+        return false;
+    }
+
+    facts = &GetImageFacts (image);
+
+    //  The catalog the list or the preview read, when there is one.
+    if (!facts->checkedKind)
+    {
+        read               = m_browser.GetBrowserModel().TryGetCachedCatalog (image, listing, kind)
+                          || m_browser.GetOperations().List (TextEncoding::WideToNarrow (image), listing, kind).Succeeded();
+        facts->isPascal    = read && kind == VolumeKind::Pascal;
+        facts->checkedKind = true;
+    }
+
+    return facts->isPascal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::GetImageFacts
+//
+//  The image's facts, emptied when its size or time is no longer what they
+//  were found at, or when it can't be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::ImageFacts & CassoExplorerActions::GetImageFacts (const std::wstring & image) const
+{
+    FileStamp     stamp;
+    HRESULT       hr    = m_browser.GetOperations().GetFileIo().Stat (TextEncoding::WideToNarrow (image), stamp);
+    bool          known = m_imageFacts.contains (image);
+    ImageFacts  * facts = nullptr;
+
+
+
+    //  A folder of images browsed for a long time doesn't grow the facts
+    //  without end.
+    if (!known && m_imageFacts.size() >= kMaxImageFacts)
+    {
+        m_imageFacts.clear();
+    }
+
+    facts = &m_imageFacts[image];
+
+    if (FAILED (hr) || facts->stamp.sizeBytes != stamp.sizeBytes || facts->stamp.modifiedUnix != stamp.modifiedUnix)
+    {
+        *facts       = ImageFacts();
+        facts->stamp = stamp;
+    }
+
+    return *facts;
 }
 
 

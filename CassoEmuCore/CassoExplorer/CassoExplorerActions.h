@@ -5,6 +5,7 @@
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
+#include "Devices/Disk/IDiskFileIo.h"
 
 struct AppleSingleFile;
 class CassoExplorerBrowser;
@@ -274,15 +275,31 @@ public:
     static constexpr size_t    kSearchChunkBytes = 1024 * 1024;
 
 private:
+    //  What reading an image found, reused until its size or time changes.
+    //  The toolbar's commands are checked on every paint, and reading a WOZ
+    //  image's tracks takes far longer than a frame.
+    struct ImageFacts
+    {
+        FileStamp  stamp;
+        bool       checkedFormat = false;
+        bool       unrecognized  = false;
+        bool       checkedKind   = false;
+        bool       isPascal      = false;
+    };
+
+    static constexpr size_t  kMaxImageFacts = 256;
+
     std::vector<std::string>  GetEntryNames (const std::string & image, const std::string & directory) const;
+    ImageFacts              & GetImageFacts (const std::wstring & image) const;
 
     void  FinishWrite (const std::wstring & imagePath);
 
     static void  Append (Outcome & inOutOutcome, const DiskOperations::Result & result);
 
-    CassoExplorerBrowser  & m_browser;
-    IFileSystem           & m_fs;
-    WrittenFn               m_onWritten;
+    CassoExplorerBrowser                        & m_browser;
+    IFileSystem                                 & m_fs;
+    WrittenFn                                     m_onWritten;
+    mutable std::map<std::wstring, ImageFacts>    m_imageFacts;
 
     //  The actions' parts, each with the state it uses.
     friend class       ActionsAppleDrive;
