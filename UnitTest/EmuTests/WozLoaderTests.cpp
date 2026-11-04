@@ -1939,5 +1939,217 @@ public:
                          L"a v1 INFO has no boot-sector field to report");
     }
 
-};
 
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  ApplyEdits: Disk properties' edits, made in the file's bytes
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    static WozLoader::Edits MakeEdits (const char * title)
+    {
+        WozLoader::Edits  edits;
+
+        edits.writeProtected     = true;
+        edits.bootSectorFormat   = WozLoader::kBootSector13;
+        edits.compatibleHardware = 0x000C;
+        edits.requiredRamK       = 128;
+        edits.meta               = { { "title", title }, { "publisher", "Broderbund" } };
+
+        return edits;
+    }
+
+
+    void BuildFluxImage (vector<Byte> & out)
+    {
+        WozSyntheticTrack  bits;
+        WozSyntheticTrack  flux;
+
+        bits.data          = MakeBitStream();
+        bits.bitCount      = kTestBitCount;
+        bits.quarterTracks = { 0 };
+        flux.data.assign (1000, 0x20);
+        flux.isFlux        = true;
+        flux.quarterTracks = { 4 };
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 ({ bits, flux }, out));
+    }
+
+
+    TEST_METHOD (ApplyEdits_ChangesInfoAndAddsMeta_LeavingEveryOtherByteAlone)
+    {
+        vector<Byte>            before;
+        vector<Byte>            after;
+        WozLoader::Description  woz;
+        DiskImage               image;
+        size_t                  info = WozLoader::kHeaderSize + kChunkHeader;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, MakeBitStream(), kTestBitCount, before));
+        after = before;
+
+        AssertSucceeded (WozLoader::ApplyEdits (after, MakeEdits ("Karateka")));
+        WozLoader::Describe (after, woz);
+
+        Assert::IsTrue   (woz.writeProtected);
+        Assert::AreEqual (WozLoader::kBootSector13, woz.bootSectorFormat);
+        Assert::AreEqual ((uint16_t) 0x000C, woz.compatibleHardware);
+        Assert::AreEqual ((uint16_t) 128, woz.requiredRamK);
+        Assert::AreEqual (size_t (2), woz.meta.size());
+        Assert::AreEqual (std::string ("Karateka"),   woz.meta[0].value);
+        Assert::AreEqual (std::string ("Broderbund"), woz.meta[1].value);
+
+        for (size_t at = 0; at < before.size(); at++)
+        {
+            bool  edited = (at >= 8 && at < 12)
+                        || at == info + WozLoader::kInfoOffsetWriteProtected
+                        || at == info + WozLoader::kInfoOffsetBootSectorFormat
+                        || (at >= info + WozLoader::kInfoOffsetCompatibleHw && at < info + WozLoader::kInfoOffsetLargestTrack);
+
+            if (!edited)
+            {
+                Assert::AreEqual (before[at], after[at], std::format (L"byte {} is an edited field's or the CRC's", at).c_str());
+            }
+        }
+
+        AssertSucceeded (WozLoader::Load (after, image));
+        Assert::IsFalse (image.IsDamaged(), L"the CRC matches the edited bytes");
+    }
+
+
+    TEST_METHOD (ApplyEdits_Twice_ReplacesMeta)
+    {
+        vector<Byte>            bytes;
+        WozLoader::Description  woz;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, MakeBitStream(), kTestBitCount, bytes));
+        AssertSucceeded (WozLoader::ApplyEdits (bytes, MakeEdits ("Karateka")));
+        AssertSucceeded (WozLoader::ApplyEdits (bytes, MakeEdits ("Choplifter")));
+        WozLoader::Describe (bytes, woz);
+
+        Assert::AreEqual (size_t (2), woz.meta.size(), L"one META, not two");
+        Assert::AreEqual (std::string ("Choplifter"), woz.meta[0].value);
+    }
+
+
+    TEST_METHOD (ApplyEdits_NoFields_RemovesMeta)
+    {
+        vector<Byte>            before;
+        vector<Byte>            bytes;
+        WozLoader::Description  woz;
+        WozLoader::Edits        edits = MakeEdits ("Karateka");
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, MakeBitStream(), kTestBitCount, before));
+        bytes = before;
+        AssertSucceeded (WozLoader::ApplyEdits (bytes, edits));
+
+        edits.meta.clear();
+        AssertSucceeded (WozLoader::ApplyEdits (bytes, edits));
+        WozLoader::Describe (bytes, woz);
+
+        Assert::IsTrue   (woz.meta.empty());
+        Assert::AreEqual (before.size(), bytes.size());
+    }
+
+
+    TEST_METHOD (ApplyEdits_Version1Info_TakesMetaButNotTheLaterFields)
+    {
+        vector<Byte>            before;
+        vector<Byte>            bytes;
+        WozLoader::Description  woz;
+        WozLoader::Edits        edits = MakeEdits ("Karateka");
+        HRESULT                 hr    = S_OK;
+
+        BuildSyntheticV1 (MakeBitStream(), kTestBitCount, before);
+        bytes = before;
+
+        hr = WozLoader::ApplyEdits (bytes, edits);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), hr);
+        Assert::IsTrue   (before == bytes, L"a refused edit changes nothing");
+
+        edits.bootSectorFormat   = WozLoader::kBootSectorUnknown;
+        edits.compatibleHardware = 0;
+        edits.requiredRamK       = 0;
+
+        AssertSucceeded (WozLoader::ApplyEdits (bytes, edits));
+        WozLoader::Describe (bytes, woz);
+
+        Assert::IsTrue   (woz.writeProtected);
+        Assert::AreEqual (size_t (2), woz.meta.size());
+    }
+
+
+    TEST_METHOD (ApplyEdits_CrcMismatch_LeavesTheFileAlone)
+    {
+        vector<Byte>  before;
+        vector<Byte>  bytes;
+        HRESULT       hr = S_OK;
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, MakeBitStream(), kTestBitCount, before));
+        AssertSucceeded (WozLoader::ApplyEdits (before, MakeEdits ("Karateka")));
+        before[before.size() / 2] ^= 0x55;
+        bytes = before;
+
+        hr = WozLoader::ApplyEdits (bytes, MakeEdits ("Choplifter"));
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CRC), hr);
+        Assert::IsTrue   (before == bytes);
+    }
+
+
+    TEST_METHOD (ApplyEdits_FluxImage_AppendsMetaAfterFlux)
+    {
+        vector<Byte>            bytes;
+        WozLoader::Description  before;
+        WozLoader::Description  after;
+        DiskImage               image;
+
+        BuildFluxImage (bytes);
+        WozLoader::Describe (bytes, before);
+
+        AssertSucceeded (WozLoader::ApplyEdits (bytes, MakeEdits ("Karateka")));
+        WozLoader::Describe (bytes, after);
+
+        Assert::AreEqual (before.fluxSlotsWithData, after.fluxSlotsWithData, L"FLUX is where INFO points");
+        Assert::AreEqual (size_t (2), after.meta.size());
+        AssertSucceeded  (WozLoader::Load (bytes, image));
+    }
+
+
+    TEST_METHOD (ApplyEdits_MetaBeforeFlux_IsRefused)
+    {
+        vector<Byte>  bytes;
+        vector<Byte>  before;
+        const char    meta[] = "META\x0C\0\0\0title\tOld!!\n";
+        size_t        at     = WozLoader::kHeaderSize;
+        HRESULT       hr     = S_OK;
+
+        BuildFluxImage (bytes);
+
+        while (memcmp (bytes.data() + at, "FLUX", 4) != 0)
+        {
+            at += kChunkHeader + (bytes[at + 4] | (bytes[at + 5] << 8) | (bytes[at + 6] << 16) | (bytes[at + 7] << 24));
+        }
+
+        bytes.insert (bytes.begin() + (ptrdiff_t) at, meta, meta + kChunkHeader + 12);
+        memset (bytes.data() + 8, 0, 4);
+        before = bytes;
+
+        hr = WozLoader::ApplyEdits (bytes, MakeEdits ("Karateka"));
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), hr);
+        Assert::IsTrue   (before == bytes);
+    }
+
+
+    TEST_METHOD (ApplyEdits_TabInValue_IsRefused)
+    {
+        vector<Byte>      bytes;
+        WozLoader::Edits  edits = MakeEdits ("Kara\tteka");
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, MakeBitStream(), kTestBitCount, bytes));
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), WozLoader::ApplyEdits (bytes, edits));
+    }
+
+};

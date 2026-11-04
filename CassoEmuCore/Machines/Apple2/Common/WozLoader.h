@@ -100,6 +100,10 @@ public:
         bool                    hasBitTiming        = false;
         Byte                    bitTiming           = 0;
 
+        //  Also version 2 and later; zero in either means unknown.
+        uint16_t                compatibleHardware  = 0;
+        uint16_t                requiredRamK        = 0;
+
         std::string             creator;
         std::vector<MetaField>  meta;
 
@@ -166,6 +170,24 @@ public:
     // bytes that are not a WOZ or carry no usable INFO chunk.
     static bool     IsWriteProtectFlagSet (const vector<Byte> & fileBytes);
 
+    //  The fields Disk properties edits. INFO's fields after the disk sides
+    //  exist from version 2 on. An empty meta removes META.
+    struct Edits
+    {
+        bool                    writeProtected     = false;
+        Byte                    bootSectorFormat   = 0;
+        uint16_t                compatibleHardware = 0;
+        uint16_t                requiredRamK       = 0;
+        std::vector<MetaField>  meta;
+    };
+
+    //  Makes the edits in a WOZ file's bytes and computes the header CRC
+    //  again, changing no other byte. On failure the bytes are as they were:
+    //  ERROR_CRC for a file whose CRC doesn't match, ERROR_NOT_SUPPORTED for
+    //  version 2 fields on a version 1 INFO or a META that can't be moved,
+    //  and ERROR_INVALID_DATA for a key or value with a tab or a line break.
+    static HRESULT  ApplyEdits (vector<Byte> & fileBytes, const Edits & edits);
+
     static HRESULT  BuildSyntheticV2 (
         Byte                  diskType,
         bool                  writeProtected,
@@ -212,6 +234,22 @@ public:
     static constexpr Byte    kBitTimingStandard  = 32;
 
 private:
+    //  A chunk's place in a file: its header, and its payload's offset and size.
+    struct ChunkSpan
+    {
+        Byte    id[4]   = {};
+        size_t  start   = 0;
+        size_t  payload = 0;
+        size_t  size    = 0;
+    };
+
+    //  The chunks from the header to the first id that isn't a chunk's, and
+    //  where that walk ends.
+    static void     WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & outChunks, size_t & outEnd);
+
+    //  META's text: key, tab, value and a line break for each field with a value.
+    static HRESULT  FormatMeta (const std::vector<MetaField> & fields, std::string & outText);
+
     //  A fixed-width, space-padded field as a string with the padding removed.
     //  INFO stores its creator that way.
     static std::string  ReadPaddedField (const Byte * bytes, size_t length);

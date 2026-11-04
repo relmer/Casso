@@ -556,6 +556,184 @@ bool WozLoader::IsWriteProtectFlagSet (const vector<Byte> & fileBytes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozLoader::ApplyEdits
+//
+//  Disk properties' edits, made in the file's bytes: INFO's fields are
+//  changed where they are, the old META is removed, the new one is appended
+//  after the last chunk, and the header CRC is computed again.
+//
+//  A file whose CRC doesn't match is left alone, since a new CRC would hide
+//  the damage. So is a file with a FLUX chunk after META: removing META
+//  would move FLUX off the block INFO points to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::ApplyEdits (vector<Byte> & fileBytes, const Edits & edits)
+{
+    HRESULT                 hr     = S_OK;
+    vector<Byte>            bytes  = fileBytes;
+    bool                    isWoz  = bytes.size() >= kHeaderSize && (MatchSig (bytes.data(), kSigV2) || MatchSig (bytes.data(), kSigV1));
+    uint32_t                stored = 0;
+    std::vector<ChunkSpan>  chunks;
+    size_t                  end    = 0;
+    const ChunkSpan       * info   = nullptr;
+    const ChunkSpan       * meta   = nullptr;
+    const ChunkSpan       * flux   = nullptr;
+    Byte                  * fields = nullptr;
+    std::string             text;
+    size_t                  at     = 0;
+
+
+
+    CBREx (isWoz, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  Zero means the writer didn't compute a CRC.
+    stored = Read32LE (bytes.data() + kSigLen);
+    CBREx (stored == 0 || stored == Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize), HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    hr = FormatMeta (edits.meta, text);
+    CHR (hr);
+
+    WalkChunks (bytes, chunks, end);
+
+    for (const ChunkSpan & chunk : chunks)
+    {
+        info = MatchMagic (chunk.id, kInfoMagic) ? &chunk : info;
+        meta = MatchMagic (chunk.id, kMetaMagic) ? &chunk : meta;
+        flux = MatchMagic (chunk.id, kFluxMagic) ? &chunk : flux;
+    }
+
+    CBREx (info != nullptr && info->size >= kInfoChunkSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    fields                            = bytes.data() + info->payload;
+    fields[kInfoOffsetWriteProtected] = static_cast<Byte> (edits.writeProtected ? 1 : 0);
+
+    //  A version 1 INFO ends at the disk sides, and the rest is padding.
+    if (fields[kInfoOffsetVersion] >= kInfoVersion2)
+    {
+        fields[kInfoOffsetBootSectorFormat] = edits.bootSectorFormat;
+        Write16LE (fields + kInfoOffsetCompatibleHw, edits.compatibleHardware);
+        Write16LE (fields + kInfoOffsetRequiredRam,  edits.requiredRamK);
+    }
+    else
+    {
+        CBREx (edits.bootSectorFormat == kBootSectorUnknown && edits.compatibleHardware == 0 && edits.requiredRamK == 0, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    }
+
+    if (meta != nullptr)
+    {
+        CBREx (flux == nullptr || flux->start < meta->start, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        bytes.erase (bytes.begin() + (ptrdiff_t) meta->start, bytes.begin() + (ptrdiff_t) (meta->payload + meta->size));
+        end -= kChunkHeaderSize + meta->size;
+    }
+
+    //  A META appended after bytes that aren't a chunk, such as track blocks a
+    //  TRKS chunk doesn't cover, can't be reached by a walk of the chunks.
+    if (!text.empty())
+    {
+        CBREx (end == bytes.size(), HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        at = bytes.size();
+        bytes.resize (at + kChunkHeaderSize + text.size());
+
+        memcpy    (bytes.data() + at, kMetaMagic, sizeof (kMetaMagic));
+        Write32LE (bytes.data() + at + 4, static_cast<uint32_t> (text.size()));
+        memcpy    (bytes.data() + at + kChunkHeaderSize, text.data(), text.size());
+    }
+
+    Write32LE (bytes.data() + kSigLen, Crc32 (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize));
+
+    fileBytes.swap (bytes);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::WalkChunks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & outChunks, size_t & outEnd)
+{
+    size_t  pos  = kHeaderSize;
+    bool    more = true;
+
+
+
+    outChunks.clear();
+
+    while (more && pos + kChunkHeaderSize <= raw.size())
+    {
+        ChunkSpan  chunk;
+        bool       isId = std::all_of (raw.begin() + (ptrdiff_t) pos, raw.begin() + (ptrdiff_t) pos + 4, [] (Byte b) { return b >= 'A' && b <= 'Z'; });
+
+        chunk.start   = pos;
+        chunk.payload = pos + kChunkHeaderSize;
+        chunk.size    = Read32LE (raw.data() + pos + 4);
+        more          = isId && chunk.payload + chunk.size <= raw.size();
+
+        if (more)
+        {
+            memcpy (chunk.id, raw.data() + pos, sizeof (chunk.id));
+            outChunks.push_back (chunk);
+            pos = chunk.payload + chunk.size;
+        }
+    }
+
+    outEnd = pos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::FormatMeta
+//
+//  A field with no value is left out, as ParseMetaChunk skips one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::FormatMeta (const std::vector<MetaField> & fields, std::string & outText)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outText.clear();
+
+    for (const MetaField & field : fields)
+    {
+        bool  plain = !field.key.empty()
+                   && field.key.find_first_of   ("\t\r\n") == std::string::npos
+                   && field.value.find_first_of ("\t\r\n") == std::string::npos;
+
+        CBREx (plain, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        if (!field.value.empty())
+        {
+            outText += field.key + '\t' + field.value + '\n';
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozLoader::Load
 //
 //  Parse a WOZ v1 or v2 image. Validates the signature, walks chunks,
@@ -1132,6 +1310,8 @@ void WozLoader::Describe (const vector<Byte> & raw, Description & out)
                 out.bootSectorFormat    = info[kInfoOffsetBootSectorFormat];
                 out.hasBitTiming        = true;
                 out.bitTiming           = info[kInfoOffsetBitTiming];
+                out.compatibleHardware  = Read16LE (info + kInfoOffsetCompatibleHw);
+                out.requiredRamK        = Read16LE (info + kInfoOffsetRequiredRam);
             }
         }
         else if (MatchMagic (id, kTmapMagic) && chunkSize >= kTmapChunkSize)
