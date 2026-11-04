@@ -67,6 +67,10 @@ public:
     void    ScrollPhonemes   (int count);
     size_t  GetPhonemesBack  () const { return m_phonemesBack; }
 
+    //  How many columns the speech chip's values are in: four where the
+    //  mode's name fits in the first, two or one where the pane is narrower.
+    int     GetValueColumns  () const;
+
     //  A notch of the wheel over the strip.
     static constexpr int  kPhonemesPerNotch = 4;
 
@@ -134,7 +138,9 @@ private:
     static constexpr int  kStripDip        = 30;
     static constexpr int  kStripHeadDip    = 18;
     static constexpr int  kHistoryDip      = 30;
-    static constexpr int  kValueRows       = 2;
+    static constexpr int  kValueCount      = 8;
+    static constexpr int  kValueFirstDip   = 250;     // the first column's least width, for the mode's name
+    static constexpr int  kValueCellDip    = 160;
     static constexpr int  kLabelDip        = 44;
     static constexpr int  kVoiceLabelDip   = 78;
     static constexpr int  kWordBreakDip    = 6;
@@ -157,6 +163,7 @@ private:
     RECT  GetMuteOfVoice    (const RECT & card) const;
     RECT  GetEnvelopeRect   (const RECT & card) const;
     int   GetVoiceHeight    () const;
+    RECT  GetValueCell      (const RECT & card, int index) const;
     int   GetHalfHeight     () const;
     int   GetClientWidth    () const;
     RECT  ToClient          (const RECT & content) const;

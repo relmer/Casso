@@ -264,6 +264,33 @@ namespace DebuggerTests
         }
 
 
+        //  The speech chip's values are in four columns where the mode's name
+        //  fits, and in two or one where the pane is narrower, so no value runs
+        //  into the next label; the card is taller for the extra rows.
+        TEST_METHOD (TheSpeechValuesReflowToTheWidth)
+        {
+            SoundBoardView  wide;
+            SoundBoardView  middle;
+            SoundBoardView  narrow;
+
+
+
+            for (SoundBoardView * view : { &wide, &middle, &narrow })
+            {
+                view->SetBoard (MakeBoard (true));
+            }
+
+            LayOut (wide,   1400);
+            LayOut (middle, 600);
+            LayOut (narrow, 380);
+
+            Assert::AreEqual (4, wide.GetValueColumns());
+            Assert::AreEqual (2, middle.GetValueColumns());
+            Assert::AreEqual (1, narrow.GetValueColumns());
+            Assert::IsTrue   (middle.GetContentHeight() > wide.GetContentHeight() - 1, L"the card didn't grow for the extra rows");
+        }
+
+
         //  At two columns the halves are side by side; at one, the second is below.
         TEST_METHOD (TheCardsReflowWithTheWidth)
         {

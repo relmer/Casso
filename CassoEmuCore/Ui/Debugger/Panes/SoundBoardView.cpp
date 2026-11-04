@@ -58,7 +58,11 @@ void SoundBoardView::SetBoard (const DiagnosticsSoundBoard & board)
 
 int SoundBoardView::GetVoiceHeight() const
 {
-    return m_scaler.ToPx (kPadDip + kTitleDip + kPhonemeDip + kGapDip + kStripHeadDip + kStripDip + kHistoryDip + kGapDip + kValueRows * kRegisterDip + kPadDip);
+    int  rows = kValueCount / GetValueColumns();
+
+
+
+    return m_scaler.ToPx (kPadDip + kTitleDip + kPhonemeDip + kGapDip + kStripHeadDip + kStripDip + kHistoryDip + kGapDip + rows * kRegisterDip + kPadDip);
 }
 
 
@@ -115,7 +119,7 @@ void SoundBoardView::Reflow()
 {
     int               gap     = m_scaler.ToPx (kGapDip);
     int               height  = (int) (m_boundsDip.bottom - m_boundsDip.top) - 2 * gap;
-    int               voice   = m_board.voice.has_value() ? GetVoiceHeight() + gap : 0;
+    int               voice   = 0;
     int               columns = 1;
     int               below   = 0;
     std::vector<int>  heights (m_board.halves.size(), GetHalfHeight());
@@ -125,6 +129,7 @@ void SoundBoardView::Reflow()
     for (bool hasBar : { false, true })
     {
         m_hasScrollbar = hasBar;
+        voice          = m_board.voice.has_value() ? GetVoiceHeight() + gap : 0;
         columns        = SoundBoardLayout::GetColumnCount (GetClientWidth(), m_scaler.ToPx (kLeastCardDip), gap, (int) heights.size());
         m_halfCards    = heights.empty() ? std::vector<RECT>() : SoundBoardLayout::PlaceCards (heights, columns, GetClientWidth(), gap, below);
 
@@ -2049,6 +2054,68 @@ void SoundBoardView::PaintFormants (const Painting & p, const DiagnosticsSoundVo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SoundBoardView::GetValueColumns
+//
+//  Four where the mode's name fits in the first column and the rest beside it,
+//  two where two first columns fit, and one where they don't, so no value runs
+//  into the next one's label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SoundBoardView::GetValueColumns() const
+{
+    int  inner = GetClientWidth() - 2 * m_scaler.ToPx (kPadDip);
+
+
+
+    if (inner >= m_scaler.ToPx (kValueFirstDip + 3 * kValueCellDip))
+    {
+        return 4;
+    }
+
+    return (inner >= m_scaler.ToPx (2 * kValueFirstDip)) ? 2 : 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SoundBoardView::GetValueCell
+//
+//  A speech chip value's place, by its index in the order they are painted,
+//  row by row under the strip of recent phonemes. The first column is the
+//  widest, for the mode's name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT SoundBoardView::GetValueCell (const RECT & card, int index) const
+{
+    int  pad     = m_scaler.ToPx (kPadDip);
+    int  left    = card.left + pad;
+    int  inner   = card.right - pad - left;
+    int  columns = GetValueColumns();
+    int  row     = index / columns;
+    int  column  = index % columns;
+    int  first   = (columns == 4) ? inner / 3 : inner / columns;
+    int  other   = (columns > 1) ? (inner - first) / (columns - 1) : 0;
+    int  from    = (column == 0) ? left : left + first + (column - 1) * other;
+    int  to      = (column == 0) ? left + first : from + other;
+    int  high    = m_scaler.ToPx (kRegisterDip);
+    int  top     = card.top + pad + m_scaler.ToPx (kTitleDip + kPhonemeDip + kGapDip + kStripHeadDip + kStripDip + kHistoryDip + kGapDip);
+
+
+
+    return RECT { from, top + row * high, to, top + (row + 1) * high };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SoundBoardView::PaintVoice
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2061,10 +2128,8 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     constexpr int                                    kBigDip      = 58;
     constexpr int                                    kWordDip     = 22;
     constexpr int                                    kCodeDip     = 20;
-    constexpr int                                    kColumns     = 4;
     constexpr int                                    kSegments    = 15;
     constexpr float                                  kBigScale    = 2.6f;
-    constexpr int                                    kFirstExtra  = 3;
     constexpr float                                  kUnlitAlpha  = 0.18f;
     int                                              pad          = m_scaler.ToPx (kPadDip);
     int                                              gap          = m_scaler.ToPx (kGapDip);
@@ -2083,9 +2148,6 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     int                                              scopeLeft    = left + leftWide + gap;
     int                                              rest         = right - scopeLeft;
     int                                              scopeRight   = scopeLeft + (rest - gap) / 2;
-    int                                              rowHigh      = m_scaler.ToPx (kRegisterDip);
-    int                                              wide         = inner / kColumns;
-    int                                              valuesTop    = historyEnd + gap;
     RECT                                             mute         = GetMuteOfVoice (card);
     size_t                                           space        = voice.phoneme.find (' ');
     std::wstring                                     name         = TextEncoding::NarrowToWide (voice.phoneme.substr (0, space));
@@ -2099,15 +2161,7 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     float                                            meterHigh    = m_scaler.ToPxf (14.0f);
     float                                            radius       = m_scaler.ToPxf (4.0f);
     int                                              litSegments  = (int) std::lround (voice.level * kSegments);
-    int                                              firstWide    = wide + wide / kFirstExtra;
-    int                                              otherWide    = (inner - firstWide) / (kColumns - 1);
-    auto              cell         = [&] (int y, int x)
-    {
-        int  from = (x == 0) ? left : left + firstWide + (x - 1) * otherWide;
-        int  to   = (x == 0) ? left + firstWide : from + otherWide;
-
-        return RECT { from, valuesTop + y * rowHigh, to, valuesTop + (y + 1) * rowHigh };
-    };
+    auto                                             cell         = [&] (int index) { return GetValueCell (card, index); };
 
 
 
@@ -2156,20 +2210,20 @@ void SoundBoardView::PaintVoice (const Painting & p, const DiagnosticsSoundVoice
     (void) PaintHistory (p, older, voice.isSounding && back == 0, { left, stripBottom, right, historyEnd });
     PaintStrip (p, older, voice.isSounding && back == 0, { left, stripTop, right, stripBottom });
 
-    PaintValue (p, cell (0, 0), L"Mode",         TextEncoding::NarrowToWide (voice.mode), kVoiceLabelDip);
-    PaintValue (p, cell (0, 1), L"Duration",     std::format (L"{:.1f} ms", voice.durationMs), kVoiceLabelDip);
-    PaintValue (p, cell (0, 2), L"Frame",        std::format (L"{:.1f} ms", voice.frameMs), kVoiceLabelDip);
-    PaintValue (p, cell (0, 3), L"Pitch",        SoundBoardLayout::GetFrequencyText (voice.pitchHz), kVoiceLabelDip);
-    PaintValue (p, cell (1, 0), L"Formants",     std::format (L"{:.0f}, {:.0f}, {:.0f}", voice.formantsHz[0], voice.formantsHz[1], voice.formantsHz[2]), kVoiceLabelDip);
-    PaintValue (p, cell (1, 1), L"Articulation", std::format (L"${:X}", voice.articulation), kVoiceLabelDip);
-    PaintValue (p, cell (1, 2), L"Amplitude",    std::format (L"${:X}", voice.amplitude), kVoiceLabelDip);
-    PaintValue (p, cell (1, 3), L"Filter",       SoundBoardLayout::GetFrequencyText (voice.filterHz), kVoiceLabelDip);
+    PaintValue (p, cell (0), L"Mode",         TextEncoding::NarrowToWide (voice.mode), kVoiceLabelDip);
+    PaintValue (p, cell (1), L"Duration",     std::format (L"{:.1f} ms", voice.durationMs), kVoiceLabelDip);
+    PaintValue (p, cell (2), L"Frame",        std::format (L"{:.1f} ms", voice.frameMs), kVoiceLabelDip);
+    PaintValue (p, cell (3), L"Pitch",        SoundBoardLayout::GetFrequencyText (voice.pitchHz), kVoiceLabelDip);
+    PaintValue (p, cell (4), L"Formants",     std::format (L"{:.0f}, {:.0f}, {:.0f}", voice.formantsHz[0], voice.formantsHz[1], voice.formantsHz[2]), kVoiceLabelDip);
+    PaintValue (p, cell (5), L"Articulation", std::format (L"${:X}", voice.articulation), kVoiceLabelDip);
+    PaintValue (p, cell (6), L"Amplitude",    std::format (L"${:X}", voice.amplitude), kVoiceLabelDip);
+    PaintValue (p, cell (7), L"Filter",       SoundBoardLayout::GetFrequencyText (voice.filterHz), kVoiceLabelDip);
 
     //  What each part means, at the place it is drawn.
     for (const auto & [at, label] : std::initializer_list<std::pair<RECT, const wchar_t *>>
          {
-             { cell (0, 0), L"Mode" },     { cell (0, 1), L"Duration" },     { cell (0, 2), L"Frame" },     { cell (0, 3), L"Pitch" },
-             { cell (1, 0), L"Formants" }, { cell (1, 1), L"Articulation" }, { cell (1, 2), L"Amplitude" }, { cell (1, 3), L"Filter" },
+             { cell (0), L"Mode" },     { cell (1), L"Duration" },     { cell (2), L"Frame" },     { cell (3), L"Pitch" },
+             { cell (4), L"Formants" }, { cell (5), L"Articulation" }, { cell (6), L"Amplitude" }, { cell (7), L"Filter" },
              { RECT { left, top, left + leftWide, (long) meterTop }, L"Phoneme" },
              { RECT { left, (long) meterTop, left + leftWide, mainBottom }, L"Level" },
              { RECT { scopeLeft, top, scopeRight, mainBottom }, L"Waveform" },
