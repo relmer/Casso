@@ -2179,3 +2179,15 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1323 Horizontal wheel: every control that scrolls sideways takes it. **Done:** `82067fb5e`. The disassembly scrolled through memory on it, and the Mockingboard panel's phoneme strip ignored it. The text views, lists, tree views, hex views, tab strips, the heat map, the profiler's timeline, the frame buffer view and the printer's paper took it already. `OnlyTheVerticalWheelScrollsTheDisassemblyThroughMemory`, `TheHorizontalWheelScrollsThePhonemeStrip`.
 - [X] T1324 Pointer leaving a window: WM_MOUSELEAVE is passed to a Dxui window's controls, so a tip, a hover and the history strip's frame preview close when the pointer moves to another of Casso's windows or onto a popup. Found on screen. **Done:** `957a17edb`. `LeavingTheWindowClosesItsTip`.
 - [X] T1325 Mockingboard panel: a pause (PA) is a line between words on the phoneme strip and in the labels under it. **Done:** `e35e2bea4`. `APauseIsALineBetweenTheWords`. A stretch where the chip is idle is not marked: the recent list has no record of idle time.
+
+## Phase 60: Owner's walk, 2026-11-04
+
+- [X] T1326 Run keys: a key that runs the machine (Run, Reverse run, Run to cursor) pauses it while it runs, so F5 pressed twice runs and stops it. **Done:** `f03d434d8`. `ARunKeyPausesTheRunningMachine`, `OnlyTheRunKeysPause`.
+- [X] T1327 Tips over a pane slid out from an edge come from its controls only. Before, the cell tips of the heat map under the Mockingboard panel were drawn over the panel. **Done:** `c6ad8f7ea`. `NoCellTipShowsOverAPaneSlidOutOverTheMap`, which fails without the fix.
+- [X] T1328 Mockingboard panel. **Done:** `8f65aab5b`.
+  - Formants add instead of the tallest one being drawn, so the curve has no corner between two close formants (`TheFormantCurveHasNoCornerBetweenCloseFormants`).
+  - A trace's glow passes are drawn solid in the color they blend to, so the round ends of its segments don't dot the line.
+  - The envelope's dot moves on along the flat line after the level stops, a ramp's width for each 16 steps (`TheEnvelopesDotFollowsItAlongTheRamps`, `AHeldEnvelopeCountsItsStepsForThePicture`).
+  - A ramp under a millisecond has two decimals: a period of 0 counts as 1, and that ramp is 0.25 ms (`ATimeUnderAMillisecondHasTwoDecimals`).
+  - Each tip is one paragraph. It doesn't begin with its label or repeat the value drawn beside it, and has what the value means: the R13 pattern in words, the timer 1 mode, the flags set, the register written last. The Mode tip expands A/R to acknowledge/request (`NoTipBeginsWithItsLabelOrBreaksALine`).
+  - The A, B, C and M mutes are buttons: an edge, a hover fill and a focus ring. They are tab stops; Tab and the arrows move between them, and Space and Enter press one (`TheMutesAreTabStopsThatSpacePresses`, `AMuteIsDrawnAsAButton`).
