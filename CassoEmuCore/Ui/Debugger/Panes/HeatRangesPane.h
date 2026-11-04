@@ -57,7 +57,7 @@ public:
 
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetRangeSetCommands () const { return m_rangeSetCommands; }
 
-    std::wstring                 GetId             () const override;
+    const std::wstring         & GetId             () const override;
     std::wstring                 GetTitle          () const override { return L"Heat map ranges"; }
     void                         CreateControls    () override;
     void                         CreateOverlays    () override;

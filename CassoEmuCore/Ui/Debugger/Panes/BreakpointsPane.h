@@ -65,7 +65,7 @@ public:
     void                             Export         ();
     void                             Import         ();
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"Breakpoints"; }
     void                             CreateControls () override;
     void                             CreateOverlays () override;

@@ -334,7 +334,7 @@ public:
     IDebuggerPane & operator= (const IDebuggerPane &) = delete;
 
     //  The pane's layout id, as DebuggerLayout has it, and its tab's title.
-    virtual std::wstring                 GetId          () const = 0;
+    virtual const std::wstring         & GetId          () const = 0;
     virtual std::wstring                 GetTitle       () const = 0;
 
     //  Where the pane's row is on the View menu, none while it has no row;

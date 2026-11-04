@@ -28,7 +28,7 @@ public:
 
     DxuiListView *               GetList        () const { return m_list; }
 
-    std::wstring                 GetId          () const override { return m_id; }
+    const std::wstring         & GetId          () const override { return m_id; }
     std::wstring                 GetTitle       () const override { return m_title; }
     void                         CreateControls () override;
     void                         AddToDock      (DxuiDockSite & dock) override;

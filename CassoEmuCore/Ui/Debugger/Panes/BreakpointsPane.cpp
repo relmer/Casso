@@ -49,9 +49,13 @@ BreakpointsPane::~BreakpointsPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring BreakpointsPane::GetId() const
+const std::wstring & BreakpointsPane::GetId() const
 {
-    return DebuggerLayout::kBreakpoints;
+    static const std::wstring  s_kId = DebuggerLayout::kBreakpoints;
+
+
+
+    return s_kId;
 }
 
 

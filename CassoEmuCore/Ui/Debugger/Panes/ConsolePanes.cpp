@@ -1173,9 +1173,13 @@ ConsolePane::~ConsolePane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ConsolePane::GetId() const
+const std::wstring & ConsolePane::GetId() const
 {
-    return DebuggerLayout::kConsole;
+    static const std::wstring  s_kId = DebuggerLayout::kConsole;
+
+
+
+    return s_kId;
 }
 
 

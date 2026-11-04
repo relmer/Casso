@@ -24,6 +24,7 @@
 DevicePanelController::DevicePanelController (IDebuggerPaneHost & host, std::string panelId, std::wstring title) :
     IDebuggerPane (host),
     m_panelId     (std::move (panelId)),
+    m_id          (DebuggerLayout::GetDiagnosticsPaneId (m_panelId)),
     m_title       (std::move (title))
 {
 }
@@ -50,9 +51,9 @@ DevicePanelController::~DevicePanelController() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DevicePanelController::GetId() const
+const std::wstring & DevicePanelController::GetId() const
 {
-    return DebuggerLayout::GetDiagnosticsPaneId (m_panelId);
+    return m_id;
 }
 
 

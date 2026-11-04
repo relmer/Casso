@@ -26,7 +26,8 @@ SourceDocumentPane::SourceDocumentPane (IDebuggerPaneHost & host, SourceDocument
     IDebuggerPane (host),
     m_group       (group),
     m_slot        (slot),
-    m_bar         (host, DebuggerLayout::GetSourcePaneId (slot), L"Source commands")
+    m_id          (DebuggerLayout::GetSourcePaneId (slot)),
+    m_bar         (host, m_id, L"Source commands")
 {
 }
 
@@ -52,9 +53,9 @@ SourceDocumentPane::~SourceDocumentPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring SourceDocumentPane::GetId() const
+const std::wstring & SourceDocumentPane::GetId() const
 {
-    return DebuggerLayout::GetSourcePaneId (m_slot);
+    return m_id;
 }
 
 

@@ -44,7 +44,7 @@ public:
     const std::vector<DisassemblyOptions::Row> &  GetRows () const { return m_rows; }
     void                             SetRows        (std::vector<DisassemblyOptions::Row> rows) { m_rows = std::move (rows); }
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override;
     std::wstring                     GetTabTitle    () const override;
     int                              GetStopFocusRank () const override;
@@ -68,6 +68,7 @@ public:
 private:
     DisassemblyGroup                      & m_group;
     int                                     m_view        = 0;
+    std::wstring                            m_id;
     PaneBarSlot                             m_bar;
     DxuiListView                          * m_list        = nullptr;
     HistoryBand                           * m_historyBand = nullptr;

@@ -28,7 +28,7 @@ public:
     DevicePanelController (IDebuggerPaneHost & host, std::string panelId, std::wstring title);
     ~DevicePanelController() override;
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return m_title; }
     void                             CreateControls () override;
     void                             Configure      () override;
@@ -64,6 +64,7 @@ private:
     void  SetDrives          (DiskHeadView::DriveChoice choice);
 
     std::string                                m_panelId;
+    std::wstring                               m_id;
     std::wstring                               m_title;
     std::unique_ptr<DiagnosticsPane>           m_model;
     std::unique_ptr<PaneBarSlot>               m_bar;

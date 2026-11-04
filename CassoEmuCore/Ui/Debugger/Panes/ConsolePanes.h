@@ -244,7 +244,7 @@ public:
     ConsoleModeBar                 & GetModeBar     () { return m_modeBar; }
     DebuggerPaneFrame              * GetFrame       () const { return m_frame.get(); }
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"Console"; }
     void                             CreateControls () override;
     void                             Configure      () override;

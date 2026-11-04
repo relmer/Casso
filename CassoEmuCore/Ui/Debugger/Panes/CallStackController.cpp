@@ -44,9 +44,13 @@ CallStackController::~CallStackController() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CallStackController::GetId() const
+const std::wstring & CallStackController::GetId() const
 {
-    return DebuggerLayout::kCallStack;
+    static const std::wstring  s_kId = DebuggerLayout::kCallStack;
+
+
+
+    return s_kId;
 }
 
 

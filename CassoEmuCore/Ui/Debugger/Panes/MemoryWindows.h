@@ -35,7 +35,7 @@ public:
     bool                             IsOpen       () const { return m_isOpen; }
     void                             SetOpen      (bool isOpen) { m_isOpen = isOpen; }
 
-    std::wstring                     GetId               () const override;
+    const std::wstring             & GetId               () const override;
     std::wstring                     GetTitle            () const override;
     void                             CreateControls      () override;
     void                             Configure           () override;
@@ -52,6 +52,7 @@ public:
 private:
     MemoryWindowGroup                   & m_group;
     int                                   m_windowId = 0;
+    std::wstring                          m_id;
     DxuiHexView                         * m_view     = nullptr;
     std::unique_ptr<MemoryPane>           m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_slot;
@@ -110,7 +111,7 @@ public:
     //  A window's menu on its bytes.
     void                                 AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items);
 
-    std::wstring                     GetId                  () const override { return L"memory-group"; }
+    const std::wstring             & GetId                  () const override { static const std::wstring  s_kId = L"memory-group"; return s_kId; }
     std::wstring                     GetTitle               () const override { return {}; }
     void                             CreateControls         () override;
     void                             Configure              () override;

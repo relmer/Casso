@@ -40,7 +40,7 @@ public:
     //  pane has the program.
     void                             ShowLine       (Word line);
 
-    std::wstring                    GetId          () const override;
+    const std::wstring            & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"BASIC program"; }
     void                             CreateControls () override;
     void                             Configure      () override;

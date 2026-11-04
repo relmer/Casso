@@ -28,6 +28,7 @@ MemoryWindowPane::MemoryWindowPane (IDebuggerPaneHost & host, MemoryWindowGroup 
     IDebuggerPane (host),
     m_group       (group),
     m_windowId    (id),
+    m_id          (DebuggerLayout::GetMemoryPaneId (id)),
     m_slot        (std::make_unique<DebuggerPaneFrame> (L"Memory commands")),
     m_isOpen      (id == 1)
 {
@@ -55,9 +56,9 @@ MemoryWindowPane::~MemoryWindowPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring MemoryWindowPane::GetId() const
+const std::wstring & MemoryWindowPane::GetId() const
 {
-    return DebuggerLayout::GetMemoryPaneId (m_windowId);
+    return m_id;
 }
 
 

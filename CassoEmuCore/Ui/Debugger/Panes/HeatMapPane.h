@@ -74,7 +74,7 @@ public:
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetBankCommands   () const { return m_bankCommands; }
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetIgnoreCommands () const { return m_ignoreCommands; }
 
-    std::wstring                     GetId               () const override;
+    const std::wstring             & GetId               () const override;
     std::wstring                     GetTitle            () const override { return L"Heat map"; }
     void                             CreateControls      () override;
     void                             Configure           () override;

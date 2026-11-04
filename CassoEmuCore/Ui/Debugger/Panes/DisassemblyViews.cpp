@@ -31,7 +31,8 @@ DisassemblyViewPane::DisassemblyViewPane (IDebuggerPaneHost & host, DisassemblyG
     IDebuggerPane (host),
     m_group       (group),
     m_view        (view),
-    m_bar         (host, DebuggerLayout::GetCodePaneId (view), L"Disassembly options")
+    m_id          (DebuggerLayout::GetCodePaneId (view)),
+    m_bar         (host, m_id, L"Disassembly options")
 {
 }
 
@@ -57,9 +58,9 @@ DisassemblyViewPane::~DisassemblyViewPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DisassemblyViewPane::GetId() const
+const std::wstring & DisassemblyViewPane::GetId() const
 {
-    return DebuggerLayout::GetCodePaneId (m_view);
+    return m_id;
 }
 
 

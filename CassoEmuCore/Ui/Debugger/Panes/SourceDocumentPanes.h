@@ -44,7 +44,7 @@ public:
     //  Whether the text or the banner is under a point while visible.
     bool                             Contains       (POINT atDip) const;
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return m_title; }
     void                             CreateControls () override;
     void                             Configure      () override;
@@ -67,6 +67,7 @@ public:
 private:
     SourceDocumentGroup                 & m_group;
     int                                   m_slot          = 0;
+    std::wstring                          m_id;
     PaneBarSlot                           m_bar;
     DxuiTextView                        * m_view          = nullptr;
     DxuiActionBanner                    * m_banner        = nullptr;

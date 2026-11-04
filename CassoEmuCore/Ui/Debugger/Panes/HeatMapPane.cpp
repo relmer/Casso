@@ -62,9 +62,13 @@ HeatMapPane::~HeatMapPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring HeatMapPane::GetId() const
+const std::wstring & HeatMapPane::GetId() const
 {
-    return DebuggerLayout::kHeatMap;
+    static const std::wstring  s_kId = DebuggerLayout::kHeatMap;
+
+
+
+    return s_kId;
 }
 
 

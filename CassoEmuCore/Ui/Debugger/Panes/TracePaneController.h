@@ -31,7 +31,7 @@ public:
     //  HISTORY SAVE to a file the user picks.
     void                             Save              ();
 
-    std::wstring                     GetId             () const override;
+    const std::wstring             & GetId             () const override;
     std::wstring                     GetTitle          () const override { return L"Trace"; }
     void                             CreateControls    () override;
     void                             Configure         () override;

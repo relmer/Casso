@@ -46,9 +46,13 @@ BasicProgramController::~BasicProgramController() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring BasicProgramController::GetId() const
+const std::wstring & BasicProgramController::GetId() const
 {
-    return DebuggerLayout::kBasicProgram;
+    static const std::wstring  s_kId = DebuggerLayout::kBasicProgram;
+
+
+
+    return s_kId;
 }
 
 

@@ -32,7 +32,7 @@ public:
 
     DxuiToolbar                * GetBar             () const { return m_bar.GetBar(); }
 
-    std::wstring                 GetId              () const override { return m_id; }
+    const std::wstring         & GetId              () const override { return m_id; }
     std::wstring                 GetTitle           () const override { return m_title; }
     bool                         TryGetOpened       (bool & isOpened) const override { isOpened = m_isOpened; return true; }
     void                         Open               () override;
