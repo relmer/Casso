@@ -282,6 +282,42 @@ namespace DebuggerTests
         }
 
 
+        //  A pause falls between words, so on the strip and in the row of
+        //  labels under it a pause is a line rather than a block or a label.
+        TEST_METHOD (APauseIsALineBetweenTheWords)
+        {
+            SoundBoardView         view;
+            DiagnosticsSoundBoard  words     = MakeBoard (true);
+            DiagnosticsSoundBoard  letters   = MakeBoard (true);
+            MockDxuiTextRenderer   text;
+            MockDxuiPainter        withPause;
+            MockDxuiPainter        without;
+            CassoTheme             theme     = CassoTheme::MakeDarkModern();
+            auto                   count     = [] (const MockDxuiPainter & painter, RecordedPaintKind kind)
+            {
+                return std::ranges::count_if (painter.Calls(), [kind] (const RecordedPaintCall & call)
+                {
+                    return call.kind == kind && (kind != RecordedPaintKind::DrawLine || call.width < 1.0f);
+                });
+            };
+
+
+
+            words.voice->recent   = { { "E (meet)", 0.1f }, { "PA (pause)", 0.1f, true }, { "E (meet)", 0.1f } };
+            letters.voice->recent = { { "E (meet)", 0.1f }, { "E (meet)", 0.1f },         { "E (meet)", 0.1f } };
+
+            LayOut (view);
+            view.SetBoard (words);
+            view.Paint (withPause, text, theme);
+
+            view.SetBoard (letters);
+            view.Paint (without, text, theme);
+
+            Assert::AreEqual (count (without, RecordedPaintKind::DrawLine) + 2, count (withPause, RecordedPaintKind::DrawLine), L"a line on the strip and one in the labels");
+            Assert::AreEqual (count (without, RecordedPaintKind::FillRoundedRect) - 1, count (withPause, RecordedPaintKind::FillRoundedRect), L"the pause has a block");
+        }
+
+
         //  Every part with data in it, in the three kinds of theme.
         TEST_METHOD (AFullBoardPaintsInEachTheme)
         {

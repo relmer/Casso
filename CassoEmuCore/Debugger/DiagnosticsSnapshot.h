@@ -190,6 +190,7 @@ struct DiagnosticsSoundVoice
     {
         std::string  name;
         float        seconds = 0.0f;
+        bool         isPause = false;   // PA, which falls between words
     };
 
     static constexpr int  kFormantCount = 3;

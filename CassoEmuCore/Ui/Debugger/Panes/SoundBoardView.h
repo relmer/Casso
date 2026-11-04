@@ -122,6 +122,7 @@ private:
     static constexpr int  kValueRows       = 2;
     static constexpr int  kLabelDip        = 44;
     static constexpr int  kVoiceLabelDip   = 78;
+    static constexpr int  kWordBreakDip    = 6;
 
     void  Reflow            ();
     void  BuildHalfRegions  (const DiagnosticsSoundHalf & half, const RECT & card);
@@ -148,6 +149,7 @@ private:
     static void  AddSpot    (const Painting & p, const RECT & rect, std::wstring tip);
     void  PaintVoice        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & card) const;
     void  PaintStrip        (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect, size_t count) const;
+    void  PaintWordBreak    (const Painting & p, float x, float top, float bottom) const;
     size_t  PaintHistory    (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const;
     RECT  GetStripArea      (const RECT & card) const;
     void  PaintFormants     (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;

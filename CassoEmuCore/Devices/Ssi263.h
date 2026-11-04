@@ -125,6 +125,7 @@ public:
     static constexpr Byte    kRegFilterFreq      = 4;
 
     static constexpr Byte    kPhonemeMask   = 0x3F;
+    static constexpr Byte    kPausePhoneme  = 0x00;
     static constexpr Byte    kPhonemeCount  = 64;
     static constexpr Byte    kDurationShift = 6;
 

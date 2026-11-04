@@ -830,7 +830,7 @@ void Ssi263::AppendSoundBoard (DiagnosticsSoundVoice & out) const
     {
         const RecentPhoneme  & entry = m_recent[(m_recentAt + kRecentCount - m_recentCount + i) % kRecentCount];
 
-        out.recent.push_back ({ GetPhonemeName (entry.code), entry.seconds });
+        out.recent.push_back ({ GetPhonemeName (entry.code), entry.seconds, entry.code == kPausePhoneme });
     }
 
     out.scope.clear();

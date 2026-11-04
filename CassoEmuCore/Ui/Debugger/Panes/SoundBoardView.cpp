@@ -452,7 +452,7 @@ void SoundBoardView::BuildVoiceRegions (const DiagnosticsSoundVoice & voice, con
 {
     AddRegion (GetMuteOfVoice (card), voice.isMuted ? L"Unmute the speech chip" : L"Mute the speech chip", kVoiceMuteChannel);
 
-    AddRegion (GetStripArea (card), L"Recent phonemes: the ones before the one playing, oldest at the left. Each block is as wide as the phoneme lasted, and the row under it has their labels, with an arrow under the one playing. The wheel scrolls back through the last 256.");
+    AddRegion (GetStripArea (card), L"Recent phonemes: the ones before the one playing, oldest at the left. Each block is as wide as the phoneme lasted, and the row under it has their labels, with an arrow under the one playing. A line is a pause, which falls between words. The wheel scrolls back through the last 256.");
 
     AddRegion (card, std::format (L"Phoneme ${:02X}, duration ${:X}, rate ${:X}, inflection ${:03X}, articulation ${:X}, amplitude ${:X}, filter ${:02X}",
                                   voice.phonemeCode, voice.durationSelect, voice.rateSelect, voice.inflection, voice.articulation, voice.amplitude, voice.filterRegister));
@@ -1354,6 +1354,8 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
 //  SoundBoardView::PaintStrip
 //
 //  The newest phoneme is brightest while it sounds, and each older one fainter.
+//  A pause, which falls between words, is a line down the middle of its
+//  slot rather than a block, which separates the words.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1408,8 +1410,15 @@ void SoundBoardView::PaintStrip (const Painting & p, std::span<const Diagnostics
         uint32_t                              fill   = (isLast && isSounding) ? m_palette.voice : WithAlpha (m_palette.voice, alpha);
         uint32_t                              ink    = (isLast && isSounding) ? p.theme.Background() : p.theme.Foreground();
 
-        p.painter.FillRoundedRect (x, (float) rect.top, place.width, (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), fill);
         AddSpot (p, { (long) x, rect.top, (long) (x + place.width) + 1, rect.bottom }, SoundBoardTips::GetPhoneme (recent[first + place.index]));
+
+        if (recent[first + place.index].isPause)
+        {
+            PaintWordBreak (p, x + place.width * 0.5f, (float) rect.top, (float) rect.bottom);
+            continue;
+        }
+
+        p.painter.FillRoundedRect (x, (float) rect.top, place.width, (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), fill);
 
         if (place.width >= labels[place.index])
         {
@@ -1424,11 +1433,35 @@ void SoundBoardView::PaintStrip (const Painting & p, std::span<const Diagnostics
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SoundBoardView::PaintWordBreak
+//
+//  A pause between words: a line the speech chip's color, from top to
+//  bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SoundBoardView::PaintWordBreak (const Painting & p, float x, float top, float bottom) const
+{
+    constexpr float  kWidthDip = 2.0f;
+    float            snapped   = std::floor (x) + 0.5f;
+
+
+
+    p.painter.DrawLine (snapped, top, snapped, bottom, m_scaler.ToPxf (kWidthDip), m_palette.voice);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SoundBoardView::PaintHistory
 //
 //  The recent phonemes' labels in order along a row, newest at the right, as
 //  many as fit, with an arrow under the newest while it sounds, so a
-//  consonant can be read after it has passed. Returns how many are drawn.
+//  consonant can be read after it has passed. A pause is a line in place of
+//  its label, between the words. Returns how many are drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1457,7 +1490,7 @@ size_t SoundBoardView::PaintHistory (const Painting & p, std::span<const Diagnos
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         names.push_back (std::move (name));
-        widths.push_back (wide);
+        widths.push_back (phoneme.isPause ? m_scaler.ToPxf (kWordBreakDip) : wide);
     }
 
     count = SoundBoardLayout::FitHistory (widths, (float) (rect.right - rect.left), gap);
@@ -1468,8 +1501,16 @@ size_t SoundBoardView::PaintHistory (const Painting & p, std::span<const Diagnos
         uint32_t  ink      = isActive ? m_palette.voice : p.theme.Foreground();
         float     left     = x - widths[i - 1];
 
-        PaintString (p, names[i - 1], { (long) left, rect.top, (long) x + 1, (long) textBottom }, ink, font, DxuiTextHAlign::Left);
-        AddSpot     (p, { (long) left, rect.top, (long) x + 1, rect.bottom }, SoundBoardTips::GetPhoneme (recent[i - 1]));
+        if (recent[i - 1].isPause)
+        {
+            PaintWordBreak (p, left + widths[i - 1] * 0.5f, (float) rect.top, textBottom);
+        }
+        else
+        {
+            PaintString (p, names[i - 1], { (long) left, rect.top, (long) x + 1, (long) textBottom }, ink, font, DxuiTextHAlign::Left);
+        }
+
+        AddSpot (p, { (long) left, rect.top, (long) x + 1, rect.bottom }, SoundBoardTips::GetPhoneme (recent[i - 1]));
 
         if (isActive)
         {
