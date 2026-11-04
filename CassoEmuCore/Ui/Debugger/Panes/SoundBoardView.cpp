@@ -1326,12 +1326,28 @@ void SoundBoardView::PaintScope (const Painting & p, const std::vector<float> & 
 
     first = SoundBoardLayout::FindTrigger (scope, window);
 
-    for (const SoundBoardLayout::ScopeColumn & column : SoundBoardLayout::GetScopeColumns (scope, first, window, std::max (1, (int) (w - 2.0f * inset) / m_scaler.ToPx (kColumnDip)), low, high))
+    //  A speech chip's waveform is a curve, so it's a line through each
+    //  pixel's mean. An AY's is a square wave or noise, so each column has
+    //  its lowest and highest sample, so a square wave's edges are drawn
+    //  upright.
+    if (isBipolar)
     {
-        float  cx = x + inset + (float) points.size() / 2.0f * (float) m_scaler.ToPx (kColumnDip);
+        std::vector<float>  trace = SoundBoardLayout::GetScopeTrace (scope, first, window, std::max (2, (int) (w - 2.0f * inset)), low, high);
 
-        points.emplace_back (cx, y + h - inset - column.high * (h - 2.0f * inset));
-        points.emplace_back (cx, y + h - inset - column.low  * (h - 2.0f * inset));
+        for (size_t c = 0; c < trace.size(); c++)
+        {
+            points.emplace_back (x + inset + (float) c, y + h - inset - trace[c] * (h - 2.0f * inset));
+        }
+    }
+    else
+    {
+        for (const SoundBoardLayout::ScopeColumn & column : SoundBoardLayout::GetScopeColumns (scope, first, window, std::max (1, (int) (w - 2.0f * inset) / m_scaler.ToPx (kColumnDip)), low, high))
+        {
+            float  cx = x + inset + (float) points.size() / 2.0f * (float) m_scaler.ToPx (kColumnDip);
+
+            points.emplace_back (cx, y + h - inset - column.high * (h - 2.0f * inset));
+            points.emplace_back (cx, y + h - inset - column.low  * (h - 2.0f * inset));
+        }
     }
 
     p.painter.PushClip (x, y, w, h);
@@ -1697,12 +1713,13 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
 //  SoundBoardView::PaintStrip
 //
 //  Each block is as wide as its phoneme lasted, at a fixed scale, so its
-//  width doesn't change as it ages and moves left, and the oldest go off the
-//  strip's left end. No block is narrower than the widest phoneme's label, so every
-//  block has its label and each block's narrowest width is the same. The
-//  newest phoneme is brightest while it sounds, and each older one fainter.
-//  A pause, which falls between words, is a line down the middle of its
-//  slot rather than a block.
+//  width doesn't change as it ages and moves left. No block is narrower than
+//  the widest phoneme's label, so every block has its label. The oldest block
+//  drawn is cut off at the strip's left end, with its label centered in the
+//  part drawn, and a block longer than the strip fills it. The newest
+//  phoneme is brightest while it sounds, and each older one fainter. A pause,
+//  which falls between words, is a line in a slot as narrow as the label
+//  row's rather than a block.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1711,23 +1728,29 @@ void SoundBoardView::PaintStrip (const Painting & p, std::span<const Diagnostics
     constexpr float       kRadiusDip    = 4.0f;
     constexpr float       kGapDip2      = 3.0f;
     constexpr float       kLabelPadDip  = 8.0f;
-    constexpr float       kDipPerSecond = 600.0f;
+    constexpr float       kDipPerSecond = 250.0f;
     constexpr float       kOldest       = 0.10f;
     constexpr float       kNewest       = 0.45f;
     const DxuiFontHandle  font          = p.theme.CaptionFont();
     float                 least         = GetWidestPhonemeLabel (p, font) + m_scaler.ToPxf (kLabelPadDip);
     std::vector<float>    seconds;
+    std::vector<float>    widths;
 
 
 
+    //  A pause is a word break, as narrow as the label row's whatever its
+    //  length: a rest between sung phrases left a wide black gap.
     for (const DiagnosticsSoundVoice::Phoneme & phoneme : recent)
     {
-        seconds.push_back (phoneme.seconds);
+        seconds.push_back (phoneme.isPause ? 0.0f : phoneme.seconds);
+        widths.push_back  (phoneme.isPause ? m_scaler.ToPxf (kWordBreakDip) : least);
     }
 
     p.painter.FillRoundedRect ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), p.screen);
 
-    auto  placed = SoundBoardLayout::PlaceByDuration (seconds, least, (float) (rect.right - rect.left), m_scaler.ToPxf (kGapDip2), m_scaler.ToPxf (kDipPerSecond));
+    auto  placed = SoundBoardLayout::PlaceByDuration (seconds, widths,(float) (rect.right - rect.left), m_scaler.ToPxf (kGapDip2), m_scaler.ToPxf (kDipPerSecond));
+
+    p.painter.PushClip ((float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top));
 
     for (size_t i = 0; i < placed.size(); i++)
     {
@@ -1737,21 +1760,25 @@ void SoundBoardView::PaintStrip (const Painting & p, std::span<const Diagnostics
         float                                     age     = placed.size() > 1 ? (float) i / (float) (placed.size() - 1) : 1.0f;
         float                                     alpha   = kOldest + (kNewest - kOldest) * age;
         float                                     x       = (float) rect.left + place.x;
+        float                                     shown   = std::max (x, (float) rect.left);
+        float                                     end     = std::min (x + place.width, (float) rect.right);
         uint32_t                                  fill    = (isLast && isSounding) ? m_palette.voice : WithAlpha (m_palette.voice, alpha);
         uint32_t                                  ink     = (isLast && isSounding) ? p.theme.Background() : p.theme.Foreground();
 
-        AddSpot (p, { (long) x, rect.top, (long) (x + place.width) + 1, rect.bottom }, SoundBoardTips::GetPhoneme (phoneme));
+        AddSpot (p, { (long) shown, rect.top, (long) end + 1, rect.bottom }, SoundBoardTips::GetPhoneme (phoneme));
 
         if (phoneme.isPause)
         {
-            PaintWordBreak (p, x + place.width * 0.5f, (float) rect.top, (float) rect.bottom);
+            PaintWordBreak (p, (shown + end) * 0.5f, (float) rect.top, (float) rect.bottom);
             continue;
         }
 
         p.painter.FillRoundedRect (x, (float) rect.top, place.width, (float) (rect.bottom - rect.top), m_scaler.ToPxf (kRadiusDip), fill);
         PaintString (p, TextEncoding::NarrowToWide (phoneme.name.substr (0, phoneme.name.find (' '))),
-                     { (long) x, rect.top, (long) (x + place.width), rect.bottom }, ink, font, DxuiTextHAlign::Center);
+                     { (long) shown, rect.top, (long) end, rect.bottom }, ink, font, DxuiTextHAlign::Center);
     }
+
+    p.painter.PopClip();
 }
 
 
@@ -1984,11 +2011,21 @@ void SoundBoardView::PaintFormants (const Painting & p, const DiagnosticsSoundVo
                      p.theme.ForegroundMuted(), p.theme.CaptionFont(), DxuiTextHAlign::Center);
     }
 
+    //  Under the line, a column at a time: a slanted band from the line at the
+    //  column's left edge to the line at its right, over a fading fill from
+    //  the lower of the two down. A fill with a flat top at each column's left
+    //  height rose past the line in steps.
     for (int c = 0; c + 1 < columns; c++)
     {
-        float  top = base - curve[(size_t) c] * plotH;
+        float     left    = x + inset + (float) c * step;
+        float     right   = left + step;
+        float     atLeft  = base - curve[(size_t) c] * plotH;
+        float     atRight = base - curve[(size_t) c + 1] * plotH;
+        float     lower   = std::max (atLeft, atRight);
+        uint32_t  top     = WithAlpha (color, kTopAlpha * fade);
 
-        p.painter.FillGradientRect (x + inset + (float) c * step, top, step, base - top, WithAlpha (color, kTopAlpha * fade), WithAlpha (color, 0.02f));
+        p.painter.FillConvexQuad (left, atLeft, right, atRight, right, lower, left, lower, top);
+        p.painter.FillGradientRect (left, lower, step, base - lower, top, WithAlpha (color, 0.02f));
     }
 
     if (voice.pitchHz >= kCombLeast && voice.isSounding)

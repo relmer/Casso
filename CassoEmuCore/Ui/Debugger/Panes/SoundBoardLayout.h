@@ -71,6 +71,12 @@ public:
     //  samples, from 0 at `low` to 1 at `high`.
     static std::vector<ScopeColumn>  GetScopeColumns (std::span<const float> samples, size_t first, size_t window, int columns, float low, float high);
 
+    //  A smooth trace of the same samples, one height a column from 0 at `low`
+    //  to 1 at `high`: the mean of a column's samples, or between two samples
+    //  where a column has less than one, so a waveform reads as a curve rather
+    //  than as each column's spread.
+    static std::vector<float>  GetScopeTrace (std::span<const float> samples, size_t first, size_t window, int columns, float low, float high);
+
     //  A frequency's place from 0 to 1 on the formant picture's logarithmic axis.
     static float  GetFormantX (double hz);
 
@@ -88,10 +94,12 @@ public:
     static std::vector<StripPlace>  FillStrip  (const std::vector<float> & seconds, const std::vector<float> & leastWidths, float width, float gap);
 
     //  Places phonemes along a strip, newest at the right, each `pxPerSecond`
-    //  wide for each second it lasted and no narrower than `leastWidth`. A
-    //  block's width doesn't change as newer ones arrive; the oldest that do
-    //  not fit are left out.
-    static std::vector<StripPlace>  PlaceByDuration (const std::vector<float> & seconds, float leastWidth, float width, float gap, float pxPerSecond);
+    //  wide for each second it lasted and no narrower than its entry of
+    //  `leastWidths`, which has one entry per entry of `seconds`. A
+    //  block's width doesn't change as newer ones arrive. The newest is always
+    //  placed, and the oldest one placed can start left of 0, for the strip to
+    //  cut off; any older are left out.
+    static std::vector<StripPlace>  PlaceByDuration (const std::vector<float> & seconds, const std::vector<float> & leastWidths, float width, float gap, float pxPerSecond);
 
     //  How many of the newest labels, each as wide as `widths` has it with
     //  `gap` between them, fit on a row of `width`, counted from the end.

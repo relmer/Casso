@@ -284,6 +284,73 @@ std::vector<SoundBoardLayout::ScopeColumn> SoundBoardLayout::GetScopeColumns (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SoundBoardLayout::GetScopeTrace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<float> SoundBoardLayout::GetScopeTrace (
+    std::span<const float>  samples,
+    size_t                  first,
+    size_t                  window,
+    int                     columns,
+    float                   low,
+    float                   high)
+{
+    float               range = std::max (high - low, 0.0001f);
+    std::vector<float>  out;
+
+
+
+    if (columns <= 0 || window == 0 || first >= samples.size())
+    {
+        return out;
+    }
+
+    window = std::min (window, samples.size() - first);
+    out.reserve ((size_t) columns);
+
+    for (int c = 0; c < columns; c++)
+    {
+        double  from  = (double) window * (double) c / (double) columns;
+        double  to    = (double) window * (double) (c + 1) / (double) columns;
+        size_t  start = first + (size_t) std::ceil (from);
+        size_t  stop  = first + (size_t) std::ceil (to);
+        double  sum   = 0.0;
+        float   value = 0.0f;
+
+        if (stop > start)
+        {
+            for (size_t i = start; i < stop && i < samples.size(); i++)
+            {
+                sum += samples[i];
+            }
+
+            value = (float) (sum / (double) (std::min (stop, samples.size()) - start));
+        }
+        else
+        {
+            //  No sample in the column: the line between the two either side,
+            //  at the column's middle.
+            double  middle = (from + to) / 2.0;
+            size_t  before = first + (size_t) middle;
+            size_t  after  = std::min (before + 1, first + window - 1);
+            double  along  = middle - std::floor (middle);
+
+            value = (float) (samples[before] + (samples[after] - samples[before]) * along);
+        }
+
+        out.push_back (std::clamp ((value - low) / range, 0.0f, 1.0f));
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SoundBoardLayout::GetFormantX
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,12 +531,26 @@ std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::PlaceAtScale (
 
 std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::PlaceByDuration (
     const std::vector<float>  & seconds,
-    float                       leastWidth,
+    const std::vector<float>  & leastWidths,
     float                       width,
     float                       gap,
     float                       pxPerSecond)
 {
-    return PlaceAtScale (seconds, std::vector<float> (seconds.size(), leastWidth), width, gap, pxPerSecond);
+    std::vector<StripPlace>  placed;
+    float                    right  = width;
+
+
+
+    for (size_t i = seconds.size(); i > 0 && right > 0.0f; i--)
+    {
+        float  wide = std::max (leastWidths[i - 1], seconds[i - 1] * pxPerSecond);
+
+        placed.push_back ({ i - 1, right - wide, wide });
+        right -= wide + gap;
+    }
+
+    std::reverse (placed.begin(), placed.end());
+    return placed;
 }
 
 

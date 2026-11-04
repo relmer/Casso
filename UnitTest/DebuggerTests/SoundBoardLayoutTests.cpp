@@ -148,6 +148,29 @@ namespace DebuggerTests
         }
 
 
+        //  A column with samples in it is their mean, and a column with none
+        //  is on the line between the samples either side, at its middle.
+        TEST_METHOD (TheScopeTraceIsSmooth)
+        {
+            std::vector<float>  dense  = { 0.0f, 1.0f, 0.0f, 1.0f };
+            std::vector<float>  sparse = { 0.0f, 1.0f };
+            auto                means  = SoundBoardLayout::GetScopeTrace (dense, 0, 4, 2, 0.0f, 1.0f);
+            auto                lines  = SoundBoardLayout::GetScopeTrace (sparse, 0, 2, 4, 0.0f, 1.0f);
+
+
+
+            Assert::AreEqual ((size_t) 2, means.size());
+            Assert::AreEqual (0.5f, means[0], 0.001f, L"the column's spread rather than its mean");
+            Assert::AreEqual (0.5f, means[1], 0.001f);
+
+            Assert::AreEqual ((size_t) 4, lines.size());
+            Assert::AreEqual (0.0f, lines[0], 0.001f);
+            Assert::AreEqual (0.75f, lines[1], 0.001f, L"off the line between the two samples, at the column's middle");
+            Assert::AreEqual (1.0f, lines[2], 0.001f);
+            Assert::AreEqual (1.0f, lines[3], 0.001f);
+        }
+
+
         TEST_METHOD (ATimeUnderAMillisecondHasTwoDecimals)
         {
             Assert::AreEqual (std::wstring (L"0.25 ms"),  SoundBoardLayout::GetMillisecondsText (0.2503));
@@ -177,12 +200,13 @@ namespace DebuggerTests
 
 
         //  At 600 a second, 0.1 s is 60 wide, and 0.02 s gets the least width,
-        //  30. A phoneme that arrives after doesn't narrow the others,
-        //  and pushes the oldest off the left.
+        //  30. A phoneme that arrives after doesn't narrow the others, and
+        //  pushes the oldest past the left end, where the strip cuts it off.
+        //  One longer than the strip is placed whole.
         TEST_METHOD (APhonemesBlockIsItsDurationAtOneScaleAsItAges)
         {
-            auto  two   = SoundBoardLayout::PlaceByDuration ({ 0.1f, 0.02f }, 30.0f, 200.0f, 2.0f, 600.0f);
-            auto  three = SoundBoardLayout::PlaceByDuration ({ 0.1f, 0.02f, 0.2f }, 30.0f, 200.0f, 2.0f, 600.0f);
+            auto  two   = SoundBoardLayout::PlaceByDuration ({ 0.1f, 0.02f }, { 30.0f, 30.0f }, 200.0f, 2.0f, 600.0f);
+            auto  three = SoundBoardLayout::PlaceByDuration ({ 0.1f, 0.02f, 0.2f }, { 30.0f, 30.0f, 30.0f }, 200.0f, 2.0f, 600.0f);
 
 
 
@@ -190,11 +214,18 @@ namespace DebuggerTests
             Assert::AreEqual (60.0f, two[0].width, 0.01f);
             Assert::AreEqual (30.0f, two[1].width, 0.01f, L"under the least width");
 
-            Assert::AreEqual ((size_t) 2,   three.size(), L"the oldest that doesn't fit is left out");
-            Assert::AreEqual ((size_t) 1,   three[0].index);
-            Assert::AreEqual (30.0f,        three[0].width, 0.01f, L"the older block narrowed as a newer one came");
-            Assert::AreEqual (120.0f,       three[1].width, 0.01f);
-            Assert::AreEqual (200.0f - 120.0f - 2.0f - 30.0f, three[0].x, 0.01f);
+            Assert::AreEqual ((size_t) 3, three.size(), L"the oldest, past the left end, was left out");
+            Assert::AreEqual (60.0f,      three[0].width, 0.01f, L"the oldest block narrowed as newer ones came");
+            Assert::AreEqual (30.0f,      three[1].width, 0.01f);
+            Assert::AreEqual (120.0f,     three[2].width, 0.01f);
+            Assert::AreEqual (80.0f,      three[2].x, 0.01f);
+            Assert::AreEqual (48.0f,      three[1].x, 0.01f);
+            Assert::AreEqual (-14.0f,     three[0].x, 0.01f, L"the oldest doesn't start past the left end");
+
+            auto  sung = SoundBoardLayout::PlaceByDuration ({ 0.1f, 2.0f }, { 30.0f, 30.0f }, 200.0f, 2.0f, 600.0f);
+
+            Assert::AreEqual ((size_t) 1, sung.size(), L"a block longer than the strip isn't the only one");
+            Assert::AreEqual (1200.0f,    sung[0].width, 0.01f);
         }
 
 
