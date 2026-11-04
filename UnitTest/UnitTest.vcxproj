@@ -614,6 +614,7 @@
     <ClCompile Include="Dxui\DxuiHwndSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiPropertyPageTests.cpp" />
     <ClCompile Include="Dxui\DxuiPropertySheetTests.cpp" />
+    <ClCompile Include="Dxui\DxuiPointerPathTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxFitTests.cpp" />

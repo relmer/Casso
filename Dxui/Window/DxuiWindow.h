@@ -262,6 +262,15 @@ public:
 
 
 protected:
+    //  The controls under the pointer, outermost first. Each control the
+    //  pointer moves off, and each on the path when the pointer moves out of
+    //  the window, is sent a move to kNowherePx and a
+    //  DxuiMouseEventKind::Leave event, so a hover can't outlast the pointer,
+    //  however the window routes its input.
+    static constexpr int  kNowherePx = -32768;
+
+    void  UpdatePointerPath (POINT clientPx, bool leftWindow);
+
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
     //  the dialog enters dialog mode. A subclass that later SHOWS OR HIDES part
@@ -396,6 +405,10 @@ private:
 
     static bool        ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);
 
+    static void  CollectPathAt     (const IDxuiControl & control, POINT clientPx, std::vector<IDxuiControl *> & outPath);
+    static bool  IsInTree          (const IDxuiControl & root, const IDxuiControl * control);
+    static void  SendPointerAway   (IDxuiControl & control);
+
     //
     //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
     //  focus, seed initial focus), route a key to the focused control,
@@ -426,4 +439,5 @@ private:
     UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
     std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
+    std::vector<IDxuiControl *>      m_pointerPath;            // the controls under the pointer, outermost first
 };

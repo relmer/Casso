@@ -1366,6 +1366,51 @@ bool DxuiToolbar::OnToolbarMouseMove (int x, int y)
 
 void DxuiToolbar::OnToolbarMouseLeave()
 {
+    ClearHover();
+
+    if (!m_flyoutPressed && !m_flyoutKeyboard)
+    {
+        CloseFlyout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::OnMouse
+//
+//  The host routes pointer input to the toolbar through OnToolbarMouseMove
+//  and the calls beside it. A DxuiMouseEventKind::Leave event from the
+//  window, sent when the pointer moves off the strip, clears the buttons'
+//  hover. An open flyout is closed only by the host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiToolbar::OnMouse (const DxuiMouseEvent & ev)
+{
+    if (ev.kind == DxuiMouseEventKind::Leave)
+    {
+        ClearHover();
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiToolbar::ClearHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiToolbar::ClearHover()
+{
     for (Slot & slot : m_slots)
     {
         slot.hovered = false;
@@ -1375,11 +1420,6 @@ void DxuiToolbar::OnToolbarMouseLeave()
         {
             slot.entry.custom->OnMouseLeave();
         }
-    }
-
-    if (!m_flyoutPressed && !m_flyoutKeyboard)
-    {
-        CloseFlyout();
     }
 }
 

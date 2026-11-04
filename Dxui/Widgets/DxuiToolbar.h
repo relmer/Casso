@@ -256,10 +256,12 @@ public:
 
     void  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint            (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse          (const DxuiMouseEvent & ev) override;
 
     //  Host-forwarded pointer input, client coordinates. True when consumed.
     bool             OnToolbarMouseMove   (int x, int y);
     void             OnToolbarMouseLeave  ();
+    void             ClearHover           ();
     bool             OnToolbarLButtonDown (int x, int y);
     bool             OnToolbarLButtonUp   (int x, int y);
     const wchar_t *  GetTooltipAt         (int x, int y, RECT & anchor) const;

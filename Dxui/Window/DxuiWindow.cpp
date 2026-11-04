@@ -1316,6 +1316,18 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             Invalidate();
         }
 
+        //  A move with no button down changes the controls under the pointer,
+        //  and the pointer's exit from the window empties them. During a drag
+        //  they aren't updated, so the control dragged from stays on the path.
+        if (kind == DxuiMouseEventKind::Move && button == DxuiMouseButton::None)
+        {
+            UpdatePointerPath (POINT { x, y }, false);
+        }
+        else if (kind == DxuiMouseEventKind::Leave)
+        {
+            UpdatePointerPath (POINT { x, y }, true);
+        }
+
         //  A right-press on a scrollbar opens the bar's own menu, as Windows'
         //  bars do, before the control or the window has the press.
         if (kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && ShowScrollbarMenuIn (*this, GetHwnd(), POINT { x, y }))
@@ -1344,6 +1356,152 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePointerPath
+//
+//  The controls under the pointer found again, and each control on the old
+//  path that isn't on the new one sent the pointer away. A control removed
+//  from the tree since is skipped, as it may be gone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::UpdatePointerPath (POINT clientPx, bool leftWindow)
+{
+    std::vector<IDxuiControl *>  path;
+    bool                         sent = false;
+
+
+
+    if (!leftWindow)
+    {
+        CollectPathAt (*this, clientPx, path);
+    }
+
+    for (IDxuiControl * control : m_pointerPath)
+    {
+        bool  stays = std::find (path.begin(), path.end(), control) != path.end();
+
+        if (!stays && IsInTree (*this, control))
+        {
+            SendPointerAway (*control);
+            sent = true;
+        }
+    }
+
+    m_pointerPath = std::move (path);
+
+    if (sent)
+    {
+        Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CollectPathAt
+//
+//  The topmost visible child under the point, then its topmost child there,
+//  and so on down. The last-added child is drawn on top, as in OnMouse. A
+//  container that clips its children at the point isn't searched further.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::CollectPathAt (const IDxuiControl & control, POINT clientPx, std::vector<IDxuiControl *> & outPath)
+{
+    const IDxuiControl  * node  = &control;
+    bool                  found = true;
+
+
+
+    while (found && !node->IsPointClipped (clientPx))
+    {
+        size_t  count = node->GetChildCount();
+
+        found = false;
+
+        for (size_t i = count; !found && i > 0; i--)
+        {
+            IDxuiControl  * child = node->GetChild (i - 1);
+            RECT            rc    = (child != nullptr) ? child->GetBounds() : RECT {};
+
+            if (child != nullptr && child->IsVisible() && PtInRect (&rc, clientPx))
+            {
+                outPath.push_back (child);
+                node  = child;
+                found = true;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsInTree
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::IsInTree (const IDxuiControl & root, const IDxuiControl * control)
+{
+    size_t  count = root.GetChildCount();
+    bool    found = false;
+
+
+
+    for (size_t i = 0; !found && i < count; i++)
+    {
+        const IDxuiControl  * child = root.GetChild (i);
+
+        found = child != nullptr && (child == control || IsInTree (*child, control));
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SendPointerAway
+//
+//  A move to a point outside every control, which clears a hover set from
+//  the pointer's position, then a DxuiMouseEventKind::Leave event, which
+//  clears one set otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SendPointerAway (IDxuiControl & control)
+{
+    DxuiMouseEvent  ev;
+    bool            took = false;
+
+
+
+    ev.kind        = DxuiMouseEventKind::Move;
+    ev.button      = DxuiMouseButton::None;
+    ev.positionDip = { kNowherePx, kNowherePx };
+    took           = control.OnMouse (ev);
+    IGNORE_RETURN_VALUE (took, false);
+
+    ev.kind = DxuiMouseEventKind::Leave;
+    took    = control.OnMouse (ev);
+    IGNORE_RETURN_VALUE (took, false);
 }
 
 
