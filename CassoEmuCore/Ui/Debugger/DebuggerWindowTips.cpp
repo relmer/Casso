@@ -143,10 +143,27 @@ bool DebuggerWindow::TickTooltip (int64_t now)
 //
 //  DebuggerWindow::UpdateTooltip
 //
+//  A pane slid out from an edge lies over the panes under it, so over it a
+//  tip is looked up only among its controls, as its clicks are routed only
+//  to them. Before, a pane under it, such as the heat map, returned its tip
+//  first.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::UpdateTooltip (POINT clientPx)
 {
+    std::wstring  slid = (m_floating->GetRoutingPane().empty() && m_dockSite != nullptr) ? m_dockSite->GetSlidPane() : std::wstring();
+
+
+
+    if (!slid.empty() && DxuiDockSite::Contains (m_dockSite->GetSlidRect(), clientPx))
+    {
+        FloatingPanes::RouteScope  scope (*m_floating, slid);
+
+        m_tips->Update (clientPx);
+        return;
+    }
+
     m_tips->Update (clientPx);
 }
 
@@ -375,13 +392,15 @@ bool DebuggerWindow::Meets (
 //
 //  A tab's tip, or a pane's title-bar button's, from the dock site of the
 //  window the mouse is in: this one's, or the floating window's the event
-//  was routed from.
+//  was routed from. A pane slid out is in this window's site.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::TryGetChromeTip (POINT clientPx, DxuiTip & tip) const
 {
-    const DxuiDockSite  * site = m_floating->GetRoutingPane().empty() ? m_dockSite : m_floating->FindSite (m_floating->GetRoutingPane());
+    const std::wstring  & routing = m_floating->GetRoutingPane();
+    bool                  isMain  = routing.empty() || (m_dockSite != nullptr && routing == m_dockSite->GetSlidPane());
+    const DxuiDockSite  * site    = isMain ? m_dockSite : m_floating->FindSite (routing);
 
 
 
