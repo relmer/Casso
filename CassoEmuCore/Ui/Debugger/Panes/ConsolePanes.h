@@ -263,8 +263,7 @@ public:
     bool                             SubmitTextBox  (DxuiTextInput * box) override;
     void                             PlaceBar       () override { m_modeBar.GetSlot().Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_modeBar.GetSlot().RouteMouse (ev); }
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_modeBar.GetSlot().GetTip (clientPx, anchor); }
-    bool                             TryGetTip      (POINT clientPx, DxuiTip & tip) override;
+    bool                             TryGetTipAt    (POINT clientPx, DxuiTip & tip);
 
 private:
     ConsoleOutput                         m_output;

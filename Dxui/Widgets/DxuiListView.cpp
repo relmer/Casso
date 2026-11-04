@@ -2912,12 +2912,8 @@ int DxuiListView::HitTestColumn (int xPx) const
 
 bool DxuiListView::TryGetTip (POINT pointPx, DxuiTip & tip) const
 {
-    const std::vector<Cell>  * cells   = nullptr;
-    RECT                       local   = { 0, 0, m_boundsDip.right - m_boundsDip.left, m_boundsDip.bottom - m_boundsDip.top };
-    RECT                       pointer = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
-    int                        column  = -1;
-    int                        row     = -1;
-    bool                       isOver  = false;
+    RECT  local  = { 0, 0, m_boundsDip.right - m_boundsDip.left, m_boundsDip.bottom - m_boundsDip.top };
+    bool  isOver = false;
 
 
 
@@ -2928,15 +2924,46 @@ bool DxuiListView::TryGetTip (POINT pointPx, DxuiTip & tip) const
         return false;
     }
 
-    column = HitTestColumn (pointPx.x);
+    //  What the host computes for the row under the point first, as a Win32
+    //  list's LVN_GETINFOTIP, then what the cells have.
+    if (TryGetTipFromFn (pointPx, tip) || TryGetCellTip (pointPx, tip))
+    {
+        return true;
+    }
+
+    return IDxuiControl::TryGetTip (pointPx, tip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetCellTip
+//
+//  The heading's or the cell's tip under a point, in local pixels. Each is
+//  what a color in the list means, so it's a color key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
+{
+    const std::vector<Cell>  * cells   = nullptr;
+    RECT                       pointer = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+    int                        column  = HitTestColumn (pointPx.x);
+    int                        row     = -1;
+
+
 
     if (column < 0)
     {
-        return IDxuiControl::TryGetTip (pointPx, tip);
+        return false;
     }
 
     tip             = DxuiTip();
     tip.isMonospace = m_isMonospaceTips;
+    tip.isColorKey  = true;
 
     if (pointPx.y < GetHeaderHeightPx())
     {
@@ -2950,14 +2977,14 @@ bool DxuiListView::TryGetTip (POINT pointPx, DxuiTip & tip) const
 
     if (row < 0 || row >= GetRowCount())
     {
-        return IDxuiControl::TryGetTip (pointPx, tip);
+        return false;
     }
 
     cells = &GetCellsOfRow (row);
 
     if ((size_t) column >= cells->size() || (*cells)[(size_t) column].tip.empty())
     {
-        return IDxuiControl::TryGetTip (pointPx, tip);
+        return false;
     }
 
     if (!GetCellTextRectPx (row, (size_t) column, tip.anchor))

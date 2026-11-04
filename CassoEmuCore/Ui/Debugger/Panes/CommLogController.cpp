@@ -62,6 +62,7 @@ void CommLogController::CreateControls()
     CreateListAndBar();
 
     m_graph = m_host.GetControlParent().CreateChild<CommSignalGraph>();
+    m_graph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_model = std::make_unique<CommLogPane> (m_list, [this] (const std::string & request)
     {
         if (GetWindowHost() != nullptr)
@@ -333,13 +334,13 @@ void CommLogController::UpdateGraph()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommLogController::TryGetTip
+//  CommLogController::TryGetTipAt
 //
 //  The graph's lanes at the pointer, a line each, following the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommLogController::TryGetTip (POINT clientPx, DxuiTip & tip)
+bool CommLogController::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->TryGetTipAt (clientPx, tip.text))
     {

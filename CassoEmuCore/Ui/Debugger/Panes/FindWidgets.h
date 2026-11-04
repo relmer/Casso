@@ -178,10 +178,8 @@ public:
     void                 OnMouseMove    (const DxuiMouseEvent & ev, bool isLeftDown);
     bool                 IsOverPlate    (POINT clientPx) const;
 
-    //  The tip of a widget's control under a point; the cursor over a
-    //  widget, none where no widget is; and the pane whose widget has a
-    //  control, empty for none.
-    const wchar_t      * GetTip         (POINT clientPx, RECT & anchor) const;
+    //  The cursor over a widget, none where no widget is; and the pane whose
+    //  widget has a control, empty for none.
     LPCWSTR              GetCursor      (POINT clientPx) const;
     std::wstring         GetPaneOfControl (const IDxuiControl * control) const;
 

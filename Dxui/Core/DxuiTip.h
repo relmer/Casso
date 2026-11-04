@@ -10,10 +10,11 @@
 //
 //  DxuiTip
 //
-//  The tip a control has under a point, and how it opens and closes. A
-//  control returns one from IDxuiControl::TryGetTip, and DxuiTipService
-//  displays it in the window's one tooltip. The anchor is in the same pixels
-//  as the point the control was given.
+//  The tip a control has under a point, and how it opens and closes. The
+//  window's hit test finds the one control under the pointer, that control
+//  returns its tip from IDxuiControl::TryGetTip, and DxuiTipService displays
+//  it in the window's one tooltip. The anchor is in the same pixels as the
+//  point the control was given.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,4 +67,8 @@ struct DxuiTip
     std::vector<std::vector<uint32_t>>  lineScales;
     std::vector<uint32_t>               gradient;
     float                               gradientMark = -1.0f;
+
+    //  The tip is what a color means, as a list cell's is. Placed under an
+    //  in-place tip that is up, such as a cut-off cell's whole text.
+    bool                                isColorKey   = false;
 };

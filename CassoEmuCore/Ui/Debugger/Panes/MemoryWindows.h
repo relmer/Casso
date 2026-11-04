@@ -132,8 +132,7 @@ public:
     bool                             RouteEditKey           (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
     bool                             OnMappedAction         (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;
     bool                             SubmitTextBox          (DxuiTextInput * box) override;
-    const wchar_t                  * GetBarTip              (POINT clientPx, RECT & anchor) const override;
-    bool                             TryGetTip              (POINT clientPx, DxuiTip & tip) override;
+    bool                             TryGetTipAt            (POINT clientPx, DxuiTip & tip);
 
 private:
     //  A Find's window, the bytes a match covers, the hit it is on, and the

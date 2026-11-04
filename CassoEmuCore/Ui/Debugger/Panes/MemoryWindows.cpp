@@ -504,6 +504,15 @@ void MemoryWindowGroup::Configure()
     m_box->SetPlaceholder (L"Address: 0300, PC, (3E),Y");
 
     SetBarMenus();
+
+    //  Over a byte, its address and value, and its heat while the heat is on.
+    for (MemoryWindowPane * window : m_windows)
+    {
+        if (window != nullptr && window->GetView() != nullptr)
+        {
+            window->GetView()->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
+        }
+    }
 }
 
 
@@ -1240,26 +1249,6 @@ bool MemoryWindowGroup::RouteBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::GetBarTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * MemoryWindowGroup::GetBarTip (POINT clientPx, RECT & anchor) const
-{
-    if (!m_host.IsBarRouted (m_barPane) || !m_bar->IsVisible())
-    {
-        return nullptr;
-    }
-
-    return m_bar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MemoryWindowGroup::RouteContentMouse
 //
 //  A drag in a window has its events until it ends; a press or the wheel
@@ -1423,7 +1412,7 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::TryGetTip
+//  MemoryWindowGroup::TryGetTipAt
 //
 //  Over a byte of an open window, in either column, its address, at once and
 //  following the pointer itself rather than snapping from byte to byte; and
@@ -1431,7 +1420,7 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MemoryWindowGroup::TryGetTip (POINT clientPx, DxuiTip & tip)
+bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     for (MemoryWindowPane * window : GetOpenWindows())
     {

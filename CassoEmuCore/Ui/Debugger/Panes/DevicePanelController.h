@@ -44,7 +44,7 @@ public:
     std::optional<PaneColorKeySpec>  GetColorKey    () const override;
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick           (int64_t nowMs) override;
-    bool                             TryGetTip      (POINT clientPx, DxuiTip & tip) override;
+    bool                             TryGetTipAt    (POINT clientPx, DxuiTip & tip);
 
     //  The Video panel's menu opens the video log, the Mockingboard panel's
     //  the sound log.
@@ -53,7 +53,6 @@ public:
     std::vector<DxuiToolbar *>       GetBars        () const override;
     void                             PlaceBar       () override;
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override;
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override;
 
     //  The Disk II panel's choice of drives as it is saved, "1", "2" or
     //  "both", and back; anything else reads as both.

@@ -172,9 +172,10 @@ namespace ColorLegendTests
 
         static std::wstring  GetTipOverCell (const LegendWindow & window, const DxuiListView & list, int row, size_t column)
         {
-            RECT          cell   = {};
-            RECT          bounds = list.GetBounds();
-            DxuiTip       tip;
+            RECT     cell       = {};
+            RECT     bounds     = list.GetBounds();
+            DxuiTip  tip;
+            bool     isColorTip = false;
 
             //  The gutter's dot is an icon, with no text to aim at.
             if (column == 0 || !list.GetCellTextRectPx (row, column, cell))
@@ -182,7 +183,7 @@ namespace ColorLegendTests
                 cell = RECT { 2, list.GetHeaderHeightPx() + row * list.GetRowHeightDip(), 4, list.GetHeaderHeightPx() + (row + 1) * list.GetRowHeightDip() };
             }
 
-            (void) window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + (cell.top + cell.bottom) / 2 }, tip);
+            (void) window.GetTipCoordinator().TryGetTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + (cell.top + cell.bottom) / 2 }, tip, isColorTip);
             return tip.text;
         }
 
@@ -424,13 +425,14 @@ namespace ColorLegendTests
             LegendHost              host;
             LegendWindow            window (theme, host);
             DxuiDpiScaler           scaler;
-            DxuiListView          * list    = nullptr;
+            DxuiListView          * list       = nullptr;
             MockDxuiPainter         painter;
             MockDxuiTextRenderer    text;
-            RECT                    cell    = {};
-            RECT                    bounds  = {};
+            RECT                    cell       = {};
+            RECT                    bounds     = {};
             DxuiTip                 tip;
-            int                     right   = 0;
+            bool                    isColorTip = false;
+            int                     right      = 0;
 
 
 
@@ -445,7 +447,7 @@ namespace ColorLegendTests
             bounds = list->GetBounds();
 
             Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell));
-            Assert::IsTrue (window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, tip));
+            Assert::IsTrue (window.GetTipCoordinator().TryGetTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, tip, isColorTip));
             Assert::AreEqual (list->GetColumnAt (DisassemblyCells::kOperandColumn).tip, tip.text, L"the operand's heading");
 
             right = list->GetPaneLeadPx() - list->GetLeftPx();
@@ -456,7 +458,7 @@ namespace ColorLegendTests
             }
 
             Assert::IsTrue  (bounds.left + right + 20 < bounds.right, L"the pane is wider than its columns");
-            Assert::IsFalse (window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, tip), L"past the PC's row's last column");
+            Assert::IsFalse (window.GetTipCoordinator().TryGetTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, tip, isColorTip), L"past the PC's row's last column");
         }
     };
 }

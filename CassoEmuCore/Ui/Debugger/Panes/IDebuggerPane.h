@@ -465,11 +465,6 @@ public:
     virtual bool                         OnMappedAction    (DebuggerKeySchemes::Action action, IDxuiControl * focused) { (void) action; (void) focused; return false; }
     virtual bool                         SubmitTextBox     (DxuiTextInput * box) { (void) box; return false; }
 
-    //  The tip of the bar entry under a point, or null; and the tip of what
-    //  the pane draws under a point.
-    virtual const wchar_t              * GetBarTip      (POINT clientPx, RECT & anchor) const { (void) clientPx; (void) anchor; return nullptr; }
-    virtual bool                         TryGetTip      (POINT clientPx, DxuiTip & tip) { (void) clientPx; (void) tip; return false; }
-
     //  A press on one of the pane's lists ended at a point, the list having
     //  had it.
     virtual void                         OnListReleased (DxuiListView * list, POINT clientPx) { (void) list; (void) clientPx; }

@@ -66,6 +66,7 @@ public:
                                   const IDxuiTheme    & theme) override;
     bool     OnMouse             (const DxuiMouseEvent & ev) override;
     LPCWSTR  GetCursorForPoint   (POINT clientPx) const override;
+    bool     IsHitAt             (POINT pointPx) const override;
     bool     TryGetTip           (POINT pointPx, DxuiTip & tip) const override;
     bool     IsPointClipped      (POINT clientPx) const override;
     bool     IsTabGroup          () const override { return true; }

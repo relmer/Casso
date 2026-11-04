@@ -143,54 +143,11 @@ bool DebuggerWindow::TickTooltip (int64_t now)
 //
 //  DebuggerWindow::UpdateTooltip
 //
-//  A pane slid out from an edge lies over the panes under it, so over it a
-//  tip is looked up only among its controls, as its clicks are routed only
-//  to them. Before, a pane under it, such as the heat map, returned its tip
-//  first.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::UpdateTooltip (POINT clientPx)
 {
-    std::wstring  slid = (m_floating->GetRoutingPane().empty() && m_dockSite != nullptr) ? m_dockSite->GetSlidPane() : std::wstring();
-
-
-
-    if (!slid.empty() && DxuiDockSite::Contains (m_dockSite->GetSlidRect(), clientPx))
-    {
-        FloatingPanes::RouteScope  scope (*m_floating, slid);
-
-        m_tips->Update (clientPx);
-        return;
-    }
-
     m_tips->Update (clientPx);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetCommandBarTip
-//
-//  Only for the window the command bar is in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * DebuggerWindow::GetCommandBarTip (POINT clientPx, RECT & anchor) const
-{
-    bool  isBarWindow = m_floating->GetRoutingPane() == (m_barHost.IsFloating() ? std::wstring (kBarFloatKey) : std::wstring());
-
-
-
-    if (!isBarWindow || m_commandBar == nullptr || !m_commandBar->IsVisible())
-    {
-        return nullptr;
-    }
-
-    return m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
 }
 
 
@@ -388,23 +345,28 @@ bool DebuggerWindow::Meets (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::TryGetChromeTip
+//  DebuggerWindow::TryGetRoutedTip
 //
-//  A tab's tip, or a pane's title-bar button's, from the dock site of the
-//  window the mouse is in: this one's, or the floating window's the event
-//  was routed from. A pane slid out is in this window's site.
+//  A floating window has its site's title bar and tabs, and the panes'
+//  controls, which are this window's children. A point there is tested
+//  against the site first, then only against the controls of the panes in
+//  that window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::TryGetChromeTip (POINT clientPx, DxuiTip & tip) const
+bool DebuggerWindow::TryGetRoutedTip (POINT clientPx, DxuiTip & tip) const
 {
     const std::wstring  & routing = m_floating->GetRoutingPane();
-    bool                  isMain  = routing.empty() || (m_dockSite != nullptr && routing == m_dockSite->GetSlidPane());
-    const DxuiDockSite  * site    = isMain ? m_dockSite : m_floating->FindSite (routing);
+    const DxuiDockSite  * site    = routing.empty() ? nullptr : m_floating->FindSite (routing);
 
 
 
-    return site != nullptr && site->TryGetTip (clientPx, tip);
+    if (site != nullptr && site->IsHitAt (clientPx))
+    {
+        return site->TryGetTip (clientPx, tip);
+    }
+
+    return TryGetTip (clientPx, tip);
 }
 
 
@@ -413,27 +375,145 @@ bool DebuggerWindow::TryGetChromeTip (POINT clientPx, DxuiTip & tip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetTipLists
+//  DebuggerWindow::TryGetTip
 //
-//  The lists in the window the event being routed came from.
+//  The zoom popup and a pinned color key are drawn over the panes but are
+//  not controls, so over them no control's tip opens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiListView *> DebuggerWindow::GetTipLists() const
+bool DebuggerWindow::TryGetTip (POINT clientPx, DxuiTip & tip) const
 {
-    std::vector<DxuiListView *>  lists;
+    RECT  pinned = {};
+    bool  isMain = m_floating->GetRoutingPane().empty();
 
 
 
-    for (DxuiListView * each : GetLists())
+    if (isMain && m_zoomOpen && DxuiDockSite::Contains (m_zoomRect, clientPx))
     {
-        if (each != nullptr && IsRoutable (each))
+        return false;
+    }
+
+    if (isMain && m_colorKeys->TryGetPinnedRect (pinned) && DxuiDockSite::Contains (pinned, clientPx))
+    {
+        return false;
+    }
+
+    return DxuiWindow::TryGetTip (clientPx, tip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsChildHitTestable
+//
+//  A floating pane's controls are children of this window, laid out in the
+//  floating window's pixels, so a point counts only the controls of the
+//  window the event came from. The command bar is in its floating window
+//  while it floats.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsChildHitTestable (const IDxuiControl & child) const
+{
+    if (&child == m_commandBar)
+    {
+        return m_floating->GetRoutingPane() == (m_barHost.IsFloating() ? std::wstring (kBarFloatKey) : std::wstring());
+    }
+
+    return IsRoutable (&child);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ConfigureTips
+//
+//  The tips that join facts from two parts, installed on the controls they
+//  are over: a disassembly row's, a source line's and the status bar's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ConfigureTips()
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * list = m_code->GetCodeList (view);
+
+        if (list != nullptr)
         {
-            lists.push_back (each);
+            list->SetTipFn ([this, list] (POINT clientPx, DxuiTip & tip) { return TryGetCodeTip (*list, clientPx, tip); });
         }
     }
 
-    return lists;
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+
+        if (document.GetView() != nullptr)
+        {
+            document.GetView()->SetTipFn ([this, &document] (POINT clientPx, DxuiTip & tip)
+            {
+                return TryGetBranchTip (clientPx, tip) || document.TryGetHeatTip (clientPx, tip);
+            });
+        }
+    }
+
+    if (m_statusBar != nullptr)
+    {
+        m_statusBar->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetGraphicTip (clientPx, tip); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetCodeTip
+//
+//  Over a disassembly row: the PC's branch arrow, or a symbol and what the
+//  color of its cell means. A symbol's tip is code, so it reads in the
+//  fixed-width face. Elsewhere the list has its cells' tips.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, DxuiTip & tip) const
+{
+    RECT          bounds   = list.GetBounds();
+    RECT          anchor   = {};
+    std::wstring  text;
+    DxuiTip       colorTip;
+
+
+
+    if (TryGetBranchTip (clientPx, tip))
+    {
+        return true;
+    }
+
+    if (!m_code->TryGetSymbolTip (clientPx, anchor, text))
+    {
+        return false;
+    }
+
+    (void) list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, colorTip);
+
+    tip              = DxuiTip();
+    tip.anchor       = anchor;
+    tip.text         = ColorLegend::JoinLines ({ text, colorTip.text });
+    tip.isMonospace  = true;
+    tip.gradient     = std::move (colorTip.gradient);
+    tip.gradientMark = colorTip.gradientMark;
+    tip.lineScales   = std::move (colorTip.lineScales);
+    return true;
 }
 
 
@@ -444,21 +524,21 @@ std::vector<DxuiListView *> DebuggerWindow::GetTipLists() const
 //
 //  DebuggerWindow::TryGetGraphicTip
 //
-//  Over a device panel's disk head, what its colors mean; over the status
-//  bar's history section, what its meter's do.
+//  Over the status bar's history section, what its meter's colors mean.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+bool DebuggerWindow::TryGetGraphicTip (POINT clientPx, DxuiTip & tip) const
 {
-    if (m_floating->GetRoutingPane().empty() && m_statusBar != nullptr && m_statusBar->IsVisible() &&
-        m_statusBar->FindFieldAt (clientPx) == (int) kStatusHistory &&
-        DebuggerStatusText::GetHistoryFill (m_snapshot != nullptr ? m_snapshot->history : HistoryStatus()) >= 0.0f)
+    if (m_statusBar == nullptr || m_statusBar->FindFieldAt (clientPx) != (int) kStatusHistory ||
+        DebuggerStatusText::GetHistoryFill (m_snapshot != nullptr ? m_snapshot->history : HistoryStatus()) < 0.0f)
     {
-        anchor = m_statusBar->GetFieldRect (kStatusHistory);
-        text   = ColorLegend::GetHistoryMeterTip();
-        return true;
+        return false;
     }
 
-    return false;
+    tip            = DxuiTip();
+    tip.anchor     = m_statusBar->GetFieldRect (kStatusHistory);
+    tip.text       = ColorLegend::GetHistoryMeterTip();
+    tip.isColorKey = true;
+    return true;
 }

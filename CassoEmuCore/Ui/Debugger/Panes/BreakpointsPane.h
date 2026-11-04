@@ -82,7 +82,6 @@ public:
     bool                             RouteEditMouse (const DxuiMouseEvent & ev) override;
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                             RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
     bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                             AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 

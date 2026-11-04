@@ -82,6 +82,7 @@ std::wstring HeatMapPane::GetId() const
 void HeatMapPane::CreateControls()
 {
     m_view    = m_host.GetControlParent().CreateChild<HeatMapView>();
+    m_view->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_bar.Create();
     m_viewBar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
 }
@@ -679,30 +680,6 @@ bool HeatMapPane::RouteBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapPane::GetBarTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * HeatMapPane::GetBarTip (POINT clientPx, RECT & anchor) const
-{
-    const wchar_t  * tip = m_bar.GetTip (clientPx, anchor);
-
-
-
-    if (tip == nullptr || *tip == L'\0')
-    {
-        tip = PaneBarSlot::GetToolbarTip (m_host, GetId(), m_viewBar, clientPx, anchor);
-    }
-
-    return tip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HeatMapPane::IsBarEnabled
 //
 //  There is a bank to choose only on a machine with aux RAM or a language
@@ -924,7 +901,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapPane::TryGetTip
+//  HeatMapPane::TryGetTipAt
 //
 //  Over the zoom, how to zoom, as a control's tip. Over the map, the cell the
 //  mouse picks and what touched it, at once and following the pointer. Until
@@ -934,7 +911,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapPane::TryGetTip (POINT clientPx, DxuiTip & tip)
+bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     bool  isShown = m_host.IsRoutable (m_view) && m_view->IsVisible();
 

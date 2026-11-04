@@ -63,7 +63,6 @@ public:
     std::optional<PaneColorKeySpec>  GetColorKey    () const override;
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override;
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
     bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:

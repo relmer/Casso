@@ -52,7 +52,6 @@ public:
     std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick           (int64_t nowMs) override;
     bool                             OnMappedAction (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;

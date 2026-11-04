@@ -350,11 +350,7 @@ protected:
     bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
     void             FitHistoryField     (IDxuiTextRenderer & text);
 
-    //  Protected so a test can read the tip that says what a color means where
-    //  the pointer rests: over the PC's branch arrow, the disk head or the
-    //  history meter. And the colors the legend shows.
-    bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;
-    bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const override;
+    //  The legend's colors.
     ColorLegend::Palette  GetColorPalette  () const override;
 
     //  The screen and cell of the tip over a disassembly row's operand and
@@ -630,13 +626,18 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                   IsOperandTipCovered  (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const;
     static bool            Meets                (const RECT & over, POINT clientPx, const RECT & tipRect);
 
-    //  The tip sources (ITooltipSources).
-    const std::vector<std::unique_ptr<IDebuggerPane>> &  GetTipPanes () const override { return m_panes; }
-    const wchar_t *              GetCommandBarTip (POINT clientPx, RECT & anchor) const override;
-    const wchar_t *              GetFindTip       (POINT clientPx, RECT & anchor) const override { return m_finds->GetTip (clientPx, anchor); }
-    bool                         TryGetChromeTip  (POINT clientPx, DxuiTip & tip) const override;
-    std::vector<DxuiListView *>  GetTipLists      () const override;
-    bool                         TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const override;
+    //  The tip of the control under a point (ITooltipSources): the floating
+    //  window's chrome, or the control this window's hit test finds, of the
+    //  window the event came from. The tips that join two parts' facts, which
+    //  the window installs on the controls: a disassembly row's branch arrow
+    //  and symbol, a source line's arrow and heat, and the history meter.
+    bool  TryGetRoutedTip    (POINT clientPx, DxuiTip & tip) const override;
+    bool  TryGetTip          (POINT clientPx, DxuiTip & tip) const override;
+    bool  IsChildHitTestable (const IDxuiControl & child) const override;
+    void  ConfigureTips      ();
+    bool  TryGetCodeTip      (const DxuiListView & list, POINT clientPx, DxuiTip & tip) const;
+    bool  TryGetBranchTip    (POINT clientPx, DxuiTip & tip) const;
+    bool  TryGetGraphicTip   (POINT clientPx, DxuiTip & tip) const;
 
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.
     static RECT  GetPointerAnchor (POINT clientPx) { return RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 }; }

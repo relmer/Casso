@@ -99,8 +99,7 @@ public:
     bool                         RouteBarMouse       (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                         RouteContentMouse   (const DxuiMouseEvent & ev) override;
     bool                         RouteEditKey        (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    const wchar_t              * GetBarTip           (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
-    bool                         TryGetTip           (POINT clientPx, DxuiTip & tip) override;
+    bool                         TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     bool                         AddMenuItems        (DxuiListView * list, int row, PaneMenuItems & items) override;
     void                         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 

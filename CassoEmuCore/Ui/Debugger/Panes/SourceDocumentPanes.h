@@ -61,8 +61,7 @@ public:
     void                             SetTextZoom    (float zoom) override;
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
-    bool                             TryGetTip      (POINT clientPx, DxuiTip & tip) override;
+    bool                             TryGetHeatTip  (POINT clientPx, DxuiTip & tip) const;
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:

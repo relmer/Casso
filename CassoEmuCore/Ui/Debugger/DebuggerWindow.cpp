@@ -259,6 +259,7 @@ void DebuggerWindow::ConfigureWidgets()
         pane->Configure();
     }
 
+    ConfigureTips();
     SetAcceptsDroppedFiles  (true);
 
     for (DxuiListView * list : GetLists())

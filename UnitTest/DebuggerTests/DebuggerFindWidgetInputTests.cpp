@@ -232,7 +232,6 @@ namespace DebuggerFindWidgetInputTests
             CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
             InputHost              host;
             InputWindow            window (theme, host);
-            RECT                   anchor = {};
             std::set<std::wstring> seen;
 
 
@@ -242,10 +241,12 @@ namespace DebuggerFindWidgetInputTests
 
             for (size_t i = 0; i < window.GetFindWidgets().GetActiveControls().size(); i++)
             {
-                const wchar_t * tip = window.GetFindWidgets().GetTip (InputWindow::GetCenter (window.GetFindControl (i)), anchor);
+                DxuiTip  tip;
 
-                Assert::IsNotNull (tip);
-                Assert::IsTrue    (seen.insert (tip).second, (std::wstring (L"a tip of its own: ") + tip).c_str());
+                //  The window's hit test finds the control at its center, and
+                //  that control's tip is the one returned.
+                Assert::IsTrue (static_cast<const IDxuiControl &> (window).TryGetTip (InputWindow::GetCenter (window.GetFindControl (i)), tip));
+                Assert::IsTrue (seen.insert (tip.text).second, (L"a repeated tip: " + tip.text).c_str());
             }
         }
 

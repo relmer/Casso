@@ -192,23 +192,3 @@ bool PaneBarSlot::RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstrin
         return open;
     }
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaneBarSlot::GetToolbarTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * PaneBarSlot::GetToolbarTip (IDebuggerPaneHost & host, const std::wstring & pane, const DxuiToolbar * bar, POINT clientPx, RECT & anchor)
-{
-    if (bar == nullptr || !host.IsBarRouted (pane) || !bar->IsVisible())
-    {
-        return nullptr;
-    }
-
-    return bar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
-}

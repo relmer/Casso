@@ -116,6 +116,14 @@ void DevicePanelController::Configure()
 
     m_model->GetHead()->SetChoice (FromText ((host != nullptr) ? host->GetDebuggerDiskDrives() : std::string()));
     SetDriveBarEntries();
+
+    for (IDxuiControl * control : { (IDxuiControl *) m_model->GetMap(), (IDxuiControl *) m_model->GetHead(), (IDxuiControl *) m_model->GetBoard() })
+    {
+        if (control != nullptr)
+        {
+            control->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
+        }
+    }
 }
 
 
@@ -284,21 +292,6 @@ void DevicePanelController::PlaceBar()
 bool DevicePanelController::RouteBarMouse (const DxuiMouseEvent & ev)
 {
     return m_bar->RouteMouse (ev);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DevicePanelController::GetBarTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * DevicePanelController::GetBarTip (POINT clientPx, RECT & anchor) const
-{
-    return m_bar->GetTip (clientPx, anchor);
 }
 
 
@@ -537,7 +530,7 @@ bool DevicePanelController::Tick (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DevicePanelController::TryGetTip
+//  DevicePanelController::TryGetTipAt
 //
 //  Over the memory map's strips, the run of pages there and what it is, at
 //  once and following the pointer, as a memory window's byte does; over the
@@ -545,7 +538,7 @@ bool DevicePanelController::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DevicePanelController::TryGetTip (POINT clientPx, DxuiTip & tip)
+bool DevicePanelController::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     MemoryMapBar    * map   = m_model->GetMap();
     DiskHeadView    * head  = m_model->GetHead();

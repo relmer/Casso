@@ -513,14 +513,11 @@ namespace DebuggerTests
 
             for (IDxuiControl * control : window.GetFindWidgets().GetActiveControls())
             {
-                RECT             anchor = {};
-                const wchar_t  * tip    = nullptr;
+                DxuiTip  tip;
 
                 Assert::IsNotNull (control);
-
-                tip = window.GetFindWidgets().GetTip (GetCenter (control->GetBounds()), anchor);
-
-                Assert::IsTrue (tip != nullptr && *tip != L'\0', (L"a tip for " + control->GetAccessibleName()).c_str());
+                Assert::IsTrue    (static_cast<const IDxuiControl &> (window).TryGetTip (GetCenter (control->GetBounds()), tip) && !tip.text.empty(),
+                                   (L"a tip for " + control->GetAccessibleName()).c_str());
             }
         }
     };

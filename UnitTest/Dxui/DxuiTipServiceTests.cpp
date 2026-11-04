@@ -230,6 +230,155 @@ public:
     }
 
 
+
+    //  Only the front control under the point has its tip returned, whether
+    //  or not it has one: a control it covers doesn't, as in Windows, where
+    //  the window under the pointer is found first. A container's tip is
+    //  returned over a child of the container without a tip.
+    TEST_METHOD (TheFrontControlCoversTheControlsBehindIt)
+    {
+        DxuiPanel          root;
+        MockDxuiControl  * back  = root.CreateChild<MockDxuiControl>();
+        MockDxuiControl  * front = root.CreateChild<MockDxuiControl>();
+        DxuiTip            tip;
+
+
+
+        root.SetBounds   (RECT { 0,  0,  200, 100 });
+        back->SetBounds  (RECT { 10, 10, 110, 60 });
+        front->SetBounds (RECT { 50, 20, 90,  40 });
+        back->SetTip     (L"Back");
+
+        Assert::IsFalse (DxuiTipService::FindTip (root, POINT { 60, 30 }, tip), L"the covered control's tip");
+
+        root.SetTip (L"Window");
+        Assert::IsTrue   (DxuiTipService::FindTip (root, POINT { 60, 30 }, tip));
+        Assert::AreEqual (std::wstring (L"Window"), tip.text, L"the container's tip over its child with none");
+    }
+
+
+    //  A container without a tip doesn't paint where it has no child, so the
+    //  control behind it is under the pointer there.
+    TEST_METHOD (AContainersEmptyPartIsTransparent)
+    {
+        DxuiPanel          root;
+        MockDxuiControl  * back  = root.CreateChild<MockDxuiControl>();
+        DxuiPanel        * group = root.CreateChild<DxuiPanel>();
+        MockDxuiControl  * inner = group->CreateChild<MockDxuiControl>();
+        DxuiTip            tip;
+
+
+
+        root.SetBounds   (RECT { 0,  0,  200, 100 });
+        back->SetBounds  (RECT { 0,  0,  200, 100 });
+        group->SetBounds (RECT { 0,  0,  200, 100 });
+        inner->SetBounds (RECT { 10, 10, 50,  50 });
+        back->SetTip     (L"Back");
+        inner->SetTip    (L"Inner");
+
+        Assert::IsTrue   (DxuiTipService::FindTip (root, POINT { 20, 20 }, tip));
+        Assert::AreEqual (std::wstring (L"Inner"), tip.text);
+
+        Assert::IsTrue   (DxuiTipService::FindTip (root, POINT { 150, 80 }, tip));
+        Assert::AreEqual (std::wstring (L"Back"), tip.text, L"the empty part of the group covered the control behind it");
+    }
+
+
+    //  The top layer is painted over the rest, so it is found first, even
+    //  ahead of children added after it.
+    TEST_METHOD (TheTopLayerIsInFrontOfTheOtherChildren)
+    {
+        DxuiPanel          root;
+        MockDxuiControl  * slid  = root.CreateChild<MockDxuiControl>();
+        MockDxuiControl  * under = root.CreateChild<MockDxuiControl>();
+        DxuiTip            tip;
+
+
+
+        root.SetBounds   (RECT { 0, 0, 200, 100 });
+        slid->SetBounds  (RECT { 0, 0, 100, 100 });
+        under->SetBounds (RECT { 0, 0, 200, 100 });
+        slid->SetTip     (L"Slid out");
+        under->SetTip    (L"Under");
+
+        Assert::IsTrue   (DxuiTipService::FindTip (root, POINT { 50, 50 }, tip));
+        Assert::AreEqual (std::wstring (L"Under"), tip.text, L"the child added last");
+
+        root.SetTopLayer ({ slid });
+        Assert::IsTrue   (DxuiTipService::FindTip (root, POINT { 50, 50 }, tip));
+        Assert::AreEqual (std::wstring (L"Slid out"), tip.text, L"the top layer");
+    }
+
+
+    //  A window whose children are on screen in more than one window counts
+    //  only the children of the window a point is in.
+    TEST_METHOD (AChildTheWindowDoesNotCountIsPassedOver)
+    {
+        class TwoWindows : public DxuiPanel
+        {
+        public:
+            const IDxuiControl  * other = nullptr;
+
+        protected:
+            bool  IsChildHitTestable (const IDxuiControl & child) const override { return &child != other; }
+        };
+
+        TwoWindows         root;
+        MockDxuiControl  * docked = root.CreateChild<MockDxuiControl>();
+        MockDxuiControl  * floats = root.CreateChild<MockDxuiControl>();
+        DxuiTip            tip;
+
+
+
+        root.SetBounds    (RECT { 0, 0, 200, 100 });
+        docked->SetBounds (RECT { 0, 0, 200, 100 });
+        floats->SetBounds (RECT { 0, 0, 200, 100 });
+        docked->SetTip    (L"Docked");
+        floats->SetTip    (L"Floating");
+        root.other = floats;
+
+        Assert::IsTrue   (DxuiTipService::FindTip (root, POINT { 50, 50 }, tip));
+        Assert::AreEqual (std::wstring (L"Docked"), tip.text);
+    }
+
+
+    //  A tip that depends on the point is a function on the control, called
+    //  with client pixels whatever the control's events are in, and only for
+    //  the control the hit test finds.
+    TEST_METHOD (ATipFunctionIsCalledOnlyForTheControlUnderThePoint)
+    {
+        DxuiPanel          root;
+        MockDxuiControl  * back  = root.CreateChild<MockDxuiControl>();
+        MockDxuiControl  * front = root.CreateChild<MockDxuiControl>();
+        int                calls = 0;
+        POINT              given = {};
+        DxuiTip            tip;
+
+
+
+        root.SetBounds   (RECT { 0,  0,  200, 100 });
+        back->SetBounds  (RECT { 0,  0,  200, 100 });
+        front->SetBounds (RECT { 50, 20, 90,  40 });
+        front->usesLocalPoints = true;
+
+        back->SetTipFn  ([&] (POINT, DxuiTip &) { calls++; return true; });
+        front->SetTipFn ([&] (POINT clientPx, DxuiTip & found)
+        {
+            given        = clientPx;
+            found.text   = L"Front";
+            found.anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+            return true;
+        });
+
+        Assert::IsTrue   (DxuiTipService::FindTip (root, POINT { 60, 30 }, tip));
+        Assert::AreEqual (std::wstring (L"Front"), tip.text);
+        Assert::AreEqual (0,   calls, L"the covered control's function was called");
+        Assert::AreEqual (60L, given.x, L"the function was given local pixels");
+        Assert::AreEqual (30L, given.y);
+        Assert::AreEqual (60L, tip.anchor.left, L"the anchor came back in the wrong pixels");
+    }
+
+
     //  Every part of a tip's look is set for each tip, so a tip of a sentence
     //  after a tip of code is in the body face.
     TEST_METHOD (ATipHasNoneOfTheLastTipsLook)

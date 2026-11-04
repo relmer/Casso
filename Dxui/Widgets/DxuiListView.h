@@ -603,6 +603,10 @@ public:
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
     bool                TryGetTip      (POINT pointPx, DxuiTip & tip) const override;
+
+    //  The tip of the heading or the cell under a point, in local pixels,
+    //  without the host's tip function.
+    bool                TryGetCellTip  (POINT pointPx, DxuiTip & tip) const;
     bool                UsesLocalPoints() const override { return true; }
 
     //  Whether the cells' and headings' tips are drawn in a fixed-width face,

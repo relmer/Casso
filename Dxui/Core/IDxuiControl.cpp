@@ -120,20 +120,20 @@ void IDxuiControl::SetTabIndex (int tabIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryGetTip
+//  IsHitAt
 //
-//  The control's tip text over its bounds, relative to its top-left for a
-//  control that takes local points.
+//  Every point of the bounds of a visible control, relative to its top-left
+//  for a control that takes local points.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IDxuiControl::TryGetTip (POINT pointPx, DxuiTip & tip) const
+bool IDxuiControl::IsHitAt (POINT pointPx) const
 {
     RECT  bounds = m_boundsDip;
 
 
 
-    if (m_tip.empty() || !m_visible)
+    if (!m_visible)
     {
         return false;
     }
@@ -143,13 +143,94 @@ bool IDxuiControl::TryGetTip (POINT pointPx, DxuiTip & tip) const
         OffsetRect (&bounds, -bounds.left, -bounds.top);
     }
 
-    if (PtInRect (&bounds, pointPx) == FALSE)
+    return PtInRect (&bounds, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTip
+//
+//  The tip function's tip, or else the control's tip text over its bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool IDxuiControl::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    RECT  bounds = m_boundsDip;
+
+
+
+    if (!IsHitAt (pointPx))
     {
         return false;
+    }
+
+    if (TryGetTipFromFn (pointPx, tip))
+    {
+        return true;
+    }
+
+    if (m_tip.empty())
+    {
+        return false;
+    }
+
+    if (UsesLocalPoints())
+    {
+        OffsetRect (&bounds, -bounds.left, -bounds.top);
     }
 
     tip        = DxuiTip();
     tip.text   = m_tip;
     tip.anchor = bounds;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTipFromFn
+//
+//  The function takes and returns client pixels, so a control that takes
+//  local points has the point moved out to the client area and the anchor
+//  moved back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool IDxuiControl::TryGetTipFromFn (POINT pointPx, DxuiTip & tip) const
+{
+    POINT    clientPx = pointPx;
+    POINT    origin   = {};
+    DxuiTip  found;
+
+
+
+    if (m_tipFn == nullptr)
+    {
+        return false;
+    }
+
+    if (UsesLocalPoints())
+    {
+        origin = POINT { m_boundsDip.left, m_boundsDip.top };
+    }
+
+    clientPx.x += origin.x;
+    clientPx.y += origin.y;
+
+    if (!m_tipFn (clientPx, found))
+    {
+        return false;
+    }
+
+    OffsetRect (&found.anchor, -origin.x, -origin.y);
+    tip = std::move (found);
     return true;
 }

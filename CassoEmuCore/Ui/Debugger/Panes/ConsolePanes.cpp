@@ -1210,6 +1210,9 @@ void ConsolePane::Configure()
     m_output.Configure();
     m_commandLine.Configure();
     m_modeBar.Configure();
+
+    //  Over a line's time stamp, the date and time in full.
+    m_output.GetView()->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
 }
 
 
@@ -1399,13 +1402,13 @@ bool ConsolePane::SubmitTextBox (DxuiTextInput * box)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ConsolePane::TryGetTip
+//  ConsolePane::TryGetTipAt
 //
 //  Over a line's time stamp, the date and the time in full.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ConsolePane::TryGetTip (POINT clientPx, DxuiTip & tip)
+bool ConsolePane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     if (!m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
     {

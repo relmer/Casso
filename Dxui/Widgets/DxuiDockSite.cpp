@@ -1344,6 +1344,50 @@ bool DxuiDockSite::TryGetTitleExtraRect (const std::wstring & pane, RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::IsHitAt
+//
+//  The site lies over the whole of its panes, but only its chrome is under
+//  the pointer: the title bars, the tab strips, the edges' tabs and the
+//  sashes. A pane slid out from an edge lies over the panes under it, so all
+//  of it is the site's but for the slid pane's controls, which the window's
+//  top layer finds first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::IsHitAt (POINT pointPx) const
+{
+    if (!IsVisible())
+    {
+        return false;
+    }
+
+    if (!m_slidPane.empty() && Contains (m_slidRect, pointPx))
+    {
+        return true;
+    }
+
+    if (HitTestEdgeTab (pointPx) >= 0 || HitTestSash (pointPx) >= 0)
+    {
+        return true;
+    }
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        if (group != nullptr && group->IsVisible() && (Contains (group->GetTitleRect(), pointPx) || Contains (group->GetStripRect(), pointPx)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::TryGetTip
 //
 //  A tab's tip, or what the title-bar button under the point does.

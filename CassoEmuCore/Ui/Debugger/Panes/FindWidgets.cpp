@@ -151,6 +151,17 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
     widget.selButton   = parent.CreateChild<DxuiButton>      (s_kpszMdl2AlignLeft);
     widget.closeButton = parent.CreateChild<DxuiButton>      (s_kpszMdl2Cancel);
 
+    //  What each control does, as every toolbar control's tip has it.
+    widget.caseButton ->SetTip (L"Find only text in the same case");
+    widget.wordButton ->SetTip (L"Find only whole words");
+    widget.regexButton->SetTip (L"Find by regular expression");
+    widget.prevButton ->SetTip (L"Find the previous match");
+    widget.nextButton ->SetTip (L"Find the next match");
+    widget.selButton  ->SetTip (L"Find in selection");
+    widget.chevron    ->SetTip (L"Replace is not available: this text is read-only");
+    widget.closeButton->SetTip (L"Close the find bar");
+    widget.box        ->SetTip (L"Text to find in this pane");
+
     ShowOptions (widget);
 
     //  Icon glyphs at a compact pane toolbar's size, beside the option
@@ -1148,49 +1159,6 @@ bool FindWidgetSet::IsOverPlate (POINT clientPx) const
 
         return plate != nullptr && m_host.IsRoutable (plate) && plate->IsVisible() && DxuiDockSite::Contains (plate->GetBounds(), clientPx);
     });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindWidgetSet::GetTip
-//
-//  What each of the widget's controls does, as every toolbar control's tip
-//  has it. The toggles lie inside the box, so the box is checked last.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * FindWidgetSet::GetTip (POINT clientPx, RECT & anchor) const
-{
-    for (const auto & [pane, widget] : m_widgets)
-    {
-        const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
-        {
-            { widget.caseButton,  L"Find only text in the same case"      },
-            { widget.wordButton,  L"Find only whole words"                },
-            { widget.regexButton, L"Find by regular expression"           },
-            { widget.prevButton,  L"Find the previous match"              },
-            { widget.nextButton,  L"Find the next match"                  },
-            { widget.selButton,   L"Find in selection"                    },
-            { widget.chevron,     L"Replace is not available: this text is read-only" },
-            { widget.closeButton, L"Close the find bar"                   },
-            { widget.box,         L"Text to find in this pane"             },
-        };
-
-        for (const auto & [control, tip] : tips)
-        {
-            if (control != nullptr && m_host.IsRoutable (control) && control->IsVisible() && DxuiDockSite::Contains (control->GetBounds(), clientPx))
-            {
-                anchor = control->GetBounds();
-                return tip;
-            }
-        }
-    }
-
-    return nullptr;
 }
 
 

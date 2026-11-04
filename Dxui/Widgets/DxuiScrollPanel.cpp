@@ -470,6 +470,24 @@ LPCWSTR DxuiScrollPanel::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsHitAt
+//
+//  Every point of its bounds: the page scrolls inside it, and its scroll
+//  bars lie at its edges.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollPanel::IsHitAt (POINT pointPx) const
+{
+    return IsVisible() && PtInRect (&m_boundsDip, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryGetTip
 //
 //  As OnMouse: outside the viewport a child has no tip.

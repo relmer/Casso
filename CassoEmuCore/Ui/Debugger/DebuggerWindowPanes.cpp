@@ -690,26 +690,14 @@ void DebuggerWindow::ShowCode (std::optional<Word> address)
 //
 //  DebuggerWindow::TryGetBranchTip
 //
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
-{
-    return m_code->TryGetBranchTip (clientPx, anchor, text);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::TryGetSymbolTip
+//  Over the PC's branch arrow, whether the branch is taken and why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+bool DebuggerWindow::TryGetBranchTip (POINT clientPx, DxuiTip & tip) const
 {
-    return m_code->TryGetSymbolTip (clientPx, anchor, text);
+    tip = DxuiTip();
+    return m_code->TryGetBranchTip (clientPx, tip.anchor, tip.text);
 }
 
 

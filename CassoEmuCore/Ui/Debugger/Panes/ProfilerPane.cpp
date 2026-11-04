@@ -73,6 +73,8 @@ void ProfilerPane::CreateControls()
     m_timeline   = m_host.GetControlParent().CreateChild<ProfileTimeline>();
     m_totals     = m_host.GetControlParent().CreateChild<DxuiLabel>();
     m_flameGraph = m_host.GetControlParent().CreateChild<FlameGraphView>();
+    m_timeline  ->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
+    m_flameGraph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_flameGraph->SetTipHead ([this] (const ProfileRoutineEntry & routine) { return GetTipHeadWithComment (routine); });
     m_progress   = m_host.GetControlParent().CreateChild<ProfileProgress>();
     m_bar.Create();
@@ -1623,14 +1625,14 @@ bool ProfilerPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProfilerPane::TryGetTip
+//  ProfilerPane::TryGetTipAt
 //
 //  Over the timeline, the frame there; over the flame graph, the routine;
 //  each at once and following the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProfilerPane::TryGetTip (POINT clientPx, DxuiTip & tip)
+bool ProfilerPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     tip.placement = DxuiTip::Placement::FollowPointer;
 

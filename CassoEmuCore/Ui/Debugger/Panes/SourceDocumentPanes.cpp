@@ -245,13 +245,13 @@ bool SourceDocumentPane::Contains (POINT atDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourceDocumentPane::TryGetTip
+//  SourceDocumentPane::TryGetHeatTip
 //
 //  Over a line's heat strip, its bytes' counts and the scale of its color.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SourceDocumentPane::TryGetTip (POINT clientPx, DxuiTip & tip)
+bool SourceDocumentPane::TryGetHeatTip (POINT clientPx, DxuiTip & tip) const
 {
     HeatStrip::Tip  heat;
 

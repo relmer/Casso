@@ -109,6 +109,7 @@ public:
                                     const IDxuiTheme    & theme) override;
     bool              OnMouse      (const DxuiMouseEvent & ev) override;
     LPCWSTR           GetCursorForPoint (POINT clientPx) const     override;
+    bool              IsHitAt      (POINT pointPx) const override;
     bool              TryGetTip    (POINT pointPx, DxuiTip & tip) const override;
     bool              OnKey        (const DxuiKeyEvent   & ev) override;
     void              OnThemeChanged()                       override;
@@ -145,6 +146,13 @@ public:
 
 protected:
     void              OnVisibilityChanged() override;
+
+    //  Whether the hit test counts a child, for a window whose children are
+    //  on screen in more than one window, as the debugger's floating panes
+    //  are: a point in one window lies on that window's controls only.
+    virtual bool      IsChildHitTestable (const IDxuiControl & child) const { (void) child; return true; }
+
+    const IDxuiControl *  FindChildAt (POINT pointPx, POINT & childPx) const;
 
 private:
     void              AppendChild  (std::unique_ptr<IDxuiControl> child);
