@@ -295,9 +295,11 @@ namespace DebuggerFindWidgetInputTests
             scaler.SetDpi (96);
             list->Layout  (list->GetBounds(), scaler);
 
-            for (int y = 0; y < 70; y += 4)
+            //  Every 6 pixels: any part with the I-beam, a box or a text cell,
+            //  is wider and taller than that.
+            for (int y = 0; y < 70; y += 6)
             {
-                for (int x = 0; x < 1100; x += 2)
+                for (int x = 0; x < 1100; x += 6)
                 {
                     Assert::IsTrue (window.GetCursorForPoint (POINT { x, y }) != IDC_IBEAM, std::format (L"no I-beam at {}, {}", x, y).c_str());
                 }

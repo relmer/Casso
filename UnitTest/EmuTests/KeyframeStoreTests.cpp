@@ -454,7 +454,9 @@ public:
 
     TEST_METHOD (TheBudgetIsFullOnceTheOldestIsDropped)
     {
-        constexpr size_t    kBudget    = 4 * 1024 * 1024;
+        //  Room for several groups, enough for the oldest to be dropped; an idle
+        //  //e changes little a frame, so each megabyte took many frames to fill.
+        constexpr size_t    kBudget    = 1 * 1024 * 1024;
         constexpr uint64_t  kMaxFrames = 200000;
         TestMachine         machine ("Apple2e");
         KeyframeStore       store;
