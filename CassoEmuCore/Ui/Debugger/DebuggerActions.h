@@ -256,6 +256,10 @@ public:
     //  back keys: the actions that need a paused machine.
     static bool  IsStepAction (DebuggerKeySchemes::Action action);
 
+    //  Run, reverse run and run to cursor: the actions after which the
+    //  machine runs, whose key pauses it while it runs.
+    static bool  IsRunAction  (DebuggerKeySchemes::Action action);
+
 private:
     static DebuggerAction  Make         (DebugVerb verb, const std::string & appleWinLine, CommandMode mode);
     static void            SetRangeFrom (DebugCommand & command, Word other, Word first, Word last);

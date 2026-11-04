@@ -520,7 +520,10 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         return true;
     }
 
-    if (action == DebuggerKeySchemes::Action::Pause)
+    //  A key that starts the machine running stops it while it runs, so a
+    //  second press of F5 is Pause, as the bar's Run button becomes.
+    if (action == DebuggerKeySchemes::Action::Pause ||
+        (DebuggerActions::IsRunAction (action) && IsCommandBarEntryEnabled (DebuggerCommands::kPause)))
     {
         if (m_host != nullptr)
         {

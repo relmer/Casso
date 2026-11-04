@@ -1809,6 +1809,25 @@ bool DebuggerActions::IsStepAction (DebuggerKeySchemes::Action action)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::IsRunAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerActions::IsRunAction (DebuggerKeySchemes::Action action)
+{
+    using Action = DebuggerKeySchemes::Action;
+
+
+
+    return action == Action::Run || action == Action::ReverseRun || action == Action::RunToCursor;
+}
+
+
+
+
+
 //  The verbs a watch edit's action can have, each by the AppleWin command it
 //  is, which a saved action has in place of the verb's number.
 static constexpr std::pair<DebugVerb, const char *>  s_kSavedVerbs[] =
