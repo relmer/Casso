@@ -1663,9 +1663,9 @@ counts of the line's bytes and draws the cell's scale with an arrow at its
 level. The heading's tip has the scales' definitions. With the option on, the
 source view fills a space for each
 byte, up to four, ahead of each line's number, over the first range of bytes
-the line assembled to, and the BASIC program pane has a **Heat** column over
-each line's tokens, where the interpreter's reads of them count as the line
-running. **Heat** on a memory window's bar tints each byte
+the line assembled to, and the BASIC program pane has a **Heat** column that
+colors each line by how often BASIC began it: hotter for more often, with no
+color for a line that hasn't run. The tip over a line has the count. **Heat** on a memory window's bar tints each byte
 by its heat. The columns follow the heat map's fade or cumulative choice and
 read the CPU's address space, and the heat is counted while any of them is
 on, as it is while the heat map is shown.
