@@ -10,6 +10,20 @@
 
 
 
+//  The machines' boxes a family a row, by their compatible-hardware bits.
+static constexpr uint16_t  s_kMachineFamilies[][2] =
+{
+    { WozCompatibility::kApple2,   WozCompatibility::kApple2Plus       },
+    { WozCompatibility::kApple2e,  WozCompatibility::kApple2eEnhanced  },
+    { WozCompatibility::kApple2c,  WozCompatibility::kApple2cPlus      },
+    { WozCompatibility::kApple3,   WozCompatibility::kApple3Plus       },
+    { WozCompatibility::kApple2gs, 0                                   },
+};
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WozPropertiesDialog::Show
@@ -215,17 +229,23 @@ void WozPropertiesDialog::BuildMetaPage()
                 box.SetOnChange ([this] (bool) { m_machinesEdited = true; MarkEdited(); });
             }
         }
+        else if (name == WozProperties::kImageDate)
+        {
+            AddImageDate (rows);
+        }
         else
         {
-            AddMetaText (rows, name, std::wstring (key.label) + L":");
+            AddMetaText (rows, name, std::wstring (key.label) + L":", WozProperties::IsListKey (name));
         }
     }
 
+    //  A key the reference doesn't define is one value, or a list when the
+    //  image has one there.
     for (const WozLoader::MetaField & field : m_woz.meta)
     {
         if (!WozProperties::IsStandardKey (field.key))
         {
-            AddMetaText (rows, field.key, TextEncoding::Utf8ToWide (field.key) + L":");
+            AddMetaText (rows, field.key, WozProperties::GetKeyLabel (field.key) + L":", field.value.find ('|') != std::string::npos);
         }
     }
 
@@ -248,29 +268,39 @@ void WozPropertiesDialog::BuildMetaPage()
 void WozPropertiesDialog::AddMachineRows (std::vector<AppleFilePropertiesPanel::Row> & rows, DxuiLabel & label, Machines & boxes, uint16_t checked)
 {
     const std::vector<WozProperties::Machine>  & machines = WozProperties::GetMachines();
-    AppleFilePropertiesPanel::Row                first;
-    AppleFilePropertiesPanel::Row                second;
 
 
-
-    first.label    = &label;
-    first.gapAbove = true;
 
     for (size_t at = 0; at < boxes.size(); at++)
     {
-        AppleFilePropertiesPanel::Row  & row  = (at < kMachinesInRow) ? first : second;
-        bool                             wide = machines[at].bit == WozCompatibility::kApple2eEnhanced;
-
         boxes[at].SetLabel           (machines[at].label);
         boxes[at].SetSingleLineLabel (true);
         boxes[at].SetChecked         ((checked & machines[at].bit) != 0);
         boxes[at].SetOnChange        ([this] (bool) { MarkEdited(); });
-
-        row.fields.push_back ({ &boxes[at], wide ? kWideMachineDip : kMachineDip });
     }
 
-    rows.push_back (first);
-    rows.push_back (second);
+    //  A family a row, the first beside the label.
+    for (const auto & family : s_kMachineFamilies)
+    {
+        AppleFilePropertiesPanel::Row  row;
+        bool                           first = &family == &s_kMachineFamilies[0];
+
+        row.label    = first ? &label : nullptr;
+        row.gapAbove = first;
+
+        for (uint16_t bit : family)
+        {
+            for (size_t at = 0; bit != 0 && at < boxes.size(); at++)
+            {
+                if (machines[at].bit == bit)
+                {
+                    row.fields.push_back ({ &boxes[at], (bit == WozCompatibility::kApple2eEnhanced) ? kWideMachineDip : kMachineDip });
+                }
+            }
+        }
+
+        rows.push_back (row);
+    }
 }
 
 
@@ -283,18 +313,27 @@ void WozPropertiesDialog::AddMachineRows (std::vector<AppleFilePropertiesPanel::
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WozPropertiesDialog::AddMetaText (std::vector<AppleFilePropertiesPanel::Row> & rows, const std::string & key, const std::wstring & label)
+void WozPropertiesDialog::AddMetaText (std::vector<AppleFilePropertiesPanel::Row> & rows, const std::string & key, const std::wstring & label, bool isList)
 {
-    std::unique_ptr<MetaText>  text = std::make_unique<MetaText>();
+    std::unique_ptr<MetaText>  text   = std::make_unique<MetaText>();
+    std::vector<std::wstring>  items  = isList ? WozProperties::SplitList (GetMetaValue (key)) : std::vector<std::wstring> { GetMetaValue (key) };
+    size_t                     fields = isList ? (std::max) (items.size() + 1, kMinListFields) : 1;
 
 
 
     text->key = key;
 
     SetUpLabel (text->label, label);
-    SetUpInput (text->value, GetMetaValue (key));
 
-    rows.push_back ({ &text->label, { { &text->value } } });
+    //  The first field beside the label, the rest under it.
+    for (size_t at = 0; at < fields; at++)
+    {
+        text->values.push_back (std::make_unique<DxuiTextInput>());
+        SetUpInput (*text->values.back(), (at < items.size()) ? items[at] : std::wstring());
+
+        rows.push_back ({ (at == 0) ? &text->label : nullptr, { { text->values.back().get() } } });
+    }
+
     m_metaTexts.push_back (std::move (text));
 }
 
@@ -328,11 +367,13 @@ void WozPropertiesDialog::SetUpLabel (DxuiLabel & label, const std::wstring & te
 
 void WozPropertiesDialog::SetUpInput (DxuiTextInput & input, const std::wstring & text)
 {
-    input.SetTheme        (m_theme);
-    input.SetHwnd         (GetHwnd());
-    input.SetTextRenderer (GetTextRenderer());
-    input.SetText         (text);
-    input.SetOnChange     ([this] (const std::wstring &) { MarkEdited(); });
+    input.SetTheme         (m_theme);
+    input.SetHwnd          (GetHwnd());
+    input.SetTextRenderer  (GetTextRenderer());
+    input.SetText          (text);
+    input.SetOnChange      ([this] (const std::wstring &) { MarkEdited(); });
+    input.SetRejectedChars (WozProperties::kIllegalChars);
+    input.SetOnRejected    ([]() { MessageBeep (MB_OK); });
 }
 
 
@@ -413,6 +454,7 @@ bool WozPropertiesDialog::TrySave()
     int                                                  language = m_language.GetSelectedIndex();
     int                                                  metaRam  = m_metaRam.GetSelectedIndex();
     std::string                                          machines = WozProperties::FormatMachineCodes (GetChecked (m_machines));
+    std::string                                          imageDate;
 
 
 
@@ -425,15 +467,32 @@ bool WozPropertiesDialog::TrySave()
         edits.requiredRamK       = (ram >= 0) ? m_ramSizes[(size_t) ram] : 0;
     }
 
+    //  A list's fields a line each.
     for (const std::unique_ptr<MetaText> & text : m_metaTexts)
     {
-        typed.emplace_back (text->key, text->value.GetText());
+        std::wstring  lines;
+
+        for (const std::unique_ptr<DxuiTextInput> & value : text->values)
+        {
+            lines += (lines.empty() ? L"" : L"\n") + value->GetText();
+        }
+
+        typed.emplace_back (text->key, lines);
     }
 
     //  The first item of each list is no value.
     typed.emplace_back (WozProperties::kLanguage,        (language > 0) ? m_languages[(size_t) language] : std::wstring());
     typed.emplace_back (WozProperties::kRequiresRam,     (metaRam  > 0) ? m_metaRams[(size_t) metaRam]   : std::wstring());
-    typed.emplace_back (WozProperties::kRequiresMachine, m_machinesEdited ? TextEncoding::Utf8ToWide (machines) : GetMetaValue (WozProperties::kRequiresMachine));
+    typed.emplace_back (WozProperties::kRequiresMachine, ToLines (m_machinesEdited ? TextEncoding::Utf8ToWide (machines) : GetMetaValue (WozProperties::kRequiresMachine)));
+
+    if (!TryGetImageDate (imageDate))
+    {
+        SetActivePage (kMetaTab);
+        DxuiMessageBox (GetHwnd(), m_theme, L"The image date isn't a date and time. Type it as Windows writes dates, or choose one from the calendar.", L"Disk properties", MB_OK | MB_ICONWARNING);
+        return false;
+    }
+
+    typed.emplace_back (WozProperties::kImageDate, TextEncoding::Utf8ToWide (imageDate));
 
     edits.meta = WozProperties::MakeMeta (typed);
     error      = m_apply ? m_apply (edits) : std::wstring();
@@ -445,6 +504,132 @@ bool WozPropertiesDialog::TrySave()
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::AddImageDate
+//
+//  The image's date in local time, typed or chosen from a calendar, as the
+//  Apple file properties dialog has its dates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesDialog::AddImageDate (std::vector<AppleFilePropertiesPanel::Row> & rows)
+{
+    m_imageDateShown = WozProperties::FormatImageDate (TextEncoding::WideToUtf8 (GetMetaValue (WozProperties::kImageDate)));
+
+    SetUpLabel (m_imageDateLabel, WozProperties::GetKeyLabel (WozProperties::kImageDate) + L":");
+    SetUpInput (m_imageDate, m_imageDateShown);
+
+    m_imageDatePick.SetGlyph          (s_kpszMdl2Calendar);
+    m_imageDatePick.SetAccessibleName (L"Choose a date");
+    m_imageDatePick.SetOnClick        ([this]() { PickImageDate(); });
+
+    rows.push_back ({ &m_imageDateLabel, { { &m_imageDate, kDateWidthDip }, { &m_imageDatePick, kPickWidthDip } } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::PickImageDate
+//
+//  The time of day stays as the field has it, or midnight when the field
+//  has no date.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesDialog::PickImageDate()
+{
+    std::string        value;
+    SYSTEMTIME         utc   = {};
+    SYSTEMTIME         local = {};
+    DxuiCalendar::Day  shown;
+    bool               dated = TryGetImageDate (value) && WozProperties::TryParseImageDate (value, utc) && SystemTimeToTzSpecificLocalTime (nullptr, &utc, &local);
+
+
+
+    if (dated)
+    {
+        shown = DxuiCalendar::Day { local.wYear, local.wMonth, local.wDay };
+    }
+    else
+    {
+        local = SYSTEMTIME {};
+    }
+
+    if (m_theme == nullptr || GetPopupHost() == nullptr)
+    {
+        return;
+    }
+
+    m_calendar.Show (*GetPopupHost(), *m_theme, m_imageDate.GetRect(), shown, [this, local] (const DxuiCalendar::Day & day)
+    {
+        SYSTEMTIME  picked = local;
+        SYSTEMTIME  inUtc  = {};
+
+        picked.wYear  = (WORD) day.year;
+        picked.wMonth = (WORD) day.month;
+        picked.wDay   = (WORD) day.day;
+
+        if (TzSpecificLocalTimeToSystemTime (nullptr, &picked, &inUtc))
+        {
+            m_imageDate.SetText (WozProperties::FormatImageDate (WozProperties::MakeImageDate (inUtc)));
+            MarkEdited();
+            Invalidate();
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::TryGetImageDate
+//
+//  The field's date as image_date has it. A field as it was first filled
+//  is the image's value as stored, fraction of a second and all. False for
+//  text that isn't a date and time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozPropertiesDialog::TryGetImageDate (std::string & outValue) const
+{
+    if (m_imageDate.GetText() == m_imageDateShown)
+    {
+        outValue = TextEncoding::WideToUtf8 (GetMetaValue (WozProperties::kImageDate));
+        return true;
+    }
+
+    return WozProperties::TryParseTypedImageDate (m_imageDate.GetText(), outValue);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::ToLines
+//
+//  A list's values as stored, a line each, as typed values are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozPropertiesDialog::ToLines (std::wstring value)
+{
+    std::replace (value.begin(), value.end(), WozProperties::kValueSeparator, L'\n');
+
+    return value;
 }
 
 

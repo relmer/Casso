@@ -704,7 +704,8 @@ void WozLoader::WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & o
 //
 //  WozLoader::FormatMeta
 //
-//  A field with no value is left out, as ParseMetaChunk skips one.
+//  A field with no value is written with an empty one, as the reference has
+//  a standard key with no value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -724,10 +725,7 @@ HRESULT WozLoader::FormatMeta (const std::vector<MetaField> & fields, std::strin
 
         CBREx (plain, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        if (!field.value.empty())
-        {
-            outText += field.key + '\t' + field.value + '\n';
-        }
+        outText += field.key + '\t' + field.value + '\n';
     }
 
 Error:

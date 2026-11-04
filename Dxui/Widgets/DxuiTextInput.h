@@ -50,6 +50,16 @@ public:
     void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undo.clear(); m_redo.clear(); m_lastEdit = EditKind::None; }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
 
+    //  Characters typed or pasted that the field doesn't take. After an
+    //  insertion that contained one, the function set by SetOnRejected is
+    //  called.
+    using RejectedFn = std::function<void()>;
+    void  SetRejectedChars (std::wstring chars)       { m_rejected = std::move (chars); }
+    void  SetOnRejected    (RejectedFn fn)            { m_onRejected = std::move (fn); }
+
+    //  The clipboard's text is pasted through this.
+    void  PasteText        (std::wstring ins);
+
     //  Selects every character, so a default value is replaced by the first
     //  keystroke.
     void  SelectAll     ()                            { m_anchor = 0; m_caret = m_text.size(); }
@@ -185,6 +195,8 @@ private:
     static bool IsAltKeyDown     () { return (GetKeyState (VK_MENU)    & 0x8000) != 0; }
     std::wstring         m_text;
     std::wstring         m_placeholder;
+    std::wstring         m_rejected;
+    RejectedFn           m_onRejected;
     size_t               m_maxLen            = 64;
     size_t               m_caret             = 0;
 

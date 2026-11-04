@@ -968,26 +968,42 @@ void DxuiTextInput::DeleteSelection()
 
 void DxuiTextInput::InsertText (const std::wstring & ins)
 {
-    size_t  room = 0;
-    size_t  take = 0;
+    std::wstring  kept;
+    size_t        room     = 0;
+    size_t        take     = 0;
+    bool          rejected = false;
 
 
 
-    if (m_caret != m_anchor)
+    //  Typing and pasting both arrive here, so a character the field doesn't
+    //  take is caught however it came.
+    for (wchar_t c : ins)
+    {
+        bool  refused = m_rejected.find (c) != std::wstring::npos;
+
+        rejected = rejected || refused;
+        kept    += refused ? std::wstring() : std::wstring (1, c);
+    }
+
+    if (rejected && m_onRejected)
+    {
+        m_onRejected();
+    }
+
+    if (m_caret != m_anchor && !kept.empty())
     {
         DeleteSelection();
     }
 
     room = (m_maxLen > m_text.size()) ? (m_maxLen - m_text.size()) : 0;
-    take = std::min (ins.size(), room);
-
+    take = std::min (kept.size(), room);
 
     if (take == 0)
     {
         return;
     }
 
-    m_text.insert (m_caret, ins, 0, take);
+    m_text.insert (m_caret, kept, 0, take);
     m_caret += take;
     m_anchor = m_caret;
     FireChange();
@@ -1158,7 +1174,25 @@ void DxuiTextInput::PasteFromClipboard()
         return;
     }
 
-    // Strip newlines for single-line input, which has no place to put them.
+    PasteText (ins);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextInput::PasteText
+//
+//  Text pasted as one edit. Line breaks and tabs are spaces in a single
+//  line, then each character set by SetRejectedChars is left out, as for
+//  typing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextInput::PasteText (std::wstring ins)
+{
     for (auto & c : ins)
     {
         if (c == L'\r' || c == L'\n' || c == L'\t')

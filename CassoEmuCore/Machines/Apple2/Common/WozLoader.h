@@ -247,7 +247,7 @@ private:
     //  where that walk ends.
     static void     WalkChunks (const vector<Byte> & raw, std::vector<ChunkSpan> & outChunks, size_t & outEnd);
 
-    //  META's text: key, tab, value and a line break for each field with a value.
+    //  META's text: key, tab, value and a line break for each field.
     static HRESULT  FormatMeta (const std::vector<MetaField> & fields, std::string & outText);
 
     //  A fixed-width, space-padded field as a string with the padding removed.

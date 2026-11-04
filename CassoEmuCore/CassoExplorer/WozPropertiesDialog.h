@@ -37,12 +37,13 @@ protected:
 
 private:
     //  A META key typed as text: a standard key with no list of values, or
-    //  any key the image has that the reference doesn't define.
+    //  any key the image has that the reference doesn't define. A list's
+    //  values have a field each, with a blank one after them to add another.
     struct MetaText
     {
-        std::string    key;
-        DxuiLabel      label;
-        DxuiTextInput  value;
+        std::string                                   key;
+        DxuiLabel                                     label;
+        std::vector<std::unique_ptr<DxuiTextInput>>   values;
     };
 
     using Machines = std::array<DxuiCheckbox, WozProperties::kMachineCount>;
@@ -53,21 +54,27 @@ private:
     static constexpr int     kComboWidthDip  = 260;
     static constexpr int     kMachineDip     = 64;
     static constexpr int     kWideMachineDip = 128;
-    static constexpr size_t  kMachinesInRow  = 5;
+    static constexpr int     kDateWidthDip   = 260;
+    static constexpr int     kPickWidthDip   = 32;
 
-    static constexpr const wchar_t *  kNotGiven = L"Not given";
+    static constexpr const wchar_t *  kNotGiven     = L"Not given";
+    static constexpr size_t           kMinListFields = 2;
 
-    void             BuildInfoPage  ();
-    void             BuildMetaPage  ();
-    void             AddMachineRows (std::vector<AppleFilePropertiesPanel::Row> & rows, DxuiLabel & label, Machines & boxes, uint16_t checked);
-    void             SetUpLabel     (DxuiLabel & label, const std::wstring & text);
-    void             AddMetaText    (std::vector<AppleFilePropertiesPanel::Row> & rows, const std::string & key, const std::wstring & label);
-    void             SetUpInput     (DxuiTextInput & input, const std::wstring & text);
-    void             SetUpChoices   (DxuiComboBox & combo, std::vector<std::wstring> & items, const std::wstring & value);
-    void             MarkEdited     ();
-    bool             TrySave        ();
-    std::wstring     GetMetaValue   (const std::string & key) const;
-    static uint16_t  GetChecked     (const Machines & boxes);
+    void                 BuildInfoPage   ();
+    void                 BuildMetaPage   ();
+    void                 AddMachineRows  (std::vector<AppleFilePropertiesPanel::Row> & rows, DxuiLabel & label, Machines & boxes, uint16_t checked);
+    void                 SetUpLabel      (DxuiLabel & label, const std::wstring & text);
+    void                 AddMetaText     (std::vector<AppleFilePropertiesPanel::Row> & rows, const std::string & key, const std::wstring & label, bool isList);
+    void                 AddImageDate    (std::vector<AppleFilePropertiesPanel::Row> & rows);
+    void                 PickImageDate   ();
+    bool                 TryGetImageDate (std::string & outValue) const;
+    void                 SetUpInput      (DxuiTextInput & input, const std::wstring & text);
+    void                 SetUpChoices    (DxuiComboBox & combo, std::vector<std::wstring> & items, const std::wstring & value);
+    void                 MarkEdited      ();
+    bool                 TrySave         ();
+    std::wstring         GetMetaValue    (const std::string & key) const;
+    static uint16_t      GetChecked      (const Machines & boxes);
+    static std::wstring  ToLines         (std::wstring value);
 
     const IDxuiTheme                        * m_theme          = nullptr;
     WozLoader::Description                    m_woz;
@@ -98,4 +105,9 @@ private:
     DxuiComboBox                  m_metaRam;
     DxuiLabel                     m_machinesLabel;
     Machines                      m_machines;
+    DxuiLabel                     m_imageDateLabel;
+    DxuiTextInput                 m_imageDate;
+    DxuiIconButton                m_imageDatePick;
+    DxuiCalendar                  m_calendar;
+    std::wstring                  m_imageDateShown;   // the image's date as the field first had it
 };

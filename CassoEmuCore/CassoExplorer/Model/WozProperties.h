@@ -46,6 +46,12 @@ public:
     static constexpr const char *  kRequiresRam     = "requires_ram";
     static constexpr const char *  kRequiresMachine = "requires_machine";
     static constexpr const char *  kLanguage        = "language";
+    static constexpr const char *  kDeveloper       = "developer";
+
+    //  What separates a list's values in META, and the characters a value
+    //  can't have: that separator, a tab and a line break.
+    static constexpr wchar_t          kValueSeparator = L'|';
+    static constexpr const wchar_t *  kIllegalChars   = L"|\t\r\n";
 
     static const std::vector<MetaKey>       & GetMetaKeys         ();
     static const std::vector<Machine>       & GetMachines         ();
@@ -55,6 +61,7 @@ public:
     static const std::vector<std::wstring>  & GetLanguages        ();
 
     static bool         IsStandardKey      (const std::string & key);
+    static bool         IsListKey          (const std::string & key);
     static std::string  FormatMachineCodes (uint16_t machines);
     static uint16_t     ParseMachineCodes  (const std::string & value);
 
@@ -62,12 +69,27 @@ public:
     //  the spaces at either end removed.
     static std::string  ToMetaValue (const std::wstring & typed);
 
-    //  The standard keys in the reference's order, then the other keys in the
-    //  order given. A key with no value is left out.
+    //  A list key's values, typed a line each, as META has them, and back.
+    static std::string                ToMetaList (const std::wstring & typed);
+    static std::vector<std::wstring>  SplitList  (const std::wstring & value);
+
+    //  Every standard key in the reference's order, then the other keys with a
+    //  value in the order given.
     static std::vector<WozLoader::MetaField>  MakeMeta (const std::vector<std::pair<std::string, std::wstring>> & typed);
 
     //  Why Disk properties' edits weren't saved, from WozLoader::ApplyEdits or a
     //  read or write of the file.
     static std::wstring  FormatEditError (HRESULT hr);
+
+    static std::wstring  GetKeyLabel (const std::string & key);
+
+    //  image_date: as stored, in local time, and from what was typed.
+    static constexpr const char *  kImageDate       = "image_date";
+    static constexpr int           kImageDateFields = 6;
+
+    static bool          TryParseImageDate      (const std::string & value, SYSTEMTIME & outUtc);
+    static std::wstring  FormatImageDate        (const std::string & value);
+    static bool          TryParseTypedImageDate (const std::wstring & typed, std::string & outValue);
+    static std::string   MakeImageDate          (const SYSTEMTIME & utc);
 
 };

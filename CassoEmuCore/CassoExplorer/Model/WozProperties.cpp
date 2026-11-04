@@ -21,7 +21,7 @@ const std::vector<WozProperties::MetaKey> & WozProperties::GetMetaKeys()
         { kTitle,             L"Title" },
         { "subtitle",         L"Subtitle" },
         { "publisher",        L"Publisher" },
-        { "developer",        L"Developer" },
+        { kDeveloper,         L"Developer" },
         { "copyright",        L"Copyright" },
         { "version",          L"Version" },
         { kLanguage,          L"Language" },
@@ -152,15 +152,19 @@ const std::vector<std::wstring> & WozProperties::GetMetaRamValues()
 //
 //  WozProperties::GetLanguages
 //
+//  The reference's languages, English first, then the rest alphabetically,
+//  with Other last.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 const std::vector<std::wstring> & WozProperties::GetLanguages()
 {
     static const std::vector<std::wstring>  s_languages =
     {
-        L"English", L"Spanish", L"French", L"German", L"Chinese", L"Japanese", L"Italian", L"Dutch", L"Portuguese", L"Danish",
-        L"Finnish", L"Norwegian", L"Swedish", L"Russian", L"Polish", L"Turkish", L"Arabic", L"Thai", L"Czech", L"Hungarian",
-        L"Catalan", L"Croatian", L"Greek", L"Hebrew", L"Romanian", L"Slovak", L"Ukrainian", L"Indonesian", L"Malay", L"Vietnamese",
+        L"English",
+        L"Arabic", L"Catalan", L"Chinese", L"Croatian", L"Czech", L"Danish", L"Dutch", L"Finnish", L"French", L"German",
+        L"Greek", L"Hebrew", L"Hungarian", L"Indonesian", L"Italian", L"Japanese", L"Malay", L"Norwegian", L"Polish", L"Portuguese",
+        L"Romanian", L"Russian", L"Slovak", L"Spanish", L"Swedish", L"Thai", L"Turkish", L"Ukrainian", L"Vietnamese",
         L"Other",
     };
 
@@ -272,12 +276,13 @@ std::string WozProperties::ToMetaValue (const std::wstring & typed)
 
 
 
-    //  A CR LF pair is one line break, and one space.
+    //  A CR LF pair is one line break, and one space. A | separates values,
+    //  so a value can't have one.
     for (size_t at = 0; at < typed.size(); at++)
     {
         bool  pair = typed[at] == L'\r' && at + 1 < typed.size() && typed[at + 1] == L'\n';
 
-        if (!pair)
+        if (!pair && typed[at] != kValueSeparator)
         {
             plain += (typed[at] == L'\t' || typed[at] == L'\r' || typed[at] == L'\n') ? L' ' : typed[at];
         }
@@ -301,7 +306,94 @@ std::string WozProperties::ToMetaValue (const std::wstring & typed)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozProperties::ToMetaList
+//
+//  A list typed a value a line, each as ToMetaValue makes it, the empty ones
+//  left out, joined with |.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WozProperties::ToMetaList (const std::wstring & typed)
+{
+    std::string  list;
+    size_t       at   = 0;
+
+
+
+    while (at <= typed.size())
+    {
+        size_t       end   = typed.find (L'\n', at);
+        size_t       stop  = (end == std::wstring::npos) ? typed.size() : end;
+        std::string  value = ToMetaValue (typed.substr (at, stop - at));
+
+        if (!value.empty())
+        {
+            list += (list.empty() ? "" : "|") + value;
+        }
+
+        at = stop + 1;
+    }
+
+    return list;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::SplitList
+//
+//  A list key's value, a value an item, for a field each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> WozProperties::SplitList (const std::wstring & value)
+{
+    std::vector<std::wstring>  items;
+    size_t                     at    = 0;
+
+
+
+    while (!value.empty() && at <= value.size())
+    {
+        size_t  bar  = value.find (kValueSeparator, at);
+        size_t  stop = (bar == std::wstring::npos) ? value.size() : bar;
+
+        items.push_back (value.substr (at, stop - at));
+        at = stop + 1;
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::IsListKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozProperties::IsListKey (const std::string & key)
+{
+    return key == kDeveloper || key == kRequiresMachine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozProperties::MakeMeta
+//
+//  Every standard key in the reference's order, with an empty value where
+//  none was typed, as the reference writes a standard key with no value.
+//  A list's values are typed a line each.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,20 +405,23 @@ std::vector<WozLoader::MetaField> WozProperties::MakeMeta (const std::vector<std
 
     for (const MetaKey & standard : GetMetaKeys())
     {
+        std::string  value;
+
         for (const std::pair<std::string, std::wstring> & field : typed)
         {
-            std::string  value = ToMetaValue (field.second);
-
-            if (field.first == standard.key && !value.empty())
+            if (field.first == standard.key)
             {
-                meta.push_back ({ field.first, value });
+                value = IsListKey (field.first) ? ToMetaList (field.second) : ToMetaValue (field.second);
             }
         }
+
+        meta.push_back ({ standard.key, value });
     }
 
+    //  Any other key's value may be a list, as the reference allows.
     for (const std::pair<std::string, std::wstring> & field : typed)
     {
-        std::string  value = ToMetaValue (field.second);
+        std::string  value = ToMetaList (field.second);
 
         if (!IsStandardKey (field.first) && !field.first.empty() && !value.empty())
         {
@@ -365,4 +460,183 @@ std::wstring WozProperties::FormatEditError (HRESULT hr)
     }
 
     return L"The changes weren't written: " + TextEncoding::NarrowToWide (std::system_category().message (HRESULT_CODE (hr)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::GetKeyLabel
+//
+//  A standard key's label, a known key the reference doesn't define by the
+//  name it's known by, or any other key with spaces for its underscores
+//  and a capital first letter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::GetKeyLabel (const std::string & key)
+{
+    static constexpr const char *  kExtraKeys[][2] = { { "genre", "Genre" }, { "collection", "Collection" }, { "requires_rom", "Requires ROM" } };
+    std::wstring                   label;
+
+
+
+    for (const MetaKey & standard : GetMetaKeys())
+    {
+        if (key == standard.key)
+        {
+            return standard.label;
+        }
+    }
+
+    for (const auto & extra : kExtraKeys)
+    {
+        if (key == extra[0])
+        {
+            return TextEncoding::Utf8ToWide (extra[1]);
+        }
+    }
+
+    label = TextEncoding::Utf8ToWide (key);
+    std::replace (label.begin(), label.end(), L'_', L' ');
+
+    if (!label.empty())
+    {
+        label[0] = (wchar_t) towupper (label[0]);
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::TryParseImageDate
+//
+//  An RFC 3339 time in UTC, as image_date has it. Its fraction of a second
+//  is left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozProperties::TryParseImageDate (const std::string & value, SYSTEMTIME & outUtc)
+{
+    int  year   = 0;
+    int  month  = 0;
+    int  day    = 0;
+    int  hour   = 0;
+    int  minute = 0;
+    int  second = 0;
+    int  fields = sscanf_s (value.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
+
+
+
+    outUtc = SYSTEMTIME {};
+
+    if (fields != kImageDateFields || value.empty() || value.back() != 'Z')
+    {
+        return false;
+    }
+
+    outUtc.wYear   = (WORD) year;
+    outUtc.wMonth  = (WORD) month;
+    outUtc.wDay    = (WORD) day;
+    outUtc.wHour   = (WORD) hour;
+    outUtc.wMinute = (WORD) minute;
+    outUtc.wSecond = (WORD) second;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::FormatImageDate
+//
+//  image_date in local time, in the Windows short date and long time
+//  format, or as stored when it isn't an RFC 3339 time in UTC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::FormatImageDate (const std::string & value)
+{
+    SYSTEMTIME  utc       = {};
+    SYSTEMTIME  local     = {};
+    wchar_t     day[64]   = {};
+    wchar_t     clock[64] = {};
+    bool        parsed    = TryParseImageDate (value, utc);
+
+
+
+    if (!parsed || !SystemTimeToTzSpecificLocalTime (nullptr, &utc, &local)
+     || GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, day, (int) std::size (day), nullptr) == 0
+     || GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, 0, &local, nullptr, clock, (int) std::size (clock)) == 0)
+    {
+        return TextEncoding::Utf8ToWide (value);
+    }
+
+    return std::format (L"{} {}", day, clock);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::TryParseTypedImageDate
+//
+//  A local date and time, in any form the Windows date parser reads, as
+//  image_date has it: RFC 3339 in UTC. Empty text is no date.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozProperties::TryParseTypedImageDate (const std::wstring & typed, std::string & outValue)
+{
+    DATE        parsed = 0;
+    SYSTEMTIME  local  = {};
+    SYSTEMTIME  utc    = {};
+    HRESULT     hr     = S_OK;
+
+
+
+    outValue.clear();
+
+    if (typed.find_first_not_of (L' ') == std::wstring::npos)
+    {
+        return true;
+    }
+
+    hr = VarDateFromStr (typed.c_str(), LOCALE_USER_DEFAULT, 0, &parsed);
+
+    if (FAILED (hr) || !VariantTimeToSystemTime (parsed, &local) || !TzSpecificLocalTimeToSystemTime (nullptr, &local, &utc))
+    {
+        return false;
+    }
+
+    outValue = MakeImageDate (utc);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::MakeImageDate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WozProperties::MakeImageDate (const SYSTEMTIME & utc)
+{
+    return std::format ("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.000Z", utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
 }

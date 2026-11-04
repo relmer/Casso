@@ -49,18 +49,88 @@ public:
     }
 
 
-    TEST_METHOD (MakeMeta_StandardKeysInOrder_ThenOthers_WithoutEmptyValues)
+    TEST_METHOD (MakeMeta_EveryStandardKeyInOrder_ThenOthersWithAValue)
     {
         std::vector<WozLoader::MetaField>  meta = WozProperties::MakeMeta ({ { "publisher", L"Broderbund" }, { "x_dumper", L"4am" },
-                                                                             { "title",     L"Karateka" },   { "notes",    L"" } });
+                                                                             { "title",     L"Karateka" },   { "x_empty",  L"" } });
+        size_t                             keys = WozProperties::GetMetaKeys().size();
 
-        Assert::AreEqual (size_t (3), meta.size());
+        Assert::AreEqual (keys + 1, meta.size(), L"the standard keys and the one other key with a value");
         Assert::AreEqual (std::string ("title"),     meta[0].key);
-        Assert::AreEqual (std::string ("publisher"), meta[1].key);
-        Assert::AreEqual (std::string ("x_dumper"),  meta[2].key);
-        Assert::AreEqual (std::string ("4am"),       meta[2].value);
+        Assert::AreEqual (std::string ("Karateka"),  meta[0].value);
+        Assert::AreEqual (std::string ("subtitle"),  meta[1].key);
+        Assert::AreEqual (std::string(),             meta[1].value, L"a standard key with no value is written empty");
+        Assert::AreEqual (std::string ("publisher"), meta[2].key);
+        Assert::AreEqual (std::string ("x_dumper"),  meta[keys].key);
     }
 
+
+    TEST_METHOD (MakeMeta_ListKeys_JoinTheirLinesWithBars)
+    {
+        std::vector<WozLoader::MetaField>  meta = WozProperties::MakeMeta ({ { "developer", L"David Balsam\n\nMartin Kahn\n" }, { "requires_machine", L"2\n2+" },
+                                                                             { "genre",     L"action\nstrategy" } });
+
+        auto  find = [&meta] (const char * key) { return std::find_if (meta.begin(), meta.end(), [key] (const WozLoader::MetaField & f) { return f.key == key; })->value; };
+
+        Assert::AreEqual (std::string ("David Balsam|Martin Kahn"), find ("developer"), L"blank lines left out");
+        Assert::AreEqual (std::string ("2|2+"),                     find ("requires_machine"));
+        Assert::AreEqual (std::string ("action|strategy"),          find ("genre"), L"another key's lines too");
+    }
+
+
+    TEST_METHOD (ToMetaValue_DropsBars)
+    {
+        Assert::AreEqual (std::string ("AB"), WozProperties::ToMetaValue (L"A|B"));
+    }
+
+
+    TEST_METHOD (SplitList_IsAnItemAValue)
+    {
+        std::vector<std::wstring>  items = WozProperties::SplitList (L"Dane Bigham|Gene Portwood|Lauren Elliott");
+
+        Assert::AreEqual (size_t (3), items.size());
+        Assert::AreEqual (std::wstring (L"Lauren Elliott"), items[2]);
+        Assert::IsTrue   (WozProperties::SplitList (L"").empty());
+    }
+
+
+    TEST_METHOD (GetKeyLabel_StandardKnownAndOther)
+    {
+        Assert::AreEqual (std::wstring (L"Side name"),    WozProperties::GetKeyLabel ("side_name"));
+        Assert::AreEqual (std::wstring (L"Requires ROM"), WozProperties::GetKeyLabel ("requires_rom"));
+        Assert::AreEqual (std::wstring (L"Box art"),      WozProperties::GetKeyLabel ("box_art"));
+    }
+
+
+    TEST_METHOD (GetLanguages_EnglishFirst_OtherLast_TheRestSorted)
+    {
+        const std::vector<std::wstring>  & languages = WozProperties::GetLanguages();
+
+        Assert::AreEqual (std::wstring (L"English"), languages.front());
+        Assert::AreEqual (std::wstring (L"Other"),   languages.back());
+        Assert::IsTrue   (std::is_sorted (languages.begin() + 1, languages.end() - 1));
+    }
+
+
+    TEST_METHOD (ImageDate_TypedInLocalTime_RoundTrips)
+    {
+        std::string  stored = "2019-01-17T18:41:42.228Z";
+        std::string  typed;
+
+        Assert::IsTrue   (WozProperties::TryParseTypedImageDate (WozProperties::FormatImageDate (stored), typed));
+        Assert::AreEqual (std::string ("2019-01-17T18:41:42.000Z"), typed, L"the same moment, without the fraction");
+    }
+
+
+    TEST_METHOD (ImageDate_NotADate_IsRefused_AndEmptyIsNone)
+    {
+        std::string  typed = "x";
+
+        Assert::IsFalse  (WozProperties::TryParseTypedImageDate (L"next Tuesday-ish", typed));
+        Assert::IsTrue   (WozProperties::TryParseTypedImageDate (L"  ", typed));
+        Assert::AreEqual (std::string(), typed);
+        Assert::AreEqual (std::wstring (L"sometime"), WozProperties::FormatImageDate ("sometime"), L"a stored value that isn't RFC 3339 is returned as stored");
+    }
 
     TEST_METHOD (FormatEditError_EachRefusal_HasItsOwnReason)
     {

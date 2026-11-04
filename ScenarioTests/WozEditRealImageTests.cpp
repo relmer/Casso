@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "EhmTestHelper.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
+#include "CassoExplorer/Model/WozProperties.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Devices/Disk/DiskImage.h"
@@ -158,5 +159,48 @@ public:
 
         Assert::IsTrue (is (developer,     L"Developer", L"David Balsam"), L"the first of the values on the label's line");
         Assert::IsTrue (is (developer + 1, L"",          L"Martin Kahn"),  L"and the next on a line of its own");
+    }
+
+    TEST_METHOD (HardHatMack_MetaAsTheEditorSavesIt_KeepsEveryValue)
+    {
+        std::vector<Byte>                                    bytes = GuestSession::RequireRepoImage ("Apple2/Demos/HardHatMack.woz");
+        WozLoader::Description                               woz;
+        WozLoader::Description                               saved;
+        WozLoader::Edits                                     edits;
+        std::vector<std::pair<std::string, std::wstring>>    typed;
+        std::string                                          text;
+
+        WozLoader::Describe (bytes, woz);
+        Assert::IsFalse (woz.meta.empty());
+
+        //  As the editor fills its fields: a list's values a line each.
+        for (const WozLoader::MetaField & field : woz.meta)
+        {
+            std::wstring  value = TextEncoding::Utf8ToWide (field.value);
+
+            std::replace (value.begin(), value.end(), L'|', L'\n');
+            typed.emplace_back (field.key, value);
+        }
+
+        edits.writeProtected     = woz.writeProtected;
+        edits.bootSectorFormat   = woz.bootSectorFormat;
+        edits.compatibleHardware = woz.compatibleHardware;
+        edits.requiredRamK       = woz.requiredRamK;
+        edits.meta               = WozProperties::MakeMeta (typed);
+
+        AssertSucceeded (WozLoader::ApplyEdits (bytes, edits));
+        WozLoader::Describe (bytes, saved);
+
+        for (const WozLoader::MetaField & field : woz.meta)
+        {
+            auto  found = std::find_if (saved.meta.begin(), saved.meta.end(), [&field] (const WozLoader::MetaField & f) { return f.key == field.key; });
+
+            Assert::IsTrue   (found != saved.meta.end(), TextEncoding::Utf8ToWide (field.key).c_str());
+            Assert::AreEqual (field.value, found->value, TextEncoding::Utf8ToWide (field.key).c_str());
+        }
+
+        //  Its empty standard keys are written empty, as the image had them.
+        text.assign (bytes.begin(), bytes.end());
+        Assert::IsTrue (text.find ("subtitle\t\n") != std::string::npos);
     }
 };
