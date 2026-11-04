@@ -864,9 +864,9 @@ void ExplorerListPane::OnSelectionChanged()
 {
     m_context.browser.SetSelectedRows (m_list->GetSelectedRows());
 
-    //  Automatic preview waits to see that this isn't a double-click's first
-    //  press, so an item being opened doesn't open the pane.
-    if (m_context.prefs.autoPreview && !m_context.prefs.previewVisible)
+    //  A closed pane that may open is filled after the double-click time, so
+    //  the first press of a double-click on an item doesn't open the pane.
+    if (!m_context.preview.IsShown() && (m_context.prefs.autoPreview || m_context.prefs.previewVisible))
     {
         SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview, GetDoubleClickTime(), nullptr);
     }

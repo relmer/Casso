@@ -188,7 +188,7 @@ void ExplorerLayout::RecomputeLayout()
     RECT            right       = {};
     RECT            sashRect    = {};
     int             rightDip    = 0;
-    bool            preview     = m_context.prefs.previewVisible;
+    bool            preview     = m_context.preview.IsShown();
     PaneWidths      panes;
 
 

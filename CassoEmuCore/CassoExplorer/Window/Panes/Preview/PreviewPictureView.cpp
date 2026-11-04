@@ -174,7 +174,7 @@ void PreviewPictureView::Fill (const PreviewContent & preview, bool picture, boo
 void PreviewPictureView::ShowFramebuffer (const std::vector<uint32_t> & bgra, int width, int height)
 {
     m_picture->SetFramebuffer (bgra.data(), width, height);
-    m_picture->SetVisible (m_context.prefs.previewVisible);
+    m_picture->SetVisible (m_context.preview.IsShown());
 }
 
 

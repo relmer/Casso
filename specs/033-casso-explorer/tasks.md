@@ -1591,4 +1591,4 @@ Session 2026-11-04. In this order; T079 and T082 follow.
 - [ ] T398 List results as they are found, with Stop at any time, and highlight only terms that must appear in a name (FR-142)
 - [ ] T399 Route each query to the index or the walk by FR-137 in `Win32ShellSearch::RunSearch`, and list the walked syntax in the search box's help
 - [ ] T400 Measure a search of C:\Windows with File contents off against the Windows search folder, and a contents search's first result (SC-044, SC-045)
-- [ ] T401 Close the preview pane when no file is selected and open it again when one is, in `CassoEmuCore/CassoExplorer/Window/Panes/` (FR-143)
+- [X] T401 Close the preview pane when no file is selected and open it again when one is, in `CassoEmuCore/CassoExplorer/Window/Panes/` (FR-143)

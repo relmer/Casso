@@ -48,7 +48,7 @@ ExplorerInput::ExplorerInput (ExplorerContext & context)
 
 void ExplorerInput::SetFocusPane (ExplorerPane pane)
 {
-    if ((pane == ExplorerPane::Preview && !m_context.prefs.previewVisible)
+    if ((pane == ExplorerPane::Preview && !m_context.preview.IsShown())
         || (pane == ExplorerPane::PreviewToolbar && !m_context.preview.GetToolbar().IsVisible())
         || ((pane == ExplorerPane::Search || pane == ExplorerPane::GoTo) && m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarHex))
     {
@@ -226,7 +226,7 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
         commandEnabled.push_back (m_context.commandManager.IsCommandBarEntryAvailable (i));
     }
 
-    return FocusRing::BuildStops (enabled, m_context.prefs.previewVisible, previewEnabled, commandEnabled);
+    return FocusRing::BuildStops (enabled, m_context.preview.IsShown(), previewEnabled, commandEnabled);
 }
 
 

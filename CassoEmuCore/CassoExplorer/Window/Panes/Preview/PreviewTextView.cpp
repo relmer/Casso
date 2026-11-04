@@ -7,6 +7,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
@@ -185,7 +186,7 @@ void PreviewTextView::SetZoom (float zoom)
 
 bool PreviewTextView::IsShowing() const
 {
-    return m_context.prefs.previewVisible && m_text->IsVisible();
+    return m_context.preview.IsShown() && m_text->IsVisible();
 }
 
 

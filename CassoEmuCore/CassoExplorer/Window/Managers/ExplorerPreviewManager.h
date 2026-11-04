@@ -33,7 +33,6 @@ class ExplorerPreviewManager
 public:
     explicit ExplorerPreviewManager (ExplorerContext & context);
 
-    static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
     static constexpr uint32_t         kBackgroundLift  = 7;       // the dark pane over the list, per channel
 
     void                              Create                 ();
@@ -56,6 +55,7 @@ public:
     void                              SetPreviewZoom         (int percent);
     bool                              IsArchiveLocation      () const;
     int                               GetPreviewStopIndex    (int commandId) const;
+    bool                              IsShown                () const      { return m_shown; }
     const RECT                      & GetRect                () const      { return m_rect; }
     const RECT                      & GetContentRect         () const      { return m_content; }
     DxuiToolbar                     & GetToolbar             () const      { return *m_toolbar; }
@@ -100,9 +100,11 @@ private:
     int                             m_pictureZoom = 100;
     PreviewContent::Kind            m_lastKind    = PreviewContent::Kind::Text;
     bool                            m_pinned      = false;   // turned on manually, so automatic preview doesn't close it
+    bool                            m_shown       = false;   // on screen: turned on, with a file selected
     std::wstring                    m_autoKey;   // the file automatic preview last checked
     std::wstring                    m_autoAddress;
 
     std::wstring  GetAutoKey        () const;
     bool          UpdateAutoPreview ();
+    bool          UpdateShown       ();
 };

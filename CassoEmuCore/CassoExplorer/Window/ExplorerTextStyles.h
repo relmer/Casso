@@ -43,7 +43,6 @@ public:
     static constexpr ExplorerTextStyle  kProse           { .fontDip  = 12.0f };   // the tree's and list's rows: Explorer's 9 points
     static constexpr ExplorerTextStyle  kListing         { .fontDip  = 0.0f };    // a catalog's rows in the preview
     static constexpr ExplorerTextStyle  kPreviewText     { .strength = 0.8f };    // a gray like a terminal's text rather than full white
-    static constexpr ExplorerTextStyle  kPanePrompt      { .role     = DxuiTextRole::Body,  .fontDip = 12.0f };   // Explorer's smaller body text
     static constexpr ExplorerTextStyle  kPaneMessage     { .role     = DxuiTextRole::Muted, .fontDip = 0.0f };
     static constexpr ExplorerTextStyle  kFormLabel       { .role     = DxuiTextRole::Body };
     static constexpr ExplorerTextStyle  kFormNote        { .role     = DxuiTextRole::Muted };

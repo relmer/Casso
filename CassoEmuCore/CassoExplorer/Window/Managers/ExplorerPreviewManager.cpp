@@ -183,8 +183,9 @@ void ExplorerPreviewManager::Hide()
 void ExplorerPreviewManager::FillPreview()
 {
     const PreviewContent  & preview  = m_context.browser.GetPreview();
-    bool                    toggled  = UpdateAutoPreview();
-    bool                    visible  = m_context.prefs.previewVisible;
+    bool                    autoOpen = UpdateAutoPreview();
+    bool                    toggled  = UpdateShown() || autoOpen;
+    bool                    visible  = m_shown;
     bool                    picture  = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
     bool                    hostFile = preview.kind == PreviewContent::Kind::Hex && !preview.hostPath.empty();
     HostCharset             charset  = preview.hostCharset;
@@ -203,7 +204,6 @@ void ExplorerPreviewManager::FillPreview()
                                      : forms    ? CassoExplorerCommands::kPreviewBarPicture
                                      : picture  ? CassoExplorerCommands::kPreviewBarSave
                                                 : CassoExplorerCommands::kPreviewBarNone;
-    bool                    blank    = false;
 
 
 
@@ -240,22 +240,17 @@ void ExplorerPreviewManager::FillPreview()
 
     m_hex.Fill (preview, hex, opened, charset);
 
-    //  With nothing selected the pane says so, as Explorer's does.
-    blank = !m_context.listPane.HasSelection() && !picture && !shell && !error && !hex && !columns && !program;
-
-    m_message->SetText (blank                   ? std::wstring (kSelectToPreview)
-                        : !error                ? std::wstring()
+    m_message->SetText (!error                  ? std::wstring()
                         : (hostFile && !opened) ? PreviewText::FormatPreviewError (L"The file could not be read. " + m_hex.DescribeFileError())
                                                 : PreviewText::FormatPreviewError (preview.message));
-    m_message->SetVisible (visible && (error || blank));
+    m_message->SetVisible (visible && error);
 
-    //  Explorer's prompt is smaller body text; an error is muted. Both are
-    //  centered in the pane.
-    ExplorerTextStyles::Apply (*m_message, blank ? ExplorerTextStyles::kPanePrompt : ExplorerTextStyles::kPaneMessage);
+    //  An error is muted and centered in the pane.
+    ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
 
     m_picture.SetVisible (visible && (picture || (shell && m_shell.IsPicture())));
     m_listing.SetVisible (visible && columns);
-    m_text.SetVisible    (visible && !picture && !shell && !error && !hex && !columns && !blank);
+    m_text.SetVisible    (visible && !picture && !shell && !error && !hex && !columns);
     m_hex.SetVisible     (visible && hex);
 
     //  Opened or closed for the file, so the list is resized around the pane.
@@ -410,6 +405,31 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::UpdateShown
+//
+//  The pane is on screen while it is turned on and a file is selected, so the
+//  list isn't narrowed by an empty pane. True when that changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::UpdateShown()
+{
+    bool  shown   = m_context.prefs.previewVisible && m_context.listPane.HasSelection();
+    bool  changed = shown != m_shown;
+
+
+
+    m_shown = shown;
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::PaintBackground
 //
 //  Every preview draws on the content surface, a message included, which
@@ -419,7 +439,7 @@ bool ExplorerPreviewManager::UpdateAutoPreview()
 
 void ExplorerPreviewManager::PaintBackground (IDxuiPainter & painter, const IDxuiTheme & theme) const
 {
-    if (!m_context.prefs.previewVisible || m_rect.right <= m_rect.left)
+    if (!m_shown || m_rect.right <= m_rect.left)
     {
         return;
     }
@@ -692,7 +712,7 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
 
 bool ExplorerPreviewManager::IsOverPane (POINT point) const
 {
-    return m_context.prefs.previewVisible && ExplorerLayout::Contains (m_rect, point);
+    return m_shown && ExplorerLayout::Contains (m_rect, point);
 }
 
 
@@ -831,6 +851,7 @@ void ExplorerPreviewManager::RestoreTabState()
     if (open != m_context.prefs.previewVisible)
     {
         m_context.prefs.previewVisible = open;
+        UpdateShown();
         m_context.layout.RecomputeLayout();
     }
 }

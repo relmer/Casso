@@ -105,7 +105,7 @@ void PreviewShellView::Hide()
 
 void PreviewShellView::Update (const PreviewContent & preview, const RECT & content)
 {
-    bool      shell      = preview.kind == PreviewContent::Kind::Shell && m_context.prefs.previewVisible;
+    bool      shell      = preview.kind == PreviewContent::Kind::Shell && m_context.preview.IsShown();
     uint32_t  background = m_context.theme->ContentBackground();
     uint32_t  text       = m_context.theme->Foreground();
 

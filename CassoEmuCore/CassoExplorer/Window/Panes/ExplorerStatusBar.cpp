@@ -170,7 +170,7 @@ void ExplorerStatusBar::Fill()
 
 void ExplorerStatusBar::Layout (const RECT & band)
 {
-    bool   preview = m_context.prefs.previewVisible && (m_context.preview.GetRect().right > m_context.preview.GetRect().left);
+    bool   preview = m_context.preview.IsShown() && (m_context.preview.GetRect().right > m_context.preview.GetRect().left);
     RECT   sash    = m_context.layout.GetPreviewSplitter()->GetSashRect();
     int    seam    = (int) (DxuiSplitter::GetSeam (sash.left, sash.right, m_context.scaler) + DxuiSplitter::GetLinePx (m_context.scaler));
     int    zoomPx  = m_context.scaler.ToPx (kStatusZoomDip);

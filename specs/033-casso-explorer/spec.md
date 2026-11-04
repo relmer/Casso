@@ -567,7 +567,7 @@ hardware.
 - Q: Are contents searched by default? -> A: Yes. File contents is on by default. A bare word or phrase matches when it appears in the name or the contents, word by word, so a file with one word in its name and another in its text matches both. `name:` and `filename:` limit a term to the name, and `content:` to the contents, whatever the option. A file's contents are read only when they can change whether it matches.
 - Q: Which files' contents are read, and how? -> A: It depends on the IFilter registered for the extension. The null filter means the file isn't opened. The plain-text filter means its bytes are read directly. Any other filter extracts its text, including the metadata text of images, except for .zip, which the Compressed files option covers. A file with no filter is read when its first 4 KB are ANSI, UTF-8 or UTF-16 text. Filters run in a separate process, so one that crashes or hangs costs that file and not Casso Explorer.
 - Q: When do results appear? -> A: As each is found, without waiting for the walk to finish.
-- Q: Is the preview pane open with nothing selected? -> A: No. File Explorer's pane reads "Select a file to preview". Casso Explorer's closes when no file is selected and opens again when one is, so an empty pane never takes up space. Folders count as nothing to preview. With View's Preview pane off, it never opens.
+- Q: Is the preview pane open with nothing selected? -> A: No. File Explorer's pane reads "Select a file to preview". Casso Explorer's closes when no file is selected and opens again when one is, so an empty pane never takes up space. With View's Preview pane off, it never opens.
 
 ## User Scenarios & Testing *(mandatory)*
 
