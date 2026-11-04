@@ -151,7 +151,8 @@ public:
     static constexpr const char *  kCustomHeading = "Custom";
 
     //  The heading of the standard META keys, whose values are listed as the
-    //  image has them, but for those Casso describes, such as the machines.
+    //  image has them, except where a code is mapped to a name, as for the
+    //  machines.
     static constexpr const char *  kMetaHeading   = "WOZ metadata";
 
     //  What the decoded surface shows: geometry, how the tracks read, and
