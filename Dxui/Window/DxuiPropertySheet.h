@@ -83,6 +83,10 @@ public:
     //  between resizes).
     //
     void                  SetApplyVisible (bool visible);
+
+    //  False while the pages have a value that can't be saved: OK and Apply
+    //  are disabled until it is fixed.
+    void                  SetConfirmable  (bool confirmable);
     bool                  ApplyVisible    () const { return m_applyVisible; }
     void                  SetOkText       (std::wstring text);
     const std::wstring  & GetOkText       () const { return m_okText; }
@@ -259,6 +263,7 @@ private:
     // Button-row customization (see SetApplyVisible / SetOkText /
     // SetOkWidthDip). Honored at OnCreate and by Layout's reflow.
     bool                             m_applyVisible = true;
+    bool                             m_confirmable  = true;
     std::wstring                     m_okText       = L"OK";
     int                              m_okWidthDip   = 0;   // 0 => s_kButtonWidthDip
 

@@ -94,13 +94,31 @@ public:
     }
 
 
-    TEST_METHOD (GetKeyLabel_StandardKnownAndOther)
+    TEST_METHOD (GetValueError_EachIllegalCharacter)
     {
-        Assert::AreEqual (std::wstring (L"Side name"),    WozProperties::GetKeyLabel ("side_name"));
-        Assert::AreEqual (std::wstring (L"Requires ROM"), WozProperties::GetKeyLabel ("requires_rom"));
-        Assert::AreEqual (std::wstring (L"Box art"),      WozProperties::GetKeyLabel ("box_art"));
+        Assert::IsTrue (WozProperties::GetValueError (L"Hard Hat Mack").empty());
+        Assert::IsFalse (WozProperties::GetValueError (L"A|B").empty());
+        Assert::IsFalse (WozProperties::GetValueError (L"A\tB").empty());
+        Assert::IsFalse (WozProperties::GetValueError (L"A\r\nB").empty());
     }
 
+
+    TEST_METHOD (GetListError_ChecksEachValue_NotTheLinesBetweenThem)
+    {
+        Assert::IsTrue  (WozProperties::GetListError ({ L"Dan Gorlin", L"" }).empty(), L"a list and its blank field have no error");
+        Assert::IsFalse (WozProperties::GetListError ({ L"Dan Gorlin", L"Mark|Allen" }).empty());
+    }
+
+
+    TEST_METHOD (GetKeyError_EmptyIllegalStandardAndDuplicate)
+    {
+        Assert::IsTrue  (WozProperties::GetKeyError (L"genre", true, { L"collection" }).empty());
+        Assert::IsTrue  (WozProperties::GetKeyError (L"", false, {}).empty(), L"an empty field with no value is ignored");
+        Assert::IsFalse (WozProperties::GetKeyError (L"", true, {}).empty(), L"a value needs a key");
+        Assert::IsFalse (WozProperties::GetKeyError (L"gen|re", true, {}).empty());
+        Assert::IsFalse (WozProperties::GetKeyError (L"title", true, {}).empty(), L"the reference's keys have their own fields");
+        Assert::IsFalse (WozProperties::GetKeyError (L"genre", true, { L"genre" }).empty());
+    }
 
     TEST_METHOD (GetLanguages_EnglishFirst_OtherLast_TheRestSorted)
     {
@@ -112,24 +130,29 @@ public:
     }
 
 
-    TEST_METHOD (ImageDate_TypedInLocalTime_RoundTrips)
+    TEST_METHOD (ImageDate_InLocalTime_RoundTrips)
     {
-        std::string  stored = "2019-01-17T18:41:42.228Z";
-        std::string  typed;
+        SYSTEMTIME  local = {};
 
-        Assert::IsTrue   (WozProperties::TryParseTypedImageDate (WozProperties::FormatImageDate (stored), typed));
-        Assert::AreEqual (std::string ("2019-01-17T18:41:42.000Z"), typed, L"the same moment, without the fraction");
+        Assert::IsTrue   (WozProperties::TryGetLocalTime ("2019-01-17T18:41:42.228Z", local));
+        Assert::AreEqual (std::string ("2019-01-17T18:41:42.000Z"), WozProperties::MakeLocalImageDate (local), L"the same moment, without the fraction");
     }
 
 
-    TEST_METHOD (ImageDate_NotADate_IsRefused_AndEmptyIsNone)
+    TEST_METHOD (ShortDate_RoundTrips_AndANonDateIsRefused)
     {
-        std::string  typed = "x";
+        SYSTEMTIME  day    = {};
+        SYSTEMTIME  parsed = {};
 
-        Assert::IsFalse  (WozProperties::TryParseTypedImageDate (L"next Tuesday-ish", typed));
-        Assert::IsTrue   (WozProperties::TryParseTypedImageDate (L"  ", typed));
-        Assert::AreEqual (std::string(), typed);
-        Assert::AreEqual (std::wstring (L"sometime"), WozProperties::FormatImageDate ("sometime"), L"a stored value that isn't RFC 3339 is returned as stored");
+        day.wYear  = 2018;
+        day.wMonth = 7;
+        day.wDay   = 24;
+
+        Assert::IsTrue   (WozProperties::TryParseShortDate (WozProperties::FormatShortDate (day), parsed));
+        Assert::AreEqual ((int) day.wMonth, (int) parsed.wMonth);
+        Assert::AreEqual ((int) day.wDay,   (int) parsed.wDay);
+        Assert::IsFalse  (WozProperties::TryParseShortDate (L"next Tuesday-ish", parsed));
+        Assert::IsFalse  (WozProperties::TryGetLocalTime ("sometime", parsed));
     }
 
     TEST_METHOD (FormatEditError_EachRefusal_HasItsOwnReason)

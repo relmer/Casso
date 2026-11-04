@@ -24,6 +24,8 @@ public:
 
     void  Init       (std::vector<AppleFilePropertiesPanel::Row> rows, std::function<void (IDxuiControl *)> onPressed);
     void  SetOnApply (std::function<bool()> fn) { m_onApply = std::move (fn); }
+    void  SetRows    (std::vector<AppleFilePropertiesPanel::Row> rows);
+    void  Relayout   ();
 
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
@@ -32,4 +34,6 @@ public:
 private:
     AppleFilePropertiesPanel  m_rows;
     std::function<bool()>     m_onApply;
+    RECT                      m_laidOut = {};
+    DxuiDpiScaler             m_scaler;
 };

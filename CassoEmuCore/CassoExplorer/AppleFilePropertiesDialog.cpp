@@ -41,6 +41,24 @@ void AppleFilePropertiesPanel::Init (std::vector<Row> rows)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleFilePropertiesPanel::SetRows
+//
+//  The rows replaced, as when fields are added or removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleFilePropertiesPanel::SetRows (std::vector<Row> rows)
+{
+    ClearAdopted();
+    Init (std::move (rows));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleFilePropertiesPanel::IsRowShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +121,7 @@ void AppleFilePropertiesPanel::Layout (const RECT & boundsDip, const DxuiDpiScal
     for (const Row & row : m_rows)
     {
         int  height = scaler.ToPx (row.heightDip);
-        int  x      = fieldX;
+        int  x      = row.fromLeft ? (int) boundsDip.left : fieldX;
 
         if (!IsRowShown (row))
         {

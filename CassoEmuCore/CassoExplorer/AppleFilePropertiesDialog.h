@@ -33,9 +33,11 @@ public:
         std::vector<Field>    fields;
         bool                  gapAbove  = false;
         int                   heightDip = kRowHeightDip;
+        bool                  fromLeft  = false;   // the fields start in the label column
     };
 
     void  Init                 (std::vector<Row> rows);
+    void  SetRows              (std::vector<Row> rows);
     void  SetOnChildPressed    (std::function<void (IDxuiControl *)> fn) { m_onPressed = std::move (fn); }
     int   GetRequiredHeightDip () const;
 

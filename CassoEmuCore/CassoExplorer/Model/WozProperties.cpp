@@ -468,54 +468,6 @@ std::wstring WozProperties::FormatEditError (HRESULT hr)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WozProperties::GetKeyLabel
-//
-//  A standard key's label, a known key the reference doesn't define by the
-//  name it's known by, or any other key with spaces for its underscores
-//  and a capital first letter.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring WozProperties::GetKeyLabel (const std::string & key)
-{
-    static constexpr const char *  kExtraKeys[][2] = { { "genre", "Genre" }, { "collection", "Collection" }, { "requires_rom", "Requires ROM" } };
-    std::wstring                   label;
-
-
-
-    for (const MetaKey & standard : GetMetaKeys())
-    {
-        if (key == standard.key)
-        {
-            return standard.label;
-        }
-    }
-
-    for (const auto & extra : kExtraKeys)
-    {
-        if (key == extra[0])
-        {
-            return TextEncoding::Utf8ToWide (extra[1]);
-        }
-    }
-
-    label = TextEncoding::Utf8ToWide (key);
-    std::replace (label.begin(), label.end(), L'_', L' ');
-
-    if (!label.empty())
-    {
-        label[0] = (wchar_t) towupper (label[0]);
-    }
-
-    return label;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WozProperties::TryParseImageDate
 //
 //  An RFC 3339 time in UTC, as image_date has it. Its fraction of a second
@@ -558,80 +510,6 @@ bool WozProperties::TryParseImageDate (const std::string & value, SYSTEMTIME & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WozProperties::FormatImageDate
-//
-//  image_date in local time, in the Windows short date and long time
-//  format, or as stored when it isn't an RFC 3339 time in UTC.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring WozProperties::FormatImageDate (const std::string & value)
-{
-    SYSTEMTIME  utc       = {};
-    SYSTEMTIME  local     = {};
-    wchar_t     day[64]   = {};
-    wchar_t     clock[64] = {};
-    bool        parsed    = TryParseImageDate (value, utc);
-
-
-
-    if (!parsed || !SystemTimeToTzSpecificLocalTime (nullptr, &utc, &local)
-     || GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, day, (int) std::size (day), nullptr) == 0
-     || GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, 0, &local, nullptr, clock, (int) std::size (clock)) == 0)
-    {
-        return TextEncoding::Utf8ToWide (value);
-    }
-
-    return std::format (L"{} {}", day, clock);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WozProperties::TryParseTypedImageDate
-//
-//  A local date and time, in any form the Windows date parser reads, as
-//  image_date has it: RFC 3339 in UTC. Empty text is no date.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool WozProperties::TryParseTypedImageDate (const std::wstring & typed, std::string & outValue)
-{
-    DATE        parsed = 0;
-    SYSTEMTIME  local  = {};
-    SYSTEMTIME  utc    = {};
-    HRESULT     hr     = S_OK;
-
-
-
-    outValue.clear();
-
-    if (typed.find_first_not_of (L' ') == std::wstring::npos)
-    {
-        return true;
-    }
-
-    hr = VarDateFromStr (typed.c_str(), LOCALE_USER_DEFAULT, 0, &parsed);
-
-    if (FAILED (hr) || !VariantTimeToSystemTime (parsed, &local) || !TzSpecificLocalTimeToSystemTime (nullptr, &local, &utc))
-    {
-        return false;
-    }
-
-    outValue = MakeImageDate (utc);
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WozProperties::MakeImageDate
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -639,4 +517,220 @@ bool WozProperties::TryParseTypedImageDate (const std::wstring & typed, std::str
 std::string WozProperties::MakeImageDate (const SYSTEMTIME & utc)
 {
     return std::format ("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.000Z", utc.wYear, utc.wMonth, utc.wDay, utc.wHour, utc.wMinute, utc.wSecond);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::GetValueError
+//
+//  Why a typed value can't be saved, or nothing when it can.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::GetValueError (const std::wstring & value)
+{
+    bool  illegal = value.find_first_of (kIllegalChars) != std::wstring::npos;
+
+
+
+    return illegal ? std::wstring (L"Metadata can't have a |, a tab or a line break.") : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::GetListError
+//
+//  Each of a list's values checked separately, since the line breaks that
+//  separate typed values aren't part of any value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::GetListError (const std::vector<std::wstring> & values)
+{
+    std::wstring  error;
+
+
+
+    for (size_t at = 0; error.empty() && at < values.size(); at++)
+    {
+        error = GetValueError (values[at]);
+    }
+
+    return error;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::GetKeyError
+//
+//  Why a custom field's key can't be saved, or nothing when it can: a key
+//  for a value, without the characters the format reserves, that neither
+//  the reference nor another field already has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::GetKeyError (const std::wstring & key, bool hasValue, const std::vector<std::wstring> & otherKeys)
+{
+    bool  illegal   = key.find_first_of (kIllegalChars) != std::wstring::npos;
+    bool  standard  = IsStandardKey (TextEncoding::WideToUtf8 (key));
+    bool  duplicate = std::find (otherKeys.begin(), otherKeys.end(), key) != otherKeys.end();
+
+
+
+    return (key.empty() && hasValue) ? std::wstring (L"A field with a value must have a key.")
+         : illegal                   ? std::wstring (L"A key can't have a |, a tab or a line break.")
+         : standard                  ? std::wstring (L"This key is one of the reference's, and its field is above.")
+         : (duplicate && !key.empty()) ? std::wstring (L"Another field has this key.")
+                                     : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::TryGetLocalTime
+//
+//  image_date in local time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozProperties::TryGetLocalTime (const std::string & value, SYSTEMTIME & outLocal)
+{
+    SYSTEMTIME  utc    = {};
+    bool        parsed = TryParseImageDate (value, utc);
+
+
+
+    outLocal = SYSTEMTIME {};
+
+    return parsed && SystemTimeToTzSpecificLocalTime (nullptr, &utc, &outLocal);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::FormatShortDate
+//
+//  A day in the Windows short date format.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::FormatShortDate (const SYSTEMTIME & local)
+{
+    wchar_t  day[64] = {};
+    int      length  = GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, day, (int) std::size (day), nullptr);
+
+
+
+    return (length > 0) ? std::wstring (day) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::TryParseShortDate
+//
+//  A day typed in any form the Windows date parser reads. Its time of day
+//  is set apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozProperties::TryParseShortDate (const std::wstring & typed, SYSTEMTIME & outLocal)
+{
+    DATE     parsed = 0;
+    HRESULT  hr     = VarDateFromStr (typed.c_str(), LOCALE_USER_DEFAULT, VAR_DATEVALUEONLY, &parsed);
+
+
+
+    outLocal = SYSTEMTIME {};
+
+    return SUCCEEDED (hr) && VariantTimeToSystemTime (parsed, &outLocal) && outLocal.wYear > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::MakeLocalImageDate
+//
+//  A local date and time as image_date has it, or nothing when it isn't a
+//  time Windows can convert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WozProperties::MakeLocalImageDate (const SYSTEMTIME & local)
+{
+    SYSTEMTIME  utc       = {};
+    bool        converted = TzSpecificLocalTimeToSystemTime (nullptr, &local, &utc) != FALSE;
+
+
+
+    return converted ? MakeImageDate (utc) : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::IsClock24Hour
+//
+//  Whether the user's time format counts hours to 23, rather than to 12
+//  with AM and PM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozProperties::IsClock24Hour()
+{
+    wchar_t  format[80] = {};
+    int      length     = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STIMEFORMAT, format, (int) std::size (format));
+
+
+
+    return length > 0 && wcschr (format, L'H') != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozProperties::GetDayHalfLabel
+//
+//  The user's AM or PM.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozProperties::GetDayHalfLabel (bool afternoon)
+{
+    wchar_t  label[32] = {};
+    int      length    = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, afternoon ? LOCALE_S2359 : LOCALE_S1159, label, (int) std::size (label));
+
+
+
+    return (length > 1) ? std::wstring (label) : std::wstring (afternoon ? L"PM" : L"AM");
 }

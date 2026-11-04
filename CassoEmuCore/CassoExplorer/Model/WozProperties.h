@@ -81,15 +81,23 @@ public:
     //  read or write of the file.
     static std::wstring  FormatEditError (HRESULT hr);
 
-    static std::wstring  GetKeyLabel (const std::string & key);
+    //  Why a typed value, or a custom field's key, can't be saved; nothing
+    //  when it can.
+    static std::wstring  GetValueError (const std::wstring & value);
+    static std::wstring  GetListError  (const std::vector<std::wstring> & values);
+    static std::wstring  GetKeyError   (const std::wstring & key, bool hasValue, const std::vector<std::wstring> & otherKeys);
 
-    //  image_date: as stored, in local time, and from what was typed.
+    //  image_date: RFC 3339 in UTC, and a local day and time of day.
     static constexpr const char *  kImageDate       = "image_date";
     static constexpr int           kImageDateFields = 6;
 
-    static bool          TryParseImageDate      (const std::string & value, SYSTEMTIME & outUtc);
-    static std::wstring  FormatImageDate        (const std::string & value);
-    static bool          TryParseTypedImageDate (const std::wstring & typed, std::string & outValue);
-    static std::string   MakeImageDate          (const SYSTEMTIME & utc);
+    static bool          TryParseImageDate  (const std::string & value, SYSTEMTIME & outUtc);
+    static std::string   MakeImageDate      (const SYSTEMTIME & utc);
+    static bool          TryGetLocalTime    (const std::string & value, SYSTEMTIME & outLocal);
+    static std::wstring  FormatShortDate    (const SYSTEMTIME & local);
+    static bool          TryParseShortDate  (const std::wstring & typed, SYSTEMTIME & outLocal);
+    static std::string   MakeLocalImageDate (const SYSTEMTIME & local);
+    static bool          IsClock24Hour      ();
+    static std::wstring  GetDayHalfLabel    (bool afternoon);
 
 };

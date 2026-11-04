@@ -26,12 +26,52 @@ void WozPropertiesPage::Init (std::vector<AppleFilePropertiesPanel::Row> rows, s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WozPropertiesPage::SetRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesPage::SetRows (std::vector<AppleFilePropertiesPanel::Row> rows)
+{
+    m_rows.SetRows (std::move (rows));
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesPage::Relayout
+//
+//  Laid out again where it last was, after its rows or their heights
+//  changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesPage::Relayout()
+{
+    if (m_laidOut.right > m_laidOut.left)
+    {
+        Layout (m_laidOut, m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WozPropertiesPage::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WozPropertiesPage::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    m_laidOut = boundsDip;
+    m_scaler  = scaler;
+
     SetBounds (boundsDip);
 
     m_rows.Layout (boundsDip, scaler);

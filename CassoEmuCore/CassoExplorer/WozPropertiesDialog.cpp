@@ -4,6 +4,7 @@
 #include "CassoExplorer/WozPropertiesPage.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/WozCompatibility.h"
 
 
@@ -182,7 +183,7 @@ void WozPropertiesDialog::BuildInfoPage()
 //
 //  WozPropertiesDialog::BuildMetaPage
 //
-//  The reference's keys in its order, then any other key the image has.
+//  The reference's keys in its order, then the custom keys the image has.
 //  Language and the RAM size are lists, with the image's value added when
 //  the reference doesn't list it, and the machines are boxes.
 //
@@ -190,9 +191,9 @@ void WozPropertiesDialog::BuildInfoPage()
 
 void WozPropertiesDialog::BuildMetaPage()
 {
-    std::vector<AppleFilePropertiesPanel::Row>  rows;
-    std::wstring                                language = GetMetaValue (WozProperties::kLanguage);
-    std::wstring                                metaRam  = GetMetaValue (WozProperties::kRequiresRam);
+    std::vector<AppleFilePropertiesPanel::Row>  & rows     = m_standardRows;
+    std::wstring                                  language = GetMetaValue (WozProperties::kLanguage);
+    std::wstring                                  metaRam  = GetMetaValue (WozProperties::kRequiresRam);
 
 
 
@@ -239,18 +240,26 @@ void WozPropertiesDialog::BuildMetaPage()
         }
     }
 
-    //  A key the reference doesn't define is one value, or a list when the
-    //  image has one there.
+    //  The custom keys under a heading, each as the file has it.
+    ExplorerTextStyles::Apply (m_customHeading, ExplorerTextStyles::kFormNote);
+    m_customHeading.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_customHeading.SetText      (L"Custom fields, which the WOZ reference doesn't define:");
+
     for (const WozLoader::MetaField & field : m_woz.meta)
     {
         if (!WozProperties::IsStandardKey (field.key))
         {
-            AddMetaText (rows, field.key, WozProperties::GetKeyLabel (field.key) + L":", field.value.find ('|') != std::string::npos);
+            AddCustomText (field.key);
         }
     }
 
+    m_addField.SetOnClick ([this]() { AddCustomField(); });
+
     m_metaPage = CreatePage<WozPropertiesPage> (L"Metadata");
-    m_metaPage->Init (std::move (rows), [this] (IDxuiControl * child) { FocusControl (child); });
+    m_metaPage->Init (std::vector<AppleFilePropertiesPanel::Row>(), [this] (IDxuiControl * child) { FocusControl (child); });
+
+    SetMetaRows();
+    Validate();
 }
 
 
@@ -311,11 +320,15 @@ void WozPropertiesDialog::AddMachineRows (std::vector<AppleFilePropertiesPanel::
 //
 //  WozPropertiesDialog::AddMetaText
 //
+//  A standard key's fields, a list's a value each, and the row under them
+//  for why they can't be saved.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void WozPropertiesDialog::AddMetaText (std::vector<AppleFilePropertiesPanel::Row> & rows, const std::string & key, const std::wstring & label, bool isList)
 {
     std::unique_ptr<MetaText>  text   = std::make_unique<MetaText>();
+    MetaText                 * shown  = text.get();
     std::vector<std::wstring>  items  = isList ? WozProperties::SplitList (GetMetaValue (key)) : std::vector<std::wstring> { GetMetaValue (key) };
     size_t                     fields = isList ? (std::max) (items.size() + 1, kMinListFields) : 1;
 
@@ -334,7 +347,52 @@ void WozPropertiesDialog::AddMetaText (std::vector<AppleFilePropertiesPanel::Row
         rows.push_back ({ (at == 0) ? &text->label : nullptr, { { text->values.back().get() } } });
     }
 
+    rows.push_back ({ nullptr, { { &text->error } }, false, kErrorDip });
+
+    m_validator.AddField ([shown]() { return CheckValues (*shown); }, &text->error);
     m_metaTexts.push_back (std::move (text));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::AddCustomText
+//
+//  A custom key's fields: the key as the file has it, a value each, and a
+//  button that deletes the key. A key that isn't a list has one value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WozPropertiesDialog::MetaText & WozPropertiesDialog::AddCustomText (const std::string & key)
+{
+    std::unique_ptr<MetaText>  text  = std::make_unique<MetaText>();
+    MetaText                 & added = *text;
+    std::vector<std::wstring>  items = WozProperties::SplitList (GetMetaValue (key));
+
+
+
+    text->key    = key;
+    text->custom = true;
+
+    SetUpInput (text->keyInput, TextEncoding::Utf8ToWide (key));
+    text->keyInput.SetPlaceholder (L"Key");
+
+    for (size_t at = 0; at < (std::max) (items.size(), (size_t) 1); at++)
+    {
+        text->values.push_back (std::make_unique<DxuiTextInput>());
+        SetUpInput (*text->values.back(), (at < items.size()) ? items[at] : std::wstring());
+    }
+
+    text->remove.SetGlyph          (s_kpszMdl2Delete);
+    text->remove.SetAccessibleName (L"Delete this field");
+    text->remove.SetOnClick        ([this, removed = text.get()]() { RemoveCustom (removed); });
+
+    m_metaTexts.push_back (std::move (text));
+
+    return added;
 }
 
 
@@ -363,17 +421,19 @@ void WozPropertiesDialog::SetUpLabel (DxuiLabel & label, const std::wstring & te
 //
 //  WozPropertiesDialog::SetUpInput
 //
+//  A pasted line break or tab stays in the field, with a message under the
+//  field.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void WozPropertiesDialog::SetUpInput (DxuiTextInput & input, const std::wstring & text)
 {
-    input.SetTheme         (m_theme);
-    input.SetHwnd          (GetHwnd());
-    input.SetTextRenderer  (GetTextRenderer());
-    input.SetText          (text);
-    input.SetOnChange      ([this] (const std::wstring &) { MarkEdited(); });
-    input.SetRejectedChars (WozProperties::kIllegalChars);
-    input.SetOnRejected    ([]() { MessageBeep (MB_OK); });
+    input.SetTheme            (m_theme);
+    input.SetHwnd             (GetHwnd());
+    input.SetTextRenderer     (GetTextRenderer());
+    input.SetText             (text);
+    input.SetPasteKeepsBreaks (true);
+    input.SetOnChange         ([this] (const std::wstring &) { MarkEdited(); });
 }
 
 
@@ -418,7 +478,7 @@ void WozPropertiesDialog::SetUpChoices (DxuiComboBox & combo, std::vector<std::w
 //
 //  WozPropertiesDialog::MarkEdited
 //
-//  Both pages, since one Apply saves both.
+//  Both pages, since one Apply saves both, and every field checked again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -429,6 +489,8 @@ void WozPropertiesDialog::MarkEdited()
         m_infoPage->MarkDirty();
         m_metaPage->MarkDirty();
     }
+
+    Validate();
 }
 
 
@@ -467,17 +529,18 @@ bool WozPropertiesDialog::TrySave()
         edits.requiredRamK       = (ram >= 0) ? m_ramSizes[(size_t) ram] : 0;
     }
 
-    //  A list's fields a line each.
+    //  A value that can't be saved has its message, and OK and Apply are off.
+    if (!m_validator.Revalidate())
+    {
+        return false;
+    }
+
+    //  A list's fields a line each; a custom key as typed.
     for (const std::unique_ptr<MetaText> & text : m_metaTexts)
     {
-        std::wstring  lines;
+        std::string  key = text->custom ? TextEncoding::WideToUtf8 (text->keyInput.GetText()) : text->key;
 
-        for (const std::unique_ptr<DxuiTextInput> & value : text->values)
-        {
-            lines += (lines.empty() ? L"" : L"\n") + value->GetText();
-        }
-
-        typed.emplace_back (text->key, lines);
+        typed.emplace_back (key, JoinLines (*text));
     }
 
     //  The first item of each list is no value.
@@ -485,14 +548,10 @@ bool WozPropertiesDialog::TrySave()
     typed.emplace_back (WozProperties::kRequiresRam,     (metaRam  > 0) ? m_metaRams[(size_t) metaRam]   : std::wstring());
     typed.emplace_back (WozProperties::kRequiresMachine, ToLines (m_machinesEdited ? TextEncoding::Utf8ToWide (machines) : GetMetaValue (WozProperties::kRequiresMachine)));
 
-    if (!TryGetImageDate (imageDate))
+    if (TryGetImageDate (imageDate))
     {
-        SetActivePage (kMetaTab);
-        DxuiMessageBox (GetHwnd(), m_theme, L"The image date isn't a date and time. Type it as Windows writes dates, or choose one from the calendar.", L"Disk properties", MB_OK | MB_ICONWARNING);
-        return false;
+        typed.emplace_back (WozProperties::kImageDate, TextEncoding::Utf8ToWide (imageDate));
     }
-
-    typed.emplace_back (WozProperties::kImageDate, TextEncoding::Utf8ToWide (imageDate));
 
     edits.meta = WozProperties::MakeMeta (typed);
     error      = m_apply ? m_apply (edits) : std::wstring();
@@ -514,23 +573,78 @@ bool WozPropertiesDialog::TrySave()
 //
 //  WozPropertiesDialog::AddImageDate
 //
-//  The image's date in local time, typed or chosen from a calendar, as the
-//  Apple file properties dialog has its dates.
+//  The image's day in local time, typed or chosen from a calendar, and its
+//  time of day chosen from lists: hours, minutes and seconds, with AM and
+//  PM when the user's clock has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WozPropertiesDialog::AddImageDate (std::vector<AppleFilePropertiesPanel::Row> & rows)
 {
-    m_imageDateShown = WozProperties::FormatImageDate (TextEncoding::WideToUtf8 (GetMetaValue (WozProperties::kImageDate)));
+    std::vector<std::wstring>  hours;
+    std::vector<std::wstring>  sixty;
+    int                        hour  = 0;
 
-    SetUpLabel (m_imageDateLabel, WozProperties::GetKeyLabel (WozProperties::kImageDate) + L":");
-    SetUpInput (m_imageDate, m_imageDateShown);
+
+
+    m_clock24 = WozProperties::IsClock24Hour();
+    m_hadDate = WozProperties::TryGetLocalTime (TextEncoding::WideToUtf8 (GetMetaValue (WozProperties::kImageDate)), m_shownLocal);
+
+    SetUpLabel (m_imageDateLabel, L"Image date:");
+    SetUpInput (m_imageDate, m_hadDate ? WozProperties::FormatShortDate (m_shownLocal) : std::wstring());
 
     m_imageDatePick.SetGlyph          (s_kpszMdl2Calendar);
     m_imageDatePick.SetAccessibleName (L"Choose a date");
     m_imageDatePick.SetOnClick        ([this]() { PickImageDate(); });
 
-    rows.push_back ({ &m_imageDateLabel, { { &m_imageDate, kDateWidthDip }, { &m_imageDatePick, kPickWidthDip } } });
+    //  A 12-hour clock lists 12 first, as its midnight and noon.
+    for (int h = 0; h < (m_clock24 ? kHoursPerDay : kHoursPerHalf); h++)
+    {
+        hours.push_back (m_clock24 ? std::format (L"{:02}", h) : std::format (L"{}", (h == 0) ? kHoursPerHalf : h));
+    }
+
+    for (int m = 0; m < kMinutesPerHour; m++)
+    {
+        sixty.push_back (std::format (L"{:02}", m));
+    }
+
+    hour = m_hadDate ? m_shownLocal.wHour : 0;
+
+    SetUpClock (m_hour,    hours, m_clock24 ? hour : hour % kHoursPerHalf);
+    SetUpClock (m_minute,  sixty, m_hadDate ? m_shownLocal.wMinute : 0);
+    SetUpClock (m_second,  sixty, m_hadDate ? m_shownLocal.wSecond : 0);
+    SetUpClock (m_dayHalf, { WozProperties::GetDayHalfLabel (false), WozProperties::GetDayHalfLabel (true) }, (hour >= kHoursPerHalf) ? 1 : 0);
+    m_dayHalf.SetVisible (!m_clock24);
+
+    rows.push_back ({ &m_imageDateLabel, { { &m_imageDate, kDateWidthDip }, { &m_imageDatePick, kPickWidthDip }, { &m_hour, kClockWidthDip },
+                                           { &m_minute, kClockWidthDip }, { &m_second, kClockWidthDip }, { &m_dayHalf, kClockWidthDip } } });
+    rows.push_back ({ nullptr, { { &m_imageDateError } }, false, kErrorDip });
+
+    m_validator.AddField ([this]()
+    {
+        std::string  value;
+        bool         dated = TryGetImageDate (value);
+
+        return dated ? std::wstring() : std::wstring (L"This isn't a date. Type one as Windows writes dates, or choose one from the calendar.");
+    }, &m_imageDateError);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::SetUpClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesDialog::SetUpClock (DxuiComboBox & combo, std::vector<std::wstring> items, int selected)
+{
+    combo.SetPopupHost (GetPopupHost());
+    combo.SetItems     (items);
+    combo.SetSelected  (selected);
+    combo.SetSelect    ([this] (int) { MarkEdited(); });
 }
 
 
@@ -541,18 +655,16 @@ void WozPropertiesDialog::AddImageDate (std::vector<AppleFilePropertiesPanel::Ro
 //
 //  WozPropertiesDialog::PickImageDate
 //
-//  The time of day stays as the field has it, or midnight when the field
-//  has no date.
+//  The calendar opens on the field's day, or on today when the field is
+//  empty or isn't a date.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WozPropertiesDialog::PickImageDate()
 {
-    std::string        value;
-    SYSTEMTIME         utc   = {};
     SYSTEMTIME         local = {};
     DxuiCalendar::Day  shown;
-    bool               dated = TryGetImageDate (value) && WozProperties::TryParseImageDate (value, utc) && SystemTimeToTzSpecificLocalTime (nullptr, &utc, &local);
+    bool               dated = WozProperties::TryParseShortDate (m_imageDate.GetText(), local);
 
 
 
@@ -560,31 +672,23 @@ void WozPropertiesDialog::PickImageDate()
     {
         shown = DxuiCalendar::Day { local.wYear, local.wMonth, local.wDay };
     }
-    else
-    {
-        local = SYSTEMTIME {};
-    }
 
     if (m_theme == nullptr || GetPopupHost() == nullptr)
     {
         return;
     }
 
-    m_calendar.Show (*GetPopupHost(), *m_theme, m_imageDate.GetRect(), shown, [this, local] (const DxuiCalendar::Day & day)
+    m_calendar.Show (*GetPopupHost(), *m_theme, m_imageDate.GetRect(), shown, [this] (const DxuiCalendar::Day & day)
     {
-        SYSTEMTIME  picked = local;
-        SYSTEMTIME  inUtc  = {};
+        SYSTEMTIME  picked = {};
 
         picked.wYear  = (WORD) day.year;
         picked.wMonth = (WORD) day.month;
         picked.wDay   = (WORD) day.day;
 
-        if (TzSpecificLocalTimeToSystemTime (nullptr, &picked, &inUtc))
-        {
-            m_imageDate.SetText (WozProperties::FormatImageDate (WozProperties::MakeImageDate (inUtc)));
-            MarkEdited();
-            Invalidate();
-        }
+        m_imageDate.SetText (WozProperties::FormatShortDate (picked));
+        MarkEdited();
+        Invalidate();
     });
 }
 
@@ -596,21 +700,301 @@ void WozPropertiesDialog::PickImageDate()
 //
 //  WozPropertiesDialog::TryGetImageDate
 //
-//  The field's date as image_date has it. A field as it was first filled
-//  is the image's value as stored, fraction of a second and all. False for
-//  text that isn't a date and time.
+//  The day and time of day as image_date has it: empty with no day, and
+//  the image's value as stored, fraction of a second and all, when neither
+//  changed. False for a day that isn't a date.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WozPropertiesDialog::TryGetImageDate (std::string & outValue) const
 {
-    if (m_imageDate.GetText() == m_imageDateShown)
+    SYSTEMTIME  local = {};
+    bool        same  = false;
+
+
+
+    outValue.clear();
+
+    if (m_imageDate.GetText().find_first_not_of (L' ') == std::wstring::npos)
     {
-        outValue = TextEncoding::WideToUtf8 (GetMetaValue (WozProperties::kImageDate));
         return true;
     }
 
-    return WozProperties::TryParseTypedImageDate (m_imageDate.GetText(), outValue);
+    if (!TryGetTypedTime (local))
+    {
+        return false;
+    }
+
+    same = m_hadDate && local.wYear == m_shownLocal.wYear && local.wMonth == m_shownLocal.wMonth && local.wDay == m_shownLocal.wDay
+        && local.wHour == m_shownLocal.wHour && local.wMinute == m_shownLocal.wMinute && local.wSecond == m_shownLocal.wSecond;
+
+    outValue = same ? TextEncoding::WideToUtf8 (GetMetaValue (WozProperties::kImageDate)) : WozProperties::MakeLocalImageDate (local);
+
+    return !outValue.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::TryGetTypedTime
+//
+//  The typed day at the time of day the lists have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WozPropertiesDialog::TryGetTypedTime (SYSTEMTIME & outLocal) const
+{
+    int  hour = (std::max) (m_hour.GetSelectedIndex(), 0);
+
+
+
+    if (!WozProperties::TryParseShortDate (m_imageDate.GetText(), outLocal))
+    {
+        return false;
+    }
+
+    outLocal.wHour         = (WORD) ((m_clock24 || m_dayHalf.GetSelectedIndex() <= 0) ? hour : hour + kHoursPerHalf);
+    outLocal.wMinute       = (WORD) (std::max) (m_minute.GetSelectedIndex(), 0);
+    outLocal.wSecond       = (WORD) (std::max) (m_second.GetSelectedIndex(), 0);
+    outLocal.wMilliseconds = 0;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::SetMetaRows
+//
+//  The standard keys' rows, then the custom fields' under their heading,
+//  each a row of key, value and delete button, then Add field. Called again
+//  when a custom field is added or deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesDialog::SetMetaRows()
+{
+    std::vector<AppleFilePropertiesPanel::Row>  rows = m_standardRows;
+
+
+
+    rows.push_back ({ &m_customHeading, {}, true });
+
+    for (const std::unique_ptr<MetaText> & text : m_metaTexts)
+    {
+        if (!text->custom)
+        {
+            continue;
+        }
+
+        for (size_t at = 0; at < text->values.size(); at++)
+        {
+            AppleFilePropertiesPanel::Row  row;
+
+            row.fromLeft = at == 0;
+            row.fields   = (at == 0) ? std::vector<AppleFilePropertiesPanel::Field> { { &text->keyInput, kKeyWidthDip }, { text->values[at].get(), kValueWidthDip }, { &text->remove, kPickWidthDip } }
+                                     : std::vector<AppleFilePropertiesPanel::Field> { { text->values[at].get(), kValueWidthDip } };
+
+            rows.push_back (row);
+        }
+
+        rows.push_back ({ nullptr, { { &text->error } }, false, kErrorDip });
+    }
+
+    rows.push_back ({ nullptr, { { &m_addField, kComboWidthDip / 2 } }, true });
+
+    m_metaPage->SetRows (std::move (rows));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::AddCustomField
+//
+//  A new custom field, with its key's field focused for typing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesDialog::AddCustomField()
+{
+    MetaText  & added = AddCustomText (std::string());
+
+
+
+    SetMetaRows();
+    MarkEdited();
+    FocusControl (&added.keyInput);
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::RemoveCustom
+//
+//  The field is taken out of the page and moved to m_removedTexts, which
+//  lasts until the window closes, since its delete button is running this.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesDialog::RemoveCustom (MetaText * text)
+{
+    auto  found = std::find_if (m_metaTexts.begin(), m_metaTexts.end(), [text] (const std::unique_ptr<MetaText> & t) { return t.get() == text; });
+
+
+
+    if (found == m_metaTexts.end())
+    {
+        return;
+    }
+
+    FocusControl (&m_addField);
+
+    m_removedTexts.push_back (std::move (*found));
+    m_metaTexts.erase (found);
+
+    SetMetaRows();
+    MarkEdited();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::Validate
+//
+//  Every field checked: each message under its field, the rows laid out
+//  again around the messages, and OK and Apply only while none has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozPropertiesDialog::Validate()
+{
+    bool  valid = m_validator.Revalidate();
+
+
+
+    for (const std::unique_ptr<MetaText> & text : m_metaTexts)
+    {
+        if (text->custom)
+        {
+            text->error.SetMessage (CheckCustom (*text));
+            valid = valid && !text->error.HasError();
+        }
+
+        text->error.SetVisible (text->error.HasError());
+    }
+
+    m_imageDateError.SetVisible (m_imageDateError.HasError());
+
+    SetConfirmable (valid);
+
+    if (m_metaPage != nullptr)
+    {
+        m_metaPage->Relayout();
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::CheckCustom
+//
+//  The key first, then its values.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozPropertiesDialog::CheckCustom (const MetaText & text) const
+{
+    std::vector<std::wstring>  others;
+    std::wstring               values = JoinLines (text);
+    std::wstring               error;
+
+
+
+    for (const std::unique_ptr<MetaText> & other : m_metaTexts)
+    {
+        if (other->custom && other.get() != &text)
+        {
+            others.push_back (other->keyInput.GetText());
+        }
+    }
+
+    error = WozProperties::GetKeyError (text.keyInput.GetText(), values.find_first_not_of (L"\n ") != std::wstring::npos, others);
+
+    return error.empty() ? CheckValues (text) : error;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::CheckValues
+//
+//  Each field checked separately, by WozProperties::GetListError.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozPropertiesDialog::CheckValues (const MetaText & text)
+{
+    std::vector<std::wstring>  values;
+
+
+
+    for (const std::unique_ptr<DxuiTextInput> & value : text.values)
+    {
+        values.push_back (value->GetText());
+    }
+
+    return WozProperties::GetListError (values);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozPropertiesDialog::JoinLines
+//
+//  The fields' values a line each, as a list is typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WozPropertiesDialog::JoinLines (const MetaText & text)
+{
+    std::wstring  lines;
+
+
+
+    for (const std::unique_ptr<DxuiTextInput> & value : text.values)
+    {
+        lines += (lines.empty() ? L"" : L"\n") + value->GetText();
+    }
+
+    return lines;
 }
 
 

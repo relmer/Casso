@@ -59,6 +59,7 @@ void DxuiPropertySheet::OnCreate()
     m_apply  = CreateChild<DxuiButton> (L"Apply");
 
     m_ok->SetCommandId     (IDOK);
+    m_ok->SetEnabled       (m_confirmable);
     m_cancel->SetCommandId (IDCANCEL);
     m_apply->SetCommandId  (DxuiButtonRow::kApplyCommandId);
 
@@ -69,7 +70,7 @@ void DxuiPropertySheet::OnCreate()
     // Apply commits without closing; Cancel runs OnCancel then closes. Cancel
     // is wired explicitly (not left to the dialog auto-wire) so OnCancel fires
     // on both the button and Escape (which triggers the IDCANCEL button).
-    m_ok->SetOnClick     ([this] () { if (OnOk() == S_OK) { EndDialog (IDOK); } });
+    m_ok->SetOnClick     ([this] () { if (m_confirmable && OnOk() == S_OK) { EndDialog (IDOK); } });
     m_apply->SetOnClick  ([this] () { (void) OnApply(); RefreshApplyEnabled(); });
     m_cancel->SetOnClick ([this] () { OnCancel(); EndDialog (IDCANCEL); });
 
@@ -542,6 +543,28 @@ bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetConfirmable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::SetConfirmable (bool confirmable)
+{
+    m_confirmable = confirmable;
+
+    if (m_ok != nullptr)
+    {
+        m_ok->SetEnabled (confirmable);
+    }
+
+    RefreshApplyEnabled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RefreshApplyEnabled
 //
 //  Apply is enabled iff at least one page is dirty.
@@ -565,7 +588,7 @@ void DxuiPropertySheet::RefreshApplyEnabled()
 
     if (m_apply != nullptr)
     {
-        m_apply->SetEnabled (anyDirty);
+        m_apply->SetEnabled (anyDirty && m_confirmable);
     }
 }
 

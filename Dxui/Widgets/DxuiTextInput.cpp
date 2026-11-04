@@ -968,42 +968,26 @@ void DxuiTextInput::DeleteSelection()
 
 void DxuiTextInput::InsertText (const std::wstring & ins)
 {
-    std::wstring  kept;
-    size_t        room     = 0;
-    size_t        take     = 0;
-    bool          rejected = false;
+    size_t  room = 0;
+    size_t  take = 0;
 
 
 
-    //  Typing and pasting both arrive here, so a character the field doesn't
-    //  take is caught however it came.
-    for (wchar_t c : ins)
-    {
-        bool  refused = m_rejected.find (c) != std::wstring::npos;
-
-        rejected = rejected || refused;
-        kept    += refused ? std::wstring() : std::wstring (1, c);
-    }
-
-    if (rejected && m_onRejected)
-    {
-        m_onRejected();
-    }
-
-    if (m_caret != m_anchor && !kept.empty())
+    if (m_caret != m_anchor)
     {
         DeleteSelection();
     }
 
     room = (m_maxLen > m_text.size()) ? (m_maxLen - m_text.size()) : 0;
-    take = std::min (kept.size(), room);
+    take = std::min (ins.size(), room);
+
 
     if (take == 0)
     {
         return;
     }
 
-    m_text.insert (m_caret, kept, 0, take);
+    m_text.insert (m_caret, ins, 0, take);
     m_caret += take;
     m_anchor = m_caret;
     FireChange();
@@ -1185,9 +1169,7 @@ void DxuiTextInput::PasteFromClipboard()
 //
 //  DxuiTextInput::PasteText
 //
-//  Text pasted as one edit. Line breaks and tabs are spaces in a single
-//  line, then each character set by SetRejectedChars is left out, as for
-//  typing.
+//  Text pasted as one edit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1195,7 +1177,7 @@ void DxuiTextInput::PasteText (std::wstring ins)
 {
     for (auto & c : ins)
     {
-        if (c == L'\r' || c == L'\n' || c == L'\t')
+        if (!m_pasteKeepsBreaks && (c == L'\r' || c == L'\n' || c == L'\t'))
         {
             c = L' ';
         }
