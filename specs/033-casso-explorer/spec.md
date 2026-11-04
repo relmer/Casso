@@ -557,6 +557,18 @@ hardware.
 - Q: How do menu icons follow the theme? -> A: File Explorer's icons are read for the theme in use; one with no light file is mapped from the dark one by one palette transform (#E0DFDF to #555, #4CC2FF to #0078D4), and Casso's own art takes the same colors through tokens.
 - Q: Does a search's background have Save search? -> A: Yes. It saves a .search-ms file, in Saved Searches unless the user picks another folder, that File Explorer opens as the same search.
 
+### Session 2026-11-04
+
+- Q: How does a search over a folder the index doesn't cover compare with File Explorer's? -> A: Over C:\Windows, a search with File contents off took about 10 seconds in Casso Explorer and about 62 in the Windows search folder File Explorer uses, with the same results. Casso Explorer continues to walk folders and parse the query itself.
+- Q: What query syntax works where a folder is walked? -> A: A subset of AQS: AND, implied between terms; OR and NOT in capitals; `-` for NOT; parentheses; quoted phrases; and `*` and `?` wildcards. After a property: `=`, `<>`, `<`, `>`, `<=`, `>=`, `a..b` for a range, `~<` (starts with), `~=` (contains) and `~!` (doesn't contain). An indexed folder gets the query as typed.
+- Q: Which properties? -> A: `name:` and `filename:`; `ext:` and `fileext:`; `folder:` and `path:`; `size:` with File Explorer's keywords or a number in KB, MB or GB; `datemodified:`, `datecreated:` and `dateaccessed:` with File Explorer's keywords, a date in the user's format or ISO 8601, comparisons and ranges; `kind:` and `type:`; `attributes:` with hidden, system, readonly or compressed; and `content:`. Any other property is looked up by its display name in the Windows property system and is read only for a file whose other terms match. A property word that isn't recognized is matched as text, and a query that doesn't parse is searched as plain words, as in File Explorer.
+- Q: What is left out? -> A: Natural-language queries, keywords in other languages, stemming and fuzzy matching, relevance ranks for walked results, mail and contact properties, and matching a bare word against any property but the name and contents.
+- Q: Are regular expressions supported? -> A: Yes, as a term between slashes, such as `/^kb\d+/`, alone or after `name:` or `path:`, matched anywhere in the value and ignoring case. A term with a regular expression is always walked. One that isn't valid is reported in the infobar instead of being searched as text. `content:` doesn't take a regular expression.
+- Q: Are contents searched by default? -> A: Yes. File contents is on by default. A bare word or phrase matches when it appears in the name or the contents, word by word, so a file with one word in its name and another in its text matches both. `name:` and `filename:` limit a term to the name, and `content:` to the contents, whatever the option. A file's contents are read only when they can change whether it matches.
+- Q: Which files' contents are read, and how? -> A: It depends on the IFilter registered for the extension. The null filter means the file isn't opened. The plain-text filter means its bytes are read directly. Any other filter extracts its text, including the metadata text of images, except for .zip, which the Compressed files option covers. A file with no filter is read when its first 4 KB are ANSI, UTF-8 or UTF-16 text. Filters run in a separate process, so one that crashes or hangs costs that file and not Casso Explorer.
+- Q: When do results appear? -> A: As each is found, without waiting for the walk to finish.
+- Q: Is the preview pane open with nothing selected? -> A: No. File Explorer's pane reads "Select a file to preview". Casso Explorer's closes when no file is selected and opens again when one is, so an empty pane never takes up space. Folders count as nothing to preview. With View's Preview pane off, it never opens.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2114,6 +2126,13 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-134**: Casso Explorer MUST append every CassoLink connection's activity and each packet sent and received to one `CassoLink Log.csv` under Casso's Logs folder in local app data, a row each with the date and time, the connection, Activity, Sent or Received, and the message in plain English, and MUST drop the rows older than 30 days.
 - **FR-135**: A folder in Details view with no column width the user set MUST fit each column but Name to its values, wider or narrower, measuring every row up to 500 and the rows on screen past that. A width the user set by dragging or fitting a column MUST be the folder's from then on, and an automatic fit MUST NOT be saved as one.
 - **FR-136**: The CassoLink program MUST compute a CRC-16/XMODEM over itself as loaded, before it changes any of its code, and MUST send it in Ready. The host MUST load the program again when the CRC differs from the image it sent, and MUST fail the connection after two loads in a row that fail the check.
+- **FR-137**: Where a folder is walked, the search box MUST take the AQS subset in Session 2026-11-04, with each file tested against the parsed query. An indexed folder MUST be given the query as typed, unless it has a wildcard or a regular expression, which is walked.
+- **FR-138**: A walked search MUST support the properties in Session 2026-11-04, testing a file's name, size, dates and attributes before reading any other property or its contents, and MUST match an unrecognized property word as text.
+- **FR-139**: A term between slashes MUST be matched as a regular expression, ignoring case, against the name or, after `path:`, the path. One that isn't valid MUST be reported in the infobar.
+- **FR-140**: File contents MUST be on by default. A bare word or phrase MUST match the name or the contents, word by word; `name:` and `filename:` MUST limit a term to the name, and `content:` to the contents.
+- **FR-141**: A file's contents MUST be read according to its registered IFilter as in Session 2026-11-04, with filters run in a separate process. A filter that fails or takes longer than 10 seconds MUST cost that file only.
+- **FR-142**: Search results MUST be listed as they are found. Only terms that must appear in a name MUST be highlighted.
+- **FR-143**: The preview pane MUST close when no file is selected and MUST open again when one is, while View's Preview pane is on.
 
 ### Key Entities
 
@@ -2294,6 +2313,8 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **SC-041**: The Group by and background menus of each folder type match File Explorer's rows, except Gallery's background menu, which couldn't be read from File Explorer.
 - **SC-042**: With verified reads on, a track whose reads disagree is saved with the majority of up to nine reads, and a one-drive //c disk with no disagreement takes under twice the time of a standard read.
 - **SC-043**: A likely copy-protected disk doesn't take more than one and a half times a standard read, and with verified writes on, a track damaged after it was written is reported by the final comparison.
+- **SC-044**: A search of C:\Windows with File contents off returns the same files as the Windows search folder for the same name condition, in no more than a quarter of its time.
+- **SC-045**: A search with File contents on lists its first result within 2 seconds of its folder being walked, and finds a word in a .txt, a .md, a UTF-16 .log and a .docx, but not in a .dll.
 
 ## Assumptions
 
