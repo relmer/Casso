@@ -87,6 +87,12 @@ public:
     //  their seconds, for a strip that has the phonemes of the history row.
     static std::vector<StripPlace>  FillStrip  (const std::vector<float> & seconds, const std::vector<float> & leastWidths, float width, float gap);
 
+    //  Places phonemes along a strip, newest at the right, each `pxPerSecond`
+    //  wide for each second it lasted and no narrower than `leastWidth`. A
+    //  block's width doesn't change as newer ones arrive; the oldest that do
+    //  not fit are left out.
+    static std::vector<StripPlace>  PlaceByDuration (const std::vector<float> & seconds, float leastWidth, float width, float gap, float pxPerSecond);
+
     //  How many of the newest labels, each as wide as `widths` has it with
     //  `gap` between them, fit on a row of `width`, counted from the end.
     static size_t  FitHistory (const std::vector<float> & widths, float width, float gap);

@@ -458,6 +458,26 @@ std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::PlaceAtScale (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SoundBoardLayout::PlaceByDuration
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<SoundBoardLayout::StripPlace> SoundBoardLayout::PlaceByDuration (
+    const std::vector<float>  & seconds,
+    float                       leastWidth,
+    float                       width,
+    float                       gap,
+    float                       pxPerSecond)
+{
+    return PlaceAtScale (seconds, std::vector<float> (seconds.size(), leastWidth), width, gap, pxPerSecond);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SoundBoardLayout::FitHistory
 //
 ////////////////////////////////////////////////////////////////////////////////

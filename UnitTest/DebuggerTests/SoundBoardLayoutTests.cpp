@@ -176,6 +176,28 @@ namespace DebuggerTests
         }
 
 
+        //  At 600 a second, 0.1 s is 60 wide, and 0.02 s gets the least width,
+        //  30. A phoneme that arrives after doesn't narrow the others,
+        //  and pushes the oldest off the left.
+        TEST_METHOD (APhonemesBlockIsItsDurationAtOneScaleAsItAges)
+        {
+            auto  two   = SoundBoardLayout::PlaceByDuration ({ 0.1f, 0.02f }, 30.0f, 200.0f, 2.0f, 600.0f);
+            auto  three = SoundBoardLayout::PlaceByDuration ({ 0.1f, 0.02f, 0.2f }, 30.0f, 200.0f, 2.0f, 600.0f);
+
+
+
+            Assert::AreEqual ((size_t) 2, two.size());
+            Assert::AreEqual (60.0f, two[0].width, 0.01f);
+            Assert::AreEqual (30.0f, two[1].width, 0.01f, L"under the least width");
+
+            Assert::AreEqual ((size_t) 2,   three.size(), L"the oldest that doesn't fit is left out");
+            Assert::AreEqual ((size_t) 1,   three[0].index);
+            Assert::AreEqual (30.0f,        three[0].width, 0.01f, L"the older block narrowed as a newer one came");
+            Assert::AreEqual (120.0f,       three[1].width, 0.01f);
+            Assert::AreEqual (200.0f - 120.0f - 2.0f - 30.0f, three[0].x, 0.01f);
+        }
+
+
         //  A strip of 300: a second is 360 wide, so 0.25 s is 90 and 0.05 s is 18.
         TEST_METHOD (ThePhonemeStripIsNewestAtTheRightInProportion)
         {

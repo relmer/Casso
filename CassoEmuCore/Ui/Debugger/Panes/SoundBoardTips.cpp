@@ -698,9 +698,9 @@ std::wstring SoundBoardTips::GetVoice (const std::wstring & label, const Diagnos
 
     if (label == L"Recent phonemes")
     {
-        return L"The phonemes before the one playing, oldest at the left. Each block is as wide as its phoneme lasted, so a short consonant is a thin "
-               L"block, and a block wide enough has its label. The row under the blocks lists the same phonemes by name, with an arrow under the one "
-               L"playing, and a line is a pause. The wheel scrolls back through the last 256.";
+        return L"The phonemes before the one playing, oldest at the left. Each block is as wide as its phoneme lasted, on one scale, and no narrower "
+               L"than the widest label, so a short consonant has its label too. The row under the blocks lists the phonemes by name, with an arrow "
+               L"under the one playing, and a line is a pause. The wheel scrolls back through the last 256.";
     }
 
     return std::wstring();

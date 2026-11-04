@@ -169,7 +169,8 @@ private:
     void  PaintRegisters    (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const;
     static void  AddSpot    (const Painting & p, const RECT & rect, std::wstring tip);
     void  PaintVoice        (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & card) const;
-    void  PaintStrip        (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect, size_t count) const;
+    void  PaintStrip        (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const;
+    float GetWidestPhonemeLabel (const Painting & p, const DxuiFontHandle & font) const;
     void  PaintWordBreak    (const Painting & p, float x, float top, float bottom) const;
     size_t  PaintHistory    (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const;
     RECT  GetStripArea      (const RECT & card) const;
@@ -184,21 +185,23 @@ private:
     static uint32_t  Mix       (uint32_t from, uint32_t to, float amount);
     static uint32_t  WithAlpha (uint32_t argb, float alpha);
 
-    DiagnosticsSoundBoard     m_board;
-    Palette                   m_palette;
-    MuteFn                    m_onMute;
-    DxuiDpiScaler             m_scaler;
-    DxuiScrollbar             m_scrollbar;
-    std::vector<RECT>         m_halfCards;
-    RECT                      m_voiceCard     = {};
-    std::vector<Region>       m_regions;
-    std::vector<Spot>         m_spots;
-    std::array<float, 6>      m_peaks         = {};
-    int                       m_contentHeight = 0;
-    int                       m_scrollTop     = 0;
-    size_t                    m_phonemesBack  = 0;   // how many of the newest phonemes the strip is scrolled back past
-    bool                      m_hasScrollbar  = false;
-    bool                      m_isFocused     = false;
-    int                       m_focusMute     = 0;     // the mute the keyboard focused, by its place in GetMuteChannels
-    int                       m_hoverMute     = -1;    // the channel of the mute under the pointer
+    DiagnosticsSoundBoard  m_board;
+    Palette                m_palette;
+    MuteFn                 m_onMute;
+    DxuiDpiScaler          m_scaler;
+    DxuiScrollbar          m_scrollbar;
+    std::vector<RECT>      m_halfCards;
+    RECT                   m_voiceCard         = {};
+    std::vector<Region>    m_regions;
+    std::vector<Spot>      m_spots;
+    std::array<float, 6>   m_peaks             = {};
+    int                    m_contentHeight     = 0;
+    int                    m_scrollTop         = 0;
+    size_t                 m_phonemesBack      = 0;   // how many of the newest phonemes the strip is scrolled back past
+    bool                   m_hasScrollbar      = false;
+    bool                   m_isFocused         = false;
+    int                    m_focusMute         = 0;   // the mute the keyboard focused, by its place in GetMuteChannels
+    int                    m_hoverMute         = -1;   // the channel of the mute under the pointer
+    mutable float          m_widestLabelPx     = 0.0f;   // the widest phoneme symbol, at
+    mutable float          m_widestLabelSizePx = 0.0f;   // this font size
 };
