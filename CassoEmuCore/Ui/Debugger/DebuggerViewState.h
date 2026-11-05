@@ -198,6 +198,11 @@ struct DebuggerViewSnapshot
         int                           depth        = 0;
         bool                          stepBySource = false;
 
+        //  The program in memory isn't the debug file's, so no line maps to
+        //  an address: there is no line at PC, no breakpoint on a line, and
+        //  the line maps are empty.
+        bool                          isStale      = false;
+
         //  Every line at PC, outermost first: the invocation, each macro it
         //  expands, and the body line last. A level counts from the front.
         std::vector<std::pair<int, int>>  places;
@@ -349,6 +354,10 @@ struct DebuggerViewSnapshot
     std::vector<AutoWatchLine>            autoWatches;
     std::optional<SourceState>            source;
     TraceState                            trace;
+
+    //  The file names of the loaded debug and symbol files whose program
+    //  isn't in memory; their source lines and labels are hidden.
+    std::vector<std::string>              staleFileNames;
 
     //  The heat map pane's levels, one per address and kind, 0 for cold;
     //  empty while the pane is hidden and nothing is recorded. Level 255

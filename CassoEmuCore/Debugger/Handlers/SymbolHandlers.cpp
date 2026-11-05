@@ -7,6 +7,8 @@
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/SymbolFileReader.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/ProgramCheck.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/ReplyJson.h"
 #include "Sha1.h"
@@ -350,6 +352,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 
     session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
+    session.SetLabelCheck (table);
 
     lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")));
     AddRegisterNameNote (session, table, lines);
@@ -431,12 +434,75 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 
+    //  A listing has the bytes of each of its lines; a debug file's source
+    //  has the mnemonic of each instruction line.
+    session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetDebugFile(),
+                                                                  isListing ? std::map<int, std::vector<std::string>>()
+                                                                            : ReadSources (session, session.GetDebugFile(), session.ResolvePath (name))));
+
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
                                     loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));
     AddRegisterNameNote (session, table, message);
     BreakpointHandlers::FollowSymbols (session, message);
 
     reply.data = MessageData { message };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::ReadSources
+//
+//  Each source file beside the debug file, by its record's id, as lines. A
+//  file that can't be read is left out, so its lines aren't checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<int, std::vector<std::string>> SymbolHandlers::ReadSources (DebugSession & session, const DebugFile & file, const std::wstring & debugFilePath)
+{
+    std::map<int, std::vector<std::string>>  sources;
+    IFileSystem                            * files  = session.GetFileSystem();
+    fs::path                                 folder = fs::path (debugFilePath).parent_path();
+
+
+
+    if (files == nullptr)
+    {
+        return sources;
+    }
+
+    for (const DebugSourceFile & record : file.files)
+    {
+        std::string               text;
+        std::vector<std::string>  lines;
+        std::istringstream        stream;
+        std::string               line;
+        HRESULT                   hr     = files->ReadAllText ((folder / TextEncoding::Utf8ToWide (record.name)).wstring(), text);
+
+        if (FAILED (hr))
+        {
+            continue;
+        }
+
+        stream.str (text);
+
+        while (std::getline (stream, line))
+        {
+            if (!line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+
+            lines.push_back (std::move (line));
+        }
+
+        sources[record.id] = std::move (lines);
+    }
+
+    return sources;
 }
 
 

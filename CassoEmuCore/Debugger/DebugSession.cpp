@@ -132,7 +132,7 @@ bool DebugSession::TryGetSourceLine (Word address, std::string & file, int & lin
 
 
 
-    if (positions.empty())
+    if (positions.empty() || IsDebugFileStale())
     {
         return false;
     }
@@ -158,12 +158,210 @@ bool DebugSession::TryGetSourceLine (Word address, std::string & file, int & lin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::SetDebugFileCheck
+//
+//  A debug file checks the tables of no symbol file loaded into its table.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetDebugFileCheck (std::vector<ProgramCheck::Entry> entries)
+{
+    ProgramChecks  checks = (m_programChecks != nullptr) ? *m_programChecks : ProgramChecks();
+
+
+
+    checks.debugFile        = std::move (entries);
+    checks.isDebugFileStale = false;
+
+    if (m_debugFileTable.has_value())
+    {
+        checks.tables.erase (*m_debugFileTable);
+        m_symbols.SetHidden (*m_debugFileTable, false);
+    }
+
+    m_programChecks = std::make_shared<const ProgramChecks> (std::move (checks));
+
+    if (m_state == RunState::Paused)
+    {
+        CheckProgram();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::SetLabelCheck
+//
+//  The labels in RAM, whose bytes are taken at the first stop in their
+//  range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetLabelCheck (SymbolTableId table)
+{
+    ProgramChecks            checks = (m_programChecks != nullptr) ? *m_programChecks : ProgramChecks();
+    ProgramChecks::Labels    labels;
+    std::vector<SymbolInfo>  symbols;
+
+
+
+    m_symbols.GetAll (table, symbols);
+
+    for (const SymbolInfo & symbol : symbols)
+    {
+        if (!symbol.isConstant && ProgramCheck::IsRamLabel (symbol.address))
+        {
+            labels.labels.push_back (symbol.address);
+        }
+    }
+
+    checks.tables.erase (table);
+    m_symbols.SetHidden (table, false);
+
+    if (!labels.labels.empty())
+    {
+        labels.first         = *std::ranges::min_element (labels.labels);
+        labels.last          = *std::ranges::max_element (labels.labels);
+        checks.tables[table] = std::move (labels);
+    }
+
+    m_programChecks = std::make_shared<const ProgramChecks> (std::move (checks));
+
+    if (m_state == RunState::Paused)
+    {
+        CheckProgram();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::CheckProgram
+//
+//  A table whose labels have no bytes yet takes them at a stop in the
+//  labels' range, since a symbol file loaded before its program would
+//  otherwise be matched to whatever was in memory then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::CheckProgram()
+{
+    ProgramChecks         checks;
+    ProgramCheck::PeekFn  peek  = [this] (Word address, Byte & value) { return m_target.TryPeek (address, value); };
+    const Microcode     * set   = m_target.GetInstructionSet();
+    Word                  pc    = m_target.GetRegisters().pc;
+
+
+
+    if (m_programChecks == nullptr)
+    {
+        return;
+    }
+
+    checks                  = *m_programChecks;
+    checks.isDebugFileStale = HasDebugFile() && !ProgramCheck::IsMatch (checks.debugFile, peek, set);
+
+    for (auto it = checks.tables.begin(); it != checks.tables.end(); )
+    {
+        auto & [table, labels] = *it;
+
+        //  A table cleared since its file loaded has nothing to check.
+        if (m_symbols.GetOrigins (table).empty())
+        {
+            it = checks.tables.erase (it);
+            continue;
+        }
+
+        if (labels.entries.empty() && labels.IsInRange (pc))
+        {
+            labels.entries = ProgramCheck::GetLabelEntries (labels.labels, peek);
+        }
+
+        labels.isStale = !labels.entries.empty() && !ProgramCheck::IsMatch (labels.entries, peek, set);
+        m_symbols.SetHidden (table, labels.isStale);
+        ++it;
+    }
+
+    if (m_debugFileTable.has_value())
+    {
+        m_symbols.SetHidden (*m_debugFileTable, checks.isDebugFileStale);
+    }
+
+    if (checks != *m_programChecks)
+    {
+        m_programChecks = std::make_shared<const ProgramChecks> (std::move (checks));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetStaleFileNames
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> DebugSession::GetStaleFileNames() const
+{
+    std::vector<std::string>  names;
+
+
+
+    if (m_programChecks == nullptr)
+    {
+        return names;
+    }
+
+    if (m_programChecks->isDebugFileStale)
+    {
+        names.push_back (TextEncoding::WideToUtf8 (fs::path (m_debugFilePath).filename().wstring()));
+    }
+
+    for (const auto & [table, labels] : m_programChecks->tables)
+    {
+        if (labels.isStale)
+        {
+            names.insert (names.end(), m_symbols.GetOrigins (table).begin(), m_symbols.GetOrigins (table).end());
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::ClearDebugFile
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::ClearDebugFile()
 {
+    if (m_debugFileTable.has_value())
+    {
+        m_symbols.SetHidden (*m_debugFileTable, false);
+    }
+
+    if (m_programChecks != nullptr && (!m_programChecks->debugFile.empty() || m_programChecks->isDebugFileStale))
+    {
+        ProgramChecks  checks = *m_programChecks;
+
+        checks.debugFile.clear();
+        checks.isDebugFileStale = false;
+        m_programChecks         = std::make_shared<const ProgramChecks> (std::move (checks));
+    }
+
     m_debugFile = DebugFile();
     m_debugFilePath.clear();
     m_debugFileKey.clear();
@@ -2186,6 +2384,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
     AttachDiskCallReport (event);
     AttachDiskReport (event);
     AttachCondition (event);
+    CheckProgram();
     TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
     m_lastStopReason     = event.reason;
@@ -2816,7 +3015,7 @@ void DebugSession::ExecuteSource (const DebugCommand & command, Reply & reply)
     std::string  file;
     int          line      = 0;
     Word         pc        = m_target.GetRegisters().pc;
-    bool         hasSource = !m_lineTable.IsEmpty();
+    bool         hasSource = !m_lineTable.IsEmpty() && !IsDebugFileStale();
 
 
 
@@ -3019,7 +3218,7 @@ void DebugSession::ExecuteRun (const DebugCommand & command, Reply & reply)
     //  The Monitor's T traces until a stop or the budget: no count is no end.
     request.count      = (command.count != 0) ? command.count : (request.kind == RunKind::Trace) ? UINT32_MAX : 1;
     request.budget     = command.budget.has_value() ? command.budget : m_budget;
-    request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty()) ? &m_lineTable : nullptr;
+    request.lineTable  = (isStep && m_stepBySource && !m_lineTable.IsEmpty() && !IsDebugFileStale()) ? &m_lineTable : nullptr;
     request.stepFilter = (isStep && !m_stepFilter.IsEmpty()) ? &m_stepFilter : nullptr;
 
     m_runNotice.clear();
@@ -3399,7 +3598,7 @@ CallStackData DebugSession::GetCallStack()
 
     SettleCallRecord();
 
-    if (HasDebugFile())
+    if (HasDebugFile() && !IsDebugFileStale())
     {
         for (const DebugSymbol & symbol : m_debugFile.symbols)
         {
@@ -3413,7 +3612,7 @@ CallStackData DebugSession::GetCallStack()
     registers = m_target.GetRegisters();
     data      = CallStack::Build (m_callMechanism, m_callRecorder, registers.sp,
                                   [this] (Word address) { return PeekByte (address); },
-                                  HasDebugFile() ? &entries : nullptr);
+                                  (HasDebugFile() && !IsDebugFileStale()) ? &entries : nullptr);
 
     for (CallStackRow & row : data.rows)
     {
@@ -3478,6 +3677,8 @@ void DebugSession::TakeView (DebugSessionView & out)
     {
         out.symbols = std::make_shared<const SymbolTable> (m_symbols);
     }
+
+    out.programChecks = m_programChecks;
 
     if (out.files == nullptr || out.filesRevision != m_filesRevision)
     {
@@ -3546,6 +3747,8 @@ void DebugSession::InstallView (const DebugSessionView & view)
     {
         m_symbols = *view.symbols;
     }
+
+    m_programChecks = view.programChecks;
 
     if (view.files != nullptr && view.filesRevision != m_filesRevision)
     {

@@ -547,6 +547,11 @@ void SourcePane::Rebuild()
         bannerText = bannerText.empty() ? elsewhere : elsewhere + L"\n" + bannerText;
     }
 
+    if (m_state->isStale)
+    {
+        bannerText = bannerText.empty() ? GetStaleText (m_state->debugFilePath) : GetStaleText (m_state->debugFilePath) + L"\n" + bannerText;
+    }
+
     m_banner->SetText (bannerText);
 
     if (depth > 0 && m_banner->GetAction (0) == nullptr)
@@ -1420,6 +1425,21 @@ std::optional<DebuggerAction> SourcePane::GetToggleAction (const DebuggerViewSna
     }
 
     return std::nullopt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetStaleText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SourcePane::GetStaleText (const std::wstring & debugFilePath)
+{
+    return std::format (L"The program in memory doesn't match {}, so this file's lines aren't mapped to it.", fs::path (debugFilePath).filename().wstring());
 }
 
 

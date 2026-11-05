@@ -6,6 +6,7 @@
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/DebugSessionView.h"
 #include "Debugger/DiskBreakpointMonitor.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
@@ -187,6 +188,20 @@ public:
     // table unloads the file as well.
     void                  SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; m_filesRevision++; }
     std::optional<SymbolTableId>  GetDebugFileTable () const { return m_debugFileTable; }
+
+    // Whether the program in memory is the one each loaded file was made for
+    // (ProgramCheck), checked at each stop and when a check is set while
+    // the machine is paused. While the debug file's doesn't match, the session
+    // has no source lines, and while a file's doesn't match, its table is
+    // hidden. A debug file's check is set after it loads; a table's after a
+    // symbol file without lines loads into it.
+    void                  SetDebugFileCheck (std::vector<ProgramCheck::Entry> entries);
+    void                  SetLabelCheck     (SymbolTableId table);
+    void                  CheckProgram      ();
+    bool                  IsDebugFileStale  () const { return m_programChecks != nullptr && m_programChecks->isDebugFileStale; }
+
+    // The files whose program isn't in memory, by name, for the banners.
+    std::vector<std::string>  GetStaleFileNames () const;
 
     // Whether T, P and RTS, and every dialect's step commands, step by source
     // line. Only while a debug file is loaded; otherwise by instruction.
@@ -540,6 +555,7 @@ private:
     std::optional<SymbolTableId>          m_debugFileTable;
     uint64_t                              m_filesRevision = 0;
     LineTable                             m_lineTable;
+    std::shared_ptr<const ProgramChecks>  m_programChecks;
     bool                                  m_stepBySource  = false;
     uint64_t                              m_cycleMarker   = 0;
     StepFilter                            m_stepFilter;

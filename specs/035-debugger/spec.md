@@ -328,6 +328,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: With a source file and the disassembly both following the PC, which one comes forward at a stop, and which one does Show next statement bring forward? -> A: At a stop at a source line, the source file; at a stop with no source line after one at a line, the disassembly view following the PC. On Show next statement, the view of the step mode comes forward. The step mode follows the view last used: the PC's line in its file while steps go by source line, the disassembly while they go by instruction or when the PC has no source line. No "Prefer source" option: the source is used whenever the PC has a line and steps go by source line (T1320).
 - Q: Does each control have a tip, displayed by a window-level service, as with Win32's tooltip control and WPF's ToolTipService? -> A: Yes. Every control has a tip (`IDxuiControl::SetTip`, `TryGetTip`) and returns a `DxuiTip` with its text, anchor, placement (by the pointer where it rests, against the anchor, or following the pointer at once), lifetime (until the pointer moves out of it, a reading time, or a set time) and look. One `DxuiTipService` per window displays it, by these rules: the pointer has to rest for the open delay; a repeat of the tip that is up changes nothing; after a press the tip is hidden until the pointer is over another tip or none; no tip opens while a menu is open (T1322).
 
+### Session 2026-11-04 (owner decisions: symbols for a program not in memory)
+
+- Q: What happens to a loaded debug file's source and a symbol file's labels when the program they were made for is no longer in memory, such as after a reboot with another disk? -> A: Both are hidden while the program is gone. The owner: "mostly I want to solve the problem of having symbols/src loaded for code that's not actually running." Each file is checked against memory at each stop: a debug file by its source's mnemonics, a listing by its bytes, a symbol file without lines by the bytes at its labels at the first stop in its range. A mark on instructions modified in memory was offered and declined ("Not sure we need it"), so the assembler's debug file doesn't record its bytes (FR-342, T1340).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3608,6 +3612,19 @@ run something, switch back to the //e: it is where it was left.
   MUST be saved in machine state, so a rewind restores them, and states saved without them MUST load.
 
 - **FR-341**: A tip on each of the view's parts MUST contain the raw register values behind it.
+
+- **FR-342**: At each stop, and never while the machine runs, each loaded
+  debug or symbol file MUST be checked against memory: a debug file by the
+  mnemonic and length of each instruction line in its source, a Merlin
+  listing by the bytes on its lines, and a symbol file without lines by the
+  bytes at its labels in RAM ($0200 to $BFFF), taken at the first stop with
+  the PC among them. A file matches while at least a quarter of its entries
+  do. While a file doesn't match, the disassembly MUST NOT have its labels or
+  its source lines, its source documents MUST NOT map lines to addresses,
+  steps MUST go by instruction, and each disassembly view and source document
+  MUST have a banner with the file's name; all of it MUST return at the first
+  stop where the file matches again. Its symbols MUST resolve by name in
+  expressions throughout, and equates MUST NOT be checked.
 
 ### Key Entities
 

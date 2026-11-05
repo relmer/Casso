@@ -291,6 +291,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     }
 
     BuildSource (session, snapshot);
+    snapshot.staleFileNames = session.GetStaleFileNames();
 
     //  A stopped machine's program is read whatever is on screen: its
     //  variables are in the Watches pane and its frames in the Call stack.
@@ -1416,6 +1417,20 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     state.stepBySource  = session.IsStepBySource();
     state.lineAddresses = m_lineAddresses;
     state.lineRanges    = m_lineRanges;
+    state.isStale       = session.IsDebugFileStale();
+
+    //  Over a program that isn't the file's, the documents are open but
+    //  none of their lines maps to an address.
+    if (state.isStale)
+    {
+        static const auto  s_kNoAddresses = std::make_shared<const std::map<std::pair<int, int>, Word>>();
+        static const auto  s_kNoRanges    = std::make_shared<const std::map<std::pair<int, int>, std::pair<Word, Word>>>();
+
+        state.lineAddresses = s_kNoAddresses;
+        state.lineRanges    = s_kNoRanges;
+        snapshot.source     = std::move (state);
+        return;
+    }
 
     if (!atPc.empty())
     {

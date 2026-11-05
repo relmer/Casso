@@ -291,6 +291,31 @@ under a `; constants` heading so they load back as constants. AppleWin,
 VICE and Merlin symbol tables do not tell an equate from a label, so
 everything in them loads as a label.
 
+### Symbols for a program that isn't in memory
+
+After a reboot with another disk, the program a symbol or debug file was made
+for may be gone from memory. At each stop, the debugger checks each loaded
+file against memory:
+
+- A debug file is checked against its source. On each instruction line, the
+  opcode in memory must be the line's mnemonic, and its length the line's.
+  A Merlin listing is checked against the bytes on its lines.
+- A symbol file without lines (Casso's, AppleWin's, VICE's) is checked
+  against the bytes at its labels in RAM, from $0200 to $BFFF. Those bytes
+  are taken at the first stop with the PC among its labels, so a file loaded
+  before its program is matched to the program once it runs. Loading the
+  file again takes them again.
+
+A file matches while at least a quarter of its lines or labels do, so a
+variable or a patched instruction doesn't count against it. While a file
+doesn't match, its labels are hidden in the disassembly. A debug file's
+source lines are hidden between the instructions too, its open source
+documents aren't mapped to the code, and steps go by instruction. A banner
+over each disassembly view, and over each of the file's source documents,
+has the file's name. All of it comes back at the first stop where the
+program is in memory again. Symbols resolve by name in expressions
+throughout, and equates are never checked.
+
 ## Loading and saving binaries
 
 ```

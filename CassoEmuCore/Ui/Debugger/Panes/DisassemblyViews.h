@@ -11,6 +11,7 @@ class CodeEditCommands;
 class DebuggerPaneFrame;
 class DisassemblyGroup;
 class DisassemblyGutter;
+class DxuiActionBanner;
 class HistoryBand;
 class SourceDocumentGroup;
 class ToolbarCheckEntry;
@@ -44,6 +45,16 @@ public:
     const std::vector<DisassemblyOptions::Row> &  GetRows () const { return m_rows; }
     void                             SetRows        (std::vector<DisassemblyOptions::Row> rows) { m_rows = std::move (rows); }
 
+    //  The banner over the lines while a loaded file's program isn't in
+    //  memory: its text, or empty for none.
+    void                             SetStaleText   (const std::wstring & text);
+    DxuiActionBanner               * GetBanner      () const { return m_banner; }
+    bool                             IsBannerShown  () const { return m_isBannerShown; }
+
+    //  What the banner reads for the files whose program isn't in memory,
+    //  the debug file first when isDebugFileStale is set; empty for none.
+    static std::wstring              GetStaleText   (const std::vector<std::string> & names, bool isDebugFileStale);
+
     const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override;
     std::wstring                     GetTabTitle    () const override;
@@ -67,11 +78,13 @@ public:
 
 private:
     DisassemblyGroup                      & m_group;
-    int                                     m_view        = 0;
+    int                                     m_view          = 0;
     std::wstring                            m_id;
     PaneBarSlot                             m_bar;
-    DxuiListView                          * m_list        = nullptr;
-    HistoryBand                           * m_historyBand = nullptr;
+    DxuiListView                          * m_list          = nullptr;
+    HistoryBand                           * m_historyBand   = nullptr;
+    DxuiActionBanner                      * m_banner        = nullptr;
+    bool                                    m_isBannerShown = false;
     std::unique_ptr<DebuggerPaneFrame>      m_frame;
     std::vector<DisassemblyOptions::Row>    m_rows;
 };

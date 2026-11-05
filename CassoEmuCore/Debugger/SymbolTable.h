@@ -34,6 +34,12 @@ public:
     void     Clear        (SymbolTableId table);
     void     SetEnabled   (SymbolTableId table, bool enabled);
     bool     IsEnabled    (SymbolTableId table) const;
+
+    //  An address doesn't look up to a name in a hidden table, as while the
+    //  program its file was made for isn't in memory; a name in it resolves.
+    //  Clearing the table unhides it.
+    void     SetHidden    (SymbolTableId table, bool isHidden);
+    bool     IsHidden     (SymbolTableId table) const { return m_isHidden[(int) table]; }
     size_t   GetCount     (SymbolTableId table) const;
     void     GetAll       (SymbolTableId table, std::vector<SymbolInfo> & symbols) const;
 
@@ -94,6 +100,7 @@ private:
 
     std::vector<Entry>        m_tables[kTableCount];
     std::vector<std::string>  m_origins[kTableCount];
-    bool                      m_enabled[kTableCount] = {};
-    uint64_t                  m_revision             = TakeRevision();
+    bool                      m_enabled[kTableCount]  = {};
+    bool                      m_isHidden[kTableCount] = {};
+    uint64_t                  m_revision              = TakeRevision();
 };

@@ -204,6 +204,10 @@ public:
                                         int depth, bool showingBody, const std::string & bodyName, int bodyLine,
                                         const std::string & invokedByName = std::string(), int invokedByLine = 0);
 
+    //  The banner's first line while the program in memory isn't the debug
+    //  file's.
+    static std::wstring  GetStaleText (const std::wstring & debugFilePath);
+
     //  What to say when the file was found in a folder other than the one the
     //  debug file records -- a copy in another search folder -- or empty.
     static std::wstring  GetFoundElsewhereText (const std::string & fileName, const std::wstring & debugFilePath,

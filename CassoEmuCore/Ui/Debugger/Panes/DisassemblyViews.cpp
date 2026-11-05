@@ -132,8 +132,12 @@ void DisassemblyViewPane::CreateControls()
 
 
 
-    m_list = parent.CreateChild<DxuiListView>();
+    m_list   = parent.CreateChild<DxuiListView>();
+    m_banner = parent.CreateChild<DxuiActionBanner>();
     m_bar.Create();
+
+    m_banner->SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_banner->SetVisible  (false);
 
     if (m_view == 0)
     {
@@ -279,6 +283,9 @@ void DisassemblyViewPane::AddToDock (DxuiDockSite & dock)
                           [this] { return HistoryBand::IsShown (m_historyBand->GetStatus()); });
     }
 
+    m_frame->AddPart (m_banner,
+                      [this] (int width, const DxuiDpiScaler & scaler) { return (int) m_banner->GetPreferredHeightPx ((float) width, scaler); },
+                      [this] { return m_isBannerShown; });
     m_frame->AddPart (m_list);
 
     dock.AddPane (GetId(), GetTitle(), m_frame.get());
@@ -305,13 +312,85 @@ IDxuiControl * DisassemblyViewPane::GetContent() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyViewPane::SetStaleText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyViewPane::SetStaleText (const std::wstring & text)
+{
+    bool  isShown = !text.empty();
+
+
+
+    if (text == m_banner->GetText() && isShown == m_isBannerShown)
+    {
+        return;
+    }
+
+    m_banner->SetText (text);
+    m_isBannerShown = isShown;
+
+    if (m_frame != nullptr)
+    {
+        m_frame->Relayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyViewPane::GetStaleText
+//
+//  A debug file has source lines and labels; a symbol file has labels
+//  alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DisassemblyViewPane::GetStaleText (const std::vector<std::string> & names, bool isDebugFileStale)
+{
+    std::vector<std::string>  symbols  = names;
+    std::string               text;
+    std::string               joined;
+
+
+
+    if (isDebugFileStale && !symbols.empty())
+    {
+        text = std::format ("The program in memory doesn't match {}, so its source lines and labels are hidden.", symbols.front());
+        symbols.erase (symbols.begin());
+    }
+
+    for (size_t i = 0; i < symbols.size(); i++)
+    {
+        joined += (i == 0) ? "" : (i + 1 == symbols.size()) ? " or " : ", ";
+        joined += symbols[i];
+    }
+
+    if (!symbols.empty())
+    {
+        text += text.empty() ? "" : "\n";
+        text += std::format ("The program in memory doesn't match {}, so {} labels are hidden.", joined, (symbols.size() == 1) ? "its" : "their");
+    }
+
+    return TextEncoding::NarrowToWide (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyViewPane::GetControls
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<IDxuiControl *> DisassemblyViewPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_bar.GetBar(), m_list };
+    return { m_bar.GetSlot(), m_bar.GetBar(), m_banner, m_list };
 }
 
 
@@ -910,6 +989,7 @@ void DisassemblyGroup::ApplyView (int view)
 
     built = DisassemblyOptions::BuildRows (lines, source, [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
     m_views[(size_t) view]->SetRows (built);
+    m_views[(size_t) view]->SetStaleText (DisassemblyViewPane::GetStaleText (snapshot->staleFileNames, snapshot->source.has_value() && snapshot->source->isStale));
 
     //  With source lines on, the PC's marker and row color are on its source
     //  line, and its instruction is dimmed under it as the others are.

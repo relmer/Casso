@@ -3,6 +3,7 @@
 #include "Debugger/IDebugCommandHandler.h"
 
 class DebugSession;
+struct DebugFile;
 
 
 
@@ -43,6 +44,7 @@ private:
     static void  LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
                                 const std::string & content, int offset, bool isListing, Reply & reply);
     static bool  IsListingWithLines (const std::string & content);
+    static std::map<int, std::vector<std::string>>  ReadSources (DebugSession & session, const DebugFile & file, const std::wstring & debugFilePath);
     static void  AddRegisterNameNote (DebugSession & session, SymbolTableId table, std::vector<std::string> & lines);
     static void  Save     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Clear    (DebugSession & session, const DebugCommand & command, Reply & reply);
