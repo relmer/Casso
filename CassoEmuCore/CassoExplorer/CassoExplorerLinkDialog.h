@@ -261,7 +261,7 @@ private:
     DxuiLabel                    m_verifyLabel;
     DxuiComboBox                 m_verify;
     DxuiLabel                    m_columnsLabel;
-    DxuiCheckbox                 m_columns { L"Use 40 columns, even where the Apple has 80" };
+    DxuiCheckbox                 m_columns { L"Use 40-column mode (disable 80-column detection)" };
     DxuiLabel                    m_folderNote;
     DxuiLabel                    m_folderLabel;
     DxuiTextInput                m_folder;
