@@ -1608,6 +1608,7 @@ Session 2026-11-04. T079 and T082 follow.
 - [X] T410 Scenario tests for each fault from the PC, over the //c's serial port, a ][+'s Super Serial Card, a //e's Uthernet II and a ][+'s cassette input, in `ScenarioTests/CassoLinkFaultTests.cpp` (FR-149)
 - [X] T411 Scenario tests for each fault from the Apple, over the same machines, in `ScenarioTests/CassoLinkFaultTests.cpp` (FR-149)
 - [X] T412 Draw FAILED over a drive's bar after an ERR line, until the next operation on the drive, in `Program.s`, and raise the program's version (FR-150)
-- [ ] T413 Arm each fault on the real //c over serial and compare the result with its scenario test (SC-046)
+- [X] T413 Arm each fault of a link operation on the real //c over serial and compare the result with its scenario test (SC-046)
 - [X] T414 Check the monitor's XOR in the cassette slot finder, `CassoEmuCore/CassoLink/Apple/SlotFinder.s`, with the byte before the shim set by `LinkProgram::BuildBootstrapImage` so a whole read ends at 0, and return to the monitor otherwise. Test in `ScenarioTests/CassoLinkFaultSessionTests.cpp` (FR-151)
 - [X] T415 Run the monitor's command line again from the cassette slot finder after a damaged read, so the tape is read again, and send the audio again from `CassoLinkManager::HandleCassetteTimer` while the shim hasn't sent Ready, up to five times (FR-151)
+- [ ] T416 Arm a bootstrap fault and bootstrap the real //c from the BASIC prompt, then bootstrap it again (SC-046)
