@@ -925,6 +925,7 @@
     <ClCompile Include="Dxui\DxuiListViewTextSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrolledHitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewBackgroundRangeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />

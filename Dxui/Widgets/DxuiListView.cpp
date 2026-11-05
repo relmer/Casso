@@ -1335,6 +1335,65 @@ std::vector<DxuiListView::FindSpot> DxuiListView::GetFindSpots() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::GetCharacterFills
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> DxuiListView::GetCharacterFills (const Cell & cell, uint32_t under)
+{
+    std::vector<uint32_t>  fills (cell.text.size(), under);
+
+
+
+    for (const auto & [first, last, rangeArgb] : cell.backgroundRanges)
+    {
+        uint32_t  fill = DxuiColor::Composite (rangeArgb, under);
+
+
+
+        for (int k = (std::max) (0, first); k < last && k < (int) fills.size(); k++)
+        {
+            fills[(size_t) k] = fill;
+        }
+    }
+
+    return fills;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::FindRangeTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::wstring * DxuiListView::FindRangeTip (const Cell & cell, int position)
+{
+    for (const auto & [first, last, text] : cell.rangeTips)
+    {
+        bool  isIn    = position >= first && position < last;
+        bool  isAtEnd = position == last && last == (int) cell.text.size();
+
+
+
+        if (isIn || isAtEnd)
+        {
+            return &text;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetMatchBands
 //
 //  A cell's match bands: the host's matches on the list's fill, then the
@@ -2949,10 +3008,11 @@ bool DxuiListView::TryGetTip (POINT pointPx, DxuiTip & tip) const
 
 bool DxuiListView::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
 {
-    const std::vector<Cell>  * cells   = nullptr;
-    RECT                       pointer = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
-    int                        column  = HitTestColumn (pointPx.x);
-    int                        row     = -1;
+    const std::vector<Cell>  * cells    = nullptr;
+    RECT                       pointer  = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+    int                        column   = HitTestColumn (pointPx.x);
+    int                        row      = -1;
+    const std::wstring       * rangeTip = nullptr;
 
 
 
@@ -2982,7 +3042,14 @@ bool DxuiListView::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
 
     cells = &GetCellsOfRow (row);
 
-    if ((size_t) column >= cells->size() || (*cells)[(size_t) column].tip.empty())
+    if ((size_t) column >= cells->size())
+    {
+        return false;
+    }
+
+    rangeTip = (*cells)[(size_t) column].rangeTips.empty() ? nullptr : FindRangeTip ((*cells)[(size_t) column], HitTestCharInCell (row, (size_t) column, pointPx.x));
+
+    if ((*cells)[(size_t) column].tip.empty() && rangeTip == nullptr)
     {
         return false;
     }
@@ -2992,7 +3059,9 @@ bool DxuiListView::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
         tip.anchor = pointer;
     }
 
-    tip.text         = (*cells)[(size_t) column].tip;
+    tip.text         = (rangeTip == nullptr)                      ? (*cells)[(size_t) column].tip
+                     : (*cells)[(size_t) column].tip.empty()      ? *rangeTip
+                     :                                              *rangeTip + L"\n\n" + (*cells)[(size_t) column].tip;
     tip.gradient     = (*cells)[(size_t) column].tipGradient;
     tip.gradientMark = (*cells)[(size_t) column].tipGradientMark;
     return true;
@@ -4001,6 +4070,44 @@ void DxuiListView::PaintDataRows (
                 }
             }
 
+            // Background ranges: a fill behind each range of characters, the
+            // row's height tall, placed by measuring the text before it.
+            if (!cells[c].backgroundRanges.empty() && m_columns[c].align == DxuiTextHAlign::Left)
+            {
+                const std::wstring &  cellText = cells[c].text;
+                float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
+                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
+
+                for (const auto & [first, last, rangeArgb] : cells[c].backgroundRanges)
+                {
+                    int      s       = std::clamp (first, 0, (int) cellText.size());
+                    int      e       = std::clamp (last,  s, (int) cellText.size());
+                    float    wS      = 0.0f;
+                    float    wE      = 0.0f;
+                    float    hIgnore = 0.0f;
+                    HRESULT  hrM     = S_OK;
+                    float    hx      = 0.0f;
+                    float    hw      = 0.0f;
+
+                    if (s > 0)
+                    {
+                        hrM = text.MeasureString (cellText.substr (0, (size_t) s).c_str(), fontPx, cellFace, wS, hIgnore);
+                        IGNORE_RETURN_VALUE (hrM, S_OK);
+                    }
+
+                    hrM = text.MeasureString (cellText.substr (0, (size_t) e).c_str(), fontPx, cellFace, wE, hIgnore);
+                    IGNORE_RETURN_VALUE (hrM, S_OK);
+
+                    hx = cellX + wS;
+                    hw = (std::min) (wE - wS, cellX + cellMaxW - hx);
+
+                    if (hw > 0.0f && (rangeArgb >> 24) != 0)
+                    {
+                        painter.FillRect (hx, ry, hw, rowH, rangeArgb);
+                    }
+                }
+            }
+
             // Search-match highlight: an accent band behind each matched
             // character range, painted before the text, and the find's
             // matches, the selected one on a separate fill. A right-aligned
@@ -4063,13 +4170,14 @@ void DxuiListView::PaintDataRows (
             // Muted ranges, colored ranges and matches: the text is drawn a run
             // at a time, each run placed by measuring the text before it, the
             // way a match band is placed.
-            if ((!cells[c].dimRanges.empty() || !cells[c].colorRanges.empty() || !bands.empty()) && m_columns[c].align == DxuiTextHAlign::Left)
+            if ((!cells[c].dimRanges.empty() || !cells[c].colorRanges.empty() || !cells[c].backgroundRanges.empty() || !bands.empty()) && m_columns[c].align == DxuiTextHAlign::Left)
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
                 float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
                 int                   pos      = 0;
                 std::vector<uint32_t> colors   (cellText.size(), argb);
+                std::vector<uint32_t> fills    = GetCharacterFills (cells[c], under);
 
                 for (const std::tuple<int, int, uint32_t> & range : cells[c].colorRanges)
                 {
@@ -4087,9 +4195,9 @@ void DxuiListView::PaintDataRows (
                     }
                 }
 
-                for (uint32_t & each : colors)
+                for (size_t k = 0; k < colors.size(); k++)
                 {
-                    each = GetReadableInk (each, under);
+                    colors[k] = GetReadableInk (colors[k], fills[k]);
                 }
 
                 for (const auto & [first, last, bandArgb] : bands)

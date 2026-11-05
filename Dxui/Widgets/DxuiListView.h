@@ -76,6 +76,16 @@ public:
         //  a muted range over one wins.
         std::vector<std::tuple<int, int, uint32_t>>  colorRanges;
 
+        //  Half-open character ranges with a fill behind them, the row's
+        //  height tall: first, end and color, which may be partly
+        //  transparent. Sorted, non-overlapping, left-aligned columns only.
+        //  The text over a range is drawn in an ink that reads on its fill.
+        std::vector<std::tuple<int, int, uint32_t>>  backgroundRanges;
+
+        //  Half-open character ranges, each with a tip: first, end and text.
+        //  The tip over the pointer is the range's, with the cell's under it.
+        std::vector<std::tuple<int, int, std::wstring>>  rangeTips;
+
         //  A checkbox at the start of the cell, ahead of the icon, checked or
         //  not; none draws none. Pressing it, or Space on its row, reports the
         //  toggle to the host, which sets the new state with the next rows.
@@ -386,6 +396,14 @@ public:
 
     //  A cell's highlight bands, each a range and its fill.
     std::vector<std::tuple<int, int, uint32_t>>  GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb, uint32_t under) const;
+
+    //  The fill under each of a cell's characters: `under`, or a background
+    //  range's color drawn over it.
+    static std::vector<uint32_t>                 GetCharacterFills (const Cell & cell, uint32_t under);
+
+    //  The range tip at a caret position in a cell's text: the range the
+    //  position is in, or at the text's end the range that ends there.
+    static const std::wstring *                  FindRangeTip      (const Cell & cell, int position);
     // Scrolls to the first row whose key the last call did not have, as when
     // a row was added. The first call only takes note of the keys.
     void  ShowNewRow            (const std::vector<std::wstring> & keys);
