@@ -1611,4 +1611,7 @@ Session 2026-11-04. T079 and T082 follow.
 - [X] T413 Arm each fault of a link operation on the real //c over serial and compare the result with its scenario test (SC-046)
 - [X] T414 Check the monitor's XOR in the cassette slot finder, `CassoEmuCore/CassoLink/Apple/SlotFinder.s`, with the byte before the shim set by `LinkProgram::BuildBootstrapImage` so a whole read ends at 0, and return to the monitor otherwise. Test in `ScenarioTests/CassoLinkFaultSessionTests.cpp` (FR-151)
 - [X] T415 Run the monitor's command line again from the cassette slot finder after a damaged read, so the tape is read again, and send the audio again from `CassoLinkManager::HandleCassetteTimer` while the shim hasn't sent Ready, up to five times (FR-151)
-- [ ] T416 Arm a bootstrap fault and bootstrap the real //c from the BASIC prompt, then bootstrap it again (SC-046)
+- [X] T416 Arm a bootstrap fault and bootstrap the real //c from the BASIC prompt, then bootstrap it again (SC-046)
+- [X] T417 Return the serial loader to Applesoft's prompt after a shim that fails its XOR, in `CassoEmuCore/CassoLink/Apple/SlotFinder.s`, so the prompt probe, a BASIC line, runs there rather than beeping in the monitor. Test in `ScenarioTests/CassoLinkFaultSessionTests.cpp`
+- [X] T418 Wrap a message box line that has semibold runs a word at a time, in `Dxui/Window/DxuiMessageBox.cpp`, so the Bootstrap dialog's first step fits. Tests in `UnitTest/Dxui/DxuiTextRunsTests.cpp`
+- [ ] T419 Find why the real //c's prompt probe got no $A5 back at the BASIC prompt after IN#2 alone, although the //c ran each POKE, and check it after Ctrl-A 14B
