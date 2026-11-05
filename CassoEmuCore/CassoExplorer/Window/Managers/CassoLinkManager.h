@@ -50,6 +50,7 @@ public:
     void          WriteImageToDisk        (const Location & drive = Location(), bool forceVerify = false);
     void          SaveLinkToDisk          (const Location & drive = Location());
     void          FormatAppleDisk         (const Location & location);
+    void          KrunchAppleDisk         (const Location & location);
     void          SaveLinkDiskImage       (const std::string & name);
     void          EditConnection          (const std::string & name);
     void          RemoveConnection        (const std::string & name);

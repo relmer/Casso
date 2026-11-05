@@ -709,6 +709,44 @@ void CassoLinkManager::FormatAppleDisk (const Location & location)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::KrunchAppleDisk
+//
+//  A linked drive's Apple Pascal disk krunched, with no confirmation, as an
+//  image's is: no file is lost, and the files move on the Apple, so the disk
+//  is whole after a link that drops partway.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::KrunchAppleDisk (const Location & location)
+{
+    std::wstring                   link;
+    int                            slot    = 0;
+    int                            number  = 0;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    if (!TreeModel::TryParseLinkId (location.path, link, slot, number) || number == 0)
+    {
+        return;
+    }
+
+    outcome = m_context.actions.KrunchAppleDrive (TextEncoding::WideToNarrow (link), number);
+
+    if (!outcome.Succeeded())
+    {
+        m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
+    }
+
+    HandleConnectionChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::SaveLinkDiskImage
 //
 //  The link's boot disk as an image file on the PC, for an emulator, at the
@@ -1706,6 +1744,13 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { WriteImageToDisk (location, true); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { SaveLinkToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });
+
+        //  As a Pascal image's menu has it, with its icon.
+        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.IsDrivePascal (TextEncoding::WideToNarrow (link), drive))
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Krunch), [this, location]() { KrunchAppleDisk (location); },
+                                            L"", ExplorerMenus::GetVerbMenuGlyph (CassoExplorerActions::Verb::Krunch));
+        }
 
 #if defined (_DEBUG)
         m_context.menus.AddMenuCommand (items, L"Arm link fa&ults...",        [this]() { ArmLinkFaults(); });

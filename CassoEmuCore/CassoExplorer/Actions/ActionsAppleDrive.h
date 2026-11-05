@@ -94,6 +94,11 @@ public:
     ActionsTypes::Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
     ActionsTypes::Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
 
+    //  Whether the drive's last catalog read is of an Apple Pascal disk, the
+    //  only kind KrunchAppleDrive applies to.
+    bool                   IsDrivePascal    (const std::string & link, int drive) const;
+    ActionsTypes::Outcome  KrunchAppleDrive (const std::string & link, int drive);
+
     ActionsTypes::Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings);
 
     ActionsTypes::Outcome  SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand);

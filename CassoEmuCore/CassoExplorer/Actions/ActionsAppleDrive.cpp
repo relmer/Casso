@@ -1531,6 +1531,58 @@ ActionsTypes::Outcome ActionsAppleDrive::FormatAppleDrive (const std::string & l
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsAppleDrive::IsDrivePascal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ActionsAppleDrive::IsDrivePascal (const std::string & link, int drive) const
+{
+    CassoLinkConnections  * links  = m_actions.m_browser.GetLinks();
+    VolumeListing           listing;
+    VolumeKind              kind   = VolumeKind::Unknown;
+    HRESULT                 result = S_OK;
+    std::string             message;
+
+
+
+    if (links == nullptr)
+    {
+        return false;
+    }
+
+    return links->TryGetListing (link, drive, std::string(), listing, kind, result, message) && SUCCEEDED (result) && kind == VolumeKind::Pascal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::KrunchAppleDrive
+//
+//  The program on the Apple moves the files, so the krunch finishes there
+//  when the link drops. The drive's listing is read again when it is done.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::KrunchAppleDrive (const std::string & link, int drive)
+{
+    ActionsTypes::Outcome  outcome;
+
+
+
+    SubmitWrite (link, drive, [drive] (CassoLinkSession & session) { return session.Krunch (drive); }, outcome);
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsAppleDrive::SaveLinkDiskImage
 //
 ////////////////////////////////////////////////////////////////////////////////
