@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Debugger/LineAssembler.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "OpcodeTable.h"
 #include "Ui/Debugger/Panes/AddSymbolDialog.h"
 #include "Ui/Debugger/TextDialog.h"
@@ -41,8 +42,21 @@ std::optional<std::pair<Word, Word>> CodeEditCommands::GetSelection (int view, i
     std::vector<int>                                     rows     = std::ranges::find (selected, row) != selected.end() ? selected : std::vector<int> { row };
     std::optional<Word>                                  first;
     Word                                                 last     = 0;
+    int                                                  textTop  = -1;
+    int                                                  textEnd  = -1;
 
 
+
+    //  Text dragged across rows selects those rows, when the click is on one.
+    if (m_views.GetCodeList (view)->GetTextSelectionRows (textTop, textEnd) && row >= textTop && row <= textEnd)
+    {
+        rows.clear();
+
+        for (int each = textTop; each <= textEnd; each++)
+        {
+            rows.push_back (each);
+        }
+    }
 
     for (int each : rows)
     {
@@ -96,6 +110,8 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
     Word                          routine  = isCall ? *line.target : at;
     std::string                   name     = isCall ? line.shownOperand : line.label;
     auto                          bookmark = std::ranges::find_if (snapshot.bookmarks, [at] (const DebuggerViewSnapshot::WatchLine & each) { return each.address == at; });
+    Word                          dataFirst = 0;
+    Word                          dataLast  = 0;
 
 
 
@@ -136,6 +152,14 @@ void CodeEditCommands::AddItems (int view, const DebuggerViewSnapshot::CodeLine 
     for (const auto & [label, directive] : kMarks)
     {
         items.push_back ({ PaneMenu::MakeInSubmenu (L"Mark as data", label), [this, range, directive] { m_host.RunAction (DebuggerActions::GetMarkData (directive, range.first, range.second, m_host.GetMode())); } });
+    }
+
+    if (snapshot.heatColumns != nullptr && HeatStrip::TryGetDataRange (*snapshot.heatColumns, at, dataFirst, dataLast))
+    {
+        items.push_back ({ std::format (L"Mark ${:04X}-${:04X} as data (read or written, never run)", dataFirst, dataLast), [this, dataFirst, dataLast]
+        {
+            m_host.RunAction (DebuggerActions::GetMarkData ("DB", dataFirst, dataLast, m_host.GetMode()));
+        } });
     }
 
     items.push_back ({ L"Clear data marking", [this, range] { m_host.RunAction (DebuggerActions::GetClearData (range.first, range.second, m_host.GetMode())); } });

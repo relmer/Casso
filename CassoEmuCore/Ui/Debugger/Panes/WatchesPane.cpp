@@ -572,8 +572,8 @@ std::wstring WatchesPane::GetAutoType (const std::string & key)
 //
 //  WatchesPane::GetWatchType
 //
-//  A watch's kind: a BASIC variable, a register, a symbol by name, an
-//  address, or an expression evaluated at each read.
+//  A watch's kind: a BASIC variable, a register, a symbol by name with its
+//  address, an address, or an expression evaluated at each read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -601,9 +601,10 @@ std::wstring WatchesPane::GetWatchType (const DebuggerViewSnapshot::WatchLine & 
     isName = !base.empty() && !isHex && (isalpha ((unsigned char) base[0]) || base[0] == '_') &&
              base.find_first_not_of ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.") == std::string::npos;
 
-    return (base.empty() || isHex) ? L"Memory"
-         : isName                  ? L"Symbol"
-         :                           L"Expression";
+    return (base.empty() || isHex)      ? std::wstring (L"Memory")
+         : isName && watch.error.empty() ? std::format (L"Symbol at ${:04X}", watch.address)
+         : isName                        ? std::wstring (L"Symbol")
+         :                                 std::wstring (L"Expression");
 }
 
 

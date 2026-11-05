@@ -4261,7 +4261,7 @@ void DxuiListView::PaintDataRows (
                                           cellFace,
                                           DxuiTextHAlign::Left,
                                           DxuiTextVAlign::CenterOnCapHeight,
-                                          DxuiFontWeight::Normal,
+                                          (cells[c].weight == DxuiFontWeight::Italic) ? DxuiFontWeight::Italic : DxuiFontWeight::Normal,
                                           false);
                     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -5845,6 +5845,64 @@ void DxuiListView::ClearTextSelection()
     m_textPressed = false;
     m_textAnchor  = TextPos {};
     m_textFocus   = TextPos {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetTextSelectionRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetTextSelectionRows (int & first, int & last) const
+{
+    if (!m_hasTextSel)
+    {
+        return false;
+    }
+
+    first = (std::min) (m_textAnchor.row, m_textFocus.row);
+    last  = (std::max) (m_textAnchor.row, m_textFocus.row);
+    return first >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryHitTestCellChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryHitTestCellChar (POINT localPx, int & row, size_t & column, int & ch) const
+{
+    RECT  cell = {};
+
+
+
+    row = HitTestRow (localPx.x, localPx.y);
+
+    if (row < 0)
+    {
+        return false;
+    }
+
+    for (size_t c = 0; c < m_columns.size() && c < GetRowCells (row).size(); c++)
+    {
+        if (GetCellTextRectPx (row, c, cell) && localPx.x >= cell.left && localPx.x < cell.right)
+        {
+            column = c;
+            ch     = HitTestCharInCell (row, c, localPx.x);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

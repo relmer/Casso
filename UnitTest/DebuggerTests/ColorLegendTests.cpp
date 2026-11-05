@@ -311,18 +311,25 @@ namespace ColorLegendTests
             Assert::AreEqual (255u, alpha (ColorLegend::MakeSwatchIcon (ColorLegend::Swatch::Fill,    0xFFFF0000), kCenter));
         }
 
-        TEST_METHOD (TheBranchTipSaysWhichFlagAndHowItStands)
+        TEST_METHOD (TheBranchTipHasWhichFlagAndItsState)
         {
-            Assert::AreEqual (std::wstring (L"Branch taken: BNE branches while Z is clear, and Z is clear"),
+            Assert::AreEqual (std::wstring (L"Will branch: BNE branches while Z is clear, and Z is clear"),
                               ColorLegend::GetBranchTip ("BNE $0310", true, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Branch not taken: BEQ branches while Z is set, and Z is clear"),
+            Assert::AreEqual (std::wstring (L"Won't branch: BEQ branches while Z is set, and Z is clear"),
                               ColorLegend::GetBranchTip ("beq $0310", false, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Branch not taken: BCC branches while C is clear, and C is set"),
+            Assert::AreEqual (std::wstring (L"Won't branch: BCC branches while C is clear, and C is set"),
                               ColorLegend::GetBranchTip ("BCC LOOP", false, (Byte) 0x01));
-            Assert::AreEqual (std::wstring (L"Branch taken: BBS3 branches while bit 3 of its byte is set"),
+            Assert::AreEqual (std::wstring (L"Will branch: BBS3 branches while bit 3 of its byte is set"),
                               ColorLegend::GetBranchTip ("BBS3 $10,$0310", true, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Call: JSR always calls its target"),
+            Assert::AreEqual (std::wstring (L"Will call: JSR always calls its target"),
                               ColorLegend::GetBranchTip ("JSR $FDED", true, std::nullopt));
+        }
+
+        //  The dotted arrow's tip: the branch the last step took to the PC.
+        TEST_METHOD (TheTakenBranchTipHasTheStepsInstruction)
+        {
+            Assert::AreEqual (std::wstring (L"Taken by the last step: BNE w_inner at $60BB"), ColorLegend::GetTakenBranchTip ("BNE w_inner", 0x60BB));
+            Assert::AreEqual (std::wstring (L"Taken by the last step, from $60BB"),           ColorLegend::GetTakenBranchTip ("", 0x60BB), L"scrolled out of the lines");
         }
 
 

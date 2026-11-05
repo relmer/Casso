@@ -267,6 +267,47 @@ DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColum
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatStrip::TryGetDataRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatStrip::TryGetDataRange (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word at, Word & first, Word & last)
+{
+    auto  isData = [&levels] (uint32_t address)
+    {
+        return address < levels.executeCount.size() && address < levels.readCount.size() && address < levels.writeCount.size() &&
+               levels.executeCount[address] == 0 && (levels.readCount[address] != 0 || levels.writeCount[address] != 0);
+    };
+
+
+
+    if (!isData (at))
+    {
+        return false;
+    }
+
+    first = at;
+    last  = at;
+
+    while (first > 0 && isData ((uint32_t) first - 1))
+    {
+        first--;
+    }
+
+    while (last < 0xFFFF && isData ((uint32_t) last + 1))
+    {
+        last++;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatStrip::GetTip
 //
 //  A table of the bytes' counts, a row a byte, with a blank line and the

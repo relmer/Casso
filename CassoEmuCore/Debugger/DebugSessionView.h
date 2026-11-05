@@ -75,6 +75,7 @@ struct DebugSessionFiles
     std::string                   key;
     std::optional<SymbolTableId>  table;
     LineTable                     lineTable;
+    DataBlockTable                data;
 };
 
 

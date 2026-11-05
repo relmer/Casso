@@ -1598,4 +1598,108 @@ namespace OperandResultTipTests
         static constexpr int  kSplitIntoTextPx  = 60;
         static constexpr int  kGapPx            = 20;
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BranchArrowTipTests
+    //
+    //  The tip over the PC's branch arrow has whether the branch will be
+    //  taken; the tip over the dotted arrow has the branch the last step
+    //  took to the PC.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (BranchArrowTipTests)
+    {
+    public:
+
+        static constexpr int  kWindowWidth  = 1400;
+        static constexpr int  kWindowHeight = 900;
+
+        //  $0300 DEY, $0302 BNE $0300 at the PC, which won't branch, $0304
+        //  DEX, $0306 JMP $0302, the step that led to the PC.
+        static std::shared_ptr<const DebuggerViewSnapshot>  MakeSnapshot()
+        {
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  dey;
+            DebuggerViewSnapshot::CodeLine  bne;
+            DebuggerViewSnapshot::CodeLine  dex;
+            DebuggerViewSnapshot::CodeLine  jmp;
+
+
+
+            dey.address       = 0x0300;
+            dey.bytes         = "88";
+            dey.instruction   = "DEY";
+            bne.address       = 0x0302;
+            bne.bytes         = "D0 FC";
+            bne.instruction   = "BNE $0300";
+            bne.isCurrent     = true;
+            bne.target        = 0x0300;
+            bne.isTargetTaken = false;
+            dex.address       = 0x0304;
+            dex.bytes         = "CA";
+            dex.instruction   = "DEX";
+            jmp.address       = 0x0306;
+            jmp.bytes         = "4C 02 03";
+            jmp.instruction   = "JMP $0302";
+            jmp.target        = 0x0302;
+
+            snapshot->pc           = 0x0302;
+            snapshot->isPaused     = true;
+            snapshot->branchedFrom = 0x0306;
+            snapshot->codeViews[0] = { dey, bne, dex, jmp };
+            snapshot->codeOpen[0]  = true;
+            snapshot->code         = snapshot->codeViews[0];
+            return snapshot;
+        }
+
+        //  A point on the arrows' upright, left of the mnemonics, halfway
+        //  down from one row to the next.
+        static POINT  GetUprightPoint (TipWindow & window, int fromRow)
+        {
+            DxuiListView  * list   = window.GetCodeList (0);
+            RECT            bounds = list->GetBounds();
+            RECT            from   = {};
+            RECT            to     = {};
+
+
+
+            Assert::IsTrue (list->GetCellTextRectPx (fromRow,     DisassemblyCells::kInstructionColumn, from));
+            Assert::IsTrue (list->GetCellTextRectPx (fromRow + 1, DisassemblyCells::kInstructionColumn, to));
+
+            return POINT { bounds.left + from.left - (LONG) (BranchArrow::Input().marginPx + BranchArrow::Input().stubPx),
+                           bounds.top + (from.top + from.bottom + to.top + to.bottom) / 4 };
+        }
+
+
+        TEST_METHOD (EachArrowsTipHasWhatItsBranchDoes)
+        {
+            CassoTheme            theme;
+            TipHost               host;
+            TipWindow             window (theme, host);
+            MockDxuiTextRenderer  text;
+            MockDxuiPainter       painter;
+            DxuiDpiScaler         scaler;
+            DxuiTip               tip;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+            window.GetCodeList (0)->Paint (painter, text, theme);
+
+            Assert::IsTrue (static_cast<const DxuiPanel &> (window).TryGetTip (GetUprightPoint (window, 0), tip), L"the PC's arrow, from its row up to the target's");
+            Assert::IsTrue (tip.text.starts_with (L"Won't branch: BNE branches while Z is clear"), tip.text.c_str());
+
+            Assert::IsTrue   (static_cast<const DxuiPanel &> (window).TryGetTip (GetUprightPoint (window, 2), tip), L"the dotted arrow, from the step's row up to the PC's");
+            Assert::AreEqual (std::wstring (L"Taken by the last step: JMP $0302 at $0306"), tip.text);
+        }
+    };
 }

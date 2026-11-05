@@ -273,9 +273,14 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
         for (int table = 0; table < SymbolTable::kTableCount; table++)
         {
+            auto  load = std::ranges::find_if (session.GetSymbolLoads(), [table] (const DebugSession::SymbolLoad & each) { return each.table == (SymbolTableId) table; });
+
+
+
             state->tables.push_back ({ ReplyJson::GetSymbolTableName ((SymbolTableId) table), session.GetSymbols().GetCount ((SymbolTableId) table),
                                        session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table,
-                                       session.GetSymbols().GetOrigins ((SymbolTableId) table) });
+                                       session.GetSymbols().GetOrigins ((SymbolTableId) table),
+                                       (load != session.GetSymbolLoads().end()) ? load->path : std::wstring() });
             session.GetSymbols().GetAll ((SymbolTableId) table, state->symbols);
         }
 
@@ -3432,7 +3437,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 
     //  As many lines as the pane has room for, stopping at $FFFF rather than
     //  wrapping below the start.
-    (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view), std::nullopt, v.lines, code);
+    (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view, !snapshot.isPaused), std::nullopt, v.lines, code);
 
     v.shown.clear();
 
@@ -3453,18 +3458,20 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
         row.instruction   = line.instruction.operand.empty() ? line.instruction.mnemonic
                                                              : line.instruction.mnemonic + " " + line.GetShownOperand();
         row.label         = line.label;
+        row.dataOrigin    = line.dataOrigin;
         row.isCurrent     = row.address == snapshot.pc;
         row.isBranchedFrom = snapshot.branchedFrom == row.address;
         row.isRom          = session.GetTarget().GetRegion (row.address) == MemoryRegion::Rom ||
                              session.GetTarget().GetRegion (row.address) == MemoryRegion::SlotRom;
         row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
         //  Only while the machine is paused (FR-110): a running machine
-        //  is somewhere else by the time these are drawn.
+        //  is somewhere else by the time these are drawn. A data line isn't
+        //  an instruction, so it doesn't have them.
         //
         //  ONE RUN ANSWERS BOTH COLUMNS. What the instruction reads is
         //  the left annotation and what it leaves is the right one, and
         //  both come from the same trip through the core.
-        if (snapshot.isPaused)
+        if (snapshot.isPaused && line.dataOrigin == DataOrigin::None)
         {
             const Cpu6502Registers    & now     = session.GetTarget().GetRegisters();
             InstructionTouches::Result  touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(),
@@ -3650,13 +3657,18 @@ void DebuggerViewState::SetCodeLines (int lines, int view)
 //  When the PC does leave, it comes back in the MIDDLE, so what led there is
 //  on screen with it.
 //
+//  While the machine runs, a view the user scrolled isn't moved until
+//  kScrollHoldMs pass with no more scrolling, so the code near the PC can
+//  be read while the PC moves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int view) const
+Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const
 {
-    CodeView  & v     = m_code[(size_t) view];
-    bool        shown = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
-    Word        top   = 0;
+    CodeView  & v      = m_code[(size_t) view];
+    bool        shown  = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
+    bool        isHeld = isRunning && v.scrolledAtMs.has_value() && m_clock() - *v.scrolledAtMs < kScrollHoldMs;
+    Word        top    = 0;
 
 
 
@@ -3669,11 +3681,12 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     //  The following view put somewhere -- scrolled, or navigated to -- holds
     //  there only until the PC moves. It then follows again from where it
     //  stands, so a PC still on its lines moves the marker, not the view.
-    if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && *v.pinnedAtPc != pc)
+    if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && *v.pinnedAtPc != pc && !isHeld)
     {
         v.followAnchor = *v.address;
         v.address.reset();
         v.pinnedAtPc.reset();
+        v.scrolledAtMs.reset();
     }
 
     //  A view that does not follow the PC and has not been put anywhere
@@ -3742,10 +3755,11 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
 Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lines, int count)
 {
-    Word            from  = top;
-    Word            last  = 0;
-    int             shown = 1;
+    Word            from   = top;
+    Word            last   = 0;
+    int             shown  = 1;
     DataBlockEntry  block;
+    DataOrigin      origin = DataOrigin::None;
 
 
 
@@ -3784,7 +3798,7 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
     //  many lines above as can be found; a byte at a time where none can.
     if (count < 0)
     {
-        while (count < 0 && top > 0 && session.GetDataBlocks().TryFindAt ((Word) (top - 1), block))
+        while (count < 0 && top > 0 && session.TryFindData ((Word) (top - 1), block, origin))
         {
             top = GetPreviousInstruction (session, top);
             count++;
@@ -4071,11 +4085,12 @@ Word DebuggerViewState::GetPreviousInstruction (DebugSession & session, Word add
 {
     Word            before = (Word) (address - 1);
     DataBlockEntry  block;
+    DataOrigin      origin = DataOrigin::None;
     Word            length = 0;
 
 
 
-    if (session.GetDataBlocks().TryFindAt (before, block))
+    if (session.TryFindData (before, block, origin))
     {
         length = GetInstructionLength (session, block.first);
         return (Word) (block.first + (before - block.first) / length * length);

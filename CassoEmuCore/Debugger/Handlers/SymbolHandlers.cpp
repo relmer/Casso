@@ -7,6 +7,7 @@
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/SymbolFileReader.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/DebugFileData.h"
 #include "Debugger/ProgramCheck.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
@@ -379,11 +380,12 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
                                     const std::string & content, int offset, bool isListing, Reply & reply)
 {
-    DebugFile                 file;
-    std::string               error;
-    size_t                    loaded = 0;
-    size_t                    lines  = 0;
-    std::vector<std::string>  message;
+    DebugFile                                file;
+    std::string                              error;
+    size_t                                   loaded = 0;
+    size_t                                   lines  = 0;
+    std::vector<std::string>                 message;
+    std::map<int, std::vector<std::string>>  sources;
     size_t       slash  = name.find_last_of ("/\\");
     std::string  base   = (slash == std::string::npos) ? name : name.substr (slash + 1);
     HRESULT      hr     = isListing ? DebugFileReader::ReadMerlinListing (content, base, file, error)
@@ -435,10 +437,10 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 
     //  A listing has the bytes of each of its lines; a debug file's source
-    //  has the mnemonic of each instruction line.
-    session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetDebugFile(),
-                                                                  isListing ? std::map<int, std::vector<std::string>>()
-                                                                            : ReadSources (session, session.GetDebugFile(), session.ResolvePath (name))));
+    //  has the mnemonic of each instruction line, and its data directives.
+    sources = isListing ? std::map<int, std::vector<std::string>>() : ReadSources (session, session.GetDebugFile(), session.ResolvePath (name));
+    session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetDebugFile(), sources));
+    session.SetDebugFileData  (DebugFileData::GetBlocks (session.GetDebugFile(), sources));
 
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
                                     loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));

@@ -97,6 +97,9 @@ struct DebuggerViewSnapshot
         //  Whether the line is in ROM, which an edit of the instruction does
         //  not change.
         bool         isRom         = false;
+
+        //  Why the line is data rather than an instruction, where it is.
+        DataOrigin   dataOrigin    = DataOrigin::None;
     };
 
     struct RegisterRow
@@ -329,6 +332,7 @@ struct DebuggerViewSnapshot
         bool                      enabled = true;
         SymbolTableId             id      = SymbolTableId::Main;
         std::vector<std::string>  origins;   // the files the table was loaded from, by file name
+        std::wstring              path;      // the full path of the file last loaded into it, or empty
     };
 
     struct SymbolsState
@@ -531,6 +535,11 @@ public:
     //  the last reading. A stopped machine's is read at every build.
     static constexpr uint64_t  kHeatIntervalMs  = 100;
 
+    //  How long a view following a running machine's PC is left where it was
+    //  scrolled after the last wheel turn, arrow key or scroll bar move,
+    //  before it follows the PC again.
+    static constexpr uint64_t  kScrollHoldMs    = 5000;
+
     //  The registers pane's last rows, read only: the CPU cycle count, the
     //  cycles since RCC, and the last branch taken.
     static constexpr const char  * kCyclesRegister     = "Cycles";
@@ -570,12 +579,12 @@ public:
 
     //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.
-    void  ScrollCode       (int lines, int view = 0)    { m_code[(size_t) view].scrollLines += lines; }
+    void  ScrollCode       (int lines, int view = 0)    { m_code[(size_t) view].scrollLines += lines; m_code[(size_t) view].scrolledAtMs = m_clock(); }
 
     //  Show next statement: the view follows the PC again AND brings it to
     //  the middle, where following alone would leave a PC already on screen
     //  wherever it sat.
-    void  ShowPcIn         (int view)                   { CodeView & v = m_code[(size_t) view]; v.address.reset(); v.pinnedAtPc.reset(); v.scrollLines = 0; v.centerOnPc = true; }
+    void  ShowPcIn         (int view)                   { CodeView & v = m_code[(size_t) view]; v.address.reset(); v.pinnedAtPc.reset(); v.scrollLines = 0; v.scrolledAtMs.reset(); v.centerOnPc = true; }
     void  SetMemoryAddress (Word address)                { m_memoryAddress = address; }
 
     //  How many lines a code view has room for. The window measures it and
@@ -954,7 +963,7 @@ private:
     //  Where the code pane starts this build: the pinned address, the anchor
     //  it already had while the PC is among the lines it produced, or a new
     //  anchor that puts the PC in the middle.
-    Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
+    Word         ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const;
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
     void         UpdateLastStop   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
 
@@ -986,15 +995,16 @@ private:
     //  what it learned while running.
     struct CodeView
     {
-        std::optional<Word>  address;
-        std::optional<Word>  pinnedAtPc;
-        bool                 centerOnPc   = false;
-        std::optional<Word>  centerOn;
-        int                  scrollLines  = 0;
-        Word                 followAnchor = 0;
-        std::vector<Word>    shown;
-        int                  lines        = kCodeLines;
-        bool                 open         = false;
+        std::optional<Word>      address;
+        std::optional<Word>      pinnedAtPc;
+        bool                     centerOnPc   = false;
+        std::optional<Word>      centerOn;
+        int                      scrollLines  = 0;
+        std::optional<uint64_t>  scrolledAtMs;
+        Word                     followAnchor = 0;
+        std::vector<Word>        shown;
+        int                      lines        = kCodeLines;
+        bool                     open         = false;
     };
 
     mutable std::array<CodeView, kMaxCodeViews>    m_code;

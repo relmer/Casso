@@ -84,6 +84,7 @@ class CodeEditCommands;
 class DisassemblyGutter;
 class DisassemblyGroup;
 class SourceDocumentGroup;
+class SourceDocumentPane;
 class MemoryPane;
 class TracePaneController;
 
@@ -638,6 +639,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void  ConfigureTips      ();
     bool  TryGetCodeTip      (const DxuiListView & list, POINT clientPx, DxuiTip & tip) const;
     bool  TryGetBranchTip    (POINT clientPx, DxuiTip & tip) const;
+    bool  TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip) const;
     bool  TryGetGraphicTip   (POINT clientPx, DxuiTip & tip) const;
 
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.

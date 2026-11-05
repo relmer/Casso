@@ -41,6 +41,28 @@ void DataBlockTable::Add (const std::string & name, Word first, Word last, DataB
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DataBlockTable::Insert
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DataBlockTable::Insert (const DataBlockEntry & entry)
+{
+    if (entry.last < entry.first)
+    {
+        return;
+    }
+
+    Remove (entry.first, entry.last);
+    m_entries.push_back (entry);
+    std::sort (m_entries.begin(), m_entries.end(), [] (const DataBlockEntry & a, const DataBlockEntry & b) { return a.first < b.first; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DataBlockTable::Remove
 //
 //  A block inside the range goes; one straddling an end is trimmed; one

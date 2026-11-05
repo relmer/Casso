@@ -1122,7 +1122,9 @@ void DisassemblyGroup::ApplyView (int view)
         //  column's heading has them.
         cells[DisassemblyCells::kAddressColumn].tip     = rowTip;
         cells[DisassemblyCells::kLabelColumn].tip       = rowTip;
-        cells[DisassemblyCells::kInstructionColumn].tip = rowTip;
+        cells[DisassemblyCells::kInstructionColumn].tip = (line != nullptr && line->dataOrigin != DataOrigin::None)
+                                                              ? ColorLegend::JoinLines ({ DisassemblyCells::GetDataTip (line->dataOrigin), rowTip })
+                                                              : rowTip;
         cells[DisassemblyCells::kOperandColumn].tip     = rowTip;
         cells[DisassemblyCells::kBytesColumn].tip       = ColorLegend::JoinLines ({ cells[DisassemblyCells::kBytesColumn].colorRanges.empty() ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed), rowTip });
 
@@ -1680,21 +1682,24 @@ bool DisassemblyGroup::ClickBranchArrow (POINT pointPx)
 //
 //  DisassemblyGroup::TryGetBranchTip
 //
-//  Whether the branch is taken, and why, from the instruction at the PC and
-//  the flags now.
+//  Over the PC's arrow, whether its branch will be taken, and why, from the
+//  instruction at the PC and the flags now; over the dotted arrow, the
+//  branch the last step took to the PC.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisassemblyGroup::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
 {
-    BranchArrow::Input  input;
-    Word                goesTo      = 0;
-    bool                isTaken     = true;
-    std::string         instruction;
+    const DebuggerViewSnapshot  * snapshot    = m_host.GetLatestSnapshot();
+    BranchArrow::Input            input;
+    Word                          goesTo      = 0;
+    bool                          isTaken     = true;
+    std::string                   instruction;
+    std::string                   stepped;
 
 
 
-    if (m_host.GetLatestSnapshot() == nullptr)
+    if (snapshot == nullptr)
     {
         return false;
     }
@@ -1704,22 +1709,28 @@ bool DisassemblyGroup::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstr
         for (const DebuggerViewSnapshot::CodeLine & line : GetCodeLines (view))
         {
             instruction = line.isCurrent ? line.instruction : instruction;
+            stepped     = (snapshot->branchedFrom == line.address) ? line.instruction : stepped;
         }
     }
 
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
+    //  The PC's arrow is drawn over the dotted one, so it is found first.
+    for (bool isBranchedFrom : { false, true })
     {
-        input = BranchArrow::Input();
-
-        if (!GetBranchArrow (view, input, goesTo, isTaken) ||
-            !BranchArrow::HitTest (input, (float) clientPx.x, (float) clientPx.y))
+        for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
         {
-            continue;
-        }
+            input = BranchArrow::Input();
 
-        anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
-        text   = ColorLegend::GetBranchTip (instruction, isTaken, m_host.GetRegisterByte ("P"));
-        return true;
+            if (!GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom) ||
+                !BranchArrow::HitTest (input, (float) clientPx.x, (float) clientPx.y))
+            {
+                continue;
+            }
+
+            anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+            text   = isBranchedFrom ? ColorLegend::GetTakenBranchTip (stepped, *snapshot->branchedFrom)
+                                    : ColorLegend::GetBranchTip (instruction, isTaken, m_host.GetRegisterByte ("P"));
+            return true;
+        }
     }
 
     return false;
@@ -1773,7 +1784,7 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
 
     if (index < 0)
     {
-        return false;
+        return TryGetSourceSymbolTip (*list, clientPx, anchor, text);
     }
 
     const DebuggerViewSnapshot::CodeLine & line = GetCodeLines (view)[(size_t) index];
@@ -1840,6 +1851,39 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
     }
 
     OffsetRect (&anchor, bounds.left, bounds.top);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::TryGetSourceSymbolTip
+//
+//  Over a word of a source row, the symbol it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    RECT                          bounds   = list.GetBounds();
+    int                           row      = -1;
+    size_t                        column   = 0;
+    int                           ch       = 0;
+
+
+
+    if (snapshot == nullptr || snapshot->symbols == nullptr ||
+        !list.TryHitTestCellChar (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, row, column, ch) ||
+        !SourcePane::TryGetSymbolText (list.GetCellsOfRow (row)[column].text, ch, snapshot->symbols->symbols, text))
+    {
+        return false;
+    }
+
+    anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }
 

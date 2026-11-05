@@ -69,8 +69,20 @@ public:
     //  annotation. The text's column is no wider than kAnnotationColumn, so
     //  the annotations start near the code, and only a longer line pushes
     //  that line's annotation along.
-    static constexpr int  kTextCell         = 2;
-    static constexpr int  kAnnotationColumn = 40;
+    static constexpr int    kTextCell         = 2;
+    static constexpr int    kAnnotationColumn = 40;
+
+    //  The line numbers are followed by room for the branch arrow, which
+    //  stops short of the text.
+    static constexpr int    kNumberCell       = 1;
+    static constexpr int    kArrowGapCells    = 5;
+    static constexpr float  kArrowMarginDip   = 6.0f;
+
+    //  The symbol a source line has at a caret position, by its name, as
+    //  "count_text = $60F2", and after a < or > before it, the byte that
+    //  operator takes. False off a word, in a comment, or for a word that
+    //  isn't a symbol.
+    static bool  TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text);
 
     SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run);
 
@@ -172,6 +184,9 @@ public:
     //  from the marked line to the line its target starts, in pixels; false
     //  when the PC is not on a marked line here or holds no branch.
     bool  GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
+
+    //  Over a word of the source text, the symbol it is.
+    bool  TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
 
     //  The line the PC's branch goes to in a file, if a line there starts at
     //  it, and whether it lies below the marked line; false for no branch.

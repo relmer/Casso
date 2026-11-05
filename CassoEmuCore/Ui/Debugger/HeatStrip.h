@@ -88,6 +88,11 @@ public:
     //  The bytes a disassembly line's code bytes text lists, as "A9 00".
     static size_t  CountBytes (const std::string & bytes);
 
+    //  The run of bytes around `at` that were read or written and never run,
+    //  by the counts since counting began; false when `at` was run or never
+    //  touched.
+    static bool    TryGetDataRange (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word at, Word & first, Word & last);
+
     static Tip           GetTip        (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word first, size_t count, bool isTokens);
 
     //  A heat column heading's tip: what the column is, in lines short enough

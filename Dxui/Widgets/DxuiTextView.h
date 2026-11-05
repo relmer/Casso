@@ -136,6 +136,10 @@ public:
     //  no limit. A row's longer cell pushes only that row's next cell along.
     void   SetColumnCap    (int column, int cells);
 
+    //  The characters between a column and the next, kColumnGapCells unless
+    //  set; zero or less puts the default back.
+    void   SetColumnGap    (int column, int cells);
+
     //  With it on, the last cell is one line, not wrapped, and a bar along the
     //  bottom, or Shift with the wheel, scrolls the text sideways. Off by
     //  default.
@@ -398,6 +402,7 @@ private:
     DxuiScrollbar      m_vertScroll;
     DxuiScrollbar      m_horzScroll;
     std::map<int, int> m_columnCaps;
+    std::map<int, int> m_columnGaps;
     bool               m_noWrap        = false;
     int                m_leftColumn    = 0;
     int                m_widestColumns = 0;

@@ -33,8 +33,9 @@ struct DataBlockEntry
 //
 //  The data directives' ranges, kept in address order without overlap: a new
 //  block takes its range from any it covers, and X removes, trims or splits
-//  what it touches. A block with no given name is called after its kind and
-//  address, B_0300 or T_0800.
+//  what it touches. A block added with no given name is called after its
+//  kind and address, B_0300 or T_0800; an inserted block's name is used as
+//  it is, even an empty one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +43,7 @@ class DataBlockTable
 {
 public:
     void   Add       (const std::string & name, Word first, Word last, DataBlockKind kind, int perLine);
+    void   Insert    (const DataBlockEntry & entry);
     void   Remove    (Word first, Word last);
     void   Clear     ();
     bool   TryFindAt (Word address, DataBlockEntry & entry) const;

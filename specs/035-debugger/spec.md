@@ -334,6 +334,11 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: While the disassembly has source rows, which rows have the PC, the breakpoints, the operands and results, and the branch arrows? -> A: The source rows. The owner: "it should be 'source-forward' and lean into the source being the focus of the action in that window", and "PC and breakpoints should move to source lines when we have source and when the disasm window has 'show source' enabled." A source row represents the first instruction its line produced. A line that produced several instructions has its operands on the instructions' rows, since there isn't one operand for the whole line (FR-343, T1341).
 - Q: Does the MCP adapter ship in 035, and what does it require inside Casso? -> A: It ships in 035. The owner: "We might just integrate that with 035", then "MCP - let's do it." It was item 5 of `follow-on-spec-input.md`, whose note had no change inside Casso; matching GSSquared's demo requires a reset, typed text, disk insert and eject, the text screen and a screenshot, which the channel didn't have. They are added as debugger commands, so the window, scripts and `CassoCli debug` have them too, and the server connects to Casso through the channel only. The server is `CassoCli mcp`, so it is installed beside `Casso.exe` and requires no separate runtime (User Story 26, FR-344 to FR-348, SC-063).
 
+### Session 2026-11-05 (owner review: data, scrolling, tips)
+
+- Q: Which bytes does the disassembly read as data, besides those a data directive marks? -> A: The bytes a loaded debug file maps to a data directive, while the file matches memory, and on request the bytes the heat map has as read or written and never run. The owner: "automatically mark data bytes as data when the src/symbol files have that information and those files match what's in memory", and "right-click on the heatmap chunk and have it mark that contiguous range of read/written lines as data". Marking from the heat map without a request wasn't built: a loader writes a program's code before it runs, so code that hasn't run yet would be read as data. A range the user marked was called B_60C1 where the symbol count was already at its start; it is now called count (FR-349 to FR-352).
+- Q: While the machine runs, when is a following view the user scrolled moved back to the PC? -> A: After five seconds with no more scrolling. The owner: "let's allow 3? 5? seconds of no additional manual scroll inputs before we take over scrolling PC into view" (FR-353).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3712,6 +3717,39 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-348**: `docs/DebuggerForAgents.md` MUST have the steps to add `CassoCli mcp` to
   an MCP client and a table of its tools, and `docs/DebugChannel.md` MUST have
   the `textScreen` and `screenshot` replies.
+- **FR-349**: The bytes a loaded debug file maps to a data directive MUST be
+  disassembled as data while the file matches memory: text for a string,
+  words for a word directive, addresses for an address directive and bytes
+  for the rest, each line under its symbol's label. `X` over them, or Clear
+  data marking, MUST disassemble them as code until the file loads again.
+- **FR-350**: A data directive given no name MUST call its block after the
+  symbol at its start where there is one, and a data line's label MUST be
+  the symbol at its address before the block's name.
+- **FR-351**: A data line MUST be drawn in italics, with a tip over it that has
+  why its bytes are data and how to disassemble them as code, and MUST NOT
+  have an operand or a result.
+- **FR-352**: The data marking commands on a disassembly row's menu MUST act on
+  the rows a text drag selected when the row is among them. While the heat
+  columns are on, a row whose bytes were read or written and never run MUST
+  offer marking the run of such bytes around it as data.
+- **FR-353**: While the machine runs, a view following the PC that the user
+  scrolled with the wheel, the arrow keys or the scroll bar MUST NOT be moved
+  to the PC until five seconds pass with no more scrolling.
+- **FR-354**: The tip over the PC's branch arrow MUST be whether the branch will
+  be taken, then the flag it tests and the flag's state; the dotted arrow of
+  the branch the last step took MUST have a tip with that instruction and its
+  address.
+- **FR-355**: The tip over a symbol's name in a source line, in a source
+  document or on a source row of the disassembly, MUST have its value, and
+  after `<` or `>` the byte that operator takes.
+- **FR-356**: A watch's `.s` suffix MUST read the text at its address, to a zero
+  byte; a symbol at the start of a text data block MUST read as its text; a
+  symbol's Type cell MUST have its address; `&name` MUST evaluate to the
+  symbol's address; and the reason an entry can't be watched MUST run across
+  the add row.
+- **FR-357**: The tip over a symbol table's heading in the User symbols pane
+  MUST have the full path of the file loaded into it, and a source document
+  MUST have room between the line numbers and the text for the branch arrow.
 
 ### Key Entities
 

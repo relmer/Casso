@@ -585,7 +585,9 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
 
 
             name.check = table->enabled;
-            name.tip   = file.empty() ? std::wstring() : std::format (L"In the {} table", TextEncoding::NarrowToWide (row.table));
+            name.tip   = file.empty()          ? std::wstring()
+                       : table->path.empty()   ? std::format (L"In the {} table", TextEncoding::NarrowToWide (row.table))
+                       :                         std::format (L"{}\nIn the {} table", table->path, TextEncoding::NarrowToWide (row.table));
             cells.push_back ({ name, { L"" } });
             continue;
         }

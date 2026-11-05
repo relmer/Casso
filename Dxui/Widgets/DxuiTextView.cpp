@@ -408,9 +408,10 @@ int DxuiTextView::GetCellStart (const Row & row, int cell) const
     //  A cell longer than its capped column pushes the cells after it along.
     for (int c = 0; c < cell && c < (int) m_columnCells.size(); c++)
     {
-        int  length = (c < (int) row.cells.size()) ? (int) row.cells[(size_t) c].size() : 0;
+        int   length = (c < (int) row.cells.size()) ? (int) row.cells[(size_t) c].size() : 0;
+        auto  gap    = m_columnGaps.find (c);
 
-        column += (std::max) (m_columnCells[(size_t) c], length) + kColumnGapCells;
+        column += (std::max) (m_columnCells[(size_t) c], length) + ((gap != m_columnGaps.end()) ? gap->second : kColumnGapCells);
     }
 
     return column;
@@ -2201,6 +2202,30 @@ void DxuiTextView::SetColumnCap (int column, int cells)
     else
     {
         m_columnCaps.erase (column);
+    }
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetColumnGap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetColumnGap (int column, int cells)
+{
+    if (cells > 0)
+    {
+        m_columnGaps[column] = cells;
+    }
+    else
+    {
+        m_columnGaps.erase (column);
     }
 
     Rebuild();

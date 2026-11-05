@@ -276,6 +276,15 @@ routine, have the symbol's description and, for a label in a loaded program's
 source, the comment on the line that defines it: the first line whose code
 starts at the label, or the label alone on the line above it.
 
+The tip over a word of a source line, in a source document or on a source row
+of the disassembly, has the symbol it is and its value, and after `<` or `>`
+the byte that operator takes. Over `lda #>count_text` the tip is
+`count_text = $60F2` and `#>count_text = #$60, its high byte`, which is why
+the instruction under the line is `LDA #$60`.
+
+The User symbols pane lists each table under the name of the file loaded into
+it; the tip over the name has the file's full path.
+
 ```
 SYM LOAD "game.dbg"       load into the User table
 SYMUSER2 LOAD "lib.sym",4000   load another table, with a hex offset
@@ -328,8 +337,9 @@ file against memory:
 A file matches while at least a quarter of its lines or labels do, so a
 variable or a patched instruction doesn't count against it. While a file
 doesn't match, its labels are hidden in the disassembly. A debug file's
-source lines are hidden between the instructions too, its open source
-documents aren't mapped to the code, and steps go by instruction. A banner
+source lines are hidden between the instructions too, its data is
+disassembled as instructions, its open source documents aren't mapped to the
+code, and steps go by instruction. A banner
 over each disassembly view, and over each of the file's source documents,
 has the file's name. All of it comes back at the first stop where the
 program is in memory again. Symbols resolve by name in expressions
@@ -722,6 +732,12 @@ source view.
 
 - `SYM LOAD file.dbg` loads the symbols and the line table. The window opens a
   source pane beside the disassembly and follows the PC.
+- The bytes a debug file maps to a data directive (`.byte`, `.word`, `.addr`,
+  `.asciiz`, `.res`, Merlin's `ASC`, `DA` and `HEX`, and the like) are
+  disassembled as data while the file matches memory: text for a string,
+  words for a word directive and bytes for the rest, each line under the
+  label of its symbol. After **Clear data marking** on a row's menu, or `X`,
+  they are disassembled as code until the file loads again.
 - The source pane has an instruction line's operand and `Result: ` on the
   same row after the code, starting 40 columns in, or after a longer line's
   end. Lines don't wrap: a bar along the bottom, or Shift with the wheel,
@@ -1325,7 +1341,13 @@ rows when it is among them:
 
 - **Mark as bytes**, **words**, **addresses**, **text** or **floats** and
   **Clear data marking**, which run `DB`, `DW`, `DA`, `ASC`, `DF` and `X`
-  over the rows' bytes.
+  over the rows' bytes. A drag across rows selects them for these. A range
+  marked without a name is called after the symbol at its start, or after
+  its kind and address without a symbol there, and a symbol labels its line.
+- While the heat columns are on, on a row whose bytes were read or written and
+  never run, **Mark $60C1-$60FF as data (read or written, never run)** marks
+  the run of such bytes around the row as bytes, up to the first byte that ran
+  or that nothing touched.
 - **Add symbol here...**, which runs `SYM name = addr`.
 - **Never step into this routine**, which runs `SKIP` on the routine a `JSR`
   row calls, or on the row's own address; the call stack's menu has it for a
@@ -1343,6 +1365,14 @@ rows when it is among them:
 
 A drag selects text across the columns; a Ctrl+drag selects only in the
 column it began in.
+
+A data line's directive is in italics, and the tip over it has why the bytes
+are data: marked by a data directive, or mapped to one by the debug file.
+
+While the machine runs, the view following the PC isn't moved to the PC for
+five seconds after the wheel, the arrow keys or the scroll bar last scrolled
+it, so the code around can be read; it then follows the PC again. **Follow
+PC** brings it back at once.
 
 The Breakpoints pane's **New** drop-down lists Execution's types (Address,
 Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
@@ -1379,8 +1409,14 @@ zero-page pointer. What is typed in the add row is watched as what it is,
 resolved once: a register's value, the word at an address or a symbol
 (followed to wherever the symbol moves), or an expression's value, each read
 again at every stop. A `.b` or `.w` after an address, a symbol or an
-expression reads a byte or a word there, as `FB+205.w`; a `$` marks a number
-as hex and sets no width. An entry
+expression reads a byte or a word there, as `FB+205.w`, and `.s` reads the text
+there, to a zero byte; a `$` before a number makes it hex and doesn't set a
+width. A symbol
+at the start of a text data block, such as a debug file's `.byte "COUNT:"`,
+reads as its text without `.s`. A symbol's Type cell has its address, as
+`Symbol at $60F2`, and `&count_text` watches the address itself. When an entry
+can't be watched, the reason runs across the add row, and its tip has all of
+it. An entry
 that is none of these stays in the edit box with the reason above the list.
 The console's `W` remains AppleWin's address watch, and `W EXPR text` is the
 typed form. Under **Zero-page pointers** the pane lists the zero-page
@@ -1831,8 +1867,10 @@ The debugger has no Help menu.
   brought into view by Go to, the call stack or a branch arrow; a row in the
   accent color, where the branch at the PC goes; the branch arrow in the PC's
   yellow when the flags as they stand take the branch, and gray when they do
-  not, with a tip that gives the flag the branch tests and how it stands; a
-  red dot for a breakpoint, a red ring for a disabled one, and a gray dot
+  not, its tip `Will branch` or `Won't branch`, then the flag the branch
+  tests and its state; the dotted arrow of the branch, jump or call the last
+  step took, its tip that instruction and its address; a red dot for a
+  breakpoint, a red ring for a disabled one, and a gray dot
   where a click sets one; bytes in the changed color, changed since the last
   stop; the operand in the comment green, what the instruction reads; and
   `Result: `, what it leaves behind, in the result color.

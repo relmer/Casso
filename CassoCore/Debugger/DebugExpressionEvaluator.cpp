@@ -40,10 +40,13 @@ const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kBi
     { "|",  ExpressionOperator::Or,             3 },
 };
 
-const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUnaryOperators[7] =
+//  A symbol is its address, so & before one, as in C, doesn't change the
+//  value.
+const DebugExpressionEvaluator::OperatorSpelling DebugExpressionEvaluator::s_kUnaryOperators[8] =
 {
     { "-",  ExpressionOperator::Negate,         10 },
     { "+",  ExpressionOperator::Identity,       10 },
+    { "&",  ExpressionOperator::Identity,       10 },
     { "!",  ExpressionOperator::LogicalNot,     10 },
     { "~",  ExpressionOperator::Complement,     10 },
     { "<",  ExpressionOperator::LowByte,        10 },

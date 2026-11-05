@@ -604,7 +604,7 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
         }
         else if (entry.valueText.has_value())
         {
-            text += " = $" + *entry.valueText;
+            text += (entry.valueText->starts_with ('"') ? " = " : " = $") + *entry.valueText;
         }
         else if (!entry.expression.empty() && !entry.value.has_value())
         {

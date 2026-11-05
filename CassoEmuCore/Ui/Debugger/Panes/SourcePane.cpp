@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/HeatStrip.h"
+#include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "CLexer.h"
@@ -40,6 +41,7 @@ void SourcePane::Configure (HWND hwnd)
     m_view->SetOwnerWindow (hwnd);
     m_view->SetNoWrap      (true);
     m_view->SetColumnCap   (kTextCell, kAnnotationColumn);
+    m_view->SetColumnGap   (kNumberCell, kArrowGapCells);
     m_banner->SetSeverity  (DxuiInfoBanner::Severity::Info);
     m_banner->SetOnAction  ([this] (size_t)
     {
@@ -687,7 +689,6 @@ std::optional<int> SourcePane::GetLineAt (POINT atDip) const
 
 bool SourcePane::TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const
 {
-    constexpr int                    kNumberCell = 1;
     DxuiTextView::Position           at          = m_view->HitTest (atDip);
     const DxuiTextView::Row        * row         = nullptr;
     const std::pair<Word, Word>    * range       = nullptr;
@@ -1147,10 +1148,11 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     input.isTargetBelow = isBelow;
     input.edgeY         = isBelow ? bottom : top;
     input.sourceEdgeY   = isBelow ? top : bottom;
-    input.marginPx     *= scale;
+    input.marginPx      = kArrowMarginDip * scale;
     input.stubPx       *= scale;
     input.radiusPx     *= scale;
     input.headPx       *= scale;
+    input.slopPx       *= scale;
 
     if (targetLine.has_value() && m_view->GetCellAnchorPx (GetRowOfLine (*targetLine), s_kTextCell, x, y))
     {
@@ -1158,6 +1160,133 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     }
 
     return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetSymbolTip
+//
+//  The symbol under the pointer, in the text cell after the marker and number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const
+{
+    DxuiTextView::Position     at    = m_view->HitTest (atDip);
+    const DxuiTextView::Row  * row   = nullptr;
+    int                        start = 0;
+
+
+
+    if (at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    {
+        return false;
+    }
+
+    row = &m_view->GetRows()[(size_t) at.row];
+
+    if (row->cells.size() <= (size_t) kTextCell)
+    {
+        return false;
+    }
+
+    start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
+
+    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size() ||
+        !TryGetSymbolText (row->cells[(size_t) kTextCell], at.offset - start, symbols, text))
+    {
+        return false;
+    }
+
+    anchor = RECT { atDip.x, atDip.y, atDip.x + 1, atDip.y + 1 };
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetSymbolText
+//
+//  A word is letters, digits, _, . and @, as a cheap local symbol is written
+//  in ca65. A symbol is matched by its case first, then in any case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text)
+{
+    auto                isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
+    int                 size        = (int) line.size();
+    int                 start       = ch;
+    int                 end         = 0;
+    std::string         name;
+    const SymbolInfo  * found       = nullptr;
+    wchar_t             op          = 0;
+    bool                isImmediate = false;
+
+
+
+    if (ch < 0 || ch > size)
+    {
+        return false;
+    }
+
+    //  A caret just past a word is on that word.
+    if ((ch == size || !isWordChar (line[(size_t) ch])) && ch > 0 && isWordChar (line[(size_t) ch - 1]))
+    {
+        start = ch - 1;
+    }
+
+    if (start >= size || !isWordChar (line[(size_t) start]) || line.substr (0, (size_t) start).find (L';') != std::wstring::npos)
+    {
+        return false;
+    }
+
+    while (start > 0 && isWordChar (line[(size_t) start - 1]))
+    {
+        start--;
+    }
+
+    for (end = start; end < size && isWordChar (line[(size_t) end]); end++)
+    {
+    }
+
+    name = TextEncoding::WideToNarrow (line.substr ((size_t) start, (size_t) (end - start)));
+
+    for (const SymbolInfo & symbol : symbols)
+    {
+        if (symbol.name == name)
+        {
+            found = &symbol;
+            break;
+        }
+
+        found = (found == nullptr && _stricmp (symbol.name.c_str(), name.c_str()) == 0) ? &symbol : found;
+    }
+
+    if (found == nullptr)
+    {
+        return false;
+    }
+
+    text = std::format (L"{} = ${:04X}{}", TextEncoding::NarrowToWide (found->name), found->address, found->isConstant ? L", a constant" : L"");
+
+    op          = (start > 0) ? line[(size_t) start - 1] : 0;
+    isImmediate = start > 1 && line[(size_t) start - 2] == L'#';
+
+    if (op == L'<' || op == L'>')
+    {
+        text += std::format (L"\n{}{}{} = {}${:02X}, its {} byte", isImmediate ? L"#" : L"", op, TextEncoding::NarrowToWide (found->name),
+                             isImmediate ? L"#" : L"", (op == L'<') ? (found->address & 0xFF) : (found->address >> 8), (op == L'<') ? L"low" : L"high");
+    }
+
+    return true;
 }
 
 

@@ -111,8 +111,83 @@ void DebugSession::SetDebugFile (DebugFile file, const std::wstring & path, cons
     m_debugFilePath = path;
     m_debugFileKey  = key;
     m_debugFileTable.reset();
+    m_debugFileData.Clear();
     m_lineTable.Build (m_debugFile);
     m_filesRevision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::SetDebugFileData
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::SetDebugFileData (std::vector<DataBlockEntry> blocks)
+{
+    m_debugFileData.Clear();
+
+    for (const DataBlockEntry & block : blocks)
+    {
+        m_debugFileData.Insert (block);
+    }
+
+    m_filesRevision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::TryFindData
+//
+//  A data directive's block first, then the debug file's, which counts only
+//  while the program in memory is the file's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryFindData (Word address, DataBlockEntry & block, DataOrigin & origin) const
+{
+    origin = DataOrigin::None;
+
+    if (m_dataBlocks.TryFindAt (address, block))
+    {
+        origin = DataOrigin::Marked;
+    }
+    else if (HasDebugFile() && !IsDebugFileStale() && m_debugFileData.TryFindAt (address, block))
+    {
+        origin = DataOrigin::DebugFile;
+    }
+
+    return origin != DataOrigin::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::RemoveData
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::RemoveData (Word first, Word last)
+{
+    m_dataBlocks.Remove (first, last);
+    m_debugFileData.Remove (first, last);
+
+    //  The panes' copy of the debug file's data is taken again at a new
+    //  revision.
+    if (HasDebugFile())
+    {
+        m_filesRevision++;
+    }
 }
 
 
@@ -366,6 +441,7 @@ void DebugSession::ClearDebugFile()
     m_debugFilePath.clear();
     m_debugFileKey.clear();
     m_debugFileTable.reset();
+    m_debugFileData.Clear();
     m_lineTable.Clear();
     m_filesRevision++;
 }
@@ -3683,7 +3759,7 @@ void DebugSession::TakeView (DebugSessionView & out)
     if (out.files == nullptr || out.filesRevision != m_filesRevision)
     {
         out.files         = std::make_shared<const DebugSessionFiles> (DebugSessionFiles { m_debugFile, m_debugFilePath, m_debugFileKey,
-                                                                                           m_debugFileTable, m_lineTable });
+                                                                                           m_debugFileTable, m_lineTable, m_debugFileData });
         out.filesRevision = m_filesRevision;
     }
 }
@@ -3757,6 +3833,7 @@ void DebugSession::InstallView (const DebugSessionView & view)
         m_debugFileKey   = view.files->key;
         m_debugFileTable = view.files->table;
         m_lineTable      = view.files->lineTable;
+        m_debugFileData  = view.files->data;
         m_filesRevision  = view.filesRevision;
     }
 }

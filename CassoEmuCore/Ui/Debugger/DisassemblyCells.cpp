@@ -346,8 +346,29 @@ std::string DisassemblyCells::FillCodeRow (std::vector<DxuiListView::Cell> & cel
     cells[kInstructionColumn].argb = colors.syntax.address;
 
     cells[kInstructionColumn].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[kInstructionColumn].text, colors);
+    cells[kInstructionColumn].weight      = (line.dataOrigin != DataOrigin::None) ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
 
     return annotation;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::GetDataTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DisassemblyCells::GetDataTip (DataOrigin origin)
+{
+    switch (origin)
+    {
+    case DataOrigin::Marked:    return L"Marked as data. To disassemble these bytes as code, choose Clear data marking on the row's menu.";
+    case DataOrigin::DebugFile: return L"Data: the debug file maps these bytes to a data directive. To disassemble them as code, choose Clear data marking on the row's menu.";
+    default:                    return std::wstring();
+    }
 }
 
 

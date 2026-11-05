@@ -64,10 +64,14 @@ public:
     static bool  TryGetSourceRowSpan (const std::vector<DisassemblyOptions::Row> & rows, size_t row,
                                       const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word & first, size_t & count);
 
-    //  An instruction's row as the options choose. Returns the annotation
-    //  placed in the operand cell.
+    //  An instruction's row as the options choose, a data line's in italics.
+    //  Returns the annotation placed in the operand cell.
     static std::string  FillCodeRow (std::vector<DxuiListView::Cell> & cells, const DebuggerViewSnapshot::CodeLine & line,
                                      const DisassemblyOptions & options, const DebuggerTextColors::Set & colors);
+
+    //  Why a data line's bytes are data, and how to disassemble them as code
+    //  again, for the tip over its instruction.
+    static std::wstring  GetDataTip (DataOrigin origin);
 
     //  Whether a row is drawn dimmed: its kind matches the options' Dim and
     //  the view has source rows. The PC's row is never dimmed.

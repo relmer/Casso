@@ -151,6 +151,10 @@ public:
     //  "Branch taken: BNE branches while Z is clear, and Z is clear".
     static std::wstring  GetBranchTip (const std::string & instruction, bool isTaken, std::optional<Byte> p);
 
+    //  The dotted arrow's: the branch, jump or call the last step took to the
+    //  PC, by its instruction where it is known and its address.
+    static std::wstring  GetTakenBranchTip (const std::string & instruction, Word from);
+
     //  The tip over the status bar's history meter, whose colors are fixed.
     static const wchar_t *  GetHistoryMeterTip();
 

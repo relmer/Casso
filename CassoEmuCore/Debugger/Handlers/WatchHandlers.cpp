@@ -287,7 +287,7 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
     trimmed.erase (0, std::min (trimmed.size(), trimmed.find_first_not_of (" \t")));
     trimmed.erase (trimmed.find_last_not_of (" \t") + 1);
     width   = WatchItem::SplitWidth (trimmed, trimmed);
-    suffix  = (width == 1) ? ".b" : (width == 2) ? ".w" : "";
+    suffix  = (width == 1) ? ".b" : (width == 2) ? ".w" : (width == WatchItem::kTextWidth) ? ".s" : "";
     upper   = trimmed;
     std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) std::toupper ((unsigned char) ch); });
 
@@ -316,7 +316,7 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
     {
         if (width != 0)
         {
-            error = "A register has no width; remove the .b or .w.";
+            error = std::format ("A register has no width; remove the {}.", suffix);
             return false;
         }
 
@@ -364,11 +364,12 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
 //  WatchHandlers::ReadTyped
 //
 //  A register's value, two hex digits or four for PC, which edits as R does;
-//  a symbol's word at wherever it now is, in the symbol's own case; an
-//  expression's value, two digits for a byte read through *, else four. A
-//  `.b` or `.w` suffix reads the byte or the word at the address, the
-//  symbol or the expression's value, which edits as that byte or word. A
-//  symbol not loaded, or an expression that does not evaluate, has why as
+//  a symbol's word at wherever it now is, in the symbol's case, or its
+//  text when a text data block starts there; an expression's value, two
+//  digits for a byte read through *, else four. A `.b` or `.w` suffix reads
+//  the byte or the word at the address, the symbol or the expression's
+//  value, which edits as that byte or word, and `.s` reads the text there.
+//  A symbol not loaded, or an expression that does not evaluate, has why as
 //  its error.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -384,14 +385,18 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
     std::string  suffix  = item.expression.substr (base.size());
     SymbolInfo   symbol;
     HRESULT      hr      = S_OK;
-    auto         readAt  = [&] (Word at)
+    auto         readAt  = [&] (Word at, int as)
     {
         Byte  byte = 0;
 
         entry.address         = at;
-        entry.isValueEditable = true;
+        entry.isValueEditable = as != WatchItem::kTextWidth;
 
-        if (width == 1)
+        if (as == WatchItem::kTextWidth)
+        {
+            entry.valueText = ReadText (session, at);
+        }
+        else if (as == 1)
         {
             entry.valueText = session.TryPeek (at, byte) ? std::format ("{:02X}", byte) : std::string ("--");
         }
@@ -408,7 +413,7 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
     switch (item.kind)
     {
     case WatchItem::Kind::Address:
-        readAt (item.address);
+        readAt (item.address, width);
         break;
 
     case WatchItem::Kind::Symbol:
@@ -419,7 +424,7 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
             break;
         }
 
-        readAt (address);
+        readAt (address, (width != 0) ? width : IsTextAt (session, address) ? WatchItem::kTextWidth : 0);
         entry.expression = (session.GetSymbols().TryFindSymbol (base, symbol) ? symbol.name : base) + suffix;
         break;
 
@@ -443,7 +448,7 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
 
         if (width != 0)
         {
-            readAt ((Word) value);
+            readAt ((Word) value, width);
             break;
         }
 
@@ -453,6 +458,55 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
     default:
         break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::ReadText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WatchHandlers::ReadText (DebugSession & session, Word address)
+{
+    static constexpr Byte  kLowBits    = 0x7F;
+    static constexpr Byte  kFirstPrint = 0x20;
+    std::string            text        = "\"";
+    Byte                   value       = 0;
+    size_t                 count       = 0;
+
+
+
+    for (uint32_t at = address; at <= 0xFFFF && count < kMaxTextChars && session.TryPeek ((Word) at, value) && value != 0; at++, count++)
+    {
+        value  = (Byte) (value & kLowBits);
+        text  += (value >= kFirstPrint && value < kLowBits) ? (char) value : '.';
+    }
+
+    return text + ((count == kMaxTextChars) ? "...\"" : "\"");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::IsTextAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHandlers::IsTextAt (DebugSession & session, Word address)
+{
+    DataBlockEntry  block;
+    DataOrigin      origin = DataOrigin::None;
+
+
+
+    return session.TryFindData (address, block, origin) && block.first == address && block.kind == DataBlockKind::Text;
 }
 
 

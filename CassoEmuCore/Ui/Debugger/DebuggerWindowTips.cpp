@@ -460,7 +460,7 @@ void DebuggerWindow::ConfigureTips()
         {
             document.GetView()->SetTipFn ([this, &document] (POINT clientPx, DxuiTip & tip)
             {
-                return TryGetBranchTip (clientPx, tip) || document.TryGetHeatTip (clientPx, tip);
+                return TryGetBranchTip (clientPx, tip) || document.TryGetHeatTip (clientPx, tip) || TryGetSourceSymbolTip (document, clientPx, tip);
             });
         }
     }
@@ -513,6 +513,40 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
     tip.gradient     = std::move (colorTip.gradient);
     tip.gradientMark = colorTip.gradientMark;
     tip.lineScales   = std::move (colorTip.lineScales);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetSourceSymbolTip
+//
+//  Over a word of a source document, the symbol it is, in the fixed-width
+//  face since it is code.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip) const
+{
+    std::wstring  text;
+    RECT          anchor = {};
+
+
+
+    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr || !document.IsShown() ||
+        !document.GetModel().TryGetSymbolTip (clientPx, m_snapshot->symbols->symbols, text, anchor))
+    {
+        return false;
+    }
+
+    tip             = DxuiTip();
+    tip.anchor      = anchor;
+    tip.text        = std::move (text);
+    tip.isMonospace = true;
+    tip.placement   = DxuiTip::Placement::AtPointer;
     return true;
 }
 

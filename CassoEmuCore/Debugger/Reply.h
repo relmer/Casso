@@ -126,11 +126,21 @@ struct MemoryData
 //  block it starts); `operandSymbol` is the name of the address its operand
 //  names. They are kept apart because a listing shows them in different
 //  places: the label in its own column, the operand symbol in the operand.
+//  Why a disassembly line is data: a data directive marked its bytes, or
+//  the loaded debug file maps them to a data directive in the source.
+enum class DataOrigin
+{
+    None,
+    Marked,
+    DebugFile,
+};
+
 struct DisassemblyLine
 {
     DisassembledInstruction  instruction;
     std::string              label;
     std::string              operandSymbol;
+    DataOrigin               dataOrigin = DataOrigin::None;
 
     //  The operand as a listing shows it, with the symbol in place of the
     //  address it names when one is loaded.

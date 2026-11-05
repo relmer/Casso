@@ -139,9 +139,10 @@ void DxuiEditableGrid::RebuildRows()
     if (!m_noteText.empty() && m_noteColumn >= 0 && m_noteColumn < (int) m_columns.size() &&
         ((size_t) m_noteColumn >= m_pending.size() || m_pending[(size_t) m_noteColumn].empty()))
     {
-        addRow[(size_t) m_noteColumn + 1].text = m_noteText;
-        addRow[(size_t) m_noteColumn + 1].argb = m_noteArgb;
-        addRow[(size_t) m_noteColumn + 1].tip  = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].text     = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].argb     = m_noteArgb;
+        addRow[(size_t) m_noteColumn + 1].tip      = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].spansRow = true;
     }
 
     if (!isTyped && first >= 0)

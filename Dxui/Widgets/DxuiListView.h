@@ -113,8 +113,10 @@ public:
         //  A face and weight of the cell's own in place of the list's, for a
         //  row that is a label rather than a value, or a value whose
         //  characters line up only in a fixed-width face; null for the
-        //  list's. The face is honored in every run of the cell; the weight
-        //  where the cell is drawn in one color.
+        //  list's. The face is honored in every run of the cell, and so is
+        //  italic, whose characters a fixed-width face places where it places
+        //  upright ones; any other weight only where the cell is drawn in one
+        //  color.
         const wchar_t   * face       = nullptr;
         DxuiFontWeight    weight     = DxuiFontWeight::Normal;
 
@@ -320,6 +322,13 @@ public:
     bool                      HasTextSelection   () const   { return m_hasTextSel; }
     void                      ClearTextSelection ();
     std::wstring              GetSelectionText () const override;
+
+    //  The first and last rows the text selection touches; false without one.
+    bool                      GetTextSelectionRows (int & first, int & last) const;
+
+    //  The row, the cell and the caret position in the cell's text under a
+    //  point in the list's pixels; false off the rows or the cells' text.
+    bool                      TryHitTestCellChar   (POINT localPx, int & row, size_t & column, int & ch) const;
 
     //  Whether any of a cell's characters are in the text selection.
     bool                      IsCellTextSelected (int row, size_t col) const;

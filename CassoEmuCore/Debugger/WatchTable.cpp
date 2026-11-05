@@ -15,13 +15,13 @@
 int WatchItem::SplitWidth (const std::string & text, std::string & base)
 {
     char  last  = text.empty() ? '\0' : (char) std::tolower ((unsigned char) text.back());
-    bool  isCut = text.size() > 2 && text[text.size() - 2] == '.' && (last == 'b' || last == 'w');
+    bool  isCut = text.size() > 2 && text[text.size() - 2] == '.' && (last == 'b' || last == 'w' || last == 's');
 
 
 
     base = isCut ? text.substr (0, text.size() - 2) : text;
 
-    return !isCut ? 0 : (last == 'b') ? 1 : 2;
+    return !isCut ? 0 : (last == 'b') ? 1 : (last == 'w') ? 2 : kTextWidth;
 }
 
 

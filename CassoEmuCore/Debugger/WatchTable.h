@@ -36,8 +36,11 @@ struct WatchItem
     Kind         kind    = Kind::Address;
     std::string  expression;
 
-    //  The width of a text's `.b` or `.w` suffix, in either case: 1 for a
-    //  byte, 2 for a word, 0 for none; base is the text before the suffix.
+    //  The width of a text's `.b`, `.w` or `.s` suffix, in either case: 1
+    //  for a byte, 2 for a word, kTextWidth for text, 0 for none; base is the
+    //  text before the suffix.
+    static constexpr int  kTextWidth = -1;
+
     static int  SplitWidth (const std::string & text, std::string & base);
 };
 

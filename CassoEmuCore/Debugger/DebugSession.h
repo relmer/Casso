@@ -171,6 +171,14 @@ public:
     WatchTable            & GetZeroPage    ()       { return m_zeroPage; }
     WatchTable            & GetBookmarks   ()       { return m_bookmarks; }
     DataBlockTable        & GetDataBlocks  ()       { return m_dataBlocks; }
+
+    //  The blocks the debug file's data directives laid down. They are data
+    //  while the file matches memory and no data directive covers them; after
+    //  X over one, its bytes are disassembled as code until the file loads
+    //  again.
+    void                  SetDebugFileData (std::vector<DataBlockEntry> blocks);
+    bool                  TryFindData      (Word address, DataBlockEntry & block, DataOrigin & origin) const;
+    void                  RemoveData       (Word first, Word last);
     SymbolTable           & GetSymbols     ()       { return m_symbols; }
     const SymbolTable     & GetSymbols     () const { return m_symbols; }
 
@@ -556,6 +564,7 @@ private:
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
     DataBlockTable                        m_dataBlocks;
+    DataBlockTable                        m_debugFileData;
     SymbolTable                           m_symbols;
     DebugFile                             m_debugFile;
     std::wstring                          m_debugFilePath;

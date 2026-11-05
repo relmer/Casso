@@ -206,6 +206,7 @@
     <ClCompile Include="DebuggerTests\MemoryPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\Sha1Tests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileReaderTests.cpp" />
+    <ClCompile Include="DebuggerTests\DataMarkingTests.cpp" />
     <ClCompile Include="DebuggerTests\LineTableTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileWriterTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileRoundTripTests.cpp" />
