@@ -2988,24 +2988,36 @@ sbyte = $20                     ; sendsector: the byte being sent
 pct = $21                       ; showstatus: the percentage
 pcsum = $22                     ; and $23: percent's running sum
 
-; drawscreen: clear the text page and draw the labels.
+; drawscreen: clear the text page's rows and draw the labels. The 8 bytes
+; after each 120 are the screen holes, where the firmware stores a serial
+; port's settings and the 80-column mode, in both memories. Clearing them
+; breaks the port and DOS after CassoLink ends.
 drawscreen: lda #$A0
-        ldy #0
+        ldy #$77
 dsclear: sta $0400,y
+        sta $0480,y
         sta $0500,y
+        sta $0580,y
         sta $0600,y
+        sta $0680,y
         sta $0700,y
-        iny
-        bne dsclear
+        sta $0780,y
+        dey
+        bpl dsclear
         bit wide
         bpl dsmain
         sta PAGE2ON
+        ldy #$77
 dsaux:  sta $0400,y
+        sta $0480,y
         sta $0500,y
+        sta $0580,y
         sta $0600,y
+        sta $0680,y
         sta $0700,y
-        iny
-        bne dsaux
+        sta $0780,y
+        dey
+        bpl dsaux
         sta PAGE2OFF
 dsmain:
 dsdone: jsr fschrome

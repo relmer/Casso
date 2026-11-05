@@ -100,6 +100,34 @@ public:
         }
     }
 
+    //  Slot 2's screen holes in main memory, $47A to $7FA, one in each 128
+    //  bytes of the page; then every screen hole in auxiliary memory, where
+    //  the //c has each port's settings from power-on. 80STORE and PAGE2
+    //  select auxiliary memory for the text page while it is read.
+    static void  ReadPortHoles (TestMachine & machine, std::vector<Byte> & outHoles)
+    {
+        outHoles.clear();
+
+        for (Word at = 0x047A; at < 0x0800; at += 0x80)
+        {
+            outHoles.push_back (machine.GetMemoryBus().ReadByte (at));
+        }
+
+        machine.GetMemoryBus().WriteByte (0xC001, 0);
+        machine.GetMemoryBus().ReadByte (0xC055);
+
+        for (Word slot = 0; slot < 8; slot++)
+        {
+            for (Word at = 0x0478 + slot; at < 0x0800; at += 0x80)
+            {
+                outHoles.push_back (machine.GetMemoryBus().ReadByte (at));
+            }
+        }
+
+        machine.GetMemoryBus().ReadByte (0xC054);
+        machine.GetMemoryBus().WriteByte (0xC000, 0);
+    }
+
 
 
 
@@ -178,6 +206,108 @@ public:
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
         Assert::IsTrue (screen[0].starts_with ("CASSOLINK"), L"the program's status screen");
+    }
+
+
+
+    //  The //c's port 2 settings are in its screen holes, the 8 bytes after
+    //  each 120 of the text page, and each port's settings from power-on are
+    //  in the holes in auxiliary memory. After a bootstrap, a link in 80
+    //  columns and Escape, they match their values before the bootstrap, so
+    //  the port and its Ctrl-A work.
+    TEST_METHOD (AfterEscape_ThePortsScreenHoles_MatchTheirValuesBeforeTheBootstrap)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        InMemoryCassoLinkFolder               folder;
+        FakeDiskFileIo                        fileIo;
+        Sink                                  sink;
+        FixtureProvider                       fixtures;
+        std::vector<uint8_t>                  bytes;
+        std::vector<Byte>                     disk;
+        CassoLinkSettings                     settings;
+        std::shared_ptr<LinkOperation>        bootstrap;
+        uint64_t                              spent  = 0;
+        std::vector<Byte>                     before;
+        std::vector<Byte>                     after;
+        std::vector<std::string>              screen;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        disk.assign (bytes.begin(), bytes.end());
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+        machine.PowerCycle();
+        machine.RunCycles (2'000'000ULL);
+
+        machine.GetCpu()->SetPC (0xE000);
+        machine.RunCycles (2'000'000ULL);
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+
+        Type (machine, "IN#2\r");
+        Type (machine, "\x01" "14B");
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+
+        ReadPortHoles (machine, before);
+        Assert::IsTrue (std::any_of (before.begin(), before.end(), [] (Byte b) { return b != 0xA0; }), L"IN#2 set the port's holes");
+
+        settings.name      = "//c";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+        settings.use40     = false;
+
+        {
+            CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            session.SetBootstrapPause (40);
+            AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
+
+            while (!sink.IsDone (bootstrap) && spent < kBudget)
+            {
+                machine.RunCycles (kFrame);
+                spent += kFrame;
+            }
+
+            AssertSucceeded (bootstrap->result);
+
+            auto  list = session.Enumerate (2, FilePath());
+
+            spent = 0;
+
+            while (!sink.IsDone (list) && spent < kBudget)
+            {
+                machine.RunCycles (kFrame);
+                spent += kFrame;
+            }
+
+            AssertSucceeded (list->result);
+
+            screen = TextScreenScraper::Scrape (machine);
+            Assert::AreEqual<size_t> (TextScreenScraper::kCols80, screen[0].size(), L"the program's screen in 80 columns");
+            Assert::AreNotEqual (std::string::npos, screen[0].find ("CASSOLINK"), L"the program's status screen");
+
+            machine.GetRefs().iieKeyboard->PressKey (0x1B);
+            machine.RunCycles (2 * kClockHz);
+        }
+
+        screen = TextScreenScraper::Scrape (machine);
+        Assert::AreEqual (std::string::npos, screen[0].find ("CASSOLINK"), L"Escape ended CassoLink");
+
+        ReadPortHoles (machine, after);
+
+        for (size_t i = 0; i < before.size(); i++)
+        {
+            std::wstring  where = (i < 8) ? std::format (L"main memory's ${:03X}", 0x47A + i * 0x80)
+                                          : std::format (L"auxiliary memory's ${:03X}", 0x478 + (i - 8) / 8 + ((i - 8) % 8) * 0x80);
+
+            Assert::AreEqual<int> (before[i], after[i], (L"the screen hole at " + where).c_str());
+        }
     }
 
 

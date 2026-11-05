@@ -360,16 +360,25 @@ badpg:  lda #NAK                ; the host sends the page again
         jmp loadpg
 
 
-; home: the text page cleared and the title drawn.
+; home: the text page's rows cleared and the title drawn. Each 128 bytes of
+; the page are three rows and 8 bytes off the screen, the screen holes, where
+; the firmware stores a serial port's command character, echo and speed, and
+; the 80-column mode. Clearing them breaks the port and DOS after CassoLink
+; ends, so only the rows are cleared.
 
 home:   lda #$A0
-        ldy #0
+        ldy #$77
 hmclear: sta $0400,y
+        sta $0480,y
         sta $0500,y
+        sta $0580,y
         sta $0600,y
+        sta $0680,y
         sta $0700,y
-        iny
-        bne hmclear
+        sta $0780,y
+        dey
+        bpl hmclear
+        ldy #0
         ldx #0
 hmtitle: lda title,x
         beq hmdone

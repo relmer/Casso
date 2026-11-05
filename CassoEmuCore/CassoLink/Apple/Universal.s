@@ -1021,15 +1021,22 @@ wzput:  sta WZDATA
         rts
 
 
-; home: the text page cleared and the title drawn.
+; home: the text page's rows cleared and the title drawn. The 8 bytes after
+; each 120 are the screen holes, where the firmware stores a serial port's
+; settings and the 80-column mode, so they are not cleared.
 home:   lda #$A0
-        ldy #0
+        ldy #$77
 hmclear: sta $0400,y
+        sta $0480,y
         sta $0500,y
+        sta $0580,y
         sta $0600,y
+        sta $0680,y
         sta $0700,y
-        iny
-        bne hmclear
+        sta $0780,y
+        dey
+        bpl hmclear
+        ldy #0
         lda #<$0400
         sta rowlo
         lda #>$0400

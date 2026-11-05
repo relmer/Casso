@@ -189,6 +189,21 @@ public:
         return sectors;
     }
 
+    //  Every slot's screen holes in main memory, slot by slot: slot n's are
+    //  $478 + n, $4F8 + n, and so on to $7F8 + n.
+    static void  ReadScreenHoles (TestMachine & machine, std::vector<Byte> & outHoles)
+    {
+        outHoles.clear();
+
+        for (Word slot = 0; slot < 8; slot++)
+        {
+            for (Word at = 0x0478 + slot; at < 0x0800; at += 0x80)
+            {
+                outHoles.push_back (machine.GetMemoryBus().ReadByte (at));
+            }
+        }
+    }
+
     static std::string  JoinRows (const std::vector<std::string> & rows)
     {
         std::string  text;
@@ -422,6 +437,85 @@ public:
 
 
 
+    //  The screen holes, the 8 bytes after each 120 of the text page, have
+    //  each card's settings for its slot: the Super Serial Card's in slot 5,
+    //  as IN#5 and Ctrl-A 14B set them, and known values in slot 6's. After a
+    //  bootstrap, a link in 80 columns and Escape, every slot's holes match
+    //  their values before the bootstrap.
+    TEST_METHOD (AfterEscape_EverySlotsScreenHoles_MatchTheirValuesBeforeTheBootstrap)
+    {
+        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        InMemoryCassoLinkFolder               folder;
+        FakeDiskFileIo                        fileIo;
+        Sink                                  sink;
+        std::vector<Byte>                     disk = LoadDos33();
+        CassoLinkSettings                     settings;
+        std::shared_ptr<LinkOperation>        bootstrap;
+        std::vector<Byte>                     before;
+        std::vector<Byte>                     after;
+        std::vector<std::string>              screen;
+
+
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+        machine.PowerCycle();
+        machine.RunCycles (2'000'000ULL);
+
+        machine.GetCpu()->SetPC (0xE000);
+        machine.RunCycles (2'000'000ULL);
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
+
+        Type (machine, "IN#5\r");
+        Type (machine, "\x01" "14B\r");
+
+        //  Slot 6's holes, each a different value.
+        for (Word at = 0x047E; at < 0x0800; at += 0x80)
+        {
+            machine.GetMemoryBus().WriteByte (at, (Byte) (0x11 + (at >> 7)));
+        }
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+
+        ReadScreenHoles (machine, before);
+        Assert::IsTrue (std::any_of (before.begin() + 5 * 8, before.begin() + 6 * 8, [] (Byte b) { return b != 0xA0; }), L"IN#5 set the card's holes");
+
+        settings.name      = "//e";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+        settings.use40     = false;
+
+        {
+            CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            session.SetBootstrapPause (40);
+            AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
+
+            Finish (machine, sink, bootstrap);
+            AssertSucceeded (bootstrap->result);
+            AssertSucceeded (Finish (machine, sink, session.Enumerate (2, FilePath()))->result);
+
+            machine.GetRefs().iieKeyboard->PressKey (0x1B);
+            machine.RunCycles (2'000'000ULL);
+        }
+
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+        Assert::IsFalse (screen[0].starts_with ("CASSOLINK"), L"Escape ended CassoLink");
+
+        ReadScreenHoles (machine, after);
+
+        for (size_t i = 0; i < before.size(); i++)
+        {
+            Assert::AreEqual<int> (before[i], after[i], std::format (L"slot {}'s screen hole at ${:03X}", i / 8, 0x478 + (i / 8) + (i % 8) * 0x80).c_str());
+        }
+    }
+
+
+
     TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCassetteInput_AndListsADisk)
     {
         TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
@@ -442,7 +536,7 @@ public:
         double                                seconds = 0.0;
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("3AA0.3E6CR 3AA0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (std::string ("3AA0.3E7AR 3AA0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
