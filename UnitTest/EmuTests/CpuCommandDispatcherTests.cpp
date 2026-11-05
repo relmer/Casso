@@ -387,6 +387,23 @@ public:
     }
 
 
+    TEST_METHOD (ACodeViewIsHeldWhileItsMenuIsOpen)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_DEBUG_VIEW, "codehold 1",  target);
+        Dispatch (IDM_DEBUG_VIEW, "codehold3 0", target);
+
+        //  Only 1 or 0, and only for a view there is.
+        Dispatch (IDM_DEBUG_VIEW, "codehold 2",  target);
+        Dispatch (IDM_DEBUG_VIEW, "codehold5 1", target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("HoldDebugCode 1 0"), target.calls[0]);
+        Assert::AreEqual (std::string ("HoldDebugCode 0 2"), target.calls[1]);
+    }
+
+
     TEST_METHOD (MemoryWindowsTwoToFourOpenMoveAndClose)
     {
         Notebook  target;
@@ -678,6 +695,11 @@ private:
         void     ScrollDebugCode (int lines, int view) override
         {
             calls.push_back (std::format ("ScrollDebugCode {} {}", lines, view));
+        }
+
+        void     HoldDebugCode (bool isHeld, int view) override
+        {
+            calls.push_back (std::format ("HoldDebugCode {} {}", isHeld ? 1 : 0, view));
         }
 
         void     RunReverseCommand (ReverseCommand command, uint64_t argument) override

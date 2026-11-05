@@ -253,6 +253,12 @@ struct DebuggerViewSnapshot
     //  by a step or a run that stopped there; none where the machine came to
     //  the PC otherwise, or while running.
     std::optional<Word>          branchedFrom;
+    //  Where the instruction at the PC branches, jumps or calls to, and
+    //  whether the current flags take it, at a stop; none while
+    //  running. A view draws the PC's arrow from these whether or not the
+    //  PC's line is among its lines.
+    std::optional<Word>          pcTarget;
+    bool                         isPcTargetTaken = true;
     //  The last instruction that sent PC elsewhere, at any stop, and where it
     //  sent it, when that is known.
     std::optional<Word>          lastBranchFrom;
@@ -580,6 +586,10 @@ public:
     //  Scrolls a code view by instructions, down when positive, up when
     //  negative, through the whole address space.
     void  ScrollCode       (int lines, int view = 0)    { m_code[(size_t) view].scrollLines += lines; m_code[(size_t) view].scrolledAtMs = m_clock(); }
+
+    //  While a view's menu is open, a running machine doesn't move it; once
+    //  the menu closes, it stays for kScrollHoldMs, as after a scroll.
+    void  HoldCode         (bool isHeld, int view = 0);
 
     //  Show next statement: the view follows the PC again AND brings it to
     //  the middle, where following alone would leave a PC already on screen
@@ -1001,6 +1011,7 @@ private:
         std::optional<Word>      centerOn;
         int                      scrollLines  = 0;
         std::optional<uint64_t>  scrolledAtMs;
+        bool                     isMenuHeld   = false;
         Word                     followAnchor = 0;
         std::vector<Word>        shown;
         int                      lines        = kCodeLines;

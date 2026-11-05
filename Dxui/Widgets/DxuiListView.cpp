@@ -316,7 +316,7 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
         }
 
         //  A checkbox or icon ahead of the text takes its room in characters.
-        chars = cells[c].spansRow ? 0 : (int) cells[c].text.size() + (GetCellLeadPx (cells[c]) + perCharPx - 1) / perCharPx;
+        chars = cells[c].spansRow ? 0 : (int) cells[c].text.size() + (GetCellExtraPx (cells[c]) + perCharPx - 1) / perCharPx;
 
         if (m_showHeader)
         {
@@ -637,7 +637,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
                 hr = text.MeasureString (row[c].text.c_str(), fontDip, (row[c].face != nullptr) ? row[c].face : GetBodyFace(), w, h);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
-                wpx = std::max (wpx, (int) std::ceil (w) + GetCellLeadPx (row[c]));
+                wpx = std::max (wpx, (int) std::ceil (w) + GetCellExtraPx (row[c]));
             }
         }
 
@@ -747,7 +747,7 @@ bool DxuiListView::TrySkipMonoMeasure (size_t column, const Cell & cell) const
         return false;
     }
 
-    longest = &m_monoMeasuredChars[column][GetCellLeadPx (cell)];
+    longest = &m_monoMeasuredChars[column][GetCellExtraPx (cell)];
 
     if (cell.text.size() <= *longest)
     {
@@ -3289,6 +3289,24 @@ int DxuiListView::GetCellLeadPx (const Cell & cell) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetCellExtraPx
+//
+//  The room a cell takes besides its text, ahead of it and after it, for
+//  measuring a fitted column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetCellExtraPx (const Cell & cell) const
+{
+    return GetCellLeadPx (cell) + m_scaler.ToPx (cell.trailDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HitTestCheck
 //
 //  The column of the checkbox under a point on a row, or -1.
@@ -3981,6 +3999,7 @@ void DxuiListView::PaintDataRows (
             uint32_t  under     = (cells[c].background != 0) ? DxuiColor::Composite (cells[c].background, fill) : fill;
             float     iconShift = 0.0f;
             float     cellW     = (float) colWPx[c];
+            float     trailPx   = m_scaler.ToPxf ((float) cells[c].trailDip);
 
             std::vector<std::tuple<int, int, uint32_t>>  bands;
 
@@ -4064,7 +4083,7 @@ void DxuiListView::PaintDataRows (
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
-                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
+                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift - trailPx;
                 float                 wS       = 0.0f;
                 float                 wE       = 0.0f;
                 float                 hIgnore  = 0.0f;
@@ -4096,7 +4115,7 @@ void DxuiListView::PaintDataRows (
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
-                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
+                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift - trailPx;
 
                 for (const auto & [first, last, rangeArgb] : cells[c].backgroundRanges)
                 {
@@ -4138,7 +4157,7 @@ void DxuiListView::PaintDataRows (
             {
                 const std::wstring &  cellText  = cells[c].text;
                 float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
-                float                 cellMaxW  = cellW - cellPadL - cellPadR - iconShift;
+                float                 cellMaxW  = cellW - cellPadL - cellPadR - iconShift - trailPx;
                 float                 bandInset = rowH * 0.14f;
                 float                 fullW     = 0.0f;
                 float                 fullH     = 0.0f;
@@ -4194,7 +4213,7 @@ void DxuiListView::PaintDataRows (
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
-                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
+                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift - trailPx;
                 int                   pos      = 0;
                 std::vector<uint32_t> colors   (cellText.size(), argb);
                 std::vector<uint32_t> fills    = GetCharacterFills (cells[c], under);
@@ -4274,7 +4293,7 @@ void DxuiListView::PaintDataRows (
             hr = text.DrawString (cells[c].text.c_str(),
                                   x + colOff + (float) colXPx[c] + cellPadL + iconShift,
                                   ry,
-                                  cellW - cellPadL - cellPadR - iconShift,
+                                  cellW - cellPadL - cellPadR - iconShift - trailPx,
                                   rowH,
                                   argb,
                                   fontPx,

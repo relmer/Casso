@@ -60,6 +60,8 @@ for either reads as noise on the other. Here it is in all three built-in themes:
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
 - [Assembler](docs/Assembler.md)
+- [Debugger tutorial](docs/Debugger-Tutorial.md)
+- [Debugger reference](docs/Debugger-Reference.md)
 - [Architecture](ARCHITECTURE.md)
 - [Why "Casso"?](#why-casso)
 - [Acknowledgments and Attributions](#acknowledgments-and-attributions)

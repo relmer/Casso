@@ -445,6 +445,7 @@ namespace DebuggerMenuBarTests
             Assert::IsTrue    (row->kind == DxuiPopupMenuItem::Kind::Submenu, L"no submenu of files");
             Assert::AreEqual  ((size_t) 1, row->children.size(), L"a machine table's file is listed");
             Assert::AreEqual  (std::wstring (L"symbols-demo.dbg"), row->children[0].command->label);
+            Assert::IsFalse   ((bool) row->children[0].command->isChecked, L"a row that can't be checked, so the submenu has no check gutter");
 
             row->children[0].command->dispatch();
             Assert::IsTrue   (host.lastAction.command.verb == DebugVerb::ClearSymbols);

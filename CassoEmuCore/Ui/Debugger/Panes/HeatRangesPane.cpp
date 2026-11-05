@@ -451,7 +451,7 @@ void HeatRangesPane::SetMenus()
         shown.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    m_rangeSetCommands.push_back (DebuggerMenuCommand::Make (L"Edit ranges...", false, [this] { OpenForShownSet(); }));
+    m_rangeSetCommands.push_back (DebuggerMenuCommand::Make (L"Edit ranges...", [this] { OpenForShownSet(); }));
     shown.push_back (DxuiPopupMenuItem::ForSeparator());
     shown.push_back (DxuiPopupMenuItem::ForCommand (m_rangeSetCommands.back()));
 
@@ -460,7 +460,7 @@ void HeatRangesPane::SetMenus()
         edited.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    m_editedSetCommands.push_back (DebuggerMenuCommand::Make (L"New set...", false, [this] { RunBarEntry (HeatMapRangeBarCommands::kNewSet); }));
+    m_editedSetCommands.push_back (DebuggerMenuCommand::Make (L"New set...", [this] { RunBarEntry (HeatMapRangeBarCommands::kNewSet); }));
 
     if (!edited.empty())
     {

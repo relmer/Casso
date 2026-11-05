@@ -423,12 +423,35 @@ void DataDirectiveHandlers::MakeDataLine (DebugSession & session, const DataBloc
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DataDirectiveHandlers::IsControl
+//
+//  Whether a text byte, with its high bit dropped, is a control character.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DataDirectiveHandlers::IsControl (Byte b)
+{
+    Byte  ch = (Byte) (b & kLowBits);
+
+
+
+    return ch < kFirstPrint || ch == kDelete;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DataDirectiveHandlers::FormatItems
 //
 //  Bytes as $xx, words and addresses as $xxxx low byte first, text in
 //  quotes with the high bit dropped and a control character as a period,
 //  and a float as its decimal value to Applesoft's nine significant digits.
-//  A trailing partial item shows as bytes.
+//  A trailing partial item is written as bytes. Control characters at the end of
+//  text, such as the zero byte that ends a string, follow the quotes as
+//  bytes, `"HELLO",$00`, so a period isn't taken for part of the text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -442,18 +465,30 @@ std::string DataDirectiveHandlers::FormatItems (const DataBlockEntry & block, st
 
     if (block.kind == DataBlockKind::Text)
     {
-        text = "\"";
+        size_t  end = bytes.size();
 
-        for (Byte b : bytes)
+
+
+        while (end > 0 && IsControl (bytes[end - 1]))
         {
-            Byte  ch = (Byte) (b & kLowBits);
-
-
-
-            text += (ch < kFirstPrint || ch == kDelete) ? '.' : (char) ch;
+            --end;
         }
 
-        return text + "\"";
+        text = "\"";
+
+        for (Byte b : bytes.first (end))
+        {
+            text += IsControl (b) ? '.' : (char) (b & kLowBits);
+        }
+
+        text += "\"";
+
+        for (Byte b : bytes.subspan (end))
+        {
+            text += std::format (",${:02X}", b);
+        }
+
+        return text;
     }
 
     if (block.kind == DataBlockKind::Float && bytes.size() == kFloatBytes)

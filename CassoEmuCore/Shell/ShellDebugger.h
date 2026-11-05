@@ -235,6 +235,7 @@ public:
     void    SetDebugEventLog   (DebugLogKind kind, const std::string & request) override;
     void    GoToDebugMemory    (int window, const std::string & text) override;
     void    ScrollDebugCode    (int lines, int view) override;
+    void    HoldDebugCode      (bool isHeld, int view) override;
     void    RunDebugActions    () override;
 
     // Whether the heat map pane is shown, and so recording.
@@ -286,6 +287,7 @@ public:
     void    SetDebuggerBasicShown    (bool isVisible) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
     void    ScrollDebuggerCode       (int lines, int view) override;
+    void    HoldDebuggerCode         (int view, bool isHeld) override;
     void    OnDebuggerWindowClosed   () override;
     void    DetachDebugger           () override;
     std::string  GetDebuggerKeyScheme () override { return m_prefs.GetDebuggerKeyScheme(); }

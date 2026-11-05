@@ -234,6 +234,68 @@ namespace DebuggerTests
             Assert::IsFalse (snapshot.branchedFrom.has_value(), L"the PC moved on in order from the JMP's target, so nothing is marked");
         }
 
+        //  At a stop the snapshot has where the PC's instruction goes, and
+        //  whether the flags take it, for a view whose lines don't have the PC.
+        TEST_METHOD (TheSnapshotHasThePcsTarget)
+        {
+            ControllerRig         rig;
+            Cpu6502Registers      r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (0x0300, 0xF0);    // BEQ $0310
+            rig.machine.GetMemoryBus().WriteByte (0x0301, 0x0E);
+            rig.machine.GetMemoryBus().WriteByte (0x0302, 0xEA);    // NOP
+
+            r.pc = 0x0300;
+            r.p  = (Byte) (r.p & ~0x02);
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue  (snapshot.pcTarget == std::optional<Word> (0x0310));
+            Assert::IsFalse (snapshot.isPcTargetTaken, L"Z is clear, so the BEQ won't be taken");
+
+            r.p = (Byte) (r.p | 0x02);
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsTrue  (snapshot.isPcTargetTaken, L"Z is set");
+
+            r.pc = 0x0302;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            Assert::IsFalse (snapshot.pcTarget.has_value(), L"a NOP goes nowhere");
+        }
+
+        //  The stepped arrow ends at the PC's row and the PC's starts there, each
+        //  a little to the side of its other end; run the same way, the PC's is
+        //  moved out a lane, so the two lines are apart.
+        TEST_METHOD (TwoArrowsMeetingAtThePcAreSetApart)
+        {
+            BranchArrow::Input  stepped = MakeInput (200.0f, 100.0f,       false);
+            BranchArrow::Input  pc      = MakeInput (100.0f, std::nullopt, true);
+            float               stub    = pc.stubPx;
+
+
+
+            DisassemblyCells::SeparateArrows (stepped, pc);
+
+            Assert::IsTrue (IsNear (*stepped.targetY, 100.0f + DisassemblyCells::kArrowSplitDip), L"the stepped one, from below, ends low on the row");
+            Assert::IsTrue (IsNear (*pc.sourceY,      100.0f - DisassemblyCells::kArrowSplitDip), L"the PC's starts high on it");
+            Assert::IsTrue (IsNear (pc.stubPx,        stub + DisassemblyCells::kArrowLaneDip),    L"both run below the row: the PC's is moved out a lane");
+
+            stepped = MakeInput (50.0f,  100.0f,       true);
+            pc      = MakeInput (100.0f, std::nullopt, true);
+
+            DisassemblyCells::SeparateArrows (stepped, pc);
+
+            Assert::IsTrue (IsNear (*stepped.targetY, 100.0f - DisassemblyCells::kArrowSplitDip), L"from above, it ends high on the row");
+            Assert::IsTrue (IsNear (*pc.sourceY,      100.0f + DisassemblyCells::kArrowSplitDip));
+            Assert::IsTrue (IsNear (pc.stubPx,        stub), L"one above the row and one below share the lane");
+        }
+
 
 
         TEST_METHOD (TheResultFollowsTheOperandInTheResultColor)

@@ -1696,10 +1696,10 @@ namespace OperandResultTipTests
             window.GetCodeList (0)->Paint (painter, text, theme);
 
             Assert::IsTrue (static_cast<const DxuiPanel &> (window).TryGetTip (GetUprightPoint (window, 0), tip), L"the PC's arrow, from its row up to the target's");
-            Assert::IsTrue (tip.text.starts_with (L"Won't branch: BNE branches while Z is clear"), tip.text.c_str());
+            Assert::AreEqual (std::wstring (L"This branch won't be taken"), tip.text);
 
             Assert::IsTrue   (static_cast<const DxuiPanel &> (window).TryGetTip (GetUprightPoint (window, 2), tip), L"the dotted arrow, from the step's row up to the PC's");
-            Assert::AreEqual (std::wstring (L"Taken by the last step: JMP $0302 at $0306"), tip.text);
+            Assert::AreEqual (std::wstring (L"This jump was taken"), tip.text);
         }
     };
 }

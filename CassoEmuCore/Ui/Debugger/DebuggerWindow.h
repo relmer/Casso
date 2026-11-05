@@ -549,6 +549,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                           RequestFloatSync    () override;
     void                           PumpFloatFrame      () override { RunModalLoopTick(); }
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
+    void     HoldCodeView       (int view);
     std::vector<DxuiPopupMenuItem>  MakePaneMenuRows (const PaneMenuItems & items);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);
     std::vector<std::shared_ptr<DxuiCommand>>  GetConsoleMenuCommands();
@@ -638,6 +639,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool  IsChildHitTestable (const IDxuiControl & child) const override;
     void  ConfigureTips      ();
     bool  TryGetCodeTip      (const DxuiListView & list, POINT clientPx, DxuiTip & tip) const;
+    static bool  MarkImmediate (bool isFound, DxuiTip & tip);
     bool  TryGetBranchTip    (POINT clientPx, DxuiTip & tip) const;
     bool  TryGetSourceSymbolTip (const SourceDocumentPane & document, POINT clientPx, DxuiTip & tip) const;
     bool  TryGetGraphicTip   (POINT clientPx, DxuiTip & tip) const;
@@ -803,6 +805,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::vector<DxuiMenuBarItem>                 m_menuBarItems;
     std::unique_ptr<DebuggerCommands>            m_commands;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
+    int                                          m_heldCodeView           = -1;      // the code view whose menu is open
     DxuiDockSite                               * m_dockSite               = nullptr;
     HINSTANCE                                    m_hInstance              = nullptr;
     std::unique_ptr<FloatingPanes>               m_floating;

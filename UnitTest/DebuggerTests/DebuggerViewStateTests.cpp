@@ -1616,6 +1616,57 @@ namespace DebuggerViewStateTests
             s_now += 1;
             moved  = rig.view.Build (rig.controller.GetSession(), false);
             Assert::IsTrue (isAtPc (moved), L"once the time passes, the view follows the PC");
+            Assert::IsTrue (GetPcIndex (moved) >= 5 && GetPcIndex (moved) <= 15, L"with the PC in its middle, not on an edge row");
+        }
+
+        //  The index of the PC's line in the snapshot's code, or -1.
+        static int GetPcIndex (const DebuggerViewSnapshot & snapshot)
+        {
+            for (size_t i = 0; i < snapshot.code.size(); i++)
+            {
+                if (snapshot.code[i].isCurrent)
+                {
+                    return (int) i;
+                }
+            }
+
+            return -1;
+        }
+
+        //  While a view's menu is open, a running machine doesn't move it; once
+        //  it closes, the view isn't moved for the scroll pause, then follows the PC.
+        TEST_METHOD (AViewWhoseMenuIsOpenIsntMovedWhileRunning)
+        {
+            static uint64_t               s_now    = 1000;
+            std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
+            MachineRig                  & rig      = *held;
+            DebuggerViewSnapshot          before;
+            DebuggerViewSnapshot          after;
+            Cpu6502Registers              r        = rig.controller.GetSession().GetTarget().GetRegisters();
+
+
+
+            s_now = 1000;
+            rig.view.SetClock ([] { return s_now; });
+            rig.view.SetCodeLines (20);
+            before = rig.view.Build (rig.controller.GetSession(), false);
+
+            rig.view.HoldCode (true);
+            r.pc = 0x0900;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            s_now += DebuggerViewState::kScrollHoldMs * 3;
+            after  = rig.view.Build (rig.controller.GetSession(), false);
+            Assert::AreEqual (before.code[0].address, after.code[0].address, L"not moved while the menu is open");
+            Assert::AreEqual (-1, GetPcIndex (after));
+
+            rig.view.HoldCode (false);
+            s_now += DebuggerViewState::kScrollHoldMs - 1;
+            after  = rig.view.Build (rig.controller.GetSession(), false);
+            Assert::AreEqual (before.code[0].address, after.code[0].address, L"nor for the pause after it closes");
+
+            s_now += 1;
+            after  = rig.view.Build (rig.controller.GetSession(), false);
+            Assert::IsTrue (GetPcIndex (after) >= 5 && GetPcIndex (after) <= 15, L"then the PC, in the middle");
         }
 
         TEST_METHOD (TheBreakpointDialogWritesADefinitionBpeditTakes)

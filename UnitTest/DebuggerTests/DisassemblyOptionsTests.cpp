@@ -1078,6 +1078,64 @@ namespace DisassemblyOptionsTests
             Assert::IsTrue   (window.HasTopLayer());
         }
 
+        //  The PC's arrow, with its line scrolled above the view's lines and its
+        //  target below them, runs across the view from edge to edge; with
+        //  both ends above the lines, none of it crosses them.
+        TEST_METHOD (ThePcsArrowWithThePcOutOfViewRunsAcrossTheView)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            OptionsHost                     host;
+            DxuiDpiScaler                   scaler;
+            OptionsWindow                   window (theme, host);
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  nop;
+            DebuggerViewSnapshot::CodeLine  rts;
+            MockDxuiPainter                 painter;
+            MockDxuiTextRenderer            text;
+            BranchArrow::Input              input;
+            Word                            goesTo   = 0;
+            bool                            isTaken  = false;
+
+
+
+            nop.address     = 0x0400;
+            nop.bytes       = "EA";
+            nop.instruction = "NOP";
+
+            rts.address     = 0x0401;
+            rts.bytes       = "60";
+            rts.instruction = "RTS";
+
+            snapshot->pc              = 0x0300;
+            snapshot->pcTarget        = Word (0x0500);
+            snapshot->isPcTargetTaken = true;
+            snapshot->isPaused        = true;
+            snapshot->codeViews[0]    = { nop, rts };
+            snapshot->code            = snapshot->codeViews[0];
+            snapshot->codeOpen[0]     = true;
+
+            scaler.SetDpi (96);
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+            window.GetCodeList (0)->Paint (painter, text, theme);
+
+            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"drawn though the PC's line is not in view");
+            Assert::AreEqual ((int) 0x0500, (int) goesTo);
+            Assert::IsTrue   (isTaken);
+            Assert::IsFalse  (input.sourceY.has_value(), L"it runs in from the top edge");
+            Assert::IsFalse  (input.targetY.has_value(), L"and on to the bottom edge");
+            Assert::IsTrue   (input.isTargetBelow);
+
+            snapshot->pcTarget = Word (0x0200);
+            window.ApplyCodeSnapshot (snapshot, 0);
+            window.GetCodeList (0)->Paint (painter, text, theme);
+
+            input = BranchArrow::Input();
+            Assert::IsFalse  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"from above the lines to above them");
+        }
+
 
         //  The same through a real step: with the snapshot the view state
         //  builds after a taken BPL applied, the window draws the BPL's arrow.

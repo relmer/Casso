@@ -541,7 +541,7 @@ void MemoryWindowGroup::SetBarMenus()
 
     for (const std::wstring & entered : m_history)
     {
-        history.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (entered, false, [this, entered]
+        history.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (entered, [this, entered]
         {
             m_box->SetText (entered);
             SubmitBox();

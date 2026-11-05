@@ -104,6 +104,12 @@ void DxuiTipService::Show (const DxuiTip & tip, POINT pointPx, int64_t nowMs)
         return;
     }
 
+    if (tip.isImmediate)
+    {
+        ShowImmediate (tip, pointer, nowMs);
+        return;
+    }
+
     if (tip.lifetime == DxuiTip::Lifetime::Timed)
     {
         isTimedUp = m_tooltip.IsVisible() && m_tooltip.GetText() == tip.text;
@@ -117,6 +123,29 @@ void DxuiTipService::Show (const DxuiTip & tip, POINT pointPx, int64_t nowMs)
     }
 
     m_tooltip.RequestShow (tip.anchor, tip.text, nowMs, tip.placement == DxuiTip::Placement::AtPointer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTipService::ShowImmediate
+//
+//  A tip that opens at once is placed by the pointer when its text first
+//  comes up, and isn't moved while the pointer stays over the same text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTipService::ShowImmediate (const DxuiTip & tip, const RECT & pointer, int64_t nowMs)
+{
+    if (m_tooltip.IsVisible() && m_tooltip.GetText() == tip.text)
+    {
+        return;
+    }
+
+    m_tooltip.RequestShowNow (pointer, tip.text, nowMs);
 }
 
 

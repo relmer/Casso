@@ -94,6 +94,9 @@ public:
     //  Scrolls a code view by instructions: down when positive.
     virtual void     ScrollDebugCode          (int lines, int view)                             = 0;
 
+    //  While a code view's menu is open, the view isn't moved.
+    virtual void     HoldDebugCode            (bool isHeld, int view)                           { (void) isHeld; (void) view; }
+
     //  A reverse execution command; argument is Seek's position or SeekCycle's cycle.
     virtual void     RunReverseCommand        (ReverseCommand command, uint64_t argument)       = 0;
     //  Tools > Options' recording switch and memory budget, applied at once.

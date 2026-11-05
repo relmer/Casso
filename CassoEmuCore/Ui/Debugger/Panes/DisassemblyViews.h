@@ -197,6 +197,7 @@ private:
     void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
                                                      std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);
+    bool                             GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const;
     bool                             TryGetSourceText (int fileId, int line, std::wstring & text);
 
     IDebuggerPaneHost                                   & m_host;

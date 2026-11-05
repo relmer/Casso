@@ -1550,17 +1550,62 @@ bool DisassemblyGroup::TryGetSourceText (int fileId, int line, std::wstring & te
 //
 //  Where the PC's branch, jump or call arrow lies in a view, in pixels, and
 //  where it goes, or with isBranchedFrom, the arrow of the one a step just
-//  took to the PC. Either end scrolled out of view runs the line to that
-//  edge of the rows, so the arrow is drawn while any part of it crosses
-//  them. A view past the code views is a source document's, whose pane
-//  places the PC's arrow alone.
+//  took to the PC. Where both are drawn, they are set apart at the PC's row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisassemblyGroup::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
 {
-    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    DxuiListView                * list     = (view < DebuggerViewState::kMaxCodeViews) ? GetCodeList (view) : nullptr;
+    BranchArrow::Input  other;
+    Word                otherGoesTo = 0;
+    bool                otherTaken  = true;
+
+
+
+    if (!GetOneBranchArrow (view, input, goesTo, isTaken, isBranchedFrom))
+    {
+        return false;
+    }
+
+    if (!GetOneBranchArrow (view, other, otherGoesTo, otherTaken, !isBranchedFrom))
+    {
+        return true;
+    }
+
+    if (isBranchedFrom)
+    {
+        DisassemblyCells::SeparateArrows (input, other);
+    }
+    else
+    {
+        DisassemblyCells::SeparateArrows (other, input);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::GetOneBranchArrow
+//
+//  One of the arrows, from the snapshot's addresses, so either end scrolled
+//  out of view runs the line to that edge of the rows, and the arrow is
+//  drawn while any part of it crosses them. Without the PC's target in the
+//  snapshot, as while running, the PC's arrow is drawn from its line. A
+//  view past the code views is a source document's, whose pane places the
+//  PC's arrow alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::GetOneBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
+{
+    const DebuggerViewSnapshot   * snapshot = m_host.GetLatestSnapshot();
+    DxuiListView                 * list     = (view < DebuggerViewState::kMaxCodeViews) ? GetCodeList (view) : nullptr;
+    DisassemblyCells::ArrowEnds    ends;
 
 
 
@@ -1581,13 +1626,28 @@ bool DisassemblyGroup::GetBranchArrow (int view, BranchArrow::Input & input, Wor
         return false;
     }
 
-    if (isBranchedFrom && (snapshot == nullptr || !snapshot->branchedFrom.has_value()))
+    if (isBranchedFrom)
+    {
+        if (snapshot == nullptr || !snapshot->branchedFrom.has_value())
+        {
+            return false;
+        }
+
+        ends = { *snapshot->branchedFrom, snapshot->pc, true };
+    }
+    else if (snapshot != nullptr && snapshot->pcTarget.has_value())
+    {
+        ends = { snapshot->pc, *snapshot->pcTarget, snapshot->isPcTargetTaken };
+    }
+    else if (!DisassemblyCells::TryGetPcArrowEnds (GetCodeLines (view), ends))
     {
         return false;
     }
 
-    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_views[(size_t) view]->GetRows(), input, goesTo, isTaken,
-                                                isBranchedFrom ? snapshot->branchedFrom : std::nullopt);
+    goesTo  = ends.goesTo;
+    isTaken = ends.isTaken;
+
+    return DisassemblyCells::TryGetBranchArrow (*list, GetCodeLines (view), m_views[(size_t) view]->GetRows(), ends, input);
 }
 
 
@@ -1727,8 +1787,7 @@ bool DisassemblyGroup::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstr
             }
 
             anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
-            text   = isBranchedFrom ? ColorLegend::GetTakenBranchTip (stepped, *snapshot->branchedFrom)
-                                    : ColorLegend::GetBranchTip (instruction, isTaken, m_host.GetRegisterByte ("P"));
+            text   = isBranchedFrom ? ColorLegend::GetTakenBranchTip (stepped) : ColorLegend::GetBranchTip (instruction, isTaken);
             return true;
         }
     }

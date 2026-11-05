@@ -339,6 +339,13 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Which bytes does the disassembly read as data, besides those a data directive marks? -> A: The bytes a loaded debug file maps to a data directive, while the file matches memory, and on request the bytes the heat map has as read or written and never run. The owner: "automatically mark data bytes as data when the src/symbol files have that information and those files match what's in memory", and "right-click on the heatmap chunk and have it mark that contiguous range of read/written lines as data". Marking from the heat map without a request wasn't built: a loader writes a program's code before it runs, so code that hasn't run yet would be read as data. A range the user marked was called B_60C1 where the symbol count was already at its start; it is now called count (FR-349 to FR-352).
 - Q: While the machine runs, when is a following view the user scrolled moved back to the PC? -> A: After five seconds with no more scrolling. The owner: "let's allow 3? 5? seconds of no additional manual scroll inputs before we take over scrolling PC into view" (FR-353).
 
+- Q: When the scroll pause runs out, where is the PC put? -> A: In the view's middle. The owner: "Is it supposed to scroll the PC to the center when the delay expires... Seems like it's ending up at the top or bottom of the pane rather than in the middle", and "don't scroll the view while I've got its context menu open" (FR-353).
+- Q: What is a branch arrow's tip? -> A: Only whether it will be taken, was taken or won't be taken. The owner: "Don't need to decipher the instruction's behavior in the tooltip" (FR-354).
+- Q: How are the stepped arrow and the PC's arrow drawn apart? -> A: The owner: "show the dotted one (from prev step) where it is and show the current jump (solid line) with a bit more space between the line and the instruction column. If the lines won't overlap, we don't need to provide addl horz separation" (FR-358, FR-359). The arrow had to be drawn with the PC's row out of view, which an earlier fix had done and the views built from a scrolled start had lost: the PC's target is now in the snapshot.
+- Q: How is the automatic recognition of data from the heat map solved, given a loader writes code before it runs? -> A: Not built. Options given to the owner: mark only bytes read as operands and never run, since a loader writes code but doesn't read it at its final address; drop the mark at the first execution; and trace code from known entry points by following branches and calls.
+- Q: Is C source-level debugging finished? -> A: No; a demo ships (`Apple2/Demos/CDemo`, built with a local cc65 snapshot), and stepping by C line, C variables, types and C identifiers are GitHub issue #182.
+- Q: How is the debugger's documentation organized? -> A: `docs/Debugger-Tutorial.md`, guided walk-throughs on the demo disks, and `docs/Debugger-Reference.md`, renamed from `docs/Debugger.md` and reorganized into chapters. The owner: "Name the other one Debugger-Reference.md for clarity. Go ahead and do the rewrite."
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3734,11 +3741,13 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   offer marking the run of such bytes around it as data.
 - **FR-353**: While the machine runs, a view following the PC that the user
   scrolled with the wheel, the arrow keys or the scroll bar MUST NOT be moved
-  to the PC until five seconds pass with no more scrolling.
-- **FR-354**: The tip over the PC's branch arrow MUST be whether the branch will
-  be taken, then the flag it tests and the flag's state; the dotted arrow of
-  the branch the last step took MUST have a tip with that instruction and its
-  address.
+  to the PC until five seconds pass with no more scrolling, nor while its row
+  menu is open and for five seconds after it closes; it MUST then be moved to
+  put the PC in its middle.
+- **FR-354**: The tip over the PC's branch arrow MUST be "This branch will be
+  taken" or "This branch won't be taken", with "jump" for JMP and "call" for
+  JSR; the dotted arrow of the branch the last step took MUST have the tip
+  "This branch was taken".
 - **FR-355**: The tip over a symbol's name in a source line, in a source
   document or on a source row of the disassembly, MUST have its value, and
   after `<` or `>` the byte that operator takes.
@@ -3750,6 +3759,24 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-357**: The tip over a symbol table's heading in the User symbols pane
   MUST have the full path of the file loaded into it, and a source document
   MUST have room between the line numbers and the text for the branch arrow.
+- **FR-358**: A branch arrow whose PC row or target is out of view MUST be
+  drawn to that edge of the view, in a disassembly view and in a source
+  document, while any part of it crosses the view.
+- **FR-359**: Where the dotted arrow and the PC's arrow are both drawn, each
+  MUST be drawn to the PC's row a little to the side of its other end, and the PC's
+  MUST be drawn a lane further left when both run the same way from the row.
+- **FR-360**: A label in a disassembly view MUST be cut off short of the branch
+  arrows' lanes, not drawn under them.
+- **FR-361**: The tips over a symbol, a branch arrow and a heat cell in a code
+  view or a source document MUST open on the first move over them, without
+  the hover delay.
+- **FR-362**: A data line's text MUST run on across the operand column, and
+  control characters that end a string MUST follow its quotes as bytes,
+  `ASC "HI",$00`.
+- **FR-363**: A menu whose rows can't be checked MUST NOT have a check gutter.
+- **FR-364**: The console line after a debug project loads MUST read "Loaded the
+  debug project for symbols-demo.dbg from <path>", by the debug file's or
+  binary's file name.
 
 ### Key Entities
 

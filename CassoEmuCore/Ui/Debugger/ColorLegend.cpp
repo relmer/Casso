@@ -291,39 +291,44 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
 //
 //  ColorLegend::GetBranchTip
 //
-//  Whether the instruction at the PC will go to its target: the eight
-//  branches on a flag with which flag and its state, BBR and BBS, which
-//  test a bit of a byte rather than a flag, with which bit, and a branch or
-//  jump that always goes with that.
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool isTaken)
+{
+    return std::format (L"This {} {}", GetTransferNoun (instruction), isTaken ? L"will be taken" : L"won't be taken");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetTakenBranchTip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool isTaken, std::optional<Byte> p)
+std::wstring ColorLegend::GetTakenBranchTip (const std::string & instruction)
 {
-    struct FlagBranch
-    {
-        const char  * mnemonic = nullptr;
-        wchar_t       flag     = 0;
-        Byte          bit      = 0;
-        bool          whenSet  = false;
-    };
+    return std::format (L"This {} was taken", GetTransferNoun (instruction));
+}
 
-    static constexpr FlagBranch  kBranches[] =
-    {
-        { "BPL", L'N', 0x80, false },
-        { "BMI", L'N', 0x80, true  },
-        { "BVC", L'V', 0x40, false },
-        { "BVS", L'V', 0x40, true  },
-        { "BCC", L'C', 0x01, false },
-        { "BCS", L'C', 0x01, true  },
-        { "BNE", L'Z', 0x02, false },
-        { "BEQ", L'Z', 0x02, true  },
-    };
 
-    constexpr size_t  kBitBranchLength = 4;
-    std::string       mnemonic;
-    std::wstring      wide;
-    const wchar_t   * head = isTaken ? L"Will branch" : L"Won't branch";
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetTransferNoun
+//
+//  "jump" for JMP, "call" for JSR, and "branch" for the rest, including an
+//  instruction not known because its line is out of view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ColorLegend::GetTransferNoun (const std::string & instruction)
+{
+    std::string  mnemonic;
 
 
 
@@ -342,65 +347,12 @@ std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool is
         mnemonic += (char) std::toupper ((unsigned char) ch);
     }
 
-    wide = TextEncoding::NarrowToWide (mnemonic);
-
-    for (const FlagBranch & branch : kBranches)
-    {
-        if (mnemonic != branch.mnemonic)
-        {
-            continue;
-        }
-
-        if (!p.has_value())
-        {
-            return std::format (L"{}: {} branches while {} is {}", head, wide, branch.flag, branch.whenSet ? L"set" : L"clear");
-        }
-
-        return std::format (L"{}: {} branches while {} is {}, and {} is {}", head, wide, branch.flag, branch.whenSet ? L"set" : L"clear",
-                            branch.flag, (*p & branch.bit) != 0 ? L"set" : L"clear");
-    }
-
-    if (mnemonic.size() == kBitBranchLength && (mnemonic.starts_with ("BBR") || mnemonic.starts_with ("BBS")))
-    {
-        return std::format (L"{}: {} branches while bit {} of its byte is {}", head, wide, wide.back(), mnemonic[2] == 'S' ? L"set" : L"clear");
-    }
-
-    if (mnemonic == "BRA")
-    {
-        return L"Will branch: BRA always branches";
-    }
-
     if (mnemonic == "JMP")
     {
-        return L"Will jump: JMP always goes to its target";
+        return L"jump";
     }
 
-    if (mnemonic == "JSR")
-    {
-        return L"Will call: JSR always calls its target";
-    }
-
-    return head;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ColorLegend::GetTakenBranchTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ColorLegend::GetTakenBranchTip (const std::string & instruction, Word from)
-{
-    if (instruction.empty())
-    {
-        return std::format (L"Taken by the last step, from ${:04X}", from);
-    }
-
-    return std::format (L"Taken by the last step: {} at ${:04X}", TextEncoding::NarrowToWide (instruction), from);
+    return (mnemonic == "JSR") ? L"call" : L"branch";
 }
 
 

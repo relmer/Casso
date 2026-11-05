@@ -2233,3 +2233,17 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1362 Watches (FR-356): `.s`, text at a text data block, `&name`, `Symbol at $xxxx` in the Type cell, and the add row's error across the row. Tests: `WatchTextTests`; checked on screen.
 - [X] T1363 The symbol file's path in the User symbols pane's heading tip, and room for the branch arrow in a source document (`DxuiTextView::SetColumnGap`) (FR-357). The gap was checked on screen.
 - [X] T1364 Docs: `docs/Debugger.md`.
+
+## Phase 63: Owner review, 2026-11-05 afternoon (FR-353, FR-354, FR-358 to FR-364)
+
+- [X] T1365 Arrows off screen (FR-358): `DebuggerViewSnapshot::pcTarget` and `isPcTargetTaken`, set at a stop; `DisassemblyCells::ArrowEnds`, `TryGetBranchArrow` by address with `GetOutsideRow`; the source pane's marked line out of view through `DxuiTextView::GetRowSide` and `GetCellLeftPx`. Tests: `ThePcsArrowWithThePcOutOfViewRunsAcrossTheView`, `TheSnapshotHasThePcsTarget`; checked on screen in both views.
+- [X] T1366 The two arrows apart (FR-359): `DisassemblyCells::SeparateArrows`. Tests: `TwoArrowsMeetingAtThePcAreSetApart`; checked on screen.
+- [X] T1367 Labels clear of the lanes (FR-360): `DxuiListView::Cell::trailDip`, `DisassemblyCells::kLabelTrailDip`. Checked on screen; a label column whose width a project saved cuts a long label shorter.
+- [X] T1368 Tips at once (FR-361): `DxuiTip::isImmediate`, `DxuiTipService::ShowImmediate`, `DebuggerWindow::MarkImmediate`. Tests: `AnImmediateTipIsUpAtOnceAndFixedWhileItsTextIsTheSame`.
+- [X] T1369 Arrow tips (FR-354): `ColorLegend::GetBranchTip`, `GetTakenBranchTip`, `GetTransferNoun`. Tests: `TheBranchTipIsWhetherItWillBeTaken`, `TheTakenBranchTipIsThatItWasTaken`, `EachArrowsTipHasWhatItsBranchDoes`.
+- [X] T1370 The scroll pause (FR-353): the PC in the middle when it runs out, and `DebuggerViewState::HoldCode` while a row menu is open, through `codehold` and `DebuggerWindow::HoldCodeView`. Tests: `AViewScrolledWhileRunningFollowsThePcOnlyAfterAPause`, `AViewWhoseMenuIsOpenIsntMovedWhileRunning`, `ACodeViewIsHeldWhileItsMenuIsOpen`.
+- [X] T1371 Data lines (FR-362): `spansRow` on a data line's instruction cell, and `DataDirectiveHandlers::IsControl` for a string's trailing bytes. Tests: the ASC line in `DataDirectiveHandlersTests`; checked on screen.
+- [X] T1372 No check gutter in action menus (FR-363): `DebuggerMenuCommand::Make (label, chosen)`. Tests: `UnloadSymbolFileListsEachLoadedFile`.
+- [X] T1373 The console line (FR-364): `ProjectScope::Choose` labels by file name. Tests: `ProjectShellTests`; checked on screen.
+- [X] T1374 The C demo: `Apple2/Demos/CDemo` and `cdemo.dsk`, built with a cc65 snapshot in `C:\Users\relmer\Tools\cc65`; the rest of C debugging is issue #182.
+- [X] T1375 Docs: `docs/Debugger-Tutorial.md` (new) and `docs/Debugger-Reference.md` (renamed from `docs/Debugger.md` and reorganized), linked from `README.md` and `docs/DebuggerForAgents.md`.

@@ -176,6 +176,13 @@ public:
     //  coordinates the view paints in; false when that line is not drawn.
     bool  GetCellAnchorPx (int row, int cell, float & outX, float & outY) const;
 
+    //  Where a row lies against the lines drawn: negative above them, zero
+    //  among them, positive below. False for a row not laid out.
+    bool  GetRowSide (int row, int & outSide) const;
+
+    //  The left of a cell, drawn or not; false for a row not laid out.
+    bool  GetCellLeftPx (int row, int cell, float & outX) const;
+
     //  The top and bottom of the drawn lines, and pixels to a DIP.
     void   GetLinesSpanPx (float & outTop, float & outBottom) const;
     float  GetPxPerDip    () const { return m_scaler.ToPxf (1.0f); }

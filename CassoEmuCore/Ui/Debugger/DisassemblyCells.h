@@ -35,6 +35,22 @@ public:
     static constexpr size_t  kOperandColumn     = 6;
     static constexpr size_t  kColumnCount       = 7;
     static constexpr float   kDimMix            = 0.85f;
+    static constexpr float   kArrowSplitDip     = 3.0f;
+    static constexpr float   kArrowLaneDip      = 6.0f;
+
+    //  Clear room at the right of a label cell for the branch arrow's
+    //  lanes, the outer one up to 21 DIPs left of the mnemonics, less the
+    //  list's 4 DIP padding on either side of the column edge, and a gap.
+    static constexpr int     kLabelTrailDip     = 15;
+
+    //  An arrow's ends by address: the branch, jump or call at `from`, where
+    //  it goes, and whether the current flags take it.
+    struct ArrowEnds
+    {
+        Word  from    = 0;
+        Word  goesTo  = 0;
+        bool  isTaken = true;
+    };
 
     //  The columns, the glyph margin and the text view's background.
     static void  Configure (DxuiListView & list);
@@ -88,14 +104,23 @@ public:
     //  Visual Studio's yellow, which reads on either background.
     static uint32_t  GetPcMarkerArgb (uint32_t background);
 
-    //  The PC's branch arrow over a list laid out and painted with these
-    //  rows; false when the PC's line has no target or the list has no room.
-    //  With branchedFrom, the arrow of the branch, jump or call there that a
-    //  step just took to the PC instead; a source out of the lines built for
-    //  the view enters from the edge it lies beyond.
+    //  The ends of the arrow of the line marked as the PC's; false when that
+    //  line has no target.
+    static bool  TryGetPcArrowEnds (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, ArrowEnds & ends);
+
+    //  The arrow between two addresses over a list laid out and painted with
+    //  these rows. An end not among the lines built for the view lies beyond
+    //  the edge its address is past, and the line enters from that edge.
+    //  False when no part of the arrow crosses the rows in view, or the list
+    //  has no room for it.
     static bool  TryGetBranchArrow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
-                                    const std::vector<DisassemblyOptions::Row> & rows, BranchArrow::Input & input, Word & goesTo, bool & isTaken,
-                                    std::optional<Word> branchedFrom = std::nullopt);
+                                    const std::vector<DisassemblyOptions::Row> & rows, const ArrowEnds & ends, BranchArrow::Input & input);
+
+    //  The arrow of the branch a step took to the PC, which ends at the PC's
+    //  row, and the PC's arrow, which starts there: each is drawn to the row a
+    //  little to the side of its other end, and the PC's is moved a lane to the left when both run the
+    //  same way from the row, so neither is drawn over the other.
+    static void  SeparateArrows (BranchArrow::Input & stepped, BranchArrow::Input & pc);
 
     //  The arrow in takenArgb, or in notTakenArgb for a branch that the
     //  current flags do not take.
@@ -120,4 +145,9 @@ private:
 
 
     static void  PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along);
+
+    //  The row of an address not among the lines: -1 for one before them,
+    //  the row count for one after; false for one inside their span that
+    //  isn't the start of any line.
+    static bool  GetOutsideRow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word address, int & row);
 };

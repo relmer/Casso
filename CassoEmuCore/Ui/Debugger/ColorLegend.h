@@ -146,14 +146,13 @@ public:
     //  The meaning's color in a palette.
     static uint32_t  GetArgb (Meaning meaning, const Palette & palette);
 
-    //  The tip over the PC's branch arrow: whether the branch is taken, and,
-    //  for a branch on a flag, which flag it tests and how that flag stands,
-    //  "Branch taken: BNE branches while Z is clear, and Z is clear".
-    static std::wstring  GetBranchTip (const std::string & instruction, bool isTaken, std::optional<Byte> p);
+    //  The tip over the PC's branch arrow, whether it will be taken: "This
+    //  branch will be taken", "This call will be taken".
+    static std::wstring  GetBranchTip (const std::string & instruction, bool isTaken);
 
-    //  The dotted arrow's: the branch, jump or call the last step took to the
-    //  PC, by its instruction where it is known and its address.
-    static std::wstring  GetTakenBranchTip (const std::string & instruction, Word from);
+    //  The dotted arrow's, of the one the last step took: "This branch was
+    //  taken".
+    static std::wstring  GetTakenBranchTip (const std::string & instruction);
 
     //  The tip over the status bar's history meter, whose colors are fixed.
     static const wchar_t *  GetHistoryMeterTip();
@@ -171,4 +170,7 @@ public:
     //  ahead of a deep one, and gray, black or white for one with little
     //  color, "Blue", "Dark green".
     static std::wstring  GetColorName (uint32_t argb);
+
+private:
+    static const wchar_t *  GetTransferNoun (const std::string & instruction);
 };

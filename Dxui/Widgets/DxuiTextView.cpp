@@ -309,17 +309,63 @@ int DxuiTextView::GetFirstLineOfRow (int row) const
 bool DxuiTextView::GetCellAnchorPx (int row, int cell, float & outX, float & outY) const
 {
     int  line = GetFirstLineOfRow (row);
+    int  side = 0;
 
 
 
-    if (line < m_topLine || line >= m_topLine + GetLineCap() || m_cellHeightPx <= 0)
+    if (!GetRowSide (row, side) || side != 0 || m_cellHeightPx <= 0 || !GetCellLeftPx (row, cell, outX))
+    {
+        return false;
+    }
+
+    outY = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + (float) GetLineOffsetPx (line) + (float) GetLineHeightPx (line) * 0.5f;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetRowSide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::GetRowSide (int row, int & outSide) const
+{
+    int  line = GetFirstLineOfRow (row);
+
+
+
+    if (line < 0)
+    {
+        return false;
+    }
+
+    outSide = (line < m_topLine) ? -1 : (line >= m_topLine + GetLineCap()) ? 1 : 0;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetCellLeftPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::GetCellLeftPx (int row, int cell, float & outX) const
+{
+    if (row < 0 || row >= (int) m_rows.size())
     {
         return false;
     }
 
     outX = (float) GetTextLeft() + (float) GetCellStart (m_rows[(size_t) row], cell) * m_cellAdvance;
-    outY = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + (float) GetLineOffsetPx (line) + (float) GetLineHeightPx (line) * 0.5f;
-
     return true;
 }
 

@@ -3,7 +3,8 @@
 This page is for an AI agent, or any automated tool, that drives a Casso the
 user already has running: it starts the debug channel, sends debugger commands
 in a chosen command mode through `CassoCli debug --attach`, and reads the
-replies. The commands themselves are in [Debugger.md](Debugger.md) and
+replies. The commands themselves are in
+[Debugger-Reference.md](Debugger-Reference.md) and
 [Debugger-Commands.md](Debugger-Commands.md); the wire protocol underneath is in
 [DebugChannel.md](DebugChannel.md).
 
@@ -143,7 +144,8 @@ CassoCli debug --attach 20044 --json ^
 The `stopped` record has the reason `disk` and a `disk` object with the field's
 track, sector, volume and checksums and the instructions that read it;
 [DebugChannel.md](DebugChannel.md) lists its fields, and
-[Debugger.md](Debugger.md) the other disk events `BPDISK` takes.
+[Debugger-Reference.md](Debugger-Reference.md#disk-breakpoints) the other disk
+events `BPDISK` takes.
 
 
 ## Through an MCP client

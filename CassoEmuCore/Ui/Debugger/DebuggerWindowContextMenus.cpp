@@ -105,7 +105,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 
         if (m_snapshot->followView != view)
         {
-            m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Follow PC", false, [this, view] { if (m_host != nullptr) { m_host->SetDebuggerFollowView (view); } }));
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Follow PC", [this, view] { if (m_host != nullptr) { m_host->SetDebuggerFollowView (view); } }));
             menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
         }
 
@@ -140,7 +140,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             syntax.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Syntax", false, [] {}));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Syntax", [] {}));
         menu.push_back (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (syntax)));
         menu.push_back (DxuiPopupMenuItem::ForSeparator());
     }
@@ -153,7 +153,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             continue;
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (item.label, false, [action = item.action] { if (action) { (void) action(); } }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (item.label, [action = item.action] { if (action) { (void) action(); } }));
         m_menuCommands.back()->accelerator = item.accelerator;
         m_menuCommands.back()->isEnabled   = [enabled = item.enabled] { return enabled; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -181,6 +181,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     std::vector<std::pair<std::wstring, std::function<void()>>>  items;
     std::vector<DxuiPopupMenuItem>                               menu;
     int                                                          row    = -1;
+    int                                                          held   = -1;
     RECT                                                         bounds = {};
 
 
@@ -221,6 +222,11 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
         row = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
 
+        for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+        {
+            held = (m_code->GetCodeList (view) == list) ? view : held;
+        }
+
         //  As in Explorer: a right-click on a selected row does not change
         //  the selection, so Copy copies every selected row; on any other
         //  row it selects that row alone.
@@ -247,8 +253,43 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     menu = MakePaneMenuRows (items);
 
-    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+    DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu), [this] (bool) { HoldCodeView (-1); });
+    HoldCodeView (held);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HoldCodeView
+//
+//  While a code view's menu is open, the running machine doesn't move the
+//  view out from under it; -1 lets the view go. The menu is shared, so
+//  opening one closes the last, and its close lets the last view go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::HoldCodeView (int view)
+{
+    if (m_host == nullptr || view == m_heldCodeView)
+    {
+        return;
+    }
+
+    if (m_heldCodeView >= 0)
+    {
+        m_host->HoldDebuggerCode (m_heldCodeView, false);
+    }
+
+    m_heldCodeView = view;
+
+    if (view >= 0)
+    {
+        m_host->HoldDebuggerCode (view, true);
+    }
 }
 
 
@@ -290,7 +331,7 @@ std::vector<DxuiPopupMenuItem> DebuggerWindow::MakePaneMenuRows (const PaneMenuI
     {
         if (!children.empty())
         {
-            m_menuCommands.push_back (DebuggerMenuCommand::Make (submenu, false, nullptr));
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (submenu, nullptr));
             addRow (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (children)));
         }
 
@@ -481,7 +522,7 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
     if (!filter.empty())
     {
         std::ranges::copy (filterCommands, std::back_inserter (m_menuCommands));
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Filter", false, [] {}));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Filter", [] {}));
 
         if (!menu.empty())
         {
@@ -516,7 +557,7 @@ std::vector<std::shared_ptr<DxuiCommand>> DebuggerWindow::GetConsoleMenuCommands
 
     return
     {
-        DebuggerMenuCommand::Make (L"Clear", false, [this] { m_consolePane->GetOutput().Clear(); }),
+        DebuggerMenuCommand::Make (L"Clear", [this] { m_consolePane->GetOutput().Clear(); }),
         DebuggerMenuCommand::Make (L"Show UI actions as commands", isEchoing, [this, isEchoing]
         {
             if (m_host != nullptr)
@@ -564,7 +605,7 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
             continue;
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, [this, control, command] { (void) control->InvokeCommand (command); Invalidate(); }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, [this, control, command] { (void) control->InvokeCommand (command); Invalidate(); }));
         m_menuCommands.back()->accelerator = accelerator;
         m_menuCommands.back()->isEnabled   = [control, command] { bool on = false; return control->QueryCommand (command, on) && on; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));

@@ -143,6 +143,34 @@ public:
     }
 
 
+    //  An immediate tip, as over a symbol in a code view, is up at once by
+    //  the pointer, and isn't moved while the pointer stays over the same
+    //  text; new text moves it to the pointer.
+    TEST_METHOD (AnImmediateTipIsUpAtOnceAndFixedWhileItsTextIsTheSame)
+    {
+        DxuiTooltip     tooltip;
+        DxuiTipService  tips (tooltip);
+        DxuiTip         tip = MakeTip (L"count = $60C1", RECT { 0, 0, 40, 16 });
+
+
+
+        tip.isImmediate = true;
+        tooltip.SetDwellOpenMs (kOpenMs);
+
+        tips.Show (tip, POINT { 3, 7 }, 0);
+        Assert::IsTrue   (tooltip.IsVisible(), L"it waited out a delay");
+        Assert::AreEqual (3L, tooltip.GetAnchor().left);
+
+        tips.Show (tip, POINT { 20, 8 }, 10);
+        Assert::AreEqual (3L, tooltip.GetAnchor().left, L"moved along with the pointer");
+
+        tip.text = L"wait = $60B6";
+        tips.Show (tip, POINT { 30, 8 }, 20);
+        Assert::AreEqual (std::wstring (L"wait = $60B6"), tooltip.GetText());
+        Assert::AreEqual (30L, tooltip.GetAnchor().left);
+    }
+
+
     //  A timed notice is up at once and closes at its time: a pointer move
     //  that repeats it does not push the time back.
     TEST_METHOD (ATimedTipClosesAtItsTimeWhateverThePointerDoes)

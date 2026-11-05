@@ -685,6 +685,21 @@ void ShellDebugger::ScrollDebuggerCode (int lines, int view)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HoldDebuggerCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::HoldDebuggerCode (int view, bool isHeld)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("codehold{} {}", GetCodeViewSuffix (view), isHeld ? 1 : 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GoToDebuggerMemory
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -984,6 +999,26 @@ void ShellDebugger::ScrollDebugCode (int lines, int view)
 
 
     m_debugViewState.ScrollCode (lines, view);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HoldDebugCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::HoldDebugCode (bool isHeld, int view)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    m_debugViewState.HoldCode (isHeld, view);
     m_isDebugViewDirty = true;
 }
 
