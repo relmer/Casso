@@ -33,8 +33,11 @@ public:
     //  Typed at the bootstrap speed after Ctrl-X: Applesoft stores $A5 in the
     //  6551 of the slot IN# set, which sends it to the PC. KSW's high byte at
     //  $39 is $Cn for slot n, and the 6551's data register is at $C088 +
-    //  n * 16.
-    static constexpr const char *  kPromptProbe       = "POKE 49288+16*(PEEK(57)-192),165\r";
+    //  n * 16. Under DOS 3.3, KSW is DOS's input routine at $9E81, and the
+    //  slot IN# set is in DOS's copy of KSW at $AA55. With any other high
+    //  byte, the POKE is skipped: a store anywhere else can overwrite DOS's
+    //  code.
+    static constexpr const char *  kPromptProbe       = "S=PEEK(57):S=S+(S=158)*(PEEK(43606)-S):IF S>192 AND S<200 THEN POKE 49288+16*(S-192),165\r";
     static constexpr DWORD         kPromptProbeWaitMs = 1500;
     HRESULT  StartWithBootstrap (const CassoLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
     HRESULT  Connect            (std::stop_token stop, DWORD openAt = 0);

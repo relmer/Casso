@@ -9,6 +9,7 @@
 #include "EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/CassoLinkConnector.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -98,6 +99,20 @@ public:
             machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
             machine.RunCycles (100'000ULL);
         }
+    }
+
+    static std::shared_ptr<LinkOperation>  RunUntilDone (TestMachine & machine, Sink & sink, std::shared_ptr<LinkOperation> operation)
+    {
+        uint64_t  spent = 0;
+
+        while (!sink.IsDone (operation) && spent < kBudget)
+        {
+            machine.RunCycles (kFrame);
+            spent += kFrame;
+        }
+
+        Assert::IsTrue (sink.IsDone (operation), L"the operation finishes");
+        return operation;
     }
 
     //  Slot 2's screen holes in main memory, $47A to $7FA, one in each 128
@@ -308,6 +323,93 @@ public:
 
             Assert::AreEqual<int> (before[i], after[i], (L"the screen hole at " + where).c_str());
         }
+    }
+
+
+
+    //  DOS 3.3 booted on the //c, IN#2 and Ctrl-A 14B, and a link started with
+    //  no Bootstrap chosen. DOS sets KSW to its input routine. The prompt
+    //  probe's $A5 arrives and the Apple is bootstrapped, and RWTS at $BD00
+    //  to $BFFF is intact afterward. After both drives' catalogs over the
+    //  link in 80 columns and Escape, DOS's CATALOG reads drive 1 with no I/O
+    //  error.
+
+    TEST_METHOD (UnderDos_ThePromptProbe_BootstrapsTheApple_AndDosCatalogsAfterEscape)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        InMemoryCassoLinkFolder               folder;
+        FakeDiskFileIo                        fileIo;
+        Sink                                  sink;
+        FixtureProvider                       fixtures;
+        std::vector<uint8_t>                  bytes;
+        std::vector<Byte>                     disk;
+        std::vector<Byte>                     dos;
+        CassoLinkSettings                     settings;
+        std::vector<std::string>              screen;
+        std::string                           text;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        disk.assign (bytes.begin(), bytes.end());
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+        machine.PowerCycle();
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+        machine.RunCycles (15 * kClockHz);
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+
+        Type (machine, "IN#2\r");
+        Type (machine, "\x01" "14B");
+
+        for (Word at = 0xBD00; at <= 0xBFFF; at++)
+        {
+            dos.push_back (machine.GetMemoryBus().ReadByte (at));
+        }
+
+        settings.name      = "//c";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+        settings.use40     = false;
+
+        {
+            CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            session.SetBootstrapPause (40);
+            AssertSucceeded (session.Start (settings));
+
+            AssertSucceeded (RunUntilDone (machine, sink, session.Enumerate (1, FilePath()))->result);
+            AssertSucceeded (RunUntilDone (machine, sink, session.Enumerate (2, FilePath()))->result);
+
+            machine.GetRefs().iieKeyboard->PressKey (0x1B);
+            machine.RunCycles (2 * kClockHz);
+        }
+
+        for (size_t i = 0; i < dos.size(); i++)
+        {
+            Word  at = (Word) (0xBD00 + i);
+
+            Assert::AreEqual<int> (dos[i], machine.GetMemoryBus().ReadByte (at), std::format (L"RWTS at ${:04X}", at).c_str());
+        }
+
+        Type (machine, "CATALOG\r");
+        machine.RunCycles (5 * kClockHz);
+
+        screen = TextScreenScraper::Scrape (machine);
+
+        for (const std::string & row : screen)
+        {
+            text += row + "|";
+        }
+
+        Assert::AreEqual (std::string::npos, text.find ("ERROR"), TextEncoding::NarrowToWide (text).c_str());
+        Assert::AreNotEqual (std::string::npos, text.find ("HELLO"), TextEncoding::NarrowToWide (text).c_str());
     }
 
 
