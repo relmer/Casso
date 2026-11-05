@@ -56,6 +56,42 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::ShowInFolder
+//
+//  SHOpenFolderAndSelectItems, given a file's full path and no items, opens
+//  the file's folder with the file selected, reusing an Explorer window open
+//  on that folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::ShowInFolder (const std::wstring & path)
+{
+    HRESULT           hr   = S_OK;
+    PIDLIST_ABSOLUTE  pidl = nullptr;
+
+
+
+    hr = SHParseDisplayName (path.c_str(), nullptr, &pidl, 0, nullptr);
+    CHR (hr);
+
+    hr = SHOpenFolderAndSelectItems (pidl, 0, nullptr, 0);
+    CHR (hr);
+
+Error:
+    if (pidl != nullptr)
+    {
+        CoTaskMemFree (pidl);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::EnumHandlers
 //
 //  The caller releases every handler returned.

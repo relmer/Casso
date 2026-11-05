@@ -264,7 +264,7 @@ void TraceHandlers::Save (DebugSession & session, const DebugCommand & command, 
 
     saved = (first > 0) ? std::format ("the newest {} of {}", entries.size(), total) : std::format ("{}", entries.size());
 
-    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", saved, entries.size() == 1 ? "entry" : "entries", session.GetPathEcho (command.text, "to")) } };
+    reply.data = MessageData { { std::format ("Saved {} trace {}{}.", saved, entries.size() == 1 ? "entry" : "entries", session.GetPathEcho (command.text, "to", reply)) } };
 
 Error:
     return;

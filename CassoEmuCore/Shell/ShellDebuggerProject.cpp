@@ -13,6 +13,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/IDebuggerHost.h"
 #include "Shell/MachineHost.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "resource.h"
 
 
@@ -88,12 +89,74 @@ ProjectScope ShellDebugger::GetProjectScope()
 {
     DebugSession  & session   = m_debugController->GetSession();
     std::string     debugName = TextEncoding::WideToNarrow (fs::path (session.GetDebugFilePath()).filename().native());
-    std::wstring    bootDisk  = m_isBootDiskNoted ? m_bootDisk : TextEncoding::NarrowToWide (m_machine.GetDiskStore().GetSourcePath (s_kDiskSlot, 0));
 
 
 
     return ProjectScope::Choose (session.GetDebugFileKey(), debugName, session.GetBinaryKey(), session.GetBinaryName(),
-                                 m_machine.GetConfig().name, bootDisk);
+                                 m_machine.GetConfig().name, GetBootDisk());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetBootDisk
+//
+//  The disk drive 1 had at the last power cycle, or, before the first one,
+//  the disk in it now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDebugger::GetBootDisk()
+{
+    return m_isBootDiskNoted ? m_bootDisk : TextEncoding::NarrowToWide (m_machine.GetDiskStore().GetSourcePath (s_kDiskSlot, 0));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetScopeFilePath
+//
+//  The file a scope is for: the debug file, the binary or the boot disk;
+//  empty for the machine alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDebugger::GetScopeFilePath (const ProjectScope & scope)
+{
+    DebugSession  & session = m_debugController->GetSession();
+
+
+
+    switch (scope.kind)
+    {
+    case ProjectScopeKind::DebugFile:   return session.GetDebugFilePath();
+    case ProjectScopeKind::Binary:      return session.GetBinaryPath();
+    case ProjectScopeKind::MachineBoot: return GetBootDisk();
+    default:                            return std::wstring();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebugger::GetProjectLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDebugger::GetProjectLine (const ProjectScope & scope, const std::wstring & projectPath, const std::wstring & targetPath)
+{
+    return std::format ("Loaded the debug {} for {}",
+                        ConsoleLinks::MakeLink ("project", TextEncoding::WideToNarrow (projectPath)),
+                        ConsoleLinks::LinkFileName (scope.label, TextEncoding::WideToNarrow (targetPath)));
 }
 
 
@@ -232,6 +295,7 @@ void ShellDebugger::SyncProject()
     hr = m_projectStore->Open (scope, opened, notices);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    ConsoleLinks::LinkFiles (notices, { TextEncoding::WideToNarrow (opened.filePath) });
     AddConsoleLines (notices);
 
     isNew = opened.engineScript.empty() && opened.symbolFiles.empty() && opened.layout.empty() && opened.startupCommands.empty();
@@ -317,7 +381,7 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
     m_projectSaved = project.ToJson (fs::path (project.filePath).parent_path().native());
     PublishProject();
 
-    lines.push_back (std::format ("Loaded the debug project for {} from {}", project.scope.label, TextEncoding::WideToNarrow (project.filePath)));
+    lines.push_back (GetProjectLine (project.scope, project.filePath, GetScopeFilePath (project.scope)));
 
     for (const std::string & failure : failures)
     {
@@ -722,6 +786,7 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
 
     reply.data = ProjectData { ProjectScope::GetKindName (reported->scope.kind), reported->scope.key, reported->scope.label,
                                TextEncoding::WideToNarrow (reported->filePath), reported->isAutomatic };
+    reply.files.push_back (TextEncoding::WideToNarrow (reported->filePath));
 }
 
 

@@ -922,6 +922,7 @@ Reply DebugSession::ExecuteMonitorLine (const std::string & text, CommandMode mo
         KeepRegisterEditArmed (command, one);
         FormatReply (one, mode);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
+        merged.files.insert (merged.files.end(), one.files.begin(), one.files.end());
         merged.isFormatted = true;
 
         if (merged.status == CommandStatus::Ok)
@@ -1023,6 +1024,7 @@ Reply DebugSession::ExecuteGSSquaredLine (const std::string & text, CommandMode 
 
         FormatReply (one, mode);
         merged.text.insert (merged.text.end(), one.text.begin(), one.text.end());
+        merged.files.insert (merged.files.end(), one.files.begin(), one.files.end());
         merged.isFormatted = true;
 
         if (merged.status == CommandStatus::Ok)
@@ -1223,6 +1225,30 @@ std::string DebugSession::GetPathEcho (const std::string & path, const char * pr
     }
 
     return std::format (" {} {}", preposition, TextEncoding::WideToNarrow (resolved));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetPathEcho
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebugSession::GetPathEcho (const std::string & path, const char * preposition, Reply & reply) const
+{
+    std::string  echo = GetPathEcho (path, preposition);
+
+
+
+    if (!echo.empty())
+    {
+        reply.files.push_back (TextEncoding::WideToNarrow (ResolvePath (path)));
+    }
+
+    return echo;
 }
 
 
@@ -1442,10 +1468,11 @@ void DebugSession::ForgetAddedSymbols (SymbolTableId table)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::NoteBinaryLoad (const std::string & hash, Word address, const std::string & name)
+void DebugSession::NoteBinaryLoad (const std::string & hash, Word address, const std::string & name, const std::wstring & path)
 {
     m_binaryKey  = std::format ("{}@{:04X}", hash, address);
     m_binaryName = name;
+    m_binaryPath = path;
 }
 
 

@@ -381,9 +381,16 @@ public:
     void    ServiceDebugger ();
     bool    IsDebuggerOpen  () const { return m_debugController != nullptr; }
 
-    // IDebuggerWindowHost: the window's next view and console lines.
+    // IDebuggerWindowHost: the window's next view and console lines, and a
+    // file a console link opens.
     bool    TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                 std::vector<std::string>                     & consoleLines) override;
+    void    OpenDebuggerFile   (const std::wstring & path) override;
+
+    // The console's line once a debug project loads: the word "project"
+    // linked to the project's file, and the scope's label with the file it
+    // ends with linked to `targetPath`.
+    static std::string  GetProjectLine (const ProjectScope & scope, const std::wstring & projectPath, const std::wstring & targetPath);
 
     // Makes the controller the shell's debugger: the shell's debug pointers
     // at it, and the session's requests routed to the CPU thread.
@@ -491,6 +498,8 @@ private:
 
     void            OpenProjectStore    ();
     ProjectScope    GetProjectScope     ();
+    std::wstring    GetBootDisk         ();
+    std::wstring    GetScopeFilePath    (const ProjectScope & scope);
     void            NoteBootDisk        ();
     void            SyncProject         ();
     void            ApplyProject        (const DebugProject & project);

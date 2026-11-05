@@ -32,6 +32,11 @@ struct DxuiIconImage;
 //
 //  A row can carry a warning, which draws a warning mark before its first cell.
 //
+//  A SPAN CAN BE A LINK: drawn in the theme's link color and underlined while
+//  the pointer is over it, and the pointer over it is IDC_HAND. The link function
+//  is called for a click on it: a press and a release on the same link with
+//  nothing selected. That function opens whatever the link is for.
+//
 //  The host sets the character cell size, or the view measures it from the
 //  theme's fixed-width face, so layout and selection can be tested without a
 //  device.
@@ -49,6 +54,7 @@ public:
         int       length     = 0;
         uint32_t  argb       = 0;
         uint32_t  background = 0;   // a fill behind the characters; with argb zero, their text color is the usual one
+        bool      isLink     = false;   // with argb zero, drawn in the theme's link color
     };
 
     //  A row's fill spans the view's width on every line it takes; its icon
@@ -84,6 +90,9 @@ public:
     //  Asked for a context menu at a point in the same coordinates as the bounds.
     using ContextMenuFn = std::function<void (POINT atPoint)>;
 
+    //  Called for a click on a link: its row and its index in the row's spans.
+    using LinkFn        = std::function<void (int row, int span)>;
+
     DxuiTextView() { m_focusable = true; }
     ~DxuiTextView() override = default;
 
@@ -106,6 +115,7 @@ public:
     void  SetIconFace      (const wchar_t * face) { m_iconFace = face; }
     void  SetOwnerWindow   (HWND hwnd)            { m_hwnd = hwnd; }
     void  SetOnContextMenu (ContextMenuFn fn)     { m_onContextMenu = std::move (fn); }
+    void  SetOnLink        (LinkFn fn)            { m_onLink = std::move (fn); }
 
     //  A column ahead of the text for each row's icon, none by default. The
     //  icon is drawn at the given size, centered in the column.
@@ -188,6 +198,16 @@ public:
     float  GetPxPerDip    () const { return m_scaler.ToPxf (1.0f); }
 
     Position  HitTest (POINT point) const;
+
+    //  The link under a point: its row, its index in the row's spans, and the
+    //  part of it drawn on the line the point is on. False off every link.
+    bool      TryGetLinkAt (POINT point, int & outRow, int & outSpan, RECT & outRect) const;
+
+    //  The pointer's place, which sets the link drawn underlined; true when
+    //  that link changed, so the view is drawn again. A point outside the view
+    //  is over no link.
+    bool      SetHoverPoint (POINT point);
+    bool      IsLinkHovered (int row, int span) const { return m_hoverRow == row && m_hoverSpan == span; }
 
     void          Select           (Position anchor, Position caret);
     void          SelectAll        ();
@@ -360,8 +380,19 @@ private:
     int           GetTopForLast     (int lineIndex) const;
 
     //  Each character of a row's text, its cells joined by tabs: its span's
-    //  color, or 0 for the view's own.
-    std::vector<uint32_t>  GetRowColors (const Row & row) const;
+    //  color, the theme's link color for a link's, or 0 for the view's text color.
+    std::vector<uint32_t>  GetRowColors (const Row & row, const IDxuiTheme & theme) const;
+
+    //  The part of a cell drawn on a line: where it starts in the row's text,
+    //  its length and the column it is drawn from. False when none of the
+    //  cell is on the line, as a wrapped line has only the last cell's text.
+    bool          GetLinePart       (const Row & row, const Line & line, int cell, int & outFlat, int & outLength, int & outColumn) const;
+
+    //  The character under a point, not the nearest edge as HitTest takes:
+    //  its line, its place in the row's text and its column. False between
+    //  characters, past a line's end and off the lines.
+    bool          TryGetCharAt      (POINT point, int & outLine, int & outFlat, int & outColumn) const;
+    void          PaintLinkUnderline (IDxuiPainter & painter, const IDxuiTheme & theme, int lineIndex, int y) const;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;
@@ -405,6 +436,11 @@ private:
     HWND                    m_hwnd            = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
+    LinkFn             m_onLink;
+    int                m_hoverRow      = -1;   // the link under the pointer, -1 for none
+    int                m_hoverSpan     = -1;
+    int                m_pressRow      = -1;   // the link a press began on, -1 for none
+    int                m_pressSpan     = -1;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;
     DxuiScrollbar      m_horzScroll;

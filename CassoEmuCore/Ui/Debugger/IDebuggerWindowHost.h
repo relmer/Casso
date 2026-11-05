@@ -103,6 +103,10 @@ public:
     virtual bool  TakeDebuggerUpdate      (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
                                            std::vector<std::string>                     & consoleLines) = 0;
 
+    //  Opens a console link's file for the user. A host with no shell, as a
+    //  test's is, opens nothing.
+    virtual void  OpenDebuggerFile        (const std::wstring & path)      { (void) path; }
+
     virtual void  OnDebuggerWindowClosed  ()                               = 0;
 
     //  Detach: the close that follows leaves the machine running with the

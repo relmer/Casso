@@ -1743,7 +1743,7 @@ void BreakpointHandlers::Save (DebugSession & session, const DebugCommand & comm
     }
 
     ListAll (session, list);
-    reply.data = MessageData { { std::format ("Saved {} breakpoint{}{}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", session.GetPathEcho (command.text, "to")) } };
+    reply.data = MessageData { { std::format ("Saved {} breakpoint{}{}.", list.breakpoints.size(), list.breakpoints.size() == 1 ? "" : "s", session.GetPathEcho (command.text, "to", reply)) } };
 }
 
 

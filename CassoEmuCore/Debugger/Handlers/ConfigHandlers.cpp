@@ -173,6 +173,7 @@ void ConfigHandlers::RunScriptLine (DebugSession & session, const std::string & 
     }
 
     result.text.insert (result.text.end(), reply.text.begin(), reply.text.end());
+    result.files.insert (result.files.end(), reply.files.begin(), reply.files.end());
 
     if (result.status == CommandStatus::Ok)
     {
@@ -349,7 +350,7 @@ void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & comma
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the breakpoints, watches, zero-page pointers and bookmarks{}.", session.GetPathEcho (command.text, "to")) } };
+    reply.data = MessageData { { std::format ("Saved the breakpoints, watches, zero-page pointers and bookmarks{}.", session.GetPathEcho (command.text, "to", reply)) } };
 }
 
 
@@ -603,7 +604,7 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
     if (keys != nullptr)
     {
         keys->InsertTapeFile (session.ResolvePath (name));
-        reply.data = MessageData { { std::format ("Loading the tape{}.", session.GetPathEcho (name, "from")) } };
+        reply.data = MessageData { { std::format ("Loading the tape{}.", session.GetPathEcho (name, "from", reply)) } };
         return;
     }
 
@@ -631,7 +632,7 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
 
     deck.Insert (std::move (image));
 
-    reply.data = MessageData { { std::format ("Inserted the tape{}.", session.GetPathEcho (name, "from")) } };
+    reply.data = MessageData { { std::format ("Inserted the tape{}.", session.GetPathEcho (name, "from", reply)) } };
 }
 
 

@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Debugger/CommandModeNames.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/KeyHintLine.h"
@@ -331,6 +332,196 @@ namespace DebuggerReviewPolishTests
             Assert::IsTrue   (output->TryGetTimeTip (POINT { (LONG) stampX + 2, (LONG) middle }, anchor, text), L"over the stamp");
             Assert::AreEqual (ConsoleOutput::GetFullTime (time), text);
             Assert::IsFalse  (output->TryGetTimeTip (POINT { (LONG) textX + 4, (LONG) middle }, anchor, text), L"over the text");
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  ConsoleLinkTests
+    //
+    //  A console line's link to a file: drawn in the link color, its tip the
+    //  file's full path, and a click on it opens the file through the host.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (ConsoleLinkTests)
+    {
+    public:
+
+        class LinkHost : public PolishHost
+        {
+        public:
+            void  OpenDebuggerFile (const std::wstring & path) override { opened.push_back (path); }
+
+            std::vector<std::wstring>  opened;
+        };
+
+
+        //  The console with one line, "from prog.sym", whose file's name is
+        //  linked, laid out in 8 by 16 cells; and the middle of a character
+        //  of that line's text.
+        class LinkRig
+        {
+        public:
+            CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
+            LinkHost          host;
+            PolishWindow      window { theme, host };
+            ConsoleOutput   * output = nullptr;
+            int               row    = 0;
+
+            LinkRig()
+            {
+                DxuiDpiScaler  scaler;
+                SYSTEMTIME     time   = { 2026, 11, 2, 3, 14, 5, 9, 0 };
+
+
+
+                scaler.SetDpi (96);
+                window.Build();
+                output = &window.GetConsolePane().GetOutput();
+                output->Clear();
+                output->GetView()->SetCellSize (8, 16);
+                output->GetView()->Layout (RECT { 0, 0, 400, 300 }, scaler);
+                output->Append ({ ConsoleLinks::LinkFiles ("from C:\\Work\\prog.sym", { "C:\\Work\\prog.sym" }) }, time);
+                row = (int) output->GetView()->GetRows().size() - 1;
+            }
+
+            POINT GetCharPoint (int offset)
+            {
+                float  left   = 0.0f;
+                float  middle = 0.0f;
+
+
+
+                Assert::IsTrue (output->GetView()->GetCellAnchorPx (row, 1, left, middle), L"the line is drawn");
+                return POINT { (LONG) (left + (float) offset * 8.0f + 4.0f), (LONG) middle };
+            }
+
+            void Click (POINT point)
+            {
+                DxuiMouseEvent  down = { DxuiMouseEventKind::Down, DxuiMouseButton::Left, point };
+                DxuiMouseEvent  up   = { DxuiMouseEventKind::Up,   DxuiMouseButton::Left, point };
+
+
+
+                (void) output->RouteMouse (down, window.GetConsolePane().GetCommandLine().GetBox());
+                (void) output->RouteMouse (up,   window.GetConsolePane().GetCommandLine().GetBox());
+            }
+        };
+
+
+        //  The line is drawn without its marks, with a link span over the
+        //  file's name; the text the project saves has the marks, so the link
+        //  comes back with the console's text.
+        TEST_METHOD (ALinkIsASpanOverTheFilesName)
+        {
+            LinkRig                          rig;
+            const DxuiTextView::Row        & row   = rig.output->GetView()->GetRows()[(size_t) rig.row];
+            std::vector<ConsoleLinks::Link>  links;
+
+
+
+            Assert::AreEqual (std::wstring (L"from prog.sym"), row.cells.at (1));
+            Assert::AreEqual ((size_t) 1, row.spans.size());
+            Assert::IsTrue   (row.spans[0].isLink);
+            Assert::AreEqual (5, row.spans[0].start);
+            Assert::AreEqual (8, row.spans[0].length);
+            Assert::IsTrue   (rig.output->FormatSaved().find (ConsoleLinks::kOpen) != std::string::npos, L"the saved text has the link");
+        }
+
+
+        TEST_METHOD (TheTipOverALinkIsTheFilesFullPath)
+        {
+            LinkRig       rig;
+            RECT          anchor = {};
+            std::wstring  text;
+
+
+
+            Assert::IsTrue   (rig.output->TryGetLinkTip (rig.GetCharPoint (7), anchor, text), L"over the file's name");
+            Assert::AreEqual (std::wstring (L"C:\\Work\\prog.sym"), text);
+            Assert::IsFalse  (rig.output->TryGetLinkTip (rig.GetCharPoint (1), anchor, text), L"over the word before it");
+        }
+
+
+        TEST_METHOD (AClickOnALinkOpensItsFile)
+        {
+            LinkRig  rig;
+
+
+
+            rig.Click (rig.GetCharPoint (1));
+            Assert::AreEqual ((size_t) 0, rig.host.opened.size(), L"a click off the link opens nothing");
+
+            rig.Click (rig.GetCharPoint (6));
+            Assert::AreEqual ((size_t) 1, rig.host.opened.size(), L"a click on it opens it");
+            Assert::AreEqual (std::wstring (L"C:\\Work\\prog.sym"), rig.host.opened[0]);
+        }
+
+
+        //  A drag from the link selects text, as it does anywhere else, and
+        //  opens nothing.
+        TEST_METHOD (ADragFromALinkSelectsRatherThanOpens)
+        {
+            LinkRig         rig;
+            DxuiMouseEvent  down = { DxuiMouseEventKind::Down, DxuiMouseButton::Left, rig.GetCharPoint (6) };
+            DxuiMouseEvent  move = { DxuiMouseEventKind::Move, DxuiMouseButton::None, rig.GetCharPoint (1) };
+            DxuiMouseEvent  up   = { DxuiMouseEventKind::Up,   DxuiMouseButton::Left, rig.GetCharPoint (6) };
+
+
+
+            (void) rig.output->RouteMouse (down, rig.window.GetConsolePane().GetCommandLine().GetBox());
+            (void) rig.output->RouteMouse (move, rig.window.GetConsolePane().GetCommandLine().GetBox());
+            (void) rig.output->RouteMouse (up,   rig.window.GetConsolePane().GetCommandLine().GetBox());
+
+            Assert::IsTrue   (rig.output->GetView()->HasSelection());
+            Assert::AreEqual ((size_t) 0, rig.host.opened.size());
+        }
+
+
+        //  The link is in the theme's link color, the pointer over it is
+        //  IDC_HAND, and the link is underlined while the pointer is there.
+        TEST_METHOD (ALinkIsDrawnInTheLinkColorAndUnderlinedUnderThePointer)
+        {
+            LinkRig                   rig;
+            MockDxuiPainter           painter;
+            MockDxuiTextRenderer      text;
+            MockDxuiTheme             theme;
+            DxuiTextView            * view       = rig.output->GetView();
+            uint32_t                  link       = theme.TextColor (DxuiTextRole::Link);
+            const RecordedTextCall  * name       = nullptr;
+            bool                      underlined = false;
+
+
+
+            view->Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                name = (call.text == L"prog.sym") ? &call : name;
+            }
+
+            Assert::IsNotNull (name, L"the file's name is drawn as one run");
+            Assert::AreEqual  (link, name->argb);
+            Assert::IsTrue    (view->GetCursorForPoint (rig.GetCharPoint (6)) == IDC_HAND);
+            Assert::IsTrue    (view->GetCursorForPoint (rig.GetCharPoint (1)) == IDC_IBEAM);
+
+            Assert::IsTrue (view->SetHoverPoint (rig.GetCharPoint (6)), L"the pointer moved onto the link");
+            painter.Reset();
+            view->Paint (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                underlined = underlined || (call.kind == RecordedPaintKind::FillRect && call.argb == link && call.width == 64.0f);
+            }
+
+            Assert::IsTrue  (underlined, L"under the file's eight characters");
+            Assert::IsTrue  (view->SetHoverPoint (POINT { -1, -1 }), L"and off it");
+            Assert::IsFalse (view->SetHoverPoint (POINT { -1, -1 }), L"which changes nothing more");
         }
     };
 

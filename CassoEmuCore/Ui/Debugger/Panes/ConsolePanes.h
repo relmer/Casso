@@ -21,6 +21,9 @@ class ToolbarLabelEntry;
 //  LIST: no columns or rows to pick, a selection that runs through the text
 //  as an editor's does, and Ctrl+C to copy it.
 //
+//  A line can have links to files (ConsoleLinks). A link's tip is the file's
+//  full path, and a click on it opens the file through the window's host.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ConsoleOutput
@@ -47,6 +50,11 @@ public:
     //  Over a line's time stamp: the time stamp's rect, and the date and the
     //  time in full for the tip.
     bool                 TryGetTimeTip  (POINT point, RECT & anchor, std::wstring & text) const;
+
+    //  Over a link: the part of it under the point, and the file's full path
+    //  for the tip. And the file a row's link is for, empty for none.
+    bool                 TryGetLinkTip  (POINT point, RECT & anchor, std::wstring & text) const;
+    std::wstring         GetLinkPath    (int row, int span) const;
 
     //  The text as the project saves it, a line each, its time, a tab and
     //  its text; and the text put back from it, ahead of the lines written
@@ -89,15 +97,20 @@ private:
         std::wstring  stamp;
     };
 
-    //  The rows, and the line each row's time stamp is from in m_rowLines.
+    //  The rows, the line each row's time stamp is from in m_rowLines, and
+    //  each row's links' files in m_rowLinks.
     std::vector<DxuiTextView::Row>  GetRows ();
 
-    IDebuggerPaneHost  & m_host;
-    DxuiTextView       * m_view      = nullptr;
-    std::vector<Line>    m_lines;
-    std::vector<int>     m_rowLines;   // -1 for a row with no time stamp
-    int                  m_columns   = 0;   // the view's width the rows were laid out for
-    int64_t              m_changedMs = 0;   // when the text last changed and was not yet saved; 0 for saved
+    //  A click on a row's link: its file opened through the window's host.
+    void                 OpenLink       (int row, int span);
+
+    IDebuggerPaneHost                       & m_host;
+    DxuiTextView                            * m_view      = nullptr;
+    std::vector<Line>                         m_lines;
+    std::vector<int>                          m_rowLines;   // -1 for a row with no time stamp
+    std::vector<std::vector<std::wstring>>    m_rowLinks;   // by span: a console row's spans are its links
+    int                                       m_columns   = 0;   // the view's width the rows were laid out for
+    int64_t                                   m_changedMs = 0;   // when the text last changed and was not yet saved; 0 for saved
 };
 
 

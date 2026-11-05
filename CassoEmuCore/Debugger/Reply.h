@@ -723,6 +723,11 @@ struct Reply
     //  console even for an action that isn't echoed.
     bool                      hasNotice   = false;
 
+    //  The full paths in the text, each a file the command read or wrote. The
+    //  console draws each as its file's name, linked to the file; the text
+    //  itself, as the debug channel and a batch run write it, has the path.
+    std::vector<std::string>  files;
+
     void SetError (CommandStatus errorStatus, const std::string & label, const std::string & detail)
     {
         status       = errorStatus;

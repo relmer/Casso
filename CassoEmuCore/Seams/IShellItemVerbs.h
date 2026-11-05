@@ -33,6 +33,9 @@ public:
     //  The file's default action, as a double-click in Explorer does.
     virtual HRESULT  Open (HWND owner, const std::wstring & path) = 0;
 
+    //  File Explorer at the file's folder, with the file selected.
+    virtual HRESULT  ShowInFolder (const std::wstring & path) = 0;
+
     //  The programs Windows recommends for the file's type, in its order,
     //  and opening the file in one of them by its index in that list.
     virtual HRESULT  GetOpenWithHandlers (const std::wstring & path, std::vector<Handler> & outHandlers) = 0;
