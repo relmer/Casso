@@ -398,6 +398,7 @@
     <ClCompile Include="CassoExplorer\BasicConversionTests.cpp" />
     <ClCompile Include="CassoExplorer\HostAppleFileTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchExpressionTests.cpp" />
+    <ClCompile Include="CassoExplorer\KrunchMapTests.cpp" />
     <ClCompile Include="CassoExplorer\SearchQueryTests.cpp" />
     <ClCompile Include="CassoExplorer\WozPropertiesTests.cpp" />
     <ClCompile Include="CassoExplorer\FolderViewsTests.cpp" />

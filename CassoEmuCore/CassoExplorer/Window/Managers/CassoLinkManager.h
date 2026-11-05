@@ -6,6 +6,7 @@
 
 class FirewallMonitor;
 class ILinkAnnouncements;
+class KrunchMapDialog;
 struct ExplorerContext;
 struct LinkTreeEntry;
 
@@ -135,4 +136,7 @@ private:
     std::vector<Byte>        m_cassetteWav;
     std::string              m_cassetteLink;
     int                      m_cassettePlays = 0;
+
+    //  The last krunch's window, which stays open after the krunch ends.
+    std::unique_ptr<KrunchMapDialog>  m_krunchMap;
 };

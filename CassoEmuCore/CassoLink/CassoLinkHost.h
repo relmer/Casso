@@ -242,12 +242,12 @@ public:
     //  The Apple Pascal volume in the drive krunched on the Apple, after it
     //  checks that its directory's CRC is `directoryCrc`, the CRC of the
     //  directory the host checked. `progress` is called with the percentage
-    //  in each Krunch progress packet. Once the program has the request it
+    //  and the files moved in each Krunch progress packet. Once the program has the request it
     //  reads nothing from the host but a Cancel, between files, so the request
     //  is sent again only when the Apple didn't take it; a Status lost after
     //  the Apple took it is ERROR_INVALID_DATA. A Cancel takes effect after
     //  the file being moved.
-    using KrunchProgressFn = std::function<void (Byte percent)>;
+    using KrunchProgressFn = std::function<void (Byte percent, Byte filesMoved)>;
 
     HRESULT  Krunch       (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus);
 

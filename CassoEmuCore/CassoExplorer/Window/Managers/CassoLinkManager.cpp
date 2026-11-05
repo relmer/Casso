@@ -6,6 +6,7 @@
 #include "Net/FirewallText.h"
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
 #include "CassoExplorer/CassoLinkActivityDialog.h"
+#include "CassoExplorer/KrunchMapDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoLink/LinkFault.h"
@@ -719,10 +720,12 @@ void CassoLinkManager::FormatAppleDisk (const Location & location)
 
 void CassoLinkManager::KrunchAppleDisk (const Location & location)
 {
-    std::wstring                   link;
-    int                            slot    = 0;
-    int                            number  = 0;
-    CassoExplorerActions::Outcome  outcome;
+    std::wstring                    link;
+    int                             slot      = 0;
+    int                             number    = 0;
+    std::string                     name;
+    std::shared_ptr<LinkOperation>  operation;
+    CassoExplorerActions::Outcome   outcome;
 
 
 
@@ -731,11 +734,24 @@ void CassoLinkManager::KrunchAppleDisk (const Location & location)
         return;
     }
 
-    outcome = m_context.actions.KrunchAppleDrive (TextEncoding::WideToNarrow (link), number);
+    name    = TextEncoding::WideToNarrow (link);
+    outcome = m_context.actions.KrunchAppleDrive (name, number, &operation);
 
     if (!outcome.Succeeded())
     {
         m_context.window.ShowMessage (outcome.message, MB_ICONERROR);
+    }
+    else if (operation != nullptr)
+    {
+        m_krunchMap = KrunchMapDialog::Open (m_context.window.GetHwnd(), m_context.theme, operation, m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path), [this, name]()
+        {
+            CassoLinkSession  * session = (m_context.app.links != nullptr) ? m_context.app.links->GetSession (name) : nullptr;
+
+            if (session != nullptr)
+            {
+                session->Cancel();
+            }
+        });
     }
 
     HandleConnectionChanged();

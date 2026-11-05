@@ -1566,13 +1566,23 @@ bool ActionsAppleDrive::IsDrivePascal (const std::string & link, int drive) cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome ActionsAppleDrive::KrunchAppleDrive (const std::string & link, int drive)
+ActionsTypes::Outcome ActionsAppleDrive::KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation)
 {
     ActionsTypes::Outcome  outcome;
 
 
 
-    SubmitWrite (link, drive, [drive] (CassoLinkSession & session) { return session.Krunch (drive); }, outcome);
+    SubmitWrite (link, drive, [drive, outOperation] (CassoLinkSession & session)
+    {
+        std::shared_ptr<LinkOperation>  operation = session.Krunch (drive);
+
+        if (outOperation != nullptr)
+        {
+            *outOperation = operation;
+        }
+
+        return operation;
+    }, outcome);
 
     return outcome;
 }

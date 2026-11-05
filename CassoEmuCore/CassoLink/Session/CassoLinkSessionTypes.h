@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/LinkedDisk.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 
 class CassoLinkSession;
 
@@ -125,6 +126,14 @@ struct LinkOperation
 
     //  Check link disk: whether the drive has the link's boot disk.
     bool                             linkDisk = false;
+
+    //  Krunch: every file's place before and after, in directory order, set
+    //  once the directory is checked and then krunchPlanned. krunchTaken is set
+    //  by the first Krunch progress, and krunchMoved is the files moved so far.
+    std::vector<PascalKrunchMove>    krunchFiles;
+    std::atomic<bool>                krunchPlanned { false };
+    std::atomic<bool>                krunchTaken   { false };
+    std::atomic<int>                 krunchMoved   { 0 };
 };
 
 

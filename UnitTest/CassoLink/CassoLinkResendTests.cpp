@@ -201,7 +201,7 @@ public:
         CassoLinkPacket    request;
         std::vector<Byte>  wire;
         std::vector<int>   reported;
-        auto               krunching = std::async (std::launch::async, [&] () { return apple.host->Krunch (1, 0x1234, [&] (Byte percent) { reported.push_back (percent); }, status); });
+        auto               krunching = std::async (std::launch::async, [&] () { return apple.host->Krunch (1, 0x1234, [&] (Byte percent, Byte) { reported.push_back (percent); }, status); });
 
 
 

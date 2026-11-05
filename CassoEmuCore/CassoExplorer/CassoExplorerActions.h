@@ -209,8 +209,8 @@ public:
     Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder) { return m_appleDrive.FormatAppleDrive (link, drive, request, tempFolder); }
 
     //  A linked drive's Apple Pascal disk krunched by the program on the Apple.
-    bool     IsDrivePascal    (const std::string & link, int drive) const { return m_appleDrive.IsDrivePascal (link, drive); }
-    Outcome  KrunchAppleDrive (const std::string & link, int drive)       { return m_appleDrive.KrunchAppleDrive (link, drive); }
+    bool     IsDrivePascal    (const std::string & link, int drive) const                                                 { return m_appleDrive.IsDrivePascal (link, drive); }
+    Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr) { return m_appleDrive.KrunchAppleDrive (link, drive, outOperation); }
 
     //  The same boot disk as an image file on the PC, for an emulator or to
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this

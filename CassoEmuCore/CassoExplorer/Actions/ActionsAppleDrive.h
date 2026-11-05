@@ -95,9 +95,10 @@ public:
     ActionsTypes::Outcome  FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
 
     //  Whether the drive's last catalog read is of an Apple Pascal disk, the
-    //  only kind KrunchAppleDrive applies to.
+    //  only kind KrunchAppleDrive applies to. outOperation, when given, is the
+    //  queued krunch.
     bool                   IsDrivePascal    (const std::string & link, int drive) const;
-    ActionsTypes::Outcome  KrunchAppleDrive (const std::string & link, int drive);
+    ActionsTypes::Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr);
 
     ActionsTypes::Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings);
 

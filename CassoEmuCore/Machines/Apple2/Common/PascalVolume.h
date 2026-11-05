@@ -20,10 +20,11 @@
 
 struct PascalKrunchMove
 {
-    int  slot   = 0;
-    int  from   = 0;
-    int  to     = 0;
-    int  blocks = 0;
+    int          slot   = 0;
+    int          from   = 0;
+    int          to     = 0;
+    int          blocks = 0;
+    std::string  name;
 };
 
 
@@ -119,8 +120,9 @@ public:
 
     //  The files Krunch moves, in directory order, from the directory alone,
     //  and the directory as blocks 2 to 5 end to end. The other blocks aren't
-    //  read. A directory with damage returns ERROR_INVALID_DATA.
-    HRESULT  PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<Byte> & outDirectory) const;
+    //  read. A directory with damage returns ERROR_INVALID_DATA. outFiles, when
+    //  given, lists every file, a file that stays with `to` equal to `from`.
+    HRESULT  PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<Byte> & outDirectory, vector<PascalKrunchMove> * outFiles = nullptr) const;
 
     //  Why a disk can't supply the system for a bootable disk, or empty when it
     //  can: it needs a boot loader in blocks 0 and 1, SYSTEM.APPLE and

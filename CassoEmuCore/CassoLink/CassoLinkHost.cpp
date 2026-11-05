@@ -618,7 +618,7 @@ HRESULT CassoLinkHost::KrunchOnce (Byte drive, Word directoryCrc, const KrunchPr
 
         if (progress)
         {
-            progress (packet.payload[0]);
+            progress (packet.payload[0], packet.payload[1]);
         }
     }
 

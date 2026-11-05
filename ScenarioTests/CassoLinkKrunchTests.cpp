@@ -524,7 +524,7 @@ public:
         Assert::AreEqual<int> (CassoLinkHost::kErrorChanged, status.error);
         Assert::IsTrue (ReadDrive1 (rig.machine) == disk, L"nothing moved");
 
-        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->Krunch (1, crc, [&] (Byte percent) { reported.push_back (percent); }, status); }));
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->Krunch (1, crc, [&] (Byte percent, Byte) { reported.push_back (percent); }, status); }));
         Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
         Assert::AreEqual<int> ((int) moves.size(), status.done, L"the Status has the files moved");
         Assert::IsTrue (ReadDrive1 (rig.machine) == expected);

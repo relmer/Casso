@@ -941,7 +941,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PascalVolume::PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<Byte> & outDirectory) const
+HRESULT PascalVolume::PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<Byte> & outDirectory, vector<PascalKrunchMove> * outFiles) const
 {
     HRESULT              hr      = S_OK;
     bool                 whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
@@ -954,6 +954,11 @@ HRESULT PascalVolume::PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<By
 
     outMoves.clear();
     outDirectory.clear();
+
+    if (outFiles != nullptr)
+    {
+        outFiles->clear();
+    }
 
     CBREx (whole, E_INVALIDARG);
 
@@ -969,7 +974,12 @@ HRESULT PascalVolume::PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<By
 
         if (entry.first != at)
         {
-            outMoves.push_back ({ entry.slot, entry.first, at, blocks });
+            outMoves.push_back ({ entry.slot, entry.first, at, blocks, entry.name });
+        }
+
+        if (outFiles != nullptr)
+        {
+            outFiles->push_back ({ entry.slot, entry.first, at, blocks, entry.name });
         }
 
         at += blocks;

@@ -200,6 +200,7 @@
     <ClCompile Include="Seams\Win32ContentDetails.cpp" />
     <ClCompile Include="Seams\Win32PropertyColumns.cpp" />
     <ClCompile Include="CassoExplorer\Model\ChooseDetailsModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\KrunchMap.cpp" />
     <ClCompile Include="CassoExplorer\Model\IconSizeSteps.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CrtPictureRenderer.cpp" />
@@ -308,6 +309,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerRawDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPromptDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoLinkActivityDialog.cpp" />
+    <ClCompile Include="CassoExplorer\KrunchMapDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerWindow.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerAddressBar.cpp" />
@@ -749,6 +751,7 @@
     <ClInclude Include="Seams\Win32ContentDetails.h" />
     <ClInclude Include="Seams\Win32PropertyColumns.h" />
     <ClInclude Include="CassoExplorer\Model\ChooseDetailsModel.h" />
+    <ClInclude Include="CassoExplorer\Model\KrunchMap.h" />
     <ClInclude Include="CassoExplorer\Model\IconSizeSteps.h" />
     <ClInclude Include="CassoExplorer\ChooseDetailsDialog.h" />
     <ClInclude Include="CassoExplorer\CrtPictureRenderer.h" />
@@ -813,6 +816,7 @@
     <ClInclude Include="CassoExplorer\CassoExplorerShellListings.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerPromptDialog.h" />
     <ClInclude Include="CassoExplorer\CassoLinkActivityDialog.h" />
+    <ClInclude Include="CassoExplorer\KrunchMapDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerOptionsDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerAddressBar.h" />

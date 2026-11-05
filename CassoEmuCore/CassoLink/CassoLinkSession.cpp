@@ -1305,7 +1305,7 @@ HRESULT CassoLinkSession::RunKrunch (LinkOperation & operation)
     isPascal = disk.GetKind() == VolumeKind::Pascal;
     CBRFEx (isPascal, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), operation.message = "Krunch applies to Apple Pascal disks only.");
 
-    hr = PascalVolume (disk.GetSectors()).PlanKrunch (moves, directory);
+    hr = PascalVolume (disk.GetSectors()).PlanKrunch (moves, directory, &operation.krunchFiles);
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
     {
@@ -1314,10 +1314,17 @@ HRESULT CassoLinkSession::RunKrunch (LinkOperation & operation)
 
     CHR (hr);
 
+    operation.krunchPlanned = true;
+
     BAIL_OUT_IF (moves.empty(), S_OK);
 
     crc = CassoLinkCodec::ComputeCrc (directory);
-    hr  = m_host->Krunch ((Byte) operation.drive, crc, [&] (Byte percent) { Report (operation, percent); }, status);
+    hr  = m_host->Krunch ((Byte) operation.drive, crc, [&] (Byte percent, Byte filesMoved)
+    {
+        operation.krunchTaken = true;
+        operation.krunchMoved = filesMoved;
+        Report (operation, percent);
+    }, status);
 
     disk.Clear();
 
