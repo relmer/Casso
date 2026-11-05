@@ -138,6 +138,9 @@ public:
     //  tape, in the page the shim's copy of the zero page later fills.
     static constexpr Word    kSlotFinderAddress = 0x3AA0;
 
+    //  The seed of the XOR that Apple's monitor reads and writes a tape with.
+    static constexpr Byte    kTapeChecksumSeed  = 0xFF;
+
     //  The slot finder built to read the shim from the 6551 itself, the only
     //  part of a serial bootstrap that is typed.
     static constexpr Word    kSerialLoaderAddress = 0x3A50;
@@ -167,7 +170,9 @@ public:
     //  What a bootstrap loads, typed in or from tape, and where it starts:
     //  for a 6551, the slot finder at kSlotFinderAddress, zeros to the shim,
     //  then the shim, so the shim takes its slot from the Apple; for a
-    //  W5100, the shim alone.
+    //  W5100, the shim alone. A 6551's last byte before the shim makes the
+    //  monitor's XOR of the whole, from kTapeChecksumSeed, end at 0, which
+    //  the slot finder checks for before it runs.
     static HRESULT      AssembleSlotFinder     (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      AssembleSerialLoader   (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildBootstrapImage    (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart);

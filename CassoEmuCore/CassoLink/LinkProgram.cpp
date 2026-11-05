@@ -370,7 +370,8 @@ HRESULT LinkProgram::AssembleSlotFinder (std::vector<Byte> & outBytes, std::stri
     hr = Assemble (GetSlotFinderSource(), kSlotFinderAddress, LinkChip::Acia, outBytes, outErrors);
     CHR (hr);
 
-    fits = outBytes.size() <= (size_t) (kShimAddress - kSlotFinderAddress);
+    //  The last byte before the shim is the tape's balance.
+    fits = outBytes.size() < (size_t) (kShimAddress - kSlotFinderAddress);
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -418,9 +419,10 @@ Error:
 
 HRESULT LinkProgram::BuildBootstrapImage (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart)
 {
-    HRESULT            hr     = S_OK;
+    HRESULT            hr      = S_OK;
     std::vector<Byte>  shim;
     std::string        errors;
+    Byte               balance = kTapeChecksumSeed;
 
 
 
@@ -440,6 +442,16 @@ HRESULT LinkProgram::BuildBootstrapImage (const LinkShimOptions & options, std::
     }
 
     outImage.insert (outImage.end(), shim.begin(), shim.end());
+
+    if (options.chip == LinkChip::Acia)
+    {
+        for (Byte value : outImage)
+        {
+            balance ^= value;
+        }
+
+        outImage[kShimAddress - kSlotFinderAddress - 1] = balance;
+    }
 
 Error:
     return hr;

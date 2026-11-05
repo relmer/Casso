@@ -41,7 +41,7 @@ public:
     static constexpr double    kSyncSecondUs  = 250.0;
     static constexpr double    kZeroHalfUs    = 250.0;
     static constexpr double    kOneHalfUs     = 500.0;
-    static constexpr Byte      kChecksumSeed  = 0xFF;
+    static constexpr Byte      kChecksumSeed  = LinkProgram::kTapeChecksumSeed;
 
     //  The audio for the shim the options build, and the monitor command
     //  that reads it and runs it, ending in a carriage return.
