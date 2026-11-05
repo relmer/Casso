@@ -40,10 +40,14 @@ public:
     //  40-column row, so the screen scrolls only after a carriage return,
     //  in the pause after each line. After IN#, the //c's serial firmware
     //  doesn't buffer input, and the 6551 has room for one byte, so only
-    //  one of the bytes that arrive during a scroll is read.
-    static constexpr const char *  kPromptProbe[]     = { "S=PEEK(57):IF S=158 THEN S=PEEK(43606)\r",
-                                                          "S=S*16+46216\r",
-                                                          "IF ABS(S-49352)<49 THEN POKE S,165\r" };
+    //  one of the bytes that arrive during a scroll is read. On a real //c,
+    //  the first characters typed after a line runs are sometimes dropped,
+    //  so each line starts with spaces, which Applesoft ignores. For any
+    //  value of S, the POKE is a store to a slot's I/O or is skipped.
+    static constexpr const char *  kPromptProbe[]     = { "    S=PEEK(57)\r",
+                                                          "    IF S=158 THEN S=PEEK(43606)\r",
+                                                          "    S=S*16+46216\r",
+                                                          "    IF ABS(S-49352)<49 THEN POKE S,165\r" };
     static constexpr DWORD         kPromptProbeWaitMs = 1500;
     HRESULT  StartWithBootstrap (const CassoLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
     HRESULT  Connect            (std::stop_token stop, DWORD openAt = 0);

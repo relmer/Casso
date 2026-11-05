@@ -414,6 +414,56 @@ public:
 
 
 
+    //  On a real //c under DOS 3.3, the first characters of a probe line
+    //  typed after the line before it ran were dropped. With the first two
+    //  characters of every line dropped, the probe's $A5 arrives.
+    TEST_METHOD (UnderDos_ThePromptProbe_WithEachLinesFirstTwoCharactersLost_SendsA5)
+    {
+        static constexpr uint64_t  kCharCycles = 5'000;
+        static constexpr uint64_t  kLineCycles = 260'000;
+
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        std::vector<Byte>                     got;
+        Byte                                  buffer[64] = {};
+        size_t                                read       = 0;
+
+
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+        machine.PowerCycle();
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+        machine.RunCycles (15 * kClockHz);
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+
+        Type (machine, "IN#2\r");
+        Type (machine, "\x01" "14B");
+
+        for (const char * line : CassoLinkConnector::kPromptProbe)
+        {
+            for (size_t at = 2; line[at] != '\0'; at++)
+            {
+                AssertSucceeded (factory.pcEnd->Write (reinterpret_cast<const Byte *> (line + at), 1));
+                machine.RunCycles (kCharCycles);
+            }
+
+            machine.RunCycles (kLineCycles);
+        }
+
+        machine.RunCycles (kClockHz);
+
+        AssertSucceeded (factory.pcEnd->Read (buffer, sizeof (buffer), 0, read));
+        got.assign (buffer, buffer + read);
+
+        Assert::IsTrue (std::find (got.begin(), got.end(), LinkBootstrap::kLoaderReady) != got.end(), L"the probe's $A5 arrives");
+    }
+
+
+
     //  A link started with no Bootstrap chosen, on an Apple at the BASIC
     //  prompt with IN#2 and Ctrl-A 14B typed: the connection doesn't get a reply,
     //  the prompt probe's $A5 comes back, and the Apple is bootstrapped.
