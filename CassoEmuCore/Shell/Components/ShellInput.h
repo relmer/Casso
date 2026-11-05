@@ -67,6 +67,12 @@ public:
     // applied, and say so when that changed the text. Ctrl+V and Edit > Paste.
     void  PasteClipboardText ();
 
+    // PASTE's text, typed as a paste of the clipboard is. QueuePasteText may
+    // be called from any thread and posts WM_APP_PASTE_TEXT; the window calls
+    // DeliverQueuedPaste for it on the UI thread.
+    void  QueuePasteText     (const std::wstring & text);
+    void  DeliverQueuedPaste ();
+
     // Hands the //e keyboard the real time that has passed since the previous
     // CPU-thread frame, which is what its auto-repeat cadence runs on. Not
     // driven off the guest clock: Double would then repeat twice as fast and
@@ -139,6 +145,8 @@ public:
     void  SetStandIns (bool arrowsJoystick, InputMappingMode pointer);
 
 private:
+    void  Paste (const std::wstring * text);
+
     friend class ShellControllers;
     friend class ShellMouseInput;
 
@@ -209,4 +217,6 @@ private:
     // Caps Lock press in this window, the host's from then on. Session-scoped,
     // so a machine switch keeps it and every launch starts over.
     CapsLockTracker       m_capsLock;
+    std::mutex            m_queuedPasteMutex;
+    std::wstring          m_queuedPaste;
 };

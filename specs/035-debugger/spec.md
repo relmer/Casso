@@ -332,6 +332,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: What happens to a loaded debug file's source and a symbol file's labels when the program they were made for is no longer in memory, such as after a reboot with another disk? -> A: Both are hidden while the program is gone. The owner: "mostly I want to solve the problem of having symbols/src loaded for code that's not actually running." Each file is checked against memory at each stop: a debug file by its source's mnemonics, a listing by its bytes, a symbol file without lines by the bytes at its labels at the first stop in its range. A mark on instructions modified in memory was offered and declined ("Not sure we need it"), so the assembler's debug file doesn't record its bytes (FR-342, T1340).
 - Q: While the disassembly has source rows, which rows have the PC, the breakpoints, the operands and results, and the branch arrows? -> A: The source rows. The owner: "it should be 'source-forward' and lean into the source being the focus of the action in that window", and "PC and breakpoints should move to source lines when we have source and when the disasm window has 'show source' enabled." A source row represents the first instruction its line produced. A line that produced several instructions has its operands on the instructions' rows, since there isn't one operand for the whole line (FR-343, T1341).
+- Q: Does the MCP adapter ship in 035, and what does it require inside Casso? -> A: It ships in 035. The owner: "We might just integrate that with 035", then "MCP - let's do it." It was item 5 of `follow-on-spec-input.md`, whose note had no change inside Casso; matching GSSquared's demo requires a reset, typed text, disk insert and eject, the text screen and a screenshot, which the channel didn't have. They are added as debugger commands, so the window, scripts and `CassoCli debug` have them too, and the server connects to Casso through the channel only. The server is `CassoCli mcp`, so it is installed beside `Casso.exe` and requires no separate runtime (User Story 26, FR-344 to FR-348, SC-063).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1474,6 +1475,44 @@ run something, switch back to the //e: it is where it was left.
    are left on disk untouched.
 6. **Given** a machine state file saved before this change, **When** the user
    loads it, **Then** it loads.
+
+---
+
+### User Story 26 - Let an AI assistant drive Casso (Priority: P3)
+
+A user asks an AI assistant, in a chat client that speaks the Model Context
+Protocol but has no shell, to start Casso, wait for a boot to fail, press
+Ctrl+Reset, type in an Applesoft program that draws lo-res color bars, run it
+and look at the result. The assistant does all of it through Casso's MCP
+server, `CassoCli mcp`, which the user added to the client's list of servers.
+
+**Why this priority**: the debug channel and `CassoCli debug --attach` already
+let an agent with a shell drive Casso. An MCP server is for the clients that
+have no shell, and its typed tools are easier for an assistant to call
+correctly than console text is to parse. GSSquared's author ships one, and its
+demo is the bar this one has to clear.
+
+**Independent Test**: With `CassoCli mcp` as the only server of an MCP client,
+start Casso with no disk, wait five seconds, press Ctrl+Reset, type a program
+that draws color bars with `GR`, `COLOR=` and `VLIN`, run it, and take a
+screenshot: the screenshot has the bars, and every step is one tool call.
+
+**Acceptance Scenarios**:
+
+1. **Given** an MCP client with `CassoCli mcp` configured, **When** it lists
+   the tools, **Then** each tool has a description and an input schema.
+2. **Given** no Casso running, **When** the client calls `launch`, **Then**
+   Casso starts with its debugger open, and the result has its process id
+   once its debug channel is open.
+3. **Given** a running Casso, **When** the client calls `reset`, `type_text`
+   and `screenshot`, **Then** the machine resets, the text is typed as if
+   pasted, and the result has a PNG image of the display.
+4. **Given** a command that fails, **When** the client calls `command` with
+   it, **Then** the result is a tool error with the reply's label and detail.
+5. **Given** a run that doesn't stop before its timeout, **When** the timeout
+   passes, **Then** the machine is paused and the result reports it.
+6. **Given** a Casso the user started, **When** the client calls `close` on
+   it, **Then** the call fails and Casso stays open.
 
 ---
 
@@ -3642,6 +3681,38 @@ run something, switch back to the //e: it is where it was left.
   MUST be on the instructions' rows, and the PC past its first instruction
   MUST be marked on the instruction's row.
 
+- **FR-344**: `CassoCli mcp` MUST run a Model Context Protocol server over
+  standard input and output: JSON-RPC 2.0, one message per line, answering
+  `initialize`, `ping`, `tools/list` and `tools/call`, with an input schema for
+  each tool. It MUST write nothing but protocol messages to standard output,
+  and it MUST connect to Casso only through the debug channel.
+- **FR-345**: The server MUST have these tools: `list_instances`; `launch`,
+  which starts the `Casso.exe` beside it with its debugger open and an
+  optional machine, disks and title, and returns the process id once the
+  channel is open; `attach`, which chooses the instance the other tools act
+  on; `close`, for an instance this server launched only; `command`, any
+  debugger line in a command mode; `run`, `pause` and `step` (into, over or
+  out, with a count); `registers`; `read_memory` and `write_memory`;
+  `disassemble`; `set_breakpoint`, `clear_breakpoint` and `list_breakpoints`;
+  `reset` (soft or power); `type_text`; `press_keys`, by key name, Ctrl+Reset
+  among them; `insert_disk` and `eject_disk`; `read_screen`; `screenshot`,
+  returning a PNG image; and `wait`, a number of seconds.
+- **FR-346**: A tool's result MUST contain the reply's text, and its typed
+  data as structured content. A command that fails MUST make the result a tool
+  error with the reply's label and detail. Each run MUST have a cycle budget
+  and a timeout, and a run past its timeout MUST be paused, as
+  `CassoCli debug --attach` does.
+- **FR-347**: The debugger MUST have these commands in every mode, each doing
+  what the menu command of the same purpose does: `RESET [SOFT|POWER]`;
+  `PASTE "text"`, typing the text as the clipboard's paste does; `DISK INSERT
+  [D1|D2] file` and `DISK EJECT [D1|D2]`; `SCREEN`, the text screen as
+  displayed, as a `textScreen` reply; `SCREENSHOT [file]`, the display saved
+  as a PNG file, as a `screenshot` reply with its path, width and height; and
+  `EXIT`, closing Casso as File > Exit does.
+- **FR-348**: `docs/DebuggerForAgents.md` MUST have the steps to add `CassoCli mcp` to
+  an MCP client and a table of its tools, and `docs/DebugChannel.md` MUST have
+  the `textScreen` and `screenshot` replies.
+
 ### Key Entities
 
 - **Debug session**: The debugger's attachment to one running machine; holds
@@ -3905,6 +3976,10 @@ run something, switch back to the //e: it is where it was left.
 - **SC-062**: Adding a pane takes its class and one line in the pane list,
   with no other edit to the window, as a unit test with a trivial test pane
   demonstrates.
+- **SC-063**: Through `CassoCli mcp` alone, an MCP client starts Casso,
+  waits five seconds, presses Ctrl+Reset, types and runs an Applesoft program
+  that draws lo-res color bars, and takes a screenshot that has the bars, one
+  tool call a step.
 
 **Out of scope for the automatic states**: a state picker or browser, more than
 one automatic state per machine kind, and states saved on a timer.
@@ -3912,8 +3987,8 @@ one automatic state per machine kind, and states saved on a timer.
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
 files with seamless scroll-back (kept in User Story 21's debug projects),
-source-level debugging of languages other than Applesoft, and an MCP adapter over the
-debug channel.
+and source-level debugging of languages other than Applesoft. The MCP adapter
+over the debug channel moved into 035 (User Story 26).
 
 ## Assumptions
 

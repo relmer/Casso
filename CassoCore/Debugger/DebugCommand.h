@@ -95,6 +95,11 @@ enum class DebugVerb
     SaveState,
     LoadState,
     Project,
+    ResetMachine,
+    PasteText,
+    ShowScreen,
+    SaveScreenshot,
+    ExitCasso,
 
     // Breakpoints and watchpoints
     SetBreakpoint,

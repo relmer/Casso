@@ -11,6 +11,7 @@ behind three ways in, and every command works the same in each.
 | Batch | `CassoCli debug --machine Apple2e --script steps.txt` | repeatable scripts, tests, CI |
 | Debugger window | **Debug > Debugger...**, or start Casso with `--debugger` | debugging by hand beside the emulator |
 | Debug channel | `CassoCli debug --attach <pid>`, or your own client on the named pipe | tools, editors, attaching to a running program |
+| MCP server | `CassoCli mcp`, added to an MCP client's servers | AI assistants, with or without a shell |
 
 The window and the channel share one session: a breakpoint set in either shows
 up in the other. The channel is documented in [DebugChannel.md](DebugChannel.md).
@@ -222,6 +223,24 @@ first `S`.
 Breakpoints (`BP`, `BPM`, `BPMR`, `BPMW`, `BPR`, `BPL`, `BPC`, `BPD`, `BPE`),
 watches (`W`, `WL`, `WC`) and the rest of AppleWin's commands are listed by
 `HELP`.
+
+## Controlling the machine
+
+These do what the menu command of the same purpose does, so a reset or a disk
+change is in history as the menu's is. They require the emulator, so a
+batch run replies that they are not available.
+
+| Command | Effect |
+|---|---|
+| `RESET`, `RESET POWER` | resets the machine as its reset key does, or power cycles it |
+| `PASTE "text"` | types the text as Edit > Paste does; `\n` is a return, and `\t`, `\"` and `\\` are a tab, a quote and a backslash |
+| `DISK INSERT [D1\|D2] file`, `DISK EJECT [D1\|D2]` | inserts or ejects a disk, drive 1 by default |
+| `SCREEN` | lists the text screen as displayed, 40 or 80 columns |
+| `SCREENSHOT [file]` | saves the machine's picture as a PNG file, by default `casso-screenshot-` and the date and time in the current directory |
+| `EXIT` | closes Casso, as File > Exit does |
+
+A paused machine doesn't read the keyboard, so the text `PASTE` types is in
+the paste buffer until the machine runs again.
 
 ## The video beam
 

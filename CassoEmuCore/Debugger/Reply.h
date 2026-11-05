@@ -610,6 +610,21 @@ struct ProjectData
     bool          isAutomatic = true;
 };
 
+// SCREEN: the text screen as displayed, 40 or 80 columns, a string a row.
+struct TextScreenData
+{
+    int                       columns = 40;
+    std::vector<std::string>  rows;
+};
+
+// SCREENSHOT: the PNG file the machine's picture was saved to, and its size.
+struct ScreenshotData
+{
+    std::string  path;
+    int          width  = 0;
+    int          height = 0;
+};
+
 // BASICVARS: the Applesoft program's simple variables and arrays.
 struct BasicVariablesData
 {
@@ -649,7 +664,9 @@ using ReplyData = std::variant<MessageData,
                                TraceData,
                                BasicVariablesData,
                                BasicStackData,
-                               ProjectData>;
+                               ProjectData,
+                               TextScreenData,
+                               ScreenshotData>;
 
 
 

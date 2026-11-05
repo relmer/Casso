@@ -49,6 +49,7 @@ private:
     static void  RunScriptLine   (DebugSession & session, const std::string & line, std::optional<CommandMode> mode, Reply & result);
     static void  SaveAll         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Disk            (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  InsertOrEject   (DebugSession & session, const DebugCommand & command, bool isInsert, Reply & reply);
     static void  Tape            (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  InsertTape      (DebugSession & session, TapeDeck & deck, const std::string & name, Reply & reply);
     static void  Log             (DebugSession & session, const DebugCommand & command, Reply & reply);

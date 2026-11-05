@@ -7,6 +7,7 @@
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
 #include "Debugger/Handlers/LogHandlers.h"
+#include "Debugger/Handlers/MachineHandlers.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/MonitorHandlers.h"
 #include "Debugger/Handlers/RegisterHandlers.h"
@@ -54,5 +55,6 @@ private:
     TraceHandlers          m_trace;
     LogHandlers            m_logs;
     StateFileHandlers      m_stateFiles;
+    MachineHandlers        m_machine;
     BasicHandlers          m_basic;
 };

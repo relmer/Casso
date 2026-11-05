@@ -1721,6 +1721,14 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // PASTE's text, queued on the CPU thread, typed as Edit > Paste types.
+    if (msg == WM_APP_PASTE_TEXT)
+    {
+        m_input->DeliverQueuedPaste();
+
+        return DxuiMessageResult::Handled;
+    }
+
     // A more specific debug project opened, with the last one's items on offer.
     if (msg == WM_APP_CONFIRM_PROJECT_MERGE)
     {

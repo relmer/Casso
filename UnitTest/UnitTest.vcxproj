@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -1022,6 +1022,8 @@
     <ClCompile Include="EmuTests\ReverseSessionStopTestTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />
     <ClCompile Include="DebuggerTests\StepWhileRunningTests.cpp" />
+    <ClCompile Include="DebuggerTests\MachineCommandTests.cpp" />
+    <ClCompile Include="DebuggerTests\McpServerTests.cpp" />
     <ClCompile Include="DebuggerTests\StateFileCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandGoLiveTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerHistoryItemTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusBarBeamZoomTests.cpp" /><ClCompile Include="DebuggerTests\ReplayProgressStatusTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseBudgetRangeTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerOptionsSheetTests.cpp" />

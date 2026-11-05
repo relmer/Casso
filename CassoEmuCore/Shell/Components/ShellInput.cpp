@@ -1276,6 +1276,23 @@ void ShellInput::ToggleInputMappingMode (InputMappingMode target)
 
 void ShellInput::PasteClipboardText()
 {
+    Paste (nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paste
+//
+//  The clipboard's text when `text` is null, else the text given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::Paste (const std::wstring * text)
+{
     bool    hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
     bool    hostCapsLock   = (DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
@@ -1296,7 +1313,8 @@ void ShellInput::PasteClipboardText()
         m_debugger.SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
     }
 
-    raisedLetters = m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
+    raisedLetters = (text != nullptr) ? m_host.GetClipboard()->PasteText (*text, capsLockOn)
+                                      : m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
     length        = m_host.GetClipboard()->GetPasteLength (first);
 
     if (isBehindLive && length > m_debugger.GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
@@ -1308,6 +1326,55 @@ void ShellInput::PasteClipboardText()
     if (raisedLetters)
     {
         m_host.ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueuePasteText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::QueuePasteText (const std::wstring & text)
+{
+    {
+        std::lock_guard<std::mutex>  lock (m_queuedPasteMutex);
+
+        m_queuedPaste += text;
+    }
+
+    PostMessageW (m_host.GetMainWindow(), WM_APP_PASTE_TEXT, 0, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeliverQueuedPaste
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::DeliverQueuedPaste()
+{
+    std::wstring  text;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_queuedPasteMutex);
+
+        text.swap (m_queuedPaste);
+    }
+
+    if (!text.empty())
+    {
+        Paste (&text);
     }
 }
 

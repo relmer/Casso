@@ -11,6 +11,7 @@
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/IMachineControl.h"
 #include "Debugger/ITapeControl.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
@@ -397,7 +398,11 @@ void ConfigHandlers::Disk (DebugSession & session, const DebugCommand & command,
     {
         reply.data = MessageData { { std::format ("Disk slot: {}", kDiskSlot) } };
     }
-    else if (verb == "EJECT" || verb == "INSERT" || verb == "PROTECT")
+    else if (verb == "EJECT" || verb == "INSERT")
+    {
+        InsertOrEject (session, command, verb == "INSERT", reply);
+    }
+    else if (verb == "PROTECT")
     {
         reply.SetError (CommandStatus::NotAvailable, "command not available",
                         std::format ("DISK {} is not available in this session.", verb));
@@ -406,6 +411,92 @@ void ConfigHandlers::Disk (DebugSession & session, const DebugCommand & command,
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", "DISK takes INFO, SLOT, EJECT, INSERT or PROTECT.");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigHandlers::InsertOrEject
+//
+//  DISK INSERT [D1|D2] file and DISK EJECT [D1|D2], through the session's
+//  machine control, as the Disk menu's commands do. Drive 1 is the default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConfigHandlers::InsertOrEject (DebugSession & session, const DebugCommand & command, bool isInsert, Reply & reply)
+{
+    std::istringstream   stream (command.text);
+    std::string          verb;
+    std::string          name;
+    int                  index   = 0;
+    size_t               digit   = 0;
+    IMachineControl    * control = session.GetMachineControl();
+    std::wstring         path;
+
+
+
+    stream >> verb >> std::ws;
+    std::getline (stream, name);
+
+    //  D1 or D2, or 1 or 2, first; else drive 1.
+    digit = (!name.empty() && (name[0] == 'D' || name[0] == 'd')) ? 1 : 0;
+
+    if (name.size() > digit && (name[digit] == '1' || name[digit] == '2') &&
+        (name.size() == digit + 1 || iswspace ((wint_t) (unsigned char) name[digit + 1])))
+    {
+        index = name[digit] - '1';
+        name  = (name.size() > digit + 1) ? name.substr (digit + 2) : std::string();
+    }
+
+    while (!name.empty() && iswspace ((wint_t) (unsigned char) name.back()))
+    {
+        name.pop_back();
+    }
+
+    if (name.size() >= 2 && name.front() == '"' && name.back() == '"')
+    {
+        name = name.substr (1, name.size() - 2);
+    }
+
+    if (isInsert && name.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "DISK INSERT requires a disk image file.");
+        return;
+    }
+
+    if (!isInsert && !name.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "DISK EJECT takes D1 or D2 only.");
+        return;
+    }
+
+    if (control == nullptr)
+    {
+        reply.SetError (CommandStatus::NotAvailable, "command not available",
+                        std::format ("DISK {} requires the emulator's machine.", isInsert ? "INSERT" : "EJECT"));
+        return;
+    }
+
+    if (!isInsert)
+    {
+        control->EjectDisk (index);
+        reply.data = MessageData { { std::format ("Ejecting the disk in drive {}.", index + 1) } };
+        return;
+    }
+
+    path = session.ResolvePath (name);
+
+    if (GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES)
+    {
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} doesn't exist.", TextEncoding::WideToNarrow (path)));
+        return;
+    }
+
+    control->InsertDisk (index, path);
+    reply.data = MessageData { { std::format ("Inserting {} in drive {}.", TextEncoding::WideToNarrow (path), index + 1) } };
 }
 
 

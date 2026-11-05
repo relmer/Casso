@@ -24,6 +24,7 @@ class IDebugNotificationSink;
 class IFileSystem;
 class IInstructionObserver;
 class IIoEventSource;
+class IMachineControl;
 class ITapeControl;
 class OpcodeTable;
 struct DebugSessionView;
@@ -344,6 +345,12 @@ public:
     void                  SetTapeControl       (ITapeControl * control)           { m_tapeControl = control; }
     ITapeControl        * GetTapeControl       () const                           { return m_tapeControl; }
 
+    // RESET, PASTE, the disk commands, SCREEN, SCREENSHOT and EXIT in the
+    // emulator (IMachineControl); null in a batch run, where they are not
+    // available.
+    void                  SetMachineControl    (IMachineControl * control)        { m_machineControl = control; }
+    IMachineControl     * GetMachineControl    () const                           { return m_machineControl; }
+
     // For a reply: empty when the path was given rooted, since the command
     // already shows it; otherwise " to C:\Work\out.bin", with the preposition
     // given and the absolute path the relative one resolved to.
@@ -537,6 +544,7 @@ private:
     IFileSystem                         * m_fileSystem          = nullptr;
     IIoEventSource                      * m_ioEventSource       = nullptr;
     ITapeControl                        * m_tapeControl         = nullptr;
+    IMachineControl                     * m_machineControl      = nullptr;
     std::wstring                          m_currentDirectory;
 
     int                                   m_nextId        = 0;

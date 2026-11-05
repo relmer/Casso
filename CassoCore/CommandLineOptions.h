@@ -55,7 +55,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Debug };
+    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Debug, Mcp };
     enum class CpuTarget     { M6502, M65C02 };
 
     //  What the parser made of the command line itself, apart from anything

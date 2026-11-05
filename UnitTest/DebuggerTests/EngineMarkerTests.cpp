@@ -75,6 +75,7 @@ namespace DebuggerTests
             if (name == "OUTPUT") { return "OUTPUT APPLEWIN"; }
             if (name == "SAVESTATE" || name == "LOADSTATE") { return name + " game.cassostate"; }
             if (name == "BASICLOAD" || name == "BASICSAVE") { return name + " game.bas"; }
+            if (name == "PASTE")  { return "PASTE hi"; }
             return name;
         }
 
@@ -196,12 +197,13 @@ namespace DebuggerTests
                     Assert::AreEqual (replies[0].data.index(),       reply.data.index(),       Widen (line).c_str());
                 }
 
-                //  The window runs PANEL, the emulator SAVESTATE and LOADSTATE,
-                //  and the window's shell has the video and sound logs, so a
-                //  session alone returns them as not available, the same way in
-                //  every mode. The mock target's memory has no Applesoft, so
+                //  The window runs PANEL, the emulator SAVESTATE, LOADSTATE and
+                //  the machine commands, and the window's shell has the video
+                //  and sound logs, so a session alone returns them as not
+                //  available, the same way in every mode. The mock target's memory has no Applesoft, so
                 //  the BASIC commands fail, the same way in every mode.
-                status = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG" || name == "PROJECT") ? CommandStatus::NotAvailable : CommandStatus::Ok;
+                status = (name == "PANEL" || name == "SAVESTATE" || name == "LOADSTATE" || name == "VIDEOLOG" || name == "SOUNDLOG" || name == "PROJECT" ||
+                          name == "RESET" || name == "PASTE" || name == "SCREEN" || name == "SCREENSHOT" || name == "EXIT") ? CommandStatus::NotAvailable : CommandStatus::Ok;
 
                 if (name.starts_with ("BASIC"))
                 {

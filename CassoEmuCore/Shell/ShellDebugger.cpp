@@ -1809,6 +1809,7 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     });
     m_debugController->GetTarget().GetTrace().SetHistory (&m_eventLogs.GetTraceHistory());
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
+    m_debugController->GetSession().SetMachineControl (&m_host.GetMachineControl());
 
     m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
     {

@@ -323,6 +323,7 @@
     <ClCompile Include="Debugger\ReplyJsonDisk.cpp" />
     <ClCompile Include="Debugger\Handlers\RegisterHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\BasicHandlers.cpp" />
+    <ClCompile Include="Debugger\Handlers\MachineHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\StateFileHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\BreakpointHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\MemoryHandlers.cpp" />
@@ -416,6 +417,11 @@
     <ClCompile Include="Cli\DebugBatchSink.cpp" />
     <ClCompile Include="Cli\DebugBatchRunner.cpp" />
     <ClCompile Include="Cli\DebugMode.cpp" />
+    <ClCompile Include="Cli\McpChannel.cpp" />
+    <ClCompile Include="Cli\McpMode.cpp" />
+    <ClCompile Include="Cli\McpServer.cpp" />
+    <ClCompile Include="Cli\McpTools.cpp" />
+    <ClCompile Include="Cli\Win32CassoLauncher.cpp" />
     <ClCompile Include="Shell\HeadlessMachineFactory.cpp" />
     <ClCompile Include="Shell\ScratchMachineRenderer.cpp" />
     <ClCompile Include="Shell\ScratchHeatReplayer.cpp" />
@@ -1012,6 +1018,7 @@
     <ClInclude Include="Debugger\IInstructionObserver.h" />
     <ClInclude Include="Debugger\Handlers\RegisterHandlers.h" />
     <ClInclude Include="Debugger\Handlers\BasicHandlers.h" />
+    <ClInclude Include="Debugger\Handlers\MachineHandlers.h" />
     <ClInclude Include="Debugger\Handlers\StateFileHandlers.h" />
     <ClInclude Include="Debugger\Handlers\BreakpointHandlers.h" />
     <ClInclude Include="Debugger\Handlers\MemoryHandlers.h" />
@@ -1109,6 +1116,11 @@
     <ClInclude Include="Cli\DebugBatchSink.h" />
     <ClInclude Include="Cli\DebugBatchRunner.h" />
     <ClInclude Include="Cli\DebugMode.h" />
+    <ClInclude Include="Cli\ICassoLauncher.h" />
+    <ClInclude Include="Cli\McpChannel.h" />
+    <ClInclude Include="Cli\McpMode.h" />
+    <ClInclude Include="Cli\McpServer.h" />
+    <ClInclude Include="Cli\McpTools.h" />
     <ClInclude Include="Shell\HeadlessMachineFactory.h" />
     <ClInclude Include="Shell\ScratchMachineRenderer.h" />
     <ClInclude Include="Shell\ScratchHeatReplayer.h" />
@@ -1117,6 +1129,7 @@
     <ClInclude Include="Shell\IRomSource.h" />
     <ClInclude Include="Debugger\Reply.h" />
     <ClInclude Include="Debugger\IDebugTarget.h" />
+    <ClInclude Include="Debugger\IMachineControl.h" />
     <ClInclude Include="Debugger\ITapeControl.h" />
     <ClInclude Include="Debugger\IRunObserver.h" />
     <ClInclude Include="Debugger\IRunDriver.h" />

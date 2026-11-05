@@ -53,6 +53,7 @@ namespace DebuggerTests
             "OUTPUT",
             "SAVESTATE",
             "LOADSTATE", "PROJECT", "BASICSTEP", "BASICLINE", "BASICOUT", "BASICVARS", "BASICSTACK", "BASICLOAD", "BASICSAVE",
+            "RESET", "PASTE", "SCREEN", "SCREENSHOT", "EXIT",
         };
 
         static constexpr const char * kWindowOnlyNames[] =

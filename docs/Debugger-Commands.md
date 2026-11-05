@@ -196,7 +196,8 @@ AppleWin commands:
     SYMUSER2 [name|addr|name=addr|cmd]
                               Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
-    DISK [INFO|SLOT]          Show the drives and their disks, or the disk slot
+    DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
+                              Show the drives and their disks or the disk slot, or insert or eject a disk
     TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]
                               Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
@@ -254,9 +255,11 @@ Casso commands:
     BUDGET cycles             Stop each run after a number of cycles, in decimal; 0 removes the limit
     HISTORY [ON|OFF|SAVE file|cycle [n]]
                               List the instruction trace, turn it on or off, or save it
+    PASTE "text"              Type text as Edit > Paste does; \n is a return
     PAUSE                     Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY [seconds|ALL|CYCLES first last]]
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
+    RESET [SOFT|POWER]        Reset the machine as its reset key does, or power cycle it
     SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -280,9 +283,12 @@ Casso commands:
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]
                               List the device panels, or open or close one
+    SCREEN                    Show the text screen as displayed
+    SCREENSHOT [file]         Save the machine's picture as a PNG file
     VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]
                               List video mode changes with the frame and beam position
   Session and settings
+    EXIT                      Close Casso, as File > Exit does
     LOADSTATE file            Replace the whole machine, disks included, with one a state file holds
     MODE [mode]               Show or set the command mode, which sets the output too
     OUTPUT [format]           Show or set the format replies are written in
@@ -349,10 +355,12 @@ Casso commands:
     /LIVE                     Leave the recorded history and return to where the machine was running
     /P [count]                Step over
     /P-                       Step back over, taking a whole subroutine call as one step
+    /PASTE "text"             Type text as Edit > Paste does; \n is a return
     /PAUSE                    Stop the running machine
     /PROFILE [ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY [seconds|ALL|CYCLES first last]]
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     /RCC                      Reset the cycle counter that CYCLES PART reads
+    /RESET [SOFT|POWER]       Reset the machine as its reset key does, or power cycle it
     /RTS [count]              Step out of the current subroutine
     /SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
@@ -522,7 +530,8 @@ Casso commands:
     /SYMUSER2 [name|addr|name=addr|cmd]
                               Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
-    /DISK [INFO|SLOT]         Show the drives and their disks, or the disk slot
+    /DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
+                              Show the drives and their disks or the disk slot, or insert or eject a disk
     /TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]
                               Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
@@ -553,6 +562,8 @@ Casso commands:
     /PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]
                               List the device panels, or open or close one
     /RET                      Move the code pane to the return address
+    /SCREEN                   Show the text screen as displayed
+    /SCREENSHOT [file]        Save the machine's picture as a PNG file
     /V                        Move the code pane down one instruction
     /VIDEOINFO                Show the video scanner's position
     /VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -562,6 +573,7 @@ Casso commands:
     /CALC expr                Evaluate an expression
     /CD dir                   Change the current directory
     /ECHO text                Print text
+    /EXIT                     Close Casso, as File > Exit does
     /HELP [all|section|command|text]
                               List the help sections, one section, every command, one command or the matches for text
     /LOAD file                Run a script of commands, such as one SAVE wrote
@@ -640,10 +652,12 @@ Casso commands:
     KEY byte [byte ...]       Queue key codes for the machine to read
     LBR                       Show the last branch taken
     LIVE                      Leave the recorded history and return to where the machine was running
+    PASTE "text"              Type text as Edit > Paste does; \n is a return
     PAUSE                     Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY [seconds|ALL|CYCLES first last]]
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     RCC                       Reset the cycle counter that CYCLES PART reads
+    RESET [SOFT|POWER]        Reset the machine as its reset key does, or power cycle it
     SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -783,18 +797,22 @@ Casso commands:
     SYMUSER2 [name|addr|name=addr|cmd]
                               Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
-    DISK [INFO|SLOT]          Show the drives and their disks, or the disk slot
+    DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
+                              Show the drives and their disks or the disk slot, or insert or eject a disk
     TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]
                               Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]
                               List the device panels, or open or close one
+    SCREEN                    Show the text screen as displayed
+    SCREENSHOT [file]         Save the machine's picture as a PNG file
     VIDEOINFO                 Show the video scanner's position
     VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]
                               List video mode changes with the frame and beam position
   Session and settings
     CALC expr                 Evaluate an expression
     ECHO text                 Print text
+    EXIT                      Close Casso, as File > Exit does
     LOADSTATE file            Replace the whole machine, disks included, with one a state file holds
     LOG [level]               Show or set which notifications print
     MODE [mode]               Show or set the command mode, which sets the output too
@@ -879,10 +897,12 @@ Casso commands:
     !KEY byte [byte ...]      Queue key codes for the machine to read
     !LBR                      Show the last branch taken
     !LIVE                     Leave the recorded history and return to where the machine was running
+    !PASTE "text"             Type text as Edit > Paste does; \n is a return
     !PAUSE                    Stop the running machine
     !PROFILE [ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY [seconds|ALL|CYCLES first last]]
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     !RCC                      Reset the cycle counter that CYCLES PART reads
+    !RESET [SOFT|POWER]       Reset the machine as its reset key does, or power cycle it
     !SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
     !SOUNDLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -1033,18 +1053,22 @@ Casso commands:
     !SYMUSER2 [name|addr|name=addr|cmd]
                               Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
-    !DISK [INFO|SLOT]         Show the drives and their disks, or the disk slot
+    !DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
+                              Show the drives and their disks or the disk slot, or insert or eject a disk
     !TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]
                               Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
     !PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]
                               List the device panels, or open or close one
+    !SCREEN                   Show the text screen as displayed
+    !SCREENSHOT [file]        Save the machine's picture as a PNG file
     !VIDEOINFO                Show the video scanner's position
     !VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]
                               List video mode changes with the frame and beam position
   Session and settings
     !CD dir                   Change the current directory
     !ECHO text                Print text
+    !EXIT                     Close Casso, as File > Exit does
     !LOAD file                Run a script of commands, such as one SAVE wrote
     !LOADSTATE file           Replace the whole machine, disks included, with one a state file holds
     !LOG [level]              Show or set which notifications print
@@ -1092,10 +1116,12 @@ Casso commands:
     LIVE                      Leave the recorded history and return to where the machine was running
     P [count]                 Step over
     P-                        Step back over, taking a whole subroutine call as one step
+    PASTE "text"              Type text as Edit > Paste does; \n is a return
     PAUSE                     Stop the running machine
     PROFILE [ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY [seconds|ALL|CYCLES first last]]
                               Profile where execution goes, by routine or by address; HISTORY builds it from recorded history
     RCC                       Reset the cycle counter that CYCLES PART reads
+    RESET [SOFT|POWER]        Reset the machine as its reset key does, or power cycle it
     RTS [count]               Step out of the current subroutine
     SKIP [CLEAR|[-]name|addr[.last]]
                               Show or change the routines stepping goes over
@@ -1282,7 +1308,8 @@ Casso commands:
     SYMUSER2 [name|addr|name=addr|cmd]
                               Find or add a symbol in the second user table; cmd is LOAD, SAVE, CLEAR, ON, OFF or !
   Disks
-    DISK [INFO|SLOT]          Show the drives and their disks, or the disk slot
+    DISK [INFO|SLOT|INSERT [D1|D2] file|EJECT [D1|D2]]
+                              Show the drives and their disks or the disk slot, or insert or eject a disk
     TAPE [INFO|INSERT file|PLAY|STOP|REWIND|EJECT]
                               Report the cassette deck, or insert, start, stop, rewind or eject a tape
   Display and panels
@@ -1313,6 +1340,8 @@ Casso commands:
     PANEL [LIST|[OPEN|CLOSE] name [OPEN|CLOSE]]
                               List the device panels, or open or close one
     RET                       Move the code pane to the return address
+    SCREEN                    Show the text screen as displayed
+    SCREENSHOT [file]         Save the machine's picture as a PNG file
     V                         Move the code pane down one instruction
     VIDEOINFO                 Show the video scanner's position
     VIDEOLOG [CLEAR|LIST [n]|SAVE [file]]
@@ -1322,6 +1351,7 @@ Casso commands:
     CALC expr                 Evaluate an expression
     CD dir                    Change the current directory
     ECHO text                 Print text
+    EXIT                      Close Casso, as File > Exit does
     HELP [all|section|command|text]
                               List the help sections, one section, every command, one command or the matches for text
     LOAD file                 Run a script of commands, such as one SAVE wrote
