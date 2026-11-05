@@ -7,6 +7,8 @@
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
 #include "CassoExplorer/CassoLinkActivityDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
+#include "CassoLink/LinkFault.h"
 #include "Devices/Disk/ChangePrompt.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
@@ -1231,6 +1233,54 @@ void CassoLinkManager::BootstrapConnection (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::ArmLinkFaults
+//
+//  A Debug build's faults for the next operations, typed in the form
+//  --link-faults takes. The dialog opens again for text that doesn't parse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::ArmLinkFaults()
+{
+    std::wstring            text;
+    std::vector<LinkFault>  faults;
+    HRESULT                 hrParse = S_OK;
+    bool                    parsed  = false;
+
+
+
+    while (!parsed && CassoExplorerPromptDialog::Ask (m_context.window.GetHwnd(), m_context.theme, L"Arm link faults",
+                                                       L"Faults for the next operations, such as pc:flip@40 or apple:unreadable@T17S3:", text, kFaultTextMax, text))
+    {
+        hrParse = LinkFault::Parse (TextEncoding::WideToNarrow (text), faults);
+        parsed  = SUCCEEDED (hrParse) && !faults.empty();
+
+        if (!parsed)
+        {
+            DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, (L"\"" + text + L"\" isn't a list of faults. Each is source:kind@where, separated by semicolons.").c_str(),
+                            L"Arm link faults", MB_OK | MB_ICONWARNING);
+        }
+    }
+
+    if (!parsed)
+    {
+        return;
+    }
+
+    LinkFaults::Arm (faults);
+
+    for (const LinkFault & fault : faults)
+    {
+        m_context.app.links->AppendLogRow (CassoExplorerShell::kFaultLogName, "Armed a fault: " + LinkFault::Describe (fault));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::PlayCassetteBootstrap
 //
 //  The shim as audio from the PC's sound output into a ][+ or //e's
@@ -1551,6 +1601,10 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         {
             m_context.menus.AddMenuCommand (items, L"Re&move connection", [this, name]() { RemoveConnection (name); });
         }
+
+#if defined (_DEBUG)
+        m_context.menus.AddMenuCommand (items, L"Arm link fa&ults...", [this]() { ArmLinkFaults(); });
+#endif
     }
     else if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
     {
@@ -1563,6 +1617,10 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { WriteImageToDisk (location, true); });
         m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { SaveLinkToDisk (location); });
         m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });
+
+#if defined (_DEBUG)
+        m_context.menus.AddMenuCommand (items, L"Arm link fa&ults...",        [this]() { ArmLinkFaults(); });
+#endif
 
         if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.CanChooseDriveFilesystem (TextEncoding::WideToNarrow (link), drive))
         {

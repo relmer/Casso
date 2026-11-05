@@ -2,6 +2,7 @@
 
 #include "CassoLink/CassoLinkSession.h"
 #include "Core/TextEncoding.h"
+#include "CassoLink/LinkFault.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
@@ -940,6 +941,38 @@ std::string CassoLinkSession::DescribeDrive (int drive, const std::optional<Volu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::ArmNextFault
+//
+//  A Debug build's next PC or Apple fault, for the operation starting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkSession::ArmNextFault()
+{
+    LinkFault  fault;
+    HRESULT    hr    = S_OK;
+
+
+
+    if (!LinkFaults::TryTake ({ LinkFault::Source::Pc, LinkFault::Source::Apple }, fault))
+    {
+        return;
+    }
+
+    hr = m_host->ArmFault (fault);
+
+    if (FAILED (hr))
+    {
+        m_sink.OnActivity (std::format ("A fault was not armed (error 0x{:08X}): {}", (uint32_t) hr, LinkFault::Describe (fault)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::Execute
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -967,6 +1000,8 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
     hr = m_host->SendLabel (DescribeOperation (operation, m_listings[index]));
     CHR (hr);
+
+    ArmNextFault();
 
     if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk && operation.kind != LinkOperationKind::FullSend)
     {

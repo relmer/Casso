@@ -163,6 +163,20 @@ CMDCOLS   = $E3                 ; 40 or 80 columns
 CMDREADCRC = $E4                ; Read CRCs
 CMDCRCS   = $E5                 ; and the CRCs in reply
 CMDKEY    = $E2                 ; Wait for key, and the key in reply
+CMDFAULT  = $E6                 ; Debug builds: a fault for the next operation
+
+; Fault's kinds, in Debug builds alone. The first three change a byte the
+; Apple sends, counted from the operation's first: flipped, dropped, or sent
+; after a stall. The others change a sector: not read, sent with a bit of
+; its data flipped and the CRC computed for the change, or given a wrong CRC
+; in reply to Read CRCs.
+FLTFLIP   = 1
+FLTDROP   = 2
+FLTSTALL  = 3
+FLTUNREAD = 4
+FLTDATA   = 5
+FLTCRC    = 6
+
 SHIM      = $3B00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
@@ -340,7 +354,18 @@ slotok:
         jsr readid
         jsr drawscreen
 
-main:   lda $C000               ; Escape on the Apple ends CassoLink
+main:
+        ifdef FAULTS
+        lda #0                  ; a byte's fault lasts for one operation
+        sta fltact
+        lda fltdone             ; and a sector's until its sector is read
+        beq mnarmed
+        lda #0
+        sta fltpend
+        sta fltdone
+mnarmed:
+        endif
+        lda $C000               ; Escape on the Apple ends CassoLink
         cmp #$9B
         beq mnesc
         cmp #$C6                ; F or f asks for a Full Send
@@ -391,7 +416,13 @@ mnokey: lda #OPIDLE
         jsr nopc
         jmp main
 mreply: jsr getpayload
+        ifdef FAULTS
+        bcc mrgot               ; main is out of a branch's range
+        jmp main
+mrgot:
+        else
         bcs main
+        endif
         jsr pcok
         lda envcmd
         cmp #CMDIDLE
@@ -446,8 +477,14 @@ notcols: cmp #CMDREADCRC
         bne notcrc
         jmp docrcs
 notcrc: cmp #CMDKEY
-        bne tomain
+        bne notkey
         jmp dowaitkey
+notkey:
+        ifdef FAULTS
+        cmp #CMDFAULT
+        bne tomain
+        jmp dofault
+        endif
 tomain: jmp main
 
 ; exitlink: CassoLink ends, by Control-Reset, Escape or the PC's Exit, and
@@ -667,6 +704,16 @@ rdnext: jsr showprog
         lda PKTBUF+3,y
         sta sector
         jsr rawslot
+        ifdef FAULTS
+        lda #FLTDATA            ; a bit of the data flipped before it is sent
+        jsr fltmatch
+        bne rdsend
+        ldy #0
+        lda (dstp),y
+        eor #$01
+        sta (dstp),y
+rdsend:
+        endif
         jsr sendsector
         jsr pollcancel
         inc index
@@ -706,7 +753,13 @@ nodisk: .byte 0, 0
 ; as the host is counting them.
 docrcs: lda #OPREAD
         jsr begin
+        ifdef FAULTS
+        bcc crbegun             ; crdone is out of a branch's range
+        jmp crdone
+crbegun:
+        else
         bcs crdone
+        endif
         jsr readtrack
         lda #ERRNONE
         sta err
@@ -738,6 +791,15 @@ crnext: jsr showprog
         bne crmiss
         jsr rawslot
         jsr sectorcrc
+        ifdef FAULTS
+        lda #FLTCRC
+        jsr fltmatch
+        bne crsend
+        lda crclo
+        eor #$01
+        sta crclo
+crsend:
+        endif
         lda crclo
         jsr putpe
         lda crchi
@@ -1037,6 +1099,15 @@ csbad:  lda #ERRVERIFY
 ; count after them. Draw them, start the motor and seek. The carry is set
 ; with err when the drive is not 1 or 2.
 begin:  sta op
+        ifdef FAULTS
+        lda fltpend             ; the fault armed for this operation
+        sta fltact
+        cmp #FLTUNREAD          ; a sector's stays armed until its sector is read
+        bcs bgarmed
+        lda #0
+        sta fltpend
+bgarmed:
+        endif
         lda #ERRNONE
         sta err
         lda #0
@@ -1266,11 +1337,21 @@ sdora:  ora AUXA0,x             ; the third's array, set before each pass
 sdwait: lda ACIASTAT            ; set for the port at startup
         and #TDRE
         beq sdwait
+        ifdef FAULTS
+        lda fltact              ; through putb while a fault is armed
+        beq sdwait
+        lda sbyte
+        jsr putb
+        jmp sdsent
+        endif
         lda sbyte
 sdsta:  sta ACIADATA            ; set for the port at startup
         endif
         eor peor
         sta peor
+        ifdef FAULTS
+sdsent:
+        endif
         lda sbyte
         eor crchi
         stx tmp2
@@ -1600,9 +1681,9 @@ gbgot:  lda wbyte
         clc
         rts
 
-; putb: A into the chip's transmit memory, sent with the next wait for a
+; putraw: A into the chip's transmit memory, sent with the next wait for a
 ; byte, or once 128 bytes are waiting. A, X and Y are saved and restored.
-putb:   stx savex
+putraw: stx savex
         sty wsavy
         sta wbyte
         lda txwr+1              ; at $4000 + (Sn_TX_WR & $0FFF)
@@ -1774,11 +1855,11 @@ gbgot:  lda ACIADATA,x
         clc
         rts
 
-; putb: a byte through the 6551. X and Y are saved and restored. The store
+; putraw: a byte through the 6551. X and Y are saved and restored. The store
 ; is absolute, set for the port at startup: an indexed store reads its
 ; address first, and a read of the 6551's data register clears its receive
 ; flag.
-putb:   stx savex
+putraw: stx savex
         ldx slotx
         pha
 pbwait: lda ACIASTAT,x
@@ -1793,6 +1874,114 @@ pbsta:  sta ACIADATA
 
 ; ---------------------------------------------------------------------------
 ; Tables
+; putb: a byte through the chip. In Debug builds, the fault armed for the
+; operation is applied to it first. A, X and Y are saved and restored.
+        ifdef FAULTS
+putb:   sta fltorig
+        jsr fltbyte
+        bcs pbdrop
+        jsr putraw
+        lda fltorig
+        rts
+pbdrop: lda fltorig
+        clc
+        rts
+
+; fltbyte: the byte in A, flipped, or dropped with the carry set, or sent
+; after a stall, when it is the one at the offset counted down from the
+; operation's first byte; otherwise as it is, with the carry clear. X and Y
+; are saved.
+fltbyte: pha
+        lda fltact
+        beq fbsend
+        cmp #FLTSTALL+1
+        bcs fbsend
+        lda fltcnt
+        ora fltcnt+1
+        ora fltcnt+2
+        beq fbhit
+        lda fltcnt
+        bne fbdec0
+        lda fltcnt+1
+        bne fbdec1
+        dec fltcnt+2
+fbdec1: dec fltcnt+1
+fbdec0: dec fltcnt
+fbsend: pla
+        clc
+        rts
+fbhit:  lda fltact
+        sta fltkind
+        lda #0                  ; one byte, once
+        sta fltact
+        lda fltkind
+        cmp #FLTDROP
+        beq fbdrop
+        cmp #FLTSTALL
+        beq fbstall
+        pla
+        eor #$01
+        clc
+        rts
+fbdrop: pla
+        sec
+        rts
+fbstall: lda fltms
+        sta fltleft
+fbunit: lda fltleft
+        beq fbsend
+        lda #250
+        jsr delayms
+        dec fltleft
+        jmp fbunit
+
+; fltmatch: Z set when the fault armed for the operation is the kind in A,
+; for `track` and `sector`, which then disarms it once the operation ends.
+; X and Y are saved.
+fltmatch: cmp fltact
+        bne fmdone
+        lda track
+        cmp flttrk
+        bne fmdone
+        lda sector
+        cmp fltsec
+        bne fmdone
+        lda #1                  ; read: disarmed when the operation ends
+        sta fltdone
+        lda #0                  ; Z set again
+fmdone: rts
+
+; dofault: the fault for the next operation: its kind, then the offset of the
+; byte as three bytes, least significant first, or the track and the
+; sector, then a stall's length in quarter seconds. Then Ready again.
+dofault: lda PKTBUF
+        sta fltpend
+        lda PKTBUF+1
+        sta fltcnt
+        sta flttrk
+        lda PKTBUF+2
+        sta fltcnt+1
+        sta fltsec
+        lda PKTBUF+3
+        sta fltcnt+2
+        lda PKTBUF+4
+        sta fltms
+        jmp main
+
+fltpend: .byte 0                ; the kind armed for the next operation, or 0
+fltact:  .byte 0                ; the kind armed for this one, or 0
+fltkind: .byte 0
+fltdone: .byte 0                ; a sector's fault was applied in this operation
+fltcnt:  .byte 0, 0, 0          ; the bytes left before the one changed
+flttrk:  .byte 0
+fltsec:  .byte 0
+fltms:   .byte 0                ; quarter seconds
+fltleft: .byte 0
+fltorig: .byte 0
+        else
+putb    = putraw
+        endif
+
 ; ---------------------------------------------------------------------------
 
 ; mktables: INVTAB from the write table, and the CRC table.
@@ -2179,6 +2368,11 @@ rthit:  lda #0
         jsr rawslot
         jsr readraw
         bcs rtnext
+        ifdef FAULTS
+        lda #FLTUNREAD          ; the sector passed by as if not found
+        jsr fltmatch
+        beq rtnext
+        endif
         ldx sector
         lda #0
         sta PENDING,x

@@ -5,6 +5,7 @@
 #include "CassoLink/Host/CassoLinkAdtProServer.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/LinkFault.h"
 
 class IByteStream;
 
@@ -199,6 +200,16 @@ public:
     //  W5100.
     void     SetProgramChip (LinkChip chip) { m_programChip = chip; m_program.clear(); }
 
+    //  Whether the program sent to the Apple has the Fault command, which a
+    //  Debug build's links and the tests of recovery turn on.
+    void     SetFaultProgram (bool faults) { m_faultProgram = faults; m_program.clear(); }
+
+    //  A fault for what follows: a PC byte's offset is counted from now, and
+    //  the Apple's fault is sent ahead of the request it is for, counted from
+    //  now. ERROR_NOT_SUPPORTED for the Apple's when the program has no Fault
+    //  command.
+    HRESULT  ArmFault (const LinkFault & fault);
+
     //  The activity line sent when the Apple-side program does not assemble.
     static std::string  DescribeAssemblyFailure (const std::string & errors);
 
@@ -298,6 +309,7 @@ private:
     void     Consume         (size_t count);
     HRESULT  ReadPacket      (DWORD timeoutMs, CassoLinkPacket & outPacket);
     void     TraceReceived   (const CassoLinkPacket & packet);
+    HRESULT  AwaitRequest    ();
     HRESULT  Send            (std::span<const Byte> bytes);
     HRESULT  SendByte        (Byte value);
 
@@ -377,6 +389,10 @@ private:
     Byte                            m_progressEnd     = 0;
     TraceFn                         m_trace;
     std::string                     m_tracedReady;     // text of the last Ready traced
+    bool                            m_faultProgram    = false;
+    LinkByteFault                   m_pcFault;
+    std::optional<LinkFault>        m_appleFault;
+    int                             m_requests        = 0;   // requests sent since the Apple's fault was armed
 
     //  The host's parts, each with the state it uses.
     friend class           CassoLinkAdtProServer;

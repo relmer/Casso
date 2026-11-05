@@ -57,6 +57,9 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
         case CassoLinkCodec::kSectorCrcs:
             return std::format ("Sector checksums: {} bytes", size);
 
+        case CassoLinkCodec::kFault:
+            return (size >= 1) ? std::format ("Fault: kind {}", payload[0]) : std::string ("Fault");
+
         case CassoLinkCodec::kStatus:
             return (size >= 5) ? std::format ("Status: drive {}, track {}, {} sectors done, {}", payload[1], payload[2], payload[3], GetErrorText (payload[4])) : std::string ("Status");
 

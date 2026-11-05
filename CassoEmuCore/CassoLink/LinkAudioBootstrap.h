@@ -4,6 +4,7 @@
 
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Tape/TapeAudio.h"
+#include "CassoLink/LinkFault.h"
 
 
 
@@ -50,8 +51,10 @@ public:
     //  The same audio as a 16-bit mono WAV file's bytes.
     static HRESULT  BuildWav   (const LinkShimOptions & options, std::vector<Byte> & outWav, std::string & outCommand);
 
-    //  The half-cycles of one record, in microseconds.
-    static void     AppendRecord (std::span<const Byte> data, std::vector<double> & halfCyclesUs);
+    //  The half-cycles of one record, in microseconds. With a fault, its byte
+    //  of the record, the checksum last, is flipped or left out, and the
+    //  checksum is computed from the data before the change.
+    static void     AppendRecord (std::span<const Byte> data, std::vector<double> & halfCyclesUs, const LinkFault * fault = nullptr);
 
     //  Each half-cycle as a half sine of alternating sign, after a short
     //  silence and followed by one.

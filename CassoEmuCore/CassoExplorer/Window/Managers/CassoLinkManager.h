@@ -35,6 +35,7 @@ public:
     static constexpr int  kListActionWideDip    = 200;   // the firewall's actions, whose labels are longer
     static constexpr int  kListActionHeightDip  = 32;
     static constexpr int  kActivityShownMinutes = 15;
+    static constexpr int  kFaultTextMax         = 400;
 
     //  The whole-disk read and write pickers' own history.
     static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
@@ -58,6 +59,7 @@ public:
     void          BootstrapConnection     (const std::string & name);
     void          PlayCassetteBootstrap   (const std::string & name);
     void          SaveCassetteBootstrap   (const std::string & name);
+    void          ArmLinkFaults           ();
     bool          IsSerialConnection      (const std::string & name) const;
     bool          CanBootstrapConnection  (const std::string & name) const;
     std::wstring  GetLatestActivity       () const;

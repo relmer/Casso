@@ -15,10 +15,12 @@
 
 HRESULT LinkAudioBootstrap::BuildAudio (const LinkShimOptions & options, TapeAudio & outAudio, std::string & outCommand)
 {
-    HRESULT              hr    = S_OK;
+    HRESULT              hr     = S_OK;
     std::vector<Byte>    image;
     std::vector<double>  halfCycles;
-    Word                 start = 0;
+    Word                 start  = 0;
+    LinkFault            fault;
+    bool                 faulty = false;
 
 
 
@@ -27,7 +29,15 @@ HRESULT LinkAudioBootstrap::BuildAudio (const LinkShimOptions & options, TapeAud
     hr = LinkProgram::BuildBootstrapImage (options, image, start);
     CHR (hr);
 
-    AppendRecord (image, halfCycles);
+    //  A Debug build's next cassette fault.
+    faulty = LinkFaults::TryTake ({ LinkFault::Source::Cassette }, fault);
+
+    if (faulty)
+    {
+        LinkFaults::Report ("Injected a fault: " + LinkFault::Describe (fault));
+    }
+
+    AppendRecord (image, halfCycles, faulty ? &fault : nullptr);
     Render (halfCycles, outAudio);
 
     outCommand = std::format ("{:04X}.{:04X}R {:04X}G\r", start, start + image.size() - 1, start);
@@ -77,11 +87,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LinkAudioBootstrap::AppendRecord (std::span<const Byte> data, std::vector<double> & halfCyclesUs)
+void LinkAudioBootstrap::AppendRecord (std::span<const Byte> data, std::vector<double> & halfCyclesUs, const LinkFault * fault)
 {
     constexpr double  kUsPerSecond = 1000000.0;
     size_t            leaderHalves = (size_t) (kLeaderSeconds * kUsPerSecond / kLeaderHalfUs);
     Byte              checksum     = kChecksumSeed;
+    std::vector<Byte> record (data.begin(), data.end());
+    size_t            at           = 0;
 
 
 
@@ -91,11 +103,30 @@ void LinkAudioBootstrap::AppendRecord (std::span<const Byte> data, std::vector<d
 
     for (Byte value : data)
     {
-        AppendByte (value, halfCyclesUs);
         checksum ^= value;
     }
 
-    AppendByte (checksum, halfCyclesUs);
+    record.push_back (checksum);
+
+    if (fault != nullptr && fault->offset < record.size())
+    {
+        at = fault->offset;
+
+        if (fault->kind == LinkFault::Kind::Drop)
+        {
+            record.erase (record.begin() + (ptrdiff_t) at);
+        }
+        else
+        {
+            record[at] ^= 0x01;
+        }
+    }
+
+    for (Byte value : record)
+    {
+        AppendByte (value, halfCyclesUs);
+    }
+
     halfCyclesUs.push_back (kOneHalfUs);
 }
 

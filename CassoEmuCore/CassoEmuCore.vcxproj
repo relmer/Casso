@@ -214,6 +214,7 @@
     <ClCompile Include="Machines\Apple2\Common\LanguageCard.cpp" />
     <ClCompile Include="Devices\Acia6551.cpp" />
     <ClCompile Include="Devices\AciaEndpoints.cpp" />
+    <ClCompile Include="Seams\FaultInjectingByteStream.cpp" />
     <ClCompile Include="Seams\InProcessByteStream.cpp" />
     <ClCompile Include="Seams\ByteStreamSettings.cpp" />
     <ClCompile Include="Seams\Win32TcpStream.cpp" />
@@ -245,6 +246,7 @@
     <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
     <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
+    <ClCompile Include="CassoLink\LinkFault.cpp" />
     <ClCompile Include="Seams\Win32ProcessProbe.cpp" />
     <ClCompile Include="Devices\AciaByteSourceEndpoint.cpp" />
     <ClCompile Include="Devices\SerialByteQueue.cpp" />
@@ -993,6 +995,7 @@
     <ClInclude Include="Devices\AciaEndpoints.h" />
     <ClInclude Include="Seams\IByteStream.h" />
     <ClInclude Include="Seams\IByteStreamFactory.h" />
+    <ClInclude Include="Seams\FaultInjectingByteStream.h" />
     <ClInclude Include="Seams\InProcessByteStream.h" />
     <ClInclude Include="Seams\ByteStreamSettings.h" />
     <ClInclude Include="Seams\Win32TcpStream.h" />
@@ -1027,6 +1030,7 @@
     <ClInclude Include="CassoLink\LinkAnnouncement.h" />
     <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />
     <ClInclude Include="CassoLink\LinkBootstrap.h" />
+    <ClInclude Include="CassoLink\LinkFault.h" />
     <ClInclude Include="Seams\IProcessProbe.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorReadObserver.h" />
     <ClInclude Include="Devices\AciaByteSourceEndpoint.h" />

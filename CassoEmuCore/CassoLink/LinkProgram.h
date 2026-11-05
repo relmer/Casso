@@ -146,7 +146,9 @@ public:
     static constexpr Word    kSerialLoaderAddress = 0x3A50;
 
     static HRESULT      AssembleShim     (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);
-    static HRESULT      AssembleProgram  (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);
+    //  With faults, the build has the Fault command, for a Debug build's tests
+    //  of how a link recovers.
+    static HRESULT      AssembleProgram  (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false);
 
     //  The shim, starting at the given speed. A boot disk and an emulated
     //  link use the link's speed; the typed bootstrap uses its own.
@@ -187,5 +189,5 @@ public:
     static bool         GetSpeedControl  (DWORD baud, Byte & outControl);
 
 private:
-    static HRESULT      Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors);
+    static HRESULT      Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false);
 };

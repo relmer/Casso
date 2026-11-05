@@ -58,6 +58,10 @@ public:
     //  packets. With none, nothing is written to a file.
     void  SetLogFolder (const std::filesystem::path & folder) { m_logFile.SetFolder (folder); }
 
+    //  An activity row under a name other than a connection's, such as an
+    //  injected fault's.
+    void  AppendLogRow (const std::string & name, const std::string & text) { m_logFile.Append (name, CassoLinkLogFile::kActivity, text); }
+
     //  Where a finished operation or a change of state is posted.
     void  SetTarget (HWND hwnd, UINT message) { m_hwnd = hwnd; m_message = message; }
 

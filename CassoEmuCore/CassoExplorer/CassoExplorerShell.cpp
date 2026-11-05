@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
+#include "Core/TextEncoding.h"
 #include "Core/PathResolver.h"
 #include "CassoExplorer/ExplorerUpdaterHost.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
@@ -173,6 +174,20 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         {
             outOptions.newWindow = true;
         }
+#if defined (_DEBUG)
+        else if (argument == L"--link-faults" && hasValue && outOptions.linkFaults.empty())
+        {
+            const std::wstring &  value   = arguments[++i];
+            HRESULT               hrParse = LinkFault::Parse (TextEncoding::WideToNarrow (value), outOptions.linkFaults);
+
+            valid = SUCCEEDED (hrParse) && !outOptions.linkFaults.empty();
+
+            if (!valid)
+            {
+                outOptions.refusal = L"--link-faults takes a list such as pc:flip@40;apple:unreadable@T17S3, not \"" + value + L"\".";
+            }
+        }
+#endif
         else if (!argument.empty() && argument.rfind (L"--", 0) != 0 && outOptions.openPath.empty())
         {
             outOptions.openPath = argument;
@@ -725,6 +740,27 @@ std::vector<std::wstring> CassoExplorerShell::GetDriveRoots()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::StartLinkFaults
+//
+//  A Debug build's fault injection: the Apple's program is built with the
+//  Fault command, --link-faults's list is armed, and each fault applied
+//  outside a connection is logged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::StartLinkFaults()
+{
+    LinkFaults::Enable();
+    LinkFaults::SetReporter ([this] (const std::string & text) { m_links.AppendLogRow (kFaultLogName, text); });
+    LinkFaults::Arm (m_options.linkFaults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::Initialize
 //
 //  COM first, because the drag source and drop target in each browser
@@ -751,6 +787,10 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
+
+#if defined (_DEBUG)
+    StartLinkFaults();
+#endif
 
     hr = OleInitialize (nullptr);
     CHR (hr);

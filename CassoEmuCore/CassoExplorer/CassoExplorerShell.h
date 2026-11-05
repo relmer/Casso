@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkFolder.h"
+#include "CassoLink/LinkFault.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -39,14 +40,15 @@
 
 struct CassoExplorerLaunchOptions
 {
-    HWND          owner     = nullptr;
-    bool          hasOwner  = false;
-    bool          newWindow = false;
-    bool          wasUpdated    = false;   // --updated: started by a finished update
-    DWORD         cleanupOldPid = 0;       // --cleanup-old <pid>: the process that ran the old files
-    std::wstring  titlePrefix;
-    std::wstring  openPath;
-    std::wstring  refusal;
+    HWND                    owner         = nullptr;
+    bool                    hasOwner      = false;
+    bool                    newWindow     = false;
+    bool                    wasUpdated    = false;   // --updated: started by a finished update
+    DWORD                   cleanupOldPid = 0;       // --cleanup-old <pid>: the process that ran the old files
+    std::wstring            titlePrefix;
+    std::wstring            openPath;
+    std::wstring            refusal;
+    std::vector<LinkFault>  linkFaults;              // --link-faults: a Debug build's alone
 };
 
 
@@ -187,6 +189,7 @@ public:
     static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
     static constexpr const wchar_t *  kOwnerProperty = L"CassoExplorerOwner";
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";
+    static constexpr const char *     kFaultLogName  = "Fault injection";
 
     static constexpr int  kDefaultWidthDip  = 1280;
     static constexpr int  kDefaultHeightDip = 720;
@@ -197,6 +200,7 @@ private:
     struct WindowSlot;
 
     void                                     ConfigureBrowser     (CassoExplorerBrowser & browser);
+    void                                     StartLinkFaults      ();
     void                                     ReleaseClosedWindows ();
     bool                                     HasOpenWindows       () const;
     std::vector<CassoExplorerSessionWindow>  GetOpenSession       () const;

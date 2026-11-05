@@ -106,6 +106,7 @@ public:
     static constexpr Byte  kSetColumns    = 0xE3;
     static constexpr Byte  kReadCrcs      = 0xE4;
     static constexpr Byte  kSectorCrcs    = 0xE5;
+    static constexpr Byte  kFault         = 0xE6;     // a Debug build's program alone
     static constexpr Byte  kKeySpace      = 0xA0;
     static constexpr Byte  kKeyQuit       = 0xD1;
     static constexpr Byte  kKeyNone       = 0x00;

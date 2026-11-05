@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkHost.h"
+#include "Seams/FaultInjectingByteStream.h"
 #include "CassoLink/CassoLinkPacketText.h"
 #include "Seams/IByteStream.h"
 
@@ -153,6 +154,11 @@ HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
 
 
 
+    if (m_pcFault.IsArmed())
+    {
+        return FaultInjectingByteStream::WriteWithFault (*m_stream, m_pcFault, bytes, m_adtProServer.m_activity);
+    }
+
     return m_stream->Write (bytes.data(), bytes.size());
 }
 
@@ -168,11 +174,7 @@ HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
 
 HRESULT CassoLinkHost::SendByte (Byte value)
 {
-    std::lock_guard<std::mutex>  lock (m_sendLock);
-
-
-
-    return m_stream->Write (&value, 1);
+    return Send (std::span<const Byte> (&value, 1));
 }
 
 
@@ -237,7 +239,7 @@ HRESULT CassoLinkHost::ReadCrcsOnce (Byte drive, Byte track, std::span<const Byt
     request.insert (request.end(), sectors.begin(), sectors.end());
     request.insert (request.end(), { m_progressStart, m_progressEnd });
 
-    hr = AwaitReady();
+    hr = AwaitRequest();
     CHR (hr);
 
     hr = SendPacket (CassoLinkCodec::kReadCrcs, request);
@@ -344,7 +346,7 @@ HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const 
     request.insert (request.end(), sectors.begin(), sectors.end());
     request.insert (request.end(), { m_progressStart, m_progressEnd });
 
-    hr = AwaitReady();
+    hr = AwaitRequest();
     CHR (hr);
 
     hr = SendPacket (CassoLinkCodec::kReadSectors, request);
@@ -481,7 +483,7 @@ HRESULT CassoLinkHost::TimeDriveOnce (Byte drive, Byte track, Byte revolutions, 
 
     QueryPerformanceFrequency (&frequency);
 
-    hr = AwaitReady();
+    hr = AwaitRequest();
     CHR (hr);
 
     hr = SendPacket (CassoLinkCodec::kTimeDrive, request);
@@ -581,7 +583,7 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
     request.insert (request.end(), { m_progressStart, m_progressEnd });
     request.insert (request.end(), trailer.begin(), trailer.end());
 
-    hr = AwaitReady();
+    hr = AwaitRequest();
     CHR (hr);
 
     hr = SendPacket (command, request);
@@ -670,7 +672,7 @@ HRESULT CassoLinkHost::FormatTrackOnce (Byte drive, Byte track, Byte volume, Cas
 
     outStatus = {};
 
-    hr = AwaitReady();
+    hr = AwaitRequest();
     CHR (hr);
 
     hr = SendPacket (CassoLinkCodec::kFormatTrack, request);
@@ -1283,6 +1285,93 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::ArmFault
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ArmFault (const LinkFault & fault)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBREx (fault.source == LinkFault::Source::Pc || fault.source == LinkFault::Source::Apple, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    if (fault.source == LinkFault::Source::Apple)
+    {
+        CBREx (m_faultProgram, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+        m_appleFault = fault;
+        m_requests   = 0;
+    }
+    else
+    {
+        std::lock_guard<std::mutex>  lock (m_sendLock);
+
+        m_pcFault.Arm (fault);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::AwaitRequest
+//
+//  AwaitReady for an operation's request, with the Apple's fault sent first
+//  when it is for this request. A sector's fault is sent ahead of the first,
+//  and the Apple applies it when it reads the sector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::AwaitRequest()
+{
+    HRESULT            hr  = S_OK;
+    bool               due = false;
+    std::vector<Byte>  payload;
+
+
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    due = m_appleFault.has_value() && (m_appleFault->IsSectorFault() || m_appleFault->request == m_requests);
+
+    if (due)
+    {
+        payload = LinkFault::MakePayload (*m_appleFault);
+
+        hr = SendPacket (CassoLinkCodec::kFault, payload);
+        CHR (hr);
+
+        if (m_adtProServer.m_activity)
+        {
+            m_adtProServer.m_activity ("Sent a fault to the Apple: " + LinkFault::Describe (*m_appleFault));
+        }
+
+        m_appleFault.reset();
+
+        hr = AwaitReady();
+        CHR (hr);
+    }
+
+    m_requests++;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::TraceReceived
 //
 //  An idle Apple sends the same Ready in reply to each Idle, so a Ready is
@@ -1395,7 +1484,7 @@ HRESULT CassoLinkHost::AssembleProgram()
 
     BAIL_OUT_IF (!m_program.empty(), S_OK);
 
-    hr = LinkProgram::AssembleProgram (m_program, errors, m_programChip);
+    hr = LinkProgram::AssembleProgram (m_program, errors, m_programChip, m_faultProgram);
 
     if (FAILED (hr))
     {

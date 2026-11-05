@@ -48,14 +48,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip)
+HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip, bool faults)
 {
     HRESULT  hr   = S_OK;
     bool     fits = false;
 
 
 
-    hr = Assemble (GetProgramSource(), kProgramAddress, chip, outBytes, outErrors);
+    hr = Assemble (GetProgramSource(), kProgramAddress, chip, outBytes, outErrors, faults);
     CHR (hr);
 
     //  The program ends below the shim's copy of the zero page, and the shim,
@@ -503,19 +503,22 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 //  The source starts with its own .org; the result must begin at `origin`,
 //  so a source edited to load elsewhere fails here rather than on the Apple.
 //  A W5100 build is given W5100 ahead of the source, and its source selects
-//  its own code with ifdef.
+//  the W5100's code with ifdef; a build with faults is given FAULTS the same way.
+//  An error's line is the source's, after the lines put ahead of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors)
+HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults)
 {
-    HRESULT          hr       = S_OK;
+    HRESULT          hr        = S_OK;
     static const Cpu s_cpu;
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
-    std::string      chipLine = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
-    std::string      text     = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + source;
-    AssemblyResult   result   = assembler.Assemble (text);
-    bool             placed   = false;
+    std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
+    std::string      faultLine = faults ? "FAULTS = 1\n" : "";
+    std::string      text      = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + source;
+    int              ahead     = faults ? 5 : 4;
+    AssemblyResult   result    = assembler.Assemble (text);
+    bool             placed    = false;
 
 
 
@@ -524,7 +527,7 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
 
     for (const AssemblyError & error : result.errors)
     {
-        outErrors += std::format ("line {}: {}\n", error.lineNumber - 4, error.message);
+        outErrors += std::format ("line {}: {}\n", error.lineNumber - ahead, error.message);
     }
 
     CBREx (result.success, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));

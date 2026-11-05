@@ -167,6 +167,7 @@ private:
     void  SetState               (LinkState state);
 
     HRESULT  Execute       (LinkOperation & operation);
+    void     ArmNextFault  ();
     HRESULT  Revalidate    (int drive);
     HRESULT  CheckCatalog  (int drive);
     HRESULT  RunWrite      (LinkOperation & operation, const LinkedDisk::WriteOperation & write);

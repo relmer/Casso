@@ -4,6 +4,8 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/CassoLinkSearch.h"
 #include "Core/TextEncoding.h"
+#include "CassoLink/LinkFault.h"
+#include "Seams/FaultInjectingByteStream.h"
 
 
 
@@ -69,12 +71,15 @@ Error:
 
 HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & operation)
 {
-    HRESULT                    hr      = S_OK;
-    std::vector<std::string>   lines;
-    std::vector<Byte>          transfer;
-    std::vector<std::wstring>  ports;
-    bool                       hasPort = m_session.m_settings.transport != LinkTransport::Serial || !m_port.empty();
-    bool                       typable = m_session.m_settings.transport != LinkTransport::Uthernet;
+    HRESULT                                    hr      = S_OK;
+    std::vector<std::string>                   lines;
+    std::vector<Byte>                          transfer;
+    std::vector<std::wstring>                  ports;
+    bool                                       hasPort = m_session.m_settings.transport != LinkTransport::Serial || !m_port.empty();
+    bool                                       typable = m_session.m_settings.transport != LinkTransport::Uthernet;
+    LinkFault                                  fault;
+    std::unique_ptr<FaultInjectingByteStream>  faulty;
+    IByteStream                              * target  = nullptr;
 
 
 
@@ -123,10 +128,20 @@ HRESULT CassoLinkConnector::RunBootstrap (std::stop_token stop, LinkOperation & 
     hr = OpenStream (m_session.m_settings.bootstrapBaud, stop);
     CHR (hr);
 
-    hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
+    //  A Debug build's next bootstrap fault, counted from the loader's first
+    //  byte.
+    target = m_stream.get();
+
+    if (LinkFaults::TryTake ({ LinkFault::Source::Bootstrap }, fault))
+    {
+        faulty = std::make_unique<FaultInjectingByteStream> (*m_stream, fault, [this] (const std::string & text) { m_session.m_sink.OnActivity (text); });
+        target = faulty.get();
+    }
+
+    hr = LinkBootstrap::Send (*target, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
     CHR (hr);
 
-    hr = LinkBootstrap::SendShim (*m_stream, transfer);
+    hr = LinkBootstrap::SendShim (*target, transfer);
     CHR (hr);
 
     m_bootstrapped = true;
@@ -678,6 +693,7 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
         m_session.m_host->SetActivitySink ([this] (const std::string & text) { m_session.m_sink.OnActivity (text); });
         m_session.m_host->SetTraceSink    ([this] (bool sent, const std::string & text) { m_session.m_sink.OnTrace (sent, text); });
         m_session.m_host->SetProgramChip (CassoLinkSession::GetLinkChip (m_session.m_settings.transport));
+        m_session.m_host->SetFaultProgram (LinkFaults::IsEnabled());
         m_session.m_host->SetClients (m_session.m_settings.transport == LinkTransport::AdtProServer ? CassoLinkHost::Clients::AdtPro : CassoLinkHost::Clients::Casso);
         m_openBaud = baud;
         m_prompted = false;
