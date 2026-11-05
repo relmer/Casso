@@ -26,7 +26,8 @@ SourceDocumentPane::SourceDocumentPane (IDebuggerPaneHost & host, SourceDocument
     IDebuggerPane (host),
     m_group       (group),
     m_slot        (slot),
-    m_bar         (host, DebuggerLayout::GetSourcePaneId (slot), L"Source commands")
+    m_id          (DebuggerLayout::GetSourcePaneId (slot)),
+    m_bar         (host, m_id, L"Source commands")
 {
 }
 
@@ -52,9 +53,9 @@ SourceDocumentPane::~SourceDocumentPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring SourceDocumentPane::GetId() const
+const std::wstring & SourceDocumentPane::GetId() const
 {
-    return DebuggerLayout::GetSourcePaneId (m_slot);
+    return m_id;
 }
 
 
@@ -89,8 +90,7 @@ void SourceDocumentPane::CreateControls()
 
             return (host != nullptr) ? host->FindDebuggerSource (record, path, key) : SourceLookup();
         },
-        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); },
-        [this] (Word address)                        { m_host.GoToCode (address); });
+        [this] (const DebuggerActionBuilder & build) { m_host.RunAction (build (m_host.GetMode())); });
 
     m_model->SetOnToggleBody   ([this] { m_group.ToggleMacroBody(); });
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
@@ -246,10 +246,78 @@ bool SourceDocumentPane::Contains (POINT atDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourceDocumentPane::TryGetHeatTip
+//
+//  Over a line's heat strip, its bytes' counts and the scale of its color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceDocumentPane::TryGetHeatTip (POINT clientPx, DxuiTip & tip) const
+{
+    HeatStrip::Tip  heat;
+
+
+
+    if (!m_isShown || !m_view->IsVisible() || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_model->TryGetHeatTip (clientPx, heat, tip.anchor))
+    {
+        return false;
+    }
+
+    tip.placement    = DxuiTip::Placement::AtPointer;
+    tip.text         = std::move (heat.text);
+    tip.gradient     = std::move (heat.gradient);
+    tip.gradientMark = heat.mark;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentPane::AddContentMenuItems
+//
+//  Copy, with text selected; and on a line with code, Go to disassembly,
+//  which brings the line's address to the middle of the disassembly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
+{
+    std::optional<Word>  address;
+
+
+
+    if (!m_isShown || !m_view->IsVisible() || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx))
+    {
+        return;
+    }
+
+    if (m_view->HasSelection())
+    {
+        items.push_back ({ L"Copy", [this] { m_view->CopySelection(); } });
+    }
+
+    address = m_model->GetAddressAt (clientPx);
+
+    if (address.has_value())
+    {
+        items.push_back ({ L"Go to disassembly", [this, at = *address] { m_host.GoToCode (at); } });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourceDocumentPane::ApplyDocument
 //
 //  The document the PC is in has the PC's own marker ahead of its title, as
-//  the following disassembly view's tab does (FR-113).
+//  the following disassembly view's tab does (FR-113), set at each stop and
+//  left as it is while the machine runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,6 +329,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
     bool                                                      hasPc         = false;
     bool                                                      relayout      = false;
     std::wstring                                              bannerKey;
+    std::wstring                                              tip;
     DxuiTabGroup::LeadingMark                                 mark;
 
 
@@ -296,14 +365,24 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
         m_frame->Relayout();
     }
 
-    hasPc = isShown && source.has_value() && fileId == source->fileId;
+    hasPc       = HasPcMark (m_hasPcMark, snapshot.isPaused, isShown && source.has_value() && fileId == source->fileId);
+    m_hasPcMark = hasPc;
 
     if (hasPc)
     {
         mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcMarkerArgb() };
     }
 
-    m_host.SetPaneTabMark (GetId(), mark, hasPc ? L"The PC is in this file" : L"");
+    //  The tab's tip is the file's full path, which differs for two files of
+    //  one name.
+    tip = m_model->GetFoundPath();
+
+    if (hasPc)
+    {
+        tip += (tip.empty() ? L"" : L"\n") + std::wstring (L"The PC is in this file");
+    }
+
+    m_host.SetPaneTabMark (GetId(), mark, tip);
     return relayout;
 }
 
@@ -460,25 +539,45 @@ void SourceDocumentGroup::Apply()
 //
 //  At each stop at a new place, the file the PC is in comes to the front,
 //  opened if it is not open yet -- the body's file while the body is on
-//  screen.
+//  screen. At a stop with no source line after one with a line, the
+//  disassembly view following the PC comes to the front instead, which
+//  matters where the two are tabs of one group.
 //  A running machine moves nothing, so the documents do not churn under it.
+//
+//  The first stop after the window opens only opens the file, so the tabs
+//  the layout put in front when it was restored stay in front.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
 {
-    const DebuggerViewSnapshot::SourceState & source = *snapshot.source;
-    std::pair<int, int>                       place  = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
+    const DebuggerViewSnapshot::SourceState & source  = *snapshot.source;
+    std::pair<int, int>                       place   = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
+    bool                                      wasLine = m_pcPlace.first >= 0;
+    bool                                      isOpen  = (size_t) snapshot.followView < snapshot.codeOpen.size() && snapshot.codeOpen[(size_t) snapshot.followView];
 
 
 
-    if (!snapshot.isPaused || place.first < 0 || place == m_pcPlace)
+    if (!snapshot.isPaused || place == m_pcPlace)
     {
         return;
     }
 
     m_pcPlace = place;
-    Open (place.first, 0, true);
+
+    if (place.first < 0)
+    {
+        if (wasLine && m_hasFollowedPc && isOpen)
+        {
+            m_host.ActivatePaneTab (DebuggerLayout::GetCodePaneId (snapshot.followView));
+            m_host.RelayoutDock();
+        }
+
+        return;
+    }
+
+    Open (place.first, 0, m_hasFollowedPc);
+    m_hasFollowedPc = true;
 }
 
 
@@ -660,6 +759,40 @@ void SourceDocumentGroup::ShowLine (int fileId, int line)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourceDocumentGroup::ShowPc
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceDocumentGroup::ShowPc()
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    std::pair<int, int>           place    = { -1, 0 };
+
+
+
+    if (snapshot == nullptr || !snapshot->source.has_value())
+    {
+        return false;
+    }
+
+    place = SourcePane::GetPlace (*snapshot->source, SourcePane::GetMacroLevel (*snapshot->source, m_macroLevel));
+
+    if (place.first < 0)
+    {
+        return false;
+    }
+
+    Open     (place.first, 0, true);
+    ShowLine (place.first, place.second);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourceDocumentGroup::GetSlotAt
 //
 //  The visible document whose text or banner is under a point, or -1.
@@ -729,6 +862,15 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
     inside   = DxuiDockSite::Contains (view->GetBounds(),   at);
     onBanner = DxuiDockSite::Contains (banner->GetBounds(), at);
 
+    //  A drag under way ends with its button's release, even after its
+    //  document went behind another tab, so a later move over the text
+    //  doesn't select to the pointer.
+    if (view->IsInteracting() && ev.kind == DxuiMouseEventKind::Up)
+    {
+        (void) view->OnMouse (ev);
+        return document->IsShown();
+    }
+
     //  A document behind another tab takes no input.
     if (!document->IsShown() || !view->IsVisible() || !m_host.IsRoutable (view))
     {
@@ -763,22 +905,20 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
+    //  A click selects in the text; a double-click on a line toggles its
+    //  breakpoint. A press on a scroll bar is the scroll bar's only.
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
-        isDouble = (now - m_clickMs) <= (uint64_t) GetDoubleClickTime() &&
-                   std::abs (at.x - m_clickAt.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
-                   std::abs (at.y - m_clickAt.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
+        isDouble = (now - m_clickMs) <= (uint64_t) DxuiSystemSettings::Instance().GetDoubleClickMs() &&
+                   std::abs (at.x - m_clickAt.x) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cx &&
+                   std::abs (at.y - m_clickAt.y) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cy;
 
         m_clickMs = isDouble ? 0 : now;
         m_clickAt = at;
 
-        if (isDouble)
+        if (isDouble && !view->IsOverScrollbar (at))
         {
             document->GetModel().OnDoubleClick (at);
-        }
-        else
-        {
-            document->GetModel().OnClick (at);
         }
 
         m_activeSlot = slot;

@@ -37,6 +37,7 @@ public:
         kCycle,
         kSource,
         kAddress,
+        kInput,
         kValue,
         kMeaning,
         kColumnCount,
@@ -81,8 +82,22 @@ public:
     static const wchar_t *  GetLaneTip   (Lane lane);
     static GamePort         GetGamePort  (const InputEvent & event);
 
-    //  The address, value and meaning cells of an event.
-    void  FormatEvent (const InputEvent & event, std::wstring & outAddress, std::wstring & outValue, std::wstring & outMeaning) const;
+    //  An event's cells: the soft switch a guest's access went to, the key
+    //  or line, host or guest alike, the value, and the line written out.
+    struct EventText
+    {
+        std::wstring  address;
+        std::wstring  input;
+        std::wstring  value;
+        std::wstring  meaning;
+    };
+
+    void  FormatEvent (const InputEvent & event, EventText & out) const;
+
+    //  A key's name in the Input column: the character, or a word for a
+    //  control key ("Return", "Esc", "Ctrl+C").
+    static std::wstring  GetKeyName  (uint8_t ascii);
+    std::wstring         GetAxisName (int axis) const;
 
 protected:
     ColumnSpecs  GetColumnSpecs () const override;

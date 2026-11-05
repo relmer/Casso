@@ -6,6 +6,7 @@
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/DebugHook.h"
+#include "Debugger/DebugSessionView.h"
 #include "Debugger/DiskBreakpointMonitor.h"
 #include "Debugger/IDebugExpressionContext.h"
 #include "Debugger/IDebugTarget.h"
@@ -23,6 +24,7 @@ class IDebugNotificationSink;
 class IFileSystem;
 class IInstructionObserver;
 class IIoEventSource;
+class IMachineControl;
 class ITapeControl;
 class OpcodeTable;
 struct DebugSessionView;
@@ -169,6 +171,14 @@ public:
     WatchTable            & GetZeroPage    ()       { return m_zeroPage; }
     WatchTable            & GetBookmarks   ()       { return m_bookmarks; }
     DataBlockTable        & GetDataBlocks  ()       { return m_dataBlocks; }
+
+    //  The blocks the debug file's data directives laid down. They are data
+    //  while the file matches memory and no data directive covers them; after
+    //  X over one, its bytes are disassembled as code until the file loads
+    //  again.
+    void                  SetDebugFileData (std::vector<DataBlockEntry> blocks);
+    bool                  TryFindData      (Word address, DataBlockEntry & block, DataOrigin & origin) const;
+    void                  RemoveData       (Word first, Word last);
     SymbolTable           & GetSymbols     ()       { return m_symbols; }
     const SymbolTable     & GetSymbols     () const { return m_symbols; }
 
@@ -187,6 +197,20 @@ public:
     // table unloads the file as well.
     void                  SetDebugFileTable (SymbolTableId table) { m_debugFileTable = table; m_filesRevision++; }
     std::optional<SymbolTableId>  GetDebugFileTable () const { return m_debugFileTable; }
+
+    // Whether the program in memory is the one each loaded file was made for
+    // (ProgramCheck), checked at each stop and when a check is set while
+    // the machine is paused. While the debug file's doesn't match, the session
+    // has no source lines, and while a file's doesn't match, its table is
+    // hidden. A debug file's check is set after it loads; a table's after a
+    // symbol file without lines loads into it.
+    void                  SetDebugFileCheck (std::vector<ProgramCheck::Entry> entries);
+    void                  SetLabelCheck     (SymbolTableId table);
+    void                  CheckProgram      ();
+    bool                  IsDebugFileStale  () const { return m_programChecks != nullptr && m_programChecks->isDebugFileStale; }
+
+    // The files whose program isn't in memory, by name, for the banners.
+    std::vector<std::string>  GetStaleFileNames () const;
 
     // Whether T, P and RTS, and every dialect's step commands, step by source
     // line. Only while a debug file is loaded; otherwise by instruction.
@@ -219,6 +243,22 @@ public:
     void                              NoteSymbolLoad    (SymbolTableId table, const std::wstring & path, int offset);
     void                              ForgetSymbolLoads (SymbolTableId table);
     const std::vector<SymbolLoad>   & GetSymbolLoads    () const { return m_symbolLoads; }
+
+    //  Each symbol the user added, with `SYM<table> name = addr` or Add
+    //  symbol here..., for a debug project to add again after its symbol files
+    //  load; adding a name again replaces it, and removing it or clearing
+    //  its table removes it.
+    struct AddedSymbol
+    {
+        SymbolTableId  table   = SymbolTableId::User;
+        std::string    name;
+        Word           address = 0;
+    };
+
+    void                              NoteAddedSymbol    (SymbolTableId table, const std::string & name, Word address);
+    void                              ForgetAddedSymbol  (SymbolTableId table, const std::string & name);
+    void                              ForgetAddedSymbols (SymbolTableId table);
+    const std::vector<AddedSymbol>  & GetAddedSymbols    () const { return m_addedSymbols; }
 
     //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
     //  and its file's name; a debug project's key while no debug file is
@@ -313,6 +353,12 @@ public:
     void                  SetTapeControl       (ITapeControl * control)           { m_tapeControl = control; }
     ITapeControl        * GetTapeControl       () const                           { return m_tapeControl; }
 
+    // RESET, PASTE, the disk commands, SCREEN, SCREENSHOT and EXIT in the
+    // emulator (IMachineControl); null in a batch run, where they are not
+    // available.
+    void                  SetMachineControl    (IMachineControl * control)        { m_machineControl = control; }
+    IMachineControl     * GetMachineControl    () const                           { return m_machineControl; }
+
     // For a reply: empty when the path was given rooted, since the command
     // already shows it; otherwise " to C:\Work\out.bin", with the preposition
     // given and the absolute path the relative one resolved to.
@@ -333,6 +379,16 @@ public:
     // and a blank line ends it.
     void   BeginAssembly         (Word address);
     bool   IsAssembling          () const { return m_assemblyAddress.has_value(); }
+
+    //  Why the machine last stopped, and at which breakpoint, if one.
+    StopReason          GetLastStopReason     () const { return m_lastStopReason; }
+    std::optional<int>  GetLastStopBreakpoint () const { return m_lastStopBreakpoint; }
+
+    //  A line about how the last run was made, such as a step out with no
+    //  call on record to return from, empty when there is nothing to report.
+    //  The next run clears it.
+    const std::string &  GetRunNotice         () const { return m_runNotice; }
+
 
     void   SetInstructionObserver (IInstructionObserver * observer) { m_instructionObserver = observer; }
 
@@ -448,7 +504,7 @@ private:
     bool   TryExecuteEngineCommand (const DebugCommand & command, Reply & reply);
     void   ExecuteRun            (const DebugCommand & command, Reply & reply);
     bool   TryStartNextStep      ();
-    void   SetStepOutFrame       (RunRequest & request);
+    void   SetStepOutFrame       (RunRequest & request, Reply & reply);
     void   ExecuteSource         (const DebugCommand & command, Reply & reply);
     void   ExecuteStepFilter     (const DebugCommand & command, Reply & reply);
     void   ExecuteAssemblyLine   (const std::string & line, Reply & reply);
@@ -496,6 +552,7 @@ private:
     IFileSystem                         * m_fileSystem          = nullptr;
     IIoEventSource                      * m_ioEventSource       = nullptr;
     ITapeControl                        * m_tapeControl         = nullptr;
+    IMachineControl                     * m_machineControl      = nullptr;
     std::wstring                          m_currentDirectory;
 
     int                                   m_nextId        = 0;
@@ -507,6 +564,7 @@ private:
     WatchTable                            m_zeroPage;
     WatchTable                            m_bookmarks;
     DataBlockTable                        m_dataBlocks;
+    DataBlockTable                        m_debugFileData;
     SymbolTable                           m_symbols;
     DebugFile                             m_debugFile;
     std::wstring                          m_debugFilePath;
@@ -514,10 +572,12 @@ private:
     std::optional<SymbolTableId>          m_debugFileTable;
     uint64_t                              m_filesRevision = 0;
     LineTable                             m_lineTable;
+    std::shared_ptr<const ProgramChecks>  m_programChecks;
     bool                                  m_stepBySource  = false;
     uint64_t                              m_cycleMarker   = 0;
     StepFilter                            m_stepFilter;
     std::vector<SymbolLoad>               m_symbolLoads;
+    std::vector<AddedSymbol>              m_addedSymbols;
     std::string                           m_binaryKey;
     std::string                           m_binaryName;
     CallStackRecorder                     m_callRecorder;
@@ -551,6 +611,10 @@ private:
     std::optional<BeamBreak>              m_frameBreak;                 // FRAME's, for one run beside BPBEAM's
     bool                                  m_frameBreakHit = false;
 
+    //  Why the machine last stopped.
+    StopReason                            m_lastStopReason = StopReason::Pause;
+    std::optional<int>                    m_lastStopBreakpoint;
+
     //  BRKUNINIT is on.
     bool                                  m_isUnwrittenBreak = false;
 
@@ -582,4 +646,10 @@ private:
     // stops, even when recording is turned off while it runs.
     bool                                  m_isStepOutOnRecord      = false;
     bool                                  m_isRecordingEndDeferred = false;
+
+    //  The PC at the last stop, or where the record was last put back from
+    //  history. A PC that differs at a step out was moved, so the calls on
+    //  record are the stopped code's, not the code the step out begins in.
+    std::optional<Word>                   m_stopPc;
+    std::string                           m_runNotice;
 };

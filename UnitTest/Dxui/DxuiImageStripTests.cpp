@@ -313,6 +313,36 @@ public:
     }
 
 
+    //  With the labels outside, the pictures fill the strip top to bottom,
+    //  the end labels sit beside them, and the playhead's labels aren't drawn
+    //  on the strip.
+    TEST_METHOD (OutsideLabelsLeaveThePicturesTheWholeHeight)
+    {
+        DxuiImageStrip                 strip;
+        RecordingStripSource           source;
+        MockDxuiTextRenderer           text;
+        MockDxuiPainter                painter;
+        MockDxuiTheme                  theme;
+        DxuiDpiScaler                  scaler;
+
+
+
+        source.leading  = L"10:00 PM";
+        source.trailing = L"Live";
+
+        strip.SetSource        (&source);
+        strip.SetAspect        (s_kStripAspect);
+        strip.SetTextRenderer  (&text);
+        strip.SetLabelsOutside (true);
+        strip.Layout           (RECT { 0, 0, 600, 34 }, true, scaler);
+        strip.Paint            (painter, text, theme, false, false, true);
+
+        Assert::AreEqual ((LONG) 0,  strip.GetPicturesRect().top);
+        Assert::AreEqual ((LONG) 34, strip.GetPicturesRect().bottom);
+        Assert::IsTrue   (strip.GetPicturesRect().left > 0, L"the leading label is beside the pictures");
+    }
+
+
     //  Lying down with label room, the label where the strip begins sits left
     //  of the first picture and the trailing label right of the last, both
     //  plain text centered on the pictures top to bottom; the trailing one is

@@ -23,9 +23,9 @@
 //  the debugger's preferences. Docked, the strip runs the whole length of
 //  its band, less what the command bar takes when it shares the band;
 //  floating, it keeps the length it was given. The pictures come from the host, which draws
-//  them from its recorded history. The band is taller than a button by room
-//  above and below the pictures, so a replay's playhead line can show the
-//  host's time above it and the time since power-on below it.
+//  them from the history it saved. The band is a toolbar's height, and a
+//  replay's playhead line, or the pointer, has the host's time in a balloon
+//  above the band and the time since power-on in one below it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +33,6 @@ void DebuggerWindow::ConfigureTimeline()
 {
     constexpr int    kTimelineId  = 1;
     constexpr int    kStripGroup  = 1;
-    constexpr float  kLabelRoomDp = 20.0f;
-    constexpr int    kLabelRooms  = 2;      // above the pictures and below them
 
 
 
@@ -54,16 +52,16 @@ void DebuggerWindow::ConfigureTimeline()
     entry.neverOverflow = true;
     entry.fill          = true;
 
-    m_timelineStrip.SetSource       (thumbnails);
-    m_timelineStrip.SetAspect       ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
-    m_timelineStrip.SetPopupHost    (GetPopupHost());
-    m_timelineStrip.SetLabelRoomDp  (kLabelRoomDp);
-    m_timelineStrip.SetTextRenderer (GetTextRenderer());
+    m_timelineStrip.SetSource        (thumbnails);
+    m_timelineStrip.SetAspect        ((float) MachineFrameRenderer::kWidth / (float) MachineFrameRenderer::kHeight);
+    m_timelineStrip.SetPopupHost     (GetPopupHost());
+    m_timelineStrip.SetLabelsOutside (true);
+    m_timelineStrip.SetTextRenderer  (GetTextRenderer());
 
     m_timelineBar->SetTextRenderer (GetTextRenderer());
     m_timelineBar->SetPopupHost    (GetPopupHost());
     m_timelineBar->SetGrabHandle   (true);
-    m_timelineBar->SetBandDp       (DxuiToolbar::GetBandDip() + (int) kLabelRoomDp * kLabelRooms);
+    m_timelineBar->SetBandDp       (DxuiToolbar::GetBandDip());
     m_timelineBar->SetEntries      ({ entry });
 
     if (thumbnails != nullptr)

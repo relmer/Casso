@@ -795,12 +795,15 @@ bool DebugEventLogs::IsRecording() const
 //
 //  GetWallTime
 //
-//  The host's clock at a cycle, from history's keyframes; with no history,
-//  the clock now, since an event is sent as soon as it is cached.
+//  The host's clock at a position, from history's keyframes, with the cycle
+//  in history's count for a time after the newest keyframe; with no
+//  history, the clock now, since an event is sent as soon as it is cached.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t DebugEventLogs::GetWallTime (uint64_t cycle) const
+uint64_t DebugEventLogs::GetWallTime (
+    uint64_t  position,
+    uint64_t  historyCycle) const
 {
     FILETIME        now  = {};
     ULARGE_INTEGER  time = {};
@@ -809,7 +812,7 @@ uint64_t DebugEventLogs::GetWallTime (uint64_t cycle) const
 
     if (m_controller != nullptr && m_controller->IsRecording())
     {
-        return m_controller->GetWallTimeAt (cycle);
+        return m_controller->GetWallTimeAtPosition (position, historyCycle);
     }
 
     GetSystemTimeAsFileTime (&now);
@@ -818,6 +821,28 @@ uint64_t DebugEventLogs::GetWallTime (uint64_t cycle) const
     time.HighPart = now.dwHighDateTime;
 
     return time.QuadPart;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCycleBase
+//
+//  What history's cycle count adds to the CPU's: the cycles counted before
+//  the last power cycle. A machine event's cycle is the CPU's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DebugEventLogs::GetCycleBase() const
+{
+    const EmuCpu  * cpu = m_machine.GetCpu();
+
+
+
+    return (cpu != nullptr && cpu->GetCycleBasePtr() != nullptr) ? *cpu->GetCycleBasePtr() : 0;
 }
 
 
@@ -1101,7 +1126,7 @@ void DebugEventLogs::MergeJournal (
 
         if (record.position >= from && record.position < to && TryMakeRow (record, row))
         {
-            row.wallTime = GetWallTime (row.cycle);
+            row.wallTime = GetWallTime (row.position, row.cycle);
             records.push_back (row);
         }
     }
@@ -1151,7 +1176,7 @@ void DebugEventLogs::AppendEntries (
 
         row.position = entry.position;
         row.cycle    = entry.cycle;
-        row.wallTime = GetWallTime (entry.cycle);
+        row.wallTime = GetWallTime (entry.position, entry.cycle + GetCycleBase());
         row.event    = entry.event;
         row.data     = entry.data;
 

@@ -128,6 +128,13 @@ public:
 
 
     //  One keyframe every framesPerKeyframe frames.
+    //  A budget of kTestBudgetBytes, many times the history any test here
+    //  runs through. The default's 64 MB arena is allocated at each start of
+    //  recording, and a Debug build fills a new block, so a test that started
+    //  recording a few times spent most of its time filling memory it never
+    //  used.
+    static constexpr size_t  kTestBudgetBytes = 16ull * 1024 * 1024;
+
     static ReverseSettings MakeSettings (uint64_t framesPerKeyframe)
     {
         ReverseSettings  settings;
@@ -135,6 +142,7 @@ public:
 
 
         settings.keyframes.intervalCycles = KeyframeSettings::kFrameCycles * framesPerKeyframe;
+        settings.keyframes.budgetBytes    = kTestBudgetBytes;
 
         return settings;
     }

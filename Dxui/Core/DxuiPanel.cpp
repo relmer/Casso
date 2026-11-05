@@ -2,6 +2,7 @@
 
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiThread.h"
+#include "Core/DxuiTip.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Render/IDxuiPainter.h"
 
@@ -662,6 +663,136 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
     }
 
     return consumed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindChildAt
+//
+//  The front child under a point, in the order the panel paints them,
+//  backward: the raised child, the top layer from its last, then the rest
+//  from the last added. A child under the point is found whether or not it
+//  has a tip, so it covers the children behind it. A child that takes local
+//  points has the point moved to its top-left in `childPx`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const IDxuiControl * DxuiPanel::FindChildAt (POINT pointPx, POINT & childPx) const
+{
+    std::vector<const IDxuiControl *>  order;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    order.reserve (m_children.size() + 1);
+
+    if (m_raised != nullptr)
+    {
+        order.push_back (m_raised);
+    }
+
+    for (auto it = m_topLayer.rbegin(); it != m_topLayer.rend(); ++it)
+    {
+        order.push_back (*it);
+    }
+
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    {
+        if (it->raw != m_raised && std::find (m_topLayer.begin(), m_topLayer.end(), it->raw) == m_topLayer.end())
+        {
+            order.push_back (it->raw);
+        }
+    }
+
+    for (const IDxuiControl * child : order)
+    {
+        RECT  bounds = {};
+
+        if (child == nullptr || !child->IsVisible())
+        {
+            continue;
+        }
+
+        bounds  = child->GetBounds();
+        childPx = child->UsesLocalPoints() ? POINT { pointPx.x - bounds.left, pointPx.y - bounds.top } : pointPx;
+
+        //  The point first: which window a child is in costs more to find.
+        if (child->IsHitAt (childPx) && IsChildHitTestable (*child))
+        {
+            return child;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsHitAt
+//
+//  Under a child, or anywhere in its bounds while the panel has tip text or a
+//  tip function. The panel doesn't paint a background, so elsewhere the
+//  control behind it is visible and is under the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPanel::IsHitAt (POINT pointPx) const
+{
+    POINT  childPx = {};
+
+
+
+    if (!IsVisible())
+    {
+        return false;
+    }
+
+    return FindChildAt (pointPx, childPx) != nullptr || (HasTip() && PtInRect (&m_boundsDip, pointPx) != FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTip
+//
+//  The tip of the front child under the point, and only that child's: a
+//  child behind it is covered, whatever tip it has. With no tip there, the
+//  panel's tip text or function. A child that takes local points has its
+//  anchor moved back into the panel's pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPanel::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    POINT                  childPx = {};
+    const IDxuiControl   * child   = FindChildAt (pointPx, childPx);
+    RECT                   bounds  = (child != nullptr) ? child->GetBounds() : RECT {};
+
+
+
+    if (child != nullptr && child->TryGetTip (childPx, tip))
+    {
+        if (child->UsesLocalPoints())
+        {
+            OffsetRect (&tip.anchor, bounds.left, bounds.top);
+        }
+
+        return true;
+    }
+
+    return IDxuiControl::TryGetTip (pointPx, tip);
 }
 
 

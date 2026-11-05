@@ -160,7 +160,7 @@ void DebuggerWindow::UpdateStatusBar()
         return;
     }
 
-    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress));
+    m_statusBar->SetText  (kStatusReplay,  DebuggerStatusText::GetReplayText (progress, (m_snapshot != nullptr) ? m_snapshot->runNotice : std::string()));
     m_statusBar->SetText  (kStatusBeam,    DebuggerStatusText::GetBeamText (beam, isPaused));
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));

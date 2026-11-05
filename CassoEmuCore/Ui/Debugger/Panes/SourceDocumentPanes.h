@@ -44,7 +44,7 @@ public:
     //  Whether the text or the banner is under a point while visible.
     bool                             Contains       (POINT atDip) const;
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return m_title; }
     void                             CreateControls () override;
     void                             Configure      () override;
@@ -61,11 +61,18 @@ public:
     void                             SetTextZoom    (float zoom) override;
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
+    bool                             TryGetHeatTip  (POINT clientPx, DxuiTip & tip) const;
+
+    //  Whether the tab has the PC's marker: at a stop, whether the PC is in
+    //  the file; while running, as at the last stop, so a running machine
+    //  doesn't change the tab's width or move the tabs after it.
+    static bool  HasPcMark (bool hadMark, bool isPaused, bool isPcInFile) { return isPaused ? isPcInFile : hadMark; }
+    void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
     SourceDocumentGroup                 & m_group;
     int                                   m_slot          = 0;
+    std::wstring                          m_id;
     PaneBarSlot                           m_bar;
     DxuiTextView                        * m_view          = nullptr;
     DxuiActionBanner                    * m_banner        = nullptr;
@@ -73,6 +80,7 @@ private:
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
     bool                                  m_isShown       = false;
     bool                                  m_isBannerShown = false;
+    bool                                  m_hasPcMark     = false;
     std::wstring                          m_bannerKey;
     std::wstring                          m_title         = L"Source";
 };
@@ -127,6 +135,10 @@ public:
     //  file's document, opened behind the others if it is not open (FR-054).
     void                             ShowLine       (int fileId, int line);
 
+    //  The PC's file brought forward, opened if it is not open, at the PC's
+    //  line; false when the PC has no source line.
+    bool                             ShowPc         ();
+
     //  The banner's actions, then the text, of the document under the
     //  pointer or the one a drag began in.
     bool                             RouteMouse     (const DxuiMouseEvent & ev);
@@ -162,17 +174,18 @@ private:
     void                             Restore        (const DebuggerViewSnapshot & snapshot);
     int                              GetSlotAt      (POINT atDip) const;
 
-    IDebuggerPaneHost                         & m_host;
-    std::vector<SourceDocumentPane *>           m_documents;
-    SourceDocuments                             m_files;
-    std::vector<SourceDocuments::Saved>         m_saved;
-    std::wstring                                m_loadedFor;
-    std::pair<int, int>                         m_pcPlace      = { -1, 0 };
-    int                                         m_macroLevel   = 0;
-    int                                         m_activeSlot   = 0;
-    std::map<int, std::wstring>                 m_looseFiles;
-    int                                         m_nextLooseId  = kFirstLooseFileId;
-    std::wstring                                m_pendingLoose;
-    uint64_t                                    m_clickMs      = 0;
-    POINT                                       m_clickAt      = {};
+    IDebuggerPaneHost                    & m_host;
+    std::vector<SourceDocumentPane *>      m_documents;
+    SourceDocuments                        m_files;
+    std::vector<SourceDocuments::Saved>    m_saved;
+    std::wstring                           m_loadedFor;
+    std::pair<int, int>                    m_pcPlace       = { -1, 0 };
+    bool                                   m_hasFollowedPc = false;   // the PC's file has come forward at a stop
+    int                                    m_macroLevel    = 0;
+    int                                    m_activeSlot    = 0;
+    std::map<int, std::wstring>            m_looseFiles;
+    int                                    m_nextLooseId   = kFirstLooseFileId;
+    std::wstring                           m_pendingLoose;
+    uint64_t                               m_clickMs       = 0;
+    POINT                                  m_clickAt       = {};
 };

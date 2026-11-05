@@ -884,6 +884,7 @@ void BreakpointDialog::ShowFieldsForType()
 
 
 
+    m_conditionTip.SetText (GetConditionTip (type));
     m_mode.SetVisible      (shown.mode);
     m_event.SetVisible     (shown.event);
     m_drive.SetVisible     (shown.drive);
@@ -1279,7 +1280,7 @@ void BreakpointDialog::OnCreate()
         tip->SetDpi       (GetDpi());
     }
 
-    m_conditionTip.SetText (GetConditionTip());
+    m_conditionTip.SetText (GetConditionTip (fields.type));
     m_eventTip.SetText     (GetDiskEventTip());
 
     m_body = CreateDialogContent<BreakpointDialogPanel>();
@@ -1365,6 +1366,21 @@ void BreakpointDialog::Confirm()
 
 std::string BreakpointDialog::MakeEditedDefinition() const
 {
+    return MakeDefinition (GetEditedFields());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::GetEditedFields
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointDialog::Fields BreakpointDialog::GetEditedFields() const
+{
     Fields  edited;
 
 
@@ -1378,7 +1394,7 @@ std::string BreakpointDialog::MakeEditedDefinition() const
     edited.drive     = m_drive.GetSelectedIndex();
     edited.arguments = MakeDiskArguments (edited.event, ReadDiskFields());
 
-    return MakeDefinition (edited);
+    return edited;
 }
 
 
@@ -1390,13 +1406,14 @@ std::string BreakpointDialog::MakeEditedDefinition() const
 //  BreakpointDialog::CheckFields
 //
 //  The check OK makes, after the focus moves off a field: its reason under the
-//  fields, or none.
+//  fields, or none while a field the type requires is empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointDialog::CheckFields()
 {
-    std::wstring  reason = m_validator ? SourcePathList::Utf8ToWide (m_validator (MakeEditedDefinition())) : std::wstring();
+    Fields        edited = GetEditedFields();
+    std::wstring  reason = (m_validator && IsCheckedOnFocusLoss (edited)) ? SourcePathList::Utf8ToWide (m_validator (MakeDefinition (edited))) : std::wstring();
 
 
 
@@ -1415,22 +1432,115 @@ void BreakpointDialog::CheckFields()
 //
 //  BreakpointDialog::GetConditionTip
 //
+//  The items a condition can read for the type, each kind under its general
+//  term, with examples that use them. Every condition reads the registers,
+//  the flags and memory; a memory breakpoint adds its access, and a disk or
+//  a condition breakpoint the disk's values.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * BreakpointDialog::GetConditionTip()
+std::wstring BreakpointDialog::GetConditionTip (Type type)
 {
-    return L"The breakpoint stops only while this is true. It can use:\n"
-           L"A, X, Y, S, P and PC, the registers\n"
-           L"P.C, P.Z, P.I, P.D, P.B, P.V and P.N, the flags, each 0 or 1\n"
-           L"*addr, the byte at addr, and symbols by name\n"
-           L"ACCESS and VALUE, a memory breakpoint's address and byte\n"
-           L"DISK.QTRACK, DISK.MOTOR and the other disk values\n"
-           L"Numbers are hex; 0n10 is decimal.\n"
-           L"\n"
-           L"Examples:\n"
-           L"P.C && A >= 80: C set and A at least $80\n"
-           L"*FB == 0 && X != 0: the byte at $FB zero, X not\n"
-           L"VALUE == 8D: a memory breakpoint's byte a return";
+    bool          isMemory = type == Type::Read || type == Type::Write || type == Type::ReadWrite || type == Type::Value;
+    bool          isDisk   = type == Type::Disk || type == Type::Condition;
+    std::wstring  tip;
+
+
+
+    tip  = std::format (L"{} breakpoint can set conditions using these items:\n", GetTypeArticle (type));
+    tip += L"The registers: A, X, Y, S, P and PC\n";
+    tip += L"The flags: P.C, P.Z, P.I, P.D, P.B, P.V and P.N, each 0 or 1\n";
+    tip += L"Memory: *addr for the byte at addr, and symbols by name\n";
+
+    if (isMemory)
+    {
+        tip += L"The access: ACCESS for its address and VALUE for its byte, typed as those words\n";
+    }
+
+    if (isDisk)
+    {
+        tip += L"The disk: DISK.DRIVE, DISK.QTRACK, DISK.QTRACK1, DISK.QTRACK2, DISK.MOTOR, DISK.WRITING, "
+               L"DISK.PROTECTED, DISK.INSERTED, DISK.ATRACK, DISK.ASECTOR and DISK.AVOLUME\n";
+    }
+
+    tip += L"All numbers are in hex, with or without a $ prefix. For decimal, prefix with 0n, for example 0n123.\n";
+    tip += L"\n";
+    tip += L"Examples:\n";
+    tip += L"P.C && A >= 80: C set and A at least $80\n";
+    tip += L"*FB == 0 && X != 0: the byte at $FB zero, X not";
+
+    if (isMemory)
+    {
+        tip += L"\nVALUE == 8D: the byte is $8D, a return";
+    }
+
+    if (isDisk)
+    {
+        tip += L"\nDISK.QTRACK == 44: the head on track 17";
+    }
+
+    return tip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::GetTypeArticle
+//
+//  "A memory", "An execution" and the like: the type's heading on the New
+//  drop-down, but a condition or a disk breakpoint by the row's label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BreakpointDialog::GetTypeArticle (Type type)
+{
+    const std::vector<TypeRow>  & rows    = GetTypeRows();
+    std::wstring                  heading;
+
+
+
+    for (int i = GetRowOf (type); i >= 0 && heading.empty(); i--)
+    {
+        heading = rows[(size_t) i].type.has_value() ? std::wstring() : std::wstring (rows[(size_t) i].label);
+    }
+
+    heading = (type == Type::Condition) ? L"condition" : (type == Type::Disk) ? L"disk" : heading;
+
+    if (!heading.empty() && heading != L"BASIC")
+    {
+        heading[0] = (wchar_t) towlower (heading[0]);
+    }
+
+    return (wcschr (L"aeiouAEIOU", heading.empty() ? L'x' : heading[0]) != nullptr ? L"An " : L"A ") + heading;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::IsCheckedOnFocusLoss
+//
+//  Moving the focus off a field checks the fields, except while a field the
+//  type requires is empty: an empty field is reported only by OK, so a
+//  click on the Condition tip before typing reports nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointDialog::IsCheckedOnFocusLoss (const Fields & fields)
+{
+    VisibleFields  used         = GetVisibleFields (fields.type);
+    bool           isAddressOut = used.address && fields.address.empty();
+    bool           isValueOut   = used.value   && fields.value.empty();
+    bool           isRuleOut    = fields.type == Type::Condition && fields.condition.empty();
+
+
+
+    return !isAddressOut && !isValueOut && !isRuleOut;
 }
 
 
@@ -1548,7 +1658,7 @@ std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiThem
 void BreakpointDialog::OnDialogTick()
 {
     int64_t  nowMs     = (int64_t) GetTickCount64();
-    bool     isPressed = (GetAsyncKeyState (VK_LBUTTON) & 0x8000) != 0 || (GetAsyncKeyState (VK_RBUTTON) & 0x8000) != 0;
+    bool     isPressed = (DxuiInputState::GetAsyncKeyState (VK_LBUTTON) & 0x8000) != 0 || (DxuiInputState::GetAsyncKeyState (VK_RBUTTON) & 0x8000) != 0;
 
 
 

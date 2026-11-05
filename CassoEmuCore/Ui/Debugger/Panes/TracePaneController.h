@@ -31,7 +31,7 @@ public:
     //  HISTORY SAVE to a file the user picks.
     void                             Save              ();
 
-    std::wstring                     GetId             () const override;
+    const std::wstring             & GetId             () const override;
     std::wstring                     GetTitle          () const override { return L"Trace"; }
     void                             CreateControls    () override;
     void                             Configure         () override;
@@ -40,6 +40,7 @@ public:
     IDxuiControl                   * GetContent        () const override;
     std::vector<IDxuiControl *>      GetControls       () const override;
     std::vector<DxuiListView *>      GetLists          () const override { return { m_list }; }
+    bool                             HasTextLists      () const override { return false; }   // monospace, as the disassembly is
     void                             Apply             (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick              (int64_t nowMs) override;
     bool                             RouteContentMouse (const DxuiMouseEvent & ev) override;

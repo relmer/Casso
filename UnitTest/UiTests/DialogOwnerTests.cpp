@@ -12,51 +12,14 @@ namespace DialogOwnerTests
 {
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  TestWindow
-    //
-    //  A hidden popup window on this thread, optionally owned by another,
-    //  destroyed with the object.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class TestWindow
-    {
-    public:
-        explicit TestWindow (HWND owner = nullptr)
-        {
-            m_hwnd = CreateWindowExW (0, L"STATIC", L"", WS_POPUP, 0, 0, 10, 10, owner, nullptr, GetModuleHandleW (nullptr), nullptr);
-            Assert::IsNotNull (m_hwnd, L"the test window is created");
-        }
-
-        ~TestWindow()
-        {
-            if (m_hwnd != nullptr)
-            {
-                DestroyWindow (m_hwnd);
-            }
-        }
-
-        TestWindow             (const TestWindow &) = delete;
-        TestWindow & operator= (const TestWindow &) = delete;
-
-        HWND  Get() const { return m_hwnd; }
-
-    private:
-        HWND  m_hwnd = nullptr;
-    };
-
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
     //  DialogOwnerTests
     //
     //  A modal the shell shows goes over the Casso window the user is in: the
     //  debugger window, or the window that owns a floating pane, rather than
     //  the emulator window a maximized debugger covers. Anything else, such
-    //  as another program's window, gets the emulator window.
+    //  as another program's window, gets the emulator window. The handles
+    //  are values, never windows: the choice is made from what
+    //  DescribeDialogOwner reads, with no window of the system's.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,49 +29,52 @@ namespace DialogOwnerTests
 
         TEST_METHOD (TheActiveCassoWindowOwnsTheDialog)
         {
-            TestWindow  emulator;
-            TestWindow  debugger;
-
-
-
-            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (debugger.Get(), emulator.Get()) == debugger.Get());
-        }
-
-
-        TEST_METHOD (AFloatingPanesOwnerOwnsTheDialog)
-        {
-            TestWindow  emulator;
-            TestWindow  debugger;
-            TestWindow  floating (debugger.Get());
-
-
-
-            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (floating.Get(), emulator.Get()) == debugger.Get());
+            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (Candidate (s_kDebugger, true, true), s_kEmulator) == s_kDebugger);
         }
 
 
         TEST_METHOD (AnotherProgramsWindowLeavesTheEmulatorWindow)
         {
-            TestWindow  emulator;
-
-
-
-            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (GetDesktopWindow(), emulator.Get()) == emulator.Get(), L"another process's window");
-            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (nullptr,            emulator.Get()) == emulator.Get(), L"no foreground window");
+            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (Candidate (s_kDebugger, false, true), s_kEmulator) == s_kEmulator, L"another thread's window");
+            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (EmulatorShell::DialogOwnerCandidate(), s_kEmulator) == s_kEmulator, L"no foreground window");
         }
 
 
         //  A window that a modal already disabled cannot take another.
         TEST_METHOD (ADisabledWindowLeavesTheEmulatorWindow)
         {
-            TestWindow  emulator;
-            TestWindow  debugger;
+            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (Candidate (s_kDebugger, true, false), s_kEmulator) == s_kEmulator);
+        }
+
+
+        //  With no foreground window, the candidate is empty.
+        TEST_METHOD (NoForegroundWindowIsNoCandidate)
+        {
+            EmulatorShell::DialogOwnerCandidate  candidate = EmulatorShell::DescribeDialogOwner (nullptr);
 
 
 
-            EnableWindow (debugger.Get(), FALSE);
+            Assert::IsNull  (candidate.rootOwner);
+            Assert::IsFalse (candidate.isThisThread);
+            Assert::IsFalse (candidate.isEnabled);
+        }
 
-            Assert::IsTrue (EmulatorShell::ChooseDialogOwner (debugger.Get(), emulator.Get()) == emulator.Get());
+    private:
+
+        static inline const HWND  s_kEmulator = reinterpret_cast<HWND> (static_cast<uintptr_t> (0x1000));
+        static inline const HWND  s_kDebugger = reinterpret_cast<HWND> (static_cast<uintptr_t> (0x2000));
+
+        static EmulatorShell::DialogOwnerCandidate Candidate (HWND rootOwner, bool isThisThread, bool isEnabled)
+        {
+            EmulatorShell::DialogOwnerCandidate  candidate;
+
+
+
+            candidate.rootOwner    = rootOwner;
+            candidate.isThisThread = isThisThread;
+            candidate.isEnabled    = isEnabled;
+
+            return candidate;
         }
     };
 }

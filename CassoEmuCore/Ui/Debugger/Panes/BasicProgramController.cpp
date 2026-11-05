@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 
+#include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -18,7 +19,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 BasicProgramController::BasicProgramController (IDebuggerPaneHost & host) :
-    IDebuggerPane (host)
+    IDebuggerPane (host),
+    m_bar         (host, DebuggerLayout::kBasicProgram, L"BASIC program toolbar")
 {
 }
 
@@ -44,9 +46,13 @@ BasicProgramController::~BasicProgramController() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring BasicProgramController::GetId() const
+const std::wstring & BasicProgramController::GetId() const
 {
-    return DebuggerLayout::kBasicProgram;
+    static const std::wstring  s_kId = DebuggerLayout::kBasicProgram;
+
+
+
+    return s_kId;
 }
 
 
@@ -63,6 +69,8 @@ void BasicProgramController::CreateControls()
 {
     m_list  = m_host.GetControlParent().CreateChild<DxuiListView>();
     m_model = std::make_unique<BasicProgramPane> (m_list, [this] (Word line) { ToggleBreakpoint (line); });
+
+    m_bar.Create();
 }
 
 
@@ -78,6 +86,59 @@ void BasicProgramController::CreateControls()
 void BasicProgramController::Configure()
 {
     m_model->Configure (DisassemblyCells::kGutterColumnDip);
+    m_list->SetOwnerWindow (m_host.GetOwnerHwnd());
+
+    m_bar.Configure();
+    m_bar.GetBar()->SetEntries (MakeBarEntries());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::MakeBarEntries
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> BasicProgramController::MakeBarEntries() const
+{
+    struct Row
+    {
+        const wchar_t          * label;
+        const wchar_t          * glyph;
+        const wchar_t          * tip;
+        std::function<void()>    dispatch;
+    };
+
+    std::vector<Row>                 rows    =
+    {
+        { L"Load", s_kpszMdl2Import, L"Load an Applesoft listing from a file as the program in memory", [this] { m_host.OpenBasicProgram(); } },
+        { L"Save", s_kpszMdl2Save,   L"Save the program in memory to a file as a listing",              [this] { m_host.SaveBasicProgram(); } },
+    };
+    std::vector<DxuiToolbar::Entry>  entries;
+
+
+
+    for (Row & row : rows)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        DxuiToolbar::Entry            entry;
+
+        command->id       = (int) entries.size() + 1;
+        command->label    = row.label;
+        command->glyph    = row.glyph;
+        command->tip      = row.tip;
+        command->dispatch = std::move (row.dispatch);
+
+        entry.command  = command;
+        entry.kind     = DxuiToolbar::Kind::Command;
+        entry.iconOnly = true;
+        entries.push_back (std::move (entry));
+    }
+
+    return entries;
 }
 
 
@@ -93,6 +154,7 @@ void BasicProgramController::Configure()
 void BasicProgramController::AddToDock (DxuiDockSite & dock)
 {
     m_frame = std::make_unique<DebuggerPaneFrame> (L"BASIC program");
+    m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
     m_frame->AddPart (m_list);
 
     dock.AddPane (DebuggerLayout::kBasicProgram, L"BASIC program", m_frame.get());
@@ -140,7 +202,9 @@ void BasicProgramController::Apply (const DebuggerViewSnapshot & snapshot)
 //  The pane comes forward at the line when the machine stops in the
 //  interpreter while a program runs, and at a BASIC line breakpoint's line
 //  when one is set. At a stop in machine code the program called, the code
-//  view stays in front.
+//  view stays in front. An instruction step or a run to the cursor doesn't
+//  change which pane is in front, wherever it stops, and a breakpoint on an
+//  address brings the code view forward over this pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,11 +220,17 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
 
 
     m_wasPaused = snapshot.isPaused;
-    m_isStop    = isStop && basic.has_value() && basic->line.has_value() && snapshot.pc >= kInterpreterFirst && snapshot.pc <= kInterpreterLast;
+    m_isStop    = isStop && !IsMachineStop (snapshot) && basic.has_value() && basic->line.has_value() &&
+                  snapshot.pc >= kInterpreterFirst && snapshot.pc <= kInterpreterLast;
 
     if (m_isStop)
     {
         line = basic->line;
+    }
+
+    if (isStop && snapshot.stopReason != StopReason::Step && snapshot.stopReason != StopReason::RunTo && IsMachineStop (snapshot) && m_list->IsVisible())
+    {
+        m_host.OpenPane (DebuggerLayout::GetCodePaneId (snapshot.followView));
     }
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
@@ -183,6 +253,46 @@ void BasicProgramController::Follow (const DebuggerViewSnapshot & snapshot)
     if (line.has_value())
     {
         ShowLine (*line);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::IsMachineStop
+//
+//  Whether the machine stopped for something at the instruction level, not
+//  for a BASIC step, a BASIC error, a BASIC line's breakpoint or a pause.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramController::IsMachineStop (const DebuggerViewSnapshot & snapshot)
+{
+    auto  isBasicLine = [&snapshot] (const DebuggerViewSnapshot::BreakpointLine & bp)
+    {
+        return bp.id == snapshot.stopBreakpoint && bp.info.kind == BreakpointKind::BasicLine;
+    };
+
+
+
+    switch (snapshot.stopReason)
+    {
+        case StopReason::Breakpoint:
+            return std::ranges::none_of (snapshot.breakpoints, isBasicLine);
+
+        case StopReason::Watchpoint:
+        case StopReason::Step:
+        case StopReason::RunTo:
+        case StopReason::Brk:
+        case StopReason::InvalidOpcode:
+        case StopReason::Disk:
+            return true;
+
+        default:
+            return false;
     }
 }
 
@@ -216,7 +326,10 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
     style.pcOnEnabledIcon  = m_host.GetPcMarker (style.enabledIcon);
     style.pcOnDisabledIcon = m_host.GetPcMarker (style.disabledIcon);
     style.pcRowArgb        = m_host.GetPcRowArgb();
+    style.textArgb         = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->Foreground() : 0;
     style.syntax           = m_host.GetSyntaxColors();
+
+    (void) UpdateWrap();
 
     m_model->SetStyle (style);
     m_model->SetHeat  (snapshot.heatColumns, m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);
@@ -245,6 +358,57 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BasicProgramController::UpdateWrap
+//
+//  The listing wraps at two thirds of the list's width past the gutter and
+//  the heat column, with the rest for the values, measured in the
+//  list's face. True when the width changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramController::UpdateWrap()
+{
+    constexpr float        kListingShare = 2.0f / 3.0f;
+    IDxuiTextRenderer    * text          = m_host.GetPaneTextRenderer();
+    const DxuiDpiScaler  & scaler        = m_host.GetPaneScaler();
+    const RECT           & bounds        = m_list->GetBounds();
+    float                  fontPx        = scaler.ToPxf (m_list->GetFontSizeDip());
+    const wchar_t        * face          = m_list->GetFace();
+    float                  pads          = scaler.ToPxf ((float) (m_list->GetCellPadLeftDip() + m_list->GetCellPadRightDip()));
+    float                  widthPx       = 0.0f;
+
+
+
+    widthPx = (float) (bounds.right - bounds.left) - (float) m_list->GetColumnEffectiveWidthPx (BasicProgramPane::kGutterColumn) -
+              (float) m_list->GetColumnEffectiveWidthPx (BasicProgramPane::kHeatColumn);
+    widthPx = std::floor (std::max (0.0f, widthPx * kListingShare - pads));
+
+    if (text == nullptr || widthPx <= 0.0f || widthPx == m_model->GetWrapPx())
+    {
+        return false;
+    }
+
+    m_model->SetWrap (widthPx, [text, fontPx, face] (const std::wstring & run)
+    {
+        float    w  = 0.0f;
+        float    h  = 0.0f;
+        HRESULT  hr = text->MeasureString (run.c_str(), fontPx, face, w, h);
+
+
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return w;
+    });
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BasicProgramController::Tick
 //
 //  Whether the machine's thread reads the program follows whether the pane
@@ -256,20 +420,25 @@ bool BasicProgramController::Tick (int64_t nowMs)
 {
     IDebuggerWindowHost  * host     = m_host.GetWindowHost();
     bool                   isWanted = m_host.IsPaneOpen (DebuggerLayout::kBasicProgram) && m_list->IsVisible();
+    bool                   isFading = m_isReading && m_model->Tick (nowMs);
 
 
 
-    (void) nowMs;
+    //  A new width wraps the listing again at once, with no snapshot to wait for.
+    if (m_isReading && UpdateWrap() && m_host.GetLatestSnapshot() != nullptr)
+    {
+        ApplyRows (*m_host.GetLatestSnapshot());
+    }
 
     if (isWanted == m_isReading || host == nullptr)
     {
-        return false;
+        return isFading;
     }
 
     m_isReading = isWanted;
     m_shownLine.reset();
     host->SetDebuggerBasicShown (isWanted);
-    return false;
+    return isFading;
 }
 
 
@@ -287,15 +456,44 @@ bool BasicProgramController::Tick (int64_t nowMs)
 
 void BasicProgramController::ToggleBreakpoint (Word line)
 {
+    std::optional<int>  id = FindBreakpoint (line);
+    DebuggerAction      action;
+
+
+
+    if (m_host.GetLatestSnapshot() == nullptr)
+    {
+        return;
+    }
+
+    action = id.has_value() ? DebuggerActions::GetClearBreakpoint (*id, m_host.GetMode())
+                            : DebuggerActions::GetDefineBreakpoint (std::format ("BPBASIC {}", line), m_host.GetMode());
+
+    m_host.RunAction (DebuggerActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::FindBreakpoint
+//
+//  The id of the breakpoint on a line of the program.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> BasicProgramController::FindBreakpoint (Word line) const
+{
     const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
-    DebuggerAction                action;
     std::optional<int>            id;
 
 
 
     if (snapshot == nullptr)
     {
-        return;
+        return id;
     }
 
     for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot->breakpoints)
@@ -303,10 +501,47 @@ void BasicProgramController::ToggleBreakpoint (Word line)
         id = (bp.info.kind == BreakpointKind::BasicLine && bp.info.address == line) ? std::optional<int> (bp.id) : id;
     }
 
-    action = id.has_value() ? DebuggerActions::GetClearBreakpoint (*id, m_host.GetMode())
-                            : DebuggerActions::GetDefineBreakpoint (std::format ("BPBASIC {}", line), m_host.GetMode());
+    return id;
+}
 
-    m_host.RunAction (DebuggerActions::GetBreakpointStep ({ BreakpointStep::Kind::Actions, { action }, {} }));
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramController::AddMenuItems
+//
+//  Copy for the text selected or the rows, the line's breakpoint, and the
+//  bar's Load and Save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramController::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
+{
+    std::optional<Word>  line = m_model->GetLineOfRow (row);
+
+
+
+    if (list != m_list)
+    {
+        return false;
+    }
+
+    items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });
+
+    if (line.has_value())
+    {
+        items.push_back (PaneMenu::MakeSeparator());
+        items.push_back ({ FindBreakpoint (*line).has_value() ? std::format (L"Remove breakpoint on line {}", *line) : std::format (L"Set breakpoint on line {}", *line),
+                           [this, at = *line] { ToggleBreakpoint (at); } });
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+    items.push_back ({ L"Load BASIC program...", [this] { m_host.OpenBasicProgram(); } });
+    items.push_back ({ L"Save BASIC program...", [this] { m_host.SaveBasicProgram(); } });
+
+    return true;
 }
 
 

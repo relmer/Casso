@@ -88,6 +88,9 @@ namespace DebuggerCommandTipTests
         using DebuggerWindow::GetMenuBar;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::TickTooltip;
+        using DebuggerWindow::SendMouseLeave;
+        using DebuggerWindow::GetCodeList;
+        using DebuggerWindow::GetFloatingPanes;
     };
 
 
@@ -144,7 +147,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
 
@@ -168,7 +171,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
             Assert::IsTrue (window.GetTooltip().WantsTick(), L"no tip pending over Break");
@@ -207,7 +210,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
             (void) window.TickTooltip ((int64_t) GetTickCount64() + 10000);
@@ -219,6 +222,86 @@ namespace DebuggerCommandTipTests
             (void) window.OnMouse (press);
 
             Assert::IsFalse (window.GetTooltip().IsVisible(), L"the tip outlasted the press");
+        }
+
+
+        //  The pointer leaving the window, for another of the app's windows,
+        //  closes the tip, since the window then gets no more moves.
+        TEST_METHOD (LeavingTheWindowClosesItsTip)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost          host;
+            TipWindow        window (theme, host);
+            DxuiDpiScaler    scaler;
+            RECT             brk    = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
+
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
+
+            Move (window, GetCenter (brk));
+            (void) window.TickTooltip ((int64_t) GetTickCount64() + 10000);
+            Assert::IsTrue (window.GetTooltip().IsVisible(), L"no tip over Break");
+
+            window.SendMouseLeave();
+            (void) window.TickTooltip ((int64_t) GetTickCount64() + 20000);
+
+            Assert::IsFalse (window.GetTooltip().IsVisible(), L"the tip outlasted the pointer leaving the window");
+        }
+
+
+
+        //  A point in a floating window is tested only against the controls
+        //  of the panes in that window. The debugger window's controls lie at
+        //  the same pixels of the debugger window, and a tip of theirs, even
+        //  one that would answer anywhere, never opens over the floating
+        //  window.
+        //  The source pane's heat tip did, over a floating Mockingboard panel.
+        TEST_METHOD (AFloatingWindowsPointFindsNoneOfTheDebuggerWindowsControls)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost          host;
+            TipWindow        window (theme, host);
+            DxuiDpiScaler    scaler;
+            DxuiListView   * list   = nullptr;
+            POINT            at     = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
+
+            list = window.GetCodeList (0);
+            at   = GetCenter (list->GetBounds());
+
+            list->SetTipFn ([] (POINT clientPx, DxuiTip & tip)
+            {
+                tip.text      = L"Disassembly";
+                tip.anchor    = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
+                tip.placement = DxuiTip::Placement::FollowPointer;
+                return true;
+            });
+
+            Move (window, at);
+            Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no tip over the disassembly in the debugger window");
+            Assert::AreEqual (std::wstring (L"Disassembly"), window.GetTooltip().GetText());
+
+            window.SendMouseLeave();
+            (void) window.TickTooltip ((int64_t) GetTickCount64() + 20000);
+            Assert::IsFalse (window.GetTooltip().IsVisible());
+
+            {
+                FloatingPanes::RouteScope  scope (window.GetFloatingPanes(), DebuggerLayout::kRegisters);
+
+                Move (window, at);
+            }
+
+            Assert::IsFalse (window.GetTooltip().IsVisible(), L"the docked disassembly's tip over another window");
         }
 
 
@@ -238,7 +321,7 @@ namespace DebuggerCommandTipTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Move (window, GetCenter (brk));
             Assert::IsTrue (window.GetTooltip().WantsTick(), L"no tip pending over Break");

@@ -153,7 +153,8 @@ private:
     void      FollowRewind ();
     void      OnDrop       (KeyframeDrop drop);
     bool      IsRecording  () const;
-    uint64_t  GetWallTime  (uint64_t cycle) const;
+    uint64_t  GetWallTime  (uint64_t position, uint64_t historyCycle) const;
+    uint64_t  GetCycleBase () const;
     uint64_t  GetOldest    () const;
 
     template <typename T>

@@ -3,6 +3,7 @@
 #include "Debugger/RoutineProfile.h"
 
 #include "Debugger/Reply.h"
+#include "Debugger/HeatAccessJump.h"
 
 
 
@@ -39,6 +40,7 @@ void RoutineProfile::Reset()
     m_children.clear();
     m_stack.clear();
     m_frames.clear();
+    m_topCycles.clear();
     m_pending.reset();
     m_lastSp = 0xFF;
     m_depth  = 0;
@@ -78,6 +80,11 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
     m_nodes[(size_t) node].self += cycles;
     AddToFrame (m_nodes[(size_t) node].routine, cycles, startCycle, cyclesPerFrame);
 
+    if (node == 0)
+    {
+        m_topCycles[pc] += cycles;
+    }
+
     m_depth += GetSpDrop (m_lastSp, spAfter);
     EndReturned();
 
@@ -91,6 +98,44 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
     }
 
     m_lastSp = spAfter;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RoutineProfile::Seed
+//
+//  A frame's level is the stack pointer before its return address was
+//  pushed, so it ends once the stack has risen that far above the stack
+//  pointer here. A call already open is not counted as a call again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::Seed (const std::vector<CallStackFrame> & frames, Byte sp)
+{
+    m_stack.clear();
+    m_pending.reset();
+    m_lastSp = sp;
+    m_depth  = 0;
+
+    for (const CallStackFrame & frame : frames)
+    {
+        RoutineKind  kind    = (frame.kind == CallFrameKind::Call) ? RoutineKind::Call
+                             : (frame.kind == CallFrameKind::Brk)  ? RoutineKind::Brk
+                                                                   : RoutineKind::Interrupt;
+        int          parent  = m_stack.empty() ? 0 : m_stack.back().node;
+        int          node    = FindChild (parent, FindRoutine (frame.target, kind));
+
+        if (m_stack.size() >= kMaxDepth)
+        {
+            break;
+        }
+
+        m_stack.push_back (Active { node, (int64_t) sp - (int64_t) frame.stackLevel });
+    }
 }
 
 
@@ -236,6 +281,11 @@ void RoutineProfile::Merge (const RoutineProfile & later)
         {
             m_nodes[(size_t) index].calls += node.calls;
         }
+    }
+
+    for (const auto & [address, cycles] : later.m_topCycles)
+    {
+        m_topCycles[address] += cycles;
     }
 
     m_bucket = std::max (m_bucket, later.m_bucket);
@@ -564,4 +614,70 @@ std::string ProfileRoutineEntry::GetName() const
     case RoutineKind::Interrupt: return "Interrupt " + name;
     default:                     return name;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileRoutineEntry::GetTipHead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfileRoutineEntry::GetTipHead() const
+{
+    std::string  head = GetName();
+
+
+
+    if (kind != RoutineKind::Top && !symbol.empty())
+    {
+        head += std::format (" at ${:04X}", address);
+    }
+
+    if (!description.empty())
+    {
+        head += "\n" + description;
+    }
+
+    return head;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileData::GetTopLevelTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfileData::GetTopLevelTip() const
+{
+    std::string  tip = "Top level: the cycles in code that wasn't called by a JSR in the period, such as code entered by a jump, "
+                       "a reset or an interrupt: the boot ROM, a program's main loop, or BASIC's loop that runs each statement.";
+
+
+
+    if (historyRange.has_value() && isFromHistoryStart)
+    {
+        tip += " The period begins where history does, so a routine called before then is counted here, as its JSR is not in history.";
+    }
+
+    if (topAddresses.empty())
+    {
+        return tip;
+    }
+
+    tip += "\nIts hottest addresses:";
+
+    for (const ProfileAddressEntry & entry : topAddresses)
+    {
+        tip += std::format ("\n${:04X} {}: {} cycles", entry.address, entry.symbol.empty() ? std::string ("(no symbol)") : entry.symbol, HeatAccessJump::GroupDigits (entry.cycles));
+    }
+
+    return tip;
 }

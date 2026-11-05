@@ -312,147 +312,224 @@ bool InputLogPane::IsSwitchLine (uint16_t line)
 //  FormatEvent
 //
 //  Host axes are labeled by the pair's view: X and Y for a pair viewed as a
-//  joystick, a paddle number each for one viewed as paddles. A button reads as
-//  pressed when bit 7 is set, but the //c's mouse button at $C063 reads as
-//  pressed when it is clear.
+//  joystick, a paddle number each for one viewed as paddles; a guest's read
+//  of a paddle is labeled the same way, so one Input value matches both. A
+//  button reads as pressed when bit 7 is set, but the //c's mouse button at
+//  $C063 reads as pressed when it is clear.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputLogPane::FormatEvent (
     const InputEvent  & event,
-    std::wstring      & outAddress,
-    std::wstring      & outValue,
-    std::wstring      & outMeaning) const
+    EventText         & out) const
 {
     Word      address = event.payload.io.address;
     uint8_t   value   = event.payload.io.value;
     uint8_t   flags   = event.payload.io.flags;
     int       axis    = 0;
-    int       pair    = 0;
     bool      isDown  = false;
     bool      isMouse = false;
 
 
 
-    outAddress.clear();
-    outValue.clear();
-    outMeaning.clear();
+    out = EventText();
 
     switch (event.type)
     {
         case InputEventType::HostKeyDown:
-            outValue   = EventLogText::FormatByteChar (event.payload.key.ascii);
-            outMeaning = L"Key down: " + outValue;
+            out.input   = GetKeyName (event.payload.key.ascii);
+            out.value   = EventLogText::FormatByteChar (event.payload.key.ascii);
+            out.meaning = L"Key down: " + out.value;
             break;
 
         case InputEventType::HostKeyUp:
-            outMeaning = L"Keys up";
+            out.input   = L"Keyboard";
+            out.meaning = L"Keys up";
             break;
 
         case InputEventType::HostAutoRepeat:
-            outValue   = EventLogText::FormatByteChar (event.payload.key.ascii);
-            outMeaning = L"Auto-repeat: " + outValue;
+            out.input   = GetKeyName (event.payload.key.ascii);
+            out.value   = EventLogText::FormatByteChar (event.payload.key.ascii);
+            out.meaning = L"Auto-repeat: " + out.value;
             break;
 
         case InputEventType::HostPaste:
-            outValue   = EventLogText::FormatByteChar (event.payload.key.ascii);
-            outMeaning = L"Paste: " + outValue;
+            out.input   = GetKeyName (event.payload.key.ascii);
+            out.value   = EventLogText::FormatByteChar (event.payload.key.ascii);
+            out.meaning = L"Paste: " + out.value;
             break;
 
         case InputEventType::HostPaddle:
-            axis = address;
-            pair = axis / kAxesPerPair;
-
-            if (IsPairJoystick (pair))
-            {
-                outAddress = std::format (L"JOY{} {}", pair, (axis % kAxesPerPair == 0) ? L"X" : L"Y");
-            }
-            else
-            {
-                outAddress = std::format (L"PDL{}", axis);
-            }
-
-            outValue   = std::format (L"{}", value);
-            outMeaning = std::format (L"HOST {} = {}", outAddress, value);
+            axis        = address;
+            out.input   = GetAxisName (axis);
+            out.value   = std::format (L"{}", value);
+            out.meaning = std::format (L"HOST {} = {}", out.input, value);
             break;
 
         case InputEventType::HostButton:
-            outAddress = GetLineName (address);
-            outValue   = IsSwitchLine (address) ? ((value != 0) ? L"ON" : L"OFF") : ((value != 0) ? L"DOWN" : L"UP");
-            outMeaning = std::format (L"HOST {} {}", outAddress, outValue);
+            out.input   = GetLineName (address);
+            out.value   = IsSwitchLine (address) ? ((value != 0) ? L"ON" : L"OFF") : ((value != 0) ? L"DOWN" : L"UP");
+            out.meaning = std::format (L"HOST {} {}", out.input, out.value);
             break;
 
         case InputEventType::HostMouseMove:
-            outAddress = L"Mouse";
-            outValue   = std::format (L"{}, {}", event.payload.motion.dx, event.payload.motion.dy);
-            outMeaning = L"HOST mouse moved " + outValue;
+            out.input   = L"Mouse";
+            out.value   = std::format (L"{}, {}", event.payload.motion.dx, event.payload.motion.dy);
+            out.meaning = L"HOST mouse moved " + out.value;
             break;
 
         case InputEventType::HostMouseButton:
-            outAddress = L"Mouse";
-            outValue   = (value != 0) ? L"DOWN" : L"UP";
-            outMeaning = L"HOST mouse button " + outValue;
+            out.input   = L"Mouse button";
+            out.value   = (value != 0) ? L"DOWN" : L"UP";
+            out.meaning = L"HOST mouse button " + out.value;
             break;
 
         case InputEventType::HostSerialByte:
-            outAddress = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName ((Byte) address));
-            outValue   = EventLogText::FormatByteChar (value);
-            outMeaning = L"HOST serial byte " + outValue + TextEncoding::NarrowToWide (IoEventLog::FormatReceiveErrors (flags));
+            out.input   = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName ((Byte) address));
+            out.value   = EventLogText::FormatByteChar (value);
+            out.meaning = L"HOST serial byte " + out.value + TextEncoding::NarrowToWide (IoEventLog::FormatReceiveErrors (flags));
             break;
 
         case InputEventType::HostSerialLines:
-            outAddress = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName ((Byte) address));
-            outValue   = TextEncoding::NarrowToWide (IoEventLog::FormatSerialLines (value));
-            outMeaning = L"HOST serial lines " + outValue;
+            out.input   = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName ((Byte) address));
+            out.value   = TextEncoding::NarrowToWide (IoEventLog::FormatSerialLines (value));
+            out.meaning = L"HOST serial lines " + out.value;
             break;
 
         case InputEventType::HostSerialLink:
-            outAddress = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName ((Byte) address));
-            outValue   = (value != 0) ? L"OPENED" : L"CLOSED";
-            outMeaning = (value != 0) ? L"HOST serial connection opened" : L"HOST serial connection closed";
+            out.input   = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName ((Byte) address));
+            out.value   = (value != 0) ? L"OPENED" : L"CLOSED";
+            out.meaning = (value != 0) ? L"HOST serial connection opened" : L"HOST serial connection closed";
             break;
 
         case InputEventType::KbdDataRead:
-            outAddress = std::format (L"${:04X}", address);
-            outValue   = std::format (L"${:02X}", value);
-            outMeaning = std::format (L"Read {} -> {}  key='{}' strobe={}", outAddress, outValue, EventLogText::GetPrintable (value),
-                                      ((flags & InputEvent::kFlagStrobe) != 0) ? 1 : 0);
+            out.address = std::format (L"${:04X}", address);
+            out.input   = L"Keyboard";
+            out.value   = std::format (L"${:02X}", value);
+            out.meaning = std::format (L"Read {} -> {}  key='{}' strobe={}", out.address, out.value, EventLogText::GetPrintable (value),
+                                       ((flags & InputEvent::kFlagStrobe) != 0) ? 1 : 0);
             break;
 
         case InputEventType::KbdStrobe:
-            outAddress = std::format (L"${:04X}", address);
-            outValue   = std::format (L"${:02X}", value);
-            outMeaning = std::format (L"Clear strobe {} -> {}  AKD={} cleared={}", outAddress, outValue,
-                                      ((flags & InputEvent::kFlagAnyKeyDown) != 0) ? 1 : 0, ((flags & InputEvent::kFlagStrobe) != 0) ? 1 : 0);
+            out.address = std::format (L"${:04X}", address);
+            out.input   = L"Keyboard strobe";
+            out.value   = std::format (L"${:02X}", value);
+            out.meaning = std::format (L"Clear strobe {} -> {}  AKD={} cleared={}", out.address, out.value,
+                                       ((flags & InputEvent::kFlagAnyKeyDown) != 0) ? 1 : 0, ((flags & InputEvent::kFlagStrobe) != 0) ? 1 : 0);
             break;
 
         case InputEventType::ButtonRead:
-            isMouse    = address == kButton2 && m_isMouseButtonAtC063;
-            isDown     = isMouse ? (value & kHighBit) == 0 : (value & kHighBit) != 0;
-            outAddress = std::format (L"${:04X}", address);
-            outValue   = std::format (L"${:02X}", value);
-            outMeaning = std::format (L"Button read {} -> {}  pressed={}{}", outAddress, outValue, isDown ? 1 : 0,
-                                      isMouse                  ? L"  mouse button"
-                                      : address == kOpenApple   ? L"  Open Apple / button 0"
-                                      : address == kClosedApple ? L"  Closed Apple / button 1"
-                                      : address == kButton2     ? L"  Shift / button 2"
-                                                                : L"");
+            isMouse     = address == kButton2 && m_isMouseButtonAtC063;
+            isDown      = isMouse ? (value & kHighBit) == 0 : (value & kHighBit) != 0;
+            out.address = std::format (L"${:04X}", address);
+            out.input   = isMouse                  ? L"Mouse button"
+                        : address == kOpenApple   ? L"Open Apple"
+                        : address == kClosedApple ? L"Closed Apple"
+                        : address == kButton2     ? L"Shift"
+                                                  : L"Button";
+            out.value   = std::format (L"${:02X}", value);
+            out.meaning = std::format (L"Button read {} -> {}  pressed={}{}", out.address, out.value, isDown ? 1 : 0,
+                                       isMouse                  ? L"  mouse button"
+                                       : address == kOpenApple   ? L"  Open Apple / button 0"
+                                       : address == kClosedApple ? L"  Closed Apple / button 1"
+                                       : address == kButton2     ? L"  Shift / button 2"
+                                                                 : L"");
             break;
 
         case InputEventType::PaddleTrigger:
-            outAddress = std::format (L"${:04X}", address);
-            outMeaning = std::format (L"PTRIG strobe {}  (arm game-port timers)", outAddress);
+            out.address = std::format (L"${:04X}", address);
+            out.input   = L"PTRIG";
+            out.meaning = std::format (L"PTRIG strobe {}  (arm game-port timers)", out.address);
             break;
 
         case InputEventType::PaddleRead:
-            outAddress = std::format (L"${:04X}", address);
-            outValue   = std::format (L"${:02X}", value);
-            outMeaning = std::format (L"Read PADDL{} {} -> {}  counting={}", address - kPaddle0, outAddress, outValue, ((value & kHighBit) != 0) ? 1 : 0);
+            axis        = address - kPaddle0;
+            out.address = std::format (L"${:04X}", address);
+            out.input   = GetAxisName (axis);
+            out.value   = std::format (L"${:02X}", value);
+            out.meaning = std::format (L"Read PADDL{} {} -> {}  counting={}", axis, out.address, out.value, ((value & kHighBit) != 0) ? 1 : 0);
             break;
 
         default:
             break;
     }
+
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetAxisName
+//
+//  A game port axis by its pair's view: JOY0 X for a pair viewed as a
+//  joystick, PDL0 for one viewed as paddles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputLogPane::GetAxisName (int axis) const
+{
+    int  pair = axis / kAxesPerPair;
+
+
+
+    if (IsPairJoystick (pair))
+    {
+        return std::format (L"JOY{} {}", pair, (axis % kAxesPerPair == 0) ? L"X" : L"Y");
+    }
+
+    return std::format (L"PDL{}", axis);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetKeyName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InputLogPane::GetKeyName (uint8_t ascii)
+{
+    constexpr uint8_t  kAsciiMask   = 0x7F;
+    constexpr uint8_t  kBackspace   = 0x08;
+    constexpr uint8_t  kTab         = 0x09;
+    constexpr uint8_t  kLineFeed    = 0x0A;
+    constexpr uint8_t  kUpArrow     = 0x0B;
+    constexpr uint8_t  kReturn      = 0x0D;
+    constexpr uint8_t  kRightArrow  = 0x15;
+    constexpr uint8_t  kEscape      = 0x1B;
+    constexpr uint8_t  kSpace       = 0x20;
+    constexpr uint8_t  kDelete      = 0x7F;
+    constexpr uint8_t  kControlBase = 0x40;
+    uint8_t            key          = ascii & kAsciiMask;
+
+
+
+    switch (key)
+    {
+        case kBackspace:  return L"Left arrow";
+        case kTab:        return L"Tab";
+        case kLineFeed:   return L"Down arrow";
+        case kUpArrow:    return L"Up arrow";
+        case kReturn:     return L"Return";
+        case kRightArrow: return L"Right arrow";
+        case kEscape:     return L"Esc";
+        case kSpace:      return L"Space";
+        case kDelete:     return L"Delete";
+        default:          break;
+    }
+
+    if (key < kSpace)
+    {
+        return std::format (L"Ctrl+{}", (wchar_t) (key + kControlBase));
+    }
+
+    return std::wstring (1, (wchar_t) key);
 }
 
 
@@ -467,12 +544,13 @@ void InputLogPane::FormatEvent (
 
 InputLogPane::ColumnSpecs InputLogPane::GetColumnSpecs() const
 {
-    return { { L"Time",      DxuiTextHAlign::Left, kFit, true  },
-             { L"Cycle",     DxuiTextHAlign::Right, 110, false },
-             { L"Source",    DxuiTextHAlign::Left,   60, true  },
-             { L"Address",   DxuiTextHAlign::Left,   90, true  },
-             { L"Value",     DxuiTextHAlign::Left,   80, true  },
-             { L"Meaning",   DxuiTextHAlign::Left,    0, true  } };
+    return { { L"Time",      DxuiTextHAlign::Left, kFit, true,  L"The host's clock at the entry" },
+             { L"Cycle",     DxuiTextHAlign::Right, 110, false, L"The CPU's cycle count since the last power cycle" },
+             { L"Source",    DxuiTextHAlign::Left,   60, true,  L"Host for input from this computer, Guest for the program's reads" },
+             { L"Address",   DxuiTextHAlign::Left,   70, true,  L"The soft switch the program read or wrote" },
+             { L"Input",     DxuiTextHAlign::Left,   90, true,  L"The key, button, axis or port, for host and guest rows alike" },
+             { L"Value",     DxuiTextHAlign::Left,   80, true,  L"The byte read, the axis value, or the button's state" },
+             { L"Meaning",   DxuiTextHAlign::Left,    0, true,  L"The entry written out" } };
 }
 
 
@@ -623,7 +701,16 @@ void InputLogPane::MakeCells (
     const Row  & row,
     Cells      & out) const
 {
+    EventText  text;
+
+
+
     out[kSource].text = (row.event.category == InputEventCategory::Host) ? L"Host" : L"Guest";
 
-    FormatEvent (row.event, out[kAddress].text, out[kValue].text, out[kMeaning].text);
+    FormatEvent (row.event, text);
+
+    out[kAddress].text = std::move (text.address);
+    out[kInput].text   = std::move (text.input);
+    out[kValue].text   = std::move (text.value);
+    out[kMeaning].text = std::move (text.meaning);
 }

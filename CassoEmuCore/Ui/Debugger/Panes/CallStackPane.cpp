@@ -39,7 +39,7 @@ void CallStackPane::Configure()
 {
     m_list->SetColumns ({ { L"Call site", 0, false, DxuiTextHAlign::Left },
                           { L"Routine",   0, false, DxuiTextHAlign::Left },
-                          { L"Found by",  0, false, DxuiTextHAlign::Left } });
+                          { L"Origin",    0, false, DxuiTextHAlign::Left } });
 
     m_list->SetActivateOnDoubleClick (true);
 
@@ -263,7 +263,7 @@ std::vector<CallStackPane::Row> CallStackPane::GetRows (const CallStackData & da
 
         made.site           = std::format (L"${:04X}", frame.callSite);
         made.routine        = std::format (L"{} ${:04X}", TextEncoding::NarrowToWide (CallStack::GetKindName (frame.kind)), frame.target);
-        made.foundBy        = (frame.provenance == CallProvenance::Recorded) ? L"recorded as it ran" : L"found on the stack";
+        made.foundBy        = (frame.provenance == CallProvenance::Recorded) ? L"found during execution" : L"found by stack walk";
         made.isDim          = !frame.isVerified;
         made.address        = frame.callSite;
         made.routineAddress = frame.target;
@@ -489,7 +489,7 @@ std::wstring CallStackPane::GetUnverifiedTip (const std::optional<CallStackBreak
         break;
 
     default:
-        why = L"These calls were found on the stack rather than recorded as they ran, so they are read from what the stack holds.";
+        why = L"These calls were found by stack walk rather than during execution, so they are read from the stack's contents.";
         break;
     }
 

@@ -12,4 +12,4 @@ Mode: APPLEWIN
 A:00 X:00 Y:00 P:24 S:FD PC:FA62  ..R..I..
 >DISK EJECT
 Error: command not available
-       DISK EJECT is not available in this session.
+       DISK EJECT requires the emulator's machine.

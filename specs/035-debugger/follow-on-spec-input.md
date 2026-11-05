@@ -27,7 +27,8 @@ Run `/speckit-specify` with the text below as a new feature once 035 closes.
 4. **Debug projects.** Moved into 035 on 2026-10-09 at the owner's request:
    a debugger project that keeps all debugger state ships with 035's first
    release. Item 3's per-session trace files live in those projects.
-5. **MCP adapter.** A small program speaking MCP over stdio that forwards
+5. **MCP adapter.** Moved into 035 on 2026-11-04 at the owner's request
+   (035's User Story 26). A small program speaking MCP over stdio that forwards
    typed tools (run a command in a mode, step, set a breakpoint, read memory,
    take a screenshot) to the existing debug channel, for AI clients without
    shell access. No change inside Casso. GS2's author ships one.

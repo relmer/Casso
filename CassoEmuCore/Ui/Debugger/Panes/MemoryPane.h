@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/Panes/MemoryEditModel.h"
 #include "Ui/Debugger/DebuggerActions.h"
@@ -65,6 +66,10 @@ public:
     //  A byte's tint: its heat map color mixed halfway toward the page, or
     //  0 for a byte nothing touched.
     static uint32_t  GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word address, const HeatMapView::Palette & palette);
+
+    //  While heat is on, a byte's counts and the scale its tint is from, as a
+    //  heat cell's tip has them; empty while it is off.
+    HeatStrip::Tip  GetHeatTip (uint64_t offset) const;
 
     //  Whether the machine is stopped, which holds the changed marks.
     void  SetPaused (bool isPaused) { m_model.SetPaused (isPaused); }

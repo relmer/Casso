@@ -58,6 +58,8 @@
 #include <vector>
 
 #include "../Ehm/Ehm.h"
+#include "Core/DxuiInputState.h"
+#include "Core/DxuiDisplay.h"
 
 #ifndef DXUI_COMPTR_ALIAS_DEFINED
 #define DXUI_COMPTR_ALIAS_DEFINED

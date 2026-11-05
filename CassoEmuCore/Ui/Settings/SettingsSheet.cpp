@@ -1771,7 +1771,7 @@ void SettingsSheet::PaintCapturePrompt (IDxuiTextRenderer & text, const IDxuiThe
     constexpr int  kCardHeightDp = 110;
     constexpr int  kFontDp       = 14;
     RECT           client        = {};
-    UINT           dpi           = GetDpiForWindow (GetHwnd());
+    UINT           dpi           = DxuiDisplay::Get().GetDpiForWindow (GetHwnd());
     float          scale         = (float) dpi / 96.0f;
     float          cardW         = kCardWidthDp  * scale;
     float          cardH         = kCardHeightDp * scale;

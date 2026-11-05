@@ -4,6 +4,7 @@
 #include "Core/IDxuiControl.h"
 #include "Theme/IDxuiTheme.h"
 #include "DxuiScrollbar.h"
+#include "IDxuiFindTarget.h"
 
 struct DxuiIconImage;
 
@@ -37,7 +38,7 @@ struct DxuiIconImage;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiTextView : public IDxuiControl
+class DxuiTextView : public IDxuiControl, public IDxuiFindTarget
 {
 public:
     //  A run of a cell's characters drawn in a color of their own.
@@ -63,6 +64,11 @@ public:
         //  The row's height as a fraction of a line, for a blank row that
         //  spaces the rows around it. A row this applies to takes one line.
         float                                  height     = 1.0f;
+
+        //  A wrapped line of the last cell starts this many characters into
+        //  the cell, so a help row's description wraps under itself rather
+        //  than under its syntax.
+        int                                    wrapIndent = 0;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -83,6 +89,11 @@ public:
 
     //  Replaces the text, clearing the selection and scrolling to the top.
     void                      SetRows  (std::vector<Row> rows);
+
+    //  The same document's rows again, as after a change of their colors or
+    //  marks: the selection, a drag in progress, the find highlights and the
+    //  top line are left in place, each end cut back to the new rows.
+    void                      UpdateRows (std::vector<Row> rows);
 
     //  The rows again after `dropped` rows went from the front, as a log's
     //  oldest do, with others perhaps at the end: the selection, the find
@@ -121,7 +132,32 @@ public:
     //  below the text. 1 by default; ignored while the cell size is pinned.
     void   SetLineSpacing  (float spacing);
 
+    //  The widest a column but the last lines up at, in characters; zero for
+    //  no limit. A row's longer cell pushes only that row's next cell along.
+    void   SetColumnCap    (int column, int cells);
+
+    //  The characters between a column and the next, kColumnGapCells unless
+    //  set; zero or less puts the default back.
+    void   SetColumnGap    (int column, int cells);
+
+    //  With it on, the last cell is one line, not wrapped, and a bar along the
+    //  bottom, or Shift with the wheel, scrolls the text sideways. Off by
+    //  default.
+    void   SetNoWrap       (bool noWrap);
+    bool   IsNoWrap        () const               { return m_noWrap; }
+    int    GetLeftColumn   () const               { return m_leftColumn; }
+    void   SetLeftColumn   (int column);
+    bool   IsHorzScrollbarVisible () const;
+
+    //  A line's height and the space above its text, in pixels, once the
+    //  view has been painted; zero before.
+    int    GetCellHeightPx () const               { return m_cellHeightPx; }
+    int    GetTextTopPx    () const               { return m_textTopPx; }
+
     int   GetLineCount () const { return (int) m_lines.size(); }
+
+    //  How many characters fit across the text with a scroll bar beside it.
+    int   GetVisibleColumns () const { return GetTextColumns (true); }
     int   GetLineCap   () const;
     int   GetTopLine   () const { return m_topLine; }
     void  SetTopLine   (int line);
@@ -150,12 +186,12 @@ public:
     void          SelectAll        ();
     void          ClearSelection   ();
     bool          HasSelection     () const { return !(m_anchor == m_caret); }
-    std::wstring  GetSelectionText () const;
+    std::wstring  GetSelectionText () const override;
     void          CopySelection    () const;
 
     //  How a search ended: no match, a match, or a match reached only by
     //  going round past the end of the text (the start, searching backward).
-    enum class FindResult { NotFound, Found, Wrapped };
+    using FindResult = DxuiFindResult;
 
     //  Selects the next match after the selection, or the one before it, and
     //  scrolls it into view. A match is always searched for all the way round.
@@ -173,25 +209,25 @@ public:
     //  and the match's place among all of them: outIndex counts from 1, and
     //  both are 0 with no match. A needle that is not a valid expression
     //  matches nothing.
-    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount);
+    FindResult  SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override;
 
     //  Find in selection: while set, SelectMatch takes only a match that lies
     //  wholly inside the selection this was set from. Setting it with nothing
     //  selected leaves the search the whole text.
-    void  SetFindScopeToSelection ();
-    void  ClearFindScope          ()       { m_scoped = false; }
+    void  SetFindScopeToSelection () override;
+    void  ClearFindScope          () override { m_scoped = false; }
     bool  IsFindScoped            () const { return m_scoped; }
 
     //  The search as it is typed: every match is highlighted, and the first
     //  one on screen is selected; with none on screen, the first after the
     //  top of the view is, scrolled into view. outIndex and outCount are as
     //  SelectMatch gives them.
-    FindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount);
+    FindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
 
     //  Every match of the last search, each drawn on a fill that stands out
     //  from the text around it.
     const std::vector<FindMatch> &  GetFindHighlights   () const { return m_highlights; }
-    void                            ClearFindHighlights ()       { m_highlights.clear(); }
+    void                            ClearFindHighlights () override { m_highlights.clear(); }
 
     //  The fill under a match: the theme's warning accent, made darker or
     //  lighter until it has at least 3:1 contrast with the text's background,
@@ -203,7 +239,11 @@ public:
     //  Colors of the owner's own for the marks: one under every match and
     //  one under the match the search is at, the selected one. 0 for either
     //  keeps the theme's fill above for it.
-    void      SetFindColors  (uint32_t matchArgb, uint32_t currentArgb) { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
+    void      SetFindColors  (uint32_t matchArgb, uint32_t currentArgb) override { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
+
+    IDxuiControl * GetFindControl () override { return this; }
+    RECT      GetFindBounds  () const override { return GetBounds(); }
+    bool      IsFindVisible  () const override { return IsVisible(); }
     bool      IsCurrentMatch (const FindMatch & match) const;
     uint32_t  GetFindFillOf  (const FindMatch & match, const IDxuiTheme & theme) const;
 
@@ -232,17 +272,18 @@ public:
     //  Scrolls as little as it takes to show the line a position is drawn on.
     void  ScrollToPosition (Position pos);
 
-    bool  IsInteracting      () const { return m_dragging || m_vertScroll.IsDragging(); }
+    bool  IsInteracting      () const { return m_dragging || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
     bool  IsScrollbarVisible () const { return (int) m_lines.size() > GetLineCap(); }
 
     //  Whether a point is on the scrollbar, and the hover that widens it.
-    bool  IsOverScrollbar   (POINT pt) const override { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
-    bool  SetScrollbarHover (POINT pt)                { return m_vertScroll.SetHover (IsOverScrollbar (pt), pt); }
-    bool  TickScrollbars    (int64_t nowMs)           { return m_vertScroll.Tick (nowMs); }
+    bool  IsOverScrollbar   (POINT pt) const override { return (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y)) || (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y)); }
+    bool  SetScrollbarHover (POINT pt)                { bool  vert = m_vertScroll.SetHover (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y), pt); return m_horzScroll.SetHover (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y), pt) || vert; }
+    bool  TickScrollbars    (int64_t nowMs)           { bool  vert = m_vertScroll.Tick (nowMs); return m_horzScroll.Tick (nowMs) || vert; }
 
     void                Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand     (DxuiStandardCommand command) override;
@@ -252,6 +293,7 @@ public:
     static constexpr int  kColumnGapCells = 2;
     static constexpr int  kWarningCells   = 3;
     static constexpr int  kWheelLines     = 3;
+    static constexpr int  kWheelColumns   = 8;
 
 private:
     //  One drawn line: its row, and the run of the row's last cell it shows.
@@ -271,6 +313,7 @@ private:
     void          BuildLines        (int columns);
     int           GetTextColumns    (bool scrollbar) const;
     int           GetCellStart      (const Row & row, int cell) const;
+    int           GetLineColumn     (const Row & row, const Line & line) const;
     int           GetCellBase       (const Row & row, int cell) const;
     int           GetRowLength      (const Row & row) const;
     std::wstring  GetRowText        (const Row & row) const;
@@ -299,6 +342,9 @@ private:
                                      const std::vector<uint32_t> & colors, const std::vector<bool> & lit, uint32_t litArgb) const;
     int           GetTextLeft       () const;
     int           GetPadLeftPx      () const;
+    int           GetTextBaseLeft   () const;
+    int           GetHorzBarPx      () const;
+    void          PaintLineGutter   (IDxuiPainter & painter, IDxuiTextRenderer & text, int lineIndex);
 
     //  A drawn line's height, a line's top counted from the first line shown,
     //  and the first line to show for a given line to be the last that fits.
@@ -354,4 +400,10 @@ private:
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;
+    DxuiScrollbar      m_horzScroll;
+    std::map<int, int> m_columnCaps;
+    std::map<int, int> m_columnGaps;
+    bool               m_noWrap        = false;
+    int                m_leftColumn    = 0;
+    int                m_widestColumns = 0;
 };

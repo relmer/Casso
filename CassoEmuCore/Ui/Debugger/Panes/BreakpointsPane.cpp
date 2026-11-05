@@ -49,9 +49,13 @@ BreakpointsPane::~BreakpointsPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring BreakpointsPane::GetId() const
+const std::wstring & BreakpointsPane::GetId() const
 {
-    return DebuggerLayout::kBreakpoints;
+    static const std::wstring  s_kId = DebuggerLayout::kBreakpoints;
+
+
+
+    return s_kId;
 }
 
 
@@ -1043,6 +1047,30 @@ void BreakpointsPane::SetColumns()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointsPane::GetRowKeys
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> BreakpointsPane::GetRowKeys() const
+{
+    std::vector<std::wstring>  keys;
+
+
+
+    for (int id : m_rowIds)
+    {
+        keys.push_back (std::to_wstring (id));
+    }
+
+    return keys;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointsPane::ApplyRows
 //
 //  A checkbox and the code views' gutter mark ahead of the name, then a
@@ -1116,6 +1144,7 @@ void BreakpointsPane::ApplyRows()
     }
 
     m_list->SetRows (std::move (rows));
+    m_list->ShowNewRow (GetRowKeys());
 
     for (int id : selectedIds)
     {

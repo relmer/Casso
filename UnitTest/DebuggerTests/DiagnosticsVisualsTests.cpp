@@ -269,10 +269,13 @@ namespace DebuggerTests
         }
 
 
-        //  140 quarter tracks across 140 pixels: the head sits at its quarter
-        //  track, lit while the motor turns.
+        //  140 quarter tracks across a 140-pixel ruler past the drive's name:
+        //  the head sits at its quarter track, lit while the motor turns.
         TEST_METHOD (TheDiskHeadSitsAtItsQuarterTrack)
         {
+            constexpr float       kLeft  = (float) DiskHeadView::kDriveDip;
+            constexpr float       kRight = 1000.0f;
+            constexpr float       kStep  = (float) DiskHeadView::kLampStepDip;
             DiskHeadView          view;
             MockDxuiPainter       painter;
             MockDxuiTextRenderer  text;
@@ -281,38 +284,35 @@ namespace DebuggerTests
 
 
             view.SetHead ({ 69, 139, 0x05, true, 0 });
-            view.Layout  (RECT { 0, 0, 140, 40 }, Scaler96());
+            view.Layout  (RECT { 0, 0, 140 + DiskHeadView::kDriveDip, 40 }, Scaler96());
             view.Paint   (painter, text, theme);
 
-            Assert::AreEqual (69.0f, view.GetHeadX());
+            Assert::AreEqual (kLeft + 69.0f, view.GetHeadX());
             Assert::AreEqual (1.0f,  view.GetHeadWidth());
-            Assert::IsTrue   (HasFill (painter, 69.0f, 0.0f, 1.0f, theme.Accent()), L"the head, lit");
-            Assert::IsTrue   (HasText (text, L"Drive 1") && HasText (text, L"track 17.25"));
+            Assert::IsTrue   (HasFill (painter, kLeft + 69.0f, 0.0f, 1.0f, theme.Accent()), L"the head, lit");
+            Assert::IsTrue   (HasText (text, L"Drive 1") && HasText (text, L"Track 17.25"));
 
-            //  Phases 0 and 2 lit, 1 and 3 dark, then the motor, at full size
-            //  in a pane wide enough for the row.
+            //  Phases 3 2 1 0 at full size, ending at the ruler's right edge:
+            //  0 and 2 lit, 1 and 3 dark.
             painter.Reset();
-            view.Layout (RECT { 0, 0, 1000, 40 }, Scaler96());
+            view.Layout (RECT { 0, 0, (LONG) kRight, 40 }, Scaler96());
             view.Paint  (painter, text, theme);
-            view.Layout (RECT { 0, 0, 140, 40 }, Scaler96());
 
-            Assert::IsTrue (HasFill (painter, (float) DiskHeadView::kCaptionDip,                         23.0f, 12.0f, theme.Accent()));
-            Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip),     23.0f, 12.0f, theme.ControlBackground()));
-            Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip * 2), 23.0f, 12.0f, theme.Accent()));
-            Assert::IsTrue (HasFill (painter, (float) (DiskHeadView::kCaptionDip + DiskHeadView::kLampStepDip * 4), 23.0f, 12.0f, theme.Accent()), L"the motor");
+            Assert::IsTrue (HasFill (painter, kRight - kStep * 3 - 12.0f, 23.0f, 12.0f, theme.ControlBackground()), L"phase 3");
+            Assert::IsTrue (HasFill (painter, kRight - kStep * 2 - 12.0f, 23.0f, 12.0f, theme.Accent()),            L"phase 2");
+            Assert::IsTrue (HasFill (painter, kRight - kStep * 1 - 12.0f, 23.0f, 12.0f, theme.ControlBackground()), L"phase 1");
+            Assert::IsTrue (HasFill (painter, kRight - 12.0f,     23.0f, 12.0f, theme.Accent()),            L"phase 0");
 
             painter.Reset();
+            view.Layout  (RECT { 0, 0, 140 + DiskHeadView::kDriveDip, 40 }, Scaler96());
             view.SetHead ({ 0, 139, 0x00, false, 1 });
             view.Paint   (painter, text, theme);
-            Assert::IsTrue (HasFill (painter, 0.0f, 0.0f, 1.0f, theme.ForegroundMuted()), L"a resting head is muted");
+            Assert::IsTrue (HasFill (painter, kLeft, 0.0f, 1.0f, theme.ForegroundMuted()), L"a resting head is muted");
 
-            //  140 pixels is too narrow for the drive and track beside the
-            //  lamps, or on one row of their own, so they take a row each
-            //  rather than being cut.
-            Assert::AreEqual (view.GetPreferredHeightPx (1000, Scaler96()) + DiskHeadView::kRowDip * 2,
-                              view.GetPreferredHeightPx (140, Scaler96()));
+            //  The row under the ruler shrinks rather than wrapping, so the
+            //  height is the same at any width.
+            Assert::AreEqual (view.GetPreferredHeightPx (1000, Scaler96()), view.GetPreferredHeightPx (140, Scaler96()));
         }
-
 
         //  A pane narrower than the lamp row scales the row down to fit, so
         //  the motor's lamp and its caption stay inside the pane and on one
@@ -366,67 +366,6 @@ namespace DebuggerTests
             Assert::IsTrue   (motorX + motorW <= kNarrow + kSlack,    L"the motor's caption is inside the pane");
             Assert::IsTrue   (lampEnd <= kNarrow + kSlack,            L"every lamp is inside the pane");
             Assert::IsTrue   (motorPt < theme.MonospaceFont().sizeDip, L"the captions shrink with the row");
-        }
-
-
-        //  The drive and track stay one string wherever it fits, and in a pane
-        //  too narrow for it break only between the drive and the track, each
-        //  on a row of its own at the same left edge.
-        TEST_METHOD (TheDiskLabelBreaksOnlyBetweenDriveAndTrack)
-        {
-            constexpr LONG        kFits     = 160;      // past the label's 156 pixels at 13 dip
-            constexpr LONG        kNarrow   = 140;
-            constexpr LONG        kTiny     = 40;
-            DiskHeadView          view;
-            MockDxuiPainter       painter;
-            MockDxuiTextRenderer  text;
-            MockDxuiTheme         theme;
-            float                 driveX    = -1.0f;
-            float                 driveY    = -1.0f;
-            float                 trackX    = -2.0f;
-            float                 trackY    = -1.0f;
-
-
-
-            view.SetHead ({ 69, 139, 0x05, true, 0 });
-
-            for (LONG width : { 1000L, kFits })
-            {
-                text.Reset();
-                view.Layout (RECT { 0, 0, width, 60 }, Scaler96());
-                view.Paint  (painter, text, theme);
-                Assert::IsTrue  (HasText (text, L"Drive 1  track 17.25"), L"one line where it fits");
-                Assert::IsFalse (HasText (text, L"Drive 1"),              L"not broken where it fits");
-            }
-
-            for (LONG width : { kNarrow, kTiny })
-            {
-                text.Reset();
-                view.Layout (RECT { 0, 0, width, 80 }, Scaler96());
-                view.Paint  (painter, text, theme);
-                Assert::IsFalse (HasText (text, L"Drive 1  track 17.25"), L"too wide for one line");
-
-                for (const RecordedTextCall & call : text.Calls())
-                {
-                    if (call.text == L"Drive 1")
-                    {
-                        driveX = call.x;
-                        driveY = call.y;
-                    }
-
-                    if (call.text == L"track 17.25")
-                    {
-                        trackX = call.x;
-                        trackY = call.y;
-                    }
-                }
-
-                Assert::AreEqual (driveX, trackX,                                  L"both halves at the left edge");
-                Assert::AreEqual (driveY + (float) DiskHeadView::kRowDip, trackY,  L"the track on the row below the drive");
-            }
-
-            Assert::AreEqual (view.GetPreferredHeightPx (kFits, Scaler96()) + DiskHeadView::kRowDip,
-                              view.GetPreferredHeightPx (kNarrow, Scaler96()), L"a row more for the break");
         }
 
 

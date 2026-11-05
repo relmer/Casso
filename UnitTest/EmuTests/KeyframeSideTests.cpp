@@ -133,6 +133,47 @@ public:
     }
 
 
+    //  The history meter's bytes are each keyframe's packed snapshot and side
+    //  bytes, the newest whole snapshot's unpacked copy, and the table's
+    //  slots, and nothing else.
+    TEST_METHOD (TheMeterIsThePackedBytesSideBytesAndTable)
+    {
+        constexpr size_t   kCount     = 40;
+        constexpr size_t   kMaxSlot   = 256;
+        KeyframeStore      store;
+        KeyframeSettings   settings;
+        HRESULT            hr         = S_OK;
+        size_t             i          = 0;
+        size_t             packed     = 0;
+        size_t             tableBytes = 0;
+
+
+
+        settings.intervalCycles = s_kSideInterval;
+        store.Configure (settings);
+
+        for (i = 0; i < kCount; i++)
+        {
+            hr = store.Add (i, (i + 1) * s_kSideInterval, 0, MakeState (i), MakeSide (i));
+            AssertSucceeded (hr, L"Add");
+        }
+
+        for (i = 0; i < store.GetCount(); i++)
+        {
+            packed += store.GetInfo (i).storedBytes;
+        }
+
+        Assert::AreEqual (kCount, store.GetCount(),                        L"nothing dropped under the default budget");
+        Assert::AreEqual (packed + s_kSideStateBytes, store.GetByteCount(), L"the packed bytes with their side bytes, and the whole snapshot's copy");
+
+        tableBytes = store.GetUsedBytes() - store.GetByteCount();
+
+        Assert::AreEqual ((size_t) 0, tableBytes % store.GetCapacity(),    L"the rest is whole table slots");
+        Assert::IsTrue   (tableBytes / store.GetCapacity() > 0 && tableBytes / store.GetCapacity() <= kMaxSlot, L"of a slot's size");
+        Assert::IsTrue   (store.GetUsedBytes() < settings.budgetBytes,      L"and the meter is short of full");
+    }
+
+
     //  The newest group is never dropped, and its side bytes are not bounded
     //  by the least arena, so a smaller budget moves it into an arena large
     //  enough for it rather than past the end of one sized from the budget.

@@ -4,6 +4,7 @@
 #include "Theme/DxuiMenuMetrics.h"
 #include "Core/DxuiEvents.h"
 #include "Core/IDxuiControl.h"
+#include "Widgets/DxuiInPlaceTip.h"
 
 
 class DxuiHwndSource;
@@ -86,7 +87,7 @@ struct DxuiPopupMenuItem
 //  no label can reach into them. There is no fixed width and no setter for
 //  one, only a floor.
 //
-//  Up and Down skip separators and disabled rows and wrap. Right on a submenu
+//  Up and Down skip separators and disabled rows and wrap, unless turned off. Right on a submenu
 //  row opens its child with the first enabled row highlighted; the pointer
 //  resting on it opens the child unhighlighted, and hovering another row of
 //  the parent closes it again. Left or Escape with a child open closes only
@@ -212,6 +213,30 @@ public:
     //  it has no monitor.
     void  SetMaxHeightPx (int px)               { m_maxHeightPx = (px > 0) ? px : 0; }
 
+    //  Whether a highlighted row whose label was cut has its whole label laid
+    //  over it; on unless turned off, as for a list where every row is cut.
+    void  SetCutTipShown (bool isShown)          { m_isCutTipShown = isShown; }
+
+    //  Whether Up from the first row goes to the last and Down from the last
+    //  to the first; on unless turned off, as for a list where the ends are
+    //  the oldest and newest entries.
+    void  SetWrapping    (bool isWrapping)       { m_isWrapping = isWrapping; }
+
+    //  From the menu's left edge to its labels, as laid out when it last opened.
+    int   GetLabelLeftPx () const                { return m_labelLeftPx; }
+
+    //  The widest the menu may be, in pixels, the next time it is opened. A
+    //  label too long for it is cut off with an ellipsis, and the whole label
+    //  is drawn over its row while the highlight is on it. With zero, the
+    //  width is the content's.
+    void  SetMaxWidthPx  (int px)               { m_maxWidthPx = (px > 0) ? px : 0; }
+
+    //  The face the rows are drawn in: the body face unless one is set.
+    void  SetFace        (const wchar_t * face) { m_face = face; }
+
+    //  True for a row whose label is cut off to fit the menu's width.
+    bool  IsRowCut       (int index) const;
+
     int   GetScrollRow   () const               { return m_scrollRow; }
     bool  IsScrollable   () const               { return m_viewportPx > 0; }
     void  ScrollByRows   (int rows);
@@ -229,6 +254,13 @@ public:
     const RECT                            & GetRect      () const { return m_boundsDip; }
 
     void  ShowUnder      (const RECT                     & anchor,
+                          std::vector<DxuiPopupMenuItem>   items,
+                          IDxuiTextRenderer              & text,
+                          const RECT                     & hostClient);
+
+    //  Rising from the anchor's top edge, scrolled to its end, so the last
+    //  row is the one nearest the anchor.
+    void  ShowAbove      (const RECT                     & anchor,
                           std::vector<DxuiPopupMenuItem>   items,
                           IDxuiTextRenderer              & text,
                           const RECT                     & hostClient);
@@ -345,11 +377,16 @@ private:
     enum class Anchoring
     {
         Below,
+        Above,
         AtPoint,
         Beside,
     };
 
     static bool  IsPointInRect (const RECT & rc, int x, int y);
+
+    const wchar_t *  GetFace     () const;
+    void             FindCutRows (IDxuiTextRenderer & text);
+    void             ShowCutTip  (int index);
 
     void  RefreshMetrics     ();
 
@@ -451,6 +488,12 @@ private:
     bool                 m_grabsCapture     = true;
     int                  m_minWidthPx       = 0;
     int                  m_maxHeightPx      = 0;
+    bool                 m_isCutTipShown    = true;
+    bool                 m_isWrapping       = true;
+    int                  m_maxWidthPx       = 0;
+    const wchar_t      * m_face             = nullptr;
+    std::vector<bool>    m_cutRows;
+    DxuiInPlaceTip       m_cutTip;
     int                  m_viewportPx       = 0;
     int                  m_scrollRow        = 0;
     DxuiWheelNotches     m_wheel;

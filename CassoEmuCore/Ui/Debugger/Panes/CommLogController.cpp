@@ -62,6 +62,7 @@ void CommLogController::CreateControls()
     CreateListAndBar();
 
     m_graph = m_host.GetControlParent().CreateChild<CommSignalGraph>();
+    m_graph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_model = std::make_unique<CommLogPane> (m_list, [this] (const std::string & request)
     {
         if (GetWindowHost() != nullptr)
@@ -158,15 +159,17 @@ void CommLogController::SetBarEntries()
         command->dispatch  = [this, lane] { ShowLane (lane, !m_model->IsLaneShown (lane)); };
     }
 
-    command           = AddEntry (entries, s_kCommZoomIn, L"Zoom in", L"Zoom in: show half as many cycles", DxuiToolbar::Kind::Command, 1);
+    command           = AddEntry (entries, s_kCommZoomIn, L"Zoom in", L"Zoom in to half as many cycles across the graph", DxuiToolbar::Kind::Command, 1);
     command->glyph    = s_kpszMdl2ZoomIn;
     command->dispatch = [this] { Zoom (true); };
     entries.back().iconOnly = true;
 
-    command           = AddEntry (entries, s_kCommZoomOut, L"Zoom out", L"Zoom out: show twice as many cycles", DxuiToolbar::Kind::Command, 1);
+    command           = AddEntry (entries, s_kCommZoomOut, L"Zoom out", L"Zoom out to twice as many cycles across the graph", DxuiToolbar::Kind::Command, 1);
     command->glyph    = s_kpszMdl2ZoomOut;
     command->dispatch = [this] { Zoom (false); };
     entries.back().iconOnly = true;
+
+    entries.push_back (m_host.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -331,20 +334,20 @@ void CommLogController::UpdateGraph()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommLogController::TryGetTip
+//  CommLogController::TryGetTipAt
 //
 //  The graph's lanes at the pointer, a line each, following the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CommLogController::TryGetTip (POINT clientPx, PaneTip & tip)
+bool CommLogController::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->TryGetTipAt (clientPx, tip.text))
     {
         return false;
     }
 
-    tip.kind = PaneTip::Kind::Pointer;
+    tip.placement = DxuiTip::Placement::FollowPointer;
     return true;
 }
 

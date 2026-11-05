@@ -62,7 +62,9 @@ public:
     //  Whether the heat map pane is shown, which is whether the machine
     //  records its accesses.
     virtual void     SetDebugHeatMapShown     (bool shown)                                      { (void) shown; }
+    virtual void     SetDebugSoundMuted       (int channel, bool isMuted)                       { (void) channel; (void) isMuted; }
     virtual void     SetDebugHeatColumnsShown (bool shown)                                      { (void) shown; }
+    virtual void     SetDebugTraceShown       (bool shown)                                      { (void) shown; }
 
     //  Whether a BASIC pane is open and visible, which is when each
     //  snapshot includes the Applesoft program.
@@ -136,6 +138,7 @@ public:
 
     //  "on" or "off" after "heatmap": whether the heat map pane is shown.
     static bool  TryGetHeatMapShown (const std::string & where, bool & shown);
+    static bool  TryGetSoundMute    (const std::string & where, int & channel, bool & isMuted);
 
     //  "options <text>" after "heatmap": the options' text.
     static bool  TryGetHeatMapOptions (const std::string & where, std::string & text);

@@ -354,24 +354,41 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HWND EmulatorShell::ChooseDialogOwner (HWND foreground, HWND fallback)
+HWND EmulatorShell::ChooseDialogOwner (const DialogOwnerCandidate & foreground, HWND fallback)
 {
-    HWND  owner = fallback;
-    HWND  root  = nullptr;
+    bool  isOwner = foreground.isThisThread && foreground.rootOwner != nullptr && foreground.isEnabled;
 
 
 
-    if (foreground != nullptr && GetWindowThreadProcessId (foreground, nullptr) == GetCurrentThreadId())
+    return isOwner ? foreground.rootOwner : fallback;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DescribeDialogOwner
+//
+////////////////////////////////////////////////////////////////////////////////
+
+EmulatorShell::DialogOwnerCandidate EmulatorShell::DescribeDialogOwner (HWND foreground)
+{
+    DialogOwnerCandidate  candidate;
+
+
+
+    if (foreground == nullptr)
     {
-        root = GetAncestor (foreground, GA_ROOTOWNER);
-
-        if (root != nullptr && IsWindowEnabled (root))
-        {
-            owner = root;
-        }
+        return candidate;
     }
 
-    return owner;
+    candidate.isThisThread = GetWindowThreadProcessId (foreground, nullptr) == GetCurrentThreadId();
+    candidate.rootOwner    = GetAncestor (foreground, GA_ROOTOWNER);
+    candidate.isEnabled    = candidate.rootOwner != nullptr && IsWindowEnabled (candidate.rootOwner) != FALSE;
+
+    return candidate;
 }
 
 
@@ -510,7 +527,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 
     params.title                    = def.title;
     params.hInstance                = m_hInstance;
-    params.ownerHwnd                = ChooseDialogOwner (GetForegroundWindow(), m_hwnd);
+    params.ownerHwnd                = ChooseDialogOwner (DescribeDialogOwner (GetForegroundWindow()), m_hwnd);
     params.initialSizeDip           = { widthDip, heightDip };
     params.resizable                = false;
     params.insetContentBelowCaption = true;

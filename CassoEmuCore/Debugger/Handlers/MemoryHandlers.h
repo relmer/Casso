@@ -42,6 +42,13 @@ private:
     static constexpr Word  kTextGroupStride = 0x0080;
     static constexpr Word  kTextRowOffset   = 0x0028;
 
+    //  Applesoft's pointers past the program that a load sets, apart from
+    //  TXTTAB, VARTAB, ARYTAB and STREND: the top of free string space, the
+    //  top of memory it starts from, and the end of the program.
+    static constexpr Word  kFreTop          = 0x006F;
+    static constexpr Word  kMemSiz          = 0x0073;
+    static constexpr Word  kPrgEnd          = 0x00AF;
+
     void         Dump         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Enter        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Move         (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -54,6 +61,10 @@ private:
     static size_t       GetLoadCount  (const DebugCommand & command, const BinaryImage & image, const BinarySegment & segment);
     static void  SaveBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SaveText     (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  LoadBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static void  SaveBasic    (DebugSession & session, const DebugCommand & command, Reply & reply);
+    static bool  TryPokeWord  (IDebugTarget & target, Word address, Word value, Reply & reply);
+    static bool  TryPeekWord  (IDebugTarget & target, Word address, Word & value, Reply & reply);
     static void  ReadIo       (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  WriteIo      (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ShowSwitches (DebugSession & session, Reply & reply);

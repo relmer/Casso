@@ -261,7 +261,7 @@ void TracePane::AddColors (std::vector<DxuiListView::Cell> & row, const Debugger
 //  TracePane::GetKeyAction
 //
 //  Single keys, so the pane steps and runs with no chord: Space, O and R step
-//  into, over and out, Return runs, T turns tracing off and on, B shows and
+//  into, over and out, Enter runs, T turns tracing off and on, B shows and
 //  hides the bytes, and S saves the trace. A key with Ctrl or Alt is left to
 //  the window.
 //
@@ -305,7 +305,7 @@ std::vector<KeyHintLine::Pair> TracePane::GetKeyPairs()
     return { { L"Space",  L"step into",    (int) KeyAction::StepInto    },
              { L"O",      L"step over",    (int) KeyAction::StepOver    },
              { L"R",      L"step out",     (int) KeyAction::StepOut     },
-             { L"Return", L"run",          (int) KeyAction::Run         },
+             { L"Enter",  L"run",          (int) KeyAction::Run         },
              { L"T",      L"trace on/off", (int) KeyAction::ToggleTrace },
              { L"B",      L"bytes",        (int) KeyAction::ToggleBytes },
              { L"S",      L"save",         (int) KeyAction::Save        } };

@@ -377,6 +377,42 @@ void ShellDebuggerPrefs::SetDebuggerEchoingActions (bool isEchoing)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDebuggerPrefs::IsDebuggerSkipNoticeShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebuggerPrefs::IsDebuggerSkipNoticeShown()
+{
+    return m_settings.skipNoticeShown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebuggerPrefs::SetDebuggerSkipNoticeShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebuggerPrefs::SetDebuggerSkipNoticeShown (bool isShown)
+{
+    if (m_settings.skipNoticeShown == isShown)
+    {
+        return;
+    }
+
+    m_settings.skipNoticeShown = isShown;
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDebuggerPrefs::GetDebuggerTextZoomPercent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -494,6 +530,96 @@ void ShellDebuggerPrefs::SetDebuggerHeatMapOptions (const std::string & text)
 
 
         m_settings.heatMapOptions = text;
+    }
+
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebuggerPrefs::GetDebuggerDiskDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDebuggerPrefs::GetDebuggerDiskDrives()
+{
+    return m_settings.diskDrives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebuggerPrefs::SetDebuggerDiskDrives
+//
+//  UI thread; saved only when it changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebuggerPrefs::SetDebuggerDiskDrives (const std::string & text)
+{
+    if (m_settings.diskDrives == text)
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.diskDrives = text;
+    }
+
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebuggerPrefs::GetDebuggerProfilerPeriod
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDebuggerPrefs::GetDebuggerProfilerPeriod()
+{
+    return m_settings.profilerPeriod;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDebuggerPrefs::SetDebuggerProfilerPeriod
+//
+//  UI thread; saved only when it changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebuggerPrefs::SetDebuggerProfilerPeriod (const std::string & text)
+{
+    if (m_settings.profilerPeriod == text)
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+
+
+        m_settings.profilerPeriod = text;
     }
 
     m_host.SaveSettings();
@@ -643,7 +769,7 @@ bool ShellDebuggerPrefs::TryGetDebuggerPlacement (RECT & rectPx)
         {
             RECT  candidate = RECT { other.x, other.y, other.x + other.w, other.y + other.h };
 
-            if (other.w > 0 && other.h > 0 && MonitorFromRect (&candidate, MONITOR_DEFAULTTONULL) != nullptr)
+            if (other.w > 0 && other.h > 0 && DxuiDisplay::Get().MonitorFromRect (&candidate, MONITOR_DEFAULTTONULL) != nullptr)
             {
                 WindowTrace::LogRect ("restore.other", "debugger", candidate, "saved under key=" + otherKey);
                 rectPx = candidate;
@@ -656,7 +782,7 @@ bool ShellDebuggerPrefs::TryGetDebuggerPlacement (RECT & rectPx)
 
     saved = RECT { bounds.x, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h };
 
-    if (MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) == nullptr)
+    if (DxuiDisplay::Get().MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) == nullptr)
     {
         return false;
     }

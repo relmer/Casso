@@ -6,6 +6,7 @@
 #include "Ui/Debugger/InstructionEffect.h"
 
 #include "Debugger/AccessHeatMap.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -129,6 +130,9 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     snapshot.isPaused       = isPaused;
     snapshot.isAssembling   = session.IsAssembling();
+    snapshot.stopReason     = session.GetLastStopReason();
+    snapshot.stopBreakpoint = session.GetLastStopBreakpoint();
+    snapshot.runNotice      = session.GetRunNotice();
     snapshot.mode           = session.GetMode();
     snapshot.goTo           = m_goTo;
     snapshot.showPane       = m_showPane;
@@ -269,8 +273,14 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
         for (int table = 0; table < SymbolTable::kTableCount; table++)
         {
+            auto  load = std::ranges::find_if (session.GetSymbolLoads(), [table] (const DebugSession::SymbolLoad & each) { return each.table == (SymbolTableId) table; });
+
+
+
             state->tables.push_back ({ ReplyJson::GetSymbolTableName ((SymbolTableId) table), session.GetSymbols().GetCount ((SymbolTableId) table),
-                                       session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table });
+                                       session.GetSymbols().IsEnabled ((SymbolTableId) table), (SymbolTableId) table,
+                                       session.GetSymbols().GetOrigins ((SymbolTableId) table),
+                                       (load != session.GetSymbolLoads().end()) ? load->path : std::wstring() });
             session.GetSymbols().GetAll ((SymbolTableId) table, state->symbols);
         }
 
@@ -286,6 +296,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     }
 
     BuildSource (session, snapshot);
+    snapshot.staleFileNames = session.GetStaleFileNames();
 
     //  A stopped machine's program is read whatever is on screen: its
     //  variables are in the Watches pane and its frames in the Call stack.
@@ -576,15 +587,32 @@ std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> DebuggerViewState:
 
     if (m_heatMapOptions.cumulative)
     {
-        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
-        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
-        map.GetTotalLevels (HeatSpace::Cpu, write,             levels->write);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Execute,   levels->execute);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Read,      levels->read);
+        map.GetTotalLevels (HeatSpace::Cpu, write,               levels->write);
+        map.GetTotalLevels (HeatSpace::Cpu, HeatKind::Statement, levels->statement);
     }
     else
     {
-        map.GetLevels (HeatSpace::Cpu, HeatKind::Execute, levels->execute);
-        map.GetLevels (HeatSpace::Cpu, HeatKind::Read,    levels->read);
-        map.GetLevels (HeatSpace::Cpu, write,             levels->write);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Execute,   levels->execute);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Read,      levels->read);
+        map.GetLevels (HeatSpace::Cpu, write,               levels->write);
+        map.GetLevels (HeatSpace::Cpu, HeatKind::Statement, levels->statement);
+    }
+
+    levels->executeCount.resize   (0x10000);
+    levels->readCount.resize      (0x10000);
+    levels->writeCount.resize     (0x10000);
+    levels->statementCount.resize (0x10000);
+
+    for (size_t address = 0; address < 0x10000; address++)
+    {
+        auto  clamp = [] (uint64_t count) { return (uint32_t) std::min<uint64_t> (count, UINT32_MAX); };
+
+        levels->executeCount[address]   = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Execute,   (Word) address));
+        levels->readCount[address]      = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Read,      (Word) address));
+        levels->writeCount[address]     = clamp (map.GetTotal (HeatSpace::Cpu, write,               (Word) address));
+        levels->statementCount[address] = clamp (map.GetTotal (HeatSpace::Cpu, HeatKind::Statement, (Word) address));
     }
 
     return levels;
@@ -1394,6 +1422,20 @@ void DebuggerViewState::BuildSource (DebugSession & session, DebuggerViewSnapsho
     state.stepBySource  = session.IsStepBySource();
     state.lineAddresses = m_lineAddresses;
     state.lineRanges    = m_lineRanges;
+    state.isStale       = session.IsDebugFileStale();
+
+    //  Over a program that isn't the file's, the documents are open but
+    //  none of their lines maps to an address.
+    if (state.isStale)
+    {
+        static const auto  s_kNoAddresses = std::make_shared<const std::map<std::pair<int, int>, Word>>();
+        static const auto  s_kNoRanges    = std::make_shared<const std::map<std::pair<int, int>, std::pair<Word, Word>>>();
+
+        state.lineAddresses = s_kNoAddresses;
+        state.lineRanges    = s_kNoRanges;
+        snapshot.source     = std::move (state);
+        return;
+    }
 
     if (!atPc.empty())
     {
@@ -2498,11 +2540,15 @@ std::string DebuggerViewState::GetPanelLine (const std::string & id, bool open)
 //
 //  DebuggerViewState::ExecuteLine
 //
+//  A help listing's rows come back tabbed, for the console to lay out at
+//  its width.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string & line, CommandMode mode)
 {
-    Reply  reply = session.ExecuteLine (line, mode);
+    CommandModeHelp::TabbedRows  tabbed (true);
+    Reply                        reply = session.ExecuteLine (line, mode);
 
 
 
@@ -2629,7 +2675,7 @@ void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAc
         lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
     }
 
-    if (action.isEchoed || action.isResult || reply.status != CommandStatus::Ok)
+    if (action.isEchoed || action.isResult || reply.hasNotice || reply.status != CommandStatus::Ok)
     {
         lines.insert (lines.end(), reply.text.begin(), reply.text.end());
     }
@@ -3391,7 +3437,7 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
 
     //  As many lines as the pane has room for, stopping at $FFFF rather than
     //  wrapping below the start.
-    (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view), std::nullopt, v.lines, code);
+    (void) DataDirectiveHandlers::Disassemble (session, ChooseCodeStart (session, snapshot.pc, view, !snapshot.isPaused), std::nullopt, v.lines, code);
 
     v.shown.clear();
 
@@ -3412,18 +3458,20 @@ std::vector<DebuggerViewSnapshot::CodeLine> DebuggerViewState::BuildCode (DebugS
         row.instruction   = line.instruction.operand.empty() ? line.instruction.mnemonic
                                                              : line.instruction.mnemonic + " " + line.GetShownOperand();
         row.label         = line.label;
+        row.dataOrigin    = line.dataOrigin;
         row.isCurrent     = row.address == snapshot.pc;
         row.isBranchedFrom = snapshot.branchedFrom == row.address;
         row.isRom          = session.GetTarget().GetRegion (row.address) == MemoryRegion::Rom ||
                              session.GetTarget().GetRegion (row.address) == MemoryRegion::SlotRom;
         row.target        = line.instruction.hasTarget ? std::optional<Word> (line.instruction.target) : std::nullopt;
         //  Only while the machine is paused (FR-110): a running machine
-        //  is somewhere else by the time these are drawn.
+        //  is somewhere else by the time these are drawn. A data line isn't
+        //  an instruction, so it doesn't have them.
         //
         //  ONE RUN ANSWERS BOTH COLUMNS. What the instruction reads is
         //  the left annotation and what it leaves is the right one, and
         //  both come from the same trip through the core.
-        if (snapshot.isPaused)
+        if (snapshot.isPaused && line.dataOrigin == DataOrigin::None)
         {
             const Cpu6502Registers    & now     = session.GetTarget().GetRegisters();
             InstructionTouches::Result  touches = InstructionTouches::Find (session, session.GetTarget().GetInstructionSet(),
@@ -3609,13 +3657,18 @@ void DebuggerViewState::SetCodeLines (int lines, int view)
 //  When the PC does leave, it comes back in the MIDDLE, so what led there is
 //  on screen with it.
 //
+//  While the machine runs, a view the user scrolled isn't moved until
+//  kScrollHoldMs pass with no more scrolling, so the code near the PC can
+//  be read while the PC moves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int view) const
+Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const
 {
-    CodeView  & v     = m_code[(size_t) view];
-    bool        shown = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
-    Word        top   = 0;
+    CodeView  & v      = m_code[(size_t) view];
+    bool        shown  = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
+    bool        isHeld = isRunning && v.scrolledAtMs.has_value() && m_clock() - *v.scrolledAtMs < kScrollHoldMs;
+    Word        top    = 0;
 
 
 
@@ -3628,11 +3681,12 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     //  The following view put somewhere -- scrolled, or navigated to -- holds
     //  there only until the PC moves. It then follows again from where it
     //  stands, so a PC still on its lines moves the marker, not the view.
-    if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && *v.pinnedAtPc != pc)
+    if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && *v.pinnedAtPc != pc && !isHeld)
     {
         v.followAnchor = *v.address;
         v.address.reset();
         v.pinnedAtPc.reset();
+        v.scrolledAtMs.reset();
     }
 
     //  A view that does not follow the PC and has not been put anywhere
@@ -3701,10 +3755,11 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
 Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lines, int count)
 {
-    Word            from  = top;
-    Word            last  = 0;
-    int             shown = 1;
+    Word            from   = top;
+    Word            last   = 0;
+    int             shown  = 1;
     DataBlockEntry  block;
+    DataOrigin      origin = DataOrigin::None;
 
 
 
@@ -3743,7 +3798,7 @@ Word DebuggerViewState::ScrollCodeTop (DebugSession & session, Word top, int lin
     //  many lines above as can be found; a byte at a time where none can.
     if (count < 0)
     {
-        while (count < 0 && top > 0 && session.GetDataBlocks().TryFindAt ((Word) (top - 1), block))
+        while (count < 0 && top > 0 && session.TryFindData ((Word) (top - 1), block, origin))
         {
             top = GetPreviousInstruction (session, top);
             count++;
@@ -4030,11 +4085,12 @@ Word DebuggerViewState::GetPreviousInstruction (DebugSession & session, Word add
 {
     Word            before = (Word) (address - 1);
     DataBlockEntry  block;
+    DataOrigin      origin = DataOrigin::None;
     Word            length = 0;
 
 
 
-    if (session.GetDataBlocks().TryFindAt (before, block))
+    if (session.TryFindData (before, block, origin))
     {
         length = GetInstructionLength (session, block.first);
         return (Word) (block.first + (before - block.first) / length * length);

@@ -44,9 +44,13 @@ CallStackController::~CallStackController() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CallStackController::GetId() const
+const std::wstring & CallStackController::GetId() const
 {
-    return DebuggerLayout::kCallStack;
+    static const std::wstring  s_kId = DebuggerLayout::kCallStack;
+
+
+
+    return s_kId;
 }
 
 
@@ -180,10 +184,7 @@ bool CallStackController::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
 
     if (frame.routineAddress.has_value())
     {
-        items.push_back ({ L"Never step into this routine", [this, frame]
-        {
-            m_host.RunAction (DebuggerActions::GetSkipRoutine (frame.routineSymbol, *frame.routineAddress, m_host.GetMode()));
-        } });
+        m_host.AddSkipItem (frame.routineSymbol, *frame.routineAddress, items);
     }
 
     items.push_back ({ L"Copy", [this] { DxuiClipboard::SetText (m_host.GetOwnerHwnd(), m_list->GetSelectionText()); } });

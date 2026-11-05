@@ -7,9 +7,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 static constexpr uint64_t  s_kSampleWarmupCycles = 60000;
-static constexpr size_t    s_kSampleSteps        = 3000;
+static constexpr size_t    s_kSampleSteps        = 1500;
 static constexpr size_t    s_kSampleSliceSteps   = 100;
-static constexpr size_t    s_kSampleKeyEvery     = 1000;
+static constexpr size_t    s_kSampleKeyEvery     = 600;
 static constexpr size_t    s_kSamplePaddleEvery  = 700;
 static constexpr uint64_t  s_kSampleCostFrames   = 300;
 static constexpr uint32_t  s_kSampleSliceCycles  = 1023;

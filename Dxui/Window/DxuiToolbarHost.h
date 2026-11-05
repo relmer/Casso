@@ -105,8 +105,9 @@ public:
     void  SetFillsEdge  (bool fills) { m_fillsEdge = fills; }
     bool  IsFillingEdge () const     { return m_fillsEdge; }
 
-    //  The default place, saved.
-    void  ResetDock ();
+    //  Docks the bar at dock, the top edge's start by default, and saves
+    //  that place.
+    void  ResetDock (const DxuiToolbarDock & dock = {});
 
     //  Whether a lift plays as an animation, in place of the system's
     //  setting, for a test that must see the same thing on every machine.

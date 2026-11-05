@@ -177,6 +177,7 @@ void SymbolTable::Clear (SymbolTableId table)
 {
     m_tables[(int) table].clear();
     m_origins[(int) table].clear();
+    m_isHidden[(int) table] = false;
 
     NoteChange();
 }
@@ -221,6 +222,25 @@ void SymbolTable::SetEnabled (SymbolTableId table, bool enabled)
     m_enabled[(int) table] = enabled;
 
     NoteChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolTable::SetHidden
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolTable::SetHidden (SymbolTableId table, bool isHidden)
+{
+    if (m_isHidden[(int) table] != isHidden)
+    {
+        m_isHidden[(int) table] = isHidden;
+        NoteChange();
+    }
 }
 
 
@@ -305,6 +325,35 @@ bool SymbolTable::TryResolve (const std::string & name, Word & address, SymbolTa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SymbolTable::TryFindNearestName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolTable::TryFindNearestName (Word address, Word maxBack, std::string & name) const
+{
+    SymbolTableId  table = SymbolTableId::Main;
+    std::string    found;
+
+
+
+    for (int back = 0; back <= (int) maxBack && back <= (int) address; back++)
+    {
+        if (TryFindName ((Word) (address - back), found, table))
+        {
+            name = (back == 0) ? found : std::format ("{}+{}", found, back);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolTable::TryFindName
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,7 +362,7 @@ bool SymbolTable::TryFindName (Word address, std::string & name, SymbolTableId &
 {
     for (int i = 0; i < kTableCount; ++i)
     {
-        if (m_enabled[i] && TryFindNameIn ((SymbolTableId) i, address, name))
+        if (m_enabled[i] && !m_isHidden[i] && TryFindNameIn ((SymbolTableId) i, address, name))
         {
             table = (SymbolTableId) i;
             return true;
@@ -339,7 +388,7 @@ void SymbolTable::FindNames (Word address, std::vector<std::string> & names) con
 {
     for (int i = 0; i < kTableCount; i++)
     {
-        if (!m_enabled[i])
+        if (!m_enabled[i] || m_isHidden[i])
         {
             continue;
         }

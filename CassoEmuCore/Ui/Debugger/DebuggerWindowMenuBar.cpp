@@ -2,6 +2,8 @@
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Debugger/SymbolTable.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -15,6 +17,7 @@
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/ViewMenuRows.h"
 
@@ -196,6 +199,7 @@ void DebuggerWindow::SetWindowMenus()
     //  File: what the window reads and writes.
     add (file, DebuggerMenuCommand::Make (L"Open source file...", false, [this] { OpenSourceFile(); }));
     add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", false, [this] { OpenSymbolFile(); }));
+    AddUnloadSymbolsRow (file);
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", false, [this] { m_breakpointsPane->Import(); }));
     row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { m_breakpointsPane->Export(); });
@@ -207,6 +211,8 @@ void DebuggerWindow::SetWindowMenus()
     row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };
     add (file, row);
     add (file, DebuggerMenuCommand::Make (L"Save memory to file...", false, [this] { SaveMemoryToFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", false, [this] { OpenBasicProgram(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", false, [this] { SaveBasicProgram(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     add (file, DebuggerMenuCommand::Make (L"Open project...", false, [this] { OpenProject(); }));
     add (file, DebuggerMenuCommand::Make (L"Save project as...", false, [this] { SaveProjectAs(); }));
@@ -287,8 +293,13 @@ void DebuggerWindow::SetWindowMenus()
 
     //  Machine: the machine's own restarts. The main window's Restart under
     //  debugger is not here: with the debugger open, it is Power cycle.
-    add (machine, emulator (L"Reset",       IDM_MACHINE_RESET));
-    add (machine, emulator (L"Power cycle", IDM_MACHINE_POWERCYCLE));
+    row              = emulator (L"Reset", IDM_MACHINE_RESET);
+    row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) DebuggerKeySchemes::Action::Reset);
+    add (machine, row);
+
+    row              = emulator (L"Power cycle", IDM_MACHINE_POWERCYCLE);
+    row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) DebuggerKeySchemes::Action::PowerCycle);
+    add (machine, row);
 
     //  Tools: which editor's keys the window takes.
     for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
@@ -356,6 +367,85 @@ void DebuggerWindow::SetWindowMenus()
     {
         m_menuBar->SetItems (m_menuBarItems);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddUnloadSymbolsRow
+//
+//  File's Unload symbol file: a row for each symbol or debug file loaded,
+//  which clears its table as SYM<table> CLEAR does; disabled with none loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
+{
+    std::vector<DxuiPopupMenuItem>  files;
+    std::shared_ptr<DxuiCommand>    row;
+
+
+
+    for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
+    {
+        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), false, [this, name = table.name]
+        {
+            RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
+        });
+
+        m_menuCommands.push_back (row);
+        files.push_back (DxuiPopupMenuItem::ForCommand (row));
+    }
+
+    row = DebuggerMenuCommand::Make (L"Unload symbol file", false, [] {});
+    m_menuCommands.push_back (row);
+
+    if (files.empty())
+    {
+        row->isEnabled = [] { return false; };
+        file.push_back (DxuiPopupMenuItem::ForCommand (row));
+        return;
+    }
+
+    file.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (files)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetLoadedSymbolTables
+//
+//  The user symbol tables loaded from a file. A load replaces its table, so
+//  each has one file, its last origin.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DebuggerViewSnapshot::SymbolTableRow> DebuggerWindow::GetLoadedSymbolTables() const
+{
+    std::vector<DebuggerViewSnapshot::SymbolTableRow>  loaded;
+
+
+
+    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+    {
+        return loaded;
+    }
+
+    for (const DebuggerViewSnapshot::SymbolTableRow & table : m_snapshot->symbols->tables)
+    {
+        if (SymbolsPane::IsUserTable (table.id) && !table.origins.empty())
+        {
+            loaded.push_back (table);
+        }
+    }
+
+    return loaded;
 }
 
 
@@ -596,7 +686,8 @@ DxuiMessageResult DebuggerWindow::OnKeyUp (WPARAM vk, LPARAM lParam)
 //  DebuggerWindow::ResetPaneLayout
 //
 //  Puts every pane back where the window first had it, reopening the ones
-//  closed from their close buttons, and saves that.
+//  closed from their close buttons, returns the columns to fitting their
+//  text, and saves that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -613,14 +704,69 @@ void DebuggerWindow::ResetPaneLayout()
     m_dockSite->Relayout();
     SaveLayout();
 
-    //  The command bar goes back to its default place too: the top band,
-    //  at the start of it, under the menu bar.
-    m_barHost.ResetDock();
-    m_timelineHost.ResetDock();
+    m_columnWidths.clear();
+
+    for (DxuiListView * list : GetLists())
+    {
+        if (!HasOwnColumnWidths (list))
+        {
+            for (size_t c = 0; c < list->GetColumnCount(); c++)
+            {
+                list->SetColumnOverrideWidthPx (c, -1);
+            }
+
+            list->ResetAutoFit();
+        }
+    }
+
+    SaveColumnWidths();
+
+    //  The command bar and the history timeline go back to their default
+    //  places too: the top band under the menu bar, the bar at its start
+    //  and the timeline after it.
+    m_barHost.ResetDock      (DebuggerLayout::GetCommandBarDock (L""));
+    m_timelineHost.ResetDock (DebuggerLayout::GetTimelineDock   (L""));
     LayoutWidgets();
 
     SetWindowMenus();
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PickFileToOpen
+//
+//  The picker opens in the folder of the file picked last for this kind,
+//  saved with the window's state, rather than in the folder of whatever
+//  file Casso opened last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DebuggerWindow::PickFileToOpen (const std::string & kind, FileDialogSpec spec, std::filesystem::path & chosen, bool & picked)
+{
+    HRESULT      hr  = S_OK;
+    std::string  key = "folder." + kind;
+
+
+
+    CBRAEx (m_host != nullptr, E_UNEXPECTED);
+
+    spec.initialFolder = SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState (key));
+
+    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    if (picked)
+    {
+        m_host->SetDebuggerWindowState (key, SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -649,7 +795,7 @@ void DebuggerWindow::OpenSourceFile()
 
     spec.filters = { { L"Source files", L"*.s;*.asm;*.a65;*.inc;*.a;*.src;*.mac;*.65s;*.s65" }, { L"All files", L"*.*" } };
 
-    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    hr = PickFileToOpen ("source", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -687,7 +833,7 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
 
     spec.filters = { { L"Debug and symbol files", L"*.dbg;*.sym" }, { L"All files", L"*.*" } };
 
-    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    hr = PickFileToOpen ("symbols", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -729,7 +875,7 @@ void DebuggerWindow::LoadFileIntoMemory()
 
     spec.filters = { { L"Binary and hex files", L"*.bin;*.b;*.obj;*.hex;*.ihx;*.s19;*.srec;*.as" }, { L"All files", L"*.*" } };
 
-    hr = m_host->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, chosen, picked);
+    hr = PickFileToOpen ("load", spec, chosen, picked);
     CHR (hr);
 
     BAIL_OUT_IF (!picked, S_OK);
@@ -792,6 +938,108 @@ void DebuggerWindow::SaveMemoryToFile()
     {
         RunAction (action);
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::LoadBasicProgram
+//
+//  With no BASIC pane open the snapshot has no program to look at, so the
+//  message box opens then too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::LoadBasicProgram (const std::wstring & path)
+{
+    bool          isKnownEmpty = m_snapshot != nullptr && m_snapshot->basic.has_value() && (!m_snapshot->basic->hasProgram || m_snapshot->basic->lines.empty());
+    std::wstring  name         = std::filesystem::path (path).filename().wstring();
+
+
+
+    if (!isKnownEmpty &&
+        ShowMessageBox (GetHwnd(), std::format (L"Replace the BASIC program in memory with {}?", name), L"Load BASIC program", MB_YESNO | MB_ICONQUESTION) != IDYES)
+    {
+        return;
+    }
+
+    RunAction (DebuggerActions::GetLoadBasic (SourcePathList::WideToUtf8 (path), GetMode()));
+    ShowPane  (DebuggerLayout::kBasicProgram);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OpenBasicProgram
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::OpenBasicProgram()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    spec.filters = { { L"Applesoft listings", L"*.bas" }, { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
+
+    hr = PickFileToOpen ("basic", spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    LoadBasicProgram (chosen.wstring());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SaveBasicProgram
+//
+//  In the folder of the listing loaded or saved last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SaveBasicProgram()
+{
+    HRESULT                hr     = S_OK;
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked = false;
+
+
+
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
+
+    spec.filters          = { { L"Applesoft listings", L"*.bas" }, { L"All files", L"*.*" } };
+    spec.defaultExtension = L"bas";
+    spec.defaultFileName  = L"program.bas";
+    spec.initialFolder    = SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("folder.basic"));
+
+    hr = m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+    BAIL_OUT_IF (!picked, S_OK);
+
+    m_host->SetDebuggerWindowState ("folder.basic", SourcePathList::WideToUtf8 (chosen.parent_path().wstring()));
+    RunAction (DebuggerActions::GetSaveBasic (SourcePathList::WideToUtf8 (chosen.wstring()), GetMode()));
 
 Error:
     return;

@@ -217,9 +217,9 @@ HRESULT DxuiDialogWindow::FitHeightToContent()
 
     heightPx = (window.bottom - window.top) + needPx - (content.bottom - content.top);
     top      = window.top - (heightPx - (window.bottom - window.top)) / 2;
-    monitor  = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    monitor  = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
 
-    if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))
+    if (monitor != nullptr && DxuiDisplay::Get().GetMonitorInfoW (monitor, &mi))
     {
         heightPx = std::min (heightPx, (int) (mi.rcWork.bottom - mi.rcWork.top));
         top      = std::clamp (top, (int) mi.rcWork.top, (int) mi.rcWork.bottom - heightPx);

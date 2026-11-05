@@ -61,6 +61,9 @@ public:
     // `capsLockOn`. True when that raised at least one letter.
     bool  PasteFromClipboard (HWND hwnd, bool capsLockOn);
 
+    // Queues the text as PasteFromClipboard queues the clipboard's.
+    bool  PasteText          (const std::wstring & text, bool capsLockOn);
+
     // `cyclesElapsed` is the emulated-cycle budget of the slice about to run
     // -- the settle pacing below is measured in guest time.
     Byte  DrainPasteBuffer   (uint32_t cyclesElapsed);
@@ -75,6 +78,10 @@ public:
     // tested without the Win32 clipboard. Returns CRLF-terminated rows with
     // trailing spaces trimmed.
     std::wstring  BuildScreenText (const Byte * mainRam, const Byte * auxRam) const;
+
+    // Whether the text screen is 80 columns: the machine has an aux bank and
+    // the 80-column display is on (RD80VID, $C01F bit 7).
+    bool          IsEightyColumns (const Byte * auxRam) const;
 
     // The CF_DIB payload for a captured image: a BITMAPINFOHEADER and the
     // rows bottom-up, which is the order a DIB stores them. Built here rather

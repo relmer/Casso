@@ -59,6 +59,17 @@ public:
     virtual void  OnFloatDocked       (const std::wstring & pane, DxuiDockedWindow * window) = 0;
     virtual void  OnFloatsSynced      () = 0;
     virtual void  OnFloatTipErased    (const DxuiTooltip * tip) = 0;
+
+    //  A frame for the debugger's windows, run while a floating window's
+    //  title bar is pressed and the system's move loop runs on the thread.
+    virtual void  PumpFloatFrame      () {}
+
+    //  A floating window, made by the system unless a test's host makes one
+    //  with no window behind it; and the key of the monitor a rect is on,
+    //  its device name, which stays the same while it is attached where it
+    //  is.
+    virtual HRESULT       CreateFloatWindow (DxuiDockedWindow & window, const DxuiWindow::CreateParams & params);
+    virtual std::wstring  GetMonitorKey     (const RECT & rectPx) const;
 };
 
 
@@ -114,11 +125,12 @@ public:
     bool          IsRoutable        (const std::wstring & pane) const;
     std::wstring  GetBarRoutingPane (const std::wstring & pane) const;
 
-    //  The floating window, popup host, tooltip and HWND of the event being
-    //  routed, null for the debugger window's own.
+    //  The floating window, popup host, tip service and HWND of the event
+    //  being routed; null for an event of the debugger window.
     DxuiHwndSource *  GetRoutedPopupHost () const;
-    DxuiTooltip *     GetRoutedTip       () const;
+    DxuiTipService *  GetRoutedTips      () const;
     HWND              GetRoutedHwnd      () const;
+    DxuiDockedWindow *GetRoutedWindow    () const { return Find (m_routingPane); }
 
     //  An event routed as the debugger window's own under `pane`: a floating
     //  pane's, or one over a pane slid out from an edge; and a key-scheme
@@ -153,10 +165,12 @@ public:
     //  or sizing one is not a layout operation.
     void  SaveRects (DxuiPaneLayout & layout) const;
 
-    //  A tooltip by its key, a pane's or the floating command bar's.
-    void  SetTip   (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip) { m_tips[key] = std::move (tip); }
-    void  EraseTip (const std::wstring & key);
-    DxuiTooltip *  FindTip (const std::wstring & key) const;
+    //  A tooltip and its tip service by their key, a pane's or the floating
+    //  command bar's.
+    void              SetTip    (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip);
+    void              EraseTip  (const std::wstring & key);
+    DxuiTooltip *     FindTip   (const std::wstring & key) const;
+    DxuiTipService *  FindTips  (const std::wstring & key) const;
 
     //  Every floating window at once.
     void  ApplyTheme       (const DxuiTheme * theme);
@@ -167,8 +181,6 @@ public:
     void  Tick             (int64_t now);
     void  SetFocusedLooks  (const std::wstring & focusedPane, const DxuiTheme & theme);
     bool  IsAnyMenuOpen    () const;
-
-    static std::wstring  GetMonitorKey (const RECT & rectPx);
 
 private:
     //  A point outside every dock site, where a drag over another floating
@@ -196,6 +208,7 @@ private:
     std::map<std::wstring, std::vector<std::wstring>>            m_windowPanes;
     std::map<std::wstring, IDxuiControl *>                       m_focus;         // each floating pane's focused control, by pane
     std::map<std::wstring, std::unique_ptr<DxuiTooltip>>         m_tips;
+    std::map<std::wstring, std::unique_ptr<DxuiTipService>>      m_tipServices;
     DxuiDragOverlay                                              m_dragOverlay;
     std::wstring                                                 m_routingPane;
     std::wstring                                                 m_tornOffPane;

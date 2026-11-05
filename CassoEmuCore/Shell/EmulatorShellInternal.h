@@ -34,6 +34,7 @@
 #define WM_APP_HELD_INPUT_READ (WM_APP + 0x2E)
 #define WM_APP_UPDATE_RESULT   (WM_APP + 0x2F)
 #define WM_APP_CONFIRM_PROJECT_MERGE (WM_APP + 0x30)
+#define WM_APP_PASTE_TEXT      (WM_APP + 0x31)
 
 
 

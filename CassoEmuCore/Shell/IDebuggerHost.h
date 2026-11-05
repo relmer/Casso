@@ -5,6 +5,7 @@
 class HeldHostInputs;
 class IFileSystem;
 class IHostDialogs;
+class IMachineControl;
 class ITapeControl;
 class WindowPlacementProfile;
 struct CassoTheme;
@@ -84,4 +85,8 @@ public:
 
     //  The cassette deck's keys, for TAPE. CPU thread.
     virtual ITapeControl          & GetTapeControl      ()                       = 0;
+
+    //  Reset, the disks, typed text, the screen and Exit, for the machine
+    //  commands. CPU thread.
+    virtual IMachineControl       & GetMachineControl   ()                       = 0;
 };

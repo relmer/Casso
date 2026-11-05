@@ -48,13 +48,30 @@ public:
     //  the disassembly's, and the number is in the first visible column before
     //  the label; otherwise the whole line starts in the first visible column
     //  after the glyph margin.
+    //  With an operand cell, the row is also its instruction's: while the
+    //  label column is visible, the code stops at the comment, the operand
+    //  and result are in their column, and the comment follows them. With
+    //  the label column hidden, or a dragged instruction column too narrow
+    //  for the code, the operand and result follow the line.
     static void  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
-                                const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb);
+                                const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
+                                const DxuiListView::Cell * operand = nullptr);
 
-    //  An instruction's row as the options choose. Returns the annotation
-    //  placed in the operand cell.
+    //  The bytes a source row's instructions occupy: from the first
+    //  instruction under it to the end of the last one from the same line,
+    //  so the row's heat is theirs. False for an instruction's row and for a
+    //  source row with no instruction under it.
+    static bool  TryGetSourceRowSpan (const std::vector<DisassemblyOptions::Row> & rows, size_t row,
+                                      const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word & first, size_t & count);
+
+    //  An instruction's row as the options choose, a data line's in italics.
+    //  Returns the annotation placed in the operand cell.
     static std::string  FillCodeRow (std::vector<DxuiListView::Cell> & cells, const DebuggerViewSnapshot::CodeLine & line,
                                      const DisassemblyOptions & options, const DebuggerTextColors::Set & colors);
+
+    //  Why a data line's bytes are data, and how to disassemble them as code
+    //  again, for the tip over its instruction.
+    static std::wstring  GetDataTip (DataOrigin origin);
 
     //  Whether a row is drawn dimmed: its kind matches the options' Dim and
     //  the view has source rows. The PC's row is never dimmed.
@@ -93,6 +110,13 @@ private:
     //  begin at `offset` in a cell's text.
     static void  AddSourceRuns (DxuiListView::Cell & cell, const std::vector<SourceSyntax::Run> & runs, int start, int end, int offset,
                                 const DebuggerTextColors::Set & colors);
+
+    //  A cell's text and colors added at the end of another cell's, two
+    //  spaces after any text there.
+    static void  AppendCell (DxuiListView::Cell & cell, const DxuiListView::Cell & added);
+
+    //  Where the first comment run at or after `from` starts, or the line's end.
+    static size_t  GetCommentStart (const std::vector<SourceSyntax::Run> & runs, size_t from, size_t end);
 
 
     static void  PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along);

@@ -1,4 +1,4 @@
-#include "Pch.h"
+﻿#include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "ControllerRig.h"
@@ -8,7 +8,9 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 
@@ -292,6 +294,76 @@ namespace DisassemblyOptionsTests
 
 
 
+        //  A source row's heat is its instructions' heat: the span runs from
+        //  the first instruction under the row to the end of the last one
+        //  from the same line.
+        TEST_METHOD (ASourceRowSpansItsLinesInstructions)
+        {
+            std::vector<DebuggerViewSnapshot::CodeLine>  lines (4);
+            std::vector<DisassemblyOptions::Row>         rows;
+            auto                                         always = [] (int, int) { return true; };
+            Word                                         first  = 0;
+            size_t                                       count  = 0;
+
+
+
+            lines[0] = { .address = 0x6000, .bytes = "A9 41" };
+            lines[1] = { .address = 0x6002, .bytes = "20 ED FD" };
+            lines[2] = { .address = 0x6005, .bytes = "60" };
+            lines[3] = { .address = 0x6006, .bytes = "00" };
+
+            for (size_t i = 0; i < 3; i++)
+            {
+                lines[i].sourceFileId = 0;
+                lines[i].sourceLine   = (i < 2) ? 4 : 5;
+            }
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always);
+
+            Assert::IsTrue   (DisassemblyCells::TryGetSourceRowSpan (rows, 0, lines, first, count));
+            Assert::AreEqual ((Word) 0x6000, first);
+            Assert::AreEqual ((size_t) 5, count, L"both instructions from line 4");
+
+            Assert::IsTrue   (DisassemblyCells::TryGetSourceRowSpan (rows, 3, lines, first, count));
+            Assert::AreEqual ((Word) 0x6005, first);
+            Assert::AreEqual ((size_t) 1, count, L"line 5's instruction alone");
+
+            Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, 1, lines, first, count), L"an instruction's row");
+            Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, rows.size(), lines, first, count), L"no row");
+        }
+
+
+
+        //  With source lines on, the PC's marker goes on the source row its
+        //  instruction came from; an instruction with no source row has it.
+        TEST_METHOD (ThePcsSourceRowIsTheOneAboveItsInstruction)
+        {
+            std::shared_ptr<const DebuggerViewSnapshot>   snapshot = MakeSnapshot (true);
+            std::vector<DebuggerViewSnapshot::CodeLine>   lines    = snapshot->codeViews[0];
+            std::vector<DisassemblyOptions::Row>          rows;
+            auto                                          always   = [] (int, int) { return true; };
+
+
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always);
+
+            for (size_t i = 0; i < lines.size(); i++)
+            {
+                lines[i].isCurrent = i == 1;
+            }
+
+            Assert::AreEqual (2, DisassemblyGroup::FindPcSourceRow (lines, rows), L"the second instruction's source row");
+
+            for (size_t i = 0; i < lines.size(); i++)
+            {
+                lines[i].isCurrent = i == 2;
+            }
+
+            Assert::AreEqual (-1, DisassemblyGroup::FindPcSourceRow (lines, rows), L"the data byte has no source row");
+        }
+
+
+
         TEST_METHOD (SymbolNamesOffShowsTheOperandsAddress)
         {
             DebuggerViewSnapshot::CodeLine  line;
@@ -498,6 +570,221 @@ namespace DisassemblyOptionsTests
             Assert::AreEqual (std::wstring (L"LOOP"),        cells[DisassemblyCells::kLabelColumn].text);
             Assert::AreEqual (std::wstring (L"LDA (PTR),Y"), cells[DisassemblyCells::kInstructionColumn].text);
             Assert::IsTrue   (cells[DisassemblyCells::kInstructionColumn].spansRow, L"the rest of the line runs to the row's end");
+        }
+
+
+        //  A source row represents the first instruction its line produced:
+        //  a press in its gutter acts on that instruction, the instruction's
+        //  row is inert under it, and only a line with one instruction in
+        //  view has the instruction's operand and result.
+        TEST_METHOD (ASourceRowRepresentsItsLinesFirstInstruction)
+        {
+            std::vector<DebuggerViewSnapshot::CodeLine>  lines (4);
+            std::vector<DisassemblyOptions::Row>         rows;
+            auto                                         always = [] (int, int) { return true; };
+
+
+
+            lines[0] = { .address = 0x6000, .bytes = "A9 41" };
+            lines[1] = { .address = 0x6002, .bytes = "20 ED FD" };
+            lines[2] = { .address = 0x6005, .bytes = "60" };
+            lines[3] = { .address = 0x6006, .bytes = "00" };
+
+            for (size_t i = 0; i < 3; i++)
+            {
+                lines[i].sourceFileId = 0;
+                lines[i].sourceLine   = (i < 2) ? 4 : 5;
+            }
+
+            //  Rows: line 4, $6000, $6002, line 5, $6005, $6006.
+            rows = DisassemblyOptions::BuildRows (lines, true, always);
+
+            Assert::AreEqual (0,  DisassemblyOptions::GetFrontedLine (rows, 0));
+            Assert::AreEqual (-1, DisassemblyOptions::GetFrontedLine (rows, 1), L"an instruction's row");
+            Assert::IsTrue   (DisassemblyOptions::IsFronted (rows, 1));
+            Assert::IsFalse  (DisassemblyOptions::IsFronted (rows, 2), L"the second instruction of line 4");
+            Assert::IsFalse  (DisassemblyOptions::IsFronted (rows, 5), L"the byte with no line");
+
+            Assert::AreEqual (0, DisassemblyOptions::GetFrontRowOfLine (rows, 0));
+            Assert::AreEqual (2, DisassemblyOptions::GetFrontRowOfLine (rows, 1));
+            Assert::AreEqual (3, DisassemblyOptions::GetFrontRowOfLine (rows, 2));
+            Assert::AreEqual (5, DisassemblyOptions::GetFrontRowOfLine (rows, 3));
+
+            Assert::AreEqual (0,  DisassemblyOptions::GetGutterLineOfRow (rows, 0));
+            Assert::AreEqual (-1, DisassemblyOptions::GetGutterLineOfRow (rows, 1), L"inert under its source row");
+            Assert::AreEqual (1,  DisassemblyOptions::GetGutterLineOfRow (rows, 2));
+            Assert::AreEqual (2,  DisassemblyOptions::GetGutterLineOfRow (rows, 3));
+            Assert::AreEqual (-1, DisassemblyOptions::GetGutterLineOfRow (rows, 4));
+            Assert::AreEqual (3,  DisassemblyOptions::GetGutterLineOfRow (rows, 5));
+
+            Assert::IsFalse (DisassemblyOptions::IsSingleInstruction (rows, 0), L"line 4 produced two");
+            Assert::IsTrue  (DisassemblyOptions::IsSingleInstruction (rows, 3));
+            Assert::IsFalse (DisassemblyOptions::IsSingleInstruction (rows, 4), L"not a source row");
+
+            lines[1].isCurrent = true;
+            Assert::AreEqual (-1, DisassemblyGroup::FindPcSourceRow (lines, rows), L"the PC past a line's first instruction is marked on the instruction's row");
+
+            lines[1].isCurrent = false;
+            lines[0].isCurrent = true;
+            Assert::AreEqual (0, DisassemblyGroup::FindPcSourceRow (lines, rows));
+        }
+
+
+
+        //  With source on, the source row has its instruction's breakpoint,
+        //  PC marker, row color, operand and result, and the instruction's
+        //  row under it doesn't have them.
+        TEST_METHOD (TheSourceRowHasItsInstructionsMarks)
+        {
+            CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+            OptionsHost                             host;
+            DxuiDpiScaler                           scaler;
+            OptionsWindow                           window (theme, host);
+            auto                                    snapshot = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot (true));
+            DxuiListView                          * list     = nullptr;
+
+
+
+            snapshot->codeViews[0][0].hasBreakpoint = true;
+            snapshot->codeViews[0][0].isEnabled     = true;
+            snapshot->codeViews[0][0].effect        = "A=$41";
+            snapshot->code                          = snapshot->codeViews[0];
+
+            scaler.SetDpi (96);
+            host.options = "address bytes source symbols";
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            list = window.GetCodeList (0);
+
+            Assert::IsNotNull (list->GetCellsOfRow (0)[DisassemblyCells::kGutterColumn].icon.get(), L"the PC's marker over the breakpoint");
+            Assert::IsNull    (list->GetCellsOfRow (1)[DisassemblyCells::kGutterColumn].icon.get(), L"none on the instruction's row");
+            Assert::AreNotEqual (0u, list->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].background, L"the PC's row color");
+            Assert::AreEqual  (0u, list->GetCellsOfRow (1)[DisassemblyCells::kInstructionColumn].background);
+
+            Assert::AreEqual (std::wstring (L"lda #$41"),      list->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
+            Assert::AreEqual (std::wstring (L"Result: A=$41"), list->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text);
+            Assert::AreEqual (std::wstring(),                  list->GetCellsOfRow (1)[DisassemblyCells::kOperandColumn].text);
+
+            Assert::AreEqual (0,  window.GetCodeGroup().GetGutterLineOfRow (0, 0));
+            Assert::AreEqual (-1, window.GetCodeGroup().GetGutterLineOfRow (0, 1));
+        }
+
+
+
+        //  The gray breakpoint goes on the source row under the pointer, and
+        //  the instruction's row under it doesn't get one.
+        TEST_METHOD (TheGutterShowsAGrayBreakpointOnTheSourceRow)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            OptionsHost      host;
+            DxuiDpiScaler    scaler;
+            OptionsWindow    window (theme, host);
+            DxuiListView   * list   = nullptr;
+            RECT             box    = {};
+
+
+
+            scaler.SetDpi (96);
+            host.options = "address bytes source symbols";
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot (true), 0);
+
+            list = window.GetCodeList (0);
+            box  = list->GetBounds();
+
+            window.GetCodeGutter().Hover (POINT { box.left + 2, GetRowMiddle (*list, 2) });
+            Assert::IsNotNull (list->GetCellsOfRow (2).front().icon.get(), L"the gray dot is on the RTS line");
+            Assert::IsNull    (list->GetCellsOfRow (3).front().icon.get());
+
+            window.GetCodeGutter().Hover (POINT { box.left + 2, GetRowMiddle (*list, 3) });
+            Assert::IsNull (list->GetCellsOfRow (2).front().icon.get(), L"none over the RTS instruction's row");
+            Assert::IsNull (list->GetCellsOfRow (3).front().icon.get());
+        }
+
+
+
+        //  With source on, the PC's branch arrow runs from the branch's source
+        //  row to the target's.
+        TEST_METHOD (TheBranchArrowRunsBetweenSourceRows)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            OptionsHost                     host;
+            DxuiDpiScaler                   scaler;
+            OptionsWindow                   window (theme, host);
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot (true));
+            MockDxuiPainter                 painter;
+            MockDxuiTextRenderer            text;
+            BranchArrow::Input              input;
+            Word                            goesTo   = 0;
+            bool                            isTaken  = false;
+            DxuiListView                  * list     = nullptr;
+            float                           half     = 0.0f;
+
+
+
+            snapshot->codeViews[0][0].bytes         = "D0 00";
+            snapshot->codeViews[0][0].instruction   = "BNE $0302";
+            snapshot->codeViews[0][0].target        = Word (0x0302);
+            snapshot->codeViews[0][0].isTargetTaken = true;
+            snapshot->code                          = snapshot->codeViews[0];
+
+            scaler.SetDpi (96);
+            host.options    = "address bytes source symbols";
+            host.sourceText = "; main\n        bne done\ndone    rts\n";
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            list = window.GetCodeList (0);
+            half = (float) list->GetRowHeightDip() / 2.0f;
+            list->Paint (painter, text, theme);
+
+            Assert::IsTrue (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken));
+            Assert::IsTrue (input.sourceY.has_value() && input.targetY.has_value());
+            Assert::IsTrue (std::abs (*input.sourceY - (float) GetRowMiddle (*list, 0)) < half, L"from the BNE's source row");
+            Assert::IsTrue (std::abs (*input.targetY - (float) GetRowMiddle (*list, 2)) < half, L"to the RTS's source row");
+        }
+
+
+
+        //  With an operand cell, the code stops at the comment, the operand
+        //  is in its column, and the comment follows it.
+        TEST_METHOD (ASourceRowsOperandIsInItsColumnBeforeTheComment)
+        {
+            DxuiListView                     list;
+            std::vector<DxuiListView::Cell>  cells (DisassemblyCells::kColumnCount);
+            DebuggerTextColors::Set          colors = DebuggerTextColors::Make (0xFF000000, 0xFFFFFFFF, 0xFFC0C0C0, 0u);
+            DxuiListView::Cell               operand;
+
+
+
+            operand.text = L"=$1234";
+            operand.argb = 0xFF0000FF;
+
+            DisassemblyCells::Configure     (list);
+            DisassemblyCells::FillSourceRow (cells, list, 11, L"LOOP    LDA (PTR),Y   ; next byte", false, colors, 0xFF808080, &operand);
+
+            Assert::AreEqual (std::wstring (L"LOOP"),                cells[DisassemblyCells::kLabelColumn].text);
+            Assert::AreEqual (std::wstring (L"LDA (PTR),Y"),         cells[DisassemblyCells::kInstructionColumn].text);
+            Assert::IsFalse  (cells[DisassemblyCells::kInstructionColumn].spansRow, L"the code is fitted like an instruction");
+            Assert::AreEqual (std::wstring (L"=$1234  ; next byte"), cells[DisassemblyCells::kOperandColumn].text);
+            Assert::IsTrue   (cells[DisassemblyCells::kOperandColumn].spansRow, L"the comment runs to the row's end");
+
+            //  An instruction column dragged narrower than the code: the line
+            //  runs on across the row with the operand after it.
+            cells.assign (DisassemblyCells::kColumnCount, DxuiListView::Cell());
+            list.SetColumnOverrideWidthPx (DisassemblyCells::kInstructionColumn, list.GetFittedWidthPx (4));
+            DisassemblyCells::FillSourceRow (cells, list, 11, L"LOOP    LDA (PTR),Y   ; next byte", false, colors, 0xFF808080, &operand);
+
+            Assert::AreEqual (std::wstring (L"LDA (PTR),Y   ; next byte  =$1234"), cells[DisassemblyCells::kInstructionColumn].text);
+            Assert::IsTrue   (cells[DisassemblyCells::kInstructionColumn].spansRow);
+            Assert::AreEqual (std::wstring(), cells[DisassemblyCells::kOperandColumn].text);
         }
 
 

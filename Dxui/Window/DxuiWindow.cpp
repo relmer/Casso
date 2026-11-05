@@ -6,6 +6,8 @@
 #include "Core/DxuiWindowFrame.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiContextMenu.h"
+#include "Widgets/DxuiTextInput.h"
 
 
 static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
@@ -71,6 +73,60 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hr = m_source->Create (hostParams);
     CHRF (hr, m_source.reset());
 
+    AttachSource();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindow::CreateHeadless
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiWindow::CreateHeadless (const CreateParams & params)
+{
+    constexpr float  kResizeBorderDip = 6.0f;
+    HRESULT          hr               = S_OK;
+    RECT             boundsDip        = { 0, 0, params.initialSizeDip.cx, params.initialSizeDip.cy };
+    RECT             rectPx           = params.useInitialWindowRectPx ? params.initialWindowRectPx : boundsDip;
+
+
+
+    BAIL_OUT_IF (m_source != nullptr, S_OK);
+
+    m_minSizeDip = params.minSizeDip;
+    m_ownerHwnd  = params.ownerHwnd;
+
+    m_source = std::make_unique<DxuiHwndSource> (boundsDip, kResizeBorderDip, nullptr);
+    m_source->SetClient       (this);
+    m_source->SetWindowRectPx (rectPx);
+
+    AttachSource();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiWindow::AttachSource
+//
+//  The host's hooks, the children OnCreate adds, and this panel as the root.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::AttachSource()
+{
     // Paint a subclass modal overlay (e.g. the Settings color picker) as a top
     // layer while it is up. The predicate keeps idle dialogs off the extra flush.
     m_source->SetOverlayHooks (
@@ -102,9 +158,6 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     OnCreate();
 
     m_source->SetContentRootRef (this);
-
-Error:
-    return hr;
 }
 
 
@@ -221,8 +274,8 @@ void DxuiWindow::ShowMaximized (bool activate)
 
     BAIL_OUT_IF (activate, S_OK);
 
-    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-    gotInfo = GetMonitorInfoW (monitor, &info);
+    monitor = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    gotInfo = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info);
     CWRA (gotInfo);
 
     style = GetWindowLongPtrW (hwnd, GWL_STYLE);
@@ -675,6 +728,68 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryShowTextBoxMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::TryShowTextBoxMenu (POINT clientPx)
+{
+    DxuiTextInput  * box = FindTextBoxAt (*this, clientPx);
+
+
+
+    if (box == nullptr || GetPopupHost() == nullptr)
+    {
+        return false;
+    }
+
+    m_focus.SetFocused (box);
+    DxuiContextMenu::Show (*GetPopupHost(), clientPx.x, clientPx.y, DxuiContextMenu::MakeEditItems (*box));
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindTextBoxAt
+//
+//  The front-most visible text box under a point, among the controls under
+//  `node`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DxuiWindow::FindTextBoxAt (const IDxuiControl & node, POINT clientPx)
+{
+    DxuiTextInput  * found = nullptr;
+
+
+
+    for (size_t i = node.GetChildCount(); i > 0 && found == nullptr; i--)
+    {
+        IDxuiControl  * child = node.GetChild (i - 1);
+
+        if (child == nullptr || !child->IsVisible())
+        {
+            continue;
+        }
+
+        found = dynamic_cast<DxuiTextInput *> (child);
+        found = (found != nullptr && found->HitTest (clientPx.x, clientPx.y)) ? found : FindTextBoxAt (*child, clientPx);
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnXButtonUp
 //
 //  A five-button mouse's back and forward buttons, delivered on release,
@@ -722,6 +837,50 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
                           (int) (short) LOWORD (lParam),
                           (int) (short) HIWORD (lParam),
                           0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseLeave
+//
+//  WM_MOUSELEAVE. Without it a control's hover, a tip or a preview stayed up
+//  when the pointer moved to another of the app's windows or onto a popup,
+//  since this window then got no more moves.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnMouseLeave()
+{
+    SendMouseLeave();
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SendMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SendMouseLeave()
+{
+    bool  isDragging = DxuiInputState::IsKeyDown (VK_LBUTTON);
+
+
+
+    if (isDragging)
+    {
+        return;
+    }
+
+    (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, kOutsidePx, kOutsidePx, 0.0f);
 }
 
 
@@ -999,7 +1158,7 @@ DxuiMessageResult DxuiWindow::OnSetCursor (WORD hitTest)
 
 
 
-    if (hitTest == HTCLIENT && hwnd != nullptr && GetCursorPos (&cursor) != FALSE)
+    if (hitTest == HTCLIENT && hwnd != nullptr && DxuiInputState::GetCursorPos (&cursor) != FALSE)
     {
         ScreenToClient (hwnd, &cursor);
         cursorName = GetCursorForPoint (cursor);
@@ -1214,8 +1373,8 @@ void DxuiWindow::ResizeToMaxSize (bool growOnly)
     done = GetWindowRect (hwnd, &rect);
     CWRA (done);
 
-    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-    done    = GetMonitorInfoW (monitor, &info);
+    monitor = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    done    = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info);
     CWRA (done);
 
     if (growOnly)
@@ -1598,9 +1757,9 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     ev.positionDip     = { x, y };
     ev.wheelDelta      = wheelDelta;
     ev.wheelHorizontal = wheelHorizontal;
-    ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+    ev.shift       = DxuiInputState::IsKeyDown (VK_SHIFT);
+    ev.ctrl        = DxuiInputState::IsKeyDown (VK_CONTROL);
+    ev.alt         = DxuiInputState::IsKeyDown (VK_MENU);
 
     // A modal overlay captures all mouse input so the page beneath it stays
     // inert (clicks outside the overlay dialog are simply ignored).
@@ -1619,7 +1778,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             Invalidate();
         }
 
-        if (RunMouseFilters (ev) || OnMouse (ev))
+        if ((kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && TryShowTextBoxMenu (ev.positionDip)) || RunMouseFilters (ev) || OnMouse (ev))
         {
             // Repaint immediately when a control consumes the event so drags
             // (slider thumbs, scrubbing) and hover states track the cursor every
@@ -1761,9 +1920,9 @@ DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
 
     ev.kind  = kind;
     ev.vk    = code;
-    ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    ev.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+    ev.shift = DxuiInputState::IsKeyDown (VK_SHIFT);
+    ev.ctrl  = DxuiInputState::IsKeyDown (VK_CONTROL);
+    ev.alt   = DxuiInputState::IsKeyDown (VK_MENU);
 
     return (OnKey (ev) || RouteMappedKey (ev)) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
@@ -1843,7 +2002,7 @@ bool DxuiWindow::RouteMappedKey (const DxuiKeyEvent & ev)
 DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
 {
     DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
-    bool               shift     = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    bool               shift     = DxuiInputState::IsKeyDown (VK_SHIFT);
     bool               isHandled = false;
 
 
@@ -1863,7 +2022,7 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
         case VK_TAB:
             // Ctrl(+Shift)+Tab cycles a tabbed window's pages (e.g.
             // DxuiPropertySheet); plain Tab traverses focus within the page.
-            if ((GetKeyState (VK_CONTROL) & 0x8000) != 0 && OnDialogTabSwitch (shift))
+            if (DxuiInputState::IsKeyDown (VK_CONTROL) && OnDialogTabSwitch (shift))
             {
                 isHandled = true;
                 break;

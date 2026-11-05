@@ -1649,9 +1649,28 @@ void DxuiPaneLayout::ArrangeNode (const Node * node, const RECT & area, const Sh
 
         group.active = group.panes.front();
 
-        if (node->active >= 0 && node->active < (int) node->panes.size() && (!shown || shown (node->panes[(size_t) node->active])))
+        //  When the active pane is hidden, as one just closed is, the front
+        //  goes to the next visible pane after it in the group, or to the one
+        //  before it when it was the last.
+        for (int at = node->active, step = 1; node->active >= 0 && node->active < (int) node->panes.size(); at += step)
         {
-            group.active = node->panes[(size_t) node->active];
+            if (at >= (int) node->panes.size())
+            {
+                at   = node->active;
+                step = -1;
+                continue;
+            }
+
+            if (at < 0)
+            {
+                break;
+            }
+
+            if (!shown || shown (node->panes[(size_t) at]))
+            {
+                group.active = node->panes[(size_t) at];
+                break;
+            }
         }
 
         group.rect = area;

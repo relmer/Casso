@@ -332,6 +332,23 @@ public:
     static void   FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit = DxuiWorkAreaFit::SizeAndPosition);
 
     //
+    //  The window's rect in screen pixels, its fit to the work area, and the
+    //  mouse capture. A host with no window has a rect and a capture flag
+    //  instead, and fits the rect to the work area the reader returns for it,
+    //  or to a 1920x1080 area at the origin without a reader. A test moves
+    //  and captures such a window with no call to the system.
+    //
+    using WorkAreaReader = std::function<RECT (const RECT & windowRectPx)>;
+
+    RECT  GetWindowRectPx   () const;
+    void  SetWindowRectPx   (const RECT & rectPx);
+    void  FitToWorkArea     (DxuiWorkAreaFit fit);
+    void  SetWorkAreaReader (WorkAreaReader reader) { m_readWorkArea = std::move (reader); }
+    void  CaptureMouse      ();
+    void  ReleaseMouse      ();
+    bool  HasMouseCapture   () const;
+
+    //
     //  Which side of the owner PlaceBesideOwner tries first. The other
     //  side is the fallback, so this is a preference, not a demand.
     //
@@ -531,6 +548,7 @@ public:
     //  GetMessage loop owns the thread. Begin ticks once immediately.
     //
     void          BeginModalKeepAlive ();
+    void          ArmModalKeepAlive   ();
     void          EndModalKeepAlive   ();
 
     //
@@ -756,7 +774,16 @@ public:
     //
     static bool  NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest);
 
+    //  The back buffers' extent for a client extent: a quarter more, and at
+    //  least kBufferSparePx more, in steps of 64. They are resized when the
+    //  client outgrows them or they are over twice its extent.
+    static UINT  GetBufferExtent    (UINT clientPx);
+    static bool  IsBufferResizeDue  (SIZE buffersPx, UINT widthPx, UINT heightPx);
+    static constexpr UINT  kBufferSparePx = 256;
+
 private:
+    void  LayoutSyntheticRoot ();
+
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 
     // What EnumResourceNamesW hands back for the exe's first RT_GROUP_ICON.
@@ -849,6 +876,7 @@ private:
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,
                                                 int   resizeBorderPx);
+    static int              GetDistanceToEdge  (DxuiHitTestKind kind, POINT clientDip, const RECT & clientBoundsDip);
 
     static void            NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized);
     static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);
@@ -880,6 +908,17 @@ private:
     DxuiFrameRate                     m_frameRate;
     long long                         m_lastPresentQpc = 0;
 
+    //  The window trace's frame statistics since the last line it wrote.
+    void                              NoteFrameStats (long long nowQpc, long long frequency);
+    long long                         m_inputQpc        = 0;
+    long long                         m_statsFromQpc    = 0;
+    int                               m_statsFrames     = 0;
+    double                            m_statsFrameSumMs = 0.0;
+    double                            m_statsFrameMaxMs = 0.0;
+    int                               m_statsInputs     = 0;
+    double                            m_statsInputSumMs = 0.0;
+    double                            m_statsInputMaxMs = 0.0;
+
     // m_device / m_context now live in the DxuiRenderTarget base (protected);
     // this subclass still creates + tears them down in CreateDeviceAndSwapChain
     // / Destroy, and owns the HWND-bound swap chain + back-buffer RTV below.
@@ -908,9 +947,13 @@ private:
     bool  m_ownsPaintPump           = false;
     bool  m_suppressInputInvalidate = false;
     bool  m_synthetic               = false;
+    bool  m_hasSyntheticCapture     = false;
     bool  m_adoptMode               = false;
     bool  m_classRegistered         = false;
     bool  m_sysKeyDownClaimed       = false;
+
+    RECT                              m_syntheticRectPx    = {};
+    WorkAreaReader                    m_readWorkArea;
 
     IDxuiHostClient *                 m_client             = nullptr;
 

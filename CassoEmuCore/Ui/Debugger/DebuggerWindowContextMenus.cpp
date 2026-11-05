@@ -78,6 +78,14 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 
 
 
+    //  A right-click on a tab brings its pane forward first, as a left click
+    //  does, so the menu is over the pane it acts on.
+    if (fromTab)
+    {
+        ShowPane  (pane);
+        FocusPane (pane);
+    }
+
     //  A floating pane's menu opens in its own window, where the click was.
     if (items.empty() || host == nullptr)
     {
@@ -237,19 +245,182 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
     m_menuCommands.clear();
     SetWindowMenus();
 
-    //  A row with no action is disabled, such as Delete on a row that cannot
-    //  be deleted.
-    for (auto & [label, action] : items)
-    {
-        bool  isEnabled = (bool) action;
-
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
-        m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
-        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
-    }
+    menu = MakePaneMenuRows (items);
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MakePaneMenuRows
+//
+//  A pane's rows as the menu draws them. A row with no action is disabled,
+//  such as Delete on a row that cannot be deleted; one with no label either
+//  is a separator, dropped at either end and where two are next to each
+//  other. A row whose label starts with a submenu's goes into the submenu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DebuggerWindow::MakePaneMenuRows (const PaneMenuItems & items)
+{
+    std::vector<DxuiPopupMenuItem>  menu;
+    std::wstring                    submenu;
+    std::vector<DxuiPopupMenuItem>  children;
+    bool                            isSeparatorDue = false;
+
+
+
+    auto  addRow = [&menu, &isSeparatorDue] (DxuiPopupMenuItem row)
+    {
+        if (isSeparatorDue && !menu.empty())
+        {
+            menu.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        isSeparatorDue = false;
+        menu.push_back (std::move (row));
+    };
+
+    auto  endSubmenu = [this, &submenu, &children, &addRow]
+    {
+        if (!children.empty())
+        {
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (submenu, false, nullptr));
+            addRow (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (children)));
+        }
+
+        children.clear();
+        submenu.clear();
+    };
+
+    for (const auto & [label, action] : items)
+    {
+        size_t        split     = label.find (PaneMenu::kSubmenu);
+        std::wstring  parent    = (split == std::wstring::npos) ? std::wstring() : label.substr (0, split);
+        std::wstring  rowLabel  = (split == std::wstring::npos) ? label : label.substr (split + 1);
+        bool          isEnabled = (bool) action;
+
+        if (parent != submenu)
+        {
+            endSubmenu();
+            submenu = parent;
+        }
+
+        if (label.empty() && !action)
+        {
+            isSeparatorDue = true;
+            continue;
+        }
+
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (rowLabel), PaneMenu::IsChecked (rowLabel), action));
+        m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
+
+        if (parent.empty())
+        {
+            addRow (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+        }
+        else
+        {
+            children.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+        }
+    }
+
+    endSubmenu();
+    return menu;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddSkipItem
+//
+//  A routine is in the step filter by its name, or by an address its range
+//  has when it has no name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMenuItems & items)
+{
+    constexpr const wchar_t  * kpszLabel = L"Never step into this routine";
+    auto                       found     = m_snapshot == nullptr ? std::vector<StepFilterEntry>::const_iterator()
+                                                                 : std::ranges::find_if (m_snapshot->stepFilters, [&name, address] (const StepFilterEntry & entry)
+                                                                   {
+                                                                       return !name.empty() ? _stricmp (entry.name.c_str(), name.c_str()) == 0
+                                                                                            : entry.name.empty() && address >= entry.first && address <= entry.last;
+                                                                   });
+
+
+
+    if (m_snapshot != nullptr && found != m_snapshot->stepFilters.end())
+    {
+        items.push_back ({ PaneMenu::MakeChecked (kpszLabel), [this, entry = *found] { RunAction (DebuggerActions::GetRemoveSkip (entry, GetMode())); } });
+        return;
+    }
+
+    items.push_back ({ kpszLabel, [this, name, address]
+    {
+        RunAction (DebuggerActions::GetSkipRoutine (name, address, GetMode()));
+        ShowSkipNotice (name.empty() ? std::format ("{:04X}", address) : name);
+    } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowSkipNotice
+//
+//  How to take a routine out of the step filter again, until the notice's
+//  check box turns it off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowSkipNotice (const std::string & routine)
+{
+    bool          isOff = false;
+    std::wstring  text;
+
+
+
+    if (m_host == nullptr || !m_host->IsDebuggerSkipNoticeShown())
+    {
+        return;
+    }
+
+    text = std::format (L"A step into {0} now steps over it.\n\nTo step into it again, click the checked Never step into this routine on its menu, "
+                        L"remove it in Debug > Step filters..., or type SKIP - {0}.", TextEncoding::NarrowToWide (routine));
+
+    (void) ShowCheckMessageBox (GetRoutingHwnd(), text, L"Step filter", MB_OK | MB_ICONINFORMATION, L"Don't show this message again", isOff);
+
+    if (isOff)
+    {
+        m_host->SetDebuggerSkipNoticeShown (false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowCheckMessageBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::ShowCheckMessageBox (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type, const std::wstring & checkLabel, bool & ioChecked)
+{
+    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type, checkLabel, ioChecked);
 }
 
 

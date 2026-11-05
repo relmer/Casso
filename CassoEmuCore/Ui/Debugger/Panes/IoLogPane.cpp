@@ -45,7 +45,7 @@ std::string IoLogPane::GetOptionsText() const
         lanes += isShown ? '1' : '0';
     }
 
-    return std::format ("lanes={};columnLayout={}", lanes, GetColumnsText());
+    return std::format ("lanes={};headings={};columnLayout={}", lanes, kHeadingsVersion, GetColumnsText());
 }
 
 
@@ -60,13 +60,14 @@ std::string IoLogPane::GetOptionsText() const
 
 void IoLogPane::SetOptionsText (const std::string & text)
 {
-    size_t       start = 0;
-    size_t       end   = 0;
-    size_t       equal = 0;
-    size_t       i     = 0;
+    size_t       start    = 0;
+    size_t       end      = 0;
+    size_t       equal    = 0;
+    size_t       i        = 0;
     std::string  field;
     std::string  key;
     std::string  value;
+    int          headings = 0;
 
 
 
@@ -86,12 +87,24 @@ void IoLogPane::SetOptionsText (const std::string & text)
                 m_lanes[i] = value[i] == '1';
             }
         }
+        else if (key == "headings")
+        {
+            headings = std::atoi (value.c_str());
+        }
         else if (key == "columnLayout")
         {
             SetColumnsText (value);
         }
 
         start = end + 1;
+    }
+
+    //  The video log's Line and H columns became Scanline and Line cycle; a
+    //  width saved for the old headings is too narrow for the new ones.
+    if (headings < kHeadingsVersion)
+    {
+        GetList()->SetColumnOverrideWidthPx (kLine,       -1);
+        GetList()->SetColumnOverrideWidthPx (kHorizontal, -1);
     }
 
     MarkDirty();
@@ -109,7 +122,7 @@ void IoLogPane::SetOptionsText (const std::string & text)
 
 const wchar_t * IoLogPane::GetLaneLabel (Lane lane)
 {
-    static constexpr const wchar_t * kLabels[kLaneCount] = { L"Speaker", L"Mockingboard 6522", L"Mockingboard AY-3-8910" };
+    static constexpr const wchar_t * kLabels[kLaneCount] = { L"Speaker", L"Mockingboard 6522", L"Mockingboard AY-3-8910", L"Mockingboard SSI-263" };
 
 
 
@@ -130,9 +143,10 @@ IoLogPane::Lane IoLogPane::GetLane (const IoEvent & event)
 {
     switch (event.kind)
     {
-    case IoEventKind::ViaWrite: return kVia;
-    case IoEventKind::AyWrite:  return kAy;
-    default:                    return kSpeaker;
+    case IoEventKind::ViaWrite:    return kVia;
+    case IoEventKind::AyWrite:     return kAy;
+    case IoEventKind::SpeechWrite: return kSpeech;
+    default:                       return kSpeaker;
     }
 }
 
@@ -166,15 +180,15 @@ std::optional<uint64_t> IoLogPane::GetSince (size_t index) const
 
 IoLogPane::ColumnSpecs IoLogPane::GetColumnSpecs() const
 {
-    return { { L"Time",    DxuiTextHAlign::Left,  kFit,  true       },
-             { L"Cycle",   DxuiTextHAlign::Right, 110,   true       },
-             { L"Frame",   DxuiTextHAlign::Right, 110,   false      },
-             { L"Line",    DxuiTextHAlign::Right,  50,   m_isVideo  },
-             { L"H",       DxuiTextHAlign::Right,  40,   m_isVideo  },
-             { L"Since",   DxuiTextHAlign::Right,  80,   !m_isVideo },
-             { L"Address", DxuiTextHAlign::Left,   70,   true       },
-             { L"Source",  DxuiTextHAlign::Left,  110,   !m_isVideo },
-             { L"Event",   DxuiTextHAlign::Left,    0,   true       } };
+    return { { L"Time",       DxuiTextHAlign::Left,  kFit,  true,       L"The host's clock at the entry" },
+             { L"Cycle",      DxuiTextHAlign::Right, 110,   true,       L"The CPU's cycle count since the last power cycle" },
+             { L"Frame",      DxuiTextHAlign::Right, 110,   false,      L"The cycle the video frame began at" },
+             { L"Scanline",   DxuiTextHAlign::Right,  70,   m_isVideo,  L"The scanline the beam was on, 0 at the top of the frame" },
+             { L"Line cycle", DxuiTextHAlign::Right,  90,   m_isVideo,  L"The CPU cycle within the scanline, 0 to 64: the count Understanding the Apple II calls the horizontal counter" },
+             { L"Since",      DxuiTextHAlign::Right,  80,   !m_isVideo, L"The cycles since the speaker's last toggle, or since the last write to a board" },
+             { L"Address",    DxuiTextHAlign::Left,   70,   true,       L"The address the CPU read or wrote" },
+             { L"Source",     DxuiTextHAlign::Left,  110,   !m_isVideo, L"The speaker, a Mockingboard's chips, or the SSI-263" },
+             { L"Event",      DxuiTextHAlign::Left,    0,   true,       L"What the access did" } };
 }
 
 
@@ -320,6 +334,10 @@ void IoLogPane::MakeCells (
         out[kLine].text       = std::format (L"{}", event.scanline);
         out[kHorizontal].text = std::format (L"{}", event.cycleInLine);
         out[kSource].text     = L"Display";
+    }
+    else if (event.kind == IoEventKind::SpeechWrite)
+    {
+        out[kSource].text = L"SSI-263";
     }
     else
     {

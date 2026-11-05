@@ -51,12 +51,18 @@ public:
     void            SetDebuggerFocusedPane        (const std::string & text);
     bool            IsDebuggerEchoingActions      ();
     void            SetDebuggerEchoingActions     (bool isEchoing);
+    bool            IsDebuggerSkipNoticeShown     ();
+    void            SetDebuggerSkipNoticeShown    (bool isShown);
     int             GetDebuggerTextZoomPercent    ();
     void            SetDebuggerTextZoomPercent    (int percent);
     std::string     GetDebuggerDisassemblyOptions ();
     void            SetDebuggerDisassemblyOptions (const std::string & text);
     std::string     GetDebuggerHeatMapOptions     ();
     void            SetDebuggerHeatMapOptions     (const std::string & text);
+    std::string     GetDebuggerDiskDrives         ();
+    void            SetDebuggerDiskDrives         (const std::string & text);
+    std::string     GetDebuggerProfilerPeriod     ();
+    void            SetDebuggerProfilerPeriod     (const std::string & text);
     std::string     GetDebuggerHeatMapRanges      ();
     void            SetDebuggerHeatMapRanges      (const std::string & text);
     std::string     GetDebuggerOpenViews          ();

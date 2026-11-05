@@ -31,7 +31,7 @@ std::shared_ptr<const HeatMapSymbols> HeatMapSymbols::Build (const SymbolTable &
 
 
 
-        if (!symbols.IsEnabled (table))
+        if (!symbols.IsEnabled (table) || symbols.IsHidden (table))
         {
             continue;
         }

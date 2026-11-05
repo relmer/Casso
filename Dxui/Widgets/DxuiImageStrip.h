@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "DxuiToolbar.h"
 #include "IDxuiImageStripSource.h"
+#include "DxuiTooltip.h"
 
 
 
@@ -60,6 +61,10 @@ public:
     //  Room kept above and below the pictures of a strip lying down, for the
     //  labels of the source's playhead line and its leading end.
     void  SetLabelRoomDp   (float roomDp)                   { m_labelRoomDp = roomDp; }
+
+    //  The playhead's and the pointer's labels in balloons above and below a
+    //  strip lying down, outside its bounds, in place of the label room.
+    void  SetLabelsOutside (bool isOutside)                 { m_isLabelsOutside = isOutside; }
 
     //  Measures the labels at the strip's two ends, which sit beside the
     //  pictures of a strip lying down, and above and below those of a strip
@@ -146,6 +151,7 @@ private:
     void  ShowPreview      ();
     void  FollowPointer    ();
     void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  ShowOutsideLabels (const IDxuiTheme & theme);
     void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
     void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
     void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
@@ -168,16 +174,23 @@ private:
     void   PaintStandingPlayheadLabels (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float along, float thick, const std::wstring & top, const std::wstring & bottom);
     void   PaintStandingLabel          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float top, float height);
 
-    IDxuiImageStripSource           * m_source      = nullptr;
-    IDxuiTextRenderer               * m_text        = nullptr;
-    DxuiHwndSource                  * m_popupHost   = nullptr;
-    DxuiPopupHost                   * m_preview     = nullptr;
-    IDxuiImageStripSource::Image      m_previewImage;
-    IDxuiImageStripSource::Image      m_previewThumb;      // the hovered cell's picture when the preview was chosen
-    SIZE                              m_previewDip  = {};   // the last full-size picture's size; a thumbnail scales to it
-    POINT                             m_pointer     = {};   // where the pointer last moved over the strip
-    float                             m_aspect      = kDefaultAspect;
-    int                               m_preferredPx = 0;
+    IDxuiImageStripSource         * m_source             = nullptr;
+    IDxuiTextRenderer             * m_text               = nullptr;
+    DxuiHwndSource                * m_popupHost          = nullptr;
+    DxuiPopupHost                 * m_preview            = nullptr;
+    DxuiTooltip                     m_topLabel;
+    DxuiTooltip                     m_bottomLabel;
+    bool                            m_isLabelsOutside    = false;
+    bool                            m_isLabelPairPending = false;
+    std::wstring                    m_pendingTop;
+    std::wstring                    m_pendingBottom;
+    float                           m_pendingCenterX     = 0.0f;
+    IDxuiImageStripSource::Image    m_previewImage;
+    IDxuiImageStripSource::Image    m_previewThumb;   // the hovered cell's picture when the preview was chosen
+    SIZE                            m_previewDip         = {};   // the last full-size picture's size; a thumbnail scales to it
+    POINT                           m_pointer            = {};   // where the pointer last moved over the strip
+    float                           m_aspect             = kDefaultAspect;
+    int                             m_preferredPx        = 0;
 
     DxuiDpiScaler  m_scaler;
     RECT           m_rc           = {};   // the pictures

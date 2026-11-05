@@ -6,6 +6,7 @@
 
 struct DxuiMouseEvent;
 struct DxuiKeyEvent;
+struct DxuiTip;
 
 
 
@@ -177,6 +178,40 @@ public:
     // keyboard just focused. Nothing for a container that does not scroll.
     virtual void  RevealDescendant (const IDxuiControl & descendant)            { (void) descendant; }
 
+    //  Whether the control is under a point, in the pixels of its mouse
+    //  events. Only the front control under the pointer has its tip
+    //  displayed, so a control it covers doesn't, as in Windows, where the
+    //  window under the pointer is found first and only its tools count. By
+    //  default a visible control is under every point of its bounds. A
+    //  container is under the points of its children, and under the rest of
+    //  its bounds only while it has tip text or a tip function.
+    virtual bool  IsHitAt         (POINT pointPx) const;
+
+    //  The tip under a point, in the pixels of the control's mouse events,
+    //  with its anchor in the same pixels, for the control the hit test
+    //  found. By default it is the tip function's (SetTipFn), or else the
+    //  control's tip text (SetTip) over its bounds. A control whose parts have
+    //  tips, such as a toolbar's buttons or a list's cells, overrides it. A
+    //  container's tip is the tip of its front child under the point, or else
+    //  the container's tip text or function.
+    virtual bool  TryGetTip       (POINT pointPx, DxuiTip & tip) const;
+
+    //  True for a control whose mouse events, cursor and tip points are
+    //  relative to the control's top-left rather than to the client area,
+    //  as a list view's are. A container translates the point for it.
+    virtual bool  UsesLocalPoints () const                                      { return false; }
+
+    const std::wstring &  GetTip () const                                       { return m_tip; }
+    void                  SetTip (const std::wstring & tip)                     { m_tip = tip; }
+
+    //  A tip that depends on what the control draws at the point, as a map's
+    //  cell or a list row's symbol does, the way a Win32 tool's text comes
+    //  from TTN_GETDISPINFO. The point and the anchor are in client pixels,
+    //  whatever pixels the control's events are in. Called only once the hit
+    //  test has found this control, never to look for a tip.
+    using TipFn = std::function<bool (POINT clientPx, DxuiTip & tip)>;
+    void                  SetTipFn (TipFn fn)                                   { m_tipFn = std::move (fn); }
+
     virtual std::wstring        GetAccessibleName () const                        { return L""; }
     virtual DxuiAccessibleRole  GetAccessibleRole () const                        { return DxuiAccessibleRole::Generic; }
 
@@ -210,6 +245,12 @@ public:
 protected:
     virtual void  OnVisibilityChanged()                                        {}
 
+    //  Whether the control has tip text or a tip function.
+    bool          HasTip           () const                                    { return !m_tip.empty() || m_tipFn != nullptr; }
+
+    //  The tip function's tip, in the pixels of the control's events.
+    bool          TryGetTipFromFn  (POINT pointPx, DxuiTip & tip) const;
+
     IDxuiControl  * m_parent          = nullptr;
     RECT            m_boundsDip       = {};
     bool            m_visible         = true;
@@ -217,4 +258,6 @@ protected:
     bool            m_focusable       = false;
     int             m_tabIndex        = kTabIndexGeometry;
     bool            m_focusCueVisible = true;
+    std::wstring    m_tip;
+    TipFn           m_tipFn;
 };

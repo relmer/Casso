@@ -70,15 +70,15 @@ DxuiHwndSource * FloatingPanes::GetRoutedPopupHost() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FloatingPanes::GetRoutedTip
+//  FloatingPanes::GetRoutedTips
 //
 //  A tooltip is drawn only over its own window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTooltip * FloatingPanes::GetRoutedTip() const
+DxuiTipService * FloatingPanes::GetRoutedTips() const
 {
-    return m_routingPane.empty() ? nullptr : FindTip (m_routingPane);
+    return m_routingPane.empty() ? nullptr : FindTips (m_routingPane);
 }
 
 
@@ -93,7 +93,7 @@ DxuiTooltip * FloatingPanes::GetRoutedTip() const
 
 HWND FloatingPanes::GetRoutedHwnd() const
 {
-    DxuiDockedWindow  * window = Find (m_routingPane);
+    DxuiDockedWindow  * window = GetRoutedWindow();
 
 
 
@@ -430,7 +430,7 @@ void FloatingPanes::RequestFloat (const std::wstring & pane, POINT clientPx)
         rect = GetTearOffRect (pane, clientPx);
     }
 
-    if (site.EditPaneLayout().Float (pane, GetMonitorKey (rect), rect))
+    if (site.EditPaneLayout().Float (pane, m_host.GetMonitorKey (rect), rect))
     {
         site.Relayout();
         MarkSyncNeeded();
@@ -491,7 +491,7 @@ void FloatingPanes::TearOffGroup (const std::vector<std::wstring> & panes, const
     m_tearGrab    = site.GetTearOffGrab();
     m_tearFromTab = false;
 
-    if (!site.EditPaneLayout().FloatGroup (panes, active, GetMonitorKey (rect), rect))
+    if (!site.EditPaneLayout().FloatGroup (panes, active, m_host.GetMonitorKey (rect), rect))
     {
         return;
     }
@@ -607,16 +607,16 @@ RECT FloatingPanes::GetTearOffRect (const std::wstring & pane, POINT clientPx) c
 //
 //  Start a title-bar drag of the floating window a pane was just torn off
 //  into, while the mouse button that started the tear-off is down. The
-//  system's move loop then draws the debugger window's drop zones, and the
-//  pane is docked where the button is released, as for a drag of any
-//  floating window.
+//  window's move then draws the debugger window's drop zones, and the pane
+//  is docked where the button is released, as for a drag of any floating
+//  window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void FloatingPanes::CarryTornOff()
 {
     std::wstring  pane       = std::move (m_tornOffPane);
-    bool          buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool          buttonDown = DxuiInputState::IsKeyDown (VK_LBUTTON);
     HWND          hwnd       = nullptr;
 
 
@@ -633,7 +633,7 @@ void FloatingPanes::CarryTornOff()
     if (hwnd != nullptr && IsWindowVisible (hwnd))
     {
         PlaceUnderGrab (pane);
-        PostMessage (hwnd, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
+        Find (pane)->BeginMove();
     }
 }
 
@@ -742,7 +742,7 @@ void FloatingPanes::SaveRects (DxuiPaneLayout & layout) const
 
         //  Setting a window's place adds nothing, so a window whose panes
         //  just docked, here until the next frame, cannot undo the dock.
-        (void) layout.SetFloatingRect (window, GetMonitorKey (rect), rect);
+        (void) layout.SetFloatingRect (window, m_host.GetMonitorKey (rect), rect);
 
         //  The tabs as the window has them: reordered along its strip, or
         //  another shown.
@@ -751,6 +751,22 @@ void FloatingPanes::SaveRects (DxuiPaneLayout & layout) const
             (void) layout.SetFloatingTabs (window, root->panes, GetActivePane (window));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::SetTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::SetTip (const std::wstring & key, std::unique_ptr<DxuiTooltip> tip)
+{
+    m_tipServices[key] = std::make_unique<DxuiTipService> (*tip);
+    m_tips[key]        = std::move (tip);
 }
 
 
@@ -776,7 +792,27 @@ void FloatingPanes::EraseTip (const std::wstring & key)
         m_host.OnFloatTipErased (found->second.get());
     }
 
+    m_tipServices.erase (key);
     m_tips.erase (key);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::FindTips
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTipService * FloatingPanes::FindTips (const std::wstring & key) const
+{
+    auto  found = m_tipServices.find (GetKeyOf (key));
+
+
+
+    return (found != m_tipServices.end()) ? found->second.get() : nullptr;
 }
 
 
@@ -934,7 +970,7 @@ void FloatingPanes::Tick (int64_t now)
 
         if (window->GetHwnd() != nullptr && GetClientRect (window->GetHwnd(), &client))
         {
-            tip->SetDpi          (GetDpiForWindow (window->GetHwnd()));
+            tip->SetDpi          (window->GetDpi());
             tip->SetViewportSize (client.right - client.left, client.bottom - client.top);
         }
 
@@ -999,23 +1035,35 @@ bool FloatingPanes::IsAnyMenuOpen() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FloatingPanes::GetMonitorKey
-//
-//  A monitor by its device name, which stays the same while it is attached
-//  where it is.
+//  IFloatingPanesHost::CreateFloatWindow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FloatingPanes::GetMonitorKey (const RECT & rectPx)
+HRESULT IFloatingPanesHost::CreateFloatWindow (DxuiDockedWindow & window, const DxuiWindow::CreateParams & params)
 {
-    HMONITOR        monitor = MonitorFromRect (&rectPx, MONITOR_DEFAULTTONEAREST);
+    return window.Create (params);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IFloatingPanesHost::GetMonitorKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring IFloatingPanesHost::GetMonitorKey (const RECT & rectPx) const
+{
+    HMONITOR        monitor = DxuiDisplay::Get().MonitorFromRect (&rectPx, MONITOR_DEFAULTTONEAREST);
     MONITORINFOEXW  info    = {};
 
 
 
     info.cbSize = sizeof (info);
 
-    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    if (monitor == nullptr || !DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
     {
         return L"";
     }
@@ -1083,7 +1131,7 @@ void FloatingPanes::Float (const std::wstring & key)
         params.initialWindowRectPx    = rect;
     }
 
-    hr = window->Create (params);
+    hr = m_host.CreateFloatWindow (*window, params);
 
     if (FAILED (hr))
     {
@@ -1161,6 +1209,7 @@ void FloatingPanes::Float (const std::wstring & key)
         m_host.SaveLayout();
     });
     window->SetOnResized           ([this] { m_host.SaveLayout(); });
+    window->SetOnMoveLoopFrame     ([this] { m_host.PumpFloatFrame(); });
     window->SetOnClosed            ([this, key]
     {
         for (const std::wstring & each : m_windowPanes[key])
@@ -1178,7 +1227,7 @@ void FloatingPanes::Float (const std::wstring & key)
     if (rect.right > rect.left && rect.bottom > rect.top)
     {
         window->SetScreenRect (rect);
-        DxuiHwndSource::FitWindowToWorkArea (window->GetHwnd(), DxuiWorkAreaFit::SizeAndPosition);
+        window->FitToWorkArea (DxuiWorkAreaFit::SizeAndPosition);
     }
 
     //  A tooltip is drawn only over its own window, so the pane's toolbar
@@ -1188,9 +1237,9 @@ void FloatingPanes::Float (const std::wstring & key)
 
         tip->SetPopupHost (window->GetPopupHost());
         tip->SetTheme     (*theme);
-        tip->SetDpi       (GetDpiForWindow (window->GetHwnd()));
+        tip->SetDpi       (window->GetDpi());
         tip->ApplyVisualStudioLook();
-        m_tips[key] = std::move (tip);
+        SetTip (key, std::move (tip));
     }
 
     m_windows[key]     = std::move (window);
@@ -1294,7 +1343,7 @@ void FloatingPanes::PlaceUnderGrab (const std::wstring & pane)
         grabbed = site.GetGroup (0)->GetTitleRect();
     }
 
-    if (grabbed.right <= grabbed.left || !GetCursorPos (&cursor))
+    if (grabbed.right <= grabbed.left || !DxuiInputState::GetCursorPos (&cursor))
     {
         return;
     }

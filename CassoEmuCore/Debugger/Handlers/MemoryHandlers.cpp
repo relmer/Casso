@@ -4,7 +4,9 @@
 
 #include "Config/IFileSystem.h"
 #include "Core/TextEncoding.h"
+#include "ApplesoftTokenizer.h"
 #include "Debugger/AppleWinFormatter.h"
+#include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/BinaryImageReader.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/MemoryMap.h"
@@ -36,6 +38,8 @@ bool MemoryHandlers::TryExecute (DebugSession & session, const DebugCommand & co
     case DebugVerb::ShowSearchResults: ShowResults  (session, reply);          return true;
     case DebugVerb::LoadBinary:        LoadBinary   (session, command, reply); return true;
     case DebugVerb::SaveBinary:        SaveBinary   (session, command, reply); return true;
+    case DebugVerb::LoadBasic:         LoadBasic    (session, command, reply); return true;
+    case DebugVerb::SaveBasic:         SaveBasic    (session, command, reply); return true;
     case DebugVerb::SaveText:          SaveText     (session, command, reply); return true;
     case DebugVerb::ReadIo:            ReadIo       (session, command, reply); return true;
     case DebugVerb::WriteIo:           WriteIo      (session, command, reply); return true;
@@ -701,6 +705,225 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
     reply.data       = data;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::LoadBasic
+//
+//  BASICLOAD file tokenizes a listing and puts it at $0801 in place of the
+//  program there, with Applesoft's pointers set as its LOAD sets them: the
+//  variables, arrays and strings empty after the program, and string space
+//  from the top of memory down. Nothing is written when the listing does not
+//  tokenize.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryHandlers::LoadBasic (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    IDebugTarget           & target  = session.GetTarget();
+    IFileSystem            * files   = nullptr;
+    std::string              name    = Unquote (command.text);
+    std::string              content;
+    std::vector<Byte>        bytes;
+    ApplesoftListingError    error;
+    Word                     end     = 0;
+    Word                     top     = 0;
+    size_t                   lines   = 0;
+    bool                     isBlank = true;
+    HRESULT                  hr      = S_OK;
+
+
+
+    if (name.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "Type a file name after BASICLOAD.");
+        return;
+    }
+
+    if (!TryGetFiles (session, reply, files))
+    {
+        return;
+    }
+
+    hr = files->ReadAllText (session.ResolvePath (name), content);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", name));
+        return;
+    }
+
+    hr = ApplesoftTokenizer::Tokenize (content, bytes, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not loadable",
+                        error.hasLineNumber ? std::format ("Line {}: {}", error.lineNumber, error.reason) : error.reason);
+        return;
+    }
+
+    end = (Word) (ApplesoftTokenizer::kProgramBase + bytes.size());
+
+    if (!IsWritable (target, ApplesoftTokenizer::kProgramBase, bytes.size(), reply) || !TryPeekWord (target, kMemSiz, top, reply))
+    {
+        return;
+    }
+
+    if (!TryPokeRange (target, ApplesoftTokenizer::kProgramBase, bytes, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kTxtTab, ApplesoftTokenizer::kProgramBase, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kVarTab, end, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kAryTab, end, reply) ||
+        !TryPokeWord  (target, ApplesoftProgram::kStrEnd, end, reply) ||
+        !TryPokeWord  (target, kPrgEnd, end, reply) ||
+        !TryPokeWord  (target, kFreTop, top, reply))
+    {
+        return;
+    }
+
+    //  The lines that have anything on them.
+    for (char ch : content + "\n")
+    {
+        if (ch == '\n')
+        {
+            lines   += isBlank ? 0 : 1;
+            isBlank  = true;
+        }
+        else if (!std::isspace ((unsigned char) ch))
+        {
+            isBlank = false;
+        }
+    }
+
+    reply.data = MessageData { { std::format ("Loaded {} lines, {} bytes, from {} as the BASIC program.", lines, bytes.size(), name) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::SaveBasic
+//
+//  BASICSAVE file writes the program from TXTTAB to VARTAB as a listing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryHandlers::SaveBasic (DebugSession & session, const DebugCommand & command, Reply & reply)
+{
+    IDebugTarget           & target  = session.GetTarget();
+    IFileSystem            * files   = nullptr;
+    std::string              name    = Unquote (command.text);
+    std::vector<Byte>        bytes;
+    std::string              listing;
+    ApplesoftListingError    error;
+    Word                     first   = 0;
+    Word                     end     = 0;
+    HRESULT                  hr      = S_OK;
+
+
+
+    if (name.empty())
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", "Type a file name after BASICSAVE.");
+        return;
+    }
+
+    if (!TryGetFiles (session, reply, files) || !TryPeekWord (target, ApplesoftProgram::kTxtTab, first, reply) ||
+        !TryPeekWord (target, ApplesoftProgram::kVarTab, end, reply))
+    {
+        return;
+    }
+
+    if (first != ApplesoftTokenizer::kProgramBase || end <= first || end > ApplesoftTokenizer::kProgramCeiling)
+    {
+        reply.SetError (CommandStatus::Error, "no program", "There is no Applesoft program in memory.");
+        return;
+    }
+
+    for (Word at = first; at < end; at++)
+    {
+        Byte  value = 0;
+
+
+
+        if (!TryPeekByte (target, at, value, reply))
+        {
+            return;
+        }
+
+        bytes.push_back (value);
+    }
+
+    hr = ApplesoftTokenizer::Detokenize (bytes, listing, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "program not listable", error.reason);
+        return;
+    }
+
+    hr = files->WriteAllText (session.ResolvePath (name), listing);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", name));
+        return;
+    }
+
+    reply.data = MessageData { { std::format ("Saved the BASIC program, {} bytes, to {}.", bytes.size(), name) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::TryPokeWord
+//
+//  A pointer, low byte first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::TryPokeWord (IDebugTarget & target, Word address, Word value, Reply & reply)
+{
+    Byte  bytes[] = { (Byte) (value & 0xFF), (Byte) (value >> 8) };
+
+
+
+    return TryPokeRange (target, address, bytes, reply);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::TryPeekWord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::TryPeekWord (IDebugTarget & target, Word address, Word & value, Reply & reply)
+{
+    Byte  low  = 0;
+    Byte  high = 0;
+
+
+
+    if (!TryPeekByte (target, address, low, reply) || !TryPeekByte (target, (Word) (address + 1), high, reply))
+    {
+        return false;
+    }
+
+    value = (Word) (low | (high << 8));
+    return true;
 }
 
 

@@ -5,6 +5,7 @@
 #include "Cpu.h"
 #include "Debugger/Events/DebugEventJob.h"
 #include "Debugger/ProfileTable.h"
+#include "Debugger/Reply.h"
 #include "Debugger/RoutineProfile.h"
 
 class MachineHost;
@@ -24,8 +25,10 @@ class MachineHost;
 
 struct ProfileCounts
 {
-    ProfileTable    table;
-    RoutineProfile  routines;
+    ProfileTable               table;
+    RoutineProfile             routines;
+    std::optional<CycleRange>  historyRange;   // the cycles requested of a build from history
+    bool                       isFromHistoryStart = false;   // the period begins where history does
 };
 
 using ProfileCountsPtr = std::shared_ptr<const ProfileCounts>;
@@ -57,6 +60,11 @@ public:
     //  The period, in CPU cycles, and the counts started again. Only while
     //  no job runs.
     void     Begin       (uint64_t fromCycle, uint64_t toCycle);
+
+    //  The calls open at the start of each stretch to replay, outermost first,
+    //  by the history cycle the stretch starts at; a stretch without any
+    //  starts at Top level.
+    void     SetStartCalls (std::map<uint64_t, std::vector<CallStackFrame>> calls) { m_startCalls = std::move (calls); }
     double   GetProgress () const { return m_progress.load (std::memory_order_relaxed); }
 
     HRESULT  Attach (MachineHost & machine, std::vector<DebugEventEntry<ProfileCountsPtr>> & entries) override;
@@ -85,5 +93,6 @@ private:
     uint64_t                                            m_fromCycle = 0;
     uint64_t                                            m_toCycle   = 0;
     uint32_t                                            m_untilNote = 0;
+    std::map<uint64_t, std::vector<CallStackFrame>>     m_startCalls;
     std::atomic<double>                                 m_progress  { 0.0 };
 };

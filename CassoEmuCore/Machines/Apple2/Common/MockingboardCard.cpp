@@ -483,29 +483,102 @@ void MockingboardCard::SyncSpeechRequest()
 //
 //  MockingboardCard::GetDiagnostics
 //
-//  Each 6522 beside the AY it drives, numbered as the card's two halves are.
+//  Each 6522 beside the AY it drives, numbered as the card's two halves are,
+//  then the speech chip on a card that has one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MockingboardCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 {
-    DiagnosticsMeters  meters;
+    DiagnosticsSoundBoard  board;
 
 
 
     for (int index = 0; index < kViaCount; index++)
     {
+        DiagnosticsSoundHalf  half;
+
         m_via[index].AppendDiagnostics (std::format ("6522 #{}", index + 1), snapshot);
         m_psg[index].AppendDiagnostics (std::format ("AY #{}",   index + 1), snapshot);
-        m_psg[index].AppendChannelLevels (std::format ("AY{}",   index + 1), meters);
+
+        half.index       = index;
+        half.baseAddress = (Word) (m_base + (index != 0 ? kVia2Select : 0));
+        half.busState    = GetBusState (m_via[index].GetPortB());
+
+        m_via[index].AppendSoundBoard ((double) kAppleCpuClock, half.via);
+        m_psg[index].AppendSoundBoard (half.psg);
+
+        board.halves.push_back (std::move (half));
     }
 
-    for (int index = 0; index < kViaCount; index++)
+    if (m_speech != nullptr)
     {
-        m_via[index].AppendTimerLevels (std::format ("6522 #{}", index + 1), meters);
+        DiagnosticsSoundVoice  voice;
+
+        m_speech->AppendDiagnostics ("SSI-263", snapshot);
+        m_speech->AppendSoundBoard  (voice);
+
+        voice.isMuted = m_speechSource.IsMuted();
+        board.voice   = std::move (voice);
     }
 
-    snapshot.visual = std::move (meters);
+    board.slot       = m_slot;
+    board.sampleRate = m_psg[0].GetSampleRate();
+    snapshot.visual  = std::move (board);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockingboardCard::GetBusState
+//
+//  The AY operation port B's lines select, as in SyncPsg.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MockingboardCard::GetBusState (Byte portB)
+{
+    if ((portB & kAyResetLow) == 0)
+    {
+        return "Reset";
+    }
+
+    switch (portB & kAyControlMask)
+    {
+    case (kAyBdir | kAyBc1): return "Latch";
+    case kAyBdir:            return "Write";
+    case kAyBc1:             return "Read";
+    default:                 return "Inactive";
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MockingboardCard::SetSoundMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MockingboardCard::SetSoundMuted (int channel, bool isMuted)
+{
+    constexpr int  kPsgChannels = DiagnosticsSoundPsg::kChannelCount;
+
+
+
+    if (channel == kSpeechMuteChannel)
+    {
+        m_speechSource.SetMuted (isMuted);
+    }
+    else if (channel >= 0 && channel < kViaCount * kPsgChannels)
+    {
+        m_psg[channel / kPsgChannels].SetChannelMuted (channel % kPsgChannels, isMuted);
+    }
 }
 
 

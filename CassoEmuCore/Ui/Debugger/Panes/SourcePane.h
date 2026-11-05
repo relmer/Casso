@@ -3,6 +3,7 @@
 #include "Debugger/Source/SourceService.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 #include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/DebuggerActions.h"
@@ -42,7 +43,6 @@ public:
     using FindFn = std::function<SourceLookup (const DebugSourceFile & record, const std::wstring & debugFilePath,
                                                const std::string & programKey)>;
     using RunFn  = std::function<void (const DebuggerActionBuilder & build)>;
-    using GoToFn = std::function<void (Word address)>;
 
     //  How the PC's line and breakpoints are drawn: the disassembly pane's
     //  own marker color, row fill, breakpoint icons and PC arrow, so the two
@@ -65,7 +65,26 @@ public:
     //  What an operand's result is shown after, here and in the disassembly.
     static constexpr const wchar_t * kpszResultPrefix = L"Result: ";
 
-    SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run, GoToFn goTo);
+    //  A row's cells: the marker, the line number, the source text, and the
+    //  annotation. The text's column is no wider than kAnnotationColumn, so
+    //  the annotations start near the code, and only a longer line pushes
+    //  that line's annotation along.
+    static constexpr int    kTextCell         = 2;
+    static constexpr int    kAnnotationColumn = 40;
+
+    //  The line numbers are followed by room for the branch arrow, which
+    //  stops short of the text.
+    static constexpr int    kNumberCell       = 1;
+    static constexpr int    kArrowGapCells    = 5;
+    static constexpr float  kArrowMarginDip   = 6.0f;
+
+    //  The symbol a source line has at a caret position, by its name, as
+    //  "count_text = $60F2", and after a < or > before it, the byte that
+    //  operator takes. False off a word, in a comment, or for a word that
+    //  isn't a symbol.
+    static bool  TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text);
+
+    SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run);
 
     SourcePane (const SourcePane &)             = delete;
     SourcePane & operator= (const SourcePane &) = delete;
@@ -77,6 +96,9 @@ public:
     //  when it is shown.
     bool  IsActive      () const { return (m_state.has_value() || m_isLoose) && m_docFileId >= 0; }
     bool  HasBanner     () const { return !m_banner->GetText().empty(); }
+
+    //  The path of the document's file, empty while none was found.
+    const std::wstring &  GetFoundPath () const { return m_foundPath; }
 
     void  Configure     (HWND hwnd);
 
@@ -127,10 +149,14 @@ public:
     void  ShowLine      (int fileId, int line);
     void  FollowMarkedLine ();
 
-    //  A click on a line moves the code pane to the line's address; a double
-    //  click toggles a breakpoint on it.
-    void  OnClick       (POINT atDip);
-    void  OnDoubleClick (POINT atDip);
+    //  The address of the line under a point, for Go to disassembly; a
+    //  double click toggles a breakpoint on the line.
+    std::optional<Word>  GetAddressAt  (POINT atDip) const;
+    void                 OnDoubleClick (POINT atDip);
+
+    //  The tip of the heat strip under a point, and where to put it: by the
+    //  start of the strip on its row. False off a strip, or while heat is off.
+    bool  TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const;
 
     //  A file the user dropped, as the host matched it.
     void  ShowDropped   (const SourceLookup & lookup, int recordIndex);
@@ -158,6 +184,9 @@ public:
     //  from the marked line to the line its target starts, in pixels; false
     //  when the PC is not on a marked line here or holds no branch.
     bool  GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
+
+    //  Over a word of the source text, the symbol it is.
+    bool  TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
 
     //  The line the PC's branch goes to in a file, if a line there starts at
     //  it, and whether it lies below the marked line; false for no branch.
@@ -189,6 +218,10 @@ public:
     static std::wstring  GetBannerText (SourceMatch match, const std::string & fileName, bool hasText,
                                         int depth, bool showingBody, const std::string & bodyName, int bodyLine,
                                         const std::string & invokedByName = std::string(), int invokedByLine = 0);
+
+    //  The banner's first line while the program in memory isn't the debug
+    //  file's.
+    static std::wstring  GetStaleText (const std::wstring & debugFilePath);
 
     //  What to say when the file was found in a folder other than the one the
     //  debug file records -- a copy in another search folder -- or empty.
@@ -224,7 +257,6 @@ private:
     DxuiActionBanner                                 * m_banner  = nullptr;
     FindFn                                             m_find;
     RunFn                                              m_run;
-    GoToFn                                             m_goTo;
 
     std::function<void ()>                            m_onToggleBody;
     std::function<void ()>                            m_onLoadSymbols;

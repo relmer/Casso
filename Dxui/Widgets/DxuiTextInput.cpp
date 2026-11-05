@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiTextInput.h"
@@ -142,9 +143,9 @@ int DxuiTextInput::CountClick (int x, int y)
 {
     constexpr int  kHalf    = 2;
     int64_t        now      = m_clock ? m_clock() : (int64_t) GetTickCount64();
-    UINT           timeMs   = (m_doubleClickMs != 0) ? m_doubleClickMs : GetDoubleClickTime();
-    int            rectCx   = (m_doubleClickCx != 0) ? m_doubleClickCx : GetSystemMetrics (SM_CXDOUBLECLK);
-    int            rectCy   = (m_doubleClickCy != 0) ? m_doubleClickCy : GetSystemMetrics (SM_CYDOUBLECLK);
+    UINT           timeMs   = (m_doubleClickMs != 0) ? m_doubleClickMs : (UINT) DxuiSystemSettings::Instance().GetDoubleClickMs();
+    int            rectCx   = (m_doubleClickCx != 0) ? m_doubleClickCx : DxuiSystemSettings::Instance().GetDoubleClickSizePx().cx;
+    int            rectCy   = (m_doubleClickCy != 0) ? m_doubleClickCy : DxuiSystemSettings::Instance().GetDoubleClickSizePx().cy;
     bool           isRepeat = m_clickCount > 0
                            && now - m_lastClickMs <= (int64_t) timeMs
                            && std::abs (x - m_lastClickPt.x) <= rectCx / kHalf
@@ -675,7 +676,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         constexpr int64_t  s_kFallbackBlinkMs  = 530;   // only if the OS reports an invalid (zero) blink time
 
         int64_t  now     = (int64_t) GetTickCount64();
-        UINT     blinkMs = GetCaretBlinkTime();
+        UINT     blinkMs = DxuiSystemSettings::Instance().GetCaretBlinkMs();
         bool     caretOn = true;
 
         if (m_blinkAnchorMs == 0)
@@ -1051,7 +1052,7 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 //
 //  DxuiTextInput::QueryCommand  (IDxuiControl override)
 //
-//  Copy and Cut require a selection; Select all requires text.
+//  Copy, Cut and Delete require a selection; Select all requires text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1068,6 +1069,7 @@ bool DxuiTextInput::QueryCommand (DxuiStandardCommand command, bool & outEnabled
         return true;
 
     case DxuiStandardCommand::Cut:
+    case DxuiStandardCommand::Delete:
         outEnabled = hasSelection;
         return true;
 
@@ -1128,6 +1130,10 @@ bool DxuiTextInput::InvokeCommand (DxuiStandardCommand command)
 
     case DxuiStandardCommand::Paste:
         PasteFromClipboard();
+        break;
+
+    case DxuiStandardCommand::Delete:
+        DeleteSelection();
         break;
 
     case DxuiStandardCommand::SelectAll:

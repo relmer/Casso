@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/HeatStrip.h"
+#include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "CLexer.h"
@@ -17,12 +18,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run, GoToFn goTo) :
+SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run) :
     m_view   (view),
     m_banner (banner),
     m_find   (std::move (find)),
-    m_run    (std::move (run)),
-    m_goTo   (std::move (goTo))
+    m_run    (std::move (run))
 {
 }
 
@@ -39,6 +39,9 @@ SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn f
 void SourcePane::Configure (HWND hwnd)
 {
     m_view->SetOwnerWindow (hwnd);
+    m_view->SetNoWrap      (true);
+    m_view->SetColumnCap   (kTextCell, kAnnotationColumn);
+    m_view->SetColumnGap   (kNumberCell, kArrowGapCells);
     m_banner->SetSeverity  (DxuiInfoBanner::Severity::Info);
     m_banner->SetOnAction  ([this] (size_t)
     {
@@ -102,7 +105,8 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
 //
 //  SourcePane::AddHeatStrips
 //
-//  A line that produced no code gets spaces in the strip's place.
+//  A line without code, or whose bytes nothing touched, gets spaces in the
+//  strip's place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +135,7 @@ void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileI
             strip = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false);
         }
 
-        prefix = strip.text + std::wstring (HeatStrip::kMaxBlocks + 1 - strip.text.size(), L' ');
+        prefix = std::wstring (HeatStrip::kMaxBlocks + 1, L' ');
 
         for (DxuiTextView::Span & span : row.spans)
         {
@@ -141,9 +145,11 @@ void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileI
             }
         }
 
-        for (const auto & [start, end, argb] : strip.colors)
+        //  One fill of the hottest byte's color, the same width on every
+        //  line, as the disassembly and the BASIC program draw a heat cell.
+        if (strip.hottest != 0)
         {
-            row.spans.push_back ({ kNumberCell, start, end - start, 0, argb });
+            row.spans.push_back ({ kNumberCell, 0, (int) HeatStrip::kMaxBlocks, 0, strip.hottest });
         }
 
         row.cells[kNumberCell] = prefix + row.cells[kNumberCell];
@@ -489,7 +495,17 @@ void SourcePane::Rebuild()
             AddHeatStrips (rows, m_fileId, *m_state->lineRanges, *heat, *m_heatPalette);
         }
 
-        m_view->SetRows  (std::move (rows));
+        //  For the same file the selection is left in place, so a drag across
+        //  it and a copy survive a snapshot that changes only marks or colors.
+        if (m_rowsFileId == m_fileId)
+        {
+            m_view->UpdateRows (std::move (rows));
+        }
+        else
+        {
+            m_view->SetRows (std::move (rows));
+        }
+
         m_rowsHeatLevels   = heat;
         m_rowLines         = GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
@@ -531,6 +547,11 @@ void SourcePane::Rebuild()
     if (!elsewhere.empty())
     {
         bannerText = bannerText.empty() ? elsewhere : elsewhere + L"\n" + bannerText;
+    }
+
+    if (m_state->isStale)
+    {
+        bannerText = bannerText.empty() ? GetStaleText (m_state->debugFilePath) : GetStaleText (m_state->debugFilePath) + L"\n" + bannerText;
     }
 
     m_banner->SetText (bannerText);
@@ -659,11 +680,66 @@ std::optional<int> SourcePane::GetLineAt (POINT atDip) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourcePane::OnClick
+//  SourcePane::TryGetHeatTip
+//
+//  A row's text is its cells joined by tabs, so the strip, at the start of
+//  the line number's cell, begins one past the end of the cell before it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SourcePane::OnClick (POINT atDip)
+bool SourcePane::TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const
+{
+    DxuiTextView::Position           at          = m_view->HitTest (atDip);
+    const DxuiTextView::Row        * row         = nullptr;
+    const std::pair<Word, Word>    * range       = nullptr;
+    int                              start       = 0;
+    float                            x           = 0.0f;
+    float                            y           = 0.0f;
+
+
+
+    if (m_rowsHeatLevels == nullptr || !m_state.has_value() || m_state->lineRanges == nullptr || at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    {
+        return false;
+    }
+
+    row = &m_view->GetRows()[(size_t) at.row];
+
+    if (row->cells.size() <= (size_t) kNumberCell)
+    {
+        return false;
+    }
+
+    start = (int) row->cells[0].size() + 1;
+
+    if (!m_state->lineRanges->contains ({ m_fileId, at.row + 1 }) || at.offset < start || at.offset >= start + (int) HeatStrip::kMaxBlocks)
+    {
+        return false;
+    }
+
+    range = &m_state->lineRanges->at ({ m_fileId, at.row + 1 });
+    tip   = HeatStrip::GetTip (*m_rowsHeatLevels, range->first, (size_t) (range->second - range->first) + 1, false);
+
+    if (tip.text.empty() || !m_view->GetCellAnchorPx (at.row, kNumberCell, x, y))
+    {
+        return false;
+    }
+
+    anchor = RECT { (LONG) x, (LONG) y, (LONG) x + 1, (LONG) y + 1 };
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetAddressAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<Word> SourcePane::GetAddressAt (POINT atDip) const
 {
     std::optional<int>  line = GetLineAt (atDip);
     auto                map  = (m_state.has_value()) ? m_state->lineAddresses : nullptr;
@@ -672,10 +748,10 @@ void SourcePane::OnClick (POINT atDip)
 
     if (!line.has_value() || map == nullptr || !map->contains ({ m_fileId, *line }))
     {
-        return;
+        return std::nullopt;
     }
 
-    m_goTo (map->at ({ m_fileId, *line }));
+    return map->at ({ m_fileId, *line });
 }
 
 
@@ -1072,10 +1148,11 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     input.isTargetBelow = isBelow;
     input.edgeY         = isBelow ? bottom : top;
     input.sourceEdgeY   = isBelow ? top : bottom;
-    input.marginPx     *= scale;
+    input.marginPx      = kArrowMarginDip * scale;
     input.stubPx       *= scale;
     input.radiusPx     *= scale;
     input.headPx       *= scale;
+    input.slopPx       *= scale;
 
     if (targetLine.has_value() && m_view->GetCellAnchorPx (GetRowOfLine (*targetLine), s_kTextCell, x, y))
     {
@@ -1083,6 +1160,133 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     }
 
     return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetSymbolTip
+//
+//  The symbol under the pointer, in the text cell after the marker and number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const
+{
+    DxuiTextView::Position     at    = m_view->HitTest (atDip);
+    const DxuiTextView::Row  * row   = nullptr;
+    int                        start = 0;
+
+
+
+    if (at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    {
+        return false;
+    }
+
+    row = &m_view->GetRows()[(size_t) at.row];
+
+    if (row->cells.size() <= (size_t) kTextCell)
+    {
+        return false;
+    }
+
+    start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
+
+    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size() ||
+        !TryGetSymbolText (row->cells[(size_t) kTextCell], at.offset - start, symbols, text))
+    {
+        return false;
+    }
+
+    anchor = RECT { atDip.x, atDip.y, atDip.x + 1, atDip.y + 1 };
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetSymbolText
+//
+//  A word is letters, digits, _, . and @, as a cheap local symbol is written
+//  in ca65. A symbol is matched by its case first, then in any case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text)
+{
+    auto                isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
+    int                 size        = (int) line.size();
+    int                 start       = ch;
+    int                 end         = 0;
+    std::string         name;
+    const SymbolInfo  * found       = nullptr;
+    wchar_t             op          = 0;
+    bool                isImmediate = false;
+
+
+
+    if (ch < 0 || ch > size)
+    {
+        return false;
+    }
+
+    //  A caret just past a word is on that word.
+    if ((ch == size || !isWordChar (line[(size_t) ch])) && ch > 0 && isWordChar (line[(size_t) ch - 1]))
+    {
+        start = ch - 1;
+    }
+
+    if (start >= size || !isWordChar (line[(size_t) start]) || line.substr (0, (size_t) start).find (L';') != std::wstring::npos)
+    {
+        return false;
+    }
+
+    while (start > 0 && isWordChar (line[(size_t) start - 1]))
+    {
+        start--;
+    }
+
+    for (end = start; end < size && isWordChar (line[(size_t) end]); end++)
+    {
+    }
+
+    name = TextEncoding::WideToNarrow (line.substr ((size_t) start, (size_t) (end - start)));
+
+    for (const SymbolInfo & symbol : symbols)
+    {
+        if (symbol.name == name)
+        {
+            found = &symbol;
+            break;
+        }
+
+        found = (found == nullptr && _stricmp (symbol.name.c_str(), name.c_str()) == 0) ? &symbol : found;
+    }
+
+    if (found == nullptr)
+    {
+        return false;
+    }
+
+    text = std::format (L"{} = ${:04X}{}", TextEncoding::NarrowToWide (found->name), found->address, found->isConstant ? L", a constant" : L"");
+
+    op          = (start > 0) ? line[(size_t) start - 1] : 0;
+    isImmediate = start > 1 && line[(size_t) start - 2] == L'#';
+
+    if (op == L'<' || op == L'>')
+    {
+        text += std::format (L"\n{}{}{} = {}${:02X}, its {} byte", isImmediate ? L"#" : L"", op, TextEncoding::NarrowToWide (found->name),
+                             isImmediate ? L"#" : L"", (op == L'<') ? (found->address & 0xFF) : (found->address >> 8), (op == L'<') ? L"low" : L"high");
+    }
+
+    return true;
 }
 
 
@@ -1358,6 +1562,21 @@ std::optional<DebuggerAction> SourcePane::GetToggleAction (const DebuggerViewSna
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::GetStaleText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SourcePane::GetStaleText (const std::wstring & debugFilePath)
+{
+    return std::format (L"The program in memory doesn't match {}, so this file's lines aren't mapped to it.", fs::path (debugFilePath).filename().wstring());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::GetBannerText
 //
 //  What the file needs said, then where a macro is, each on a line of its own
@@ -1450,8 +1669,8 @@ std::wstring SourcePane::GetFoundElsewhereText (const std::string & fileName, co
         return std::wstring();
     }
 
-    return std::format (L"{} is not beside the debug file. Showing the copy in {}.",
-                        SourcePathList::Utf8ToWide (fileName), SourceService::GetFolder (foundPath));
+    return std::format (L"Source file {} was not found with the debug file {}. Showing the copy in {}.",
+                        SourcePathList::Utf8ToWide (fileName), debugFilePath, SourceService::GetFolder (foundPath));
 }
 
 

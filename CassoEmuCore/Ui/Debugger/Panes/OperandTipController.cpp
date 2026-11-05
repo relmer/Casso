@@ -14,9 +14,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-OperandTipController::OperandTipController (IOperandTipHost & host, const ICodeViews & views) :
-    m_host  (host),
-    m_views (views)
+OperandTipController::OperandTipController (IOperandTipHost & host) :
+    m_host (host)
 {
 }
 
@@ -97,6 +96,13 @@ void OperandTipController::Place (const DxuiMouseEvent & ev, bool isPressed, con
 
     isOver = ev.kind == DxuiMouseEventKind::Move && !isPressed && !m_host.IsTipBlocked() &&
              TryGet (ev.positionDip, scaler, text, screen, layout, cell);
+
+    //  A tip that wraps below its row stays up while the pointer moves from
+    //  the row into it.
+    if (!isOver && ev.kind == DxuiMouseEventKind::Move && !isPressed && IsOverTipArea (ev.positionDip))
+    {
+        return;
+    }
 
     if (!isOver)
     {
@@ -226,7 +232,7 @@ void OperandTipController::Check (int view)
         m_screen = GetScreen (m_popupHost);
     }
 
-    m_views.GetCodeList (view)->MeasureColumnsPx (*m_text);
+    m_host.GetTipList (view)->MeasureColumnsPx (*m_text);
 
     isSame = TryMake (view, m_cell.row, m_scaler, *m_text, m_screen, layout, cell) && OperandResultTip::IsSame (layout, m_layout);
 
@@ -247,17 +253,46 @@ void OperandTipController::Check (int view)
 //
 //  OperandTipController::CheckPointer
 //
-//  The pointer anywhere but on the part of the cell the tip was put up for
-//  takes the tip down, however it got there.
+//  The pointer anywhere but on the part of the cell the tip was put up for,
+//  or on the tip itself, takes the tip down, however it got there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void OperandTipController::CheckPointer (POINT clientPx)
 {
-    if (m_hasTip && !DxuiDockSite::Contains (m_cell.area, clientPx))
+    if (m_hasTip && !IsOverTipArea (clientPx))
     {
         Hide();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::IsOverTipArea
+//
+//  The cell the tip was put up for and the tip's rect, joined into one
+//  area, so the pointer can move from the row down into a tip that wraps
+//  below it without crossing a gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool OperandTipController::IsOverTipArea (POINT clientPx) const
+{
+    RECT  area = m_cell.area;
+
+
+
+    if (!m_hasTip)
+    {
+        return false;
+    }
+
+    UnionRect (&area, &m_cell.area, &m_layout.rect);
+    return DxuiDockSite::Contains (area, clientPx);
 }
 
 
@@ -289,7 +324,7 @@ void OperandTipController::FollowPointer()
 
     BAIL_OUT_IF (!isUp, S_OK);
 
-    isRead  = GetCursorPos (&pointer) != FALSE && ScreenToClient (hwnd, &pointer) != FALSE;
+    isRead  = DxuiInputState::GetCursorPos (&pointer) != FALSE && ScreenToClient (hwnd, &pointer) != FALSE;
     isShown = IsWindowVisible (hwnd) != FALSE && IsIconic (hwnd) == FALSE;
 
     CBRF (isRead,  Hide());
@@ -381,7 +416,7 @@ bool OperandTipController::TryGet (POINT clientPx, const DxuiDpiScaler & scaler,
 
     isOver     = DxuiDockSite::Contains (cell.area, clientPx);
     isCovered  = m_host.IsTipCovered (view, clientPx, layout.rect, screen);
-    isSelected = IsTextSelectedUnderTip (m_views.GetCodeList (view), row, layout);
+    isSelected = IsTextSelectedUnderTip (m_host.GetTipList (view), row, m_host.GetTipColumn (view), layout);
     CBR (isOver && !isCovered && !isSelected);
 
     out     = std::move (layout);
@@ -418,7 +453,8 @@ bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & sca
 {
     HRESULT                                   hr        = S_OK;
     const DxuiTheme                         * theme     = m_host.GetTipTheme();
-    DxuiListView                            * list      = m_views.GetCodeList (view);
+    DxuiListView                            * list      = m_host.GetTipList (view);
+    size_t                                    column    = m_host.GetTipColumn (view);
     const std::vector<DxuiListView::Cell>   * cells     = nullptr;
     RECT                                      bounds    = {};
     RECT                                      edge      = {};
@@ -431,12 +467,12 @@ bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & sca
 
 
     isShown = theme != nullptr && list != nullptr && list->IsVisible() &&
-              list->GetCellTextRectPx (row, DisassemblyCells::kOperandColumn, placement.textRect);
+              list->GetCellTextRectPx (row, column, placement.textRect);
     CBR (isShown);
 
     cells     = &list->GetCellsOfRow (row);
     cellCount = cells->size();
-    CBR (cellCount > DisassemblyCells::kOperandColumn);
+    CBR (cellCount > column);
 
     bounds = list->GetBounds();
     OffsetRect (&placement.textRect, bounds.left, bounds.top);
@@ -458,7 +494,7 @@ bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & sca
     hasRoom            = placement.workArea.right > placement.workArea.left;
     CBR (hasRoom);
 
-    isMade = OperandResultTip::TryMakeLayout ((*cells)[DisassemblyCells::kOperandColumn], placement, text, out);
+    isMade = OperandResultTip::TryMakeLayout ((*cells)[column], placement, text, out);
     CBR (isMade);
 
     outCell.view = view;
@@ -486,7 +522,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, int row, const OperandResultTip::Layout & layout)
+bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout)
 {
     int     height     = (std::max) (layout.lineHeight, 1);
     int     rowsAbove  = (layout.textOrigin.y - layout.rect.top + height - 1) / height;
@@ -499,12 +535,12 @@ bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, in
 
     for (int each = row - rowsAbove; each < row + rowsBelow && !isSelected; each++)
     {
-        isSelected = list->IsCellTextSelected (each, DisassemblyCells::kOperandColumn);
+        isSelected = list->IsCellTextSelected (each, column);
 
         //  Below its first line an L-shaped tip covers the whole row.
-        for (size_t column = 0; isShaped && each > row && column < columns && !isSelected; column++)
+        for (size_t other = 0; isShaped && each > row && other < columns && !isSelected; other++)
         {
-            isSelected = list->IsCellTextSelected (each, column);
+            isSelected = list->IsCellTextSelected (each, other);
         }
     }
 

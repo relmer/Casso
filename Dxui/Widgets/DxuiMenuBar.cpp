@@ -694,7 +694,7 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
     // row navigation also needs rows.
     bool  hasMenus    = m_isOpen && menuCount > 0;
     bool  hasRows     = hasMenus && count > 0;
-    bool  isPrevKey   = vk == VK_LEFT  || (vk == VK_TAB && (GetKeyState (VK_SHIFT) & 0x8000));
+    bool  isPrevKey   = vk == VK_LEFT  || (vk == VK_TAB && (DxuiInputState::GetKeyState (VK_SHIFT) & 0x8000));
     bool  isNextKey   = vk == VK_RIGHT || vk == VK_TAB;
     bool  handled     = false;
     bool  onCascade   = false;
@@ -1652,5 +1652,5 @@ bool DxuiMenuBar::ShouldShowMnemonicCues (bool openedByKeyboard) const
         return true;
     }
 
-    return openedByKeyboard || m_cuesToggled || (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
+    return openedByKeyboard || m_cuesToggled || (DxuiInputState::GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
 }

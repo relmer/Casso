@@ -74,6 +74,12 @@ public:
     virtual void  SetDebuggerHeatMapShown (bool shown)                     { (void) shown; }
     virtual void  SetDebuggerHeatColumnsShown (bool shown)                 { (void) shown; }
 
+    //  Whether the trace pane is on screen, so its rows are read for it.
+    virtual void  SetDebuggerTraceShown   (bool shown)                     { (void) shown; }
+
+    //  Mutes a sound channel on the host, as the Mockingboard panel's toggles do.
+    virtual void  SetDebuggerSoundMuted   (int channel, bool isMuted)       { (void) channel; (void) isMuted; }
+
     //  Whether a BASIC pane is visible; the Applesoft program is read for
     //  the snapshots only while one is.
     virtual void  SetDebuggerBasicShown   (bool isVisible)                 { (void) isVisible; }
@@ -122,6 +128,10 @@ public:
 
     //  The panes' text size as a whole percentage, kept the same way. A host
     //  that keeps no preferences, as a test's is, has 100%.
+    //  Whether a notice of how to take a routine out of the step filter opens
+    //  when a menu adds it; off for a host with no preferences, as a test's is.
+    virtual bool            IsDebuggerSkipNoticeShown  ()               { return false; }
+    virtual void            SetDebuggerSkipNoticeShown (bool isShown)   { (void) isShown; }
     virtual int             GetDebuggerTextZoomPercent ()               { return 100; }
     virtual void            SetDebuggerTextZoomPercent (int percent)    { (void) percent; }
 
@@ -188,7 +198,15 @@ public:
     //  counted. A host with no machine, as a test's is, keeps nothing.
     virtual std::string  GetDebuggerHeatMapOptions ()                      { return {}; }
     virtual void         SetDebuggerHeatMapOptions (const std::string &)   {}
+
+    //  The Disk II panel's choice of drives, saved as the other options are.
+    virtual std::string  GetDebuggerDiskDrives ()                          { return {}; }
+    virtual void         SetDebuggerDiskDrives (const std::string &)       {}
     virtual void         ResetDebuggerHeatMap      ()                      {}
+
+    //  The profiler's period, as its HISTORY argument.
+    virtual std::string  GetDebuggerProfilerPeriod ()                      { return {}; }
+    virtual void         SetDebuggerProfilerPeriod (const std::string &)   {}
 
     //  A heat map request for the machine, in the words after "heatmap" of
     //  its command: the cell the mouse is over ("hover 2000", "hover none"),

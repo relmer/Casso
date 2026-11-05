@@ -7,6 +7,7 @@
 class DebuggerPaneFrame;
 class MemoryMapBar;
 class MeterBar;
+class SoundBoardView;
 
 
 
@@ -25,7 +26,7 @@ class MeterBar;
 //  gets a panel by publishing rows. The panel is read-only: it shows state and
 //  changes none.
 //
-//  The window owns the list and the three graphics as child controls; the pane
+//  The window owns the list and the graphics as child controls; the pane
 //  holds pointers to them and a frame that stacks them into one dockable pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +34,10 @@ class MeterBar;
 class DiagnosticsPane
 {
 public:
-    DiagnosticsPane (std::string id, std::wstring title, DxuiListView * list, MemoryMapBar * map, DiskHeadView * head, MeterBar * meters);
+    //  The bar, when given, is visible over a disk head alone, for its choice
+    //  of drives.
+    DiagnosticsPane (std::string id, std::wstring title, DxuiListView * list, MemoryMapBar * map, DiskHeadView * head, MeterBar * meters, SoundBoardView * board,
+                     IDxuiControl * driveBar = nullptr);
 
     DiagnosticsPane (const DiagnosticsPane &)             = delete;
     DiagnosticsPane & operator= (const DiagnosticsPane &) = delete;
@@ -43,6 +47,7 @@ public:
     DxuiListView                  * GetList     () const { return m_list; }
     DiskHeadView                  * GetHead     () const { return m_head; }
     MemoryMapBar                  * GetMap      () const { return m_map; }
+    SoundBoardView                * GetBoard    () const { return m_board; }
     DebuggerPaneFrame             * GetFrame    () const { return m_frame.get(); }
 
     //  The key the info button opens, or none: a memory map's or a disk
@@ -84,6 +89,7 @@ private:
         MemoryMap,
         DiskHead,
         Meters,
+        SoundBoard,
     };
 
     std::string                         m_id;
@@ -92,6 +98,7 @@ private:
     MemoryMapBar                      * m_map    = nullptr;
     DiskHeadView                      * m_head   = nullptr;
     MeterBar                          * m_meters = nullptr;
+    SoundBoardView                    * m_board  = nullptr;
     std::unique_ptr<DebuggerPaneFrame>  m_frame;
 
     Visual                              m_visual = Visual::None;

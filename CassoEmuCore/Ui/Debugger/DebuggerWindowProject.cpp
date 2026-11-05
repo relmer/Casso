@@ -210,6 +210,11 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
     m_consolePane->GetCommandLine().GetHistory().SetLines (std::move (lines));
 
+    //  The console's text comes back with its history: on a project's
+    //  switch in place of the last project's, on opening ahead of what the
+    //  opening has written.
+    m_consolePane->GetOutput().RestoreSaved (m_host->GetDebuggerWindowState ("consoleText"), !isProjectSwitch);
+
     m_finds->LoadSaved (SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("find")));
 
     m_columnWidths.clear();
@@ -353,7 +358,8 @@ void DebuggerWindow::SaveUndoHistories()
 //  DebuggerWindow::SaveColumnWidths
 //
 //  A list the user sized, or one a project brought widths back for, is saved
-//  with each column's width as it is now, in dips.
+//  with the width of each column that was sized, in dips, and zero for the
+//  others, which go on fitting their text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,7 +383,8 @@ void DebuggerWindow::SaveColumnWidths()
 
         for (size_t c = 0; c < list->GetColumnCount(); c++)
         {
-            int  dip = MulDiv (list->GetColumnEffectiveWidthPx (c), DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi());
+            int  sizedPx = list->GetColumnOverrideWidthPx (c);
+            int  dip     = (sizedPx > 0) ? MulDiv (sizedPx, DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()) : 0;
 
             m_columnWidths[pane].push_back (dip);
             text += std::format ("{}{}", (c == 0) ? "" : ",", dip);

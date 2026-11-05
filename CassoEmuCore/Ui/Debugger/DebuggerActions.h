@@ -159,6 +159,7 @@ public:
     //  pointers, by slot.
     static DebuggerAction  GetEnableWatch            (int id, bool enable, CommandMode mode);
     static DebuggerAction  GetAddZeroPagePointer     (Byte address, CommandMode mode);
+    static DebuggerAction  GetAddZeroPagePointerAt   (int slot, Byte address, CommandMode mode);
     static DebuggerAction  GetClearZeroPagePointer   (int slot, CommandMode mode);
     static DebuggerAction  GetEnableZeroPagePointer  (int slot, bool enable, CommandMode mode);
 
@@ -209,6 +210,8 @@ public:
     static std::string     ToText      (const DebuggerAction & action);
     static bool            TryFromText (const std::string & text, DebuggerAction & action);
     static DebuggerAction  GetLoadSymbols      (const std::string & path, CommandMode mode);
+    static DebuggerAction  GetLoadBasic        (const std::string & path, CommandMode mode);
+    static DebuggerAction  GetSaveBasic        (const std::string & path, CommandMode mode);
     static DebuggerAction  GetSaveBreakpoints  (const std::string & path, CommandMode mode);
     static DebuggerAction  GetProject          (const std::string & subcommand, const std::string & path, CommandMode mode);
     static DebuggerAction  GetAddWatch         (Word address, CommandMode mode);
@@ -228,6 +231,11 @@ public:
     //  The watches pane's edits. A string value is what the user typed, which
     //  the session evaluates in its mode when the action runs.
     static DebuggerAction  GetAddWatch             (const std::string & expression, CommandMode mode);
+
+    //  A watch added back under the id it had, as an undone removal puts it,
+    //  so it returns to its place in the list; under a new id if that one is
+    //  taken.
+    static DebuggerAction  GetAddWatchAt           (int id, const std::string & expression, CommandMode mode);
     static DebuggerAction  GetEnterWord            (Word address, const std::string & value, CommandMode mode);
     static DebuggerAction  GetEnterWord            (Word address, Word value, CommandMode mode);
     static DebuggerAction  GetEnterByte            (Word address, const std::string & value, CommandMode mode);
@@ -247,6 +255,10 @@ public:
     //  Step into, over and out, run to cursor, run one frame and the step
     //  back keys: the actions that need a paused machine.
     static bool  IsStepAction (DebuggerKeySchemes::Action action);
+
+    //  Run, reverse run and run to cursor: the actions after which the
+    //  machine runs, whose key pauses it while it runs.
+    static bool  IsRunAction  (DebuggerKeySchemes::Action action);
 
 private:
     static DebuggerAction  Make         (DebugVerb verb, const std::string & appleWinLine, CommandMode mode);

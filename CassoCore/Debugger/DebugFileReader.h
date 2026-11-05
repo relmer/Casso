@@ -50,7 +50,7 @@ private:
     static std::string       GetString      (const Fields & fields, std::string_view key);
     static std::vector<int>  GetIdList      (const Fields & fields, std::string_view key);
     static bool              TryParseNumber (std::string_view text, uint64_t & value);
-    static bool              TryParseListingLine (std::string_view line, uint32_t & address, uint32_t & byteCount, bool & hasLineNumber);
+    static bool              TryParseListingLine (std::string_view line, uint32_t & address, std::vector<Byte> & bytes, bool & hasLineNumber);
 
     static void     ReadRecord (std::string_view keyword, const Fields & fields, DebugFile & file);
     static HRESULT  Validate   (const DebugFile & file, std::string & error);

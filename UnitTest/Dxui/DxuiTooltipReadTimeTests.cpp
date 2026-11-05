@@ -28,6 +28,7 @@ public:
 
 
 
+        tip.SetHasLifetime (true);
         tip.RequestShow (RECT { 0, 0, 10, 10 }, text, 0);
         tip.Tick        (1000);
         shownMs = 1000;

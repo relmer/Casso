@@ -6,6 +6,7 @@ class MemoryAddressEntry;
 class MemoryBarCommands;
 class MemoryPane;
 class MemoryWindowGroup;
+class ToolbarLabelEntry;
 
 
 
@@ -34,7 +35,7 @@ public:
     bool                             IsOpen       () const { return m_isOpen; }
     void                             SetOpen      (bool isOpen) { m_isOpen = isOpen; }
 
-    std::wstring                     GetId               () const override;
+    const std::wstring             & GetId               () const override;
     std::wstring                     GetTitle            () const override;
     void                             CreateControls      () override;
     void                             Configure           () override;
@@ -51,6 +52,7 @@ public:
 private:
     MemoryWindowGroup                   & m_group;
     int                                   m_windowId = 0;
+    std::wstring                          m_id;
     DxuiHexView                         * m_view     = nullptr;
     std::unique_ptr<MemoryPane>           m_model;
     std::unique_ptr<DebuggerPaneFrame>    m_slot;
@@ -109,7 +111,7 @@ public:
     //  A window's menu on its bytes.
     void                                 AddWindowMenuItems (MemoryWindowPane & window, POINT clientPx, PaneMenuItems & items);
 
-    std::wstring                     GetId                  () const override { return L"memory-group"; }
+    const std::wstring             & GetId                  () const override { static const std::wstring  s_kId = L"memory-group"; return s_kId; }
     std::wstring                     GetTitle               () const override { return {}; }
     void                             CreateControls         () override;
     void                             Configure              () override;
@@ -131,8 +133,7 @@ public:
     bool                             RouteEditKey           (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
     bool                             OnMappedAction         (DebuggerKeySchemes::Action action, IDxuiControl * focused) override;
     bool                             SubmitTextBox          (DxuiTextInput * box) override;
-    const wchar_t                  * GetBarTip              (POINT clientPx, RECT & anchor) const override;
-    bool                             TryGetTip              (POINT clientPx, PaneTip & tip) override;
+    bool                             TryGetTipAt            (POINT clientPx, DxuiTip & tip);
 
 private:
     //  A Find's window, the bytes a match covers, the hit it is on, and the
@@ -162,6 +163,8 @@ private:
     void              ApplyResults     (const DebuggerViewSnapshot & snapshot);
     void              FindIn           (MemoryWindowPane * window);
     void              StepFind         (bool forward);
+    void              SetBarEntries    ();
+    void              ShowFindCount    (const std::wstring & text);
     void              FillSelection    (MemoryWindowPane * window);
     void              CopySelection    (MemoryWindowPane * window);
     void              CompareSelection (MemoryWindowPane * window);
@@ -172,6 +175,7 @@ private:
     DxuiTextInput                                                       * m_box       = nullptr;
     std::unique_ptr<MemoryBarCommands>                                    m_commands;
     std::unique_ptr<MemoryAddressEntry>                                   m_addressEntry;
+    std::unique_ptr<ToolbarLabelEntry>                                    m_findCount;      // "3 of 12" after a Find, at the bar's end
     std::vector<std::wstring>                                             m_history;
     MemoryWindowPane                                                    * m_active    = nullptr;
     std::wstring                                                          m_barPane;

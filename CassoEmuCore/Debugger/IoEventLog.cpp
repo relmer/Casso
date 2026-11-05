@@ -3,6 +3,7 @@
 #include "Debugger/IoEventLog.h"
 #include "Debugger/Reply.h"
 #include "Devices/Acia6551.h"
+#include "Devices/Ssi263.h"
 
 
 
@@ -181,6 +182,7 @@ void IoEventLog::FormatEntry (
 
     case IoEventKind::Speaker:
     case IoEventKind::ViaWrite:
+    case IoEventKind::SpeechWrite:
         line = std::format ("cycle {:>12}  {:>8}  ${:04X}  {}", entry.cycle, sinceText, entry.address, FormatEvent (entry));
         break;
 
@@ -227,6 +229,10 @@ std::string IoEventLog::FormatEvent (const IoEvent & entry)
 
     case IoEventKind::AyWrite:
         text = std::format ("Mockingboard chip {} AY R{:02} = ${:02X}", entry.chip + 1, entry.reg, entry.value);
+        break;
+
+    case IoEventKind::SpeechWrite:
+        text = FormatSpeechWrite (entry);
         break;
 
     case IoEventKind::SerialSettings:
@@ -348,6 +354,50 @@ std::string IoEventLog::FormatReceiveErrors (Byte errors)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventLog::FormatSpeechWrite
+//
+//  The value as the register's fields. The inflection register has I10-I3,
+//  and the rate register's low nibble has I11 and I2-I0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string IoEventLog::FormatSpeechWrite (const IoEvent & entry)
+{
+    constexpr Byte  kLowNibble = 0x0F;
+
+
+
+    switch (entry.reg)
+    {
+    case Ssi263::kRegDurationPhoneme:
+        return std::format ("SSI-263 phoneme ${:02X} {}, duration ${:X}",
+                            entry.value & Ssi263::kPhonemeMask,
+                            Ssi263::GetPhonemeName (entry.value),
+                            entry.value >> Ssi263::kDurationShift);
+
+    case Ssi263::kRegInflection:
+        return std::format ("SSI-263 inflection = ${:02X}", entry.value);
+
+    case Ssi263::kRegRateInflection:
+        return std::format ("SSI-263 rate ${:X}, inflection bits ${:X}", (entry.value & Ssi263::kRateMask) >> Ssi263::kRateShift, entry.value & kLowNibble);
+
+    case Ssi263::kRegCtlArtAmp:
+        return std::format ("SSI-263 power {}, articulation ${:X}, amplitude ${:X}",
+                            (entry.value & Ssi263::kCtl) != 0 ? "down" : "on",
+                            (entry.value & Ssi263::kArticMask) >> Ssi263::kArticShift,
+                            entry.value & Ssi263::kAmplitudeMask);
+
+    default:
+        return std::format ("SSI-263 filter = ${:02X}", entry.value);
+    }
 }
 
 

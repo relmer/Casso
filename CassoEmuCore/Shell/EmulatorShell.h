@@ -239,6 +239,9 @@ private:
     DxuiMessageResult  OnGesture       (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;
+
+    //  The drives' tip at a point in the client area, for the chrome's hit test.
+    bool               TryGetDriveTip  (POINT clientPx, DxuiTip & tip);
     DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
@@ -516,7 +519,17 @@ public:
     //  The window a modal goes over: the top-level window that owns the
     //  foreground window when that is an enabled window of this thread, such
     //  as the debugger window, else the fallback, the emulator window.
-    static HWND  ChooseDialogOwner (HWND foreground, HWND fallback);
+    //  DescribeDialogOwner reads those facts about the foreground window
+    //  from the system, so the choice is made from them alone.
+    struct DialogOwnerCandidate
+    {
+        HWND  rootOwner    = nullptr;
+        bool  isThisThread = false;
+        bool  isEnabled    = false;
+    };
+
+    static DialogOwnerCandidate  DescribeDialogOwner (HWND foreground);
+    static HWND                  ChooseDialogOwner   (const DialogOwnerCandidate & foreground, HWND fallback);
 
 private:
 

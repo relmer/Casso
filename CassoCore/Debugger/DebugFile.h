@@ -44,10 +44,11 @@ struct DebugSegment
 
 struct DebugSpan
 {
-    int       id      = 0;
-    int       segment = 0;
-    uint32_t  start   = 0;
-    uint32_t  size    = 0;
+    int                id      = 0;
+    int                segment = 0;
+    uint32_t           start   = 0;
+    uint32_t           size    = 0;
+    std::vector<Byte>  bytes;           // what was assembled there, where the file has it: a Merlin listing does
 };
 
 enum class DebugLineType

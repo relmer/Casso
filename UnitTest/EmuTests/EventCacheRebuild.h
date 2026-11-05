@@ -18,17 +18,35 @@
 //
 //  Checks a debug event log's cache against a rebuild of the whole of
 //  history on a scratch machine: each stretch's entries match the cache's
-//  one for one, padding and all.
+//  one for one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class EventCacheRebuild
 {
 public:
+    //  Field by field where the event type has an equality operator: an
+    //  IoEvent has padding bytes, which no field sets, so two equal events can
+    //  differ there, as they do under AddressSanitizer. The Disk II and input
+    //  events contain unions, and are compared byte for byte.
+    template <typename T>
+    static bool  IsSameEvent (const T & a, const T & b)
+    {
+        if constexpr (std::equality_comparable<T>)
+        {
+            return a == b;
+        }
+        else
+        {
+            return memcmp (&a, &b, sizeof (T)) == 0;
+        }
+    }
+
+
     template <typename T>
     static bool  IsSameEntry (const DebugEventEntry<T> & a, const DebugEventEntry<T> & b)
     {
-        return a.kind == b.kind && a.position == b.position && a.cycle == b.cycle && memcmp (&a.event, &b.event, sizeof (T)) == 0;
+        return a.kind == b.kind && a.position == b.position && a.cycle == b.cycle && IsSameEvent (a.event, b.event);
     }
 
 

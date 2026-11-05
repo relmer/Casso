@@ -111,8 +111,13 @@ public:
     // IDxuiControl. boundsDip is the FULL band rect (left..right x top..bottom)
     // rather than a center anchor: the strip fills the whole band and anchors
     // its two groups to the left and right edges.
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    void  Layout    (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Paint     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+
+    //  The strip's bounds, m_bounds rather than the base's, are under the
+    //  pointer, and a part's tip is the strip's, anchored on the strip.
+    bool  IsHitAt   (POINT pointPx) const override { return IsVisible() && PtInRect (&m_bounds, pointPx) != FALSE; }
+    bool  TryGetTip (POINT pointPx, DxuiTip & tip) const override;
 
 private:
     // Metrics (dp at 96 DPI; scaled per-DPI in Layout).

@@ -543,6 +543,7 @@ void MachineHost::AttachInputJournal()
 
 
     m_inputJournal.SetCycleSource    ((m_cpu != nullptr) ? m_cpu->GetCycleCounterPtr() : nullptr);
+    m_inputJournal.SetCycleBase      ((m_cpu != nullptr) ? m_cpu->GetCycleBasePtr() : nullptr);
     m_inputJournal.SetPositionSource (&m_position);
 
     if (m_refs.keyboard != nullptr)
