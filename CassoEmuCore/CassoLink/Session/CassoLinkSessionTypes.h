@@ -129,10 +129,12 @@ struct LinkOperation
 
     //  Krunch: every file's place before and after, in directory order, set
     //  once the directory is checked and then krunchPlanned. krunchTaken is set
-    //  by the first Krunch progress, and krunchMoved is the files moved so far.
+    //  by the first Krunch progress, krunchParts counts the ones after it, one
+    //  for each part moved, and krunchMoved is the files moved so far.
     std::vector<PascalKrunchMove>    krunchFiles;
     std::atomic<bool>                krunchPlanned { false };
     std::atomic<bool>                krunchTaken   { false };
+    std::atomic<int>                 krunchParts   { 0 };
     std::atomic<int>                 krunchMoved   { 0 };
 };
 

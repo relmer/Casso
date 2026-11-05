@@ -56,58 +56,117 @@ public:
     }
 
 
-    TEST_METHOD (Build_PartWayThroughAFile_ShowsItsOldPlaceAndThePartWritten)
+    //  B.DATA moves in parts of 4, 2 and 4 blocks, as tracks end at 24 and
+    //  16; C.DATA in two of 4, as a track ends at 24.
+    TEST_METHOD (SplitIntoParts_EndsEachPartAtATrackEnd)
     {
-        //  Half of the 18 blocks to move are moved: 9 of the first file's 10.
-        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), true, 50, 0);
+        std::vector<KrunchMap::Part>  parts = KrunchMap::SplitIntoParts (MakeFiles());
 
 
 
-        AssertCells (cells, 10, 9,  Cell::Writing);
-        AssertCells (cells, 19, 1,  Cell::Free);
+        Assert::AreEqual ((size_t) 5, parts.size());
+        Assert::AreEqual (4, parts[0].blocks);
+        Assert::AreEqual (2, parts[1].blocks);
+        Assert::AreEqual (24, parts[1].from);
+        Assert::AreEqual (14, parts[1].to);
+        Assert::AreEqual (4, parts[2].blocks);
+        Assert::AreEqual (2, parts[3].file);
+        Assert::AreEqual (44, parts[4].from);
+    }
+
+
+    TEST_METHOD (Build_LaysEachFilesNameAcrossItsBlocks)
+    {
+        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), false, 0, 0);
+
+
+
+        Assert::AreEqual (L'B', cells[20].letter);
+        Assert::AreEqual (L'.', cells[21].letter);
+        Assert::AreEqual (L'A', cells[25].letter);
+        Assert::AreEqual ((wchar_t) 0, cells[26].letter);
+        Assert::AreEqual ((wchar_t) 0, cells[20].activity);
+    }
+
+
+    TEST_METHOD (Build_PartWayThroughAFile_MarksThePartInFlight)
+    {
+        //  B.DATA's first part is written, and its second is in flight.
+        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), true, 1, 0);
+
+
+
+        AssertCells (cells, 10, 6,  Cell::Writing);
+        AssertCells (cells, 16, 4,  Cell::Free);
         AssertCells (cells, 20, 10, Cell::Reading);
         AssertCells (cells, 40, 8,  Cell::ToMove);
+
+        Assert::AreEqual ((wchar_t) 0, cells[10].activity);
+        Assert::AreEqual (L'B',        cells[10].letter);
+        Assert::AreEqual (L'W',        cells[14].activity);
+        Assert::AreEqual (L'W',        cells[15].activity);
+        Assert::AreEqual (L'R',        cells[24].activity);
+        Assert::AreEqual (L'R',        cells[25].activity);
+        Assert::AreEqual ((wchar_t) 0, cells[26].activity);
+    }
+
+
+    TEST_METHOD (Build_AfterAPartIsWritten_ShowsItsLettersAgain)
+    {
+        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), true, 2, 0);
+
+
+
+        Assert::AreEqual ((wchar_t) 0, cells[14].activity);
+        Assert::AreEqual (L'T',        cells[14].letter);
+        Assert::AreEqual (L'R',        cells[26].activity);
     }
 
 
     TEST_METHOD (Build_AfterAFileMoves_FreesItsOldPlace)
     {
-        //  14 of the 18 blocks are moved: the first file's 10, and 4 of the next.
-        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), true, 78, 1);
+        //  B.DATA's three parts and C.DATA's first are written.
+        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), true, 4, 1);
 
 
 
         AssertCells (cells, 10, 10, Cell::InPlace);
-        AssertCells (cells, 20, 4,  Cell::Writing);
-        AssertCells (cells, 24, 16, Cell::Free);
+        AssertCells (cells, 20, 8,  Cell::Writing);
+        AssertCells (cells, 28, 12, Cell::Free);
         AssertCells (cells, 40, 8,  Cell::Reading);
+
+        Assert::AreEqual (L'W', cells[24].activity);
+        Assert::AreEqual (L'R', cells[44].activity);
     }
 
 
     TEST_METHOD (Build_WhenTheKrunchEnds_ShowsEveryFilePackedFromTheStart)
     {
-        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), true, 100, 2);
+        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), true, 5, 2);
 
 
 
         AssertCells (cells, 0,  6,   Cell::System);
         AssertCells (cells, 6,  22,  Cell::InPlace);
         AssertCells (cells, 28, 252, Cell::Free);
+        Assert::AreEqual (L'C', cells[20].letter);
     }
 
 
     TEST_METHOD (Build_AMoveThatOverlapsItsOldPlace_ShowsTheWrittenPartOverIt)
     {
-        //  A file at 12 for 10 blocks moves to 6, over its first 4 old blocks.
-        std::vector<PascalKrunchMove>  files = { { 1, 12, 6, 10 } };
-        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (files, true, 80, 0);
+        //  A file at 12 for 10 blocks moves to 6 in parts of 2, 2 and 6, over
+        //  its first 4 old blocks; the third part is in flight.
+        std::vector<PascalKrunchMove>  files = { { 1, 12, 6, 10, "X" } };
+        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (files, true, 2, 0);
 
 
 
-        AssertCells (cells, 6,  8, Cell::Writing);
-        AssertCells (cells, 14, 8, Cell::Reading);
+        AssertCells (cells, 6,  10, Cell::Writing);
+        AssertCells (cells, 16, 6,  Cell::Reading);
+        Assert::AreEqual (L'W', cells[12].activity);
+        Assert::AreEqual (L'R', cells[16].activity);
     }
-
 
     TEST_METHOD (Counts_LeaveOutTheFilesThatStay)
     {
@@ -124,6 +183,7 @@ public:
         operation.krunchFiles   = MakeFiles();
         operation.krunchPlanned = true;
         operation.krunchTaken   = true;
+        operation.krunchParts   = 4;
         operation.krunchMoved   = 1;
         operation.progress      = 55;
         operation.state         = LinkOperationState::Running;
@@ -196,8 +256,9 @@ public:
         Assert::AreEqual (std::wstring (L"A.DATA: 4 blocks at 6 to 9, which stay in place"),     KrunchMapPanel::DescribeFile (files[0], Cell::InPlace));
         Assert::AreEqual (std::wstring (L"B.DATA: 10 blocks at 20 to 29, moving to 10 to 19"),   KrunchMapPanel::DescribeFile (files[1], Cell::ToMove));
         Assert::AreEqual (std::wstring (L"B.DATA: 10 blocks at 10 to 19, moved from 20 to 29"),  KrunchMapPanel::DescribeFile (files[1], Cell::InPlace));
-        Assert::AreEqual (2, KrunchMap::FindMovingFile (files, 1));
-        Assert::AreEqual (-1, KrunchMap::FindMovingFile (files, 2));
+        Assert::AreEqual (1, KrunchMap::FindMovingFile (files, 0));
+        Assert::AreEqual (2, KrunchMap::FindMovingFile (files, 3));
+        Assert::AreEqual (2, KrunchMap::FindMovingFile (files, 5));
     }
 
     //  At 96 DPI on a panel 640 wide, a cell is 14 pixels with a gap of 2,

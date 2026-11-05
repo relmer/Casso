@@ -285,7 +285,7 @@ void KrunchMapPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    PaintMap (painter, theme, grid);
+    PaintMap (painter, text, theme, grid);
 
     top = grid.top + rows * (grid.cell + grid.gap) + grid.gap;
 
@@ -324,18 +324,20 @@ void KrunchMapPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //  KrunchMapPanel::PaintMap
 //
 //  Block 0 is at the top left, a row a kColumns blocks. A map with no
-//  blocks yet is drawn as free space. Each run of the file under the
+//  blocks yet is drawn as free space. Each block has its file's letter, or R
+//  or W while its part is read or written. Each run of the file under the
 //  pointer is outlined after every cell is filled, so no cell covers an
 //  outline.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void KrunchMapPanel::PaintMap (IDxuiPainter & painter, const IDxuiTheme & theme, const Grid & grid) const
+void KrunchMapPanel::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & grid) const
 {
-    float  pitch   = grid.cell + grid.gap;
-    float  outline = m_scaler.ToPxf (kOutlineDip);
-    int    file    = -1;
-    int    start   = -1;
+    HRESULT  hr      = S_OK;
+    float    pitch   = grid.cell + grid.gap;
+    float    outline = m_scaler.ToPxf (kOutlineDip);
+    int      file    = -1;
+    int      start   = -1;
 
 
 
@@ -347,6 +349,30 @@ void KrunchMapPanel::PaintMap (IDxuiPainter & painter, const IDxuiTheme & theme,
         float             width = IsJoinedRight (block) ? pitch : grid.cell;
 
         painter.FillRect (x, y, width, grid.cell, GetColor (cell.cell));
+    }
+
+    for (int block = 0; block < (int) m_view.blocks.size() && block < KrunchMap::kBlocks; block++)
+    {
+        const KrunchMap::Block  & cell    = m_view.blocks[(size_t) block];
+        wchar_t                   glyph   = (cell.activity != 0) ? cell.activity : cell.letter;
+        wchar_t                   chars[] = { glyph, 0 };
+
+        if (glyph == 0)
+        {
+            continue;
+        }
+
+        hr = text.DrawString (chars,
+                              grid.left + (block % KrunchMap::kColumns) * pitch,
+                              grid.top  + (block / KrunchMap::kColumns) * pitch,
+                              grid.cell,
+                              grid.cell,
+                              (cell.activity != 0) ? s_kBusyColor : s_kLetterColor,
+                              grid.cell * kLetterScale,
+                              s_kpszLetterFont,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                              (cell.activity != 0) ? DxuiFontWeight::Bold : DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     if (m_hoverBlock >= 0 && (size_t) m_hoverBlock < m_view.blocks.size())
@@ -457,7 +483,8 @@ std::wstring KrunchMapDialog::DescribeStatus (const LinkOperation & operation, b
     bool                ready  = operation.krunchPlanned;
     int                 total  = ready ? KrunchMap::CountFilesToMove (operation.krunchFiles) : 0;
     int                 moved  = operation.krunchMoved;
-    int                 moving = ready ? KrunchMap::FindMovingFile (operation.krunchFiles, moved) : -1;
+    int                 moving = ready ? KrunchMap::FindMovingFile (operation.krunchFiles, operation.krunchParts) : -1;
+    int                 order  = 0;
     std::wstring        name;
 
 
@@ -493,12 +520,20 @@ std::wstring KrunchMapDialog::DescribeStatus (const LinkOperation & operation, b
         return L"Stopping after the file being moved.";
     }
 
+    for (int i = 0; i <= moving; i++)
+    {
+        if (operation.krunchFiles[(size_t) i].to != operation.krunchFiles[(size_t) i].from)
+        {
+            order++;
+        }
+    }
+
     if (moving >= 0)
     {
         name = TextEncoding::NarrowToWide (operation.krunchFiles[(size_t) moving].name);
     }
 
-    return std::format (L"Moving {}, file {} of {}.", name, std::min (moved + 1, total), total);
+    return std::format (L"Moving {}, file {} of {}.", name, std::max (order, 1), total);
 }
 
 
@@ -535,13 +570,13 @@ KrunchMapPanel::View KrunchMapDialog::BuildView (const LinkOperation & operation
     if (state == LinkOperationState::Done)
     {
         view.percent = 100;
-        view.blocks  = KrunchMap::Build (operation.krunchFiles, true, 100, KrunchMap::CountFilesToMove (operation.krunchFiles));
+        view.blocks  = KrunchMap::Build (operation.krunchFiles, true, (int) KrunchMap::SplitIntoParts (operation.krunchFiles).size(), KrunchMap::CountFilesToMove (operation.krunchFiles));
     }
     else
     {
         bool  moving = operation.krunchTaken && state == LinkOperationState::Running;
 
-        view.blocks = KrunchMap::Build (operation.krunchFiles, moving, view.percent, operation.krunchMoved);
+        view.blocks = KrunchMap::Build (operation.krunchFiles, moving, operation.krunchParts, operation.krunchMoved);
     }
 
     return view;

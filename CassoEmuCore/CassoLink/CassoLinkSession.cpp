@@ -1321,6 +1321,11 @@ HRESULT CassoLinkSession::RunKrunch (LinkOperation & operation)
     crc = CassoLinkCodec::ComputeCrc (directory);
     hr  = m_host->Krunch ((Byte) operation.drive, crc, [&] (Byte percent, Byte filesMoved)
     {
+        if (operation.krunchTaken)
+        {
+            operation.krunchParts++;
+        }
+
         operation.krunchTaken = true;
         operation.krunchMoved = filesMoved;
         Report (operation, percent);

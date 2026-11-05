@@ -47,7 +47,12 @@ public:
     static constexpr float  kOutlineDip     = 2.0f;
     static constexpr int    kLegendColumns  = 3;
 
-    static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
+    static constexpr float  kLetterScale    = 0.8f;   // a block's letter, to the cell's side
+
+    static constexpr const wchar_t *  s_kpszFont       = L"Segoe UI";
+    static constexpr const wchar_t *  s_kpszLetterFont = L"Consolas";
+    static constexpr uint32_t         s_kLetterColor   = 0xFFFFFFFF;
+    static constexpr uint32_t         s_kBusyColor     = 0xFFFFFF40;   // R and W, yellow over the white letters
 
     //  The colors of the Windows 95 Disk Defragmenter's map, which don't
     //  change with the theme, so the map reads as that one does.
@@ -75,7 +80,7 @@ private:
 
     Grid  GetGrid       () const;
     int   FindBlockAt   (POINT pointPx) const;
-    void  PaintMap      (IDxuiPainter & painter, const IDxuiTheme & theme, const Grid & grid) const;
+    void  PaintMap      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & grid) const;
     void  PaintLegend   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     bool  IsJoinedRight (int block) const;
 

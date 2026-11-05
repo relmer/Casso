@@ -10,19 +10,20 @@
 //
 //  KrunchMap::Build
 //
-//  Blocks the krunch has moved, by the percentage, are counted through the
-//  moved files first, so the rest are the part of the file being moved
-//  already written. A moved file's old place is free apart from where a new
-//  place covers it, as new places are never past old ones.
+//  A file is being moved from its first part written until its entry is
+//  rewritten: its old place is read, and its parts written so far and the
+//  part in flight are at its new place. Its old place is free once its entry
+//  is rewritten, apart from where a new place covers it, as new places are
+//  never past old ones. Each place has the file's name across its blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<KrunchMap::Block> KrunchMap::Build (const std::vector<PascalKrunchMove> & files, bool started, int percent, int filesMoved)
+std::vector<KrunchMap::Block> KrunchMap::Build (const std::vector<PascalKrunchMove> & files, bool started, int partsDone, int filesMoved)
 {
     std::vector<Block>  blocks (kBlocks);
-    int                 done      = CountBlocksToMove (files) * std::clamp (percent, 0, 100) / 100;
+    std::vector<Part>   parts     = SplitIntoParts (files);
+    size_t              partIndex = 0;
     int                 moveIndex = 0;
-    int                 moved     = 0;
 
 
 
@@ -30,34 +31,99 @@ std::vector<KrunchMap::Block> KrunchMap::Build (const std::vector<PascalKrunchMo
 
     for (size_t i = 0; i < files.size(); i++)
     {
-        const PascalKrunchMove  & file  = files[i];
-        int                       index = (int) i;
+        const PascalKrunchMove  & file    = files[i];
+        int                       index   = (int) i;
+        int                       first   = (int) partIndex;
+        int                       written = 0;
+        const Part              * busy    = nullptr;
 
         if (file.to == file.from)
         {
-            Fill (blocks, file.to, file.blocks, Cell::InPlace, index);
+            Fill   (blocks, file.to, file.blocks, Cell::InPlace, index);
+            Letter (blocks, file.to, file.blocks, file.name);
             continue;
+        }
+
+        for ( ; partIndex < parts.size() && parts[partIndex].file == index; partIndex++)
+        {
+            if ((int) partIndex < partsDone)
+            {
+                written += parts[partIndex].blocks;
+            }
+            else if ((int) partIndex == partsDone)
+            {
+                busy = &parts[partIndex];
+            }
         }
 
         if (moveIndex < filesMoved)
         {
-            Fill (blocks, file.to, file.blocks, Cell::InPlace, index);
-            moved += file.blocks;
+            Fill   (blocks, file.to, file.blocks, Cell::InPlace, index);
+            Letter (blocks, file.to, file.blocks, file.name);
         }
-        else if (started && moveIndex == filesMoved)
+        else if (started && first <= partsDone)
         {
-            Fill (blocks, file.from, file.blocks,                               Cell::Reading, index);
-            Fill (blocks, file.to,   std::clamp (done - moved, 0, file.blocks), Cell::Writing, index);
+            int  covered = written + ((busy != nullptr) ? busy->blocks : 0);
+
+            Fill   (blocks, file.from, file.blocks, Cell::Reading, index);
+            Letter (blocks, file.from, file.blocks, file.name);
+            Fill   (blocks, file.to,   covered,     Cell::Writing, index);
+            Letter (blocks, file.to,   covered,     file.name);
+
+            if (busy != nullptr)
+            {
+                MarkBusy (blocks, busy->from, busy->blocks, L'R');
+                MarkBusy (blocks, busy->to,   busy->blocks, L'W');
+            }
         }
         else
         {
-            Fill (blocks, file.from, file.blocks, Cell::ToMove, index);
+            Fill   (blocks, file.from, file.blocks, Cell::ToMove, index);
+            Letter (blocks, file.from, file.blocks, file.name);
         }
 
         moveIndex++;
     }
 
     return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KrunchMap::SplitIntoParts
+//
+//  A part ends at the first track end at either place, as one read and one
+//  write each cover a track at most.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<KrunchMap::Part> KrunchMap::SplitIntoParts (const std::vector<PascalKrunchMove> & files)
+{
+    std::vector<Part>  parts;
+
+
+
+    for (size_t i = 0; i < files.size(); i++)
+    {
+        const PascalKrunchMove  & file = files[i];
+        int                       done = 0;
+
+        while (file.to != file.from && done < file.blocks)
+        {
+            int  from   = file.from + done;
+            int  to     = file.to   + done;
+            int  blocks = std::min ({ kBlocksPerTrack - from % kBlocksPerTrack, kBlocksPerTrack - to % kBlocksPerTrack, file.blocks - done });
+
+            parts.push_back ({ (int) i, from, to, blocks });
+            done += blocks;
+        }
+    }
+
+    return parts;
 }
 
 
@@ -110,28 +176,25 @@ int KrunchMap::CountFilesToMove (const std::vector<PascalKrunchMove> & files)
 //
 //  KrunchMap::FindMovingFile
 //
+//  The file of the part in flight; once every part is written, the last
+//  file moved, until its entry is rewritten.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-int KrunchMap::FindMovingFile (const std::vector<PascalKrunchMove> & files, int filesMoved)
+int KrunchMap::FindMovingFile (const std::vector<PascalKrunchMove> & files, int partsDone)
 {
-    int  moveIndex = 0;
-    int  found     = -1;
+    std::vector<Part>  parts = SplitIntoParts (files);
+    int                found = -1;
 
 
 
-    for (size_t i = 0; i < files.size() && found < 0; i++)
+    if (partsDone >= 0 && (size_t) partsDone < parts.size())
     {
-        if (files[i].to == files[i].from)
-        {
-            continue;
-        }
-
-        if (moveIndex == filesMoved)
-        {
-            found = (int) i;
-        }
-
-        moveIndex++;
+        found = parts[(size_t) partsDone].file;
+    }
+    else if (!parts.empty() && partsDone >= 0)
+    {
+        found = parts.back().file;
     }
 
     return found;
@@ -145,7 +208,8 @@ int KrunchMap::FindMovingFile (const std::vector<PascalKrunchMove> & files, int 
 //
 //  KrunchMap::Fill
 //
-//  Blocks past the map are left out.
+//  Blocks past the map are left out. A filled block's letter and activity
+//  are cleared.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,5 +220,50 @@ void KrunchMap::Fill (std::vector<Block> & ioBlocks, int first, int count, Cell 
 
 
 
-    std::fill (ioBlocks.begin() + start, ioBlocks.begin() + std::max (start, end), Block { cell, file });
+    std::fill (ioBlocks.begin() + start, ioBlocks.begin() + std::max (start, end), Block { cell, file, 0, 0 });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KrunchMap::Letter
+//
+//  The name from the place's first block, as much of it as fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KrunchMap::Letter (std::vector<Block> & ioBlocks, int first, int count, const std::string & name)
+{
+    int  letters = std::min (count, (int) name.size());
+
+
+
+    for (int j = 0; j < letters; j++)
+    {
+        if (first + j >= 0 && (size_t) (first + j) < ioBlocks.size())
+        {
+            ioBlocks[(size_t) (first + j)].letter = (wchar_t) (unsigned char) name[(size_t) j];
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KrunchMap::MarkBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KrunchMap::MarkBusy (std::vector<Block> & ioBlocks, int first, int count, wchar_t activity)
+{
+    for (int block = std::max (first, 0); block < first + count && (size_t) block < ioBlocks.size(); block++)
+    {
+        ioBlocks[(size_t) block].activity = activity;
+    }
 }
