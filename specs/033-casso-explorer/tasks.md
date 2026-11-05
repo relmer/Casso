@@ -1586,8 +1586,8 @@ Session 2026-11-04. In this order; T079 and T082 follow.
 - [ ] T393 Look up any other property by its display name through the Windows property system, and read it only for a file whose other terms match, in `CassoEmuCore/Seams/ShellVerbs/Win32ShellSearch.cpp`. Tests in `ScenarioTests/CassoExplorerShellSearchTests.cpp` (FR-138)
 - [ ] T394 Match regular expressions with `std::wregex`, ignoring case, and report one that isn't valid in the infobar (FR-139)
 - [ ] T395 Turn File contents on by default, match each word against the name or the contents, add `content:`, and read a file's contents only when they can change the result (FR-140)
-- [ ] T396 Pick each file's contents reader from its registered IFilter: skip the null filter, read the plain-text filter's files directly, extract text through other filters but .zip's, and read a file with no filter when its first 4 KB are text. Scenario tests on real .txt, .md, UTF-16 .log, .docx, .pdf, .jpg and .dll files (FR-141)
-- [ ] T397 Run IFilters in a separate process, with a 10-second limit per file, so a filter that fails or hangs skips that file (FR-141)
+- [X] T396 Pick each file's contents reader from its registered IFilter: skip the null filter, read the plain-text filter's files directly, extract text through other filters but .zip's, and read a file with no filter when its first 4 KB are text. Scenario tests on real .txt, .md, UTF-16 .log, .docx, .pdf, .jpg and .dll files (FR-141)
+- [X] T397 Run IFilters in a separate process, with a 10-second limit per file, so a filter that fails or hangs skips that file (FR-141)
 - [ ] T398 List results as they are found, with Stop at any time, and highlight only terms that must appear in a name (FR-142)
 - [ ] T399 Route each query to the index or the walk by FR-137 in `Win32ShellSearch::RunSearch`, and list the walked syntax in the search box's help
 - [ ] T400 Measure a search of C:\Windows with File contents off against the Windows search folder, and a contents search's first result (SC-044, SC-045)

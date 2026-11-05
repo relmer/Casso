@@ -374,6 +374,8 @@
     <ClCompile Include="CassoExplorer\Model\SearchQuery.cpp" />
     <ClCompile Include="CassoExplorer\Model\WozProperties.cpp" />
     <ClCompile Include="Seams\Win32ShellItemVerbs.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32FileContents.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32FilterHost.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32RecycleBin.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellMenus.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellNamespace.cpp" />
@@ -889,6 +891,8 @@
     <ClInclude Include="CassoExplorer\Model\WozProperties.h" />
     <ClInclude Include="Seams\IShellItemVerbs.h" />
     <ClInclude Include="Seams\Win32ShellItemVerbs.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32FileContents.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32FilterHost.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32RecycleBin.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellMenus.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellNamespace.h" />

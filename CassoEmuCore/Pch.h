@@ -114,6 +114,8 @@
 #include <shobjidl.h>
 #include <xmllite.h>
 #include <searchapi.h>
+#include <filter.h>
+#include <filterr.h>
 #include <oledb.h>
 #include <oledberr.h>
 #include <commoncontrols.h>
