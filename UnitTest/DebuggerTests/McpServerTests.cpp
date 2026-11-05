@@ -326,7 +326,12 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (response.HasObject ("result", result) && result->HasArray ("tools", tools));
+            if (!response.HasObject ("result", result) || !result->HasArray ("tools", tools) || tools == nullptr)
+            {
+                Assert::Fail (L"tools/list has a result with tools");
+                return;
+            }
+
             Assert::IsTrue (tools->GetArraySize() > 20);
 
             for (size_t i = 0; i < tools->GetArraySize(); i++)

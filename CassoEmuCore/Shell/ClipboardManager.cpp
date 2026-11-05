@@ -167,7 +167,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * mainRam, const Byte
             // main. Main is read from its buffer when there is one, because
             // the bus follows the CPU's banking: under RAMRD, or 80STORE with
             // PAGE2, the text page it serves is aux.
-            if (eighty && (col & 1) == 0)
+            if (eighty && (col & 1) == 0 && auxRam != nullptr)
             {
                 ch = auxRam[addr];
             }

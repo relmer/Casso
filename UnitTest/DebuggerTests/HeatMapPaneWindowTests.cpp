@@ -743,7 +743,11 @@ namespace HeatMapPaneWindowTests
                 }
             }
 
-            Assert::IsTrue (found, L"a cell of the map lies under the slid-out console");
+            if (!found || view == nullptr)
+            {
+                Assert::Fail (L"a cell of the map lies under the slid-out console");
+                return;
+            }
 
             hover.address = target;
             view->SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));

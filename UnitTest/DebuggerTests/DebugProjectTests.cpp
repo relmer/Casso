@@ -113,11 +113,13 @@ namespace DebuggerTests
         //  programs among them; its BASIC programs are passed over.
         TEST_METHOD (OnlyATablesLastSymbolFileIsLoadedAgain)
         {
-            SessionRig                  first;
-            SessionRig                  second;
-            DebugProject                project;
-            std::vector<std::string>    failures;
-            Word                        address = 0;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();   // heap: two rigs overflow the frame (C6262)
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+            Word                           address   = 0;
 
 
 
