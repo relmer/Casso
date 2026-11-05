@@ -3,6 +3,7 @@
 #include "EhmTestHelper.h"
 #include "FixtureProvider.h"
 #include "TestMachine.h"
+#include "TextScreenScraper.h"
 #include "Core/TextEncoding.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/CassoLinkHost.h"
@@ -167,6 +168,26 @@ public:
 
             AssertSucceeded (machine.GetDiskStore().GetImage (6, drive)->Serialize (bytes));
             return bytes;
+        }
+
+        //  The status screen, after a few frames to draw it.
+        std::string  Screen()
+        {
+            std::string  text;
+
+
+
+            for (int frame = 0; frame < 30; frame++)
+            {
+                machine.RunCycles (kFrame);
+            }
+
+            for (const std::string & row : TextScreenScraper::Scrape (machine))
+            {
+                text += row + "\n";
+            }
+
+            return text;
         }
 
         bool  HasActivity (const char * text)
@@ -447,5 +468,29 @@ public:
 
         rig.AssertTrackMatches (rig.Read (1, kTrack, AllSectors()));
         rig.AssertApplied();
+    }
+
+
+
+    //  An ERR line in the history marks the last operation's drive: its bar
+    //  has FAILED over it until the next operation on the drive.
+    TEST_METHOD (AFailedOperation_HasFailedOverItsBar_UntilTheNextOnTheDrive)
+    {
+        Rig  rig;
+
+
+
+        rig.Connect();
+        rig.AssertTrackMatches (rig.Read (1, kTrack, AllSectors()));
+        Assert::IsTrue (rig.Screen().find ("FAILED") == std::string::npos);
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendLog (12, 34, "ERR READING D1"); }));
+        Assert::IsTrue (rig.Screen().find ("FAILED") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()).c_str());
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendLog (12, 35, "OK READING D2"); }));
+        Assert::IsTrue (rig.Screen().find ("FAILED") != std::string::npos, L"an OK line doesn't clear it");
+
+        rig.AssertTrackMatches (rig.Read (1, kTrack, AllSectors()));
+        Assert::IsTrue (rig.Screen().find ("FAILED") == std::string::npos, L"the drive's next operation clears it");
     }
 };

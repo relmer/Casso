@@ -1137,7 +1137,10 @@ bgarmed:
         sta err
         sec
         rts
-drvok:  jsr motoron
+drvok:  ldx drive               ; the drive's FAILED, cleared by its next operation
+        lda #0
+        sta barfail-1,x
+        jsr motoron
         jsr seek
         clc
         rts
@@ -1334,9 +1337,6 @@ sdora:  ora AUXA0,x             ; the third's array, set before each pass
         ifdef W5100
         jsr putb
         else
-sdwait: lda ACIASTAT            ; set for the port at startup
-        and #TDRE
-        beq sdwait
         ifdef FAULTS
         lda fltact              ; through putb while a fault is armed
         beq sdwait
@@ -1344,14 +1344,17 @@ sdwait: lda ACIASTAT            ; set for the port at startup
         jsr putb
         jmp sdsent
         endif
+sdwait: lda ACIASTAT            ; set for the port at startup
+        and #TDRE
+        beq sdwait
         lda sbyte
 sdsta:  sta ACIADATA            ; set for the port at startup
-        endif
-        eor peor
-        sta peor
         ifdef FAULTS
 sdsent:
         endif
+        endif
+        eor peor
+        sta peor
         lda sbyte
         eor crchi
         stx tmp2
@@ -1871,9 +1874,6 @@ pbsta:  sta ACIADATA
         rts
         endif
 
-
-; ---------------------------------------------------------------------------
-; Tables
 ; putb: a byte through the chip. In Debug builds, the fault armed for the
 ; operation is applied to it first. A, X and Y are saved and restored.
         ifdef FAULTS
@@ -1982,6 +1982,9 @@ fltorig: .byte 0
 putb    = putraw
         endif
 
+
+; ---------------------------------------------------------------------------
+; Tables
 ; ---------------------------------------------------------------------------
 
 ; mktables: INVTAB from the write table, and the CRC table.
@@ -2365,14 +2368,14 @@ rthit:  lda #0
         lda PENDING,x
         beq rtnext
         stx sector
-        jsr rawslot
-        jsr readraw
-        bcs rtnext
         ifdef FAULTS
         lda #FLTUNREAD          ; the sector passed by as if not found
         jsr fltmatch
         beq rtnext
         endif
+        jsr rawslot
+        jsr readraw
+        bcs rtnext
         ldx sector
         lda #0
         sta PENDING,x
@@ -3517,10 +3520,13 @@ sdidle: lda pcsum+1
 sdput:  jmp puttext
 
 ; drawbar: drive X + 1's bar, with the track and sector over it when A is
-; nonzero, and the percentage at the right edge. A drive with no share yet and
-; no text has an empty row.
+; nonzero, or FAILED after the drive's operation failed, and the percentage
+; at the right edge. A drive with no share yet and no text has an empty row.
 drawbar: sta barover
         stx barx
+        lda barfail,x           ; FAILED is drawn as the track and sector are
+        ora barover
+        sta barover
         lda barrowlo,x
         sta scr
         lda barrowhi,x
@@ -3566,7 +3572,16 @@ dbover: lda bartop
         bit wide
         bpl dbcol
         ldy #BARTEXTW
-dbcol:  lda #'T'
+dbcol:  ldx barx
+        lda barfail,x
+        beq dbtrack
+        lda #<ofailed
+        sta ptr
+        lda #>ofailed
+        sta ptr+1
+        jsr puttext
+        jmp dbtext
+dbtrack: lda #'T'
         jsr putch
         lda track
         jsr putdec2
@@ -3609,6 +3624,7 @@ barx:    .byte 0
 bartop:  .byte 0
 barcells: .byte 0               ; putch inverts left of this column
 bardrawn: .byte $FF, $FF        ; each bar's cells filled when last drawn
+barfail: .byte 0, 0              ; each drive's last operation failed, until its next
 barwidth: .byte BARCELLS
 ; The cells filled at each percentage.
 barcelltab:
@@ -3641,6 +3657,8 @@ owrite:  .text "WRITING"
 oformat: .text "FORMATTING"
          .byte 0
 overify: .text "VERIFYING"
+         .byte 0
+ofailed: .text "FAILED"
          .byte 0
 
 ; percent: the whole operation's percentage in A, plo plus index / count of
@@ -3759,6 +3777,8 @@ pcok:   lda pcflag
         lda #0
         sta barpct
         sta barpct+1
+        sta barfail
+        sta barfail+1
         jsr stplain
         jmp pcnew
 pcback: lda silent
@@ -3942,7 +3962,24 @@ lgtext: cpx lenlo
         jsr putch
         inx
         bne lgtext
-lgdone: jmp main
+lgdone: lda PKTBUF+2            ; ERR: the last operation's drive failed
+        cmp #'E'
+        bne lgmain
+        lda PKTBUF+3
+        cmp #'R'
+        bne lgmain
+        lda PKTBUF+4
+        cmp #'R'
+        bne lgmain
+        ldx drive
+        dex
+        cpx #2
+        bcs lgmain
+        lda #1
+        sta barfail,x
+        lda #0
+        jsr drawbar
+lgmain: jmp main
 
 ; put2: A, 0 to 99, as two digits from Y. X is overwritten.
 put2:   ldx #0
