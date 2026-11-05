@@ -956,6 +956,7 @@
     <ClCompile Include="Dxui\DxuiThemePaneColorsTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
+    <ClCompile Include="Dxui\DxuiRectMorphTests.cpp" />
     <ClCompile Include="Dxui\DxuiSlideTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />

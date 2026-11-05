@@ -37,6 +37,10 @@ namespace DxuiDockSiteAutoHideTests
         MockDxuiTextRenderer  text;
         MockDxuiTheme         theme;
 
+        static constexpr int64_t  kStartMs = 5000;
+
+        int64_t               nowMs = kStartMs;
+
         Rig()
         {
             DxuiPaneLayout  layout = DxuiPaneLayout::MakeSingle (L"code");
@@ -71,6 +75,28 @@ namespace DxuiDockSiteAutoHideTests
 
             return POINT { (tab.left + tab.right) / 2, (tab.top + tab.bottom) / 2 };
         }
+
+        //  Runs the item of a pane's Dock To menu with the given label.
+        bool RunDockTo (const std::wstring & pane, const std::wstring & label)
+        {
+            for (const DxuiDockSite::MenuItem & item : site.GetDockToMenu (pane))
+            {
+                if (item.label == label)
+                {
+                    return item.action();
+                }
+            }
+
+            return false;
+        }
+
+        //  A clock the test sets, and animations on regardless of the host.
+        void UseTestClock()
+        {
+            site.SetClock             ([this] { return nowMs; });
+            site.SetAnimationsEnabled (true);
+        }
+
 
         //  The slid-out pane's paint calls of one kind in one color.
         size_t CountSlidCalls (RecordedPaintKind kind, uint32_t argb)
@@ -195,6 +221,121 @@ namespace DxuiDockSiteAutoHideTests
             Assert::IsTrue   (rig.CountSlidCalls (RecordedPaintKind::FillRect,           accent) > 0, L"with the focus, the runs in the accent");
             Assert::IsTrue   (rig.CountSlidCalls (RecordedPaintKind::OutlineRoundedRect, accent) > 0, L"and the rounded corners");
             Assert::AreEqual ((size_t) 0, rig.CountSlidCalls (RecordedPaintKind::OutlineRoundedRect, border), L"none left in the border color");
+        }
+
+
+        //  Pinning removes the pane from its group at once, and a rect
+        //  shrinks from the group into the pane's edge tab, drawn in the drag
+        //  layer. One more frame is due as the morph ends, to clear it.
+        TEST_METHOD (PinningShrinksARectFromThePaneIntoItsEdgeTab)
+        {
+            Rig   rig;
+            RECT  from = {};
+            RECT  to   = {};
+            RECT  at   = {};
+            bool  drew = false;
+
+
+
+            rig.UseTestClock();
+            Assert::IsTrue (rig.site.TryGetPaneGroupRect (L"regs", from));
+            Assert::IsTrue (rig.RunDockTo (L"regs", L"Auto hide"));
+
+            to = rig.site.GetEdgeTabRect (L"regs");
+            Assert::IsTrue (rig.site.GetPaneLayout().IsAutoHidden (L"regs"), L"the layout changes at once");
+            Assert::IsTrue (rig.site.IsMorphing());
+
+            at = rig.site.GetMorphRect();
+            Assert::AreEqual (from.left,  at.left,  L"the rect starts at the pane's group");
+            Assert::AreEqual (from.right, at.right);
+
+            rig.painter.Reset();
+            Assert::IsTrue (rig.site.HasDragLayer());
+            rig.site.PaintDragLayer (rig.painter, rig.text, rig.theme);
+
+            for (const RecordedPaintCall & call : rig.painter.Calls())
+            {
+                drew = drew || (call.kind == RecordedPaintKind::FillRect && call.argb == rig.theme.DockPreview());
+            }
+
+            Assert::IsTrue (drew, L"in the drop preview's shade");
+
+            rig.nowMs = Rig::kStartMs + DxuiRectMorph::kDurationMs - 1;
+            at        = rig.site.GetMorphRect();
+            Assert::AreEqual (to.left,   at.left,   L"and ends at the edge tab");
+            Assert::AreEqual (to.top,    at.top);
+            Assert::AreEqual (to.right,  at.right);
+            Assert::AreEqual (to.bottom, at.bottom);
+            Assert::IsTrue   (rig.site.TickAnimation(), L"a frame is due mid-morph");
+
+            rig.nowMs = Rig::kStartMs + DxuiRectMorph::kDurationMs;
+            Assert::IsFalse  (rig.site.IsMorphing());
+            Assert::IsFalse  (rig.site.HasDragLayer());
+            Assert::IsTrue   (rig.site.TickAnimation(), L"and one as it ends");
+            Assert::IsFalse  (rig.site.TickAnimation(), L"and no more");
+        }
+
+
+        //  Unpinning docks the pane at once, and a rect grows from its edge
+        //  tab to its group.
+        TEST_METHOD (UnpinningGrowsARectFromTheEdgeTabToThePane)
+        {
+            Rig   rig;
+            RECT  from = rig.site.GetEdgeTabRect (L"console");
+            RECT  to   = {};
+            RECT  at   = {};
+
+
+
+            rig.UseTestClock();
+            Assert::IsTrue (rig.RunDockTo (L"console", L"Dock"));
+            Assert::IsTrue (rig.site.GetPaneLayout().IsDocked (L"console"), L"the layout changes at once");
+            Assert::IsTrue (rig.site.TryGetPaneGroupRect (L"console", to));
+
+            at = rig.site.GetMorphRect();
+            Assert::AreEqual (from.left, at.left, L"the rect starts at the edge tab");
+            Assert::AreEqual (from.top,  at.top);
+
+            rig.nowMs = Rig::kStartMs + DxuiRectMorph::kDurationMs - 1;
+            at        = rig.site.GetMorphRect();
+            Assert::AreEqual (to.left,   at.left, L"and ends at the pane's group");
+            Assert::AreEqual (to.bottom, at.bottom);
+        }
+
+
+        //  With animations off nothing morphs, and the layout changes as it
+        //  does with them on.
+        TEST_METHOD (WithAnimationsOffPinningDoesNotMorph)
+        {
+            Rig  rig;
+
+
+
+            rig.site.SetAnimationsEnabled (false);
+            Assert::IsTrue  (rig.RunDockTo (L"regs", L"Auto hide"));
+            Assert::IsTrue  (rig.site.GetPaneLayout().IsAutoHidden (L"regs"));
+            Assert::IsFalse (rig.site.IsMorphing());
+            Assert::IsFalse (rig.site.HasDragLayer());
+            Assert::IsFalse (rig.site.TickAnimation());
+        }
+
+
+        //  The first tab of a group, pinned and then unpinned, is the first
+        //  tab again rather than the last.
+        TEST_METHOD (UnpinningPutsTheTabBackInItsPlace)
+        {
+            Rig  rig;
+
+
+
+            (void) rig.site.EditPaneLayout().TabWithAt (L"regs", L"code", 0);
+            rig.site.Relayout();
+            Assert::IsTrue (rig.site.GetPaneLayout().GetGroup (L"code") == std::vector<std::wstring> { L"regs", L"code" });
+
+            Assert::IsTrue (rig.RunDockTo (L"regs", L"Auto hide"));
+            Assert::IsTrue (rig.RunDockTo (L"regs", L"Dock"));
+
+            Assert::IsTrue (rig.site.GetPaneLayout().GetGroup (L"code") == std::vector<std::wstring> { L"regs", L"code" }, L"first again");
         }
     };
 }

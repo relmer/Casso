@@ -1149,6 +1149,9 @@ void DebuggerWindow::RenderFrame()
 
     isAnimating = m_timelineScrub.IsScrubbing() || isAnimating;
 
+    //  A pane pinned or unpinned morphs between its place and its edge tab.
+    isAnimating = (m_dockSite != nullptr && m_dockSite->TickAnimation()) || isAnimating;
+
     m_floating->Sync();
     m_barHost.Sync();
     SyncCommandBarFloatTip();

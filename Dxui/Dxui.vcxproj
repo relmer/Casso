@@ -167,6 +167,7 @@
     <ClCompile Include="Core\DxuiDisplay.cpp" />
     <ClCompile Include="Core\DxuiPanel.cpp" />
     <ClCompile Include="Core\DxuiPanZoom.cpp" />
+    <ClCompile Include="Core\DxuiRectMorph.cpp" />
     <ClCompile Include="Core\DxuiSlide.cpp" />
     <ClCompile Include="Core\DxuiSystemSettings.cpp" />
     <ClCompile Include="Core\DxuiStackLayout.cpp" />
@@ -288,6 +289,7 @@
     <ClInclude Include="Core\DxuiDisplay.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />
+    <ClInclude Include="Core\DxuiRectMorph.h" />
     <ClInclude Include="Core\DxuiSlide.h" />
     <ClInclude Include="Core\DxuiSystemSettings.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
