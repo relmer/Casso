@@ -1229,10 +1229,6 @@ ActionsTypes::Outcome ActionsAppleDrive::CreateImageFromAppleDrive (const std::s
 {
     ActionsTypes::Outcome    outcome;
     CassoLinkConnections   * links     = m_actions.m_browser.GetLinks();
-    VolumeListing            listing;
-    VolumeKind               kind      = VolumeKind::Unknown;
-    HRESULT                  result    = S_OK;
-    std::string              message;
     std::wstring             name;
     std::wstring             stem;
     std::wstring             extension;
@@ -1242,14 +1238,7 @@ ActionsTypes::Outcome ActionsAppleDrive::CreateImageFromAppleDrive (const std::s
 
 
 
-    //  The volume's name, when the drive's catalog has been read.
-    if (!links->TryGetListing (link, drive, std::string(), listing, kind, result, message) || FAILED (result))
-    {
-        listing = VolumeListing();
-        kind    = VolumeKind::Unknown;
-    }
-
-    name      = MakeDriveImageName (listing, kind, 6, drive);
+    name      = GetDriveImageName (links, link, 6, drive);
     stem      = name.substr (0, name.rfind (L'.'));
     extension = name.substr (name.rfind (L'.'));
     path      = hostFolder + L"\\" + name;
@@ -1355,6 +1344,34 @@ std::wstring ActionsAppleDrive::MakeDriveImageName (const VolumeListing & listin
     std::erase_if (name, [] (wchar_t ch) { return wcschr (L"\\/:*?\"<>|", ch) != nullptr; });
 
     return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::GetDriveImageName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ActionsAppleDrive::GetDriveImageName (CassoLinkConnections * links, const std::string & link, int slot, int drive)
+{
+    VolumeListing  listing;
+    VolumeKind     kind    = VolumeKind::Unknown;
+    HRESULT        result  = S_OK;
+    std::string    message;
+
+
+
+    if (links == nullptr || !links->TryGetListing (link, drive, std::string(), listing, kind, result, message) || FAILED (result))
+    {
+        listing = VolumeListing();
+        kind    = VolumeKind::Unknown;
+    }
+
+    return MakeDriveImageName (listing, kind, slot, drive);
 }
 
 

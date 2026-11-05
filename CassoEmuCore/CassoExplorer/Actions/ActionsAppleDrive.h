@@ -85,6 +85,10 @@ public:
     //  .po, a DOS 3.3 volume as "DOS 3.3 volume 254.dsk", or the drive.
     static std::wstring  MakeDriveImageName (const VolumeListing & listing, VolumeKind kind, int slot, int drive);
 
+    //  MakeDriveImageName for a linked drive, from the catalog last read, or
+    //  from the drive's number before a catalog is read.
+    static std::wstring  GetDriveImageName (CassoLinkConnections * links, const std::string & link, int slot, int drive);
+
     ActionsTypes::Outcome  SaveLinkToDisk   (const std::string & link, int drive, const std::wstring & tempFolder);
 
     ActionsTypes::Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);

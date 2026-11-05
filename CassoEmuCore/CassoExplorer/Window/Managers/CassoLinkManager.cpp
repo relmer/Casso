@@ -216,7 +216,7 @@ void CassoLinkManager::ReadDiskToImage (const Location & drive, bool forceVerify
     spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.woz;*.nib;*.nb2" },
                               FileDialogFilter { L"All files (*.*)", L"*.*" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = L"disk.dsk";
+    spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
     spec.defaultExtension = L"dsk";
     spec.askToReplace     = false;
     spec.title            = std::format (L"Create image from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));

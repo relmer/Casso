@@ -468,10 +468,6 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (
     std::wstring                             link;
     int                                      slot    = 0;
     int                                      drive   = 0;
-    VolumeListing                            listing;
-    VolumeKind                               kind    = VolumeKind::Unknown;
-    HRESULT                                  result  = S_OK;
-    std::string                              message;
     DragPayload::Descriptor                  descriptor;
     std::vector<uint8_t>                     id ((driveId.size() + 1) * sizeof (wchar_t), 0);
     std::shared_ptr<std::vector<uint8_t>>    group;
@@ -483,13 +479,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (
         return formats;
     }
 
-    if (!links->TryGetListing (TextEncoding::WideToNarrow (link), drive, std::string(), listing, kind, result, message) || FAILED (result))
-    {
-        listing = VolumeListing();
-        kind    = VolumeKind::Unknown;
-    }
-
-    descriptor.relativePath = ActionsAppleDrive::MakeDriveImageName (listing, kind, slot, drive);
+    descriptor.relativePath = ActionsAppleDrive::GetDriveImageName (links, TextEncoding::WideToNarrow (link), slot, drive);
     group                   = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor ({ descriptor }));
 
     memcpy (id.data(), driveId.c_str(), driveId.size() * sizeof (wchar_t));

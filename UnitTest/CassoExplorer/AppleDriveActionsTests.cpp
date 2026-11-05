@@ -779,6 +779,26 @@ public:
 
 
 
+    //  GetDriveImageName returns the volume's name once the drive's catalog is
+    //  read, and the drive's number before then.
+    TEST_METHOD (GetDriveImageName_UsesTheCatalogRead)
+    {
+        Rig  rig;
+
+
+
+        Assert::AreEqual (std::wstring (L"Slot 6 Drive 2.dsk"), ActionsAppleDrive::GetDriveImageName (nullptr,          "Test", 6, 2));
+        Assert::AreEqual (std::wstring (L"Slot 6 Drive 2.dsk"), ActionsAppleDrive::GetDriveImageName (rig.links.get(), "Test", 6, 2), L"no catalog read yet");
+
+        rig.Open (2);
+        Assert::AreEqual (std::wstring (L"LINKED.po"), ActionsAppleDrive::GetDriveImageName (rig.links.get(), "Test", 6, 2));
+
+        rig.Open (1);
+        Assert::AreEqual (std::wstring (L"DOS 3.3 volume 254.dsk"), ActionsAppleDrive::GetDriveImageName (rig.links.get(), "Test", 6, 1));
+    }
+
+
+
 
     TEST_METHOD (CheckLinkDisk_FindsTheLinkBootDisk)
     {
