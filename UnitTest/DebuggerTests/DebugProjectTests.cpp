@@ -107,6 +107,39 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, second.rig.session.GetSymbolLoads().size());
         }
 
+        //  Loading another debug file switches to its project, and the project
+        //  switched from is saved after that load, so a debug file's project neither
+        //  saves another debug file nor loads one again: two projects that did
+        //  loaded each other's file over and over.
+        TEST_METHOD (ADebugFilesProjectNeitherSavesNorLoadsAnotherDebugFile)
+        {
+            std::unique_ptr<SessionRig>    held     = std::make_unique<SessionRig>();   // heap: the rig overflows the frame (C6262)
+            SessionRig                   & s        = *held;
+            DebugProject                   one;
+            DebugProject                   two;
+            std::vector<std::string>       failures;
+
+
+
+            s.rig.files.WriteAllText (L"C:\\Work\\one.dbg", "version\tmajor=2,minor=0\nsym\tid=0,name=\"ONE\",addrsize=absolute,val=0x6000,type=lab\n");
+            s.rig.files.WriteAllText (L"C:\\Work\\two.dbg", "version\tmajor=2,minor=0\nsym\tid=0,name=\"TWO\",addrsize=absolute,val=0x7000,type=lab\n");
+
+            s.rig.RunOk ("SYMUSER LOAD one.dbg");
+            one.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetDebugFileKey(), "one.dbg" };
+            s.rig.RunOk ("SYMUSER LOAD two.dbg");
+            two.scope = { ProjectScopeKind::DebugFile, s.rig.session.GetDebugFileKey(), "two.dbg" };
+
+            one.CaptureEngine (s.rig.session);
+            Assert::IsTrue (one.symbolFiles.empty(), L"one.dbg's project, saved with two.dbg loaded, doesn't list two.dbg");
+
+            two.CaptureEngine (s.rig.session);
+            Assert::AreEqual ((size_t) 1, two.symbolFiles.size(), L"two.dbg's project lists its own debug file");
+
+            two.symbolFiles = { { SymbolTableId::User, L"C:\\Work\\one.dbg", 0 } };
+            two.ApplyEngine (s.rig.session, failures);
+            Assert::IsTrue (s.rig.session.GetDebugFilePath() == L"C:\\Work\\two.dbg", L"a project saved that way doesn't load the other file");
+        }
+
         //  A load replaces its table, so the session has one load a table
         //  and a project replays only a table's last file. A project from
         //  before listed every file the table had been loaded from, BASIC
