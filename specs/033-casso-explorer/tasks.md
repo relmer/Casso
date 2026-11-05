@@ -1594,3 +1594,18 @@ Session 2026-11-04. In this order; T079 and T082 follow.
 - [X] T401 Close the preview pane when no file is selected and open it again when one is, in `CassoEmuCore/CassoExplorer/Window/Panes/` (FR-143)
 - [X] T402 Add Disk properties in `CassoEmuCore/CassoExplorer/WozPropertiesDialog.h/.cpp`: an INFO tab and a META tab, the creator as read-only text, WOZ 1's missing fields disabled, and the machine and RAM choices from the WOZ reference (FR-133)
 - [X] T403 Add Disk properties to a .woz file's menu in the list and the tree, list a .woz image's WOZ info and WOZ metadata above its preview's catalog, and add Edit metadata to its preview's toolbar, opening Disk properties on its META tab (FR-133)
+
+## Phase 34: Link faults and recovery
+
+Session 2026-11-04. T079 and T082 follow.
+
+- [X] T404 Send a request again when its reply arrives damaged, add an error message in words for a failure after the resends, and add the error code to its log row, in `CassoEmuCore/CassoLink/CassoLinkHost.h` and `CassoLinkSession.cpp`. Tests in `UnitTest/CassoLink/CassoLinkResendTests.cpp` (FR-144)
+- [X] T405 Omit Idle polls and repeated Readies from the log in `CassoEmuCore/CassoLink/CassoLinkHost.cpp`, and set the log folder in `CassoExplorerShell.cpp` instead of each window. Tests in `UnitTest/CassoLink/CassoLinkTraceTests.cpp` (FR-145)
+- [ ] T406 Parse a list of faults and pick the bytes they change in `CassoEmuCore/CassoLink/LinkFaultPlan.h/.cpp`, and apply it to what the PC sends in `CassoEmuCore/Seams/FaultInjectingByteStream.h/.cpp`, installed by `Win32ByteStreamFactory` in Debug builds alone. Tests in `UnitTest/CassoLink/LinkFaultPlanTests.cpp` (FR-146)
+- [ ] T407 Change the Nth byte of the cassette audio before it is modulated, in `CassoEmuCore/CassoLink/LinkAudioBootstrap.cpp`, in Debug builds alone (FR-146)
+- [ ] T408 Add the Fault command to `CassoEmuCore/CassoLink/Apple/Program.s` under `ifdef FAULTS`, assembled with FAULTS by `LinkProgram` in Debug builds alone, and `CassoLinkHost::ArmFault` to send it (FR-147)
+- [ ] T409 Add the Debug menu that arms a fault for the next operation, and `--link-faults`, to Casso Explorer, and log each injected fault (FR-148)
+- [ ] T410 Scenario tests for each fault from the PC, over the //c's serial port, a ][+'s Super Serial Card, a //e's Uthernet II and a ][+'s cassette input, in `ScenarioTests/CassoLinkFaultTests.cpp` (FR-149)
+- [ ] T411 Scenario tests for each fault from the Apple, over the same machines, in `ScenarioTests/CassoLinkFaultTests.cpp` (FR-149)
+- [ ] T412 Draw FAILED over a drive's bar after an ERR line, until the next operation on the drive, in `Program.s`, and raise the program's version (FR-150)
+- [ ] T413 Arm each fault on the real //c over serial and compare the result with its scenario test (SC-046)

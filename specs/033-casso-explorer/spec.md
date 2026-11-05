@@ -572,8 +572,12 @@ hardware.
 - Q: How are the edits saved? -> A: In place: INFO's fields are changed in the file, META is replaced, and the header CRC is computed again. No other byte changes. A WOZ 1 image has no boot sector format, compatible hardware or required RAM, so those fields are disabled. An image whose CRC doesn't match its bytes isn't changed, since saving would hide the damage.
 - Q: How are META's lists and illegal characters handled? -> A: In the reference, | separates a list's values, and no value can have a |, a tab or a line break. Developer, and a custom key whose value is a list, have a field for each value; Developer has a blank one after them. Requires is the machine boxes, a family a row. A field with a |, a tab or a line break, typed or pasted, has a message under it about that character, and OK and Apply are disabled until every field can be saved. Every standard key is written, empty when it has no value, and none can be deleted. The Language list has English first and the rest alphabetically. The image date's day is typed or chosen from a calendar, and its time of day chosen from hour, minute and second lists, with AM and PM on a 12-hour clock, in local time; it is saved as RFC 3339 in UTC. Custom keys, the ones the reference doesn't define, are listed with their keys as the file has them, can be renamed, deleted and added, and no two can have the same key.
 
-## User Scenarios & Testing *(mandatory)*
+- Q: What does a link do when a reply arrives damaged? -> A: It sends the request again, as it does for a request the Apple didn't take, up to five times. Every link operation can be repeated. Once the resends run out, the error is that replies from the Apple arrived damaged on every attempt, and the log row has the error code.
+- Q: How are a link's recovery paths tested? -> A: With faults injected in Debug builds alone, on emulated machines in the scenario tests and on real hardware from Casso Explorer. A fault from the PC flips or drops a byte the PC sends: over serial, over the network, in the serial bootstrap, or in the cassette audio, where the byte is changed before it is modulated. A fault from the Apple is armed by a Fault command, which the Apple's program has only when it is assembled for a Debug build. It flips, drops or stalls a byte of a packet the Apple sends, reports a sector as unreadable, sends a sector's data changed with a CRC computed for the change, or sends a wrong CRC in reply to Read CRCs. Each injected fault is logged.
+- Q: How is a fault armed on real hardware? -> A: From a Debug-only menu in Casso Explorer, for the next operation, or with `--link-faults` at launch, for a list of them. Release builds have neither, and their program has no Fault command.
+- Q: What is on the Apple's screen after an operation fails? -> A: The drive's bar stays where it stopped, with FAILED over it, until the next operation on that drive.
 
+## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
 A user opens Casso Explorer, expands the Casso root in the tree, sees the folders
@@ -2136,6 +2140,13 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-141**: A file's contents MUST be read according to its registered IFilter as in Session 2026-11-04, with filters run in a separate process. A filter that fails or takes longer than 10 seconds MUST cost that file only.
 - **FR-142**: Search results MUST be listed as they are found. Only terms that must appear in a name MUST be highlighted.
 - **FR-143**: The preview pane MUST close when no file is selected and MUST open again when one is, while View's Preview pane is on.
+- **FR-144**: A request whose reply arrives damaged MUST be sent again, up to five times. A failure after the resends MUST have an error message in words, and its log row MUST have its error code.
+- **FR-145**: Idle polls MUST NOT be written to the CassoLink log, and a Ready MUST be written only when it differs from the last one written. Tests MUST NOT write to the user's log.
+- **FR-146**: A Debug build MUST be able to flip or drop the Nth byte the PC sends over serial, over TCP, in the serial bootstrap and in the cassette audio. A Release build MUST NOT.
+- **FR-147**: The Apple's program, assembled for a Debug build, MUST take a Fault command that arms one fault in what the Apple sends next: a flipped, dropped or stalled byte at an offset in the Nth packet of a command, a sector reported as unreadable, a sector's data changed with a CRC that matches the change, or a wrong CRC in a Read CRCs reply. A Release build's program MUST NOT have the command.
+- **FR-148**: A Debug build of Casso Explorer MUST arm a fault for the next operation from a Debug menu, and a list of them from `--link-faults` at launch. Each injected fault MUST be logged.
+- **FR-149**: Each fault kind MUST have a scenario test on an emulated machine that checks the recovery, over the //c's serial port, a ][+'s Super Serial Card, a //e's Uthernet II and a ][+'s cassette input.
+- **FR-150**: After an operation fails, FAILED MUST be drawn over that drive's bar on the Apple's screen until the next operation on the drive.
 
 ### Key Entities
 
@@ -2318,6 +2329,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **SC-043**: A likely copy-protected disk doesn't take more than one and a half times a standard read, and with verified writes on, a track damaged after it was written is reported by the final comparison.
 - **SC-044**: A search of C:\Windows with File contents off returns the same files as the Windows search folder for the same name condition, in no more than a quarter of its time.
 - **SC-045**: A search with File contents on lists its first result within 2 seconds of its folder being walked, and finds a word in a .txt, a .md, a UTF-16 .log and a .docx, but not in a .dll.
+- **SC-046**: Each fault kind recovers, or fails with a message in words, in its scenario test, and the same fault armed on a real //c over serial has the same result.
 
 ## Assumptions
 
