@@ -745,6 +745,25 @@ bool ShellDebugger::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapsh
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OpenDebuggerFile
+//
+//  UI thread. A console link opens its file in File Explorer, at the file's
+//  folder with the file selected. Another place to open it in, chosen by a
+//  setting, is added here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::OpenDebuggerFile (const std::wstring & path)
+{
+    m_host.ShowFileInFolder (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OpenDebugChannel
 //
 //  CPU thread. The window's commands are run for it here, with their text

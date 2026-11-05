@@ -43,6 +43,7 @@ public:
     IFileSystem           & GetUiFileSystem     () override;
     IHostDialogs          & GetHostDialogs      () override;
     WindowPlacementProfile  GetWindowPlacements () override;
+    void                    ShowFileInFolder    (const std::wstring & path) override;
     void                    SaveSettings        () override;
     void                    PersistSwitchState  (const char * key, bool value) override;
     HeldHostInputs        & GetHeldHostInputs   () override;

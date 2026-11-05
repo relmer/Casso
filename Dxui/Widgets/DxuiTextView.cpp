@@ -32,6 +32,8 @@ void DxuiTextView::SetRows (std::vector<Row> rows)
     m_scoped     = false;
     m_userAnchor = Position();
     m_userCaret  = Position();
+    m_hoverRow   = -1;
+    m_pressRow   = -1;
     m_highlights.clear();
 
     Rebuild();
@@ -109,6 +111,10 @@ void DxuiTextView::SetRowsDroppingFront (std::vector<Row> rows, int dropped)
     }
 
     m_scoped = m_scoped && moveUp (m_scopeStart) && moveUp (m_scopeEnd);
+
+    //  A link under the pointer or pressed moves up with its row.
+    m_hoverRow = (m_hoverRow >= dropped) ? m_hoverRow - dropped : -1;
+    m_pressRow = (m_pressRow >= dropped) ? m_pressRow - dropped : -1;
 
     std::erase_if (m_highlights, [&moveUp] (FindMatch & match) { return !moveUp (match.start); });
 
@@ -1946,7 +1952,7 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     int                      selFrom  = (line.row == from.row) ? from.offset : 0;
     int                      selTo    = (line.row == to.row)   ? to.offset   : INT_MAX;
     uint32_t                 selArgb  = theme.SelectionBackground();
-    std::vector<uint32_t>    colors   = GetRowColors (row);
+    std::vector<uint32_t>    colors   = GetRowColors (row, theme);
     int                      gutter   = GetGutterPx();
     uint32_t                 litText  = GetFindHighlightText (theme);
     uint32_t                 litEdge  = (litText == (theme.Foreground() | 0xFF000000u)) ? theme.TextViewBackground() : theme.Foreground();
@@ -2034,6 +2040,263 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         FillHighlights (painter, theme, y, column, GetCellBase (row, last) + line.start, line.length, line.row, litEdge);
         DrawRun (text, theme, font, y, column, GetCellBase (row, last) + line.start, run, selected, selFrom, selTo, colors, lit, litText);
     }
+
+    if (line.row == m_hoverRow)
+    {
+        PaintLinkUnderline (painter, theme, lineIndex, y);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::PaintLinkUnderline
+//
+//  The hovered link's underline on one drawn line, under the part of the
+//  link drawn on that line, at the bottom of the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::PaintLinkUnderline (IDxuiPainter & painter, const IDxuiTheme & theme, int lineIndex, int y) const
+{
+    const Line  & line      = m_lines[(size_t) lineIndex];
+    const Row   & row       = m_rows[(size_t) line.row];
+    const Span  * span      = nullptr;
+    int           flat      = 0;
+    int           length    = 0;
+    int           column    = 0;
+    int           first     = 0;
+    int           end       = 0;
+    int           spanFlat  = 0;
+    float         thickness = m_scaler.ToPxf (1.0f);
+
+
+
+    if (m_hoverSpan < 0 || m_hoverSpan >= (int) row.spans.size())
+    {
+        return;
+    }
+
+    span = &row.spans[(size_t) m_hoverSpan];
+
+    if (!span->isLink || !GetLinePart (row, line, span->cell, flat, length, column))
+    {
+        return;
+    }
+
+    spanFlat = GetCellBase (row, span->cell) + span->start;
+    first    = (std::max) (spanFlat, flat);
+    end      = (std::min) (spanFlat + span->length, flat + length);
+
+    if (end <= first)
+    {
+        return;
+    }
+
+    painter.FillRect ((float) GetTextLeft() + (float) (column + first - flat) * m_cellAdvance,
+                      (float) (y + m_cellHeightPx - m_textTopPx) - thickness,
+                      (float) (end - first) * m_cellAdvance,
+                      thickness,
+                      (span->argb != 0) ? span->argb : theme.TextColor (DxuiTextRole::Link).argb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLinePart
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::GetLinePart (const Row & row, const Line & line, int cell, int & outFlat, int & outLength, int & outColumn) const
+{
+    int  last = (int) row.cells.size() - 1;
+
+
+
+    if (cell < 0 || cell > last)
+    {
+        return false;
+    }
+
+    if (cell == last)
+    {
+        outFlat   = GetCellBase (row, last) + line.start;
+        outLength = line.length;
+        outColumn = GetLineColumn (row, line);
+        return true;
+    }
+
+    if (!line.first)
+    {
+        return false;
+    }
+
+    outFlat   = GetCellBase (row, cell);
+    outLength = (int) row.cells[(size_t) cell].size();
+    outColumn = GetCellStart (row, cell);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::TryGetCharAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::TryGetCharAt (POINT point, int & outLine, int & outFlat, int & outColumn) const
+{
+    const RECT  & bounds    = GetBounds();
+    int           y         = point.y - (int) m_boundsDip.top - m_scaler.ToPx (s_kPadDip);
+    int           x         = point.x - GetTextLeft();
+    int           lineIndex = m_topLine;
+    int           column    = 0;
+    bool          inside    = point.x >= bounds.left && point.x < bounds.right && point.y >= bounds.top && point.y < bounds.bottom;
+    const Line  * line      = nullptr;
+    const Row   * row       = nullptr;
+
+
+
+    if (!inside || m_lines.empty() || m_cellWidthPx <= 0 || m_cellHeightPx <= 0 || y < 0 || x < 0 ||
+        point.x < GetTextBaseLeft() || m_topLine >= (int) m_lines.size() || IsOverScrollbar (point))
+    {
+        return false;
+    }
+
+    while (lineIndex + 1 < (int) m_lines.size() && GetLineOffsetPx (lineIndex + 1) <= y)
+    {
+        lineIndex++;
+    }
+
+    if (y >= GetLineOffsetPx (lineIndex) + GetLineHeightPx (lineIndex))
+    {
+        return false;
+    }
+
+    column = (int) ((float) x / m_cellAdvance);
+    line   = &m_lines[(size_t) lineIndex];
+    row    = &m_rows[(size_t) line->row];
+
+    for (int c = 0; c < (int) row->cells.size(); c++)
+    {
+        int  flat   = 0;
+        int  length = 0;
+        int  start  = 0;
+
+
+
+        if (GetLinePart (*row, *line, c, flat, length, start) && column >= start && column < start + length)
+        {
+            outLine   = lineIndex;
+            outFlat   = flat + column - start;
+            outColumn = column;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::TryGetLinkAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::TryGetLinkAt (POINT point, int & outRow, int & outSpan, RECT & outRect) const
+{
+    int            lineIndex = 0;
+    int            flat      = 0;
+    int            column    = 0;
+    int            top       = 0;
+    const Line   * line      = nullptr;
+    const Row    * row       = nullptr;
+
+
+
+    if (!TryGetCharAt (point, lineIndex, flat, column))
+    {
+        return false;
+    }
+
+    line = &m_lines[(size_t) lineIndex];
+    row  = &m_rows[(size_t) line->row];
+    top  = (int) m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + GetLineOffsetPx (lineIndex);
+
+    for (int s = 0; s < (int) row->spans.size(); s++)
+    {
+        const Span  & span     = row->spans[(size_t) s];
+        int           spanFlat = GetCellBase (*row, span.cell) + span.start;
+        int           partFlat = 0;
+        int           length   = 0;
+        int           start    = 0;
+        int           first    = 0;
+        int           end      = 0;
+
+
+
+        if (!span.isLink || flat < spanFlat || flat >= spanFlat + span.length || !GetLinePart (*row, *line, span.cell, partFlat, length, start))
+        {
+            continue;
+        }
+
+        first   = (std::max) (spanFlat, partFlat);
+        end     = (std::min) (spanFlat + span.length, partFlat + length);
+        outRow  = line->row;
+        outSpan = s;
+        outRect = RECT { (LONG) ((float) GetTextLeft() + (float) (start + first - partFlat) * m_cellAdvance),
+                         (LONG) top,
+                         (LONG) ((float) GetTextLeft() + (float) (start + end - partFlat) * m_cellAdvance),
+                         (LONG) (top + GetLineHeightPx (lineIndex)) };
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetHoverPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::SetHoverPoint (POINT point)
+{
+    int   row     = -1;
+    int   span    = -1;
+    RECT  rect    = {};
+    bool  changed = false;
+
+
+
+    if (!TryGetLinkAt (point, row, span, rect))
+    {
+        row  = -1;
+        span = -1;
+    }
+
+    changed     = row != m_hoverRow || span != m_hoverSpan;
+    m_hoverRow  = row;
+    m_hoverSpan = span;
+
+    return changed;
 }
 
 
@@ -2139,8 +2402,8 @@ int DxuiTextView::GetTextLeft() const
 //
 //  DxuiTextView::GetCursorForPoint
 //
-//  The I-beam over the text, where a press selects; the arrow over the
-//  gutter and the scroll bars.
+//  The I-beam over the text, where a press selects; IDC_HAND over a link;
+//  the arrow over the gutter and the scroll bars.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2148,12 +2411,20 @@ LPCWSTR DxuiTextView::GetCursorForPoint (POINT clientPx) const
 {
     const RECT  & bounds = GetBounds();
     bool          inside = clientPx.x >= bounds.left && clientPx.x < bounds.right && clientPx.y >= bounds.top && clientPx.y < bounds.bottom;
+    int           row    = -1;
+    int           span   = -1;
+    RECT          rect   = {};
 
 
 
     if (!inside || clientPx.x < GetTextBaseLeft() || IsOverScrollbar (clientPx))
     {
         return nullptr;
+    }
+
+    if (TryGetLinkAt (clientPx, row, span, rect))
+    {
+        return IDC_HAND;
     }
 
     return IDC_IBEAM;
@@ -2324,9 +2595,10 @@ int DxuiTextView::GetPadLeftPx() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
+std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row, const IDxuiTheme & theme) const
 {
     std::vector<uint32_t>  colors;
+    uint32_t               link   = theme.TextColor (DxuiTextRole::Link);
 
 
 
@@ -2339,12 +2611,15 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
 
     for (const Span & span : row.spans)
     {
-        int  base   = GetCellBase (row, span.cell);
-        int  length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
+        int       base   = GetCellBase (row, span.cell);
+        int       length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
+        uint32_t  argb   = (span.argb == 0 && span.isLink) ? link : span.argb;
 
-        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length && span.argb != 0; i++)
+
+
+        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length && argb != 0; i++)
         {
-            colors[(size_t) (base + i)] = span.argb;
+            colors[(size_t) (base + i)] = argb;
         }
     }
 
@@ -2441,15 +2716,21 @@ void DxuiTextView::FillSelectedRange (IDxuiPainter & painter, int y, int column,
 //  A press places both ends of the selection, or moves only the caret with
 //  Shift, and a drag moves the caret, scrolling past either edge. A second
 //  press at the same place within the double-click time selects the word.
+//  A release on the link the press began on, with nothing selected, is a
+//  click on the link.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
 {
-    POINT     point   = ev.positionDip;
-    int64_t   nowMs   = (int64_t) GetTickCount64();
-    bool      handled = false;
-    bool      twice   = false;
+    POINT     point    = ev.positionDip;
+    int64_t   nowMs    = (int64_t) GetTickCount64();
+    bool      handled  = false;
+    bool      twice    = false;
+    int       linkRow  = -1;
+    int       linkSpan = -1;
+    RECT      linkRect = {};
+    bool      isOnLink = false;
     Position  pos;
 
 
@@ -2508,6 +2789,9 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
             m_lastClick   = pos;
 
             m_wordDrag = twice;
+            isOnLink   = !twice && !ev.shift && TryGetLinkAt (point, linkRow, linkSpan, linkRect);
+            m_pressRow  = isOnLink ? linkRow  : -1;
+            m_pressSpan = isOnLink ? linkSpan : -1;
 
             //  A double-click selects the word, and dragging on from it
             //  takes whole words until the button comes up.
@@ -2602,6 +2886,14 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
         {
             m_dragging = false;
             handled    = true;
+            isOnLink   = m_pressRow >= 0 && !HasSelection() && TryGetLinkAt (point, linkRow, linkSpan, linkRect) &&
+                         linkRow == m_pressRow && linkSpan == m_pressSpan;
+            m_pressRow = -1;
+
+            if (isOnLink && m_onLink)
+            {
+                m_onLink (linkRow, linkSpan);
+            }
         }
 
         break;

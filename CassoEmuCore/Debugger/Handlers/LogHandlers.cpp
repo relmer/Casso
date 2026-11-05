@@ -208,5 +208,5 @@ void LogHandlers::Save (DebugSession & session, IIoEventSource & source, IoLogKi
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the log{}.", session.GetPathEcho (name, "to")) } };
+    reply.data = MessageData { { std::format ("Saved the log{}.", session.GetPathEcho (name, "to", reply)) } };
 }

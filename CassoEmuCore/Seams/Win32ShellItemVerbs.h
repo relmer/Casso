@@ -30,6 +30,7 @@ public:
     ~Win32ShellItemVerbs () override;
 
     HRESULT  Open                (HWND owner, const std::wstring & path) override;
+    HRESULT  ShowInFolder        (const std::wstring & path) override;
     HRESULT  GetOpenWithHandlers (const std::wstring & path, std::vector<Handler> & outHandlers) override;
     HRESULT  OpenWith            (HWND owner, const std::wstring & path, size_t handlerIndex) override;
     HRESULT  ChooseOtherApp      (HWND owner, const std::wstring & path) override;

@@ -253,6 +253,15 @@ or unless its reply is what it produces, as a search's matches are. **Show UI
 actions as commands** on the console output's context menu prints each action
 as the command that does the same, with its reply.
 
+A file that a console line mentions, such as the file `SYM LOAD`, `BLOAD`,
+`BSAVE` or `BPSAVE` read or wrote, is a link with the file's name in place of
+its full path. Its tip has the full path, and a click on it opens File
+Explorer at the file's folder with the file selected. When a debug project
+loads, the console has "Loaded the debug project for symbols-demo.dbg", where
+"project" is a link to the `.cassoproj` file and the debug file's name is a
+link to the debug file, or to the binary for a binary's project. The debug
+channel and batch mode write the full paths, without links.
+
 ### The status bar
 
 A status bar runs along the bottom of the window. From the right:

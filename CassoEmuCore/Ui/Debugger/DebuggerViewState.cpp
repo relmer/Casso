@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/BreakpointImport.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/InstructionEffect.h"
 
@@ -29,6 +30,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/HeatAccessJump.h"
 #include "Core/IParallelRunner.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 
 
@@ -2577,6 +2579,7 @@ Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string 
 //  The echo takes the prompt of the mode the line was typed in, as batch
 //  writes it, not the mode a MODE line leaves in force. A line sent with its
 //  own mode runs in that mode alone and leaves the session's as it was.
+//  The files the reply writes out are links in the console.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2595,6 +2598,8 @@ std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (
 
     m_suggestion = reply.suggestion;
     ++m_suggestionSerial;
+
+    ConsoleLinks::LinkFiles (reply.text, reply.files);
 
     lines.push_back (DebugSession::GetPrompt (mode) + line);
     lines.insert (lines.end(), reply.text.begin(), reply.text.end());
@@ -2687,7 +2692,10 @@ void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAc
 
     if (action.isEchoed || action.isResult || reply.hasNotice || reply.status != CommandStatus::Ok)
     {
-        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        for (const std::string & text : reply.text)
+        {
+            lines.push_back (ConsoleLinks::LinkFiles (text, reply.files));
+        }
     }
 }
 
@@ -2942,7 +2950,10 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
 
         if (isEchoed || reply.status != CommandStatus::Ok)
         {
-            lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+            for (const std::string & text : reply.text)
+            {
+                lines.push_back (ConsoleLinks::LinkFiles (text, reply.files));
+            }
         }
 
         return reply;
@@ -3002,6 +3013,7 @@ void DebuggerViewState::ImportBreakpoints (
 {
     IFileSystem  * files   = session.GetFileSystem();
     std::string    script;
+    std::string    line;
     int            skipped = 0;
     HRESULT        hr      = S_OK;
 
@@ -3013,8 +3025,9 @@ void DebuggerViewState::ImportBreakpoints (
     CHRF (hr, lines.push_back (std::format ("{} could not be read.", path)));
 
     skipped = BreakpointImport::Run (session, script, run);
-    lines.push_back (std::format ("Imported the breakpoints{}; skipped {} line{} that {} not breakpoints.",
-                                  session.GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are"));
+    line    = std::format ("Imported the breakpoints{}; skipped {} line{} that {} not breakpoints.",
+                           session.GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are");
+    lines.push_back (ConsoleLinks::LinkFiles (line, { TextEncoding::WideToNarrow (session.ResolvePath (path)) }));
 
 Error:
     return;

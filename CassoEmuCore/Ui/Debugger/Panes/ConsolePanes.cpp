@@ -6,6 +6,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/Source/SourcePathList.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
@@ -57,6 +58,7 @@ void ConsoleOutput::Configure()
     m_view->SetFollowEnd     (true);
     m_view->SetLineSpacing   (kLineSpacing);
     m_view->SetPaneTextInset (true);
+    m_view->SetOnLink        ([this] (int row, int span) { OpenLink (row, span); });
 }
 
 
@@ -177,7 +179,10 @@ void ConsoleOutput::Reflow()
 //  Each command's output is laid out apart from the rest, so a help
 //  listing's syntax column fits its rows at the view's width less the time
 //  stamps' column. The time stamp is the first cell of a line's first row;
-//  a help row laid out as two has an empty first cell on the second.
+//  a help row laid out as two has an empty first cell on the second. Rows
+//  are laid out from the text without its marks. A line laid out as one row
+//  gets its links; a line split into several, as a help listing's row is,
+//  doesn't get them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,6 +203,7 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
     }
 
     m_rowLines.clear();
+    m_rowLinks.clear();
 
     while (start < m_lines.size())
     {
@@ -212,17 +218,22 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
 
         for (size_t i = start; i < end; i++)
         {
-            texts.push_back (m_lines[i].text);
+            texts.push_back (ConsoleLinks::GetShownText (m_lines[i].text));
         }
 
         laidOut = CommandModeHelp::LayOutTabbedRows (texts, (std::max) (0, m_columns - (int) stampAt), sources);
 
         for (size_t r = 0; r < laidOut.size(); r++)
         {
-            const std::string  & text   = laidOut[r];
-            size_t               source = start + sources[r];
-            bool                 isLead = r == 0 || sources[r - 1] != sources[r];
-            DxuiTextView::Row    row;
+            const std::string                & text   = laidOut[r];
+            size_t                             source = start + sources[r];
+            bool                               isLead = r == 0 || sources[r - 1] != sources[r];
+            bool                               isOne  = text == texts[sources[r]];
+            DxuiTextView::Row                  row;
+            std::vector<ConsoleLinks::Link>    links;
+            std::vector<std::wstring>          paths;
+
+
 
             if (DebuggerViewState::IsCommandGap (text))
             {
@@ -232,12 +243,19 @@ std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
             }
             else
             {
-                row.cells      = { isLead ? m_lines[source].stamp : std::wstring(), TextEncoding::NarrowToWide (text) };
+                row.cells      = { isLead ? m_lines[source].stamp : std::wstring(), isOne ? ConsoleLinks::Parse (m_lines[source].text, links) : TextEncoding::NarrowToWide (text) };
                 row.wrapIndent = GetWrapIndent (text);
                 m_rowLines.push_back (isLead ? (int) source : -1);
             }
 
+            for (const ConsoleLinks::Link & link : links)
+            {
+                row.spans.push_back (DxuiTextView::Span { 1, link.start, link.length, 0, 0, true });
+                paths.push_back (link.path);
+            }
+
             rows.push_back (std::move (row));
+            m_rowLinks.push_back (std::move (paths));
         }
 
         start = end;
@@ -293,6 +311,7 @@ void ConsoleOutput::Clear()
 {
     m_lines.clear();
     m_rowLines.clear();
+    m_rowLinks.clear();
     m_view->SetRows ({});
     m_changedMs = (std::max) ((int64_t) 1, (int64_t) GetTickCount64());
 }
@@ -474,6 +493,85 @@ bool ConsoleOutput::TryGetTimeTip (POINT point, RECT & anchor, std::wstring & te
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConsoleOutput::TryGetLinkTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsoleOutput::TryGetLinkTip (POINT point, RECT & anchor, std::wstring & text) const
+{
+    int   row  = -1;
+    int   span = -1;
+    RECT  part = {};
+
+
+
+    if (m_view == nullptr || !m_view->IsVisible() || !m_host.IsRoutable (m_view) || !m_view->TryGetLinkAt (point, row, span, part))
+    {
+        return false;
+    }
+
+    text = GetLinkPath (row, span);
+
+    if (text.empty())
+    {
+        return false;
+    }
+
+    anchor = part;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetLinkPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ConsoleOutput::GetLinkPath (int row, int span) const
+{
+    if (row < 0 || row >= (int) m_rowLinks.size() || span < 0 || span >= (int) m_rowLinks[(size_t) row].size())
+    {
+        return std::wstring();
+    }
+
+    return m_rowLinks[(size_t) row][(size_t) span];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::OpenLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::OpenLink (int row, int span)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+    std::wstring           path = GetLinkPath (row, span);
+
+
+
+    if (host == nullptr || path.empty())
+    {
+        return;
+    }
+
+    host->OpenDebuggerFile (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ConsoleOutput::GetTimeStamp
 //
 //  The short time format is the one the user picks in the region settings,
@@ -547,13 +645,23 @@ void ConsoleOutput::ScrollToEnd()
 //  ConsoleOutput::RouteMouse
 //
 //  A press selects in the text, but typing goes to the command line, as it
-//  does in a terminal.
+//  does in a terminal. A move over the text sets the link that is
+//  underlined, then goes on to the rest of the window, where the tips are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ConsoleOutput::RouteMouse (const DxuiMouseEvent & ev, IDxuiControl * keys)
 {
-    if (!m_view->IsVisible() || !m_host.IsRoutable (m_view))
+    bool  isRoutable = m_view->IsVisible() && m_host.IsRoutable (m_view);
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move && m_view->SetHoverPoint (isRoutable ? ev.positionDip : POINT { -1, -1 }))
+    {
+        m_host.Repaint();
+    }
+
+    if (!isRoutable)
     {
         return false;
     }
@@ -1215,7 +1323,8 @@ void ConsolePane::Configure()
     m_commandLine.Configure();
     m_modeBar.Configure();
 
-    //  Over a line's time stamp, the date and time in full.
+    //  Over a line's time stamp, the date and time in full; over a link, the
+    //  file's full path.
     m_output.GetView()->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
 }
 
@@ -1408,13 +1517,14 @@ bool ConsolePane::SubmitTextBox (DxuiTextInput * box)
 //
 //  ConsolePane::TryGetTipAt
 //
-//  Over a line's time stamp, the date and the time in full.
+//  Over a line's time stamp, the date and the time in full; over a link, the
+//  file's full path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ConsolePane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
-    if (!m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
+    if (!m_output.TryGetLinkTip (clientPx, tip.anchor, tip.text) && !m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
     {
         return false;
     }
