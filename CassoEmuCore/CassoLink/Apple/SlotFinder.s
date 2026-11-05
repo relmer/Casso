@@ -16,9 +16,12 @@
 ; from the 6551 as raw bytes rather than as typed lines. It sends $A5 when it
 ; is ready, then takes a page count, that many pages for $3B00 up, and the
 ; XOR of every byte. With the right XOR it writes the slot and starts the
-; shim; otherwise it jumps to the monitor, and the PC's wait for Ready ends
-; in an error. It doesn't touch the zero page, so the shim saves the zero
-; page as the user left it. Interrupts are off while it reads, so the
+; shim; otherwise it jumps to Applesoft's prompt, where the bootstrap was
+; typed, and the PC's wait for Ready ends in an error. The warm start doesn't
+; reset the input hook that IN# set, and the PC's prompt probe is a BASIC
+; line, so the Apple runs the probe there.
+; It doesn't touch the zero page, so the shim saves the zero page as the
+; user left it. Interrupts are off while it reads, so the
 ; firmware's interrupt handler doesn't take any of the bytes.
 ;
 ; Read from tape, it runs only when the tape was read whole. The monitor's
@@ -34,6 +37,7 @@ SHIMSLOT = $3B38                ; the shim's 6551 slot
 KSWH     = $39                  ; the input hook's high byte
 CHKSUM   = $2E                  ; the monitor's XOR of the bytes it read from tape
 REPARSE  = $FF70                ; the monitor's prompt, past reading a line: the line read last is run again
+BASIC    = $E003                ; Applesoft's warm start, which doesn't clear the program or reset the hooks
 
         ifdef SERIALLOAD
 ORIGIN   = $3A50
@@ -119,7 +123,7 @@ store:  sta SHIM,y
         sta SHIMSLOT
         jmp SHIM
 bad:    plp
-        jmp $FF69               ; the monitor
+        jmp BASIC               ; back to the prompt
 getb:   lda $C089,x
         and #$08
         beq getb

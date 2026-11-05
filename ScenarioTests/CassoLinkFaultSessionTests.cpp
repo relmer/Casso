@@ -461,9 +461,10 @@ public:
 
 
     //  A byte of the shim the serial bootstrap sends, flipped: the loader's
-    //  XOR fails, it returns to the monitor, and the bootstrap fails. The
-    //  next bootstrap, typed into the monitor, links.
-    TEST_METHOD (ABootstrapFlip_FailsTheLoadersCheck_AndTheNextBootstrapLinks)
+    //  XOR fails, it returns to the BASIC prompt, and the bootstrap fails. A
+    //  link started with no Bootstrap chosen then sends its probe, which the
+    //  Apple runs at the prompt, and the Apple is bootstrapped and linked.
+    TEST_METHOD (ABootstrapFlip_FailsTheLoadersCheck_AndTheAppleIsBootstrappedAgainFromThePrompt)
     {
         Enabled                               enabled;
         TestMachine                           machine ("Apple2c");
@@ -523,8 +524,7 @@ public:
             CassoLinkSession  session (factory, folder, fileIo, sink);
 
             session.SetBootstrapPause (40);
-            AssertSucceeded (session.StartWithBootstrap (settings, bootstrap));
-            AssertSucceeded (Finish (machine, sink, bootstrap)->result);
+            AssertSucceeded (session.Start (settings));
             AssertSucceeded (Finish (machine, sink, session.Enumerate (2, FilePath()))->result);
         }
     }
