@@ -1580,6 +1580,7 @@ std::wstring CassoLinkConnections::DescribeFailure (const LinkOperation & operat
         case HRESULT_FROM_WIN32 (ERROR_CANCELLED):        why = L"it was canceled.";                                                         break;
         case HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE):      why = L"the connection to the Apple closed.";                                      break;
         case HRESULT_FROM_WIN32 (ERROR_TIMEOUT):          why = L"the Apple stopped answering.";                                             break;
+        case HRESULT_FROM_WIN32 (ERROR_INVALID_DATA):     why = L"replies from the Apple arrived damaged on every attempt. Check the cable and the port's speed."; break;
         default:                                          why = std::format (L"the operation failed (error 0x{:08X}).", (uint32_t) operation.result); break;
     }
 

@@ -927,6 +927,9 @@ public:
 
         operation.result = HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
         Assert::AreEqual (std::wstring (L"Drive 2: the Apple stopped answering."), CassoLinkConnections::DescribeFailure (operation));
+
+        operation.result = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+        Assert::AreEqual (std::wstring (L"Drive 2: replies from the Apple arrived damaged on every attempt. Check the cable and the port's speed."), CassoLinkConnections::DescribeFailure (operation));
     }
 
 

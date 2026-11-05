@@ -321,25 +321,29 @@ private:
     static bool  IsWholeReady (const CassoLinkPacket & packet) { size_t size = packet.payload.size(); return size == 4 || size == 9 || size == 11; }
     static bool  IsBlank      (std::span<const Byte> sector) { return std::all_of (sector.begin(), sector.end(), [] (Byte b) { return b == 0; }); }
 
-    //  An operation sent again while its request is lost, up to
-    //  kMaxResends times.
+    //  An operation sent again while its request is lost or a reply arrives
+    //  damaged, up to kMaxResends times. The next attempt's AwaitReady skips
+    //  what is left of the damaged reply.
     template <typename Attempt>
     HRESULT  Resend (Attempt attempt)
     {
-        HRESULT  hr = S_OK;
+        HRESULT  hr      = S_OK;
+        bool     damaged = false;
 
         for (int sent = 0; sent <= kMaxResends; sent++)
         {
-            hr = attempt();
+            hr      = attempt();
+            damaged = hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
 
-            if (hr != kLostRequest)
+            if (hr != kLostRequest && !damaged)
             {
                 break;
             }
 
             if (m_adtProServer.m_activity)
             {
-                m_adtProServer.m_activity ("The Apple did not take a request, so it was sent again");
+                m_adtProServer.m_activity (damaged ? "A reply from the Apple arrived damaged, so the request was sent again"
+                                                   : "The Apple did not take a request, so it was sent again");
             }
         }
 
