@@ -51,6 +51,13 @@ public:
     static void  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
                                 const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb);
 
+    //  The bytes a source row's instructions occupy: from the first
+    //  instruction under it to the end of the last one from the same line,
+    //  so the row's heat is theirs. False for an instruction's row and for a
+    //  source row with no instruction under it.
+    static bool  TryGetSourceRowSpan (const std::vector<DisassemblyOptions::Row> & rows, size_t row,
+                                      const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word & first, size_t & count);
+
     //  An instruction's row as the options choose. Returns the annotation
     //  placed in the operand cell.
     static std::string  FillCodeRow (std::vector<DxuiListView::Cell> & cells, const DebuggerViewSnapshot::CodeLine & line,

@@ -3287,7 +3287,9 @@ run something, switch back to the //e: it is where it was left.
   source view and the BASIC program pane MUST list the run, read and write
   counts of the line's bytes and the color's meaning, and draw the scale as
   a gradient with an arrow at the cell's level. The column's heading tip
-  MUST have the scales' definitions.
+  MUST have the scales' definitions. A source line shown between a
+  disassembly's instructions MUST have the heat of the instructions it
+  assembled to.
 - **FR-247**: While Show heat is on in any disassembly view, the source view
   MUST have the heat strip over the bytes its line assembled to, up to four
   blocks. The BASIC program pane's Heat column MUST color each line, in one

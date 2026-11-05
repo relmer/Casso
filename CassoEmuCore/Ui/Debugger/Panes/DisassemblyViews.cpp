@@ -923,6 +923,8 @@ void DisassemblyGroup::ApplyView (int view)
         const DebuggerViewSnapshot::CodeLine   * line    = nullptr;
         bool                                     hasText = false;
         std::wstring                             rowTip;
+        Word                                     first   = 0;
+        size_t                                   count   = 0;
 
         //  A source line: its number when on, then its text in the syntax
         //  colors, from the first column after the glyph margin.
@@ -932,6 +934,12 @@ void DisassemblyGroup::ApplyView (int view)
             text    = hasText ? text : std::wstring();
 
             DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (theme != nullptr) ? theme->ForegroundMuted() : 0u);
+
+            //  The line's heat is its instructions' heat.
+            if (heatPalette.has_value() && snapshot->heatColumns != nullptr && DisassemblyCells::TryGetSourceRowSpan (built, rows.size(), lines, first, count))
+            {
+                cells[DisassemblyCells::kHeatColumn] = HeatStrip::GetCell (*snapshot->heatColumns, first, count, *heatPalette, false);
+            }
 
             if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source, true, (int) rows.size() == pcSourceRow))
             {

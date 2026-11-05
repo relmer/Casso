@@ -8,6 +8,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DisassemblyOptions.h"
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "../Dxui/MockDxuiPainter.h"
@@ -289,6 +290,46 @@ namespace DisassemblyOptionsTests
 
             rows = DisassemblyOptions::BuildRows (snapshot->codeViews[0], false, always);
             Assert::AreEqual ((size_t) 3, rows.size(), L"source off lists the instructions alone");
+        }
+
+
+
+        //  A source row's heat is its instructions' heat: the span runs from
+        //  the first instruction under the row to the end of the last one
+        //  from the same line.
+        TEST_METHOD (ASourceRowSpansItsLinesInstructions)
+        {
+            std::vector<DebuggerViewSnapshot::CodeLine>  lines (4);
+            std::vector<DisassemblyOptions::Row>         rows;
+            auto                                         always = [] (int, int) { return true; };
+            Word                                         first  = 0;
+            size_t                                       count  = 0;
+
+
+
+            lines[0] = { .address = 0x6000, .bytes = "A9 41" };
+            lines[1] = { .address = 0x6002, .bytes = "20 ED FD" };
+            lines[2] = { .address = 0x6005, .bytes = "60" };
+            lines[3] = { .address = 0x6006, .bytes = "00" };
+
+            for (size_t i = 0; i < 3; i++)
+            {
+                lines[i].sourceFileId = 0;
+                lines[i].sourceLine   = (i < 2) ? 4 : 5;
+            }
+
+            rows = DisassemblyOptions::BuildRows (lines, true, always);
+
+            Assert::IsTrue   (DisassemblyCells::TryGetSourceRowSpan (rows, 0, lines, first, count));
+            Assert::AreEqual ((Word) 0x6000, first);
+            Assert::AreEqual ((size_t) 5, count, L"both instructions from line 4");
+
+            Assert::IsTrue   (DisassemblyCells::TryGetSourceRowSpan (rows, 3, lines, first, count));
+            Assert::AreEqual ((Word) 0x6005, first);
+            Assert::AreEqual ((size_t) 1, count, L"line 5's instruction alone");
+
+            Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, 1, lines, first, count), L"an instruction's row");
+            Assert::IsFalse  (DisassemblyCells::TryGetSourceRowSpan (rows, rows.size(), lines, first, count), L"no row");
         }
 
 

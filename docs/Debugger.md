@@ -1660,7 +1660,9 @@ yellow for a byte run, blue to pale cyan for one read and purple to pink for
 one written as data more than it is run, brighter the hotter. A byte nothing
 touched is gray. The tip over a heat cell lists the run, read and write
 counts of the line's bytes and draws the cell's scale with an arrow at its
-level. The heading's tip has the scales' definitions. With the option on, the
+level. A source line shown between the instructions has the heat of the
+instructions it assembled to. The heading's tip has the scales' definitions.
+With the option on, the
 source view fills a space for each
 byte, up to four, ahead of each line's number, over the first range of bytes
 the line assembled to, and the BASIC program pane has a **Heat** column that

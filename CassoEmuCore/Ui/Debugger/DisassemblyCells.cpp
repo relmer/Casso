@@ -165,6 +165,49 @@ void DisassemblyCells::AddSourceRuns (DxuiListView::Cell & cell, const std::vect
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyCells::TryGetSourceRowSpan
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyCells::TryGetSourceRowSpan (const std::vector<DisassemblyOptions::Row> & rows, size_t row,
+                                            const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word & first, size_t & count)
+{
+    bool  isSpan = false;
+
+
+
+    count = 0;
+
+    if (row >= rows.size() || rows[row].codeLine >= 0)
+    {
+        return false;
+    }
+
+    for (size_t i = row + 1; i < rows.size(); i++)
+    {
+        const DisassemblyOptions::Row  & each = rows[i];
+
+        if (each.codeLine < 0 || each.fileId != rows[row].fileId || each.sourceLine != rows[row].sourceLine)
+        {
+            break;
+        }
+
+        const DebuggerViewSnapshot::CodeLine  & line = lines[(size_t) each.codeLine];
+
+        first  = isSpan ? first : line.address;
+        isSpan = true;
+        count  = (size_t) (Word) (line.address - first) + std::max<size_t> (1, HeatStrip::CountBytes (line.bytes));
+    }
+
+    return isSpan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyCells::FillCodeRow
 //
 ////////////////////////////////////////////////////////////////////////////////
