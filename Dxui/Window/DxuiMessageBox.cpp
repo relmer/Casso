@@ -178,43 +178,23 @@ private:
         m_overrunPx = std::max (m_overrunPx, overrun);
     }
 
-    //  Text with semibold runs, a line at a time: a line of one regular run
-    //  wraps, and a line with semibold runs is drawn run after run on one
-    //  line. The lines are measured first, so the block is centered as a
-    //  whole when it fits.
+    //  Text with semibold runs, laid out a word at a time by
+    //  DxuiLayOutTextRuns. The rows are counted first, so the block is
+    //  centered as a whole when it fits.
     void  PaintRuns (IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & tr)
     {
-        HRESULT                                 hr      = S_OK;
-        DxuiFontHandle                          bf      = theme.BodyFont();
-        float                                   sizePx  = m_scaler.ToPxf (bf.sizeDip);
-        float                                   widthPx = (float) (tr.right - tr.left);
-        float                                   lineH   = 0.0f;
-        float                                   ignored = 0.0f;
-        float                                   total   = 0.0f;
-        float                                   y       = (float) tr.top;
-        std::vector<std::vector<DxuiTextRun>>   lines;
-        std::vector<float>                      heights;
+        HRESULT                          hr      = S_OK;
+        DxuiFontHandle                   bf      = theme.BodyFont();
+        float                            sizePx  = m_scaler.ToPxf (bf.sizeDip);
+        float                            widthPx = (float) (tr.right - tr.left);
+        float                            lineH   = 0.0f;
+        float                            total   = 0.0f;
+        float                            y       = (float) tr.top;
+        std::vector<DxuiPlacedTextRun>   placed;
 
 
 
-        DxuiParseTextRuns (m_text, lines);
-
-        hr = text.MeasureStringWeighted (L"Ag", sizePx, bf.face, bf.weight, ignored, lineH);
-        lineH = SUCCEEDED (hr) ? lineH : m_scaler.ToPxf ((float) s_kLineHeightDip);
-
-        for (const std::vector<DxuiTextRun> & line : lines)
-        {
-            float  h = lineH;
-
-            if (line.size() == 1 && !line[0].semiBold)
-            {
-                hr = text.MeasureStringWrapped (line[0].text.c_str(), sizePx, bf.face, widthPx, ignored, h);
-                h  = SUCCEEDED (hr) ? h : lineH;
-            }
-
-            heights.push_back (h);
-            total += h;
-        }
+        LayOutRuns (text, bf, sizePx, widthPx, placed, lineH, total);
 
         if (total < (float) (tr.bottom - tr.top))
         {
@@ -226,31 +206,25 @@ private:
         hr = text.PushClipRect ((float) tr.left, (float) tr.top, widthPx, (float) (tr.bottom - tr.top));
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        for (size_t i = 0; i < lines.size(); i++)
+        for (const DxuiPlacedTextRun & run : placed)
         {
-            float  x    = (float) tr.left;
-            bool   wrap = lines[i].size() == 1 && !lines[i][0].semiBold;
+            float  left = (float) tr.left + run.x;
 
-            for (const DxuiTextRun & run : lines[i])
-            {
-                DxuiFontWeight  weight = run.semiBold ? DxuiFontWeight::SemiBold : bf.weight;
-                float           runW   = 0.0f;
-
-                hr = text.DrawString (run.text.c_str(), x, y, (float) tr.right - x, heights[i],
-                                      theme.TextColor (DxuiTextRole::Body), sizePx, bf.face,
-                                      DxuiTextHAlign::Left, DxuiTextVAlign::Top, weight, wrap);
-                IGNORE_RETURN_VALUE (hr, S_OK);
-
-                hr = text.MeasureStringWeighted (run.text.c_str(), sizePx, bf.face, weight, runW, ignored);
-                x += SUCCEEDED (hr) ? runW : 0.0f;
-            }
-
-            y += heights[i];
+            hr = text.DrawString (run.text.c_str(), left, y + (float) run.row * lineH, (float) tr.right - left, lineH,
+                                  theme.TextColor (DxuiTextRole::Body), sizePx, bf.face,
+                                  DxuiTextHAlign::Left, DxuiTextVAlign::Top,
+                                  run.semiBold ? DxuiFontWeight::SemiBold : bf.weight, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         hr = text.PopClipRect();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+
+    //  The text's runs wrapped at `widthPx` in the body font, the height of a
+    //  row, and the height of the block.
+    void  LayOutRuns (IDxuiTextRenderer & text, const DxuiFontHandle & bf, float sizePx, float widthPx,
+                      std::vector<DxuiPlacedTextRun> & outRuns, float & outLineH, float & outTotal) const;
 
     std::wstring         m_text;
     DxuiMessageSeverity  m_severity  = DxuiMessageSeverity::None;
@@ -269,22 +243,21 @@ private:
 //
 //  The text wrapped at the width Paint draws it at, beside the glyph column
 //  when there is a glyph, measured as Paint lays it out: a message with
-//  semibold runs line by line, as PaintRuns draws it. The glyph row is the
-//  floor for a short message.
+//  semibold runs a word at a time, as PaintRuns draws it. The glyph row is
+//  the floor for a short message.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx)
 {
-    HRESULT                                 hr       = S_OK;
-    DxuiFontHandle                          bf       = theme.BodyFont();
-    float                                   sizePx   = m_scaler.ToPxf (bf.sizeDip);
-    float                                   textW    = (float) widthPx;
-    float                                   measureW = 0.0f;
-    float                                   measureH = 0.0f;
-    float                                   lineH    = 0.0f;
-    float                                   h        = 0.0f;
-    std::vector<std::vector<DxuiTextRun>>   lines;
+    HRESULT                          hr       = S_OK;
+    DxuiFontHandle                   bf       = theme.BodyFont();
+    float                            sizePx   = m_scaler.ToPxf (bf.sizeDip);
+    float                            textW    = (float) widthPx;
+    float                            measureW = 0.0f;
+    float                            measureH = 0.0f;
+    float                            lineH    = 0.0f;
+    std::vector<DxuiPlacedTextRun>   placed;
 
 
 
@@ -302,23 +275,7 @@ bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDx
     }
     else
     {
-        DxuiParseTextRuns (m_text, lines);
-
-        hr = text.MeasureStringWeighted (L"Ag", sizePx, bf.face, bf.weight, measureW, lineH);
-        CHR (hr);
-
-        for (const std::vector<DxuiTextRun> & line : lines)
-        {
-            h = lineH;
-
-            if (line.size() == 1 && !line[0].semiBold)
-            {
-                hr = text.MeasureStringWrapped (line[0].text.c_str(), sizePx, bf.face, textW, measureW, h);
-                CHR (hr);
-            }
-
-            measureH += h;
-        }
+        LayOutRuns (text, bf, sizePx, textW, placed, lineH, measureH);
     }
 
     heightPx = (int) std::ceil (measureH);
@@ -330,6 +287,46 @@ bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDx
 
 Error:
     return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBoxBody::LayOutRuns
+//
+//  A row is as tall as the body font's line, measured on "Ag", or the fixed
+//  line height when that measure fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiMessageBoxBody::LayOutRuns (IDxuiTextRenderer & text, const DxuiFontHandle & bf, float sizePx, float widthPx,
+                                     std::vector<DxuiPlacedTextRun> & outRuns, float & outLineH, float & outTotal) const
+{
+    HRESULT                                 hr      = S_OK;
+    float                                   ignored = 0.0f;
+    int                                     rows    = 0;
+    std::vector<std::vector<DxuiTextRun>>   lines;
+
+
+
+    DxuiParseTextRuns (m_text, lines);
+
+    hr       = text.MeasureStringWeighted (L"Ag", sizePx, bf.face, bf.weight, ignored, outLineH);
+    outLineH = SUCCEEDED (hr) ? outLineH : m_scaler.ToPxf ((float) s_kLineHeightDip);
+
+    rows = DxuiLayOutTextRuns (lines, widthPx, [&] (const std::wstring & piece, bool semiBold)
+    {
+        float    w   = 0.0f;
+        float    h   = 0.0f;
+        HRESULT  mhr = text.MeasureStringWeighted (piece.c_str(), sizePx, bf.face, semiBold ? DxuiFontWeight::SemiBold : bf.weight, w, h);
+
+        return SUCCEEDED (mhr) ? w : 0.0f;
+    }, outRuns);
+
+    outTotal = (float) rows * outLineH;
 }
 
 
@@ -868,4 +865,110 @@ void DxuiParseTextRuns (const std::wstring & text, std::vector<std::vector<DxuiT
 
         pos = nl + 1;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SplitWords
+//
+//  The line's words, each as its pieces in one weight; the spaces after a
+//  word end its last piece, and spaces that start the line start the first
+//  word.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void SplitWords (const std::vector<DxuiTextRun> & line, std::vector<std::vector<DxuiTextRun>> & outWords)
+{
+    bool  afterSpace = false;
+
+
+
+    outWords.clear();
+
+    for (const DxuiTextRun & run : line)
+    {
+        for (wchar_t c : run.text)
+        {
+            bool  space = c == L' ';
+
+            if (outWords.empty() || (!space && afterSpace))
+            {
+                outWords.push_back ({});
+            }
+
+            if (outWords.back().empty() || outWords.back().back().semiBold != run.semiBold)
+            {
+                outWords.back().push_back ({ L"", run.semiBold });
+            }
+
+            outWords.back().back().text += c;
+            afterSpace                   = space;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiLayOutTextRuns
+//
+//  A word extends to the next space, across runs: "**IN#2**," is one word in
+//  two weights, so the comma never starts a row. A word fits on a row when it
+//  fits without its trailing spaces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiLayOutTextRuns (const std::vector<std::vector<DxuiTextRun>> & lines,
+                        float                                         widthPx,
+                        const DxuiMeasureTextRunFn                  & measure,
+                        std::vector<DxuiPlacedTextRun>              & outRuns)
+{
+    int  rows = 0;
+
+
+
+    outRuns.clear();
+
+    for (const std::vector<DxuiTextRun> & line : lines)
+    {
+        std::vector<std::vector<DxuiTextRun>>  words;
+        float                                  x     = 0.0f;
+
+        SplitWords (line, words);
+
+        for (const std::vector<DxuiTextRun> & word : words)
+        {
+            float  wordW = 0.0f;
+
+            for (size_t i = 0; i < word.size(); i++)
+            {
+                size_t  end = (i + 1 < word.size()) ? word[i].text.size() : word[i].text.find_last_not_of (L' ') + 1;
+
+                wordW += (end == 0) ? 0.0f : measure (word[i].text.substr (0, end), word[i].semiBold);
+            }
+
+            if (x > 0.0f && x + wordW > widthPx)
+            {
+                rows++;
+                x = 0.0f;
+            }
+
+            for (const DxuiTextRun & piece : word)
+            {
+                outRuns.push_back ({ piece.text, piece.semiBold, x, rows });
+                x += measure (piece.text, piece.semiBold);
+            }
+        }
+
+        rows++;
+    }
+
+    return rows;
 }
