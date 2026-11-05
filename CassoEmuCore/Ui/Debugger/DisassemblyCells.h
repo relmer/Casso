@@ -48,8 +48,14 @@ public:
     //  the disassembly's, and the number is in the first visible column before
     //  the label; otherwise the whole line starts in the first visible column
     //  after the glyph margin.
+    //  With an operand cell, the row is also its instruction's: while the
+    //  label column is visible, the code stops at the comment, the operand
+    //  and result are in their column, and the comment follows them. With
+    //  the label column hidden, or a dragged instruction column too narrow
+    //  for the code, the operand and result follow the line.
     static void  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
-                                const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb);
+                                const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb,
+                                const DxuiListView::Cell * operand = nullptr);
 
     //  The bytes a source row's instructions occupy: from the first
     //  instruction under it to the end of the last one from the same line,
@@ -100,6 +106,13 @@ private:
     //  begin at `offset` in a cell's text.
     static void  AddSourceRuns (DxuiListView::Cell & cell, const std::vector<SourceSyntax::Run> & runs, int start, int end, int offset,
                                 const DebuggerTextColors::Set & colors);
+
+    //  A cell's text and colors added at the end of another cell's, two
+    //  spaces after any text there.
+    static void  AppendCell (DxuiListView::Cell & cell, const DxuiListView::Cell & added);
+
+    //  Where the first comment run at or after `from` starts, or the line's end.
+    static size_t  GetCommentStart (const std::vector<SourceSyntax::Run> & runs, size_t from, size_t end);
 
 
     static void  PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along);

@@ -357,6 +357,127 @@ int DisassemblyOptions::GetRowOfLine (const std::vector<Row> & rows, int codeLin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyOptions::GetFrontedLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyOptions::GetFrontedLine (const std::vector<Row> & rows, int row)
+{
+    if (row < 0 || row + 1 >= (int) rows.size() || rows[(size_t) row].codeLine >= 0 || !IsFronted (rows, row + 1))
+    {
+        return -1;
+    }
+
+    return rows[(size_t) row + 1].codeLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::IsFronted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyOptions::IsFronted (const std::vector<Row> & rows, int row)
+{
+    const Row  * above = nullptr;
+    const Row  * at    = nullptr;
+
+
+
+    if (row < 1 || row >= (int) rows.size())
+    {
+        return false;
+    }
+
+    above = &rows[(size_t) row - 1];
+    at    = &rows[(size_t) row];
+
+    return at->codeLine >= 0 && above->codeLine < 0 && above->fileId == at->fileId && above->sourceLine == at->sourceLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetFrontRowOfLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyOptions::GetFrontRowOfLine (const std::vector<Row> & rows, int codeLine)
+{
+    int  row = GetRowOfLine (rows, codeLine);
+
+
+
+    return IsFronted (rows, row) ? row - 1 : row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::GetGutterLineOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyOptions::GetGutterLineOfRow (const std::vector<Row> & rows, int row)
+{
+    if (row < 0 || row >= (int) rows.size() || IsFronted (rows, row))
+    {
+        return -1;
+    }
+
+    return (rows[(size_t) row].codeLine >= 0) ? rows[(size_t) row].codeLine : GetFrontedLine (rows, row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyOptions::IsSingleInstruction
+//
+//  The row after the instruction is from another line, or the instruction
+//  is on the view's last row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyOptions::IsSingleInstruction (const std::vector<Row> & rows, int row)
+{
+    const Row  * next = nullptr;
+
+
+
+    if (GetFrontedLine (rows, row) < 0)
+    {
+        return false;
+    }
+
+    if (row + 2 >= (int) rows.size())
+    {
+        return true;
+    }
+
+    next = &rows[(size_t) row + 2];
+
+    return next->codeLine < 0 || next->fileId != rows[(size_t) row].fileId || next->sourceLine != rows[(size_t) row].sourceLine;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyOptions::GetInstructionText
 //
 ////////////////////////////////////////////////////////////////////////////////

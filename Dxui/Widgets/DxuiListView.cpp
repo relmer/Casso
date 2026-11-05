@@ -518,6 +518,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::GetFittedWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetFittedWidthPx (size_t chars) const
+{
+    int  perCharPx = (std::max) (1, (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm));
+    int  padPx     = m_scaler.ToPx (m_cellPadLeftDip) + m_scaler.ToPx (m_cellPadRightDip);
+
+
+
+    return (int) chars * perCharPx + padPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTotalMeasuredWidthPx
 //
 //  Starts from the pane lead, since the columns start there.

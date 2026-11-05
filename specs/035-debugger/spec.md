@@ -331,6 +331,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 ### Session 2026-11-04 (owner decisions: symbols for a program not in memory)
 
 - Q: What happens to a loaded debug file's source and a symbol file's labels when the program they were made for is no longer in memory, such as after a reboot with another disk? -> A: Both are hidden while the program is gone. The owner: "mostly I want to solve the problem of having symbols/src loaded for code that's not actually running." Each file is checked against memory at each stop: a debug file by its source's mnemonics, a listing by its bytes, a symbol file without lines by the bytes at its labels at the first stop in its range. A mark on instructions modified in memory was offered and declined ("Not sure we need it"), so the assembler's debug file doesn't record its bytes (FR-342, T1340).
+- Q: While the disassembly has source rows, which rows have the PC, the breakpoints, the operands and results, and the branch arrows? -> A: The source rows. The owner: "it should be 'source-forward' and lean into the source being the focus of the action in that window", and "PC and breakpoints should move to source lines when we have source and when the disasm window has 'show source' enabled." A source row represents the first instruction its line produced. A line that produced several instructions has its operands on the instructions' rows, since there isn't one operand for the whole line (FR-343, T1341).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3625,6 +3626,21 @@ run something, switch back to the //e: it is where it was left.
   MUST have a banner with the file's name; all of it MUST return at the first
   stop where the file matches again. Its symbols MUST resolve by name in
   expressions throughout, and equates MUST NOT be checked.
+
+- **FR-343**: While a disassembly view has source rows, each source row MUST
+  represent the first instruction its line produced: the row MUST have that
+  instruction's breakpoint, the gray breakpoint under the pointer, the PC's
+  marker and the PC's, target's and navigated row colors, a press in its
+  gutter MUST act on that instruction, and the PC's arrow MUST be dragged
+  from and to it. The instruction's row under it MUST NOT have them. The PC's
+  branch arrow MUST run from the row representing the PC's instruction to
+  the row representing the target. A source line that produced one
+  instruction in view and whose opcode is a mnemonic MUST have the
+  instruction's operand and result in the operand column, before the line's
+  comment, and the instruction's row MUST NOT have them. For a line that
+  produced several instructions, such as a macro or a C line, the operands
+  MUST be on the instructions' rows, and the PC past its first instruction
+  MUST be marked on the instruction's row.
 
 ### Key Entities
 

@@ -650,6 +650,32 @@ int DisassemblyGroup::GetCodeLineOfRow (int view, int row) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyGroup::GetGutterLineOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyGroup::GetGutterLineOfRow (int view, int row) const
+{
+    int  line = -1;
+
+
+
+    if (view < 0 || view >= DebuggerViewState::kMaxCodeViews)
+    {
+        return -1;
+    }
+
+    line = DisassemblyOptions::GetGutterLineOfRow (m_views[(size_t) view]->GetRows(), row);
+
+    return (line < (int) GetCodeLines (view).size()) ? line : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyGroup::GetViewOf
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -946,7 +972,8 @@ void DisassemblyGroup::UpdateChanges (const DebuggerViewSnapshot & snapshot)
 //  wherever the PC is on its lines, the row another pane brought into view,
 //  and a branch's destination. With source on, each source line is on a row
 //  of its own above the code it produced, its text running across the
-//  columns. The viewing options hide the address, bytes and label columns.
+//  columns, and the row has the marks of the first instruction under it. The
+//  viewing options hide the address, bytes and label columns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -969,6 +996,8 @@ void DisassemblyGroup::ApplyView (int view)
     std::wstring                                         text;
     std::optional<HeatMapView::Palette>                  heatPalette;
     int                                                  pcSourceRow   = -1;
+    int                                                  marked        = -1;
+    bool                                                 operandMoved  = false;
 
 
 
@@ -991,29 +1020,57 @@ void DisassemblyGroup::ApplyView (int view)
     m_views[(size_t) view]->SetRows (built);
     m_views[(size_t) view]->SetStaleText (DisassemblyViewPane::GetStaleText (snapshot->staleFileNames, snapshot->source.has_value() && snapshot->source->isStale));
 
-    //  With source lines on, the PC's marker and row color are on its source
-    //  line, and its instruction is dimmed under it as the others are.
-    pcSourceRow = (m_gutter.GetDragRow (view) < 0) ? FindPcSourceRow (lines, built) : -1;
+    //  With source lines on, a source row represents the first instruction
+    //  its line produced: the instruction's breakpoint, PC marker
+    //  and row color are on the source row, and the instruction is dimmed
+    //  under it as the others are. While the PC's arrow is dragged, the
+    //  marker and the PC's row color are on the row under the pointer.
+    pcSourceRow = FindPcSourceRow (lines, built);
+    current     = (pcSourceRow >= 0) ? pcSourceRow : -1;
+
+    for (size_t i = 0; i < lines.size() && current < 0; i++)
+    {
+        current = lines[i].isCurrent ? DisassemblyOptions::GetRowOfLine (built, (int) i) : current;
+    }
+
+    marked = (m_gutter.GetDragRow (view) >= 0) ? m_gutter.GetDragRow (view) : current;
 
 
     for (const DisassemblyOptions::Row & each : built)
     {
         std::vector<DxuiListView::Cell>          cells (DisassemblyCells::kColumnCount);
+        int                                      at      = (int) rows.size();
+        int                                      gutter  = DisassemblyOptions::GetGutterLineOfRow (built, at);
         uint32_t                                 fill    = 0;
         const DebuggerViewSnapshot::CodeLine   * line    = nullptr;
         bool                                     hasText = false;
         std::wstring                             rowTip;
         Word                                     first   = 0;
         size_t                                   count   = 0;
+        std::vector<DxuiListView::Cell>          scratch (DisassemblyCells::kColumnCount);
+
+        if (gutter >= 0)
+        {
+            MarkRow (view, at, lines[(size_t) gutter], target, at == marked, cells, fill, rowTip);
+        }
 
         //  A source line: its number when on, then its text in the syntax
-        //  colors, from the first column after the glyph margin.
+        //  colors, from the first column after the glyph margin. A line that
+        //  produced one instruction has the instruction's operand and result
+        //  too, and the instruction's row doesn't.
         if (each.codeLine < 0)
         {
-            hasText = TryGetSourceText (each.fileId, each.sourceLine, text);
-            text    = hasText ? text : std::wstring();
+            hasText       = TryGetSourceText (each.fileId, each.sourceLine, text);
+            text          = hasText ? text : std::wstring();
+            operandMoved  = gutter >= 0 && DisassemblyOptions::IsSingleInstruction (built, at) && SourcePane::IsInstructionLine (text);
 
-            DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (theme != nullptr) ? theme->ForegroundMuted() : 0u);
+            if (operandMoved)
+            {
+                (void) DisassemblyCells::FillCodeRow (scratch, lines[(size_t) gutter], m_options, textColors);
+            }
+
+            DisassemblyCells::FillSourceRow (cells, *list, each.sourceLine, text, numbers, textColors, (theme != nullptr) ? theme->ForegroundMuted() : 0u,
+                                             operandMoved ? &scratch[DisassemblyCells::kOperandColumn] : nullptr);
 
             //  The line's heat is its instructions' heat.
             if (heatPalette.has_value() && snapshot->heatColumns != nullptr && DisassemblyCells::TryGetSourceRowSpan (built, rows.size(), lines, first, count))
@@ -1021,84 +1078,42 @@ void DisassemblyGroup::ApplyView (int view)
                 cells[DisassemblyCells::kHeatColumn] = HeatStrip::GetCell (*snapshot->heatColumns, first, count, *heatPalette, false);
             }
 
-            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source, true, (int) rows.size() == pcSourceRow))
+            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source, true, at == current))
+            {
+                DisassemblyCells::DimRow (cells, theme->Foreground(), theme->TextViewBackground());
+            }
+        }
+        else
+        {
+            line = &lines[(size_t) each.codeLine];
+
+            (void) DisassemblyCells::FillCodeRow (cells, *line, m_options, textColors);
+
+            if (operandMoved && DisassemblyOptions::IsFronted (built, at))
+            {
+                cells[DisassemblyCells::kOperandColumn] = DxuiListView::Cell();
+            }
+
+            operandMoved = false;
+
+            if (heatPalette.has_value() && snapshot->heatColumns != nullptr)
+            {
+                cells[DisassemblyCells::kHeatColumn] = HeatStrip::GetCell (*snapshot->heatColumns, line->address, std::max<size_t> (1, HeatStrip::CountBytes (line->bytes)), *heatPalette, false);
+            }
+
+            //  An instruction with a source line is dimmed under it, whatever else
+            //  is in view, so the dimming doesn't change as the view scrolls.
+            if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source && line->sourceFileId >= 0, false, at == current))
             {
                 DisassemblyCells::DimRow (cells, theme->Foreground(), theme->TextViewBackground());
             }
 
-            if ((int) rows.size() == pcSourceRow)
+            //  A byte that changed is in the changed color, whether code or an
+            //  edit changed it.
+            for (const auto & [changedFirst, changedLast] : m_changes.GetChangedRanges (line->address, line->bytes))
             {
-                cells[DisassemblyCells::kGutterColumn].icon = m_host.GetPcMarker (cells[DisassemblyCells::kGutterColumn].icon);
-                cells[DisassemblyCells::kGutterColumn].tip  = ColorLegend::GetText (ColorLegend::Meaning::PcMarker);
-
-                for (DxuiListView::Cell & cell : cells)
-                {
-                    cell.background = (cell.background != 0) ? cell.background : m_host.GetPcRowArgb();
-                }
+                cells[DisassemblyCells::kBytesColumn].colorRanges.push_back ({ changedFirst, changedLast, DebuggerTextColors::GetChangedOn (textColors, fill) });
             }
-
-            rows.push_back (std::move (cells));
-            continue;
-        }
-
-        line = &lines[(size_t) each.codeLine];
-
-        //  The glyph margin has a breakpoint's dot and the PC's arrow, the
-        //  arrow drawn over the dot on a line with both, as Visual Studio
-        //  draws them. A line that can take a breakpoint has a gray one under
-        //  the pointer.
-        if (line->hasBreakpoint)
-        {
-            cells[DisassemblyCells::kGutterColumn].icon = m_host.GetBreakpointIcon (line->isEnabled);
-            cells[DisassemblyCells::kGutterColumn].tip  = ColorLegend::GetText (line->isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
-        }
-        else if ((int) rows.size() == m_gutter.GetHoverRow (view) && DisassemblyOptions::CanTakeBreakpoint (*line))
-        {
-            cells[DisassemblyCells::kGutterColumn].icon = m_host.GetHoverBreakpointIcon();
-            cells[DisassemblyCells::kGutterColumn].tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
-        }
-
-        //  While the PC's arrow is dragged, it and the PC's row color are on
-        //  the line under the pointer instead.
-        current = line->isCurrent ? (int) rows.size() : current;
-
-        if ((m_gutter.GetDragRow (view) >= 0) ? (int) rows.size() == m_gutter.GetDragRow (view) : line->isCurrent && pcSourceRow < 0)
-        {
-            cells[DisassemblyCells::kGutterColumn].icon = m_host.GetPcMarker (cells[DisassemblyCells::kGutterColumn].icon);
-            cells[DisassemblyCells::kGutterColumn].tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), cells[DisassemblyCells::kGutterColumn].tip });
-            fill                                        = m_host.GetPcRowArgb();
-            rowTip                                      = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
-        }
-        else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line->address)
-        {
-            fill   = m_host.GetNavigatedRowArgb();
-            rowTip = ColorLegend::GetText (ColorLegend::Meaning::NavigatedRow);
-        }
-        else if (target.has_value() && *target == line->address)
-        {
-            fill   = m_host.GetTargetRowArgb();
-            rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
-        }
-
-        (void) DisassemblyCells::FillCodeRow (cells, *line, m_options, textColors);
-
-        if (heatPalette.has_value() && snapshot->heatColumns != nullptr)
-        {
-            cells[DisassemblyCells::kHeatColumn] = HeatStrip::GetCell (*snapshot->heatColumns, line->address, std::max<size_t> (1, HeatStrip::CountBytes (line->bytes)), *heatPalette, false);
-        }
-
-        //  An instruction with a source line is dimmed under it, whatever else
-        //  is in view, so the dimming doesn't change as the view scrolls.
-        if (theme != nullptr && DisassemblyCells::IsDimmed (m_options, source && line->sourceFileId >= 0, false, line->isCurrent && pcSourceRow < 0))
-        {
-            DisassemblyCells::DimRow (cells, theme->Foreground(), theme->TextViewBackground());
-        }
-
-        //  A byte that changed is in the changed color, whether code or an
-        //  edit changed it.
-        for (const auto & [first, last] : m_changes.GetChangedRanges (line->address, line->bytes))
-        {
-            cells[DisassemblyCells::kBytesColumn].colorRanges.push_back ({ first, last, DebuggerTextColors::GetChangedOn (textColors, fill) });
         }
 
         //  What each color on the row means, for the tip over its cell: the
@@ -1156,6 +1171,62 @@ void DisassemblyGroup::ApplyView (int view)
     }
 
     m_host.CheckOperandTip (view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::MarkRow
+//
+//  The gutter and row color of a row representing an instruction: its
+//  breakpoint or the gray one under the pointer, the PC's marker and color
+//  when the row is marked, and else the color of the row another pane
+//  brought into view or of the branch's destination.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::MarkRow (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
+                                std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip)
+{
+    DxuiListView::Cell  & gutter = cells[DisassemblyCells::kGutterColumn];
+
+
+
+    //  The glyph margin has a breakpoint's dot and the PC's arrow, the
+    //  arrow drawn over the dot on a line with both, as Visual Studio
+    //  draws them. A line that can take a breakpoint has a gray one under
+    //  the pointer.
+    if (line.hasBreakpoint)
+    {
+        gutter.icon = m_host.GetBreakpointIcon (line.isEnabled);
+        gutter.tip  = ColorLegend::GetText (line.isEnabled ? ColorLegend::Meaning::BreakpointEnabled : ColorLegend::Meaning::BreakpointDisabled);
+    }
+    else if (row == m_gutter.GetHoverRow (view) && DisassemblyOptions::CanTakeBreakpoint (line))
+    {
+        gutter.icon = m_host.GetHoverBreakpointIcon();
+        gutter.tip  = ColorLegend::GetText (ColorLegend::Meaning::BreakpointHover);
+    }
+
+    if (isMarked)
+    {
+        gutter.icon = m_host.GetPcMarker (gutter.icon);
+        gutter.tip  = ColorLegend::JoinLines ({ ColorLegend::GetText (ColorLegend::Meaning::PcMarker), gutter.tip });
+        fill        = m_host.GetPcRowArgb();
+        rowTip      = ColorLegend::GetText (ColorLegend::Meaning::PcRow);
+    }
+    else if (view == m_navigatedView && m_navigatedTo.has_value() && *m_navigatedTo == line.address)
+    {
+        fill   = m_host.GetNavigatedRowArgb();
+        rowTip = ColorLegend::GetText (ColorLegend::Meaning::NavigatedRow);
+    }
+    else if (target.has_value() && *target == line.address)
+    {
+        fill   = m_host.GetTargetRowArgb();
+        rowTip = ColorLegend::GetText (ColorLegend::Meaning::TargetRow);
+    }
 }
 
 
@@ -1267,8 +1338,8 @@ void DisassemblyGroup::ShowCode (std::optional<Word> address)
 //
 //  DisassemblyGroup::FindPcSourceRow
 //
-//  The source row above the PC's instruction that the instruction came from,
-//  or -1 when no source row in view is the PC's line.
+//  The source row representing the PC's instruction, the first its line
+//  produced, or -1 when the PC's instruction has no source row above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1276,30 +1347,16 @@ int DisassemblyGroup::FindPcSourceRow (
     const std::vector<DebuggerViewSnapshot::CodeLine>  & lines,
     const std::vector<DisassemblyOptions::Row>         & built)
 {
-    int  lastSource = -1;
+    int  row = -1;
 
 
 
-    for (size_t r = 0; r < built.size(); r++)
+    for (size_t i = 0; i < lines.size(); i++)
     {
-        const DisassemblyOptions::Row  & row = built[r];
-
-
-
-        if (row.codeLine < 0)
+        if (lines[i].isCurrent)
         {
-            lastSource = (int) r;
-            continue;
-        }
-
-        if (lastSource >= 0 && (built[(size_t) lastSource].fileId != row.fileId || built[(size_t) lastSource].sourceLine != row.sourceLine))
-        {
-            lastSource = -1;
-        }
-
-        if (lines[(size_t) row.codeLine].isCurrent)
-        {
-            return lastSource;
+            row = DisassemblyOptions::GetFrontRowOfLine (built, (int) i);
+            return (row >= 0 && built[(size_t) row].codeLine < 0) ? row : -1;
         }
     }
 

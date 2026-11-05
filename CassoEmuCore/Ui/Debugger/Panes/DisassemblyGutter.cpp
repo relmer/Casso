@@ -70,7 +70,7 @@ bool DisassemblyGutter::Click (const DxuiMouseEvent & ev)
         }
 
         row  = list->HitTestRow (lx, ly);
-        line = m_views.GetCodeLineOfRow (view, row);
+        line = m_views.GetGutterLineOfRow (view, row);
 
         //  A press on the PC's line may start a drag of its arrow, settled
         //  when the button comes up (see Drop).
@@ -126,7 +126,7 @@ void DisassemblyGutter::Drag (POINT atDip)
     if (DxuiDockSite::Contains (box, atDip))
     {
         row = list->HitTestRow (atDip.x - box.left, atDip.y - box.top);
-        row = (m_views.GetCodeLineOfRow (m_dragView, row) >= 0) ? row : m_dragOverRow;
+        row = (m_views.GetGutterLineOfRow (m_dragView, row) >= 0) ? row : m_dragOverRow;
     }
 
     if (row == m_dragOverRow)
@@ -182,7 +182,7 @@ bool DisassemblyGutter::Drop (const DxuiMouseEvent & ev)
     if (DxuiDockSite::Contains (box, ev.positionDip))
     {
         row  = list->HitTestRow (ev.positionDip.x - box.left, ev.positionDip.y - box.top);
-        line = m_views.GetCodeLineOfRow (view, row);
+        line = m_views.GetGutterLineOfRow (view, row);
     }
 
     if (line < 0)
@@ -255,7 +255,7 @@ void DisassemblyGutter::Hover (POINT atDip)
         }
 
         view = each;
-        row  = (m_views.GetCodeLineOfRow (each, list->HitTestRow (lx, ly)) >= 0) ? list->HitTestRow (lx, ly) : -1;
+        row  = (m_views.GetGutterLineOfRow (each, list->HitTestRow (lx, ly)) >= 0) ? list->HitTestRow (lx, ly) : -1;
     }
 
     if (view == m_hoverView && row == m_hoverRow)

@@ -218,6 +218,7 @@ protected:
 
     //  Protected so a test can read the rows a view shows.
     int                          GetCodeLineOfRow    (int view, int row) const override;
+    int                          GetGutterLineOfRow  (int view, int row) const override;
 
     //  Protected so a test can see where the keys go.
     IDxuiControl  * GetFocused     () const;

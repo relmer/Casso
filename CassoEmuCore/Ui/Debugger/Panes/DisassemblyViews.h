@@ -129,6 +129,7 @@ public:
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const override;
     DxuiListView *                                       GetCodeList  (int view) const override;
     int                                                  GetCodeLineOfRow (int view, int row) const override;
+    int                                                  GetGutterLineOfRow (int view, int row) const override;
 
     //  The view a list is, or -1; and how many views are open.
     int                              GetViewOf      (const IDxuiControl * control) const;
@@ -185,12 +186,15 @@ public:
     bool                             TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     static bool                      TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegister> & registers, Word address, std::wstring & text);
 
-    //  The source row above the PC's instruction that it came from, which
-    //  has the PC's marker with source lines on; -1 for none in view.
+    //  The source row representing the PC's instruction, the first its line
+    //  produced, which has the PC's marker with source lines on; -1 when the
+    //  PC's instruction has no source row above it.
     static int                       FindPcSourceRow     (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, const std::vector<DisassemblyOptions::Row> & built);
 
 private:
     void                             UpdateChanges  (const DebuggerViewSnapshot & snapshot);
+    void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
+                                                     std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);
     bool                             TryGetSourceText (int fileId, int line, std::wstring & text);
 

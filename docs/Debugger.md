@@ -721,12 +721,19 @@ source view.
 - Each disassembly view's toolbar has check boxes for its viewing options,
   as Visual Studio's: Show address, Show code bytes, Show source code, Show
   symbol names and Show line numbers. With source shown, each source line sits
-  on a row above the code it produced. Source and line numbers are offered once
+  on a row above the code it produced, and the row represents the first
+  instruction under it: its breakpoint, the PC's arrow and the branch arrow
+  are on the source line, and a click in its breakpoint column sets or clears
+  the instruction's breakpoint. A line that produced one instruction has the
+  instruction's operand and result in their column, before the line's
+  comment. A macro or a C line has them on its instructions' rows. Source and
+  line numbers are offered once
   a debug file maps the code. All start checked; the choices hold for every
   view and are saved. Show source code's tip says how to get source while
   there is none, and Show symbol names' tip lists where the symbols came from.
 - Hovering a disassembly view's breakpoint column shows a gray breakpoint on
-  an instruction's row, where a click sets one.
+  an instruction's row or the source line representing it, where a click sets
+  one.
 - While paused, dragging the PC's yellow arrow to another instruction sets the
   PC there without running anything, as Set next statement on a row's context
   menu does.

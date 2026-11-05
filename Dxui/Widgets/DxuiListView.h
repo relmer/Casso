@@ -202,6 +202,10 @@ public:
     void  FitColumnToContent        (size_t idx);
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
+
+    //  The width the content auto-fit gives a cell of `chars` characters
+    //  with no lead, padding included.
+    int   GetFittedWidthPx          (size_t chars) const;
     int   GetTotalMeasuredWidthPx   () const;
     void  MeasureColumnsPx          (IDxuiTextRenderer & text) const;
 
