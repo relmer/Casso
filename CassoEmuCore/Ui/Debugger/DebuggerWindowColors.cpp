@@ -112,6 +112,20 @@ void DebuggerWindow::ApplyTheme (const std::string & name)
         SetWindowMenus();
     }
 
+    //  The code views, the source documents and the heat map take their
+    //  colors at a snapshot, and no snapshot comes when a theme is chosen
+    //  while the machine is stopped: their rows had the last theme's colors.
+    if (m_heatMapPane != nullptr)
+    {
+        m_heatMapPane->ApplyPalette();
+    }
+
+    if (m_snapshot != nullptr && m_code != nullptr && m_sources != nullptr)
+    {
+        m_code->Apply();
+        m_sources->Apply();
+    }
+
     Invalidate();
 }
 
@@ -307,6 +321,35 @@ std::shared_ptr<const DxuiIconImage> DebuggerWindow::GetPcIcon (const std::share
 uint32_t DebuggerWindow::GetPcMarkerArgb() const
 {
     return DisassemblyCells::GetPcMarkerArgb ((m_theme != nullptr) ? m_theme->ContentBackground() : 0xFF000000);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPcTabMarkArgb
+//
+//  The PC's yellow, darkened or lightened until its contrast with the band
+//  behind the tabs and with a tab's fill is 3:1, a glyph's minimum; the code
+//  views' yellow, picked against their fill, was faint on a light theme's
+//  tabs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DebuggerWindow::GetPcTabMarkArgb() const
+{
+    constexpr float  kGlyphContrast = 3.0f;
+
+
+
+    if (m_theme == nullptr)
+    {
+        return GetPcMarkerArgb();
+    }
+
+    return DebuggerTextColors::GetReadable (GetPcMarkerArgb(), { m_theme->PaneBand(), m_theme->ContentBackground(), m_theme->Background() }, kGlyphContrast);
 }
 
 

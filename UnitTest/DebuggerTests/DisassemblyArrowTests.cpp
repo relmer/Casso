@@ -4,6 +4,7 @@
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "../Dxui/MockDxuiPainter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -267,6 +268,27 @@ namespace DebuggerTests
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse (snapshot.pcTarget.has_value(), L"a NOP goes nowhere");
+        }
+
+        //  The PC's line's glyph has the line's dot, or nothing, in its left
+        //  square and the arrow in its right, so the arrow never covers the dot.
+        TEST_METHOD (ThePcsArrowIsBesideTheBreakpointsDot)
+        {
+            constexpr int  kMiddle = GutterGlyph::kSizePx / 2;
+            auto           dot     = GutterGlyph::MakeDot   (0xFFFF0000, true);
+            auto           arrow   = GutterGlyph::MakeArrow (0xFFFFE34D);
+            auto           marked  = GutterGlyph::MakeMarked (dot, arrow);
+            auto           alone   = GutterGlyph::MakeMarked (nullptr, arrow);
+            auto           at      = [] (const DxuiIconImage & image, int x, int y) { return image.bgraPremul[(size_t) (y * image.width + x)]; };
+
+
+
+            Assert::AreEqual (GutterGlyph::kSizePx * 2, marked->width, L"two squares across");
+            Assert::AreEqual (at (*dot, kMiddle, kMiddle),   at (*marked, kMiddle, kMiddle), L"the dot in the left square");
+            Assert::AreEqual (at (*arrow, kMiddle, kMiddle), at (*marked, GutterGlyph::kSizePx + kMiddle, kMiddle), L"the arrow in the right");
+            Assert::AreEqual (0u, at (*alone, kMiddle, kMiddle), L"no dot: the left square is empty");
+            Assert::AreEqual (at (*arrow, kMiddle, kMiddle), at (*alone, GutterGlyph::kSizePx + kMiddle, kMiddle), L"and the arrow in the same place");
+            Assert::IsTrue   (GutterGlyph::MakeMarked (dot, nullptr) == dot, L"no arrow: the dot alone");
         }
 
         //  The stepped arrow ends at the PC's row and the PC's starts there, each

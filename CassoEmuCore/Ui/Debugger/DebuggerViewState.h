@@ -600,6 +600,11 @@ public:
     //  How many lines a code view has room for. The window measures it and
     //  says; the default is what fits the smallest pane worth having.
     void  SetCodeLines     (int lines, int view = 0);
+
+    //  How many of a view's lines the window has in view, which with source
+    //  rows is fewer than its lines: a PC on a line past them isn't in view,
+    //  and the middle is the middle of these. Zero until the window has sent it.
+    void  SetCodeShown     (int lines, int view = 0)    { m_code[(size_t) view].visible = (std::max) (0, lines); }
     int   GetCodeLines     (int view = 0) const { return m_code[(size_t) view].lines; }
 
     std::optional<Word>  GetCodeAddress   (int view = 0) const { return m_code[(size_t) view].address; }
@@ -1012,6 +1017,7 @@ private:
         int                      scrollLines  = 0;
         std::optional<uint64_t>  scrolledAtMs;
         bool                     isMenuHeld   = false;
+        int                      visible      = 0;
         Word                     followAnchor = 0;
         std::vector<Word>        shown;
         int                      lines        = kCodeLines;

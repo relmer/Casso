@@ -405,11 +405,36 @@ void DebuggerWindow::SaveColumnWidths()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::IsCodeList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsCodeList (const DxuiListView * list) const
+{
+    bool  isCode = false;
+
+
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        isCode = isCode || m_code->GetCodeList (view) == list;
+    }
+
+    return isCode;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyColumnWidths
 //
 //  A width of zero, a hidden column's, is left to the list. The widths are
 //  dips, so Layout applies them again when the window's DPI is a different
 //  one, the first layout's included: the controls are built at the default.
+//  A disassembly view's Label column is fitted to its labels instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -428,7 +453,7 @@ void DebuggerWindow::ApplyColumnWidths()
 
         for (size_t c = 0; c < widths->second.size() && c < list->GetColumnCount(); c++)
         {
-            if (widths->second[c] > 0)
+            if (widths->second[c] > 0 && !(c == DisassemblyCells::kLabelColumn && IsCodeList (list)))
             {
                 list->SetColumnOverrideWidthPx (c, m_scaler.ToPx (widths->second[c]));
             }

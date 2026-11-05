@@ -155,7 +155,7 @@ float DxuiActionBanner::GetActionWidthDip (const DxuiButton & action)
 //  the actions occupy is reserved out of its TEXT instead.
 //
 //  NEVER SHORTER THAN A BUTTON, because a report whose action is clipped offers
-//  nothing at all.
+//  nothing at all. A banner with no action is as tall as its text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,8 +163,11 @@ float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler
 {
     float  textH   = 0.0f;
     float  actionH = 0.0f;
+    float  margin  = scaler.ToPxf (m_marginDip);
 
 
+
+    widthPx -= margin * 2.0f;
 
     if (widthPx < 1.0f)
     {
@@ -174,9 +177,9 @@ float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler
     m_banner.SetTrailingReservePx (GetActionColumnPx (scaler));
 
     textH   = m_banner.GetPreferredHeightPx (widthPx, scaler);
-    actionH = scaler.ToPxf (s_kActionHeightDip) + scaler.ToPxf (s_kEdgePadDip) * 2.0f;
+    actionH = m_actions.empty() ? 0.0f : scaler.ToPxf (s_kActionHeightDip) + scaler.ToPxf (s_kEdgePadDip) * 2.0f;
 
-    return (textH > actionH) ? textH : actionH;
+    return ((textH > actionH) ? textH : actionH) + margin * 2.0f;
 }
 
 
@@ -187,10 +190,10 @@ float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler
 //
 //  DxuiActionBanner::Layout
 //
-//  One bordered strip across the whole bounds, with the actions inside it
-//  against the trailing edge, vertically centered.
+//  One bordered strip across the bounds inside the margin, with the actions
+//  inside it against the trailing edge, vertically centered.
 //
-//  THE NOTICE GETS THE WHOLE BOUNDS. It is a message bar CONTAINING a button:
+//  THE NOTICE GETS THE WHOLE BOUNDS, less the margin. It is a message bar CONTAINING a button:
 //  the border runs the full width and the button sits within it. Shrinking the
 //  notice to make room would put the button outside the border and leave a bar
 //  next to a button instead.
@@ -203,13 +206,14 @@ float DxuiActionBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler
 
 void DxuiActionBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    LONG   margin     = (LONG) std::lround (scaler.ToPxf (m_marginDip));
+    RECT   noticeArea = { boundsDip.left + margin, boundsDip.top + margin, boundsDip.right - margin, boundsDip.bottom - margin };
     float  actionH    = scaler.ToPxf (s_kActionHeightDip);
     float  gap        = scaler.ToPxf (s_kActionGapDip);
     float  edge       = scaler.ToPxf (s_kEdgePadDip);
-    float  right      = (float) boundsDip.right - edge;
-    float  midY       = (float) (boundsDip.top + boundsDip.bottom) * 0.5f;
+    float  right      = (float) noticeArea.right - edge;
+    float  midY       = (float) (noticeArea.top + noticeArea.bottom) * 0.5f;
     size_t i          = 0;
-    RECT   noticeArea = boundsDip;
 
 
 

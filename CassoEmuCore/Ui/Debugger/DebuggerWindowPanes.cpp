@@ -300,6 +300,28 @@ void DebuggerWindow::ActivatePaneTab (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::IsSameTabGroup
+//
+//  Two panes in one group lie in the same rectangle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsSameTabGroup (const std::wstring & a, const std::wstring & b) const
+{
+    RECT  first  = {};
+    RECT  second = {};
+
+
+
+    return m_dockSite->TryGetPaneGroupRect (a, first) && m_dockSite->TryGetPaneGroupRect (b, second) && EqualRect (&first, &second) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RelayoutDock
 //
 ////////////////////////////////////////////////////////////////////////////////

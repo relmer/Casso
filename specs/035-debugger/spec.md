@@ -343,8 +343,12 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: What is a branch arrow's tip? -> A: Only whether it will be taken, was taken or won't be taken. The owner: "Don't need to decipher the instruction's behavior in the tooltip" (FR-354).
 - Q: How are the stepped arrow and the PC's arrow drawn apart? -> A: The owner: "show the dotted one (from prev step) where it is and show the current jump (solid line) with a bit more space between the line and the instruction column. If the lines won't overlap, we don't need to provide addl horz separation" (FR-358, FR-359). The arrow had to be drawn with the PC's row out of view, which an earlier fix had done and the views built from a scrolled start had lost: the PC's target is now in the snapshot.
 - Q: How is the automatic recognition of data from the heat map solved, given a loader writes code before it runs? -> A: Not built. Options given to the owner: mark only bytes read as operands and never run, since a loader writes code but doesn't read it at its final address; drop the mark at the first execution; and trace code from known entry points by following branches and calls.
-- Q: Is C source-level debugging finished? -> A: No; a demo ships (`Apple2/Demos/CDemo`, built with a local cc65 snapshot), and stepping by C line, C variables, types and C identifiers are GitHub issue #182.
+- Q: Is C source-level debugging finished? -> A: No. Stepping by C line, C variables, types and C identifiers are GitHub issue #182, and so is the C demo: the owner, after trying it, "Let's remove the C stuff and keep it in 182". The demo is on the branch `182-c-debugging`.
 - Q: How is the debugger's documentation organized? -> A: `docs/Debugger-Tutorial.md`, guided walk-throughs on the demo disks, and `docs/Debugger-Reference.md`, renamed from `docs/Debugger.md` and reorganized into chapters. The owner: "Name the other one Debugger-Reference.md for clarity. Go ahead and do the rewrite."
+
+- Q: Why did the debugger spin after loading `symbols-demo.dbg` over `cdemo.dbg`? -> A: Each debug file's project had saved the other's file as a symbol file: loading a debug file switches to its project, and the project switched from was saved after the load. Applying either loaded the other without end (FR-365).
+- Q: Should the Label column be fitted automatically? -> A: Yes, at each symbol or debug file load. The owner: "Can we auto-size the disasm/src cols to solve the main_loop -> main_lo issue? Maybe do it by default when we open a new src file, load symbols... or maybe just always?" (FR-366).
+- Q: Which window stays in front after a step? -> A: The owner: "I should stay in whichever window I hit step from, unless I'm stepping from source in the source window to an instruction that doesn't have a source line mapped--then it should move me to disasm" (FR-368).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3777,6 +3781,25 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-364**: The console line after a debug project loads MUST read "Loaded the
   debug project for symbols-demo.dbg from <path>", by the debug file's or
   binary's file name.
+- **FR-365**: A debug file's project MUST NOT save or load another debug file as
+  one of its symbol files.
+- **FR-366**: A disassembly view's Label column MUST be fitted to its labels each
+  time symbols or a debug file load, in place of a saved or dragged width.
+- **FR-367**: The PC's arrow in a code view's glyph margin MUST lie beside a
+  breakpoint's dot, not over it.
+- **FR-368**: At a stop, the PC's source document MUST NOT be brought in front of
+  the pane the step was taken from when the two are tabs of one group,
+  unless that pane is a source document.
+- **FR-369**: With source rows, a view MUST count as in view only the
+  instructions whose rows are in view, both to bring the PC on screen and to
+  center it.
+- **FR-370**: A theme change MUST recolor the code views, the source documents,
+  the heat map and the tabs' PC marks at once, with the marks at least 3:1
+  against the tab band.
+- **FR-371**: The tips over a disassembly view's heat cells MUST open on the first
+  move over them.
+- **FR-372**: A source document's notice MUST lie inside the pane with a margin on
+  every side, and MUST be no taller than its text when it has no button.
 
 ### Key Entities
 

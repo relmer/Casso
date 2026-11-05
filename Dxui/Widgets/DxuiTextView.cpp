@@ -1911,10 +1911,11 @@ void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & 
         iconX = (float) m_boundsDip.left + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
     }
 
+    //  An icon wider than it is tall runs on to the right of its first square.
     hr = text.DrawIconBitmap (row.icon->bgraPremul.data(), row.icon->width, row.icon->height,
                               iconX,
                               (float) y + ((float) m_cellHeightPx - iconPx) * 0.5f,
-                              iconPx, iconPx);
+                              iconPx * (float) row.icon->width / (float) (std::max) (1, row.icon->height), iconPx);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 

@@ -45,6 +45,10 @@ public:
     virtual SpeedMode  GetEmulatorSpeed   ()                                { return SpeedMode::Authentic; }
     //  How many lines the code pane has room for, measured by the window.
     virtual void  SetDebuggerCodeLines    (int lines, int view)             = 0;
+
+    //  How many of a view's lines are in view: with source rows above the
+    //  instructions, fewer than its lines.
+    virtual void  SetDebuggerCodeShown    (int lines, int view)             { (void) lines; (void) view; }
     //  A code view: 0 is the first, 1 to 3 the others. An address given for
     //  a closed view opens it there.
     virtual void  SetDebuggerCodeAddress  (std::optional<Word> address, int view) = 0;

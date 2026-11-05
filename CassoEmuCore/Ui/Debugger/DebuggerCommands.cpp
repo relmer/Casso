@@ -19,7 +19,7 @@ static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up
 static constexpr const wchar_t *  s_kGlyphRunToCursor = L"";         // MDL2 has no arrow into a bar, so the entry draws its own icon
 static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
-static constexpr const wchar_t *  s_kGlyphLoadFile    = s_kpszMdl2Import;
+static constexpr const wchar_t *  s_kGlyphLoadFile    = s_kpszMdl2OpenFile;
 static constexpr const wchar_t *  s_kGlyphDrawn       = L"";         // the step back and reverse entries draw their own icons
 
 

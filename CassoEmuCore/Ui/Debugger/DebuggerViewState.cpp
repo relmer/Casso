@@ -3693,7 +3693,9 @@ void DebuggerViewState::HoldCode (bool isHeld, int view)
 //  always showed the PC on its top line with nothing above it.
 //
 //  When the PC does leave, it comes back in the MIDDLE, so what led there is
-//  on screen with it.
+//  on screen with it. With source rows, only some of the lines fit in the
+//  view, and the window reports how many: the PC on a line past those has
+//  left, and the middle is theirs.
 //
 //  While the machine runs, a view the user scrolled isn't moved until
 //  kScrollHoldMs pass with no more scrolling, so the code near the PC can
@@ -3706,7 +3708,9 @@ void DebuggerViewState::HoldCode (bool isHeld, int view)
 Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const
 {
     CodeView  & v       = m_code[(size_t) view];
-    bool        shown   = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
+    size_t      inView  = (v.visible > 0) ? (std::min) ((size_t) v.visible, v.shown.size()) : v.shown.size();
+    int         half    = ((v.visible > 0) ? (std::min) (v.visible, v.lines) : v.lines) / 2;
+    bool        shown   = std::find (v.shown.begin(), v.shown.begin() + (std::ptrdiff_t) inView, pc) != v.shown.begin() + (std::ptrdiff_t) inView;
     bool        isHeld  = isRunning && (v.isMenuHeld || (v.scrolledAtMs.has_value() && m_clock() - *v.scrolledAtMs < kScrollHoldMs));
     bool        hasHold = isRunning && v.scrolledAtMs.has_value();
     Word        top     = 0;
@@ -3725,7 +3729,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     //  that runs out while the machine runs puts the PC in the middle.
     if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && (*v.pinnedAtPc != pc || hasHold) && !isHeld)
     {
-        v.followAnchor = hasHold ? FindStartAbove (session, pc, v.lines / 2) : *v.address;
+        v.followAnchor = hasHold ? FindStartAbove (session, pc, half) : *v.address;
         v.address.reset();
         v.pinnedAtPc.reset();
         v.scrolledAtMs.reset();
@@ -3744,7 +3748,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     {
         top = *v.centerOn;
 
-        for (int above = v.lines / 2; above > 0 && top == *v.centerOn; above--)
+        for (int above = half; above > 0 && top == *v.centerOn; above--)
         {
             top = FindStartAbove (session, *v.centerOn, above);
         }
@@ -3755,7 +3759,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
     if (v.scrollLines != 0)
     {
-        top = v.address.value_or (shown ? v.followAnchor : FindStartAbove (session, pc, v.lines / 2));
+        top = v.address.value_or (shown ? v.followAnchor : FindStartAbove (session, pc, half));
 
         v.address     = ScrollCodeTop (session, top, v.lines, v.scrollLines);
         v.scrollLines = 0;
@@ -3775,7 +3779,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
     if (!shown)
     {
-        v.followAnchor = FindStartAbove (session, pc, v.lines / 2);
+        v.followAnchor = FindStartAbove (session, pc, half);
     }
 
     return v.followAnchor;

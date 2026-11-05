@@ -670,6 +670,21 @@ void ShellDebugger::SetBeamOverlayOn (bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerCodeShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerCodeShown (int lines, int view)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("shown{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ScrollDebuggerCode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -948,6 +963,10 @@ void ShellDebugger::SetDebugView (const std::string & view, std::optional<Word> 
     else if (CpuCommandDispatcher::TryGetCodeView (view, "lines", index) && address.has_value())
     {
         m_debugViewState.SetCodeLines ((int) *address, index);
+    }
+    else if (CpuCommandDispatcher::TryGetCodeView (view, "shown", index) && address.has_value())
+    {
+        m_debugViewState.SetCodeShown ((int) *address, index);
     }
     else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value() && !m_debugViewState.IsCodeViewOpen (index))
     {

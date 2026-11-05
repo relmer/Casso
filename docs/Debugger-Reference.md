@@ -339,7 +339,12 @@ lines or Neither), and a Preview. **View > Disassembly** opens another view.
 
 - Hovering a disassembly view's breakpoint column draws a gray breakpoint on
   an instruction's row or the source line representing it, where a click sets
-  one.
+  one. The PC's yellow arrow is to the right of the breakpoint's dot, never
+  over it.
+- The Label column is fitted to the labels again whenever symbols or a debug
+  file load, in place of a width it was dragged to or a project saved.
+- With source rows, the view counts only the instructions whose rows are in
+  view: a stop on one below them brings the view to put the PC in the middle.
 - While paused, dragging the PC's yellow arrow to another instruction sets the
   PC there without running anything, as **Set next statement** on a row's
   context menu does.
@@ -1033,6 +1038,11 @@ Merlin 8/16 listing, which becomes a source view.
 - `SYM LOAD file.dbg` loads the symbols and the line table. The window opens a
   source pane beside the disassembly and follows the PC. With source displayed
   in the disassembly, source lines are [rows of the disassembly](#source-rows).
+- At a stop, the source document of the PC's file comes to the front, except
+  over the pane you stepped from: after a step from a disassembly view that
+  shares the document's tab group, the disassembly stays in front. A step from a
+  source document to an instruction with no source line brings the
+  disassembly to the front.
 - The bytes a debug file maps to a data directive are disassembled as data;
   see [data marking](#data-marking).
 - Dropping a debug or symbol file (`.dbg`, `.sym`, `.lbl`, `.vs`) on the

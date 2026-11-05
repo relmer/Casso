@@ -129,6 +129,8 @@ public:
     //  group with `activate`, and scrolled so `line` is at its top when one
     //  is given; and a document closed.
     void                             Open           (int fileId, int line, bool activate);
+    void                             Activate       (int slot);
+    bool                             IsFocusKept    (int slot) const;
     void                             Close          (int slot);
 
     //  A disassembly line was selected: its source line is selected in its

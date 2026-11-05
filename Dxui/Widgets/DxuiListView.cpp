@@ -4046,9 +4046,11 @@ void DxuiListView::PaintDataRows (
             if (cells[c].icon && !cells[c].icon->bgraPremul.empty())
             {
                 float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
+                float  iconW  = iconPx * (float) cells[c].icon->width / (float) (std::max) (1, cells[c].icon->height);
                 float  iconX  = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
 
-                //  A glyph margin centers its icon on a set line.
+                //  A glyph margin centers its icon's first square on a set line;
+                //  a wider icon runs on to the right.
                 if (c == 0 && m_glyphCenterDip > 0.0f)
                 {
                     iconX = x + colOff + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
@@ -4057,7 +4059,7 @@ void DxuiListView::PaintDataRows (
                 hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
                                           iconX,
                                           ry + (rowH - iconPx) * 0.5f,
-                                          iconPx, iconPx);
+                                          iconW, iconPx);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 iconShift += iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);

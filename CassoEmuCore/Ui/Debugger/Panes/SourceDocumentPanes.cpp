@@ -74,6 +74,8 @@ const std::wstring & SourceDocumentPane::GetId() const
 void SourceDocumentPane::CreateControls()
 {
     constexpr int   kBreakpointIconDip = 16;
+    constexpr float kBannerMarginDip   = 4.0f;
+    constexpr float kBannerPadDip      = 5.0f;
     DxuiPanel     & parent             = m_host.GetControlParent();
 
 
@@ -98,6 +100,8 @@ void SourceDocumentPane::CreateControls()
     m_view->SetGlyphCenterDip  (DisassemblyCells::kGlyphCenterDip);
     m_view->SetVisible         (false);
     m_banner->SetVisible       (false);
+    m_banner->SetMarginDip     (kBannerMarginDip);
+    m_banner->SetVerticalPaddingDip (kBannerPadDip);
 }
 
 
@@ -370,7 +374,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 
     if (hasPc)
     {
-        mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcMarkerArgb() };
+        mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcTabMarkArgb() };
     }
 
     //  The tab's tip is the file's full path, which differs for two files of
@@ -545,7 +549,9 @@ void SourceDocumentGroup::Apply()
 //  A running machine moves nothing, so the documents do not churn under it.
 //
 //  The first stop after the window opens only opens the file, so the tabs
-//  the layout put in front when it was restored stay in front.
+//  the layout put in front when it was restored stay in front. A step from a
+//  pane in the document's tab group other than a source document, such as a
+//  disassembly view, doesn't bring the document over that pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -555,6 +561,7 @@ void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
     std::pair<int, int>                       place   = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
     bool                                      wasLine = m_pcPlace.first >= 0;
     bool                                      isOpen  = (size_t) snapshot.followView < snapshot.codeOpen.size() && snapshot.codeOpen[(size_t) snapshot.followView];
+    int                                       slot    = -1;
 
 
 
@@ -576,7 +583,15 @@ void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
         return;
     }
 
-    Open (place.first, 0, m_hasFollowedPc);
+    Open (place.first, 0, false);
+
+    slot = m_files.Find (place.first);
+
+    if (m_hasFollowedPc && slot >= 0 && !IsFocusKept (slot))
+    {
+        Activate (slot);
+    }
+
     m_hasFollowedPc = true;
 }
 
@@ -614,10 +629,53 @@ void SourceDocumentGroup::Open (int fileId, int line, bool activate)
 
     if (activate)
     {
-        m_host.ActivatePaneTab (DebuggerLayout::GetSourcePaneId (slot));
-        m_activeSlot = slot;
-        m_host.RelayoutDock();
+        Activate (slot);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::Activate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::Activate (int slot)
+{
+    m_host.ActivatePaneTab (DebuggerLayout::GetSourcePaneId (slot));
+    m_activeSlot = slot;
+    m_host.RelayoutDock();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::IsFocusKept
+//
+//  Whether the pane with the focus stays in front rather than the document
+//  in a slot: a pane other than a source document, in the document's group.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourceDocumentGroup::IsFocusKept (int slot) const
+{
+    std::wstring  focus      = m_host.GetFocusPane();
+    bool          isDocument = false;
+
+
+
+    for (int each = 0; each < SourceDocuments::kMaxDocuments; each++)
+    {
+        isDocument = isDocument || focus == DebuggerLayout::GetSourcePaneId (each);
+    }
+
+    return !focus.empty() && !isDocument && m_host.IsSameTabGroup (focus, DebuggerLayout::GetSourcePaneId (slot));
 }
 
 

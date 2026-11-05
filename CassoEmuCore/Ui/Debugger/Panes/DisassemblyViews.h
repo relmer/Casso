@@ -194,6 +194,8 @@ public:
 
 private:
     void                             UpdateChanges  (const DebuggerViewSnapshot & snapshot);
+    void                             FitLabels      (const DebuggerViewSnapshot & snapshot);
+    void                             SendShownLines (int view, const std::vector<DisassemblyOptions::Row> & built);
     void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
                                                      std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);
@@ -209,7 +211,9 @@ private:
     std::vector<std::unique_ptr<ToolbarCheckEntry>>       m_optionEntries;
     int                                                   m_active       = 0;
     std::array<bool, DebuggerViewState::kMaxCodeViews>    m_isOpen       = { true };
+    std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>  m_fittedSymbols;
     std::array<int, DebuggerViewState::kMaxCodeViews>     m_linesSentTo  = {};
+    std::array<int, DebuggerViewState::kMaxCodeViews>     m_shownSentTo  = {};
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_selected;
     std::array<std::optional<bool>, DebuggerViewState::kMaxCodeViews>     m_edgeAfterScroll;     // true for the top row
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>     m_edgeScrolledFrom;    // the first line when the key scrolled

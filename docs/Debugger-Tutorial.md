@@ -22,7 +22,6 @@ in the default AppleWin mode.
 6. [Sound and speech with the Mockingboard panel](#6-sound-and-speech-with-the-mockingboard-panel)
 7. [Profiling a game](#7-profiling-a-game)
 8. [Scripting](#8-scripting)
-9. [A C program](#9-a-c-program)
 
 ## The symbols demo
 
@@ -405,40 +404,3 @@ second.
 [the debug channel](Debugger-Reference.md#the-debug-channel),
 [MCP](Debugger-Reference.md#mcp), [DebugChannel.md](DebugChannel.md) and
 [DebuggerForAgents.md](DebuggerForAgents.md).
-
-## 9. A C program
-
-**In this tutorial:** debugging a cc65 C program by its source lines.
-
-`Apple2/Demos/cdemo.dsk` boots a small C program built from
-`Apple2/Demos/CDemo/cdemo.c` and `bar.c`: it draws a title, counts from 0 to
-39 with a bar that grows by one `*` a count, and changes its hint line each
-time the bar fills. `Apple2/Demos/CDemo/Build.ps1` rebuilds it with cc65
-(`-Cc65Home` or `CC65_HOME` points at a cc65 snapshot) and writes `cdemo.dbg`
-beside the sources. The program is built for the enhanced //e, so it runs only on a
-65C02.
-
-**Steps**
-
-1. Start Casso with
-   `Casso.exe --debugger --machine Apple2eEnhanced --disk1 Apple2\Demos\cdemo.dsk`.
-2. Load the debug file: **File > Open symbol or debug file...** and
-   `Apple2\Demos\CDemo\cdemo.dbg`, or
-   `SYM LOAD "Apple2\Demos\CDemo\cdemo.dbg"` in the console.
-3. Type `BP bar.c:42`. The machine stops in `draw_bar`, and `bar.c` opens in
-   a source document with the PC on line 42.
-4. The call stack has `_draw_bar` called from `_main`.
-5. Watch the global `count` with `W _count`: C globals are assembler symbols
-   with a leading underscore.
-
-**What you should see:** the stop in `bar.c`, the call from `main` in the
-call stack, and `_count` going up by one at each stop after F5.
-
-**What doesn't work yet:** stepping goes by the lines of the assembler file
-cc65 generates rather than by C lines, C locals and arguments can't be
-watched by name, and C types aren't read. Issue
-[#182](https://github.com/relmer/Casso/issues/182) covers them.
-
-**Reference:** [debug files](Debugger-Reference.md#debug-files),
-[source documents](Debugger-Reference.md#source-documents) and
-[the call stack](Debugger-Reference.md#the-call-stack).

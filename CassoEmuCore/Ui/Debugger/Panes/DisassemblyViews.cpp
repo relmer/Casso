@@ -855,6 +855,46 @@ bool DisassemblyGroup::IsOptionEnabled (DisassemblyOptions::Option option) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyGroup::FitLabels
+//
+//  Each load of symbols or a debug file changes the labels the rows have, so
+//  every view's Label column is fitted to them again, in place of a width
+//  the user or a project set: a saved width made for other labels cut the
+//  new ones short.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::FitLabels (const DebuggerViewSnapshot & snapshot)
+{
+    DxuiListView  * list = nullptr;
+
+
+
+    if (snapshot.symbols == m_fittedSymbols)
+    {
+        return;
+    }
+
+    m_fittedSymbols = snapshot.symbols;
+
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        list = GetCodeList (view);
+
+        if (list != nullptr)
+        {
+            list->SetColumnOverrideWidthPx (DisassemblyCells::kLabelColumn, -1);
+            list->ResetAutoFit();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyGroup::Apply
 //
 //  Each disassembly view open, and which follows the PC: once a second view
@@ -871,6 +911,7 @@ void DisassemblyGroup::Apply()
 
 
     UpdateChanges (snapshot);
+    FitLabels     (snapshot);
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
@@ -909,7 +950,7 @@ void DisassemblyGroup::Apply()
         //  the two read as one sign.
         if (follows)
         {
-            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcMarkerArgb() };
+            mark = DxuiTabGroup::LeadingMark { s_kpszTriangleRight, DxuiTheme::kMonoFace, m_host.GetPcTabMarkArgb() };
         }
 
         m_host.SetPaneTabMark (DebuggerLayout::GetCodePaneId (view), mark, follows ? L"This disassembly follows the PC" : L"");
@@ -1018,6 +1059,7 @@ void DisassemblyGroup::ApplyView (int view)
 
     built = DisassemblyOptions::BuildRows (lines, source, [this, &text] (int fileId, int line) { return TryGetSourceText (fileId, line, text); });
     m_views[(size_t) view]->SetRows (built);
+    SendShownLines (view, built);
     m_views[(size_t) view]->SetStaleText (DisassemblyViewPane::GetStaleText (snapshot->staleFileNames, snapshot->source.has_value() && snapshot->source->isStale));
 
     //  With source lines on, a source row represents the first instruction
@@ -1256,6 +1298,34 @@ void DisassemblyGroup::ApplyHistory (const HistoryStatus & status)
     if (wasShown != isShown)
     {
         m_views[0]->GetFrame()->Relayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::SendShownLines
+//
+//  With source rows, a view's lines run past its rows, and the CPU thread
+//  uses how many are in view to bring the PC on screen and to center it;
+//  only a change is sent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyGroup::SendShownLines (int view, const std::vector<DisassemblyOptions::Row> & built)
+{
+    IDebuggerWindowHost  * host  = m_host.GetWindowHost();
+    int                    shown = DisassemblyOptions::CountShownLines (built, GetCodeList (view)->GetVisibleRowCapacity());
+
+
+
+    if (host != nullptr && shown > 0 && shown != m_shownSentTo[(size_t) view])
+    {
+        m_shownSentTo[(size_t) view] = shown;
+        host->SetDebuggerCodeShown (shown, view);
     }
 }
 

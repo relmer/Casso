@@ -2245,5 +2245,18 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1371 Data lines (FR-362): `spansRow` on a data line's instruction cell, and `DataDirectiveHandlers::IsControl` for a string's trailing bytes. Tests: the ASC line in `DataDirectiveHandlersTests`; checked on screen.
 - [X] T1372 No check gutter in action menus (FR-363): `DebuggerMenuCommand::Make (label, chosen)`. Tests: `UnloadSymbolFileListsEachLoadedFile`.
 - [X] T1373 The console line (FR-364): `ProjectScope::Choose` labels by file name. Tests: `ProjectShellTests`; checked on screen.
-- [X] T1374 The C demo: `Apple2/Demos/CDemo` and `cdemo.dsk`, built with a cc65 snapshot in `C:\Users\relmer\Tools\cc65`; the rest of C debugging is issue #182.
+- [X] T1374 The C demo: built (`Apple2/Demos/CDemo` and `cdemo.dsk`, with a cc65 snapshot in `C:\Users\relmer\Tools\cc65`), then taken out of 035 at the owner's request and moved with the rest of C debugging to issue #182, on the branch `182-c-debugging`.
 - [X] T1375 Docs: `docs/Debugger-Tutorial.md` (new) and `docs/Debugger-Reference.md` (renamed from `docs/Debugger.md` and reorganized), linked from `README.md` and `docs/DebuggerForAgents.md`.
+
+## Phase 64: Owner review, 2026-11-05 evening (FR-365 to FR-372)
+
+- [X] T1376 Debug projects that loaded each other's file (FR-365): `DebugProject::IsOtherDebugFile` in capture and apply. Tests: `ADebugFilesProjectNeitherSavesNorLoadsAnotherDebugFile`; checked against the owner's two projects, which were repaired.
+- [X] T1377 The Label column fitted at each load (FR-366): `DisassemblyGroup::FitLabels`, and `DebuggerWindow::ApplyColumnWidths` passes the column over. Checked on screen.
+- [X] T1378 The PC's arrow beside the breakpoint's dot (FR-367): `GutterGlyph::MakeMarked`, icons drawn at their aspect in `DxuiListView` and `DxuiTextView`, `DisassemblyCells::kGutterColumnDip` 34. Tests: `ThePcsArrowIsBesideTheBreakpointsDot`; checked on screen.
+- [X] T1379 The front tab after a step (FR-368): `SourceDocumentGroup::IsFocusKept`, `IDebuggerPaneHost::GetFocusPane` and `IsSameTabGroup`. Checked on screen with F10 in the disassembly.
+- [X] T1380 The lines in view (FR-369): `DisassemblyOptions::CountShownLines`, `SetDebuggerCodeShown` through `shown[N]`, `DebuggerViewState::SetCodeShown`. Tests: `TheShownLinesAreThoseWhoseInstructionRowFits`, `APcPastTheLinesInViewIsBroughtIntoTheirMiddle`.
+- [X] T1381 Theme changes (FR-370): `DebuggerWindow::ApplyTheme` applies the snapshot to the code views and documents again and `HeatMapPane::ApplyPalette`; `GetPcTabMarkArgb`. Checked on screen, dark to light.
+- [X] T1382 Heat cell tips at once (FR-371): `DebuggerWindow::TryGetCodeTip`.
+- [X] T1383 The notice's margin and height (FR-372): `DxuiActionBanner::SetMarginDip` and `SetVerticalPaddingDip`.
+- [X] T1384 The Load file into memory icon: Segoe MDL2's OpenFile, `s_kpszMdl2OpenFile`.
+- [X] T1385 Docs: `docs/Debugger-Reference.md`.

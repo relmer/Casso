@@ -117,9 +117,8 @@ std::shared_ptr<DxuiIconImage> GutterGlyph::MakeOver (const DxuiIconImage & unde
 //
 //  GutterGlyph::MakeMarked
 //
-//  The line the PC is on shows the arrow over its dot, as Visual Studio
-//  draws its arrow over a breakpoint; a line with no dot shows the arrow
-//  itself, the same image rather than a copy.
+//  The arrow's square follows the dot's, which is left empty on a line with
+//  no breakpoint, so the arrow lies in the same place on every line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,16 +126,33 @@ std::shared_ptr<const DxuiIconImage> GutterGlyph::MakeMarked (
     const std::shared_ptr<const DxuiIconImage>  & dot,
     const std::shared_ptr<const DxuiIconImage>  & arrow)
 {
-    std::shared_ptr<const DxuiIconImage>  marked = arrow;
+    auto  image = std::make_shared<DxuiIconImage>();
 
 
 
-    if (dot != nullptr && arrow != nullptr)
+    if (arrow == nullptr)
     {
-        marked = MakeOver (*dot, *arrow);
+        return dot;
     }
 
-    return marked;
+    image->width  = arrow->width * 2;
+    image->height = arrow->height;
+    image->bgraPremul.assign ((size_t) image->width * (size_t) image->height, 0u);
+
+    for (int y = 0; y < image->height; y++)
+    {
+        for (int x = 0; x < arrow->width; x++)
+        {
+            if (dot != nullptr && x < dot->width && y < dot->height)
+            {
+                image->bgraPremul[(size_t) (y * image->width + x)] = dot->bgraPremul[(size_t) (y * dot->width + x)];
+            }
+
+            image->bgraPremul[(size_t) (y * image->width + arrow->width + x)] = arrow->bgraPremul[(size_t) (y * arrow->width + x)];
+        }
+    }
+
+    return image;
 }
 
 

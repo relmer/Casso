@@ -500,7 +500,8 @@ bool DebuggerWindow::MarkImmediate (bool isFound, DxuiTip & tip)
 //
 //  Over a disassembly row: the PC's branch arrow, or a symbol and what the
 //  color of its cell means. A symbol's tip is code, so it reads in the
-//  fixed-width face. Elsewhere the list has its cells' tips.
+//  fixed-width face. Over the heat column, the cell's heat. Elsewhere the
+//  list has its cells' tips.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -520,7 +521,8 @@ bool DebuggerWindow::TryGetCodeTip (const DxuiListView & list, POINT clientPx, D
 
     if (!m_code->TryGetSymbolTip (clientPx, anchor, text))
     {
-        return false;
+        return GetColumnAt (&list, clientPx.x - bounds.left) == (int) DisassemblyCells::kHeatColumn &&
+               list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, tip);
     }
 
     (void) list.TryGetCellTip (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top }, colorTip);

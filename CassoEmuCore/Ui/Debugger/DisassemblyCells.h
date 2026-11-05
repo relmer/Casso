@@ -25,7 +25,7 @@ class DisassemblyCells
 {
 public:
     static constexpr float   kGlyphCenterDip    = 8.4f;
-    static constexpr int     kGutterColumnDip   = 17;
+    static constexpr int     kGutterColumnDip   = 34;     // a breakpoint's dot, then the PC's arrow
     static constexpr size_t  kGutterColumn      = 0;
     static constexpr size_t  kHeatColumn        = 1;
     static constexpr size_t  kAddressColumn     = 2;

@@ -114,7 +114,7 @@ std::vector<DxuiToolbar::Entry> BasicProgramController::MakeBarEntries() const
 
     std::vector<Row>                 rows    =
     {
-        { L"Load", s_kpszMdl2Import, L"Load an Applesoft listing from a file as the program in memory", [this] { m_host.OpenBasicProgram(); } },
+        { L"Load", s_kpszMdl2OpenFile, L"Load an Applesoft listing from a file as the program in memory", [this] { m_host.OpenBasicProgram(); } },
         { L"Save", s_kpszMdl2Save,   L"Save the program in memory to a file as a listing",              [this] { m_host.SaveBasicProgram(); } },
     };
     std::vector<DxuiToolbar::Entry>  entries;

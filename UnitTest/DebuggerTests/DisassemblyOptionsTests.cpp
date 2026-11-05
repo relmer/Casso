@@ -268,6 +268,25 @@ namespace DisassemblyOptionsTests
 
 
 
+        //  With a source row above each instruction, only half of the lines
+        //  have their instruction's row in a view of a given height.
+        TEST_METHOD (TheShownLinesAreThoseWhoseInstructionRowFits)
+        {
+            std::vector<DisassemblyOptions::Row>  rows;
+
+
+
+            for (int line = 0; line < 10; line++)
+            {
+                rows.push_back ({ -1, 0, line + 1 });
+                rows.push_back ({ line, -1, 0 });
+            }
+
+            Assert::AreEqual (5,  DisassemblyOptions::CountShownLines (rows, 10));
+            Assert::AreEqual (4,  DisassemblyOptions::CountShownLines (rows, 9), L"a source row alone at the bottom doesn't count its instruction");
+            Assert::AreEqual (10, DisassemblyOptions::CountShownLines (rows, 40));
+        }
+
         TEST_METHOD (ASourceRowGoesAboveTheFirstInstructionOfEachLine)
         {
             std::shared_ptr<const DebuggerViewSnapshot>  snapshot = MakeSnapshot (true);
