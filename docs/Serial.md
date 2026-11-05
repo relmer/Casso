@@ -103,4 +103,4 @@ the remote end gets it twice. Loading a machine's saved state closes any real
 connection: DCD turns off and the modem returns `NO CARRIER`.
 
 The debugger's **Serial log** lists the traffic of every attachment; see
-[the debugger](Debugger.md#serial-and-network-logs).
+[the debugger](Debugger-Reference.md#serial-and-network-logs).

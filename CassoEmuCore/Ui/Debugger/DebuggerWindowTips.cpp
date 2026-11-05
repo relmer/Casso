@@ -436,7 +436,8 @@ bool DebuggerWindow::IsChildHitTestable (const IDxuiControl & child) const
 //  DebuggerWindow::ConfigureTips
 //
 //  The tips that join facts from two parts, installed on the controls they
-//  are over: a disassembly row's, a source line's and the status bar's.
+//  are over: a disassembly row's, a source line's and the status bar's. The
+//  code views' tips open at once, as an editor's do over code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -448,7 +449,7 @@ void DebuggerWindow::ConfigureTips()
 
         if (list != nullptr)
         {
-            list->SetTipFn ([this, list] (POINT clientPx, DxuiTip & tip) { return TryGetCodeTip (*list, clientPx, tip); });
+            list->SetTipFn ([this, list] (POINT clientPx, DxuiTip & tip) { return MarkImmediate (TryGetCodeTip (*list, clientPx, tip), tip); });
         }
     }
 
@@ -460,7 +461,7 @@ void DebuggerWindow::ConfigureTips()
         {
             document.GetView()->SetTipFn ([this, &document] (POINT clientPx, DxuiTip & tip)
             {
-                return TryGetBranchTip (clientPx, tip) || document.TryGetHeatTip (clientPx, tip) || TryGetSourceSymbolTip (document, clientPx, tip);
+                return MarkImmediate (TryGetBranchTip (clientPx, tip) || document.TryGetHeatTip (clientPx, tip) || TryGetSourceSymbolTip (document, clientPx, tip), tip);
             });
         }
     }
@@ -469,6 +470,24 @@ void DebuggerWindow::ConfigureTips()
     {
         m_statusBar->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetGraphicTip (clientPx, tip); });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MarkImmediate
+//
+//  Returns `isFound`, with the tip set to open at once when one was found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::MarkImmediate (bool isFound, DxuiTip & tip)
+{
+    tip.isImmediate = isFound;
+    return isFound;
 }
 
 

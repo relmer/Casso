@@ -294,7 +294,7 @@ namespace ProjectShellTests
 
             Assert::IsNotNull (data, L"PROJECT replies with the project");
             Assert::AreEqual (std::string ("binary"), data->scope, L"the binary's project is open");
-            Assert::AreEqual (std::string ("binary prog.bin"), data->label, L"labeled with the binary's name");
+            Assert::AreEqual (std::string ("prog.bin"), data->label, L"labeled with the binary's name");
 
             rig.Detach();
             Assert::AreEqual ((size_t) 2, rig.files.FileCount(), L"the machine's project and the binary's");

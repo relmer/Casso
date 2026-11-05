@@ -71,7 +71,7 @@ std::vector<DxuiPopupMenuItem> ViewMenuRows::Build (const std::vector<std::uniqu
     {
         auto                           found = std::ranges::find_if (panes, [&id] (const std::unique_ptr<IDebuggerPane> & each) { return each->GetId() == id; });
         std::wstring                   group = (*found)->GetViewMenuGroup();
-        std::shared_ptr<DxuiCommand>   row   = DebuggerMenuCommand::Make ((*found)->GetTitle(), false, [open, id] { open (id); });
+        std::shared_ptr<DxuiCommand>   row   = DebuggerMenuCommand::Make ((*found)->GetTitle(), [open, id] { open (id); });
         size_t                         index = 0;
 
         row->isChecked   = [isOpen, id] { return isOpen (id); };
@@ -100,7 +100,7 @@ std::vector<DxuiPopupMenuItem> ViewMenuRows::Build (const std::vector<std::uniqu
 
     for (size_t i = 0; i < cascades.size(); i++)
     {
-        std::shared_ptr<DxuiCommand>  cascade = DebuggerMenuCommand::Make (cascades[i], false, [] {});
+        std::shared_ptr<DxuiCommand>  cascade = DebuggerMenuCommand::Make (cascades[i], [] {});
 
         commands.push_back (cascade);
         view[cascadeAt[i]] = DxuiPopupMenuItem::ForSubmenu (cascade, std::move (cascadeRows[i]));

@@ -62,6 +62,7 @@ private:
 
     static void  MakeDataLine  (DebugSession & session, const DataBlockEntry & block, Word address, DisassemblyLine & line);
     static std::string  FormatItems (const DataBlockEntry & block, std::span<const Byte> bytes);
+    static bool         IsControl   (Byte b);
     static double       DecodeFloat (std::span<const Byte> bytes);
     static Byte         Peek        (IDebugTarget & target, Word address);
 

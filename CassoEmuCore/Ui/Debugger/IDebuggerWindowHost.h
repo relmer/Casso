@@ -91,6 +91,9 @@ public:
     //  Scrolls the code pane by instructions, through the whole address space.
     virtual void  ScrollDebuggerCode      (int lines, int view) = 0;
 
+    //  While a code view's menu is open, a running machine doesn't move it.
+    virtual void  HoldDebuggerCode        (int view, bool isHeld)          { (void) view; (void) isHeld; }
+
     //  The newest snapshot, if one arrived since the last call, and every
     //  console line written since then.
     virtual bool  TakeDebuggerUpdate      (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,

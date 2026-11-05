@@ -72,7 +72,12 @@ public:
             if (call.kind == RecordedPaintKind::FillRect && call.argb == kDeep) { deep = call; }
         }
 
-        Assert::IsTrue   (pale.has_value() && deep.has_value(), L"a fill for each range");
+        if (!pale.has_value() || !deep.has_value())
+        {
+            Assert::Fail (L"a fill for each range");
+            return;
+        }
+
         Assert::IsTrue   (pale->width > 0.0f && deep->width > pale->width, L"each as wide as its characters");
         Assert::AreEqual (pale->x + pale->width, deep->x, 0.01f, L"the second starts where the first ends");
         Assert::AreEqual (pale->height, deep->height, L"both the row's height");

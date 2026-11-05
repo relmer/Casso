@@ -26,7 +26,7 @@ class DxuiHwndSource;
 class DxuiContextMenu
 {
 public:
-    static void  Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items);
+    static void  Show (DxuiHwndSource & host, int x, int y, std::vector<DxuiPopupMenuItem> items, DxuiPopupMenu::ClosedFn onClosed = nullptr);
 
     //  A text box's menu, as a Windows edit control's: Undo, Cut, Copy,
     //  Paste, Delete and Select all, each dimmed when the control cannot run

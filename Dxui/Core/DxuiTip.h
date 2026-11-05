@@ -56,6 +56,10 @@ struct DxuiTip
     int                                 timedMs      = 0;
     bool                                isMonospace  = false;
 
+    //  Opened on the first move over it rather than after the open delay, by
+    //  the pointer, and fixed there while the text is the same.
+    bool                                isImmediate  = false;
+
     //  What the tip lists is being read: a tip that is up stays as it is,
     //  and no other opens.
     bool                                isPending    = false;

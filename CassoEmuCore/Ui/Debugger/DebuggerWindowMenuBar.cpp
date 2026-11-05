@@ -183,7 +183,7 @@ void DebuggerWindow::SetWindowMenus()
     };
     auto  emulator = [this] (const std::wstring & label, int commandId)
     {
-        return DebuggerMenuCommand::Make (label, false, [this, commandId]
+        return DebuggerMenuCommand::Make (label, [this, commandId]
         {
             if (m_host != nullptr)
             {
@@ -197,28 +197,28 @@ void DebuggerWindow::SetWindowMenus()
     m_menuCommands.clear();
 
     //  File: what the window reads and writes.
-    add (file, DebuggerMenuCommand::Make (L"Open source file...", false, [this] { OpenSourceFile(); }));
-    add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", false, [this] { OpenSymbolFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Open source file...", [this] { OpenSourceFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", [this] { OpenSymbolFile(); }));
     AddUnloadSymbolsRow (file);
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", false, [this] { m_breakpointsPane->Import(); }));
-    row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { m_breakpointsPane->Export(); });
+    add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", [this] { m_breakpointsPane->Import(); }));
+    row            = DebuggerMenuCommand::Make (L"Save breakpoints...", [this] { m_breakpointsPane->Export(); });
     row->isEnabled = [this] { return m_breakpointsPane->IsBarEntryEnabled (BreakpointBarCommands::kExport); };
     add (file, row);
-    add (file, DebuggerMenuCommand::Make (L"Save trace...", false, [this] { m_tracePane->Save(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save trace...", [this] { m_tracePane->Save(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    row            = DebuggerMenuCommand::Make (L"Load file into memory...", false, [this] { LoadFileIntoMemory(); });
+    row            = DebuggerMenuCommand::Make (L"Load file into memory...", [this] { LoadFileIntoMemory(); });
     row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };
     add (file, row);
-    add (file, DebuggerMenuCommand::Make (L"Save memory to file...", false, [this] { SaveMemoryToFile(); }));
-    add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", false, [this] { OpenBasicProgram(); }));
-    add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", false, [this] { SaveBasicProgram(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save memory to file...", [this] { SaveMemoryToFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Load BASIC program...", [this] { OpenBasicProgram(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save BASIC program...", [this] { SaveBasicProgram(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (file, DebuggerMenuCommand::Make (L"Open project...", false, [this] { OpenProject(); }));
-    add (file, DebuggerMenuCommand::Make (L"Save project as...", false, [this] { SaveProjectAs(); }));
-    add (file, DebuggerMenuCommand::Make (L"Project settings...", false, [this] { EditProjectSettings(); }));
+    add (file, DebuggerMenuCommand::Make (L"Open project...", [this] { OpenProject(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save project as...", [this] { SaveProjectAs(); }));
+    add (file, DebuggerMenuCommand::Make (L"Project settings...", [this] { EditProjectSettings(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (file, DebuggerMenuCommand::Make (L"Close", false, [this] { PostMessageW (GetHwnd(), WM_CLOSE, 0, 0); }));
+    add (file, DebuggerMenuCommand::Make (L"Close", [this] { PostMessageW (GetHwnd(), WM_CLOSE, 0, 0); }));
 
     //  Edit: the focused control's own commands, then find in the console.
     add (edit, MakeEditMenuCommand (DxuiStandardCommand::Copy,      L"Copy",       L"Ctrl+C"));
@@ -242,13 +242,13 @@ void DebuggerWindow::SetWindowMenus()
 
     //  View ends with the arrangement put back as it first was.
     view.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (view, DebuggerMenuCommand::Make (L"Reset window layout", false, [this] { ResetPaneLayout(); }));
+    add (view, DebuggerMenuCommand::Make (L"Reset window layout", [this] { ResetPaneLayout(); }));
 
     //  Debug: running and stopping, the steps and how they step. The
     //  machine's own restarts are in Machine.
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRun,   L"Run"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kPause, L"Break"));
-    add (debug, DebuggerMenuCommand::Make (L"Detach", false, [this] { Detach(); }));
+    add (debug, DebuggerMenuCommand::Make (L"Detach", [this] { Detach(); }));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepInto,    L"Step into"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepOver,    L"Step over"));
@@ -256,7 +256,7 @@ void DebuggerWindow::SetWindowMenus()
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunToCursor, L"Run to cursor"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunFrame,    L"Run one frame"));
 
-    row = DebuggerMenuCommand::Make (L"Show beam on screen", false, [this]
+    row = DebuggerMenuCommand::Make (L"Show beam on screen", [this]
     {
         if (m_host != nullptr)
         {
@@ -275,7 +275,7 @@ void DebuggerWindow::SetWindowMenus()
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kGoLive,          L"Go live"));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    row = DebuggerMenuCommand::Make (L"Step by source line", false, [this]
+    row = DebuggerMenuCommand::Make (L"Step by source line", [this]
     {
         if (m_host != nullptr && m_snapshot != nullptr && m_snapshot->source.has_value())
         {
@@ -289,7 +289,7 @@ void DebuggerWindow::SetWindowMenus()
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
-    add (debug, DebuggerMenuCommand::Make (L"Step filters...", false, [this] { EditStepFilters(); }));
+    add (debug, DebuggerMenuCommand::Make (L"Step filters...", [this] { EditStepFilters(); }));
 
     //  Machine: the machine's own restarts. The main window's Restart under
     //  debugger is not here: with the debugger open, it is Power cycle.
@@ -317,7 +317,7 @@ void DebuggerWindow::SetWindowMenus()
         }));
     }
 
-    row = DebuggerMenuCommand::Make (L"Keyboard scheme", false, [] {});
+    row = DebuggerMenuCommand::Make (L"Keyboard scheme", [] {});
     m_menuCommands.push_back (row);
     tools.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (schemes)));
 
@@ -345,13 +345,13 @@ void DebuggerWindow::SetWindowMenus()
         add (themes, row);
     }
 
-    row = DebuggerMenuCommand::Make (L"Theme", false, [] {});
+    row = DebuggerMenuCommand::Make (L"Theme", [] {});
     m_menuCommands.push_back (row);
     tools.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (themes)));
 
     //  Tools: the settings that have no place in a menu of their own.
     tools.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (tools, DebuggerMenuCommand::Make (L"Options...", false, [this] { OpenOptions(); }));
+    add (tools, DebuggerMenuCommand::Make (L"Options...", [this] { OpenOptions(); }));
 
     m_menuBarItems =
     {
@@ -391,7 +391,7 @@ void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
 
     for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
     {
-        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), false, [this, name = table.name]
+        row = DebuggerMenuCommand::Make (TextEncoding::NarrowToWide (table.origins.back()), [this, name = table.name]
         {
             RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (name), GetMode()));
         });
@@ -400,7 +400,7 @@ void DebuggerWindow::AddUnloadSymbolsRow (std::vector<DxuiPopupMenuItem> & file)
         files.push_back (DxuiPopupMenuItem::ForCommand (row));
     }
 
-    row = DebuggerMenuCommand::Make (L"Unload symbol file", false, [] {});
+    row = DebuggerMenuCommand::Make (L"Unload symbol file", [] {});
     m_menuCommands.push_back (row);
 
     if (files.empty())

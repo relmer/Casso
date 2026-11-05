@@ -1580,17 +1580,17 @@ const wchar_t * BreakpointDialog::GetDiskEventTip()
 
 std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type, Validator validator)
 {
-    HRESULT                   hr     = S_OK;
-    BreakpointDialog          dialog;
-    DxuiWindow::CreateParams  params;
+    HRESULT                            hr     = S_OK;
+    std::unique_ptr<BreakpointDialog>  dialog = std::make_unique<BreakpointDialog>();
+    DxuiWindow::CreateParams           params;
 
 
 
-    dialog.m_theme      = theme;
-    dialog.m_info       = info;
-    dialog.m_presetType = type;
-    dialog.m_newAddress = (info.id < 0) ? std::optional<std::wstring> (std::wstring()) : std::nullopt;
-    dialog.m_validator  = std::move (validator);
+    dialog->m_theme      = theme;
+    dialog->m_info       = info;
+    dialog->m_presetType = type;
+    dialog->m_newAddress = (info.id < 0) ? std::optional<std::wstring> (std::wstring()) : std::nullopt;
+    dialog->m_validator  = std::move (validator);
 
     params.title                    = GetTitle (type.value_or (GetType (info)), (info.id < 0) ? std::nullopt : std::optional<int> (info.id));
     params.hInstance                = GetModuleHandleW (nullptr);
@@ -1602,18 +1602,18 @@ std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTh
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
     params.placement                = DxuiWindowPlacement::CenteredOnOwner;
 
-    hr = dialog.Create (params);
+    hr = dialog->Create (params);
 
     if (FAILED (hr))
     {
         return std::nullopt;
     }
 
-    dialog.SetTheme (theme);
-    dialog.FitToMaxSize();
-    dialog.ShowModalDialog (IDOK);
+    dialog->SetTheme (theme);
+    dialog->FitToMaxSize();
+    dialog->ShowModalDialog (IDOK);
 
-    return dialog.m_definition;
+    return dialog->m_definition;
 }
 
 

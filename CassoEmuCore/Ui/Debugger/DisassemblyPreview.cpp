@@ -225,10 +225,9 @@ void DisassemblyPreview::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
     const DxuiTheme          * dxuiTheme = dynamic_cast<const DxuiTheme *> (&theme);
     DebuggerTextColors::Set    colors    = (dxuiTheme != nullptr) ? m_colors.GetFor (*dxuiTheme)
                                                                   : DebuggerTextColors::Make (0xFF000000, 0xFFFFFFFF, 0xFFC0C0C0, 0u);
-    uint32_t                   pcMarker  = DisassemblyCells::GetPcMarkerArgb (theme.ContentBackground());
-    BranchArrow::Input         input;
-    Word                       goesTo    = 0;
-    bool                       isTaken   = true;
+    uint32_t                     pcMarker = DisassemblyCells::GetPcMarkerArgb (theme.ContentBackground());
+    BranchArrow::Input           input;
+    DisassemblyCells::ArrowEnds  ends;
 
 
 
@@ -237,8 +236,9 @@ void DisassemblyPreview::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
     DxuiListView::Paint (painter, text, theme);
 
     if (m_options.IsOn (DisassemblyOptions::Option::BranchArrow) &&
-        DisassemblyCells::TryGetBranchArrow (*this, m_lines, m_rows, input, goesTo, isTaken))
+        DisassemblyCells::TryGetPcArrowEnds (m_lines, ends) &&
+        DisassemblyCells::TryGetBranchArrow (*this, m_lines, m_rows, ends, input))
     {
-        DisassemblyCells::PaintBranchArrow (painter, input, isTaken, pcMarker, theme.ForegroundDisabled());
+        DisassemblyCells::PaintBranchArrow (painter, input, ends.isTaken, pcMarker, theme.ForegroundDisabled());
     }
 }

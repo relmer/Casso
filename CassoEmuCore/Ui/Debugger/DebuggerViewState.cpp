@@ -1007,7 +1007,8 @@ std::shared_ptr<const HeatMapSymbols> DebuggerViewState::GetHeatMapSymbols (cons
 //  whose target is the PC: PC moves on in order from a transfer's target,
 //  so the instruction at the target runs only after a transfer to it. The
 //  snapshot has its address, so the window draws its arrow whether or not
-//  its line is in a view.
+//  its line is in a view. The same is true of the branch, jump or call at
+//  the PC, and its target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1019,6 +1020,7 @@ void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnap
     bool                          isStep  = false;
     Word                          from    = 0;
     DisassemblyData               transfer;
+    DisassemblyData               atPc;
 
 
 
@@ -1043,6 +1045,14 @@ void DebuggerViewState::UpdateLastStop (DebugSession & session, DebuggerViewSnap
     if (!transfer.lines.empty() && transfer.lines.front().instruction.hasTarget && transfer.lines.front().instruction.target == now.pc)
     {
         snapshot.branchedFrom = from;
+    }
+
+    (void) DataDirectiveHandlers::Disassemble (session, now.pc, std::nullopt, 1, atPc);
+
+    if (!atPc.lines.empty() && atPc.lines.front().dataOrigin == DataOrigin::None && atPc.lines.front().instruction.hasTarget)
+    {
+        snapshot.pcTarget        = atPc.lines.front().instruction.target;
+        snapshot.isPcTargetTaken = !current.isKnown || current.after.pc == *snapshot.pcTarget;
     }
 }
 
@@ -3645,6 +3655,34 @@ void DebuggerViewState::SetCodeLines (int lines, int view)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::HoldCode
+//
+//  The top line of a view following the PC is pinned, and ChooseCodeStart
+//  returns it until the menu closes and the scroll pause runs out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::HoldCode (bool isHeld, int view)
+{
+    CodeView  & v = m_code[(size_t) view];
+
+
+
+    v.isMenuHeld   = isHeld;
+    v.scrolledAtMs = m_clock();
+
+    if (isHeld && !v.address.has_value())
+    {
+        v.address = v.followAnchor;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::ChooseCodeStart
 //
 //  A pinned pane stays where it was put. A following pane MOVES ONLY WHEN IT
@@ -3659,16 +3697,19 @@ void DebuggerViewState::SetCodeLines (int lines, int view)
 //
 //  While the machine runs, a view the user scrolled isn't moved until
 //  kScrollHoldMs pass with no more scrolling, so the code near the PC can
-//  be read while the PC moves.
+//  be read while the PC moves, nor while its menu is open. Once the pause
+//  ends, the PC is put in the view's middle: following from where the user
+//  scrolled to put the PC on the view's top or bottom row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const
 {
-    CodeView  & v      = m_code[(size_t) view];
-    bool        shown  = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
-    bool        isHeld = isRunning && v.scrolledAtMs.has_value() && m_clock() - *v.scrolledAtMs < kScrollHoldMs;
-    Word        top    = 0;
+    CodeView  & v       = m_code[(size_t) view];
+    bool        shown   = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
+    bool        isHeld  = isRunning && (v.isMenuHeld || (v.scrolledAtMs.has_value() && m_clock() - *v.scrolledAtMs < kScrollHoldMs));
+    bool        hasHold = isRunning && v.scrolledAtMs.has_value();
+    Word        top     = 0;
 
 
 
@@ -3678,12 +3719,13 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
         v.centerOnPc = false;
     }
 
-    //  The following view put somewhere -- scrolled, or navigated to -- holds
-    //  there only until the PC moves. It then follows again from where it
-    //  stands, so a PC still on its lines moves the marker, not the view.
-    if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && *v.pinnedAtPc != pc && !isHeld)
+    //  The following view put somewhere -- scrolled, or navigated to -- is
+    //  pinned only until the PC moves. It then follows again from its place,
+    //  so a PC on its lines moves the marker, not the view. A scroll pause
+    //  that runs out while the machine runs puts the PC in the middle.
+    if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && (*v.pinnedAtPc != pc || hasHold) && !isHeld)
     {
-        v.followAnchor = *v.address;
+        v.followAnchor = hasHold ? FindStartAbove (session, pc, v.lines / 2) : *v.address;
         v.address.reset();
         v.pinnedAtPc.reset();
         v.scrolledAtMs.reset();

@@ -143,7 +143,8 @@ void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, c
         prefix.clear();
     }
 
-    cells[kLabelColumn].text = prefix + text.substr (0, labelEnd);
+    cells[kLabelColumn].text     = prefix + text.substr (0, labelEnd);
+    cells[kLabelColumn].trailDip = kLabelTrailDip;
 
     if (!prefix.empty())
     {
@@ -336,6 +337,7 @@ std::string DisassemblyCells::FillCodeRow (std::vector<DxuiListView::Cell> & cel
     cells[kAddressColumn].text     = std::format (L"{:04X}{}", line.address, colon ? L":" : L"");
     cells[kBytesColumn].text       = TextEncoding::NarrowToWide (line.bytes);
     cells[kLabelColumn].text       = TextEncoding::NarrowToWide (line.label);
+    cells[kLabelColumn].trailDip   = kLabelTrailDip;
     cells[kInstructionColumn].text = TextEncoding::NarrowToWide (DisassemblyOptions::GetInstructionText (line, symbols));
     cells[kOperandColumn]          = GetOperandAndResultCell (annotation, line.effect, colors.result);
 
@@ -347,6 +349,10 @@ std::string DisassemblyCells::FillCodeRow (std::vector<DxuiListView::Cell> & cel
 
     cells[kInstructionColumn].colorRanges = DebuggerTextColors::GetInstructionRanges (cells[kInstructionColumn].text, colors);
     cells[kInstructionColumn].weight      = (line.dataOrigin != DataOrigin::None) ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
+
+    //  A data line has no operand or result, and its text, often a string,
+    //  runs on across the operand column rather than being cut off.
+    cells[kInstructionColumn].spansRow    = line.dataOrigin != DataOrigin::None;
 
     return annotation;
 }
@@ -464,18 +470,40 @@ uint32_t DisassemblyCells::GetPcMarkerArgb (uint32_t background)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyCells::TryGetPcArrowEnds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyCells::TryGetPcArrowEnds (const std::vector<DebuggerViewSnapshot::CodeLine> & lines, ArrowEnds & ends)
+{
+    for (const DebuggerViewSnapshot::CodeLine & line : lines)
+    {
+        if (line.isCurrent && line.target.has_value())
+        {
+            ends = { line.address, *line.target, line.isTargetTaken };
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyCells::TryGetBranchArrow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines,
-                                          const std::vector<DisassemblyOptions::Row> & rows, BranchArrow::Input & input, Word & goesTo, bool & isTaken,
-                                          std::optional<Word> branchedFrom)
+                                          const std::vector<DisassemblyOptions::Row> & rows, const ArrowEnds & ends, BranchArrow::Input & input)
 {
     int    current  = -1;
-    int    pcLine   = -1;
     int    target   = -1;
-    int    from     = -1;
+    int    beyond   = -1;
     int    firstRow = 0;
     int    endRow   = 0;
     RECT   bounds   = {};
@@ -485,14 +513,9 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
     float  top      = 0.0f;
     float  bottom   = 0.0f;
     int    rowPx    = 0;
+    bool   isAbove  = false;
 
 
-
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        pcLine  = lines[i].isCurrent ? (int) i : pcLine;
-        current = (branchedFrom.has_value() ? lines[i].address == *branchedFrom : lines[i].isCurrent) ? (int) i : current;
-    }
 
     firstRow = list.GetTopRow();
 
@@ -501,47 +524,18 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
         return false;
     }
 
-    //  The stepped branch went to the PC, which its snapshot made sure of;
-    //  the PC's own goes to its target.
-    if (branchedFrom.has_value())
-    {
-        if (pcLine < 0)
-        {
-            return false;
-        }
-
-        goesTo  = lines[(size_t) pcLine].address;
-        isTaken = true;
-    }
-    else
-    {
-        if (current < 0 || !lines[(size_t) current].target.has_value())
-        {
-            return false;
-        }
-
-        goesTo  = *lines[(size_t) current].target;
-        isTaken = lines[(size_t) current].isTargetTaken;
-    }
-
+    //  Indexes are rows: a source row above an instruction moves the
+    //  instruction down a row, and an instruction under the source row
+    //  representing it has its arrow there.
     for (size_t i = 0; i < lines.size(); i++)
     {
-        target = (lines[i].address == goesTo) ? DisassemblyOptions::GetFrontRowOfLine (rows, (int) i) : target;
+        current = (lines[i].address == ends.from)   ? DisassemblyOptions::GetFrontRowOfLine (rows, (int) i) : current;
+        target  = (lines[i].address == ends.goesTo) ? DisassemblyOptions::GetFrontRowOfLine (rows, (int) i) : target;
     }
 
-    //  From here on, indexes are rows: a source row above an instruction moves
-    //  the instruction down a row, and an instruction under the source row
-    //  representing it has its arrow there. A stepped source not among the
-    //  lines lies above them or below, by its address.
-    from = current;
-
-    if (current >= 0)
+    if (current < 0 && !GetOutsideRow (list, lines, ends.from, current))
     {
-        current = DisassemblyOptions::GetFrontRowOfLine (rows, current);
-    }
-    else
-    {
-        current = (*branchedFrom < lines.front().address) ? -1 : list.GetRowCount();
+        return false;
     }
 
     bounds = list.GetBounds();
@@ -552,7 +546,7 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
     bottom = top + (float) ((endRow - firstRow) * rowPx);
 
     input.mnemonicX     = (float) (bounds.left + column.left);
-    input.isTargetBelow = (target >= 0) ? target > current : goesTo > lines[(size_t) from].address;
+    input.isTargetBelow = (target >= 0) ? target > current : ends.goesTo > ends.from;
     input.edgeY         = input.isTargetBelow ? bottom : top;
     input.sourceEdgeY   = input.isTargetBelow ? top : bottom;
     input.marginPx     *= scale;
@@ -565,10 +559,15 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
     //  rows: above them toward a target below, or below toward one above.
     if (current < firstRow || current >= endRow)
     {
-        bool  above = current < firstRow;
+        isAbove = current < firstRow;
+        beyond  = target;
 
-        if (above != input.isTargetBelow ||
-            (target >= 0 && (above ? target < firstRow : target >= endRow)))
+        if (beyond < 0 && !GetOutsideRow (list, lines, ends.goesTo, beyond))
+        {
+            return false;
+        }
+
+        if (isAbove != input.isTargetBelow || (isAbove ? beyond < firstRow : beyond >= endRow))
         {
             return false;
         }
@@ -585,6 +584,73 @@ bool DisassemblyCells::TryGetBranchArrow (const DxuiListView & list, const std::
 
     //  Scrolled sideways past the mnemonics, there is no room for it.
     return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::GetOutsideRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyCells::GetOutsideRow (const DxuiListView & list, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, Word address, int & row)
+{
+    if (address < lines.front().address)
+    {
+        row = -1;
+        return true;
+    }
+
+    if (address > lines.back().address)
+    {
+        row = list.GetRowCount();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::SeparateArrows
+//
+//  The stepped arrow ends at the PC's row and the PC's starts there. The
+//  stepped one ends a little to the side of the row toward its source, and
+//  the PC's starts a little to the other side. Run the same way, as from a
+//  branch below to a PC whose target is below too, the two would share a
+//  lane; the PC's is moved out a lane, and since it starts on the side away
+//  from the stepped one's end, the two lines don't cross.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyCells::SeparateArrows (BranchArrow::Input & stepped, BranchArrow::Input & pc)
+{
+    float  scale  = pc.radiusPx / BranchArrow::Input().radiusPx;
+    float  offset = (stepped.isTargetBelow ? -kArrowSplitDip : kArrowSplitDip) * scale;
+
+
+
+    if (stepped.targetY.has_value())
+    {
+        *stepped.targetY += offset;
+    }
+
+    if (pc.sourceY.has_value())
+    {
+        *pc.sourceY -= offset;
+    }
+
+    if (stepped.isTargetBelow != pc.isTargetBelow)
+    {
+        pc.stubPx += kArrowLaneDip * scale;
+    }
 }
 
 

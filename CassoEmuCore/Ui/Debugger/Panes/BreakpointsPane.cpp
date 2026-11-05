@@ -572,7 +572,7 @@ std::vector<DxuiPopupMenuItem> BreakpointsPane::GetNewMenuItems()
     {
         if (!heading.empty() && heading != L"Execution")
         {
-            items.push_back (DxuiPopupMenuItem::ForSubmenu (DebuggerMenuCommand::Make (heading, false, [] {}), std::move (submenu)));
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (DebuggerMenuCommand::Make (heading, [] {}), std::move (submenu)));
         }
 
         submenu.clear();
@@ -630,7 +630,7 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
 
     if (!isToggle)
     {
-        return DebuggerMenuCommand::Make (std::wstring (label) + L"...", false, [this, type] { NewBreakpoint (type); });
+        return DebuggerMenuCommand::Make (std::wstring (label) + L"...", [this, type] { NewBreakpoint (type); });
     }
 
     return DebuggerMenuCommand::Make (label, isOn, [this, verb, isOn]

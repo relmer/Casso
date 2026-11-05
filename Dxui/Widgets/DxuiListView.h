@@ -110,6 +110,11 @@ public:
         //  column.
         bool      spansRow   = false;
 
+        //  Room left clear at the cell's right, inside its width: the text is
+        //  cut off before it, and a fitted column is that much wider. For
+        //  something the host draws over the list there.
+        int       trailDip   = 0;
+
         //  A face and weight of the cell's own in place of the list's, for a
         //  row that is a label rather than a value, or a value whose
         //  characters line up only in a fixed-width face; null for the
@@ -993,6 +998,7 @@ private:
     bool          IsOverCellText       (POINT localPx) const;
     int           HitTestCharInCell    (int row, size_t col, int lx) const;
     int           GetCellLeadPx        (const Cell & cell) const;
+    int           GetCellExtraPx       (const Cell & cell) const;
     int           HitTestCheck         (int lx, int ly, int row) const;
     bool          ToggleChecks         (bool apply);
     void          PaintCheck           (IDxuiPainter & painter, IDxuiTextRenderer & text, float x, float y, float size, bool checked) const;

@@ -1111,7 +1111,8 @@ bool SourcePane::GetArrowTarget (const DebuggerViewSnapshot::SourceState & state
 //
 //  The arrow runs along the left of the source text, from the marked line to
 //  the target's. A target out of view, or in no line of this file, runs the
-//  line to that edge of the lines. The marked line out of view draws none.
+//  line to that edge of the lines. The marked line out of view enters from
+//  its edge while the line runs on across the lines toward the target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1120,6 +1121,9 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     static constexpr int  s_kTextCell   = 2;
     std::optional<int>    targetLine;
     bool                  isBelow       = true;
+    int                   row           = GetRowOfLine (m_rowsLine);
+    int                   side          = 0;
+    int                   targetSide    = 0;
     float                 x             = 0.0f;
     float                 y             = 0.0f;
     float                 top           = 0.0f;
@@ -1131,7 +1135,23 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
 
     if (!IsActive() || !m_view->IsVisible() ||
         !GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) ||
-        !m_view->GetCellAnchorPx (GetRowOfLine (m_rowsLine), s_kTextCell, x, y))
+        !m_view->GetRowSide (row, side) || !m_view->GetCellLeftPx (row, s_kTextCell, x))
+    {
+        return false;
+    }
+
+    //  Out of view, the marked line counts only while the arrow runs on
+    //  across the lines: above them toward a target below, or below toward
+    //  one above, and not to a target beyond the same edge.
+    if (side != 0)
+    {
+        if ((side < 0) != isBelow ||
+            (targetLine.has_value() && m_view->GetRowSide (GetRowOfLine (*targetLine), targetSide) && targetSide == side))
+        {
+            return false;
+        }
+    }
+    else if (!m_view->GetCellAnchorPx (row, s_kTextCell, x, y))
     {
         return false;
     }
@@ -1144,7 +1164,7 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     m_view->GetLinesSpanPx (top, bottom);
 
     input.mnemonicX     = x;
-    input.sourceY       = y;
+    input.sourceY       = (side == 0) ? std::optional<float> (y) : std::nullopt;
     input.isTargetBelow = isBelow;
     input.edgeY         = isBelow ? bottom : top;
     input.sourceEdgeY   = isBelow ? top : bottom;

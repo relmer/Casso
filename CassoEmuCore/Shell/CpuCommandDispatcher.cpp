@@ -801,6 +801,18 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
         return;
     }
 
+    //  "codehold[N] 1" while a code view's menu is open, "codehold[N] 0"
+    //  once it closes.
+    if (TryGetCodeView (view, "codehold", index))
+    {
+        if (where == "0" || where == "1")
+        {
+            target.HoldDebugCode (where == "1", index);
+        }
+
+        return;
+    }
+
     //  "follow <N>" hands following the PC to code view N; "codeclose <N>"
     //  closes view N, which is never the first.
     if ((view == "follow" || view == "codeclose") && where.size() == 1 && where[0] >= (view == "follow" ? '1' : '2') && where[0] <= '4')

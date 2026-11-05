@@ -55,6 +55,7 @@ public:
 
 private:
     void  ApplyLook          (const DxuiTip & tip);
+    void  ShowImmediate      (const DxuiTip & tip, const RECT & pointer, int64_t nowMs);
     bool  IsPressedTip       (const DxuiTip & tip) const;
 
     DxuiTooltip   & m_tooltip;
