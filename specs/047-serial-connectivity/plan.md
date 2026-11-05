@@ -143,3 +143,9 @@ the 6551 and the existing endpoints stay where they are.
 ## Complexity Tracking
 
 None.
+
+## Rework on 033's serial layer
+
+033-casso-explorer's serial layer is the base (owner decision, 2026-10-28). The
+design for rebuilding 047's attachments on it, the order the branches merge in,
+and the open questions are in [contracts/rework-on-033.md](contracts/rework-on-033.md).
