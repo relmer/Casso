@@ -4,6 +4,7 @@
 #include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/CassoLinkConnector.h"
 #include "Core/TextEncoding.h"
 #include "Seams/InProcessByteStream.h"
 
@@ -150,5 +151,24 @@ public:
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), LinkBootstrap::Send (*pc, lines, 0, [&calls]() { return ++calls > 1; }));
         AssertSucceeded (apple->Read (buffer, sizeof (buffer), 100, got));
         Assert::AreEqual (std::string ("ONE\r"), std::string (buffer, buffer + got), L"one line, then canceled");
+    }
+
+
+    //  Each line of the bootstrap and of the prompt probe fits after its
+    //  prompt on a 40-column row, carriage return excluded, so the Apple's
+    //  screen doesn't scroll while the line's characters arrive.
+    TEST_METHOD (TypedLines_FitAfterThePromptOnA40ColumnRow)
+    {
+        std::vector<std::string>  lines;
+
+        AssertSucceeded (LinkBootstrap::BuildLines (lines));
+        lines.insert (lines.end(), std::begin (CassoLinkConnector::kPromptProbe), std::end (CassoLinkConnector::kPromptProbe));
+
+        for (const std::string & line : lines)
+        {
+            size_t  shown = line.ends_with ('\r') ? line.size() - 1 : line.size();
+
+            Assert::IsTrue (1 + shown < 40, TextEncoding::NarrowToWide (line).c_str());
+        }
     }
 };

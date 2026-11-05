@@ -394,6 +394,7 @@ HRESULT CassoLinkConnector::ProbeForPrompt (std::stop_token stop, bool & outWait
 {
     HRESULT                    hr       = S_OK;
     std::vector<std::wstring>  ports;
+    std::vector<std::string>   lines;
     Byte                       got[64]  = {};
     size_t                     read     = 0;
     auto                       deadline = std::chrono::steady_clock::time_point();
@@ -414,7 +415,10 @@ HRESULT CassoLinkConnector::ProbeForPrompt (std::stop_token stop, bool & outWait
     hr = OpenStream (m_session.m_settings.bootstrapBaud, stop);
     CHR (hr);
 
-    hr = LinkBootstrap::Send (*m_stream, { LinkBootstrap::kCancelLine, kPromptProbe }, m_bootstrapPauseMs,
+    lines.assign (std::begin (kPromptProbe), std::end (kPromptProbe));
+    lines.insert (lines.begin(), LinkBootstrap::kCancelLine);
+
+    hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs,
                               [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
     CHR (hr);
 

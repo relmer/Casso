@@ -34,10 +34,16 @@ public:
     //  6551 of the slot IN# set, which sends it to the PC. KSW's high byte at
     //  $39 is $Cn for slot n, and the 6551's data register is at $C088 +
     //  n * 16. Under DOS 3.3, KSW is DOS's input routine at $9E81, and the
-    //  slot IN# set is in DOS's copy of KSW at $AA55. With any other high
-    //  byte, the POKE is skipped: a store anywhere else can overwrite DOS's
-    //  code.
-    static constexpr const char *  kPromptProbe       = "S=PEEK(57):S=S+(S=158)*(PEEK(43606)-S):IF S>192 AND S<200 THEN POKE 49288+16*(S-192),165\r";
+    //  slot IN# set is in DOS's copy of KSW at $AA55. For any address
+    //  outside $C098 to $C0F8, the POKE is skipped: a store anywhere else
+    //  can overwrite DOS's code. Each line fits after the prompt on a
+    //  40-column row, so the screen scrolls only after a carriage return,
+    //  in the pause after each line. After IN#, the //c's serial firmware
+    //  doesn't buffer input, and the 6551 has room for one byte, so only
+    //  one of the bytes that arrive during a scroll is read.
+    static constexpr const char *  kPromptProbe[]     = { "S=PEEK(57):IF S=158 THEN S=PEEK(43606)\r",
+                                                          "S=S*16+46216\r",
+                                                          "IF ABS(S-49352)<49 THEN POKE S,165\r" };
     static constexpr DWORD         kPromptProbeWaitMs = 1500;
     HRESULT  StartWithBootstrap (const CassoLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
     HRESULT  Connect            (std::stop_token stop, DWORD openAt = 0);
