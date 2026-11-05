@@ -870,21 +870,19 @@ int PascalVolume::FindGap (const vector<RawEntry> & entries, int total, int bloc
 //  PascalVolume::Krunch
 //
 //  Blocks are copied out of the unchanged source into the result, so a file
-//  moved onto where the file ahead of it was reads as it did.
+//  moved onto where the file ahead of it was reads as it did. Only each moved
+//  file's first and next blocks change in the directory, as on the Apple.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PascalVolume::Krunch (vector<Byte> & outBuffer, int & outMoved) const
 {
-    HRESULT                hr       = S_OK;
-    bool                   whole    = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
-    bool                   isClean  = false;
-    int                    at       = kFirstDataBlock;
-    vector<Byte>           directory;
-    vector<Byte>           result;
-    vector<RawEntry>       entries;
-    vector<std::string>    damage;
-    VolumeIntegrityReport  report;
+    HRESULT                   hr       = S_OK;
+    bool                      whole    = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    vector<Byte>              directory;
+    vector<Byte>              result;
+    vector<PascalKrunchMove>  moves;
+    VolumeIntegrityReport     report;
 
 
 
@@ -892,47 +890,90 @@ HRESULT PascalVolume::Krunch (vector<Byte> & outBuffer, int & outMoved) const
 
     CBREx (whole, E_INVALIDARG);
 
-    ReadDirectory (directory);
-    ReadEntries   (directory, entries, damage);
-
-    isClean = damage.empty();
-    CBREx (isClean, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    hr = PlanKrunch (moves, directory);
+    CHR (hr);
 
     hr = BuildIntegrityReport (report);
     CHR (hr);
 
     result = m_sectors;
 
-    for (RawEntry & entry : entries)
+    for (const PascalKrunchMove & move : moves)
+    {
+        size_t  entry = (size_t) move.slot * s_kEntryBytes;
+
+        for (int i = 0; i < move.blocks; i++)
+        {
+            std::array<Byte, kBlockBytes>  block = {};
+
+            ReadBlock (move.from + i, block);
+            WriteBlockPart (result, move.to + i, 0, block);
+        }
+
+        SetWord (directory, entry + s_kOffFirst, (Word) move.to);
+        SetWord (directory, entry + s_kOffNext,  (Word) (move.to + move.blocks));
+    }
+
+    for (int i = 0; i < 4; i++)
+    {
+        WriteBlockPart (result, kFirstDirectoryBlock + i, 0, std::span<const Byte> (directory).subspan ((size_t) i * kBlockBytes, kBlockBytes));
+    }
+
+    outMoved = (int) moves.size();
+
+    hr = HandBackResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalVolume::PlanKrunch
+//
+//  Each file whose first block isn't the end of the file ahead of it moves
+//  there, the first file to the first data block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PascalVolume::PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<Byte> & outDirectory) const
+{
+    HRESULT              hr      = S_OK;
+    bool                 whole   = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                 isClean = false;
+    int                  at      = kFirstDataBlock;
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
+
+
+
+    outMoves.clear();
+    outDirectory.clear();
+
+    CBREx (whole, E_INVALIDARG);
+
+    ReadDirectory (outDirectory);
+    ReadEntries   (outDirectory, entries, damage);
+
+    isClean = damage.empty();
+    CBREx (isClean, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (const RawEntry & entry : entries)
     {
         int  blocks = entry.next - entry.first;
 
         if (entry.first != at)
         {
-            for (int i = 0; i < blocks; i++)
-            {
-                std::array<Byte, kBlockBytes>  block = {};
-
-                ReadBlock (entry.first + i, block);
-                WriteBlockPart (result, at + i, 0, block);
-            }
-
-            SetWord (entry.bytes, s_kOffFirst, (Word) at);
-            SetWord (entry.bytes, s_kOffNext,  (Word) (at + blocks));
-
-            entry.first = at;
-            entry.next  = at + blocks;
-
-            outMoved++;
+            outMoves.push_back ({ entry.slot, entry.first, at, blocks });
         }
 
         at += blocks;
     }
-
-    WriteDirectory (result, directory, entries, (int) entries.size());
-
-    hr = HandBackResult (report, result, outBuffer);
-    CHRA (hr);
 
 Error:
     return hr;

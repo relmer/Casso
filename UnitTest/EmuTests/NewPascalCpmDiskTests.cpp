@@ -579,6 +579,57 @@ public:
         Assert::IsTrue (before.bytes == after.bytes);
     }
 
+    //  The plan comes from the directory alone, as over the link only blocks 2
+    //  to 5 are read: with every other block zeroed it is the same.
+    TEST_METHOD (PlanKrunchListsTheMovesFromTheDirectoryAlone)
+    {
+        std::vector<Byte>              image = BuildGappedPascal (5, 10, 8);
+        std::vector<Byte>              bare (kImageBytes, 0);
+        std::vector<Byte>              directory;
+        std::vector<Byte>              bareDirectory;
+        std::vector<PascalKrunchMove>  moves;
+        std::vector<PascalKrunchMove>  bareMoves;
+
+
+
+        for (int block = PascalVolume::kFirstDirectoryBlock; block < PascalVolume::kFirstDataBlock; block++)
+        {
+            for (size_t i = 0; i < PascalVolume::kBlockBytes; i++)
+            {
+                bare[ProDosSkeleton::GetBlockByteOffset (block, i)] = image[ProDosSkeleton::GetBlockByteOffset (block, i)];
+            }
+        }
+
+        AssertSucceeded (PascalVolume (image).PlanKrunch (moves, directory));
+        AssertSucceeded (PascalVolume (bare).PlanKrunch (bareMoves, bareDirectory));
+
+        Assert::AreEqual ((size_t) 1, moves.size());
+        Assert::AreEqual (2,  moves[0].slot, L"C, after A, once B is deleted");
+        Assert::AreEqual (21, moves[0].from);
+        Assert::AreEqual (11, moves[0].to);
+        Assert::AreEqual (8,  moves[0].blocks);
+        Assert::AreEqual ((size_t) 4 * PascalVolume::kBlockBytes, directory.size());
+
+        Assert::AreEqual ((size_t) 1, bareMoves.size());
+        Assert::AreEqual (moves[0].from, bareMoves[0].from);
+        Assert::IsTrue (directory == bareDirectory);
+    }
+
+    TEST_METHOD (PlanKrunchRefusesDamage)
+    {
+        std::vector<Byte>              damaged = BuildGappedPascal (5, 10, 8);
+        std::vector<Byte>              directory;
+        std::vector<PascalKrunchMove>  moves;
+
+
+
+        //  The second file starts inside the first.
+        damaged[ProDosSkeleton::GetBlockByteOffset (2, 2 * 26)] = 7;
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), PascalVolume (damaged).PlanKrunch (moves, directory));
+        Assert::IsTrue (moves.empty());
+    }
+
     TEST_METHOD (KrunchOfADiskWithNoGapsLeavesTheImageAlone)
     {
         FakeDiskFileIo     io;

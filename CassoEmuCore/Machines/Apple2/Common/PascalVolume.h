@@ -11,6 +11,27 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PascalKrunchMove
+//
+//  One file a krunch moves: its directory slot, from 1, its first block before
+//  and after, and its length in blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct PascalKrunchMove
+{
+    int  slot   = 0;
+    int  from   = 0;
+    int  to     = 0;
+    int  blocks = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PascalVolume
 //
 //  An Apple Pascal filesystem over a flat sector buffer in DOS logical order.
@@ -95,6 +116,11 @@ public:
     //  combines the free space, as the Filer's K does. A directory with damage
     //  returns ERROR_INVALID_DATA and nothing is moved.
     HRESULT  Krunch (vector<Byte> & outBuffer, int & outMoved) const;
+
+    //  The files Krunch moves, in directory order, from the directory alone,
+    //  and the directory as blocks 2 to 5 end to end. The other blocks aren't
+    //  read. A directory with damage returns ERROR_INVALID_DATA.
+    HRESULT  PlanKrunch (vector<PascalKrunchMove> & outMoves, vector<Byte> & outDirectory) const;
 
     //  Why a disk can't supply the system for a bootable disk, or empty when it
     //  can: it needs a boot loader in blocks 0 and 1, SYSTEM.APPLE and
