@@ -304,14 +304,17 @@ public:
 
     //  Branches: a fork at position, with the journal's records from
     //  journalIndex on and the history cycle there; a switch to a branch;
-    //  and the branches left behind, oldest first.
+    //  the branches left behind, oldest first; and the branches forked after
+    //  a cut, dropped.
     static constexpr size_t  kMaxBranches = 8;
 
-    HRESULT   Fork              (uint64_t position, uint64_t cycle, InputJournal & journal, size_t journalIndex);
-    HRESULT   SwitchTo          (uint32_t branchId, InputJournal & journal);
-    void      GetBranches       (std::vector<KeyframeBranch> & outBranches) const;
-    size_t    GetBranchCount    () const { return m_branches.size(); }
-    uint64_t  GetPathChangePosition () const { return m_pathChangePosition; }
+    HRESULT   Fork                    (uint64_t position, uint64_t cycle, InputJournal & journal, size_t journalIndex);
+    HRESULT   SwitchTo                (uint32_t branchId, InputJournal & journal);
+    void      GetBranches             (std::vector<KeyframeBranch> & outBranches) const;
+    void      DropBranchesForkedAfter (uint64_t position);
+    size_t    GetBranchCount          () const { return m_branches.size(); }
+    bool      HasBranch               (uint32_t id) const { return FindBranch (id) < m_branches.size(); }
+    uint64_t  GetPathChangePosition   () const { return m_pathChangePosition; }
 
     //  Saved history: the store and the input journal's entries laid out
     //  for a file, and the store and the journal rebuilt from them. Import

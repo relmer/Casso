@@ -47,6 +47,10 @@ enum class InputKind : uint8_t
     NetworkCall,
 };
 
+// Saved history stores a kind by its value, so a new kind goes last, and
+// this is moved to it.
+constexpr InputKind  kLastInputKind = InputKind::NetworkCall;
+
 
 
 

@@ -405,6 +405,41 @@ void KeyframeStore::DropBranch (size_t branchIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DropBranchesForkedAfter
+//
+//  Every branch forked from the path after position goes, with each forked
+//  from one of those, since its fork is no longer on the path. A dropped
+//  branch's children are moved to its parent and fork after its fork, so the
+//  scan starts again until none is left past position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::DropBranchesForkedAfter (uint64_t position)
+{
+    size_t  i = 0;
+
+
+
+    while (i < m_branches.size())
+    {
+        if (m_branches[i].info.parent == 0 && m_branches[i].info.forkPosition > position)
+        {
+            DropBranch (i);
+            i = 0;
+        }
+        else
+        {
+            i++;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CapBranches
 //
 //  More than kMaxBranches branches drops the oldest with none forked from

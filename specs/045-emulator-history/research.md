@@ -19,6 +19,8 @@ Every entry was checked against the code on `045-emulator-history` at `476d7707e
 
 035's test (`UnitTest/EmuTests/ReverseReplayTests.cpp`, `RecordingCostIsLogged`, the reverse rig's guest loop with a disk mounted), five pinned runs on this build: 70.9x real time with history off, 67.6x with it on, 4.9% slower.
 
+**Update 2026-11-05** (T078, first pass), after merging 035 at `60c29b3f4`, three pinned Release runs: the DOS prompt 0.044% to 0.049% of a core at 1x (111x to 112x real time without history), the lo-res loop 0.034% to 0.041% (134x), hi-res plotting 0.044% to 0.049% (138x to 145x), and the `VERIFY HELLO` loop 0.004% to 0.018% (63x to 65x). The cost of history is at or below the 2026-10-25 figures; the `VERIFY` loop's fell from 0.18% to under 0.02%. Speed without history is 4% to 9% lower than on 2026-10-25. That slowdown is outside history's cost, and its cause is not yet found. T078 measures again on the final build.
+
 **Decision**: SC-001a is met by a wide margin: the whole cost of history on these workloads is under 0.2% of one core at 1x, against a ceiling of 1%.
 
 **The 035 figures are out of date.** R-040's 46.6x was measured on 2026-10-03 with the per-frame checkpoint ring, which "As built 2026-10-03: snapshots only" removed the same day. With keyframes alone the rate is 67.6x.

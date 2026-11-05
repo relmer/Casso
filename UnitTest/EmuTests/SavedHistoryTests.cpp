@@ -321,8 +321,8 @@ namespace SavedHistoryTests
         }
 
 
-        //  An input kind past InputKind::StateLoad is bad data, though the
-        //  hash matches.
+        //  An input kind past kLastInputKind is bad data, though the hash
+        //  matches.
         TEST_METHOD (ParseFailsOnAnUnknownInputKind)
         {
             SavedHistoryContents  contents = MakeContents();
@@ -339,6 +339,83 @@ namespace SavedHistoryTests
             AssertRefused (section, L"an unknown input kind");
         }
 
+
+        //  The last input kind survives the trip, so a history with a
+        //  network call in it loads.
+        TEST_METHOD (TheLastInputKindSurvivesTheTrip)
+        {
+            SavedHistoryContents  expected = MakeContents();
+            SavedHistoryContents  actual;
+            std::vector<Byte>     section;
+            HRESULT               hr       = S_OK;
+
+
+
+            expected.keyframes.segments[0].records[0].kind = kLastInputKind;
+
+            hr = SavedHistory::Build (expected, section);
+            AssertSucceeded (hr, L"Build");
+
+            hr = SavedHistory::Parse (section.data(), section.size(), actual);
+            AssertSucceeded (hr, L"Parse");
+
+            AssertSameRecord (expected.keyframes.segments[0].records[0], actual.keyframes.segments[0].records[0]);
+        }
+
+
+        //  A switch to a branch that is gone, as one dropped after its row
+        //  was drawn, succeeds and does nothing.
+        TEST_METHOD (ASwitchToABranchThatIsGoneLeavesTheMachineWhereItIs)
+        {
+            TestMachine    machine ("Apple2e");
+            ReverseHost    host    (machine);
+            ReverseResult  result;
+            uint64_t       before  = 0;
+            uint64_t       sum     = 0;
+            HRESULT        hr      = S_OK;
+
+
+
+            RecordWithFork (machine, host);
+
+            before = machine.GetPosition();
+            sum    = ReverseSessionRig::Checksum (machine);
+
+            hr = host.Execute (ReverseCommand::SwitchBranch, 0xFFFF, nullptr, result);
+            AssertSucceeded (hr, L"SwitchBranch");
+
+            Assert::IsTrue             (result.outcome == ReverseOutcome::Stopped,   L"the switch stopped");
+            Assert::AreEqual<uint64_t> (before, machine.GetPosition(),               L"at the same position");
+            Assert::AreEqual<uint64_t> (sum,    ReverseSessionRig::Checksum (machine), L"with the same machine");
+            Assert::AreEqual<size_t>   (1,      host.GetController().GetKeyframes().GetBranchCount(), L"the branch left behind is kept");
+        }
+
+
+        //  History cut before a fork, as a divergence cuts it, drops the
+        //  branch forked there, since its fork is no longer on the path. A
+        //  branch forked at the cut is not dropped.
+        TEST_METHOD (ACutBeforeAForkDropsTheBranch)
+        {
+            TestMachine                  machine ("Apple2e");
+            ReverseHost                  host    (machine);
+            std::vector<KeyframeBranch>  branches;
+            KeyframeStore              * store   = nullptr;
+            HRESULT                      hr      = S_OK;
+
+
+
+            RecordWithFork (machine, host);
+
+            store = &host.GetController().GetKeyframes();
+            store->GetBranches (branches);
+            Assert::AreEqual<size_t> (1, branches.size(), L"a branch left behind");
+
+            store->DropBranchesForkedAfter (branches[0].forkPosition);
+            Assert::AreEqual<size_t> (1, store->GetBranchCount(), L"a cut at the fork keeps the branch");
+
+            store->DropBranchesForkedAfter (branches[0].forkPosition - 1);
+            Assert::AreEqual<size_t> (0, store->GetBranchCount(), L"a cut before it drops the branch");
+        }
 
         //  The history of a machine with a fork, saved and loaded into
         //  another machine given the same state: the second machine is at

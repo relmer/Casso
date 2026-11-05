@@ -830,8 +830,12 @@ HRESULT ReverseController::SeekToPosition (
 //  SwitchBranch
 //
 //  The branch of history becomes the active path, and the machine loads its
-//  live end, exactly as it was there, and is live. Live, a keyframe is taken
-//  at the live end first, so a switch back loads it too.
+//  live end, exactly as it was there, and is live. Live, the live end is
+//  captured first as in LeaveLive, with a pending edit and a pause gap, so a
+//  switch back loads it too. The host connections are brought in step with
+//  the loaded live end, since they are those of the path left. A switch to a
+//  branch dropped since its row was drawn, or dropped to make room for the
+//  live end's keyframe, does nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -845,17 +849,40 @@ HRESULT ReverseController::SwitchBranch (
 
     CBREx (m_isRecording, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE));
 
+    FillResult (result);
+    result.outcome = ReverseOutcome::Stopped;
+
+    BAIL_OUT_IF (!m_keyframes.HasBranch (branchId), S_OK);
+
+    if (m_isLive && m_isEditPending)
+    {
+        m_isEditPending = false;
+
+        hr = OnMachineChanged();
+        CHR (hr);
+    }
+
+    if (m_isLive && m_isPaused && m_machine.GetPosition() > m_pauseStart)
+    {
+        hr = CaptureBoundary (true, m_pauseStart);
+        CHR (hr);
+    }
+
     if (m_isLive)
     {
         hr = CaptureLiveEnd();
         CHR (hr);
     }
 
+    BAIL_OUT_IF (!m_keyframes.HasBranch (branchId), S_OK);
+
     hr = m_keyframes.SwitchTo (branchId, m_machine.GetInputJournal());
     CHR (hr);
 
     hr = m_replayer.RestoreKeyframe (m_keyframes.GetCount() - 1);
     CHR (hr);
+
+    m_machine.ResyncHostConnections (m_machine.GetInputJournal().GetEndIndex());
 
     BecomeLive();
 
@@ -1178,7 +1205,7 @@ Error:
 //  A replay reached a keyframe and the machine did not hash to it, so the
 //  history from the keyframe before it on cannot be trusted. The machine goes
 //  back to that last good keyframe, and every keyframe and input after it is
-//  dropped; the machine is live there.
+//  dropped, with every branch forked after it; the machine is live there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1200,6 +1227,8 @@ HRESULT ReverseController::HandleDivergence (
 
     hr = m_replayer.RestoreKeyframe (good);
     CHR (hr);
+
+    m_keyframes.DropBranchesForkedAfter (info.position);
 
     hr = m_keyframes.DropAfterPosition (info.position);
     CHR (hr);

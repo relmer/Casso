@@ -611,7 +611,7 @@ void SavedHistory::WriteRecord (
 //
 //  SavedHistory::ReadRecord
 //
-//  An input kind past InputKind::StateLoad is bad data.
+//  An input kind past kLastInputKind is bad data.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -636,7 +636,7 @@ HRESULT SavedHistory::ReadRecord (
     reader.ReadBool   (outRecord.isObserved);
     reader.ReadUInt32 (length);
 
-    fits = kind <= static_cast<Byte> (InputKind::StateLoad) && length <= size;
+    fits = kind <= static_cast<Byte> (kLastInputKind) && length <= size;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outRecord.kind = static_cast<InputKind> (kind);
