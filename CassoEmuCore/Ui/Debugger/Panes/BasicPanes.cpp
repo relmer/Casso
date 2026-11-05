@@ -588,7 +588,13 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
             rowCells[kHeatColumn] = HeatStrip::GetLineCell (*heat, tokens.empty() ? std::vector<Word> { (Word) (line.address + 4) } : tokens, *palette);
         }
 
-        if (isHeat && starts.size() > 1)
+        //  A compound line is tinted statement by statement only where the
+        //  statements' heats differ; of one heat, the tints would be one
+        //  color from end to end.
+        if (isHeat && starts.size() > 1 && std::ranges::any_of (starts, [&] (int start)
+            {
+                return heat->statement[(Word) (line.address + 4 + start)] != heat->statement[(Word) (line.address + 4 + starts.front())];
+            }))
         {
             auto   found  = (reveals != nullptr) ? reveals->find (row.lineIndex) : std::map<size_t, float>::const_iterator();
             float  reveal = (reveals != nullptr && found != reveals->end()) ? found->second : 0.0f;

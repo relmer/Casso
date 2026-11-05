@@ -115,7 +115,7 @@ public:
     //  Each row's cells: the gutter's icon; with levels, the Heat cell on
     //  the line's first row, its hottest statement's heat; and the text in
     //  its syntax colors, a compound line's statements each tinted by how
-    //  often it ran.
+    //  often it ran where their heats differ.
     //  A line in `reveals` is faded from its tint toward its syntax colors
     //  by the amount given, 0 the tint alone and 1 the syntax colors alone.
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::BasicState                & basic,

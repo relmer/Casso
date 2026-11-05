@@ -194,6 +194,34 @@ namespace DebuggerTests
             Assert::AreEqual (tint, cells[0][BasicProgramPane::kHeatColumn].background, L"the Heat cell has the hottest statement's heat");
         }
 
+        //  A compound line whose statements all have the same heat would be
+        //  one color from end to end, so it is drawn as a plain line is: its
+        //  heat in the Heat column alone, its text in its syntax colors.
+        TEST_METHOD (ACompoundLineOfOneHeatIsNotSegmented)
+        {
+            BasicLine                                     line    = MakeLine (0x0801, 10, { "A", "=", "1", ":", " PRINT ", "A" });
+            DebuggerViewSnapshot::BasicState              state   = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows    = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat    = MakeHeat();
+            HeatMapView::Palette                          palette;
+            BasicProgramPane::Style                       style   = MakeStyle();
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+            std::vector<std::vector<DxuiListView::Cell>>  plain   = BasicProgramPane::GetCells (state, rows, {}, style);
+
+
+
+            heat.statement[0x0805]      = 200;
+            heat.statementCount[0x0805] = 4;
+            heat.statement[0x0809]      = 200;
+            heat.statementCount[0x0809] = 5;
+
+            cells = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette);
+
+            Assert::AreEqual (HeatStrip::GetScaleColor (HeatStrip::Kind::Run, 200, palette), cells[0][BasicProgramPane::kHeatColumn].background, L"the heat in the column");
+            Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].backgroundRanges.empty(), L"no segments");
+            Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].colorRanges == plain[0][BasicProgramPane::kListingColumn].colorRanges, L"the syntax colors");
+        }
+
         //  A line of one statement has its heat in the Heat column alone:
         //  its text is in its syntax colors.
         TEST_METHOD (APlainLinesHeatIsInTheHeatColumnAlone)

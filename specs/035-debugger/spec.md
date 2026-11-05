@@ -3293,8 +3293,9 @@ run something, switch back to the //e: it is where it was left.
   blocks. The BASIC program pane's Heat column MUST color each line, in one
   fill, by how often BASIC began it, from the statements Applesoft's
   statement loop began at its first token, and a compound line by its
-  hottest statement. Each statement of a compound line MUST also be tinted
-  in place by the statement's count, its text in an ink that reads on the tint in
+  hottest statement. Where a compound line's statements differ in heat,
+  each MUST also be tinted in place by the statement's count, its text in an
+  ink that reads on the tint in
   place of its syntax colors; the line under the pointer MUST fade to its
   syntax colors and back. Other reads of a line's tokens, such as LIST's or
   a skipped IF's, MUST NOT count. Each tip MUST have the count in plain
