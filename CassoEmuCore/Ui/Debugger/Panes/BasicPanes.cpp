@@ -108,8 +108,30 @@ void BasicProgramPane::Apply (
     const std::optional<DebuggerViewSnapshot::BasicState>    & basic,
     const std::vector<DebuggerViewSnapshot::BreakpointLine>  & breakpoints)
 {
-    std::vector<std::vector<DxuiListView::Cell>>  cells;
-    std::wstring                                  note = GetNote (basic);
+    m_basic       = basic;
+    m_breakpoints = breakpoints;
+
+    Build();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::Build
+//
+//  The rows from the program and breakpoints Apply took, and each fading
+//  line's reveal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramPane::Build()
+{
+    const std::optional<DebuggerViewSnapshot::BasicState>  & basic = m_basic;
+    std::vector<std::vector<DxuiListView::Cell>>             cells;
+    std::wstring                                             note  = GetNote (basic);
 
 
 
@@ -131,8 +153,8 @@ void BasicProgramPane::Apply (
     }
 
     m_rows = (m_wrapPx > 0.0f && m_measure) ? GetRows (basic->lines, m_wrapPx, m_measure) : GetRows (basic->lines);
-    cells  = GetCells (*basic, m_rows, breakpoints, m_style, m_heatPalette.has_value() ? m_heat.get() : nullptr,
-                       m_heatPalette.has_value() ? &*m_heatPalette : nullptr);
+    cells  = GetCells (*basic, m_rows, m_breakpoints, m_style, m_heatPalette.has_value() ? m_heat.get() : nullptr,
+                       m_heatPalette.has_value() ? &*m_heatPalette : nullptr, &m_reveals);
 
     for (size_t r = 0; r < m_rows.size(); r++)
     {
@@ -155,6 +177,69 @@ void BasicProgramPane::Apply (
     }
 
     m_list->SetRows (std::move (cells));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::Tick
+//
+//  The line under the pointer fades from its tint to its syntax colors over
+//  kRevealMs, and a line the pointer left fades back; with animations off in
+//  Windows, each change is at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BasicProgramPane::Tick (int64_t nowMs)
+{
+    int                     hovered = (m_list != nullptr) ? m_list->GetHoveredRow() : -1;
+    std::optional<size_t>   shown;
+    int64_t                 elapsed = (m_lastTickMs != 0) ? nowMs - m_lastTickMs : 0;
+    float                   step    = DxuiSystemSettings::Instance().AreAnimationsEnabled() ? (float) elapsed / (float) kRevealMs : 1.0f;
+    bool                    isHeat  = m_heatPalette.has_value() && m_heat != nullptr;
+    bool                    changed = false;
+
+
+
+    m_lastTickMs = nowMs;
+
+    if (hovered >= 0 && (size_t) hovered < m_rows.size())
+    {
+        shown = m_rows[(size_t) hovered].lineIndex;
+    }
+
+    if (!isHeat)
+    {
+        m_reveals.clear();
+        return false;
+    }
+
+    if (shown.has_value() && !m_reveals.contains (*shown))
+    {
+        m_reveals[*shown] = 0.0f;
+    }
+
+    for (auto it = m_reveals.begin(); it != m_reveals.end(); )
+    {
+        float  target = (shown.has_value() && it->first == *shown) ? 1.0f : 0.0f;
+        float  next   = (target > it->second) ? (std::min) (target, it->second + step) : (std::max) (target, it->second - step);
+
+
+
+        changed    = changed || next != it->second;
+        it->second = next;
+        it         = (next == 0.0f && target == 0.0f) ? m_reveals.erase (it) : std::next (it);
+    }
+
+    if (changed && m_basic.has_value())
+    {
+        Build();
+    }
+
+    return changed;
 }
 
 
@@ -452,7 +537,8 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
     const std::vector<DebuggerViewSnapshot::BreakpointLine> & breakpoints,
     const Style                                             & style,
     const DebuggerViewSnapshot::HeatColumnLevels            * heat,
-    const HeatMapView::Palette                              * palette)
+    const HeatMapView::Palette                              * palette,
+    const std::map<size_t, float>                           * reveals)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
 
@@ -483,13 +569,37 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
                          : hasDot   ? (isEnabled ? style.enabledIcon : style.disabledIcon)
                          :            nullptr;
 
-        AddSyntaxColors (line, row, style.syntax, rowCells[kListingColumn]);
+        std::vector<int>  starts = GetStatementStarts (line);
+        bool              isHeat = heat != nullptr && palette != nullptr && heat->statement.size() == 0x10000;
 
-        //  The line's first token is past its link and its number, and the
-        //  statements BASIC began there are the line's runs.
-        if (heat != nullptr && palette != nullptr && row.isFirst)
+        //  The Heat cell, on the line's first row, from each statement's first
+        //  token, past the line's link and its number.
+        if (isHeat && row.isFirst)
         {
-            rowCells[kHeatColumn] = HeatStrip::GetLineCell (*heat, (Word) (line.address + 4), *palette);
+            std::vector<Word>  tokens;
+
+
+
+            for (int start : starts)
+            {
+                tokens.push_back ((Word) (line.address + 4 + start));
+            }
+
+            rowCells[kHeatColumn] = HeatStrip::GetLineCell (*heat, tokens.empty() ? std::vector<Word> { (Word) (line.address + 4) } : tokens, *palette);
+        }
+
+        if (isHeat && starts.size() > 1)
+        {
+            auto   found  = (reveals != nullptr) ? reveals->find (row.lineIndex) : std::map<size_t, float>::const_iterator();
+            float  reveal = (reveals != nullptr && found != reveals->end()) ? found->second : 0.0f;
+
+
+
+            AddStatementHeat (line, row, *heat, *palette, style, reveal, rowCells[kListingColumn]);
+        }
+        else
+        {
+            AddSyntaxColors (line, row, style.syntax, rowCells[kListingColumn]);
         }
 
         if (isCurrent)
@@ -519,6 +629,175 @@ std::vector<std::vector<DxuiListView::Cell>> BasicProgramPane::GetCells (
     }
 
     return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::AddStatementHeat
+//
+//  Each statement in a fill of the run scale's color for how often BASIC began
+//  it, from the count at its first token, with its text in the ink that reads
+//  on the fill in place of its syntax colors. `reveal` fades the fill out and
+//  the syntax colors back in. A statement that hasn't run is drawn in its
+//  syntax colors. Each statement has a tip with its count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicProgramPane::AddStatementHeat (
+    const BasicLine                               & line,
+    const Row                                     & row,
+    const DebuggerViewSnapshot::HeatColumnLevels  & heat,
+    const HeatMapView::Palette                    & palette,
+    const Style                                   & style,
+    float                                           reveal,
+    DxuiListView::Cell                            & cell)
+{
+    DxuiListView::Cell     syntax;
+    std::vector<uint32_t>  inks;
+    int                    at     = 0;
+
+
+
+    syntax.text = cell.text;
+    AddSyntaxColors (line, row, style.syntax, syntax);
+
+    inks.assign (cell.text.size(), style.textArgb);
+
+    for (const auto & [first, last, argb] : syntax.colorRanges)
+    {
+        for (int k = (std::max) (0, first); k < last && k < (int) inks.size(); k++)
+        {
+            inks[(size_t) k] = argb;
+        }
+    }
+
+    for (int start : GetStatementStarts (line))
+    {
+        std::pair<int, int>  statement = GetStatement (line, start);
+        Word                 token     = (Word) (line.address + 4 + statement.first);
+        Byte                 level     = heat.statement[token];
+        uint32_t             count     = (heat.statementCount.size() == 0x10000) ? heat.statementCount[token] : 0;
+        int                  start     = -1;
+        int                  end       = -1;
+
+
+
+        for (size_t i = 0; i < row.pieces.size(); i++)
+        {
+            int  index = row.pieces[i].first;
+
+
+
+            if (index >= statement.first && index < statement.second)
+            {
+                start = (start < 0) ? row.pieces[i].second : start;
+                end   = (i + 1 < row.pieces.size()) ? row.pieces[i + 1].second : (int) cell.text.size();
+            }
+        }
+
+        if (start >= 0 && end > start)
+        {
+            cell.rangeTips.push_back ({ start, end, GetStatementTip (count, level) });
+        }
+
+        if (start >= 0 && end > start && level > 0)
+        {
+            uint32_t  tint  = HeatStrip::GetScaleColor (HeatStrip::Kind::Run, level, palette);
+            uint32_t  ink   = DxuiColor::ChooseInkFor (tint, 0xFF101010u, 0xFFF8F8F8u);
+            uint32_t  alpha = (uint32_t) std::lround (255.0f * (1.0f - std::clamp (reveal, 0.0f, 1.0f)));
+
+
+
+            if (alpha > 0)
+            {
+                cell.backgroundRanges.push_back ({ start, end, (tint & 0x00FFFFFFu) | (alpha << 24) });
+            }
+
+            for (int k = start; k < end && k < (int) inks.size(); k++)
+            {
+                inks[(size_t) k] = (reveal <= 0.0f || inks[(size_t) k] == 0) ? ink : (reveal >= 1.0f) ? inks[(size_t) k] : DxuiColor::Lerp (ink, inks[(size_t) k], reveal);
+            }
+        }
+
+    }
+
+    //  The inks as runs of one color each.
+    while (at < (int) inks.size())
+    {
+        int  next = at + 1;
+
+
+
+        while (next < (int) inks.size() && inks[(size_t) next] == inks[(size_t) at])
+        {
+            next++;
+        }
+
+        if (inks[(size_t) at] != 0)
+        {
+            cell.colorRanges.push_back ({ at, next, inks[(size_t) at] });
+        }
+
+        at = next;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::GetStatementTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BasicProgramPane::GetStatementTip (uint32_t count, Byte level)
+{
+    std::wstring  runs = TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count));
+
+
+
+    if (count == 0)
+    {
+        return L"This statement hasn't run since counting began.";
+    }
+
+    return std::format (L"This statement ran {} {} since counting began{}.", runs, (count == 1) ? L"time" : L"times", (level == 0) ? L", none of them lately" : L"");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicProgramPane::GetStatementStarts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> BasicProgramPane::GetStatementStarts (const BasicLine & line)
+{
+    std::vector<int>  starts;
+    int               piece  = 0;
+
+
+
+    while (piece < (int) line.pieces.size())
+    {
+        std::pair<int, int>  statement = GetStatement (line, piece);
+
+
+
+        starts.push_back (statement.first);
+        piece = (std::max) (statement.second, piece + 1);
+    }
+
+    return starts;
 }
 
 

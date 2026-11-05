@@ -285,6 +285,30 @@ namespace DebuggerTests
 
 
 
+        //  A compound line's cell has the heat of its hottest statement, and
+        //  its tip the count of that statement.
+        TEST_METHOD (ACompoundLinesCellIsItsHottestStatement)
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
+            DxuiListView::Cell                      cell;
+
+
+
+            levels.statementCount.assign (0x10000, 0);
+            levels.statement[0x0805]      = 40;
+            levels.statementCount[0x0805] = 1;
+            levels.statement[0x0809]      = 255;
+            levels.statementCount[0x0809] = 10;
+
+            cell = HeatStrip::GetLineCell (levels, { 0x0805, 0x0809 }, MakePalette());
+
+            Assert::AreEqual (kRunTop, cell.background, L"the hotter statement's color");
+            Assert::IsTrue   (cell.tip.find (L"10 times") != std::wstring::npos, cell.tip.c_str());
+            Assert::IsTrue   (cell.tip.find (L"busiest") != std::wstring::npos, cell.tip.c_str());
+        }
+
+
+
         //  The interpreter reads a line's tokens as it runs it, so a read is a
         //  block in the code color, and only a write is a letter.
         TEST_METHOD (ATokensReadIsTheLineRunning)

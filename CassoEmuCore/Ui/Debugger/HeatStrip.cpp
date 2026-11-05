@@ -193,10 +193,29 @@ DxuiListView::Cell HeatStrip::GetCell (const DebuggerViewSnapshot::HeatColumnLev
 
 DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word firstToken, const HeatMapView::Palette & palette)
 {
-    constexpr float     kTop  = 255.0f;
+    return GetLineCell (levels, std::vector<Word> { firstToken }, palette);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatStrip::GetLineCell
+//
+//  The hottest statement by level, then by count; a line of one statement
+//  is that statement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, const std::vector<Word> & firstTokens, const HeatMapView::Palette & palette)
+{
+    constexpr float     kTop    = 255.0f;
     DxuiListView::Cell  cell;
-    Byte                level = 0;
-    uint32_t            count = 0;
+    Byte                level   = 0;
+    uint32_t            count   = 0;
+    const wchar_t     * subject = nullptr;
 
 
 
@@ -205,19 +224,32 @@ DxuiListView::Cell HeatStrip::GetLineCell (const DebuggerViewSnapshot::HeatColum
         return cell;
     }
 
-    level = levels.statement[firstToken];
-    count = levels.statementCount[firstToken];
+    for (Word token : firstTokens)
+    {
+        Byte      each      = levels.statement[token];
+        uint32_t  eachCount = levels.statementCount[token];
+
+
+
+        if (each > level || (each == level && eachCount > count))
+        {
+            level = each;
+            count = eachCount;
+        }
+    }
+
+    subject = (firstTokens.size() > 1) ? L"This line's busiest statement" : L"This line";
 
     if (level == 0)
     {
-        cell.tip = (count == 0) ? L"This line hasn't run since counting began."
-                                : std::format (L"This line ran {} times since counting began, none of them lately.", TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)));
+        cell.tip = (count == 0) ? std::format (L"{} hasn't run since counting began.", subject)
+                                : std::format (L"{} ran {} times since counting began, none of them lately.", subject, TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)));
         return cell;
     }
 
     cell.background      = GetScaleColor (Kind::Run, level, palette);
-    cell.tip             = std::format (L"This line ran {} {} since counting began.\n\n{}, from least to most. This one is {}% of the way up.",
-                                        TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)), (count == 1) ? L"time" : L"times",
+    cell.tip             = std::format (L"{} ran {} {} since counting began.\n\n{}, from least to most. This one is {}% of the way up.",
+                                        subject, TextEncoding::NarrowToWide (HeatAccessJump::GroupDigits (count)), (count == 1) ? L"time" : L"times",
                                         GetScaleName (Kind::Run), std::lround ((float) level * 100.0f / kTop));
     cell.tipGradientMark = (float) level / kTop;
 

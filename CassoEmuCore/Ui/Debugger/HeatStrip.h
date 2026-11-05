@@ -81,6 +81,10 @@ public:
     //  and a tip with the count. A line that hasn't run has no color.
     static DxuiListView::Cell  GetLineCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, Word firstToken, const HeatMapView::Palette & palette);
 
+    //  A compound line's cell: its hottest statement's, from the first token
+    //  of each, with that statement's count in the tip.
+    static DxuiListView::Cell  GetLineCell (const DebuggerViewSnapshot::HeatColumnLevels & levels, const std::vector<Word> & firstTokens, const HeatMapView::Palette & palette);
+
     //  The bytes a disassembly line's code bytes text lists, as "A9 00".
     static size_t  CountBytes (const std::string & bytes);
 

@@ -38,6 +38,7 @@ public:
         std::shared_ptr<const DxuiIconImage>  pcOnEnabledIcon;
         std::shared_ptr<const DxuiIconImage>  pcOnDisabledIcon;
         uint32_t                              pcRowArgb = 0;
+        uint32_t                              textArgb  = 0;   // the listing's text where no syntax color applies
         SourceSyntax::Colors                  syntax;
 
         bool operator== (const Style & other) const = default;
@@ -68,10 +69,15 @@ public:
     void  Configure (int gutterDip);
     void  SetStyle  (const Style & style) { m_style = style; }
 
-    //  The heat column's levels and colors while Show heat is on; the column
-    //  is visible while there are colors.
+    //  The heat's levels and colors while Show heat is on: the Heat column,
+    //  visible while there are colors, and a compound line's statements.
     void  SetHeat   (std::shared_ptr<const DebuggerViewSnapshot::HeatColumnLevels> levels, const std::optional<HeatMapView::Palette> & palette);
     void  Apply     (const std::optional<DebuggerViewSnapshot::BasicState> & basic, const std::vector<DebuggerViewSnapshot::BreakpointLine> & breakpoints);
+
+    //  Fades the tint of the line under the pointer out and its syntax
+    //  colors in, and a line the pointer left back; true while one is
+    //  fading, as the rows change each frame then.
+    bool  Tick      (int64_t nowMs);
 
     //  Scrolls to a line's first row and selects it.
     void  ShowLine  (Word line);
@@ -106,20 +112,35 @@ public:
     //  and a REM runs to the end of the line.
     static std::pair<int, int>  GetStatement (const BasicLine & line, int piece);
 
-    //  Each row's cells: the gutter's icon, the heat strip over the line's
-    //  tokens on its first row when there are levels, and the text, colored.
+    //  Each row's cells: the gutter's icon; with levels, the Heat cell on
+    //  the line's first row, its hottest statement's heat; and the text in
+    //  its syntax colors, a compound line's statements each tinted by how
+    //  often it ran.
+    //  A line in `reveals` is faded from its tint toward its syntax colors
+    //  by the amount given, 0 the tint alone and 1 the syntax colors alone.
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::BasicState                & basic,
                                                                     const std::vector<Row>                                 & rows,
                                                                     const std::vector<DebuggerViewSnapshot::BreakpointLine> & breakpoints,
                                                                     const Style                                            & style,
                                                                     const DebuggerViewSnapshot::HeatColumnLevels           * heat    = nullptr,
-                                                                    const HeatMapView::Palette                             * palette = nullptr);
+                                                                    const HeatMapView::Palette                             * palette = nullptr,
+                                                                    const std::map<size_t, float>                          * reveals = nullptr);
 
     //  The note in place of the listing, empty when there is a listing.
     static std::wstring  GetNote (const std::optional<DebuggerViewSnapshot::BasicState> & basic);
 
 private:
-    static void  AddSyntaxColors (const BasicLine & line, const Row & row, const SourceSyntax::Colors & syntax, DxuiListView::Cell & cell);
+    static constexpr int64_t  kRevealMs = 150;
+
+    static void  AddSyntaxColors   (const BasicLine & line, const Row & row, const SourceSyntax::Colors & syntax, DxuiListView::Cell & cell);
+    static void  AddStatementHeat  (const BasicLine & line, const Row & row, const DebuggerViewSnapshot::HeatColumnLevels & heat,
+                                    const HeatMapView::Palette & palette, const Style & style, float reveal, DxuiListView::Cell & cell);
+    static std::wstring  GetStatementTip (uint32_t count, Byte level);
+
+    //  The first piece of each of a line's statements, in order.
+    static std::vector<int>  GetStatementStarts (const BasicLine & line);
+
+    void  Build ();
 
     DxuiListView      * m_list = nullptr;
     ToggleFn            m_toggle;
@@ -133,6 +154,13 @@ private:
 
     float                                                          m_wrapPx = 0.0f;
     MeasureFn                                                      m_measure;
+
+    //  The program and breakpoints the rows were built from, for the rows
+    //  a fade builds again; each fading line's reveal; and the last tick.
+    std::optional<DebuggerViewSnapshot::BasicState>                m_basic;
+    std::vector<DebuggerViewSnapshot::BreakpointLine>              m_breakpoints;
+    std::map<size_t, float>                                        m_reveals;
+    int64_t                                                        m_lastTickMs = 0;
 
     //  The program at the stop on screen and at the one before, for the
     //  values a line changed.

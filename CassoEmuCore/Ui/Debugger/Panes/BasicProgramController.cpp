@@ -326,6 +326,7 @@ void BasicProgramController::ApplyRows (const DebuggerViewSnapshot & snapshot)
     style.pcOnEnabledIcon  = m_host.GetPcMarker (style.enabledIcon);
     style.pcOnDisabledIcon = m_host.GetPcMarker (style.disabledIcon);
     style.pcRowArgb        = m_host.GetPcRowArgb();
+    style.textArgb         = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->Foreground() : 0;
     style.syntax           = m_host.GetSyntaxColors();
 
     (void) UpdateWrap();
@@ -419,10 +420,9 @@ bool BasicProgramController::Tick (int64_t nowMs)
 {
     IDebuggerWindowHost  * host     = m_host.GetWindowHost();
     bool                   isWanted = m_host.IsPaneOpen (DebuggerLayout::kBasicProgram) && m_list->IsVisible();
+    bool                   isFading = m_isReading && m_model->Tick (nowMs);
 
 
-
-    (void) nowMs;
 
     //  A new width wraps the listing again at once, with no snapshot to wait for.
     if (m_isReading && UpdateWrap() && m_host.GetLatestSnapshot() != nullptr)
@@ -432,13 +432,13 @@ bool BasicProgramController::Tick (int64_t nowMs)
 
     if (isWanted == m_isReading || host == nullptr)
     {
-        return false;
+        return isFading;
     }
 
     m_isReading = isWanted;
     m_shownLine.reset();
     host->SetDebuggerBasicShown (isWanted);
-    return false;
+    return isFading;
 }
 
 
