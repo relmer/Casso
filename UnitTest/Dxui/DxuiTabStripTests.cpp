@@ -583,6 +583,37 @@ public:
         Assert::AreEqual (0, moves);
     }
 
+    //  A tab dragged past either end of the strip goes to the host too, as
+    //  one dragged past its top or bottom does. While the pointer is over
+    //  the strip the tab moves among the others.
+    TEST_METHOD (DragPastEitherEnd_HandsTheTabToTheHost)
+    {
+        DxuiTabStrip  ts;
+        int           handed = -1;
+        int           moves  = 0;
+
+        ts.SetTabs      (MakeThreeTabs());
+        ts.SetOnMove    ([&] (int, int) { moves++; });
+        ts.SetOnDragOut ([&] (int index, POINT) { handed = index; });
+        LayOut (ts, 300);
+
+        ts.OnLButtonDown (100, 12);
+        ts.OnMouseMove   (200, 12);
+        ts.OnMouseMove   (296, 12);
+        Assert::AreEqual (1,  moves,  L"along the strip the tab moves to the end");
+        Assert::AreEqual (-1, handed, L"and the drag-out handler is not called");
+
+        ts.OnMouseMove   (340, 12);
+        Assert::AreEqual (2, handed, L"past the right end, the tab goes to the host from its new index");
+        Assert::IsFalse  (ts.IsInteracting());
+
+        handed = -1;
+        ts.OnLButtonDown (100, 12);
+        ts.OnMouseMove   (-40, 12);
+        Assert::AreEqual (1, handed, L"past the left end, the tab goes to the host too");
+        Assert::IsFalse  (ts.IsInteracting());
+    }
+
     //  A leading mark is drawn ahead of the label in its own face and color,
     //  and a tab's tip is the host's to show.
     TEST_METHOD (CompactTab_DrawsItsMarkAndGivesItsTip)

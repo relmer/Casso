@@ -7,6 +7,8 @@
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiTip.h"
 #include "Render/DxuiCoverageRaster.h"
+#include "Core/DxuiPaneMetrics.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -462,12 +464,7 @@ void DxuiDockSite::OnTitleButton (DxuiTabGroup::TitleButton button, const std::w
         //  On a slid-out pane the pin docks it back where it came from.
         if (m_layout.IsAutoHidden (pane))
         {
-            if (m_layout.DockBack (pane))
-            {
-                Arrange();
-                NotifyChanged();
-            }
-
+            (void) UnpinPane (pane);
             break;
         }
 
@@ -490,6 +487,150 @@ void DxuiDockSite::OnTitleButton (DxuiTabGroup::TitleButton button, const std::w
 
         break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::PinPane
+//
+//  Hides the pane against an edge, then shrinks a rect from the pane's group
+//  into its edge tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::PinPane (const std::wstring & pane, DxuiDockSide edge)
+{
+    RECT  from    = {};
+    bool  changed = false;
+
+
+
+    //  The rect is empty when the pane is not docked, and an empty rect
+    //  doesn't start a morph.
+    (void) TryGetPaneGroupRect (pane, from);
+
+    changed = m_layout.AutoHide (pane, edge);
+
+    if (changed)
+    {
+        Arrange();
+        StartMorph (from, GetEdgeTabRect (pane));
+        NotifyChanged();
+    }
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::UnpinPane
+//
+//  Docks a hidden or floating pane back where it came from. A hidden one
+//  then has a rect grow from its edge tab to its group.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::UnpinPane (const std::wstring & pane)
+{
+    RECT  from    = m_layout.IsAutoHidden (pane) ? GetEdgeTabRect (pane) : RECT {};
+    RECT  to      = {};
+    bool  changed = m_layout.DockBack (pane);
+
+
+
+    if (changed)
+    {
+        Arrange();
+        (void) TryGetPaneGroupRect (pane, to);
+        StartMorph (from, to);
+        NotifyChanged();
+    }
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::StartMorph
+//
+//  Visual only: the layout is changed before this is called, and no state
+//  depends on the morph ending.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::StartMorph (const RECT & from, const RECT & to)
+{
+    bool     isAnimated = m_animations.has_value() ? *m_animations : DxuiSystemSettings::Instance().AreAnimationsEnabled();
+    int64_t  nowMs      = m_clock();
+
+
+
+    m_morph   = DxuiRectMorph::Start (from, to, nowMs, isAnimated);
+    m_morphOn = !m_morph.IsDone (nowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::IsMorphing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::IsMorphing() const
+{
+    return m_morphOn && !m_morph.IsDone (m_clock());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetMorphRect
+//
+//  Where the morph's rect is now; empty when there is no morph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDockSite::GetMorphRect() const
+{
+    return IsMorphing() ? m_morph.GetRect (m_clock()) : RECT {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TickAnimation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TickAnimation()
+{
+    bool  isDue = m_morphOn;
+
+
+
+    m_morphOn = IsMorphing();
+    return isDue;
 }
 
 
@@ -1633,7 +1774,7 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstr
 
     if (!m_layout.IsDocked (pane))
     {
-        items.push_back ({ L"Dock", [this, pane, commit] { return commit (m_layout.DockBack (pane)); } });
+        items.push_back ({ L"Dock", [this, pane] { return UnpinPane (pane); } });
         return items;
     }
 
@@ -1683,7 +1824,7 @@ std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstr
             nearest = (gaps[i] < gaps[nearest] || (gaps[i] == gaps[nearest] && sideways == sideBar)) ? i : nearest;
         }
 
-        items.push_back ({ kAutoHideLabel, [this, pane, nearest, commit] { return commit (m_layout.AutoHide (pane, kSides[nearest])); } });
+        items.push_back ({ kAutoHideLabel, [this, pane, nearest] { return PinPane (pane, kSides[nearest]); } });
     }
 
     if (m_onFloat)
@@ -3498,7 +3639,8 @@ RECT DxuiDockSite::GetPaneArea() const
 //  this layer after the page, so even the shade's fills lie over the panes'
 //  text and pictures. The guides' pictures go through the layer's text
 //  pass, which draws after its fills, so they lie over the shade; the guide
-//  the shade covers has the shade drawn into its picture.
+//  the shade covers has the shade drawn into its picture. The marks are left
+//  out while an overlay draws them; a pinned or unpinned pane's rect is not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3507,9 +3649,11 @@ void DxuiDockSite::PaintDragLayer (
     IDxuiTextRenderer  & text,
     const IDxuiTheme   & theme) const
 {
-    HRESULT  hr      = S_OK;
-    bool     isShown = HasDragLayer();
-    auto     fill    = [&] (const RECT & r, uint32_t argb)
+    HRESULT                        hr      = S_OK;
+    bool                           isShown = HasDragLayer();
+    std::vector<DxuiDockDragMark>  marks;
+    RECT                           morph   = GetMorphRect();
+    auto                           fill    = [&] (const RECT & r, uint32_t argb)
     {
         painter.FillRect ((float) r.left, (float) r.top,
                           (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
@@ -3519,7 +3663,20 @@ void DxuiDockSite::PaintDragLayer (
 
     BAIL_OUT_IF (!isShown, S_OK);
 
-    for (const DxuiDockDragMark & mark : GetDragMarks (theme))
+    if (!m_marksElsewhere)
+    {
+        marks = GetDragMarks (theme);
+    }
+
+    //  A pane being pinned or unpinned: the drop preview's shade, outlined in
+    //  the focus accent.
+    if (morph.right > morph.left && morph.bottom > morph.top)
+    {
+        marks.push_back ({ morph, theme.DockPreview(), 0 });
+        marks.push_back ({ morph, theme.FocusAccent(), DxuiPaneMetrics::GetLinePx (m_scaler) });
+    }
+
+    for (const DxuiDockDragMark & mark : marks)
     {
         if (mark.image != nullptr)
         {

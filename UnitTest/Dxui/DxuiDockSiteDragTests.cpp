@@ -176,6 +176,42 @@ namespace DxuiDockSiteDragTests
         }
 
 
+        //  A tab dragged sideways past the end of its strip, out of its group,
+        //  is dragged off as one dragged up is, and docks where it is dropped:
+        //  here into the console's group, to the registers' left.
+        TEST_METHOD (ATabDraggedSidewaysOutOfItsGroupIsDraggedOff)
+        {
+            Rig             rig;
+            DxuiTabGroup  * group = rig.GroupOf (rig.regs);
+            RECT            tab   = {};
+            RECT            area  = {};
+
+
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a registers group");
+                return;
+            }
+
+            tab  = group->GetTabRect (group->IndexOf (&rig.regs));
+            area = group->GetBounds();
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (tab)));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { Center (tab).x - 6, Center (tab).y }));
+            Assert::IsFalse (rig.site.IsDragging(), L"along the strip the tab stays in its group");
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { area.left - 60, Center (tab).y }));
+            Assert::IsTrue (rig.site.IsDragging(), L"past the strip's left end the tab is dragged off");
+            Assert::AreEqual (std::wstring (L"regs"), rig.site.GetDraggedPane());
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (rig.console.GetBounds())));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   Center (rig.console.GetBounds())));
+
+            Assert::IsTrue (rig.site.GetPaneLayout().GetGroup (L"console") == std::vector<std::wstring> { L"console", L"regs" }, L"dropped into the console's group");
+        }
+
+
         TEST_METHOD (DraggingATitleBarMovesTheWholeGroup)
         {
             Rig             rig;
