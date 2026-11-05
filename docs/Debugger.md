@@ -1746,7 +1746,9 @@ columns as fit the pane. On a Mockingboard C, the SSI-263's card is across the
 top: the phoneme by name, its waveform, its three formants over the pitch's
 harmonics, a strip of the recent phonemes with widths by duration under a
 Recent phonemes heading, a row under the strip with the same phonemes' labels
-in order and an arrow under the one playing, its timing values and its lamps. Each AY-3-8910's card has a row per channel: a mute, the
+in order and an arrow under the one playing, its timing values and its lamps.
+To go back through the strip, tilt the wheel over it or turn the wheel while
+pressing Shift. Each AY-3-8910's card has a row per channel: a mute, the
 note and frequency, tone and noise indicators, a level meter and a scope. Below
 them are a picture of the envelope, the noise frequency, and its 6522's bus
 state, AY write count, last AY write, registers, T1 rate and lamps. A tip on

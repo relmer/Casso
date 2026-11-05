@@ -415,6 +415,53 @@ namespace DebuggerTests
             wheel.wheelDelta = 1.0f;
             Assert::IsTrue   (view.OnMouse (wheel));
             Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the tilt to the right");
+
+            wheel.wheelHorizontal = false;
+            wheel.shift           = true;
+            Assert::IsTrue   (view.OnMouse (wheel));
+            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetPhonemesBack(), L"Shift with the wheel up");
+        }
+
+
+        //  The plain wheel over the phoneme strip scrolls the board, as it
+        //  does over the rest of it; the strip doesn't move.
+        TEST_METHOD (ThePlainWheelOverThePhonemeStripScrollsTheBoard)
+        {
+            SoundBoardView         view;
+            DiagnosticsSoundBoard  board = MakeBoard (true);
+            DxuiMouseEvent         wheel;
+            bool                   found = false;
+
+
+
+            for (int i = 0; i < 10; i++)
+            {
+                board.voice->recent.push_back ({ "E (meet)", 0.05f });
+            }
+
+            LayOut (view, 500, 2000);
+            view.SetBoard (board);
+
+            wheel.kind = DxuiMouseEventKind::Wheel;
+
+            for (int y = 0; y < 2000 && !found; y += 2)
+            {
+                wheel.positionDip = POINT { 250, y };
+                found             = view.IsOverPhonemeStrip (wheel.positionDip);
+            }
+
+            Assert::IsTrue (found, L"no strip on the board");
+
+            //  The pane ends just under the strip, so the board is taller
+            //  than the pane.
+            LayOut (view, 500, wheel.positionDip.y + 4);
+            Assert::IsTrue (view.GetContentHeight() > wheel.positionDip.y + 4, L"the board fits the pane");
+            Assert::IsTrue (view.IsOverPhonemeStrip (wheel.positionDip));
+
+            wheel.wheelDelta = -1.0f;
+            Assert::IsTrue   (view.OnMouse (wheel));
+            Assert::IsTrue   (view.GetScrollTop() > 0, L"the board scrolled");
+            Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the strip didn't move");
         }
 
 

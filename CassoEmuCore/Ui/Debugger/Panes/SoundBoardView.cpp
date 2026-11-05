@@ -622,9 +622,11 @@ bool SoundBoardView::OnMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    //  The oldest phonemes are at the left, so the wheel up, or tilted to the
-    //  left, goes back to them.
-    if (ev.kind == DxuiMouseEventKind::Wheel && IsOverPhonemeStrip (at))
+    //  Over the phoneme strip, the wheel tilted or turned with Shift moves
+    //  through the phonemes, as either moves a view sideways; the plain wheel
+    //  scrolls the board. The oldest phonemes are at the left, so a tilt to
+    //  the left, or Shift with the wheel up, goes back to them.
+    if (ev.kind == DxuiMouseEventKind::Wheel && (ev.wheelHorizontal || ev.shift) && IsOverPhonemeStrip (at))
     {
         ScrollPhonemes ((int) std::lround ((ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta) * (float) kPhonemesPerNotch));
         return true;
