@@ -1665,7 +1665,11 @@ source view fills a space for each
 byte, up to four, ahead of each line's number, over the first range of bytes
 the line assembled to, and the BASIC program pane has a **Heat** column that
 colors each line by how often BASIC began it: hotter for more often, with no
-color for a line that hasn't run. The tip over a line has the count. **Heat** on a memory window's bar tints each byte
+color for a line that hasn't run. A line of several statements, split by
+colons, has its busiest statement's color there, and each of its statements
+is also tinted in place by how often it ran. Point at such a line and its
+tints fade to the usual syntax colors; they come back when the pointer
+moves off. The tip over a line or a statement has the count. **Heat** on a memory window's bar tints each byte
 by its heat. The columns follow the heat map's fade or cumulative choice and
 read the CPU's address space, and the heat is counted while any of them is
 on, as it is while the heat map is shown.

@@ -210,7 +210,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Is a store's read of its own target a data read in the heat map? -> A: No. The CPU reads a store's target before it writes it, except at an absolute address; that read is removed from the heat map's counts when the store writes the address, so it is neither a read nor a read before written.
 - Q: Does the profiler count cycles by routine? -> A: Yes. While profiling is on, each instruction's cycles go to the routine running it. A JSR, a BRK or an interrupt starts a routine at the address it lands on, and the routine ends when the stack pointer rises back to where it was before the call, so RTS, RTI and stack tricks such as PLA PLA RTS end it; code outside any call is Top level. The profile has a call tree (each routine under its caller, with self cycles, total cycles and calls), the routines (self, total, calls and cycles per call, each counted once per call chain) and a timeline of the last 600 video frames with each frame's cycles by routine. `PROFILE LIST ROUTINES` and `PROFILE LIST TREE` list them, `PROFILE SAVE` writes them, and the debug channel's profile reply has them (FR-243, FR-244).
 - Q: How does the Profiler pane present the routines? -> A: Its view drop-down chooses Opcodes, Addresses, Routines, Call tree or Flame graph. A timeline of frames runs across the top, each frame a bar of its cycles stacked by routine, with a tip listing the frame's routines. The flame graph draws each routine as a bar as wide as its total, under its caller, with a tip giving its self, total and calls; a click zooms into a routine and a click on Top level zooms out. Activating a routine in any view moves the disassembly to it (FR-193, FR-245).
-- Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane colors each line by how often BASIC began it (amended 2026-11-04, T1273: the interpreter's reads of the tokens counted LIST and skipped statements too). A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
+- Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane's Heat column colors each line by how often BASIC began it, a compound line by its hottest statement, with each statement of a compound line also tinted in place (amended 2026-11-04, T1273: the interpreter's reads of the tokens counted LIST and skipped statements too). A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
 - Q: Is the refactor of the debugger window its own spec, built after 035 merges? -> A: No. It is done in 035, on this branch, before 035 merges. `DebuggerWindow.cpp` passed the compiler's section limit and builds only with `/bigobj`; the window is one class across its partial files, every pane's state in `DebuggerWindow` itself, and central dispatchers that handle every pane by its id, so adding the Profiler pane's bar took edits in seven places. Each debug pane becomes its own class behind one pane interface, the window becomes the panes' host, and `/bigobj` is removed. The debugger's behavior, look and saved settings stay as they are (FR-249 to FR-254, SC-060 to SC-062).
 
 ### Session 2026-10-18 (owner review: the refactored build)
@@ -3290,11 +3290,15 @@ run something, switch back to the //e: it is where it was left.
   MUST have the scales' definitions.
 - **FR-247**: While Show heat is on in any disassembly view, the source view
   MUST have the heat strip over the bytes its line assembled to, up to four
-  blocks, and the BASIC program pane MUST color each line, in one fill, by
-  how often BASIC began the line: the statements Applesoft's statement loop
-  began at the line's first token. Other reads of the line's tokens, such
-  as LIST's or a skipped IF's, MUST NOT count. The cell's tip MUST have the
-  count in plain words.
+  blocks. The BASIC program pane's Heat column MUST color each line, in one
+  fill, by how often BASIC began it, from the statements Applesoft's
+  statement loop began at its first token, and a compound line by its
+  hottest statement. Each statement of a compound line MUST also be tinted
+  in place by the statement's count, its text in an ink that reads on the tint in
+  place of its syntax colors; the line under the pointer MUST fade to its
+  syntax colors and back. Other reads of a line's tokens, such as LIST's or
+  a skipped IF's, MUST NOT count. Each tip MUST have the count in plain
+  words, and the listing MUST be in the monospace face, as LIST prints.
 - **FR-248**: A memory window MUST offer Heat on its bar, which tints each
   byte by its heat. Every heat column MUST follow the heat map's fade or
   cumulative mode and read the CPU's address space, and the heat map MUST
