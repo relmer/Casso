@@ -60,6 +60,15 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
         case CassoLinkCodec::kFault:
             return (size >= 1) ? std::format ("Fault: kind {}", payload[0]) : std::string ("Fault");
 
+        //  Casso's and ADTPro's have the kind first, and differ after it.
+        case CassoLinkCodec::kAcknowledge:
+            if (size >= 1 && (payload[0] == CassoLinkCodec::kAck || payload[0] == CassoLinkCodec::kNak))
+            {
+                return std::format ("Acknowledge: {}, {} bytes", payload[0] == CassoLinkCodec::kAck ? "ACK" : "NAK", size);
+            }
+
+            return std::format ("Acknowledge, {} bytes", size);
+
         case CassoLinkCodec::kStatus:
             return (size >= 5) ? std::format ("Status: drive {}, track {}, {} sectors done, {}", payload[1], payload[2], payload[3], GetErrorText (payload[4])) : std::string ("Status");
 
