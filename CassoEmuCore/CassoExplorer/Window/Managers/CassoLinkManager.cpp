@@ -1319,7 +1319,7 @@ void CassoLinkManager::PlayCassetteBootstrap (const std::string & name)
                           L"On the Apple, at the prompt, type:\n\n"
                           L"1. **CALL -151**, then press Return\n"
                           L"2. **{}**, then press Return\n\n"
-                          L"Then choose Send. The audio takes about 12 seconds, and is sent again if the Apple doesn't start.", TextEncoding::NarrowToWide (command));
+                          L"Then choose Send. The audio takes about 12 seconds.", TextEncoding::NarrowToWide (command));
     answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Bootstrap from the cassette input",
                              MB_OKCANCEL | MB_ICONINFORMATION, { L"Send", L"Cancel" });
     BAIL_OUT_IF (answer != IDOK, S_OK);
@@ -1427,7 +1427,7 @@ void CassoLinkManager::HandleCassetteTimer()
     }
 
     m_cassetteLink.clear();
-    m_context.window.ShowMessage (std::format (L"The Apple didn't start from the cassette audio after it was sent {} times. Turn the volume up, check the cable, and choose Bootstrap from the cassette input again.", kCassettePlays).c_str(), MB_ICONWARNING);
+    m_context.window.ShowMessage (L"The Apple didn't start from the cassette audio after multiple retries. Turn the volume up, check the cable, and choose Bootstrap from the cassette input again.", MB_ICONWARNING);
 }
 
 
