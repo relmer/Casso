@@ -236,7 +236,7 @@ namespace DebuggerDockDragTests
             window.Build();
 
             Assert::IsTrue (TryDragOverTheDocuments (window, documents), L"the drag is over the documents' center button");
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, brk));
 
             Send (window, DxuiMouseEventKind::Move, GetCenter (brk));
 

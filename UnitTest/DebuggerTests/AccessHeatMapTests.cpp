@@ -30,6 +30,9 @@ namespace DebuggerTests
         static constexpr Byte  kStaIndirectY = 0x91;
         static constexpr Byte  kIncAbsolute  = 0xEE;
         static constexpr Byte  kNop          = 0xEA;
+        static constexpr Byte  kJsr          = 0x20;
+        static constexpr Byte  kIncZeroPage  = 0xE6;
+        static constexpr Byte  kBne          = 0xD0;
 
         static void Read  (AccessHeatMap & map, Word address) { map.OnWatchedAccess (address, 0, BusAccess::Read,  std::nullopt); }
         static void Write (AccessHeatMap & map, Word address) { map.OnWatchedAccess (address, 0, BusAccess::Write, std::nullopt); }
@@ -624,6 +627,79 @@ namespace DebuggerTests
             map.Fold (0);
             map.GetTotalLevels (HeatKind::Read, levels);
             Assert::AreEqual ((Byte) 255, levels[0x2002], L"counting starts over");
+        }
+
+
+        //  Applesoft's statement loop calls CHRGET at $D81D at the start of
+        //  every statement, and CHRGET's LDA at $00B7 then reads the
+        //  statement's first token; for a line's first statement that is
+        //  the line's address plus 4. The read is counted as a statement
+        //  there, and as a read.
+        TEST_METHOD (AStatementIsCountedAtItsFirstToken)
+        {
+            AccessHeatMap  map;
+
+
+
+            map.Start (GetCpu65C02InstructionSet(), 0);
+
+            RunStatement (map, 0x0805);
+            RunStatement (map, 0x0805);
+            map.Fold (0);
+
+            Assert::AreEqual (2.0f, map.GetHeat (HeatKind::Statement, 0x0805), L"the line ran twice");
+            Assert::AreEqual (2.0f, map.GetHeat (HeatKind::Read,      0x0805), L"and its token was read twice");
+            Assert::AreEqual (0.0f, map.GetHeat (HeatKind::Statement, 0x00B8), L"CHRGET's bytes are not a statement");
+        }
+
+
+
+        //  CHRGET called from inside a statement reads the next token of the
+        //  same statement: that is no statement's start.
+        TEST_METHOD (ACallOfChrGetFromAStatementIsNoStatement)
+        {
+            AccessHeatMap  map;
+
+
+
+            map.Start (GetCpu65C02InstructionSet(), 0);
+
+            // $D9AA: JSR $00B1, then CHRGET reading $0806.
+            Run (map, 0xD9AA, kJsr, 2);
+            RunChrGet (map, 0x0806);
+
+            // A statement's start, then a later read by $00B7 with no call at $D81D.
+            RunStatement (map, 0x0805);
+            RunChrGet    (map, 0x0807);
+            map.Fold (0);
+
+            Assert::AreEqual (0.0f, map.GetHeat (HeatKind::Statement, 0x0806));
+            Assert::AreEqual (1.0f, map.GetHeat (HeatKind::Statement, 0x0805));
+            Assert::AreEqual (0.0f, map.GetHeat (HeatKind::Statement, 0x0807));
+        }
+
+
+
+        //  CHRGET as Applesoft has it in zero page: INC $B8, BNE $00B7, then
+        //  LDA from the address in $B8 and $B9, which reads the token there.
+        static void RunChrGet (AccessHeatMap & map, Word token)
+        {
+            Run   (map, 0x00B1, kIncZeroPage, 1);
+            Read  (map, 0x00B8);
+            Write (map, 0x00B8);
+            Run   (map, 0x00B3, kBne, 1);
+            Run   (map, 0x00B7, kLdaAbsolute, 2);
+            Read  (map, token);
+        }
+
+        //  The statement loop's JSR CHRGET at $D81D, then CHRGET reading the
+        //  statement's first token.
+        static void RunStatement (AccessHeatMap & map, Word token)
+        {
+            Run       (map, 0xD81D, kJsr, 2);
+            Write     (map, 0x01FD);
+            Write     (map, 0x01FC);
+            RunChrGet (map, token);
         }
     };
 }

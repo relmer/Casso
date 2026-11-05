@@ -183,6 +183,51 @@ public:
     }
 
 
+    //  A change made in the past makes the machine live there. The bytes the
+    //  port took from the host after that point go to the receiver again,
+    //  so the guest gets them without the host sending them again.
+    TEST_METHOD (AResumeFromThePastReceivesTheBytesTakenSince)
+    {
+        static constexpr Byte  kBytes[] = { 'H', 'E', 'L', 'L', 'O' };
+        static constexpr Word  kStored  = 0x0300;
+        TestMachine            machine    ("Apple2c");
+        ReverseController      controller (machine);
+        ReverseResult          result;
+        HRESULT                hr         = S_OK;
+        uint64_t               point      = 0;
+        size_t                 i          = 0;
+
+
+
+        PrepareReceiver (machine);
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start");
+
+        RecordSession (machine, false);
+        point = machine.GetCpu()->GetTotalCycles();
+
+        machine.GetRefs().serialChips[0]->EnqueueReceivedBytes (kBytes, sizeof (kBytes));
+        RecordSession (machine, false);
+
+        Assert::AreEqual (kBytes[4], machine.GetMemoryBus().ReadByte (kStored + 4), L"the guest received them live");
+
+        hr = controller.SeekToCycle (point, result);
+        AssertSucceeded (hr, L"SeekToCycle");
+        Assert::AreNotEqual (kBytes[0], machine.GetMemoryBus().ReadByte (kStored), L"and not yet at the point");
+
+        hr = controller.OnMachineChanged();
+        AssertSucceeded (hr, L"OnMachineChanged");
+
+        RecordSession (machine, false);
+
+        for (i = 0; i < sizeof (kBytes); i++)
+        {
+            Assert::AreEqual (kBytes[i], machine.GetMemoryBus().ReadByte ((Word) (kStored + i)), L"each byte, in order, received again");
+        }
+    }
+
+
     //  What the guest sends was sent live: a seek back and a seek to the live
     //  end, both replays, send nothing to the attachment, and the machine
     //  sends again once it runs live.

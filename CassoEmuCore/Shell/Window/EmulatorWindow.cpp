@@ -189,7 +189,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     if (dpi == 0)
     {
-        dpi = GetDpiForSystem();
+        dpi = DxuiDisplay::Get().GetDpiForSystem();
     }
 
     // Seed our authoritative DPI so the chrome-band dock (which scales
@@ -270,12 +270,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     if (hadSavedPlacement)
     {
         RECT         saved     = { windowX, windowY, windowX + windowW, windowY + windowH };
-        HMONITOR     savedMon  = MonitorFromRect (&saved, MONITOR_DEFAULTTONEAREST);
+        HMONITOR     savedMon  = DxuiDisplay::Get().MonitorFromRect (&saved, MONITOR_DEFAULTTONEAREST);
         MONITORINFO  savedInfo = { sizeof (savedInfo) };
 
 
 
-        if (savedMon != nullptr && GetMonitorInfoW (savedMon, &savedInfo))
+        if (savedMon != nullptr && DxuiDisplay::Get().GetMonitorInfoW (savedMon, &savedInfo))
         {
             work     = savedInfo.rcWork;
             haveWork = true;
@@ -369,7 +369,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     CHR (hr);
 
     m_hwnd = m_host->GetHwnd();
-    m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+    m_scaler.SetDpi (DxuiDisplay::Get().GetDpiForWindow (m_hwnd));
 
     // There is a window to parent a dialog to now, so anything reported
     // during startup can finally be shown.
@@ -473,7 +473,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         // another monitor. The actual chrome metrics need to match
         // the monitor the window is actually on so the framebuffer
         // aspect-fit produces no pillarbox at default size.
-        windowDpi = GetDpiForWindow (m_hwnd);
+        windowDpi = DxuiDisplay::Get().GetDpiForWindow (m_hwnd);
         if (windowDpi != 0)
         {
             dpi = windowDpi;
@@ -1456,6 +1456,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
                                   std::chrono::steady_clock::now().time_since_epoch()).count();
     const wchar_t  * tip    = nullptr;
     RECT             anchor = {};
+    DxuiTip          captionTip;
 
 
 
@@ -1473,11 +1474,14 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
     if (tip != nullptr && m_host != nullptr &&
         m_host->GetNcSystemButtonRectPx (POINT { xScreen, yScreen }, anchor))
     {
-        m_chrome->GetCaptionTooltip().RequestShow (anchor, tip, nowMs);
+        captionTip.text   = tip;
+        captionTip.anchor = anchor;
+
+        m_chrome->GetCaptionTips().Show (captionTip, POINT { xScreen, yScreen }, nowMs);
     }
     else
     {
-        m_chrome->GetCaptionTooltip().RequestHide (nowMs);
+        m_chrome->GetCaptionTips().Hide (nowMs);
     }
 
     // The host owns caption / system-button hover now. Our only stake in
@@ -1507,7 +1511,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseLeave()
 
 
     // Caption-button hover teardown is the host's job. The tooltip is ours.
-    m_chrome->GetCaptionTooltip().RequestHide (nowMs);
+    m_chrome->GetCaptionTips().OnLeave (nowMs);
 
     return DxuiMessageResult::NotHandled;
 }
@@ -1718,6 +1722,14 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     if (msg == WM_APP_HELD_INPUT_READ)
     {
         m_history->OnHeldInputRead();
+
+        return DxuiMessageResult::Handled;
+    }
+
+    // PASTE's text, queued on the CPU thread, typed as Edit > Paste types.
+    if (msg == WM_APP_PASTE_TEXT)
+    {
+        m_input->DeliverQueuedPaste();
 
         return DxuiMessageResult::Handled;
     }

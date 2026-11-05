@@ -23,6 +23,7 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
     { "run",    CommandLineOptions::Subcommand::Run    },
     { "disk",   CommandLineOptions::Subcommand::Disk   },
     { "debug",  CommandLineOptions::Subcommand::Debug  },
+    { "mcp",    CommandLineOptions::Subcommand::Mcp    },
 };
 
 
@@ -4597,6 +4598,12 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     else if (named == CommandLineOptions::Subcommand::Debug)
     {
         ParseDebugOptions (argc, argv, 2, options);
+    }
+    else if (named == CommandLineOptions::Subcommand::Mcp && argc > 2)
+    {
+        //  `mcp` doesn't take options: its client writes to its standard input.
+        options.unrecognizedArgument = argv[2];
+        options.subcommand           = CommandLineOptions::Subcommand::None;
     }
 
 Error:

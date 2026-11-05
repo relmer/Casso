@@ -36,12 +36,19 @@ public:
     {
         kTime,
         kCycle,
-        kDrive,
         kSeverity,
         kEvent,
+        kDrive,
+        kVolume,
+        kTrack,
+        kSector,
         kDetail,
         kColumnCount,
     };
+
+    //  The column headings' version in the saved options: widths saved for
+    //  older headings are for other columns, and are dropped.
+    static constexpr int  kHeadingsVersion = 3;
 
     enum Kind : size_t
     {
@@ -69,6 +76,11 @@ public:
     //  hex dump.
     static constexpr size_t  kDetailBytes = 8;
     static constexpr size_t  kDumpBytes   = 16;
+
+    //  An event's track, sector and volume as the columns have them: the
+    //  quarter track a step or a bump is at, and an address or data field's
+    //  numbers, "?" for one not read yet; empty for an event without them.
+    static void  GetPlace (const Disk2Event & event, std::wstring & track, std::wstring & sector, std::wstring & volume);
 
     DiskLogPane (DxuiListView * list, RequestFn request) : EventLogPane (list, std::move (request)) {}
 

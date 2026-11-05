@@ -147,7 +147,7 @@ HRESULT CassqueWindow::Open (HINSTANCE instance, const std::wstring & title, int
         rect = RECT { m_prefs.placement.x, m_prefs.placement.y,
                       m_prefs.placement.x + m_prefs.placement.w, m_prefs.placement.y + m_prefs.placement.h };
 
-        if (MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) != nullptr)
+        if (DxuiDisplay::Get().MonitorFromRect (&rect, MONITOR_DEFAULTTONULL) != nullptr)
         {
             place.rcNormalPosition = rect;
             place.showCmd          = SW_HIDE;
@@ -344,7 +344,7 @@ void CassqueWindow::OnCreate()
 
     //  Drawn by the shell at the pixel size a row's icon is laid out at, and
     //  handed to the browser before the first nodes and rows are built.
-    m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
+    m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) DxuiDisplay::Get().GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
     SizeListIcons();
 
@@ -1896,6 +1896,12 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
+    //  The tip of the control the window's hit test finds under the pointer.
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        m_tips.Update (*this, point, GetNowMs());
+    }
+
     if (m_renameRow >= 0)
     {
         if (Contains (m_renameBox->GetBounds(), point) || (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel))
@@ -2086,8 +2092,8 @@ bool CassqueWindow::OnMouse (const DxuiMouseEvent & ev)
             m_dragArmed = false;
         }
         else if (ev.kind == DxuiMouseEventKind::Move && m_dragArmed
-              && (abs (point.x - m_dragStart.x) > GetSystemMetrics (SM_CXDRAG)
-               || abs (point.y - m_dragStart.y) > GetSystemMetrics (SM_CYDRAG)))
+              && (abs (point.x - m_dragStart.x) > DxuiSystemSettings::Instance().GetDragSizePx().cx
+               || abs (point.y - m_dragStart.y) > DxuiSystemSettings::Instance().GetDragSizePx().cy))
         {
             m_dragArmed = false;
             BeginDragOut();
@@ -4352,7 +4358,7 @@ void CassqueWindow::SizeListIcons()
 
 
 
-    m_listIcons.SetSizePx (MulDiv (dip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
+    m_listIcons.SetSizePx (MulDiv (dip, (int) DxuiDisplay::Get().GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
 }
 
 
@@ -6319,7 +6325,8 @@ int64_t CassqueWindow::GetNowMs()
 //
 //  The toolbar takes its pointer input through its own calls rather than
 //  OnMouse. A move always reaches it, so its hover clears when the pointer
-//  leaves; it is consumed only over the strip. The tooltip follows the hover.
+//  moves off; it is consumed only over the strip. Its tip comes from the
+//  window's hit test, as every control's does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6329,7 +6336,6 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
     int              y      = ev.positionDip.y;
     bool             took   = false;
     RECT             anchor = {};
-    const wchar_t *  tip    = nullptr;
     int64_t          nowMs  = GetNowMs();
 
 
@@ -6338,17 +6344,6 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
     {
         case DxuiMouseEventKind::Move:
             took = toolbar.OnToolbarMouseMove (x, y);
-            tip  = took ? toolbar.GetTooltipAt (x, y, anchor) : nullptr;
-
-            if (tip != nullptr && *tip != L'\0')
-            {
-                m_tooltip.RequestShow (anchor, tip, nowMs);
-            }
-            else
-            {
-                m_tooltip.RequestHide (nowMs);
-            }
-
             break;
 
         case DxuiMouseEventKind::Down:
@@ -6369,7 +6364,7 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
 
             if (took)
             {
-                m_tooltip.HideImmediate();
+                m_tips.OnPress();
             }
 
             break;
@@ -6380,7 +6375,7 @@ bool CassqueWindow::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEve
 
         case DxuiMouseEventKind::Leave:
             toolbar.OnToolbarMouseLeave();
-            m_tooltip.RequestHide (nowMs);
+            m_tips.OnLeave (nowMs);
             break;
 
         default:

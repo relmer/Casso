@@ -10,6 +10,8 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellWindow.h"
+#include "Core/TextEncoding.h"
+#include "resource.h"
 
 
 
@@ -358,4 +360,179 @@ void EmulatorShell::DebuggerHost::TruncatePaste (size_t length)
 ITapeControl & EmulatorShell::DebuggerHost::GetTapeControl()
 {
     return *m_shell.m_tapeDeck;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::GetMachineControl
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IMachineControl & EmulatorShell::DebuggerHost::GetMachineControl()
+{
+    return *this;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::Reset
+//
+//  Posted as the Machine menu's commands are, so the reset lands between
+//  instructions and is in history.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DebuggerHost::Reset (bool isPowerCycle)
+{
+    PostCommand (isPowerCycle ? IDM_MACHINE_POWERCYCLE : IDM_MACHINE_RESET, std::string());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::InsertDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DebuggerHost::InsertDisk (int drive, const std::wstring & path)
+{
+    PostCommand ((drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2, TextEncoding::WideToNarrow (path));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::EjectDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DebuggerHost::EjectDisk (int drive)
+{
+    PostCommand ((drive == 0) ? IDM_DISK_EJECT1 : IDM_DISK_EJECT2, std::string());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::PasteText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DebuggerHost::PasteText (const std::wstring & text)
+{
+    m_shell.m_input->QueuePasteText (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::GetScreenText
+//
+//  The rows as Edit > Copy text copies them, trailing spaces trimmed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::DebuggerHost::GetScreenText (int & columns, std::vector<std::string> & rows)
+{
+    const Byte    * aux  = m_shell.GetAuxRamBuffer();
+    std::wstring    text;
+    size_t          at   = 0;
+
+
+
+    rows.clear();
+
+    if (m_shell.m_clipboardManager == nullptr || m_shell.GetMainRamBuffer() == nullptr)
+    {
+        return false;
+    }
+
+    columns = m_shell.m_clipboardManager->IsEightyColumns (aux) ? 80 : 40;
+    text    = m_shell.m_clipboardManager->BuildScreenText (m_shell.GetMainRamBuffer(), aux);
+
+    while (at < text.size())
+    {
+        size_t  end = text.find (L"\r\n", at);
+
+
+
+        end = (end == std::wstring::npos) ? text.size() : end;
+        rows.push_back (TextEncoding::WideToNarrow (text.substr (at, end - at)));
+        at  = end + 2;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::SaveScreenshot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::DebuggerHost::SaveScreenshot (const std::wstring & path, int & width, int & height)
+{
+    HRESULT            hr        = S_OK;
+    std::vector<Byte>  png;
+    std::ofstream      file;
+    bool               isOpen    = false;
+    bool               isWritten = false;
+
+
+
+    hr = m_shell.m_renderer->CaptureFramePng (png, width, height);
+    CHR (hr);
+
+    file.open (path, std::ios::binary | std::ios::trunc);
+    isOpen = file.is_open();
+    CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE));
+
+    file.write ((const char *) png.data(), (std::streamsize) png.size());
+    isWritten = file.good();
+    CBREx (isWritten, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::Exit
+//
+//  Through WM_CLOSE, as File > Exit is, so the automatic state's prompt
+//  runs for this one too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DebuggerHost::Exit()
+{
+    PostMessageW (m_shell.m_hwnd, WM_CLOSE, 0, 0);
 }

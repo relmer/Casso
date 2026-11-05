@@ -155,7 +155,7 @@ private:
     using OperatorStack = std::vector<ExpressionOperator>;
 
     static const OperatorSpelling  s_kBinaryOperators[18];
-    static const OperatorSpelling  s_kUnaryOperators[7];
+    static const OperatorSpelling  s_kUnaryOperators[8];
 
     static bool  TryParseOperandPosition  (const std::string & text, size_t & pos, NumberSyntax syntax, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);
     static bool  TryParseOperatorPosition (const std::string & text, size_t & pos, bool & expectOperand, OperatorStack & stack, Expression & expression, std::string & error);

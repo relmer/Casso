@@ -5,6 +5,10 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
+
 #include "CppUnitTest.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -60,6 +64,16 @@ namespace DebuggerColumnWidthTests
             return (name == "columns") ? std::format ("breakpoints={};", kSavedDip) : std::string();
         }
 
+        void  SetDebuggerWindowState (const std::string & name, const std::string & text) override
+        {
+            if (name == "columns")
+            {
+                savedColumns = text;
+            }
+        }
+
+        std::string  savedColumns;
+
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
@@ -91,6 +105,8 @@ namespace DebuggerColumnWidthTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::GetBreakpointsPane;
+        using DebuggerWindow::SetWindowMenus;
+        using DebuggerWindow::GetMenuBarItems;
     };
 
 
@@ -128,6 +144,52 @@ namespace DebuggerColumnWidthTests
 
             Assert::AreEqual (MulDiv (ColumnWidthHost::kSavedDip, (int) kDpi, DxuiDpiScaler::kBaseDpi),
                               window.GetBreakpointsPane().GetList()->GetColumnEffectiveWidthPx (0));
+        }
+
+
+        //  Sizing one column saves that column alone; the others go on
+        //  fitting their text. Reset window layout returns every column to
+        //  fitting.
+        TEST_METHOD (OnlyTheColumnsSizedAreSaved)
+        {
+            CassoTheme            theme  = CassoTheme::MakeSkeuomorphic();
+            ColumnWidthHost       host;
+            ColumnWidthWindow     window (theme, host);
+            DxuiDpiScaler         scaler;
+            DxuiListView        * list   = nullptr;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         listTheme;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            list = window.GetBreakpointsPane().GetList();
+            list->FitColumnToContent (1);
+            list->Paint (painter, text, listTheme);
+
+            Assert::IsTrue (host.savedColumns.starts_with (std::format ("breakpoints={},", ColumnWidthHost::kSavedDip)), L"the width sized before");
+            Assert::IsTrue (host.savedColumns.ends_with (",0;"), L"a column never sized is saved as fitting");
+            Assert::AreEqual (-1, list->GetColumnOverrideWidthPx (2), L"and is not sized");
+
+            window.SetWindowMenus();
+
+            for (const DxuiMenuBarItem & menu : window.GetMenuBarItems())
+            {
+                for (const DxuiPopupMenuItem & row : menu.submenu)
+                {
+                    if (row.command != nullptr && row.command->label == L"Reset window layout")
+                    {
+                        row.command->dispatch();
+                    }
+                }
+            }
+
+            Assert::AreEqual (std::string(), host.savedColumns, L"no widths saved after the reset");
+            Assert::AreEqual (-1, list->GetColumnOverrideWidthPx (0));
         }
     };
 }

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Events/IoEventDecoder.h"
+#include "Devices/Ssi263.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
@@ -144,8 +145,9 @@ size_t IoEventDecoder::DecodeOther (
 //  A write to the card's page: bit 7 of the address picks the chip and the
 //  low four bits the 6522 register. A write to port B whose control lines
 //  change to write makes an AY register write of port A's byte to the
-//  register the AY has latched, as the card does; reset low clears the
-//  decode.
+//  register the AY has latched, as the card does. A write in the installed
+//  speech socket's range also makes an entry, with the register the chip
+//  selects.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,8 +161,8 @@ size_t IoEventDecoder::DecodeBoard (
     MockingboardCard  * card    = machine.GetRefs().mockingboard;
     int                 chip    = ((address & kChipSelect) != 0) ? 1 : 0;
     Byte                reg     = (Byte) (address & kRegMask);
-    Byte                portB   = 0;
-    Byte                control = 0;
+    Word                offset  = (Word) (address & kPageMask);
+    size_t              count   = 1;
     IoEvent             entry;
 
 
@@ -174,41 +176,78 @@ size_t IoEventDecoder::DecodeBoard (
 
     outEvents[0] = entry;
 
-    if (reg != kRegOrb || card == nullptr)
+    if (card == nullptr)
     {
-        return 1;
+        return count;
     }
 
-    portB   = card->GetVia (chip).GetPortB();
-    control = (Byte) (portB & kAyControl);
+    if (reg == kRegOrb && DecodeAyWrite (*card, chip, cycle, outEvents[count]))
+    {
+        count++;
+    }
+
+    if (card->IsInstalledSpeech (offset))
+    {
+        entry.kind = IoEventKind::SpeechWrite;
+        entry.reg  = Ssi263::SelectRegister ((Byte) offset);
+
+        outEvents[count] = entry;
+        count++;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventDecoder::DecodeAyWrite
+//
+//  Fills in the AY write a change on port B's control lines makes, and returns
+//  whether there is one. Reset low clears the decode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool IoEventDecoder::DecodeAyWrite (
+    MockingboardCard  & card,
+    int                 chip,
+    uint64_t            cycle,
+    IoEvent           & outEvent)
+{
+    Byte  portB   = card.GetVia (chip).GetPortB();
+    Byte  control = (Byte) (portB & kAyControl);
+
+
 
     if ((portB & kAyResetLow) == 0)
     {
         m_lastControl[chip] = 0;
-        return 1;
+        return false;
     }
 
     if (control == m_lastControl[chip])
     {
-        return 1;
+        return false;
     }
 
     m_lastControl[chip] = control;
 
     if (control != kAyWrite)
     {
-        return 1;
+        return false;
     }
 
-    entry         = IoEvent();
-    entry.cycle   = cycle;
-    entry.kind    = IoEventKind::AyWrite;
-    entry.chip    = (Byte) chip;
-    entry.reg     = card->GetPsg (chip).GetLatchedAddress();
-    entry.value   = card->GetVia (chip).GetPortA();
+    outEvent       = IoEvent();
+    outEvent.cycle = cycle;
+    outEvent.kind  = IoEventKind::AyWrite;
+    outEvent.chip  = (Byte) chip;
+    outEvent.reg   = card.GetPsg (chip).GetLatchedAddress();
+    outEvent.value = card.GetVia (chip).GetPortA();
 
-    outEvents[1] = entry;
-    return 2;
+    return true;
 }
 
 

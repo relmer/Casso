@@ -119,14 +119,14 @@ bool ShellWindow::TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMon
 
 
 
-    if (!GetCursorPos (&pt))
+    if (!DxuiInputState::GetCursorPos (&pt))
     {
         pt.x = 0;
         pt.y = 0;
     }
 
-    hMon    = MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
-    hasWork = hMon != nullptr && GetMonitorInfoW (hMon, &mi);
+    hMon    = DxuiDisplay::Get().MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
+    hasWork = hMon != nullptr && DxuiDisplay::Get().GetMonitorInfoW (hMon, &mi);
 
     if (hasWork)
     {
@@ -416,7 +416,7 @@ void ShellWindow::ReconcileInitialClientSize()
     // the display; never size past the work area. When clamped, the monitor
     // frame re-fits its housing into the smaller client (emulator drops below
     // 100%), which beats a window whose menu/drives fall off-screen.
-    hMon     = MonitorFromWindow (m_shell.m_hwnd, MONITOR_DEFAULTTONEAREST);
+    hMon     = DxuiDisplay::Get().MonitorFromWindow (m_shell.m_hwnd, MONITOR_DEFAULTTONEAREST);
     haveWork = (hMon != nullptr && GetMonitorInfo (hMon, &mi));
 
     if (haveWork)
@@ -1155,7 +1155,7 @@ void ShellWindow::LayOutForSize (UINT widthPx, UINT heightPx)
     m_shell.m_renderer->GetD3D().SetBackBufferSize (static_cast<int> (width), renderH);
 
     {
-        UINT  dpi           = GetDpiForWindow (m_shell.m_hwnd);
+        UINT  dpi           = DxuiDisplay::Get().GetDpiForWindow (m_shell.m_hwnd);
         RECT  menuBarBounds = {};
         HRESULT  hrUiR           = m_shell.m_uiShell.OnResize (m_shell.m_renderer->GetD3D().GetBackBufferWidth(),
                                                        m_shell.m_renderer->GetD3D().GetBackBufferHeight(),

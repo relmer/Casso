@@ -7,7 +7,6 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
-#include "Machines/Apple2/Common/UthernetCard.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -258,7 +257,7 @@ void ShellHistory::ApplyOptions (
         //  a replay's note would stay in the title.
         UpdateReplayCaption();
     }
-    else if (!wasOn && !m_isNetworkFenced)
+    else if (!wasOn)
     {
         StartRecording();
     }
@@ -452,8 +451,8 @@ bool ShellHistory::IsMenuItemEnabled (
 //
 //  RecordFrame
 //
-//  CPU thread, ahead of each frame: the network fence, and the machine run
-//  from the past made live again. Recording continues at every speed.
+//  CPU thread, ahead of each frame: the machine run from the past made live
+//  again. Recording continues at every speed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -463,55 +462,11 @@ void ShellHistory::RecordFrame()
 
 
 
-    FenceForNetwork();
-
     if (m_reverseHost != nullptr)
     {
         hr = m_reverseHost->OnFrame();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FenceForNetwork
-//
-//  CPU thread, ahead of each frame and each reverse command. The Uthernet
-//  II's open sockets and flows are host state that no keyframe has and no
-//  replay can make again, so history is off while any is open: the history
-//  so far is dropped, and recording starts again once the card is idle.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellHistory::FenceForNetwork()
-{
-    UthernetCard  * card     = m_machine.GetRefs().uthernet;
-    bool            isActive = card != nullptr && card->IsActive();
-    bool            isOn     = IsRecording();
-
-
-
-    if (isActive && isOn)
-    {
-        StopRecording();
-
-        if (m_client != nullptr)
-        {
-            m_client->OnHistoryRestarted (nullptr);
-        }
-
-        UpdateReplayCaption();
-    }
-    else if (!isActive && m_isNetworkFenced && m_isOn && !isOn)
-    {
-        StartRecording();
-    }
-
-    m_isNetworkFenced = isActive;
 }
 
 
@@ -566,9 +521,6 @@ void ShellHistory::RunCommand (
 
     BAIL_OUT_IF (m_reverseHost == nullptr || cpu == nullptr, S_OK);
 
-    //  A socket opened since the last frame: the replay would run the
-    //  instructions that opened it.
-    FenceForNetwork();
     BAIL_OUT_IF (!m_reverseHost->IsRecording(), S_OK);
 
     //  The debugger's status bar reads these while the replay runs, since no
@@ -824,8 +776,6 @@ bool ShellHistory::RunRewindFrame()
         {
             return false;
         }
-
-        FenceForNetwork();
 
         if (!IsRecording() || m_machine.GetCpu() == nullptr)
         {
@@ -1342,7 +1292,7 @@ void ShellHistory::PressGuestMouseHeldBehindLive()
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
-    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool                                 isHostDown = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 
@@ -1383,7 +1333,7 @@ void ShellHistory::ReleaseGuestMouseAfterClick()
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
-    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool                                 isHostDown = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 

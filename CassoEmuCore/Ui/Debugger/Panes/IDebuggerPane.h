@@ -22,37 +22,21 @@ class DebuggerPaneFrame;
 //  A context menu's rows: each its label and what choosing it does.
 using PaneMenuItems = std::vector<std::pair<std::wstring, std::function<void()>>>;
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaneTip
-//
-//  The tip a pane has under a point: a control's tip over its anchor, one
-//  that follows the pointer at once, or none yet, with a tip already up left
-//  as it is, while what it lists is being read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct PaneTip
+//  A menu row drawn with a check: its label starts with kChecked, which the
+//  menu takes off. A row in a submenu has the submenu's label and kSubmenu
+//  ahead of the row's label; rows of one submenu are next to each other. A
+//  row with no label and no action is a separator.
+struct PaneMenu
 {
-    enum class Kind
-    {
-        Control,
-        Pointer,
-        Pending,
-    };
+    static constexpr wchar_t  kChecked = L'\x1F';
+    static constexpr wchar_t  kSubmenu = L'\x1E';
 
-    Kind                   kind        = Kind::Pointer;
-    RECT                   anchor      = {};
-    std::wstring           text;
-    bool                   isMonospace = false;
+    static std::wstring  MakeChecked   (const std::wstring & label) { return std::wstring (1, kChecked) + label; }
+    static bool          IsChecked     (const std::wstring & label) { return !label.empty() && label[0] == kChecked; }
+    static std::wstring  GetText       (const std::wstring & label) { return IsChecked (label) ? label.substr (1) : label; }
+    static std::wstring  MakeInSubmenu (const std::wstring & submenu, const std::wstring & label) { return submenu + kSubmenu + label; }
 
-    //  A color for each line, 0 for the tip's own; none for a tip in one
-    //  color.
-    std::vector<uint32_t>  lineColors;
+    static std::pair<std::wstring, std::function<void()>>  MakeSeparator () { return { std::wstring(), nullptr }; }
 };
 
 
@@ -110,12 +94,22 @@ public:
     //  one used to one.
     virtual void                   GoToCode         (Word address) = 0;
     virtual void                   ShowPcCode       () = 0;
+
+    //  An Applesoft listing the user picks, loaded as the program in memory,
+    //  and the program saved to a file the user picks.
+    virtual void                   OpenBasicProgram () = 0;
+    virtual void                   SaveBasicProgram () = 0;
     virtual void                   ShowMemoryAddress (Word address) = 0;
     virtual void                   GoToMemory       (Word address) = 0;
 
     //  The rows a menu gets to show an address or a Go to text in each open
     //  memory window.
     virtual void                   AddShowInMemoryItems (const std::wstring & what, const std::string & goTo, PaneMenuItems & items) = 0;
+
+    //  A routine's Never step into this routine row: checked while the step
+    //  filter has it, a click then taking it out; otherwise a click adds it
+    //  and opens a notice of how to take it out again.
+    virtual void                   AddSkipItem          (const std::string & name, Word address, PaneMenuItems & items) = 0;
 
     //  Goes back to the machine's present from a point in its history.
     virtual void                   GoLive           () = 0;
@@ -218,6 +212,14 @@ public:
     //  new output while the pane is out of sight.
     virtual void                   UpdateWindowMenus () = 0;
     virtual void                   ShowPopupMenu    (const PaneMenuItems & items, POINT clientPx) = 0;
+
+    //  A list of rows over a control, at exactly its width, rising from its
+    //  top edge in the look given.
+    virtual void                   ShowListAbove    (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look) = 0;
+
+    //  The comment on the defining line of the label at an address, from its
+    //  source file (SymbolComments); empty with none.
+    virtual std::string            GetSymbolComment (Word address, const std::string & name) = 0;
     virtual void                   MarkPaneTab      (const std::wstring & pane) = 0;
 
     //  The Find entry for a pane's toolbar, which opens the pane's find
@@ -332,7 +334,7 @@ public:
     IDebuggerPane & operator= (const IDebuggerPane &) = delete;
 
     //  The pane's layout id, as DebuggerLayout has it, and its tab's title.
-    virtual std::wstring                 GetId          () const = 0;
+    virtual const std::wstring         & GetId          () const = 0;
     virtual std::wstring                 GetTitle       () const = 0;
 
     //  Where the pane's row is on the View menu, none while it has no row;
@@ -394,7 +396,7 @@ public:
 
     //  The text a find widget searches in the pane, and the frame the widget
     //  is drawn in; null for a pane with no find widget.
-    virtual DxuiTextView               * GetFindView    () const { return nullptr; }
+    virtual IDxuiFindTarget            * GetFindView    () const { return nullptr; }
     virtual DebuggerPaneFrame          * GetFindFrame   () const { return nullptr; }
 
     //  The pane's lists, which the window makes dense, sets in the text face
@@ -462,14 +464,6 @@ public:
     //  the focus; and Enter in one of the pane's boxes.
     virtual bool                         OnMappedAction    (DebuggerKeySchemes::Action action, IDxuiControl * focused) { (void) action; (void) focused; return false; }
     virtual bool                         SubmitTextBox     (DxuiTextInput * box) { (void) box; return false; }
-
-    //  The tip of the bar entry under a point, or null; and the tip of what
-    //  the pane draws under a point.
-    virtual const wchar_t              * GetBarTip      (POINT clientPx, RECT & anchor) const { (void) clientPx; (void) anchor; return nullptr; }
-    virtual bool                         TryGetTip      (POINT clientPx, PaneTip & tip) { (void) clientPx; (void) tip; return false; }
-
-    //  Whether a cell's tip at a point lines up in columns.
-    virtual bool                         IsMonospaceTipAt (POINT clientPx) const { (void) clientPx; return false; }
 
     //  A press on one of the pane's lists ended at a point, the list having
     //  had it.

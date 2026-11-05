@@ -52,6 +52,26 @@ public:
     }
 
 
+    //  The pointer is the I-beam over the text, where a press selects, and
+    //  the arrow over the gutter.
+    TEST_METHOD (ThePointerIsAnIBeamOverTheTextAndNotTheGutter)
+    {
+        DxuiTextView       view;
+        DxuiTextView::Row  row;
+
+
+
+        row.cells = { L"abcdef" };
+        view.SetGutter (24, 16);
+        LayOut (view, 400, 400);
+        view.SetRows ({ row });
+
+        Assert::IsTrue (view.GetCursorForPoint (POINT { 6 + 24 + 8, 10 }) == IDC_IBEAM);
+        Assert::IsNull (view.GetCursorForPoint (POINT { 6 + 4, 10 }), L"the gutter");
+        Assert::IsNull (view.GetCursorForPoint (POINT { 500, 10 }), L"outside the view");
+    }
+
+
     TEST_METHOD (ALineWrapsShortOfTheGutter)
     {
         DxuiTextView       view;

@@ -3,6 +3,7 @@
 #include "Window/DxuiDockedWindow.h"
 #include "Core/DxuiPaneMetrics.h"
 #include "Theme/DxuiDwm.h"
+#include "Core/WindowTrace.h"
 
 
 
@@ -12,15 +13,11 @@
 //
 //  DxuiDockedWindow::Create
 //
-//  Windows 11 rounds the window's corners, and the site, which fills the
-//  window, draws the panes on them to the same radius.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiDockedWindow::Create (const CreateParams & params)
 {
-    HRESULT  hr        = S_OK;
-    bool     isRounded = false;
+    HRESULT  hr = S_OK;
 
 
 
@@ -29,13 +26,61 @@ HRESULT DxuiDockedWindow::Create (const CreateParams & params)
 
     CBRA (m_site != nullptr);
 
-    isRounded = DxuiDwm::IsWindows11OrGreater();
-    m_site->SetWindowCornerDip (isRounded ? DxuiPaneMetrics::kWindowCornerDip : 0);
-
-    SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
+    FinishCreate();
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::CreateHeadless
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDockedWindow::CreateHeadless (const CreateParams & params)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = DxuiWindow::CreateHeadless (params);
+    CHR (hr);
+
+    CBRA (m_site != nullptr);
+
+    FinishCreate();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::FinishCreate
+//
+//  Windows 11 rounds the window's corners, and the site, which fills the
+//  window, draws the panes on them to the same radius.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::FinishCreate()
+{
+    bool  isRounded = DxuiDwm::IsWindows11OrGreater();
+
+
+
+    m_site->SetWindowCornerDip (isRounded ? DxuiPaneMetrics::kWindowCornerDip : 0);
+
+    SetOnModalLoopTick ([this] { OnMoveLoopTick(); });
 }
 
 
@@ -107,37 +152,6 @@ std::vector<DxuiDockDragMark> DxuiDockedWindow::GetHeaderFade (const RECT & rowP
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockedWindow::PaintModalOverlay
-//
-//  The header fade, drawn after the page's text so it fades that too. In a
-//  composited window the bands, drawn in erase mode, lower the alpha of what
-//  is under them, so the desktop shows through.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockedWindow::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    RECT  row = {};
-
-
-
-    UNREFERENCED_PARAMETER (text);
-    UNREFERENCED_PARAMETER (theme);
-
-    if (m_site == nullptr || !TryGetHeaderFadeRow (*m_site, row))
-    {
-        return;
-    }
-
-    PaintHeaderFade (painter, row);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockedWindow::TryGetHeaderFadeRow
 //
 //  The site lays its groups out in pixels at its DPI, so the row is used as
@@ -171,7 +185,14 @@ bool DxuiDockedWindow::TryGetHeaderFadeRow (const DxuiDockSite & site, RECT & ou
 //
 //  DxuiDockedWindow::PaintDragLayer
 //
-//  The marks of a drag in the site, over the panes and their pictures.
+//  The marks of a drag in the site, over the panes and their pictures, then
+//  the header fade, drawn after the page's text so it fades that too. In a
+//  composited window the fade's bands, drawn in erase mode, lower the alpha
+//  of what is under them, and the desktop is visible through them.
+//
+//  The fade is not a modal overlay: an overlay's input routing sends the
+//  mouse and keys of a move to OnOverlayMouse and OnOverlayKey, and the
+//  window stops following the pointer once the fade is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -180,9 +201,20 @@ void DxuiDockedWindow::PaintDragLayer (
     IDxuiTextRenderer  & text,
     const IDxuiTheme   & theme)
 {
-    if (m_site != nullptr)
+    RECT  row = {};
+
+
+
+    if (m_site == nullptr)
     {
-        m_site->PaintDragLayer (painter, text, theme);
+        return;
+    }
+
+    m_site->PaintDragLayer (painter, text, theme);
+
+    if (m_headerFade && TryGetHeaderFadeRow (*m_site, row))
+    {
+        PaintHeaderFade (painter, row);
     }
 }
 
@@ -249,7 +281,11 @@ void DxuiDockedWindow::SetFocusedLook (bool focused, const IDxuiTheme & theme)
     m_focusedLook = focused;
     m_borderArgb  = argb;
 
-    DxuiDwm::ApplyBorderColor (GetHwnd(), argb);
+    if (GetHwnd() != nullptr)
+    {
+        DxuiDwm::ApplyBorderColor (GetHwnd(), argb);
+    }
+
     Invalidate();
 }
 
@@ -295,7 +331,7 @@ void DxuiDockedWindow::OnCreate()
 
     filter.onMouseLost = [this] (UINT)
     {
-        m_site->OnDragMouseLost ((GetKeyState (VK_LBUTTON) & 0x8000) != 0);
+        m_site->OnDragMouseLost (DxuiInputState::IsKeyDown (VK_LBUTTON));
     };
 
     AddInputFilter (m_site, std::move (filter));
@@ -361,6 +397,20 @@ void DxuiDockedWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
 bool DxuiDockedWindow::OnMouse (const DxuiMouseEvent & ev)
 {
+    if (m_isMoving)
+    {
+        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
+        {
+            EndMove (false);
+        }
+        else if (ev.kind == DxuiMouseEventKind::Move)
+        {
+            MoveWithPointer();
+        }
+
+        return true;
+    }
+
     if (m_site != nullptr && m_site->OnMouse (ev))
     {
         return true;
@@ -383,6 +433,12 @@ bool DxuiDockedWindow::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiDockedWindow::OnKey (const DxuiKeyEvent & ev)
 {
+    if (m_isMoving && ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE)
+    {
+        EndMove (true);
+        return true;
+    }
+
     if (m_site != nullptr && m_site->OnDragKey (ev))
     {
         return true;
@@ -452,12 +508,25 @@ bool DxuiDockedWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
 void DxuiDockedWindow::OnMoveLoopTick()
 {
-    POINT  cursor     = {};
-    bool   buttonDown = m_readPointer (cursor);
+    POINT          cursor     = {};
+    bool           buttonDown = m_readPointer (cursor);
+    LARGE_INTEGER  start      = {};
+    LARGE_INTEGER  end        = {};
+    LARGE_INTEGER  frequency  = {};
 
 
 
     Report (m_drag.OnTick (buttonDown, GetScreenSize()));
+
+    if (m_onMoveFrame)
+    {
+        QueryPerformanceCounter (&start);
+        m_onMoveFrame();
+        QueryPerformanceCounter (&end);
+        QueryPerformanceFrequency (&frequency);
+
+        WindowTrace::Log ("move.tick", "floating", std::format ("frame {:.1f} ms", (double) (end.QuadPart - start.QuadPart) * 1000.0 / (double) frequency.QuadPart));
+    }
 }
 
 
@@ -468,12 +537,18 @@ void DxuiDockedWindow::OnMoveLoopTick()
 //
 //  DxuiDockedWindow::OnWindowPlaced
 //
-//  The move loop ended, which is where a caption drag ends.
+//  The move loop ended, which is where a caption drag ends. Each step of a
+//  move by BeginMove places the window too, and ends nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockedWindow::OnWindowPlaced()
 {
+    if (m_isMoving)
+    {
+        return;
+    }
+
     Report (m_drag.OnLoopEnd (GetScreenSize()));
 }
 
@@ -514,7 +589,132 @@ void DxuiDockedWindow::PollCaptionDrag()
 
 
 
-    Report (m_drag.OnPoll (buttonDown, GetScreenSize()));
+    //  A move whose capture went elsewhere, as to a menu, ends there.
+    if (m_isMoving && !GetSource()->HasMouseCapture())
+    {
+        EndMove (false);
+        return;
+    }
+
+    if (!m_isMoving)
+    {
+        Report (m_drag.OnPoll (buttonDown, GetScreenSize()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::OnNcLButtonDown
+//
+//  A press on the title bar calls BeginMove.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiDockedWindow::OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen)
+{
+    UNREFERENCED_PARAMETER (xScreen);
+    UNREFERENCED_PARAMETER (yScreen);
+
+    if (hitTest != HTCAPTION)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    BeginMove();
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::BeginMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::BeginMove()
+{
+    POINT  cursor = {};
+    RECT   rect   = GetScreenRect();
+
+
+
+    if (!IsCreated() || m_isMoving || !m_readPointer (cursor))
+    {
+        return;
+    }
+
+    m_isMoving  = true;
+    m_moveGrab  = POINT { cursor.x - rect.left, cursor.y - rect.top };
+    m_moveStart = rect;
+
+    GetSource()->CaptureMouse();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::MoveWithPointer
+//
+//  The window follows the pointer, and each step reports a move, as a tick
+//  of the system's move loop did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::MoveWithPointer()
+{
+    POINT  cursor     = {};
+    bool   buttonDown = m_readPointer (cursor);
+    SIZE   size       = GetScreenSize();
+    RECT   rect       = {};
+
+
+
+    rect.left   = cursor.x - m_moveGrab.x;
+    rect.top    = cursor.y - m_moveGrab.y;
+    rect.right  = rect.left + size.cx;
+    rect.bottom = rect.top  + size.cy;
+
+    GetSource()->SetWindowRectPx (rect);
+
+    Report (m_drag.OnTick (buttonDown, size));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::EndMove
+//
+//  A canceled move puts the window back where it began.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::EndMove (bool isCanceled)
+{
+    m_isMoving = false;
+
+    GetSource()->ReleaseMouse();
+
+    if (isCanceled)
+    {
+        SetScreenRect (m_moveStart);
+        Report (m_drag.Cancel());
+        return;
+    }
+
+    OnWindowPlaced();
 }
 
 
@@ -605,12 +805,16 @@ SIZE DxuiDockedWindow::GetScreenSize() const
 
 void DxuiDockedWindow::SetScreenRect (const RECT & rectPx)
 {
-    SetWindowPos (GetHwnd(), nullptr, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top,
-                  SWP_NOZORDER | SWP_NOACTIVATE);
+    if (!IsCreated())
+    {
+        return;
+    }
+
+    GetSource()->SetWindowRectPx (rectPx);
 
     //  A rect saved on a larger screen can exceed this one. Size only: a pane
     //  torn off is put under the pointer, wherever on the screen that is.
-    DxuiHwndSource::FitWindowToWorkArea (GetHwnd(), DxuiWorkAreaFit::SizeOnly);
+    GetSource()->FitToWorkArea (DxuiWorkAreaFit::SizeOnly);
 }
 
 
@@ -625,10 +829,23 @@ void DxuiDockedWindow::SetScreenRect (const RECT & rectPx)
 
 RECT DxuiDockedWindow::GetScreenRect() const
 {
-    RECT  rect = {};
+    return IsCreated() ? GetSource()->GetWindowRectPx() : RECT {};
+}
 
 
 
-    GetWindowRect (GetHwnd(), &rect);
-    return rect;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::FitToWorkArea
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockedWindow::FitToWorkArea (DxuiWorkAreaFit fit)
+{
+    if (IsCreated())
+    {
+        GetSource()->FitToWorkArea (fit);
+    }
 }

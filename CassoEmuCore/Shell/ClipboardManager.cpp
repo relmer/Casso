@@ -141,8 +141,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * mainRam, const Byte
     // main memory (odd columns). That layout is live only on a machine that
     // has an aux bank AND currently has the 80-column display switched on
     // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
-    bool  eighty = (auxRam != nullptr)
-                && ((m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0);
+    bool  eighty = IsEightyColumns (auxRam);
 
     // The //e's alternate character set (RDALTCHAR, $C01E bit 7), read where
     // there is an aux bank, as RD80VID is.
@@ -354,13 +353,43 @@ bool ClipboardManager::PasteFromClipboard (HWND hwnd, bool capsLockOn)
         return false;
     }
 
-    {
-        std::lock_guard<std::mutex>  lock (m_cmdMutex);
-
-        raisedLetters = AppendPasteText (text, capsLockOn, m_pasteBuffer);
-    }
+    raisedLetters = PasteText (text, capsLockOn);
 
     return raisedLetters;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClipboardManager::PasteText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ClipboardManager::PasteText (const std::wstring & text, bool capsLockOn)
+{
+    std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+
+
+    return AppendPasteText (text, capsLockOn, m_pasteBuffer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClipboardManager::IsEightyColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ClipboardManager::IsEightyColumns (const Byte * auxRam) const
+{
+    return auxRam != nullptr && (m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0;
 }
 
 

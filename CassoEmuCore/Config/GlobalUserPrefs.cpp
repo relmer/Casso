@@ -107,12 +107,17 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerPlacements",
     "debuggerDisassemblyOptions",
     "debuggerHeatMapOptions",
+    "debuggerDiskDrives",
+    "debuggerProfilerPeriod",
     "debuggerHeatMapRanges",
     "debuggerDiskLogOptions",
     "debuggerInputLogOptions",
     "debuggerVideoLogOptions",
     "debuggerSoundLogOptions",
+    "debuggerSerialLogOptions",
+    "debuggerNetworkLogOptions",
     "debuggerEchoActions",
+    "debuggerSkipNotice",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
@@ -1301,12 +1306,17 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerFocusedPane", JsonValue (debugger.focusedPane));
     root.emplace_back ("debuggerDisassemblyOptions", JsonValue (debugger.disassemblyOptions));
     root.emplace_back ("debuggerHeatMapOptions",     JsonValue (debugger.heatMapOptions));
+    root.emplace_back ("debuggerDiskDrives",         JsonValue (debugger.diskDrives));
+    root.emplace_back ("debuggerProfilerPeriod",     JsonValue (debugger.profilerPeriod));
     root.emplace_back ("debuggerHeatMapRanges",      JsonValue (debugger.heatMapRanges));
     root.emplace_back ("debuggerDiskLogOptions",     JsonValue (debugger.diskLogOptions));
     root.emplace_back ("debuggerInputLogOptions",    JsonValue (debugger.inputLogOptions));
     root.emplace_back ("debuggerVideoLogOptions",    JsonValue (debugger.videoLogOptions));
     root.emplace_back ("debuggerSoundLogOptions",    JsonValue (debugger.soundLogOptions));
+    root.emplace_back ("debuggerSerialLogOptions",   JsonValue (debugger.serialLogOptions));
+    root.emplace_back ("debuggerNetworkLogOptions",  JsonValue (debugger.networkLogOptions));
     root.emplace_back ("debuggerEchoActions",        JsonValue (debugger.echoActions));
+    root.emplace_back ("debuggerSkipNotice",         JsonValue (debugger.skipNoticeShown));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debugger.openViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debugger.textZoomPercent));
     root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debugger.sourceFolders));
@@ -1581,13 +1591,18 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     debugger.disassemblyOptions = GetStringOpt (v, "debuggerDisassemblyOptions", debugger.disassemblyOptions);
     debugger.heatMapOptions     = GetStringOpt (v, "debuggerHeatMapOptions",     debugger.heatMapOptions);
+    debugger.diskDrives         = GetStringOpt (v, "debuggerDiskDrives",         debugger.diskDrives);
+    debugger.profilerPeriod     = GetStringOpt (v, "debuggerProfilerPeriod",     debugger.profilerPeriod);
     debugger.heatMapRanges      = GetStringOpt (v, "debuggerHeatMapRanges",      debugger.heatMapRanges);
     debugger.diskLogOptions     = GetStringOpt (v, "debuggerDiskLogOptions",     debugger.diskLogOptions);
     debugger.inputLogOptions    = GetStringOpt (v, "debuggerInputLogOptions",    debugger.inputLogOptions);
     debugger.videoLogOptions    = GetStringOpt (v, "debuggerVideoLogOptions",    debugger.videoLogOptions);
     debugger.soundLogOptions    = GetStringOpt (v, "debuggerSoundLogOptions",    debugger.soundLogOptions);
+    debugger.serialLogOptions   = GetStringOpt (v, "debuggerSerialLogOptions",   debugger.serialLogOptions);
+    debugger.networkLogOptions  = GetStringOpt (v, "debuggerNetworkLogOptions",  debugger.networkLogOptions);
 
-    debugger.echoActions = TryGetBoolOpt (v, "debuggerEchoActions", debugger.echoActions);
+    debugger.echoActions     = TryGetBoolOpt (v, "debuggerEchoActions", debugger.echoActions);
+    debugger.skipNoticeShown = TryGetBoolOpt (v, "debuggerSkipNotice",  debugger.skipNoticeShown);
 
     debugger.textZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debugger.textZoomPercent),
                                           DebuggerSettings::kMinTextZoomPercent, DebuggerSettings::kMaxTextZoomPercent);

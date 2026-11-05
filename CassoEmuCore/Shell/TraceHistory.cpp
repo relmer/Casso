@@ -155,32 +155,51 @@ bool TraceHistory::Pump()
 //
 //  TraceHistory::GetSpans
 //
-//  The bounds, joined where one runs on into the next with no gap.
+//  History's runs of stretches with no gap between them, up to the machine's
+//  position, and the live stretch, joined to the run it continues. The runs
+//  are updated as keyframes come and go, so this costs one step per gap rather
+//  than one per keyframe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void TraceHistory::GetSpans (std::vector<TraceSpan> & outSpans)
 {
-    std::vector<DebugEventBounds>  bounds;
-    bool                           isJoined = false;
+    uint64_t          position = m_machine.GetPosition();
+    bool              isJoined = false;
+    DebugEventBounds  live;
 
 
 
     outSpans.clear();
-    GetBounds (bounds);
 
-    for (const DebugEventBounds & each : bounds)
+    if (!IsReadable())
     {
-        if (isJoined && outSpans.back().to == each.startPosition)
+        return;
+    }
+
+    for (const DebugEventBounds & run : m_history.GetSynced().GetRuns())
+    {
+        if (run.startPosition >= position)
         {
-            outSpans.back().to = each.endPosition;
-        }
-        else
-        {
-            outSpans.push_back ({ each.startPosition, each.endPosition });
+            break;
         }
 
-        isJoined = !each.hasGapAfter;
+        outSpans.push_back ({ run.startPosition, std::min (run.endPosition, position) });
+        isJoined = !run.hasGapAfter && run.endPosition <= position;
+    }
+
+    if (!TryGetLive (live))
+    {
+        return;
+    }
+
+    if (isJoined && outSpans.back().to == live.startPosition)
+    {
+        outSpans.back().to = live.endPosition;
+    }
+    else
+    {
+        outSpans.push_back ({ live.startPosition, live.endPosition });
     }
 }
 
@@ -228,14 +247,14 @@ bool TraceHistory::TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceH
 
 
     outEntries.clear();
-    GetBounds (bounds);
+    GetBounds (from, to, bounds);
 
-    m_wanted = (size_t) std::ranges::count_if (bounds, [from, to] (const DebugEventBounds & each) { return each.startPosition < to && each.endPosition > from; });
+    m_wanted = bounds.size();
 
     //  Newest first, as a job takes them.
     for (auto each = bounds.rbegin(); each != bounds.rend(); ++each)
     {
-        if (each->startPosition < to && each->endPosition > from && Find (*each) == nullptr)
+        if (Find (*each) == nullptr)
         {
             missing.push_back (*each);
         }
@@ -256,7 +275,7 @@ bool TraceHistory::TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceH
 
     for (const DebugEventBounds & each : bounds)
     {
-        Rebuilt  * rebuilt = (each.startPosition < to && each.endPosition > from) ? Find (each) : nullptr;
+        Rebuilt  * rebuilt = Find (each);
         uint64_t   first   = std::max (from, each.startPosition);
         uint64_t   last    = std::min (to, each.endPosition);
 
@@ -309,7 +328,7 @@ uint64_t TraceHistory::FindCycle (uint64_t cycle)
 
 
 
-    GetBounds (bounds);
+    GetBounds (0, UINT64_MAX, bounds);
 
     for (i = bounds.size(); i > 0 && found == UINT64_MAX; i--)
     {
@@ -358,36 +377,41 @@ uint64_t TraceHistory::FindCycle (uint64_t cycle)
 //
 //  TraceHistory::GetBounds
 //
-//  The history's stretches up to the machine's position, the one it is in
-//  cut there; after the newest keyframe, the live stretch to the machine's
-//  position, unless the machine runs live, so it grows, or recording is
-//  paused at Maximum speed, so it ends somewhere history has no record of.
+//  The history's stretches that overlap [from, to) up to the machine's
+//  position, the one it is in cut there, and the live stretch when it
+//  overlaps too. The first is found by a search, so a short window costs the
+//  same however long history is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TraceHistory::GetBounds (std::vector<DebugEventBounds> & outBounds) const
+void TraceHistory::GetBounds (
+    uint64_t                         from,
+    uint64_t                         to,
+    std::vector<DebugEventBounds>  & outBounds) const
 {
-    uint64_t                         position  = m_machine.GetPosition();
-    const KeyframeStore            * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
-    size_t                           count     = (keyframes != nullptr && m_controller->IsRecording()) ? keyframes->GetCount() : 0;
-    uint64_t                         newest    = 0;
-    bool                             isGrowing = false;
-    std::vector<DebugEventBounds>    stretches;
+    uint64_t                    position = m_machine.GetPosition();
+    size_t                      i        = 0;
+    const KeyframeStretches   * synced   = nullptr;
+    DebugEventBounds            live;
 
 
 
     outBounds.clear();
 
-    if (count == 0)
+    if (!IsReadable())
     {
         return;
     }
 
-    m_history.GetStretches (stretches);
+    synced = &m_history.GetSynced();
 
-    for (DebugEventBounds bounds : stretches)
+    for (i = synced->FindFirstEndingAfter (from); i < synced->GetStretches().size(); i++)
     {
-        if (bounds.startPosition >= position)
+        DebugEventBounds  bounds = synced->GetStretches()[i];
+
+
+
+        if (bounds.startPosition >= position || bounds.startPosition >= to)
         {
             break;
         }
@@ -398,16 +422,65 @@ void TraceHistory::GetBounds (std::vector<DebugEventBounds> & outBounds) const
             bounds.hasGapAfter = false;
         }
 
-        outBounds.push_back (bounds);
+        if (bounds.endPosition > from)
+        {
+            outBounds.push_back (bounds);
+        }
     }
 
-    newest    = keyframes->GetInfo (count - 1).position;
-    isGrowing = m_controller->IsRecordingLive() && !IsStopped();
-
-    if (newest < position && !isGrowing && !m_controller->IsPaused())
+    if (TryGetLive (live) && live.startPosition < to && live.endPosition > from)
     {
-        outBounds.push_back ({ newest, position, false });
+        outBounds.push_back (live);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceHistory::TryGetLive
+//
+//  After the newest keyframe, the live stretch to the machine's position,
+//  unless the machine runs live, so it grows, or recording is paused at
+//  Maximum speed, so it ends somewhere history has no record of.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
+{
+    const KeyframeStore  & keyframes = m_controller->GetKeyframes();
+    uint64_t               position  = m_machine.GetPosition();
+    uint64_t               newest    = keyframes.GetInfo (keyframes.GetCount() - 1).position;
+    bool                   isGrowing = m_controller->IsRecordingLive() && !IsStopped();
+    bool                   isLive    = newest < position && !isGrowing && !m_controller->IsPaused();
+
+
+
+    if (isLive)
+    {
+        outLive = { newest, position, false };
+    }
+
+    return isLive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceHistory::IsReadable
+//
+//  Recording, with at least one keyframe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TraceHistory::IsReadable() const
+{
+    return m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetCount() > 0;
 }
 
 

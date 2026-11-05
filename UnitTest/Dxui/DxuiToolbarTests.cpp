@@ -979,4 +979,35 @@ public:
         Assert::IsTrue  (f.bar.IsInSeeMore (2), L"However wide the strip");
         Assert::IsFalse (f.bar.IsInSeeMore (DxuiToolbar::kSeeMoreId));
     }
+
+
+
+    //  The grab handle is a narrow band of single dots in two alternating
+    //  columns, inside the margins at each end of the grip.
+    TEST_METHOD (TheGripIsANarrowBandOfAlternatingDots)
+    {
+        RECT                                grip  = { 0, 0, 12, 30 };
+        std::vector<DxuiToolbar::GripDot>   dots  = DxuiToolbar::GetGripDots (grip, false, 1.0f, 4.0f);
+        float                               left  = 1000.0f;
+        float                               right = -1000.0f;
+        std::set<float>                     rows;
+
+
+
+        Assert::IsFalse (dots.empty());
+
+        for (const DxuiToolbar::GripDot & each : dots)
+        {
+            left  = std::min (left,  each.x);
+            right = std::max (right, each.x + each.size);
+            rows.insert (each.y);
+
+            Assert::AreEqual (1.0f, each.size, L"a single dot");
+            Assert::IsTrue   (each.y >= 4.0f && each.y + each.size <= 26.0f, L"inside the margins");
+        }
+
+        Assert::AreEqual (3.0f, right - left, L"three dots wide, two columns a dot apart");
+        Assert::AreEqual (dots.size(), rows.size(), L"no two dots share a row: the columns alternate");
+        Assert::IsTrue   (DxuiToolbar::GetGripDots (grip, false, 0.0f, 4.0f).empty());
+    }
 };

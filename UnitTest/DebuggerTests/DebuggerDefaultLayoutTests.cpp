@@ -107,5 +107,30 @@ namespace DebuggerDefaultLayoutTests
 
             Assert::AreEqual ((size_t) DebuggerViewState::kMaxMemoryWindows + 2, layout.GetGroup (DebuggerLayout::GetMemoryPaneId (1)).size(), L"and the heat map and its ranges beside them");
         }
+
+
+        //  With no place saved, the history timeline shares the command bar's
+        //  band at the top, after the bar, so both are one row.
+        TEST_METHOD (TheTimelineSharesTheCommandBarsRow)
+        {
+            DxuiToolbarDock  bar      = DebuggerLayout::GetCommandBarDock (L"");
+            DxuiToolbarDock  timeline = DebuggerLayout::GetTimelineDock   (L"");
+
+
+
+            Assert::IsTrue  (bar.edge == DxuiToolbarDock::Edge::Top && timeline.edge == DxuiToolbarDock::Edge::Top);
+            Assert::IsTrue  (bar.HasBand(), L"the bar has a band, so it does not get a separate row");
+            Assert::AreEqual (bar.band, timeline.band);
+            Assert::IsTrue  (timeline.offsetDip > bar.offsetDip, L"the timeline after the bar");
+            Assert::IsFalse (bar.floating || timeline.floating);
+        }
+
+
+        //  A place saved is the place used.
+        TEST_METHOD (ASavedBarPlaceWins)
+        {
+            Assert::IsTrue (DebuggerLayout::GetTimelineDock   (L"bottom 40 band 1") == DxuiToolbarDock::FromText (L"bottom 40 band 1"));
+            Assert::IsTrue (DebuggerLayout::GetCommandBarDock (L"left 0 band 0")    == DxuiToolbarDock::FromText (L"left 0 band 0"));
+        }
     };
 }

@@ -55,6 +55,17 @@ public:
     // port forwards stay open.
     void  Reset          ();
 
+    // A resume from the past: `toGuest` and `fromGuest` are the frames in
+    // history each way, oldest first, the ones from `firstToGuestAfter` and
+    // `firstFromGuestAfter` on after the point. The TCP relays return to the
+    // point (TcpNat::Rewind); the UDP the guest received after it is queued
+    // for it again, ahead of what is queued now.
+    void  Rewind         (std::span<const std::span<const Byte>>   toGuest,
+                          size_t                                   firstToGuestAfter,
+                          std::span<const std::span<const Byte>>   fromGuest,
+                          size_t                                   firstFromGuestAfter,
+                          uint64_t                                 now);
+
     bool  IsActive       () const;
 
     const std::vector<std::string> & GetErrors () const { return m_forwarder.GetErrors(); }
@@ -77,6 +88,9 @@ private:
     void  OnUdp       (const Ipv4Packet & packet, uint64_t now);
     void  QueueIpv4   (uint32_t source, uint32_t destination, Byte protocol, std::span<const Byte> payload);
     void  QueueFrame  (std::vector<Byte> frame);
+
+    static bool  TryParseTcpFrame (std::span<const Byte> frame, TcpSegment & out);
+    static bool  IsRelayedUdp     (std::span<const Byte> frame);
 
     DhcpServer                      m_dhcp;
     UdpNat                          m_udp;

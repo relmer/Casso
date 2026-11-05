@@ -49,6 +49,23 @@ public:
         auto operator<=> (const Key & other) const = default;
     };
 
+    //  The connection's state at the point the machine resumes from, as read
+    //  from the frames in history (see Rewind). "Sent" is to the guest.
+    struct RewindPoint
+    {
+        bool                                                   hasSentBefore    = false;
+        uint32_t                                               sentEnd          = 0;      // the sequence number after the last one sent before the point
+        bool                                                   hasAckBefore     = false;
+        uint32_t                                               ackBefore        = 0;      // the last acknowledgment sent before the point
+        bool                                                   isFinSentBefore  = false;
+        bool                                                   hasSentAfter     = false;
+        std::vector<std::pair<uint32_t, std::vector<Byte>>>    dataAfter;                 // data sent after the point, by sequence number
+        bool                                                   hasGuestSyn      = false;  // the guest's SYN, before the point
+        uint32_t                                               guestSyn         = 0;
+        bool                                                   isGuestSynAfter  = false;  // a SYN for a new connection, after the point
+        bool                                                   isSynAckAfter    = false;  // the guest's SYN-ACK, after the point
+    };
+
     static constexpr size_t    kQueueLimit       = 4096;
     static constexpr uint16_t  kMaxMss           = 1460;
     static constexpr uint16_t  kDefaultMss       = 536;
@@ -71,8 +88,13 @@ public:
     void   OnGuestSegment (const TcpSegment & segment, uint64_t now);
     void   Pump           (uint64_t now);
 
+    //  Returns to `point`. False when the connection was opened after it.
+    bool   Rewind         (const RewindPoint & point, uint64_t now);
+
     State  GetState       () const { return m_state; }
     bool   IsClosed       () const { return m_state == State::Closed; }
+
+    static bool  IsAfter  (uint32_t a, uint32_t b) { return (int32_t) (a - b) > 0; }
 
 private:
 
@@ -93,11 +115,14 @@ private:
     void      PumpHostRead     ();
     void      PumpGuestSend    (uint64_t now);
     void      PumpRetransmit   (uint64_t now);
+    void      RewindToSynSent  (const std::deque<Byte> & data);
+    bool      TakeSentData     (const RewindPoint & point, uint32_t from, uint32_t to, std::deque<Byte> & out) const;
 
     IGuestPacketSink              & m_sink;
     Key                             m_key;
     std::unique_ptr<IHostSocket>    m_host;
     State                           m_state          = State::Connecting;
+    bool                            m_isInbound      = false;
     uint32_t                        m_ourIsn         = 0;
     uint32_t                        m_ourUnacked     = 0;
     uint32_t                        m_ourNext        = 0;

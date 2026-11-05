@@ -1,0 +1,16 @@
+//
+//  The shipped machine configurations, compiled into the test assembly.
+//
+//  These are the files Casso.rc embeds in Casso.exe, listed here by path
+//  rather than copied, so a test reads the bytes the app ships without
+//  opening the app: a unit test that loaded Casso.exe from the output folder
+//  depended on a build of another project being there.
+//
+
+#include "../../CassoEmuCore/resource.h"
+
+IDR_MACHINE_APPLE2           RCDATA "..\\..\\Resources\\Machines\\Apple2\\Apple2.json"
+IDR_MACHINE_APPLE2PLUS       RCDATA "..\\..\\Resources\\Machines\\Apple2Plus\\Apple2Plus.json"
+IDR_MACHINE_APPLE2E          RCDATA "..\\..\\Resources\\Machines\\Apple2e\\Apple2e.json"
+IDR_MACHINE_APPLE2C          RCDATA "..\\..\\Resources\\Machines\\Apple2c\\Apple2c.json"
+IDR_MACHINE_APPLE2E_ENHANCED RCDATA "..\\..\\Resources\\Machines\\Apple2eEnhanced\\Apple2eEnhanced.json"

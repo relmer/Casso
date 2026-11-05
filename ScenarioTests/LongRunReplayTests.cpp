@@ -13,6 +13,8 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleGamePort.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
+#include "NetworkTests/FakeHostNetwork.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -39,8 +41,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  give back the machine as it was live.
 //
 //  The cards case adds the Super Serial Card, its connector on a loopback
-//  plug, and the Uthernet II, which the guest reads but never opens a socket
-//  on; history is off while the card has one open.
+//  plug, and the Uthernet II, on which the program opens a UDP socket that
+//  a fake host network feeds a datagram every few frames.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +56,10 @@ public:
     static constexpr uint64_t  kKeyEvery        = 23;
     static constexpr uint64_t  kPaddleEvery     = 7;
     static constexpr uint64_t  kPaddleStep      = 37;
+    static constexpr uint64_t  kDatagramEvery   = 5;
+    static constexpr uint16_t  kGuestPort       = 1000;
+    static constexpr uint32_t  kPeerIp          = 0x7F000001;   // 127.0.0.1, which the card takes datagrams from without LAN access
+    static constexpr uint16_t  kPeerPort        = 7000;
 
 
     TEST_METHOD (EveryMachineAsShipped)
@@ -79,15 +85,19 @@ public:
 
         for (const char * machineId : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })
         {
-            TestMachine  machine (machineId, TestMachine::Slots::AsShipped, [] (MachineConfig & config, MachineBuildServices &)
+            FakeHostNetwork  network;
+            TestMachine      machine (machineId, TestMachine::Slots::AsShipped, [&network] (MachineConfig & config, MachineBuildServices & services)
             {
                 EnableCards (config);
+                services.hostNetwork = &network;
             });
 
             Assert::IsNotNull (machine.GetRefs().superSerialCard, Widen (std::string (machineId) + ": the Super Serial Card is in").c_str());
             Assert::IsNotNull (machine.GetRefs().uthernet,        Widen (std::string (machineId) + ": the Uthernet II is in").c_str());
 
-            RecordAndReplay (machine, std::string (machineId) + " with the cards", master);
+            //  The ][ boots the master into Integer BASIC, which does not run the
+            //  Applesoft program, so its socket never opens.
+            RecordAndReplay (machine, std::string (machineId) + " with the cards", master, &network, std::string (machineId) != "Apple2");
         }
     }
 
@@ -103,7 +113,7 @@ private:
     };
 
 
-    static void RecordAndReplay (TestMachine & machine, const std::string & label, const std::vector<Byte> & master)
+    static void RecordAndReplay (TestMachine & machine, const std::string & label, const std::vector<Byte> & master, FakeHostNetwork * network = nullptr, bool isNetworkExpected = false)
     {
         ReverseController  controller (machine);
         NeverStops         neverStops;
@@ -145,12 +155,15 @@ private:
             }
 
             Feed (machine, frame);
+            FeedNetwork (network, frame);
             machine.SampleHostInputs();
             machine.RunCycles (KeyframeSettings::kFrameCycles);
         }
 
         hr = controller.GetKeyframes().WaitForPending();
         AssertSucceeded (hr, (name + L": WaitForPending").c_str());
+
+        Assert::IsTrue (!isNetworkExpected || CountRecords (machine, InputKind::NetworkCall) > 0, (name + L": the card's received datagrams are in history").c_str());
 
         live      = Save (machine);
         keyframes = controller.GetKeyframes().GetCount();
@@ -192,11 +205,24 @@ private:
 
         serial = std::format ("POKE {},11 : POKE {},30 : POKE {},K : S = PEEK ({}) : D = PEEK ({})", data + 2, data + 3, data, data + 1, data);
 
+        if (isUthernet)
+        {
+            //  Socket 0 opens in UDP on port 1000; the loop below reads how
+            //  much it has received and frees it with RECV. The W5100 is in
+            //  indirect mode with the address incrementing: $C0B5 and $C0B6
+            //  are the address, $C0B7 the data.
+            KeystrokeInjector::InjectLine (machine, "5 POKE 49332,3 : A = 49333 : B = 49334 : C = 49335");
+            KeystrokeInjector::InjectLine (machine, "6 POKE A,4 : POKE B,4 : POKE C,3 : POKE C,232 : POKE A,4 : POKE B,0 : POKE C,2 : POKE C,1");
+        }
+
         KeystrokeInjector::InjectLine (machine, "10 HGR : HCOLOR= 3 : K = 0");
         KeystrokeInjector::InjectLine (machine, "20 HPLOT RND (1) * 279, RND (1) * 159 : X = PEEK (-16336) : P = PDL (0)");
         KeystrokeInjector::InjectLine (machine, "30 K = PEEK (-16384) : IF K > 127 THEN POKE -16368,0 : K = K - 128");
         KeystrokeInjector::InjectLine (machine, "40 " + serial);
-        KeystrokeInjector::InjectLine (machine, isUthernet ? "50 U = PEEK (49332)" : "50 U = 0");
+        KeystrokeInjector::InjectLine (machine, isUthernet ? "50 POKE A,4 : POKE B,38 : H = PEEK (C) : L = PEEK (C) : R = H * 256 + L" : "50 R = 0");
+        KeystrokeInjector::InjectLine (machine, "55 IF R = 0 THEN 60");
+        KeystrokeInjector::InjectLine (machine, "56 POKE A,4 : POKE B,40 : H = PEEK (C) : L = PEEK (C) : D = H * 256 + L + R : D = D - INT (D / 65536) * 65536");
+        KeystrokeInjector::InjectLine (machine, "57 POKE A,4 : POKE B,40 : POKE C, INT (D / 256) : POKE C,D - INT (D / 256) * 256 : POKE A,4 : POKE B,1 : POKE C,64");
         KeystrokeInjector::InjectLine (machine, "60 IF RND (1) < 0.002 THEN PRINT CHR$ (4);\"CATALOG\"");
         KeystrokeInjector::InjectLine (machine, "70 GOTO 20");
         KeystrokeInjector::InjectLine (machine, "RUN");
@@ -257,6 +283,45 @@ private:
         {
             machine.GetRefs().gamePort->SetPaddle (0, position);
         }
+    }
+
+
+    //  A datagram every kDatagramEvery frames from the peer to the guest's
+    //  UDP socket, once it is open, as the host's network would deliver it.
+    static void FeedNetwork (FakeHostNetwork * network, uint64_t frame)
+    {
+        std::shared_ptr<FakeSocketState>  socket;
+
+
+
+        if (network == nullptr || frame % kDatagramEvery != kDatagramEvery - 1)
+        {
+            return;
+        }
+
+        socket = network->FindBound (HostSocketKind::Udp, kGuestPort);
+
+        if (socket != nullptr && !socket->destroyed)
+        {
+            socket->inboundDatagrams.push_back ({ { kPeerIp, kPeerPort }, { (Byte) frame, (Byte) (frame >> 8), 0x55, 0xAA } });
+        }
+    }
+
+
+    static size_t CountRecords (MachineHost & machine, InputKind kind)
+    {
+        const InputJournal  & journal = machine.GetInputJournal();
+        size_t                count   = 0;
+        size_t                i       = 0;
+
+
+
+        for (i = journal.GetBeginIndex(); i < journal.GetEndIndex(); i++)
+        {
+            count += journal.GetRecord (i).kind == kind ? 1 : 0;
+        }
+
+        return count;
     }
 
 

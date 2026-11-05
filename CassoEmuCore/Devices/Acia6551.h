@@ -10,11 +10,14 @@
 
 class MemoryBus;
 class IAciaEndpoint;
+class ICommEventSink;
 class InputJournal;
 class HostInputGate;
 
 struct DeviceConfig;
 struct InputRecord;
+
+enum class IoEventKind : uint8_t;
 
 
 
@@ -74,6 +77,10 @@ public:
     static constexpr Word  kRegCommand    = 2;
     static constexpr Word  kRegControl    = 3;
     static constexpr Word  kRegisterCount = 4;
+
+    // The serial log's port: a card's slot number, or a built-in port's
+    // number with this bit set.
+    static constexpr Byte  kCommPortBuiltIn = 0x80;
 
     // Status register bits.
     static constexpr Byte    kStatusParityError  = 0x01;
@@ -151,6 +158,11 @@ public:
     // chip itself sent.
     void    EnqueueLoopedBackByte (Byte value);
 
+    // A resume from the past, on the emulation thread: the bytes the chip
+    // took from its attachment after the point go to the receiver again,
+    // behind the ones restored with the point.
+    void    RequeueReceivedBytes  (std::span<const Byte> bytes) { m_rxQueue.Push (bytes.data(), bytes.size()); }
+
     // Reverse execution: the journal for the bytes taken from an attachment,
     // or null, with this chip's index among the machine's serial chips; the
     // gate checked before they are taken; and, in a replay, a journaled byte
@@ -158,6 +170,13 @@ public:
     void    SetInputJournal  (InputJournal * journal, uint16_t chipIndex);
     void    SetHostInputGate (const HostInputGate * gate) { m_inputGate = gate; }
     bool    ApplyInput       (const InputRecord & record);
+
+    // The debugger's serial log: settings, line changes, each byte sent and
+    // received and each overrun go to `sink`, or nowhere when it is null,
+    // as this chip's port. Emulation thread.
+    void    SetCommEventSink (ICommEventSink * sink);
+    void    SetCommPort      (Byte port) { m_commPort = port; }
+    Byte    GetCommPort      () const    { return m_commPort; }
 
     // Inspectors for tests and board wiring.
     Byte    GetStatus  () const { return m_status; }
@@ -226,6 +245,9 @@ private:
     void    NotifyModemControl     ();
     int64_t GetCharacterFixedCycles (double baud) const;
     double  GetReceiveBaud         () const;
+    Byte    GetLineBits            () const;
+    void    NoteLines              ();
+    void    EmitComm               (IoEventKind kind, Byte value);
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;
@@ -273,6 +295,10 @@ private:
     InputJournal         *    m_inputJournal = nullptr;
     uint16_t                  m_chipIndex    = 0;
     const HostInputGate  *    m_inputGate    = nullptr;
+
+    ICommEventSink       *    m_commSink     = nullptr;
+    Byte                      m_commPort     = 0;
+    Byte                      m_notedLines   = 0;       // the lines in the last serial log entry
 
     std::string               m_diagnosticsId;
     std::string               m_diagnosticsTitle;

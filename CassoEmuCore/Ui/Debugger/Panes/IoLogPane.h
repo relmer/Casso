@@ -47,6 +47,7 @@ public:
         kSpeaker,
         kVia,
         kAy,
+        kSpeech,
         kLaneCount,
     };
 
@@ -82,8 +83,12 @@ protected:
     std::optional<uint64_t>  GetSortNumber (const Row & row, size_t index, size_t column) const override;
 
 private:
+    //  The version of the headings the saved options were written with: 2
+    //  from Scanline and Line cycle on.
+    static constexpr int  kHeadingsVersion = 2;
+
     bool                          m_isVideo = false;
-    std::array<bool, kLaneCount>  m_lanes   = { true, true, true };
+    std::array<bool, kLaneCount>  m_lanes   = { true, true, true, true };
 
     //  For each row, the cycles since the last entry of the same.
     std::vector<std::optional<uint64_t>>  m_since;

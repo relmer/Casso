@@ -12,9 +12,7 @@
 //  AccessHeatMap::Start
 //
 //  A map already on keeps its heat; the instruction set is taken again, since
-//  a machine switch may have brought another CPU. At cycle zero the machine
-//  is at power-on and nothing has written its RAM; later, what was written
-//  before is not known, so every byte counts as written.
+//  a machine switch may have brought another CPU.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,12 +25,70 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
         return;
     }
 
-    m_counts.assign (kEntryCount, 0);
-    m_heat.assign   (kEntryCount, 0.0f);
-    m_totals.assign (kEntryCount, 0);
-    m_last.assign   (kLastCount, HeatLastAccess());
-    m_opcodes.assign (kSpaceCount * kAddressCount, 0);
-    m_isListed.assign (kEntryCount, 0);
+    m_counts.resize   (kEntryCount);
+    m_heat.resize     (kEntryCount);
+    m_totals.resize   (kEntryCount);
+    m_last.resize     (kLastCount);
+    m_opcodes.resize  (kSpaceCount * kAddressCount);
+    m_isListed.resize (kEntryCount);
+    m_written.resize  (kWrittenWords);
+    m_edited.resize   (kEditedWords);
+
+    Begin (cycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::Restart
+//
+//  A map that is on is started again on the tables it has; one that is off
+//  is started. A scratch replay starts its map at each part it replays, and
+//  in a debug build, freeing and filling the tables again each time took
+//  about a third of a replay's time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::Restart (const Microcode * instructionSet, uint64_t cycle)
+{
+    if (!IsOn())
+    {
+        Start (instructionSet, cycle);
+        return;
+    }
+
+    m_instructionSet = instructionSet;
+    Begin (cycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessHeatMap::Begin
+//
+//  Every table zero but the written bits. At cycle zero the machine is at
+//  power-on and nothing has written its RAM; later, what was written before
+//  is not known, so every byte counts as written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AccessHeatMap::Begin (uint64_t cycle)
+{
+    static_assert (HeatLastAccess().stamp == 0 && HeatLastAccess().cycle == 0);
+
+    FillBytes (m_counts,   0);
+    FillBytes (m_heat,     0);
+    FillBytes (m_totals,   0);
+    FillBytes (m_last,     0);
+    FillBytes (m_opcodes,  0);
+    FillBytes (m_isListed, 0);
+    FillBytes (m_edited,   0);
     m_listed.clear();
 
     m_mostTotal     = {};
@@ -47,9 +103,9 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
     m_isKeptChanged    = true;
     m_isLastReadUnwritten = false;
     m_isLastReadStop      = false;
+    m_isStatementPending  = false;
 
-    m_written.assign (kWrittenWords, m_isStartedClear ? 0 : UINT64_MAX);
-    m_edited.assign  (kEditedWords, 0);
+    FillBytes (m_written, m_isStartedClear ? 0 : 0xFF);
 
     m_lastRead.reset();
     m_instruction.reset();
@@ -183,10 +239,10 @@ void AccessHeatMap::Fold (uint64_t cycle)
 
 void AccessHeatMap::Reset()
 {
-    std::ranges::fill (m_counts, 0u);
-    std::ranges::fill (m_heat,   0.0f);
-    std::ranges::fill (m_totals, 0ll);
-    std::ranges::fill (m_opcodes, (Byte) 0);
+    FillBytes (m_counts,  0);
+    FillBytes (m_heat,    0);
+    FillBytes (m_totals,  0);
+    FillBytes (m_opcodes, 0);
 
     ClearListed();
 
@@ -969,6 +1025,12 @@ void AccessHeatMap::OnRead (Word address, Byte value)
         m_lastReadWasBank = m_last[GetLastIndex (m_lastReadLanding.space, false, m_lastReadLanding.index)];
     }
 
+    if (m_isStatementPending && m_instruction.has_value() && m_instruction->GetPc() == kChrGetRead)
+    {
+        CountAlso (HeatKind::Statement, address, m_lastReadLanding);
+        m_isStatementPending = false;
+    }
+
     if (m_isLastReadUnwritten)
     {
         CountAlso (HeatKind::UnwrittenRead, address, m_lastReadLanding);
@@ -1546,6 +1608,12 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
     m_isLastReadUnwritten = false;
     m_isLastReadStop      = false;
     m_isStore             = m_instructionSet != nullptr && IsStore (m_instructionSet[opcode].operation);
+
+    //  A statement begins at the statement loop's call of CHRGET, and its
+    //  first token is the next byte CHRGET reads. Any other code between
+    //  the call and that read ends the wait.
+    m_isStatementPending  = (pc == kNewStatement && opcode == kJsr) ||
+                            (m_isStatementPending && pc >= kChrGet && pc <= kChrGetRead);
 
     MarkOpcode (pc, Count (HeatKind::Execute, pc, false));
 

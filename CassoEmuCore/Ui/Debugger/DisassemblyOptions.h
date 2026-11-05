@@ -110,6 +110,25 @@ public:
     static int   GetLineOfRow (const std::vector<Row> & rows, int row);
     static int   GetRowOfLine (const std::vector<Row> & rows, int codeLine);
 
+    //  A source row represents the first instruction its line produced, the
+    //  one on the row under it: the row has that instruction's breakpoint,
+    //  PC marker and row color, and the instruction's row doesn't.
+    //  GetFrontedLine returns that instruction for a source row, and -1 for
+    //  any other row. IsFronted is whether an instruction's row is under the
+    //  source row representing it. GetFrontRowOfLine returns the row
+    //  representing an instruction: the source row above it, or the
+    //  instruction's row.
+    //  GetGutterLineOfRow returns the instruction a press in a row's gutter
+    //  acts on, and -1 for an instruction's row under its source row.
+    static int   GetFrontedLine     (const std::vector<Row> & rows, int row);
+    static bool  IsFronted          (const std::vector<Row> & rows, int row);
+    static int   GetFrontRowOfLine  (const std::vector<Row> & rows, int codeLine);
+    static int   GetGutterLineOfRow (const std::vector<Row> & rows, int row);
+
+    //  Whether a source row's line produced one instruction in view, so the
+    //  row also has the instruction's operand and result.
+    static bool  IsSingleInstruction (const std::vector<Row> & rows, int row);
+
     //  The instruction as the view shows it: with symbol names off, the
     //  operand's address in place of the symbol shown for it.
     static std::string  GetInstructionText (const DebuggerViewSnapshot::CodeLine & line, bool showSymbols);

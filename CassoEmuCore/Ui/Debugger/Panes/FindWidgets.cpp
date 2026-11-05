@@ -87,6 +87,42 @@ FindWidget & FindWidgetSet::Activate (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindWidgetSet::GetPlaceholder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FindWidgetSet::GetPlaceholder (const std::wstring & pane)
+{
+    static const std::set<std::wstring>  s_logs = { DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
+                                                    DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog,
+                                                    DebuggerLayout::kTrace };
+
+
+
+    if (pane == DebuggerLayout::kConsole)
+    {
+        return L"Find in the console";
+    }
+
+    if (s_logs.contains (pane))
+    {
+        return L"Find in the log";
+    }
+
+    if (pane == DebuggerLayout::kBasicProgram)
+    {
+        return L"Find in the program";
+    }
+
+    return (pane.starts_with (L"source")) ? L"Find in the source" : L"Find in the pane";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FindWidgetSet::Create
 //
 //  Each control acts on its own pane's widget.
@@ -115,18 +151,30 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
     widget.selButton   = parent.CreateChild<DxuiButton>      (s_kpszMdl2AlignLeft);
     widget.closeButton = parent.CreateChild<DxuiButton>      (s_kpszMdl2Cancel);
 
+    //  What each control does, as every toolbar control's tip has it.
+    widget.caseButton ->SetTip (L"Find only text in the same case");
+    widget.wordButton ->SetTip (L"Find only whole words");
+    widget.regexButton->SetTip (L"Find by regular expression");
+    widget.prevButton ->SetTip (L"Find the previous match");
+    widget.nextButton ->SetTip (L"Find the next match");
+    widget.selButton  ->SetTip (L"Find in selection");
+    widget.chevron    ->SetTip (L"Replace is not available: this text is read-only");
+    widget.closeButton->SetTip (L"Close the find bar");
+    widget.box        ->SetTip (L"Text to find in this pane");
+
     ShowOptions (widget);
 
-    //  Icon glyphs at Visual Studio Code's 16 pixels, which read at a glance
-    //  where a text face's arrows are thin and small.
+    //  Icon glyphs at a compact pane toolbar's size, beside the option
+    //  toggles' text, which read at a glance where a text face's arrows are
+    //  thin and small.
     for (DxuiButton * button : { widget.chevron, widget.prevButton, widget.nextButton, widget.selButton, widget.closeButton })
     {
-        button->SetGlyphFont (L"Segoe MDL2 Assets", (button == widget.chevron) ? 12.0f : 16.0f);
+        button->SetGlyphFont (L"Segoe MDL2 Assets", DxuiToolbar::kCompactIconDip);
     }
 
     widget.box->SetHwnd        (m_host.GetOwnerHwnd());
     widget.box->SetMaxLength   (256);
-    widget.box->SetPlaceholder ((pane == DebuggerLayout::kConsole) ? L"Find in the console" : L"Find in the source");
+    widget.box->SetPlaceholder (GetPlaceholder (pane));
 
     //  Each option is a toggle, emphasized while on, as Visual Studio Code's
     //  find bar draws them.
@@ -459,8 +507,8 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     constexpr int           kButtonDip = 24;
     const DxuiDpiScaler   & scaler     = m_host.GetPaneScaler();
     auto                    px         = [&scaler] (int dip) { return scaler.ToPx (dip); };
-    DxuiTextView          * view       = m_window.GetFindView (pane);
-    bool                    shown      = widget.isOpen && view != nullptr && view->IsVisible();
+    IDxuiFindTarget       * view       = m_window.GetFindView (pane);
+    bool                    shown      = widget.isOpen && view != nullptr && view->IsFindVisible();
     int                     button     = px (kButtonDip);
     RECT                    area       = {};
     RECT                    plate      = {};
@@ -483,7 +531,7 @@ void FindWidgetSet::PlaceOne (const std::wstring & pane, FindWidget & widget)
     //  window.
     Move (widget, m_window.GetFindWindow (pane));
 
-    area         = view->GetBounds();
+    area         = view->GetFindBounds();
     plate.right  = area.right - px (kScrollDip);
     plate.left   = (std::max) (area.left + px (4), plate.right - px (kWidthDip));
     plate.top    = area.top;
@@ -561,13 +609,13 @@ void FindWidgetSet::OnFloatClosed (const DxuiWindow * window)
 void FindWidgetSet::Open (const std::wstring & pane)
 {
     FindWidget         & widget   = Activate (pane);
-    DxuiTextView       * view     = m_window.GetFindView (pane);
+    IDxuiFindTarget    * view     = m_window.GetFindView (pane);
     DebuggerPaneFrame  * frame    = m_window.GetFindFrame (pane);
     std::wstring         selected = (view != nullptr) ? view->GetSelectionText() : std::wstring();
 
 
 
-    widget.box->SetPlaceholder ((pane == DebuggerLayout::kConsole) ? L"Find in the console" : L"Find in the source");
+    widget.box->SetPlaceholder (GetPlaceholder (pane));
 
     if (!selected.empty() && selected.find (L'\n') == std::wstring::npos)
     {
@@ -608,7 +656,7 @@ void FindWidgetSet::Open (const std::wstring & pane)
 void FindWidgetSet::Close()
 {
     FindWidget         & widget = *m_active;
-    DxuiTextView       * view   = m_window.GetFindView (m_activePane);
+    IDxuiFindTarget    * view   = m_window.GetFindView (m_activePane);
     DebuggerPaneFrame  * frame  = m_window.GetFindFrame (m_activePane);
 
 
@@ -629,7 +677,7 @@ void FindWidgetSet::Close()
 
     Place();
 
-    m_window.FocusInPane (m_activePane, (m_activePane == DebuggerLayout::kConsole) ? m_window.GetCommandLine() : (IDxuiControl *) view);
+    m_window.FocusInPane (m_activePane, (m_activePane == DebuggerLayout::kConsole) ? m_window.GetCommandLine() : view->GetFindControl());
     m_host.Repaint();
 }
 
@@ -695,7 +743,7 @@ void FindWidgetSet::SetOptions (bool matchCase, bool wholeWord, bool isRegex)
 
 void FindWidgetSet::SetInSelection (bool on)
 {
-    DxuiTextView  * view = m_window.GetFindView (m_activePane);
+    IDxuiFindTarget * view = m_window.GetFindView (m_activePane);
 
 
 
@@ -807,14 +855,14 @@ bool FindWidgetSet::StepHistory (int step)
 
 void FindWidgetSet::Find (bool forward)
 {
-    std::wstring              target   = GetTarget();
-    std::wstring              needle;
-    DxuiTextView            * view     = nullptr;
-    DxuiTextView            * shown    = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
-    bool                      isShown  = m_active != nullptr && m_active->isOpen && shown != nullptr && shown->IsVisible();
-    DxuiTextView::FindResult  result   = DxuiTextView::FindResult::NotFound;
-    int                       index    = 0;
-    int                       count    = 0;
+    std::wstring       target  = GetTarget();
+    std::wstring       needle;
+    IDxuiFindTarget  * view    = nullptr;
+    IDxuiFindTarget  * shown   = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
+    bool               isShown = m_active != nullptr && m_active->isOpen && shown != nullptr && shown->IsFindVisible();
+    DxuiFindResult     result  = DxuiFindResult::NotFound;
+    int                index   = 0;
+    int                count   = 0;
 
 
 
@@ -870,11 +918,11 @@ void FindWidgetSet::Find (bool forward)
 
 void FindWidgetSet::SearchAsTyped()
 {
-    DxuiTextView              * view   = m_window.GetFindView (m_activePane);
-    std::wstring                needle = m_active->box->GetText();
-    DxuiTextView::FindResult    result = DxuiTextView::FindResult::NotFound;
-    int                         index  = 0;
-    int                         count  = 0;
+    IDxuiFindTarget  * view   = m_window.GetFindView (m_activePane);
+    std::wstring       needle = m_active->box->GetText();
+    DxuiFindResult     result = DxuiFindResult::NotFound;
+    int                index  = 0;
+    int                count  = 0;
 
 
 
@@ -940,9 +988,9 @@ void FindWidgetSet::RefindAfterOptionChange()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FindWidgetSet::GetStatusText (DxuiTextView::FindResult result, int index, int count)
+std::wstring FindWidgetSet::GetStatusText (DxuiFindResult result, int index, int count)
 {
-    if (result == DxuiTextView::FindResult::NotFound || count == 0)
+    if (result == DxuiFindResult::NotFound || count == 0)
     {
         return L"No results";
     }
@@ -1111,49 +1159,6 @@ bool FindWidgetSet::IsOverPlate (POINT clientPx) const
 
         return plate != nullptr && m_host.IsRoutable (plate) && plate->IsVisible() && DxuiDockSite::Contains (plate->GetBounds(), clientPx);
     });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindWidgetSet::GetTip
-//
-//  What each of the widget's controls does, as every toolbar control's tip
-//  has it. The toggles lie inside the box, so the box is checked last.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * FindWidgetSet::GetTip (POINT clientPx, RECT & anchor) const
-{
-    for (const auto & [pane, widget] : m_widgets)
-    {
-        const std::pair<IDxuiControl *, const wchar_t *>  tips[] =
-        {
-            { widget.caseButton,  L"Find only text in the same case"      },
-            { widget.wordButton,  L"Find only whole words"                },
-            { widget.regexButton, L"Find by regular expression"           },
-            { widget.prevButton,  L"Find the previous match"              },
-            { widget.nextButton,  L"Find the next match"                  },
-            { widget.selButton,   L"Find in selection"                    },
-            { widget.chevron,     L"Replace is not available: this text is read-only" },
-            { widget.closeButton, L"Close the find bar"                   },
-            { widget.box,         L"Text to find in this pane"             },
-        };
-
-        for (const auto & [control, tip] : tips)
-        {
-            if (control != nullptr && m_host.IsRoutable (control) && control->IsVisible() && DxuiDockSite::Contains (control->GetBounds(), clientPx))
-            {
-                anchor = control->GetBounds();
-                return tip;
-            }
-        }
-    }
-
-    return nullptr;
 }
 
 

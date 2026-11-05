@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/WatchHistory.h"
 
@@ -46,6 +47,7 @@ public:
     std::vector<IDxuiControl *>    GetControls    () const override;
     void                           Apply          (const DebuggerViewSnapshot & snapshot) override;
     bool                           RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
+    bool                           RouteContentMouse (const DxuiMouseEvent & ev) override;
     bool                           AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                           CanUndo        (bool redo) const override;
     std::wstring                   GetUndoText    (bool redo) const override;
@@ -84,8 +86,21 @@ private:
 
     std::vector<DxuiListView::Cell>  MakeHeading    (const std::wstring & title) const;
     DxuiListView::Cell               MakeIdCell     (const std::wstring & text) const;
+    DxuiListView::Cell               MakeTypeCell   (const std::wstring & text) const;
+    static std::wstring              GetAutoType    (const std::string & key);
+    static std::wstring              GetWatchType   (const DebuggerViewSnapshot::WatchLine & watch);
+    static bool                      IsInRom        (Word pc);
     void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
     void                             RemoveSelected ();
+
+    //  A watch or a zero-page pointer removed, as an undoable step: the undo
+    //  adds it back where it was, and the redo removes it again.
+    void                             RemoveWatch    (int id);
+    void                             RemovePointer  (int slot);
+
+    //  The text a watch is added back by: its expression, its address in hex,
+    //  or BASIC and its variable.
+    static std::string               GetRestoreText (const DebuggerViewSnapshot::WatchLine & watch);
 
     //  The grid's commit of a watch's cell, column 0 the expression and 1
     //  the value, and of the add row.
@@ -94,14 +109,17 @@ private:
     void                             SetError       (const std::wstring & text);
     void                             NoteEditBegun  (int row);
     void                             EditAddedValue (const DebuggerViewSnapshot & snapshot);
+    void                             RecordAdded    (const DebuggerViewSnapshot & snapshot);
 
     WatchHistory         m_history;
     DxuiEditableGrid   * m_grid                     = nullptr;
     std::vector<int>     m_idsBeforeAdd;
     bool                 m_isValueEditAfterAdd      = false;
     ULONGLONG            m_addedBy                  = 0;        // when the value edit after an add is dropped
+    std::string          m_addedText;                           // an add whose undo step waits for a snapshot with its id
     Clock                m_clock                    = [] { return GetTickCount64(); };
     std::vector<Row>     m_rows;
     Edit                 m_edit;
     bool                 m_isBasicVariablesExpanded = false;
+    BasicAutoWatches     m_basicAutos;
 };

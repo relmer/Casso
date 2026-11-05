@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "TestSystemState.h"
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -73,8 +75,7 @@ public:
 
     TEST_METHOD_CLEANUP (Cleanup)
     {
-        DxuiSystemSettings::Instance().SetParameterReader (nullptr);
-        DxuiSystemSettings::Instance().Refresh();
+        TestSystemState::Install();
     }
 
 

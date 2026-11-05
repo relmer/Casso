@@ -164,6 +164,7 @@
     <ClCompile Include="Core\DxuiGridLayout.cpp" />
     <ClCompile Include="Core\DxuiHitTester.cpp" />
     <ClCompile Include="Core\DxuiInput.cpp" />
+    <ClCompile Include="Core\DxuiDisplay.cpp" />
     <ClCompile Include="Core\DxuiPanel.cpp" />
     <ClCompile Include="Core\DxuiPanZoom.cpp" />
     <ClCompile Include="Core\DxuiSlide.cpp" />
@@ -218,6 +219,9 @@
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Widgets\DxuiInPlaceTip.cpp" />
+    <ClCompile Include="Widgets\DxuiMarquee.cpp" />
+    <ClCompile Include="Widgets\DxuiTextFind.cpp" />
+    <ClCompile Include="Widgets\DxuiTipService.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
     <ClCompile Include="Widgets\DxuiFieldError.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
@@ -283,12 +287,15 @@
     <ClInclude Include="Core\DxuiHitTester.h" />
     <ClInclude Include="Core\DxuiLayoutBand.h" />
     <ClInclude Include="Core\DxuiInput.h" />
+    <ClInclude Include="Core\DxuiInputState.h" />
+    <ClInclude Include="Core\DxuiDisplay.h" />
     <ClInclude Include="Core\DxuiPanel.h" />
     <ClInclude Include="Core\DxuiPanZoom.h" />
     <ClInclude Include="Core\DxuiSlide.h" />
     <ClInclude Include="Core\DxuiSystemSettings.h" />
     <ClInclude Include="Core\DxuiStackLayout.h" />
     <ClInclude Include="Core\DxuiThread.h" />
+    <ClInclude Include="Core\DxuiTip.h" />
     <ClInclude Include="Core\DxuiUnicodeSymbols.h" />
     <ClInclude Include="Core\DxuiViewport.h" />
     <ClInclude Include="Core\IDxuiControl.h" />
@@ -347,6 +354,10 @@
     <ClInclude Include="Widgets\DxuiTextInput.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiInPlaceTip.h" />
+    <ClInclude Include="Widgets\DxuiMarquee.h" />
+    <ClInclude Include="Widgets\IDxuiFindTarget.h" />
+    <ClInclude Include="Widgets\DxuiTextFind.h" />
+    <ClInclude Include="Widgets\DxuiTipService.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
     <ClInclude Include="Widgets\DxuiFieldError.h" />
     <ClInclude Include="Render\DxuiStroke.h" />

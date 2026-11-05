@@ -3,6 +3,7 @@
 #include "Debugger/IDebugCommandHandler.h"
 
 class DebugSession;
+struct DebugFile;
 
 
 
@@ -28,6 +29,11 @@ class SymbolHandlers : public IDebugCommandHandler
 public:
     bool  TryExecute (DebugSession & session, const DebugCommand & command, Reply & reply) override;
 
+    //  An Applesoft listing rather than a symbol file: a .bas file, or three
+    //  lines or more, each a rising line number and a statement starting
+    //  with a keyword. Read as symbols, `10 HOME` was HOME at $0010.
+    static bool  IsBasicListing (const std::string & path, const std::string & content);
+
 private:
     static void  Lookup   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  LookupPattern (DebugSession & session, const DebugCommand & command, const std::string & pattern, Reply & reply);
@@ -38,6 +44,7 @@ private:
     static void  LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
                                 const std::string & content, int offset, bool isListing, Reply & reply);
     static bool  IsListingWithLines (const std::string & content);
+    static std::map<int, std::vector<std::string>>  ReadSources (DebugSession & session, const DebugFile & file, const std::wstring & debugFilePath);
     static void  AddRegisterNameNote (DebugSession & session, SymbolTableId table, std::vector<std::string> & lines);
     static void  Save     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  Clear    (DebugSession & session, const DebugCommand & command, Reply & reply);

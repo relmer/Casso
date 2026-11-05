@@ -5,6 +5,7 @@
 #include "Theme/IDxuiTheme.h"
 #include "Widgets/DxuiPaneFrame.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiTip.h"
 #include "Render/DxuiCoverageRaster.h"
 
 
@@ -1343,6 +1344,90 @@ bool DxuiDockSite::TryGetTitleExtraRect (const std::wstring & pane, RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::IsHitAt
+//
+//  The site lies over the whole of its panes, but only its chrome is under
+//  the pointer: the title bars, the tab strips, the edges' tabs and the
+//  sashes. A pane slid out from an edge lies over the panes under it, so all
+//  of it is the site's but for the slid pane's controls, which the window's
+//  top layer finds first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::IsHitAt (POINT pointPx) const
+{
+    if (!IsVisible())
+    {
+        return false;
+    }
+
+    if (!m_slidPane.empty() && Contains (m_slidRect, pointPx))
+    {
+        return true;
+    }
+
+    if (HitTestEdgeTab (pointPx) >= 0 || HitTestSash (pointPx) >= 0)
+    {
+        return true;
+    }
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        if (group != nullptr && group->IsVisible() && (Contains (group->GetTitleRect(), pointPx) || Contains (group->GetStripRect(), pointPx)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TryGetTip
+//
+//  A tab's tip, or what the title-bar button under the point does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    RECT          rect = {};
+    std::wstring  text;
+
+
+
+    if (!IsVisible())
+    {
+        return false;
+    }
+
+    if (GetTabAt (pointPx, rect, text).empty() || text.empty())
+    {
+        text = GetTitleButtonTipAt (pointPx, rect);
+    }
+
+    if (text.empty())
+    {
+        return IDxuiControl::TryGetTip (pointPx, tip);
+    }
+
+    tip        = DxuiTip();
+    tip.text   = text;
+    tip.anchor = rect;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::GetTabAt
 //
 //  Over a tab's pin or close button the tab gives no tip of its own; the
@@ -1422,6 +1507,37 @@ IDxuiControl * DxuiDockSite::GetPaneContent (const std::wstring & pane) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDockSite::GetTabNeighbor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDockSite::GetTabNeighbor (const std::wstring & pane) const
+{
+    IDxuiControl  * content = GetPaneContent (pane);
+
+
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        int  index = (content != nullptr && group->IsVisible()) ? group->IndexOf (content) : -1;
+
+
+
+        if (index >= 0 && group->GetTabCount() > 1)
+        {
+            return GetPaneOf (group->GetContent ((index + 1 < (int) group->GetTabCount()) ? index + 1 : index - 1));
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDockSite::GetPaneAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1442,11 +1558,17 @@ std::wstring DxuiDockSite::GetPaneAt (POINT pointDip) const
         return m_edgeTabs[(size_t) tab].pane;
     }
 
+    //  Over a tab, the tab's pane, so a right click on a tab that isn't active
+    //  targets that tab.
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
+        int  index = group->IsVisible() ? group->HitTestTab (pointDip) : -1;
+
+
+
         if (Contains (group->GetBounds(), pointDip))
         {
-            return GetPaneOf (group->GetActiveContent());
+            return GetPaneOf ((index >= 0) ? group->GetContent (index) : group->GetActiveContent());
         }
     }
 

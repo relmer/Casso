@@ -3214,7 +3214,7 @@ DxuiMessageResult ShellDeskScene::OnMouseWheel (WPARAM wParam, LPARAM lParam, bo
     // synthesizes those wheel messages WITHOUT MK_SHIFT in their keystate,
     // so that gesture arrived with no flag, fell through, and panned.
     if (((GET_KEYSTATE_WPARAM (wParam) & MK_SHIFT) != 0 ||
-         (GetKeyState (VK_SHIFT) & 0x8000) != 0) && !pinch)
+         DxuiInputState::IsKeyDown (VK_SHIFT)) && !pinch)
     {
         // BOTH SIGNS ARE DERIVED FROM THE PAN, not measured one gesture at
         // a time. The pan is the one slide mapping the user has validated:
@@ -3834,7 +3834,7 @@ bool ShellDeskScene::OnRButtonUp (int x, int y)
         m_shell.ShowStorageContextMenu (device, x, y);
         m_sceneOrbitTapMs = 0;
     }
-    else if (isStill && nowMs - m_sceneOrbitTapMs <= (int64_t) GetDoubleClickTime())
+    else if (isStill && nowMs - m_sceneOrbitTapMs <= (int64_t) DxuiSystemSettings::Instance().GetDoubleClickMs())
     {
         m_sceneView.orbitYawRad   = 0.0f;
         m_sceneView.orbitPitchRad = 0.0f;
@@ -4197,7 +4197,7 @@ void ShellDeskScene::AdoptOverlays (DxuiPanel & root)
     {
         float  step = s_kScenePanStep;
 
-        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        if (DxuiInputState::IsKeyDown (VK_CONTROL))
         {
             switch (part)
             {
@@ -4225,7 +4225,7 @@ void ShellDeskScene::AdoptOverlays (DxuiPanel & root)
     {
         float  rate = OrbitRadPerPx();
 
-        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        if (DxuiInputState::IsKeyDown (VK_CONTROL))
         {
             const RECT &  vp = m_deskScene.Composition().viewportPx;
 
@@ -4255,7 +4255,7 @@ void ShellDeskScene::AdoptOverlays (DxuiPanel & root)
     // window size included, with the window's placement saved.
     m_sceneCompass.SetOnHome ([this] ()
     {
-        if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+        if (DxuiInputState::IsKeyDown (VK_CONTROL))
         {
             PostMessage (m_shell.m_hwnd, WM_COMMAND, IDM_VIEW_RESET_SIZE, 0);
             return;
@@ -4568,7 +4568,7 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
 
         inputs.nowMs = stripNowMs;
 
-        if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
+        if (DxuiInputState::GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
         {
             inputs.pointerAtBottomEdge = cursor.y >= client.bottom - m_shell.m_scaler.ToPx (s_kStripEdgeZoneDp);
             inputs.pointerOverStrip    = m_stripState.Mode() != StripMode::Hidden &&

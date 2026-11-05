@@ -204,7 +204,7 @@ void ShellMouseInput::UpdatePaddleFromMouse (int xClient, int yClient)
     // The SetCursorPos recenter below re-enters here with a zero delta.
     BAIL_OUT_IF (dx == 0 && dy == 0, S_OK);
 
-    dpi = GetDpiForWindow (m_input.m_host.GetMainWindow());
+    dpi = DxuiDisplay::Get().GetDpiForWindow (m_input.m_host.GetMainWindow());
     if (dpi == 0)
     {
         dpi = 96;

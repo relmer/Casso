@@ -44,6 +44,7 @@ enum class InputKind : uint8_t
     JoyportJack,
     HostState,
     StateLoad,
+    NetworkCall,
 };
 
 
@@ -155,12 +156,13 @@ public:
     bool  IsOn              () const                          { return m_isOn; }
     void  SetPositionSource (const uint64_t * positionSource) { m_positionSource = positionSource; }
     void  SetCycleSource    (const uint64_t * cycleSource)    { m_cycleSource = cycleSource; }
+    void  SetCycleBase      (const uint64_t * cycleBase)      { m_cycleBase = cycleBase; }
     void  SetSampling       (bool isSampling)                 { m_isSampling = isSampling; }
 
     uint64_t  GetCycle() const { return (m_cycleSource != nullptr) ? *m_cycleSource : 0; }
 
     void  Record         (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, std::string_view payload);
-    void  RecordObserved (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, uint64_t data);
+    void  RecordObserved (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, uint64_t data, std::string_view payload = {});
 
     size_t               GetBeginIndex () const { return m_firstIndex; }
     size_t               GetEndIndex   () const { return m_firstIndex + m_count; }
@@ -198,6 +200,7 @@ private:
     uint64_t                   m_cutCount       = 0;
     const uint64_t           * m_positionSource = nullptr;
     const uint64_t           * m_cycleSource    = nullptr;
+    const uint64_t           * m_cycleBase      = nullptr;     // the cycles before the last power cycle, which a record's cycle includes
     bool                       m_isOn           = false;
     bool                       m_isSampling     = false;
 };

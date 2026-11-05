@@ -270,11 +270,18 @@ static constexpr AppleWinCommand s_kAppleWinCommands[] =
     { "SAVESTATE",   V::SaveState,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "LOADSTATE",   V::LoadState,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "PROJECT",     V::Project,                  F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "RESET",       V::ResetMachine,             F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "PASTE",       V::PasteText,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "SCREEN",      V::ShowScreen,               F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "SCREENSHOT",  V::SaveScreenshot,           F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "EXIT",        V::ExitCasso,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICSTEP",   V::BasicStep,                F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICLINE",   V::BasicStepLine,            F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICOUT",    V::BasicStepOut,             F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICVARS",   V::ShowBasicVariables,       F::Engine,      A::Headless,     nullptr,     nullptr },
     { "BASICSTACK",  V::ShowBasicStack,           F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICLOAD",   V::LoadBasic,                F::Engine,      A::Headless,     nullptr,     nullptr },
+    { "BASICSAVE",   V::SaveBasic,                F::Engine,      A::Headless,     nullptr,     nullptr },
 
     // Window only: cursor
     { ".",           V::View,                     F::Cursor,      A::WindowOnly,   nullptr,     nullptr },

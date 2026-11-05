@@ -49,6 +49,9 @@ public:
 
     void  Pump            (uint64_t now);
     void  CloseFlows      ();    // all but the port forwards
+
+    //  A resume from the past: no flow's last traffic is later than `now`.
+    void  Rewind          (uint64_t now);
     void  CloseAll        ();
     bool  IsActive        () const { return !m_flows.empty(); }
     size_t  GetFlowCount  () const { return m_flows.size(); }

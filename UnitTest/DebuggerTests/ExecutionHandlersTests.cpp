@@ -54,22 +54,47 @@ namespace DebuggerTests
         {
             Rig                       rig;
             std::optional<uint64_t>   from;
+            std::optional<uint64_t>   to;
 
 
 
             Assert::IsTrue   (rig.Run ("PROFILE HISTORY 10").status == CommandStatus::NotAvailable, L"a build with no shell history");
 
             rig.target.cycleCount = 20'000'000;
-            rig.handlers.SetHistoryProfiler ([&from] (uint64_t fromCycle, std::string &) { from = fromCycle; return S_OK; });
+            rig.handlers.SetHistoryProfiler ([&] (uint64_t fromCycle, std::optional<uint64_t> toCycle, std::string &) { from = fromCycle; to = toCycle; return S_OK; });
 
             rig.RunOk ("PROFILE HISTORY 10");
             Assert::IsTrue   (from.has_value());
             Assert::AreEqual ((uint64_t) (20'000'000 - 10 * HistoryStatus::kCyclesPerSecond), *from);
+            Assert::IsFalse  (to.has_value(), L"to the machine's position");
 
             rig.RunOk ("PROFILE HISTORY ALL");
             Assert::AreEqual ((uint64_t) 0, *from, L"ALL is from the start");
 
             rig.RunFails ("PROFILE HISTORY TEN", "invalid arguments");
+        }
+
+
+        //  PROFILE HISTORY CYCLES first last builds the profile of a stretch
+        //  of cycles, for the Profiler timeline's zoomed or selected
+        //  range.
+        TEST_METHOD (ProfileHistory_BuildsARangeOfCycles)
+        {
+            Rig                       rig;
+            std::optional<uint64_t>   from;
+            std::optional<uint64_t>   to;
+
+
+
+            rig.target.cycleCount = 20'000'000;
+            rig.handlers.SetHistoryProfiler ([&] (uint64_t fromCycle, std::optional<uint64_t> toCycle, std::string &) { from = fromCycle; to = toCycle; return S_OK; });
+
+            rig.RunOk ("PROFILE HISTORY CYCLES 1000000 2500000");
+            Assert::AreEqual ((uint64_t) 1'000'000, from.value_or (0));
+            Assert::AreEqual ((uint64_t) 2'500'000, to.value_or (0));
+
+            rig.RunFails ("PROFILE HISTORY CYCLES 2500000 1000000", "invalid arguments");
+            rig.RunFails ("PROFILE HISTORY CYCLES 1000000",         "invalid arguments");
         }
 
 

@@ -9,6 +9,7 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/SoundBoardView.h"
 #include "Ui/Debugger/ColorKeyButton.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 
@@ -330,7 +331,8 @@ namespace DebuggerColorKeyTests
             MemoryMapBar         map;
             DiskHeadView         head;
             MeterBar             meters;
-            DiagnosticsPane      pane ("mmu", L"MMU", &list, &map, &head, &meters);
+            SoundBoardView       board;
+            DiagnosticsPane      pane ("mmu", L"MMU", &list, &map, &head, &meters, &board);
             DiagnosticsSnapshot  snapshot;
 
 

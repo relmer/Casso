@@ -56,6 +56,13 @@ struct DebuggerSettings
     // default.
     std::string  heatMapOptions;
 
+    // The Disk II panel's drives, "1", "2" or "both"; empty means both.
+    std::string  diskDrives;
+
+    // The profiler's period, as its HISTORY command's argument: "5", "10",
+    // "60", "300" or "ALL". Empty, or a value not on the list, is "5".
+    std::string  profilerPeriod;
+
     // The heat map's sets of ranges and the set it shows, in
     // HeatMapRangeSets' text; empty until the ranges pane first opens.
     std::string  heatMapRanges;
@@ -68,11 +75,13 @@ struct DebuggerSettings
     std::string  inputLogOptions;
     std::string  videoLogOptions;
     std::string  soundLogOptions;
+    std::string  serialLogOptions;
+    std::string  networkLogOptions;
 
     // A log's options by its kind, or null for a kind past the logs here.
     std::string * GetLogOptions (int kind)
     {
-        std::string *  logs[] = { &diskLogOptions, &inputLogOptions, &videoLogOptions, &soundLogOptions };
+        std::string *  logs[] = { &diskLogOptions, &inputLogOptions, &videoLogOptions, &soundLogOptions, &serialLogOptions, &networkLogOptions };
 
 
         return (kind >= 0 && kind < (int) std::size (logs)) ? logs[kind] : nullptr;
@@ -82,6 +91,10 @@ struct DebuggerSettings
     // command that does the same, with its reply. Off, the console has only a
     // failed action's error and the result of an action that produces one.
     bool         echoActions              = false;
+
+    // Whether a notice of how to take a routine out of the step filter opens
+    // when a menu adds it; the notice's check box turns it off.
+    bool         skipNoticeShown          = true;
 
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one

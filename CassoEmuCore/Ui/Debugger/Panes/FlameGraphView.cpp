@@ -24,6 +24,7 @@ void FlameGraphView::SetData (const std::optional<ProfileData> & profile)
 {
     std::vector<uint64_t>  zoomPath;
     std::vector<uint64_t>  clickPath;
+    std::vector<uint64_t>  selectedPath;
     std::optional<size_t>  clicked;
 
 
@@ -35,6 +36,11 @@ void FlameGraphView::SetData (const std::optional<ProfileData> & profile)
 
     zoomPath = GetPath (m_tree, m_routines, m_zoom);
 
+    if (m_selected.has_value())
+    {
+        selectedPath = GetPath (m_tree, m_routines, *m_selected);
+    }
+
     if (m_click.has_value())
     {
         clickPath = GetPath (m_tree, m_routines, m_click->node);
@@ -42,8 +48,10 @@ void FlameGraphView::SetData (const std::optional<ProfileData> & profile)
 
     m_tree     = profile->tree;
     m_routines = profile->routines;
+    m_topTip   = profile->GetTopLevelTip();
     m_zoom     = FindPath (m_tree, m_routines, zoomPath).value_or (0);
     clicked    = FindPath (m_tree, m_routines, clickPath);
+    m_selected = m_selected.has_value() ? FindPath (m_tree, m_routines, selectedPath) : std::nullopt;
 
     if (m_click.has_value() && clicked.has_value())
     {
@@ -310,7 +318,7 @@ bool FlameGraphView::TryGetTipAt (POINT point, std::wstring & text) const
     all  = std::max (1.0, (double) m_tree[0].total);
 
     text = std::format (L"{}\nSelf: {} cycles ({:.1f}%)\nTotal: {} cycles ({:.1f}%)\nCalls: {}",
-                        TextEncoding::NarrowToWide (m_routines[node->routine].GetName()),
+                        TextEncoding::NarrowToWide ((m_routines[node->routine].kind == RoutineKind::Top) ? m_topTip : (m_tipHead ? m_tipHead (m_routines[node->routine]) : m_routines[node->routine].GetTipHead())),
                         DebuggerStatusText::FormatCount (node->self), 100.0 * (double) node->self / all,
                         DebuggerStatusText::FormatCount (node->total), 100.0 * (double) node->total / all, DebuggerStatusText::FormatCount (node->calls));
     return true;
@@ -347,6 +355,25 @@ void FlameGraphView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler
 void FlameGraphView::Relayout()
 {
     m_bars = LayoutBars (m_tree, m_zoom, (float) m_boundsDip.left, (float) (m_boundsDip.right - m_boundsDip.left));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlameGraphView::FindRoutineAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<size_t> FlameGraphView::FindRoutineAt (POINT point) const
+{
+    std::optional<size_t>  bar = FindBarAt (point);
+
+
+
+    return bar.has_value() ? std::optional<size_t> (m_tree[m_bars[*bar].node].routine) : std::nullopt;
 }
 
 
@@ -426,6 +453,37 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    //  The clicked routine's other bars in a white ring, with a dark line
+    //  inside it, so the ring is visible on a pale bar too; then the clicked
+    //  bar in marching dashes over them.
+    for (const Bar & bar : m_bars)
+    {
+        bool   isOther = m_selected.has_value() && *m_selected != bar.node && m_tree[bar.node].routine == m_tree[*m_selected].routine;
+        float  ring    = std::max (1.0f, std::round (m_scaler.ToPxf (kOtherRingDip)));
+        float  inner   = std::max (1.0f, std::round (m_scaler.ToPxf (1.0f)));
+        float  width   = std::max (1.0f, bar.width - 1.0f);
+
+
+
+        if (isOther)
+        {
+            painter.OutlineRect (bar.x + ring * 0.5f, GetRowTop (bar.row) + ring * 0.5f, std::max (1.0f, width - ring), row - 1.0f - ring, ring, kOtherRingArgb);
+            painter.OutlineRect (bar.x + ring + inner * 0.5f, GetRowTop (bar.row) + ring + inner * 0.5f, std::max (1.0f, width - 2.0f * ring - inner),
+                                 std::max (1.0f, row - 1.0f - 2.0f * ring - inner), inner, kOtherLineArgb);
+        }
+    }
+
+    for (const Bar & bar : m_bars)
+    {
+        float  thick = std::max (1.0f, std::round (m_scaler.ToPxf (2.0f)));
+
+        if (m_selected == bar.node)
+        {
+            (void) DxuiMarquee::DrawRect (painter, bar.x + thick * 0.5f, GetRowTop (bar.row) + thick * 0.5f, std::max (1.0f, bar.width - 1.0f - thick), row - 1.0f - thick,
+                                          m_scaler.ToPxf (DxuiMarquee::kDashDip), thick, m_nowMs);
+        }
+    }
+
     painter.PopClip();
 }
 
@@ -434,6 +492,25 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+//  FlameGraphView::Animate
+//
+//  The clicked bar's dashes march while it is in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FlameGraphView::Animate (int64_t nowMs)
+{
+    m_nowMs = nowMs;
+
+    return m_visible && m_selected.has_value();
+}
+
+
+
+
+
+
 //
 //  FlameGraphView::OnMouse
 //
@@ -444,10 +521,11 @@ void FlameGraphView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 bool FlameGraphView::OnMouse (const DxuiMouseEvent & ev)
 {
-    std::optional<size_t>  bar      = FindBarAt (ev.positionDip);
-    ULONGLONG              now      = GetTickCount64();
-    bool                   isDouble = false;
-    Word                   address  = 0;
+    std::optional<size_t>        bar      = FindBarAt (ev.positionDip);
+    ULONGLONG                    now      = GetTickCount64();
+    bool                         isDouble = false;
+    size_t                       node     = 0;
+    const ProfileRoutineEntry  * routine  = nullptr;
 
 
 
@@ -456,26 +534,38 @@ bool FlameGraphView::OnMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    isDouble = m_click.has_value() && now - m_click->time <= (ULONGLONG) GetDoubleClickTime() &&
-               std::abs (ev.positionDip.x - m_click->at.x) <= GetSystemMetrics (SM_CXDOUBLECLK) &&
-               std::abs (ev.positionDip.y - m_click->at.y) <= GetSystemMetrics (SM_CYDOUBLECLK);
+    isDouble = m_click.has_value() && now - m_click->time <= (ULONGLONG) DxuiSystemSettings::Instance().GetDoubleClickMs() &&
+               std::abs (ev.positionDip.x - m_click->at.x) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cx &&
+               std::abs (ev.positionDip.y - m_click->at.y) <= DxuiSystemSettings::Instance().GetDoubleClickSizePx().cy;
+
+    node = m_bars[*bar].node;
 
     if (isDouble)
     {
-        const ProfileRoutineEntry  & routine = m_routines[m_tree[m_click->node].routine];
-
-        address = routine.address;
         m_click.reset();
+        SetZoom (node);
 
-        if (routine.kind != RoutineKind::Top && m_activate)
+        if (m_onZoom)
         {
-            m_activate (address);
+            m_onZoom (node);
         }
 
         return true;
     }
 
-    m_click = Click { now, ev.positionDip, m_bars[*bar].node };
-    SetZoom (m_bars[*bar].node);
+    routine    = &m_routines[m_tree[node].routine];
+    m_click    = Click { now, ev.positionDip, node };
+    m_selected = node;
+
+    if (m_select)
+    {
+        m_select (m_tree[node].routine);
+    }
+
+    if (routine->kind != RoutineKind::Top && m_activate)
+    {
+        m_activate (routine->address);
+    }
+
     return true;
 }

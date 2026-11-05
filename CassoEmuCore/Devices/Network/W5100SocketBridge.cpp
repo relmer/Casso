@@ -119,6 +119,231 @@ void W5100SocketBridge::CloseAll()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  W5100SocketBridge::Resync
+//
+//  The chip's sockets were restored from an earlier point, and the host's
+//  sockets are from later: each is brought back in step with the chip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::Resync (
+    const ResumeTraffic  & traffic,
+    uint64_t               now)
+{
+    int  socket = 0;
+
+
+
+    for (socket = 0; socket < kSocketCount; socket++)
+    {
+        ResyncSocket (socket, traffic, now);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::ResyncSocket
+//
+//  A host socket that matches the chip's socket, and didn't close after the
+//  point, stays open. What it received after the point goes into the RX
+//  buffer again, ahead of anything new; a connection the peer closed since
+//  then reads as closed by the peer. The guest's bytes that were queued for
+//  the host are queued again from the chip's TX buffer. A MACRAW socket's
+//  virtual network returns to the point (VirtualNetwork::Rewind). A
+//  connection the chip has and the host doesn't reads as reset by the peer;
+//  a connect, a listen or a UDP socket starts again on the host.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::ResyncSocket (
+    int                    socket,
+    const ResumeTraffic  & traffic,
+    uint64_t               now)
+{
+    Slot  & slot   = m_slots[socket];
+    Byte    status = m_chip.GetSocketStatus (socket);
+
+
+
+    if (IsInStep (socket) && !traffic.isClosedAfter[socket])
+    {
+        slot.resent.assign (traffic.received[socket].begin(), traffic.received[socket].end());
+        slot.isCloseAfterResent = slot.phase == Phase::PeerClosed && status == R::kSockEstablished;
+
+        if (slot.phase == Phase::Established || slot.phase == Phase::PeerClosed)
+        {
+            slot.txQueue.clear();
+            slot.sendPending = false;
+
+            if (m_chip.GetTxPending (socket) > 0)
+            {
+                SendTcp (socket);
+            }
+        }
+
+        PumpResent (socket);
+        return;
+    }
+
+    if (slot.phase == Phase::MacRaw && status == R::kSockMacRaw && !traffic.isClosedAfter[socket])
+    {
+        m_network.Rewind (traffic.toGuest, traffic.firstToGuestAfter, traffic.fromGuest, traffic.firstFromGuestAfter, now);
+        return;
+    }
+
+    CloseSlot (socket);
+
+    switch (status)
+    {
+        case R::kSockClosed:
+        case R::kSockInit:
+            break;
+
+        case R::kSockSynSent:
+            m_chip.SetSocketStatus (socket, R::kSockInit);
+            OnConnect (socket);
+            break;
+
+        case R::kSockListen:
+            m_chip.SetSocketStatus (socket, R::kSockInit);
+            OnListen (socket);
+            break;
+
+        case R::kSockUdp:
+        case R::kSockMacRaw:
+            OnOpen (socket);
+            break;
+
+        default:
+            Fail (socket, R::kSnIrDisconnect);
+            break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::PumpResent
+//
+//  The blocks a resume put back, each whole once the RX buffer has room for
+//  it. Returns true once none is waiting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool W5100SocketBridge::PumpResent (int socket)
+{
+    Slot  & slot = m_slots[socket];
+
+
+
+    while (!slot.resent.empty() && m_chip.TryAppendRx (socket, slot.resent.front()))
+    {
+        slot.resent.pop_front();
+        m_chip.RaiseSocketInterrupt (socket, R::kSnIrReceive);
+    }
+
+    if (slot.resent.empty() && slot.isCloseAfterResent)
+    {
+        slot.isCloseAfterResent = false;
+
+        m_chip.SetSocketStatus      (socket, R::kSockCloseWait);
+        m_chip.RaiseSocketInterrupt (socket, R::kSnIrDisconnect);
+    }
+
+    return slot.resent.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::IsInStep
+//
+//  The slot's phase is the one the chip's socket status follows from, at
+//  the same endpoints. A MACRAW socket is never in step.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool W5100SocketBridge::IsInStep (int socket) const
+{
+    const Slot  & slot     = m_slots[socket];
+    Byte          status   = m_chip.GetSocketStatus (socket);
+    bool          isPhase  = false;
+    bool          isSource = slot.sourcePort == m_chip.GetSourcePort (socket);
+    bool          isPeer   = isSource && slot.destinationIp == m_chip.GetDestinationIp (socket) && slot.destinationPort == m_chip.GetDestinationPort (socket);
+
+
+
+    switch (status)
+    {
+        case R::kSockClosed:
+        case R::kSockInit:
+            isPhase = slot.phase == Phase::Idle;
+            break;
+
+        case R::kSockSynSent:
+            isPhase = slot.phase == Phase::Connecting && isPeer;
+            break;
+
+        case R::kSockListen:
+            isPhase = slot.phase == Phase::Listening && isSource;
+            break;
+
+        case R::kSockEstablished:
+            isPhase = (slot.phase == Phase::Established || slot.phase == Phase::PeerClosed) && isPeer;
+            break;
+
+        case R::kSockCloseWait:
+            isPhase = slot.phase == Phase::PeerClosed && isPeer;
+            break;
+
+        case R::kSockUdp:
+            isPhase = slot.phase == Phase::Udp && isSource;
+            break;
+
+        default:
+            break;
+    }
+
+    return isPhase;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::NoteEndpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::NoteEndpoints (int socket)
+{
+    Slot  & slot = m_slots[socket];
+
+
+
+    slot.sourcePort      = m_chip.GetSourcePort      (socket);
+    slot.destinationIp   = m_chip.GetDestinationIp   (socket);
+    slot.destinationPort = m_chip.GetDestinationPort (socket);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  W5100SocketBridge::CloseSlot
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +400,8 @@ void W5100SocketBridge::OnOpen (int socket)
 
 
 
-    CloseSlot (socket);
+    CloseSlot     (socket);
+    NoteEndpoints (socket);
 
     if (status == R::kSockMacRaw)
     {
@@ -236,6 +462,7 @@ void W5100SocketBridge::OnConnect (int socket)
     CHR (hr);
 
     slot.phase = Phase::Connecting;
+    NoteEndpoints (socket);
     m_chip.SetSocketStatus (socket, R::kSockSynSent);
 
 Error:
@@ -282,6 +509,7 @@ void W5100SocketBridge::OnListen (int socket)
     CHR (hr);
 
     slot.phase = Phase::Listening;
+    NoteEndpoints (socket);
     m_chip.SetSocketStatus (socket, R::kSockListen);
 
 Error:
@@ -553,15 +781,25 @@ void W5100SocketBridge::PumpSocket (
 
         case Phase::Established:
             PumpTcpTransfer (socket);
-            PumpTcpReceive (socket);
+
+            if (PumpResent (socket))
+            {
+                PumpTcpReceive (socket);
+            }
+
             break;
 
         case Phase::PeerClosed:
             PumpTcpTransfer (socket);
+            PumpResent (socket);
             break;
 
         case Phase::Udp:
-            PumpUdpReceive (socket);
+            if (PumpResent (socket))
+            {
+                PumpUdpReceive (socket);
+            }
+
             break;
 
         case Phase::MacRaw:
@@ -641,6 +879,7 @@ void W5100SocketBridge::PumpListening (int socket)
     slot.phase = Phase::Established;
 
     m_chip.SetDestination (socket, VirtualSubnet::HostToGuest (peer.ipv4), peer.port);
+    NoteEndpoints (socket);
     m_chip.SetSocketStatus (socket, R::kSockEstablished);
     m_chip.RaiseSocketInterrupt (socket, R::kSnIrConnect);
 }

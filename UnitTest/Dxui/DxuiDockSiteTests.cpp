@@ -130,6 +130,37 @@ namespace DxuiDockSiteTests
         }
 
 
+        //  A right click on a tab in the background targets that tab's pane,
+        //  and a tab's neighbor is the one after it, or before the last.
+        TEST_METHOD (ATabInTheBackgroundIsThePaneAtItsTab)
+        {
+            Rig            rig;
+            DxuiTabGroup * group = nullptr;
+
+
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
+            }
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a group of two tabs");
+                return;
+            }
+
+            for (int tab = 0; tab < 2; tab++)
+            {
+                Assert::AreEqual (rig.site.GetPaneOf (group->GetContent (tab)), rig.site.GetPaneAt (Center (group->GetTabRect (tab))));
+            }
+
+            Assert::AreEqual (std::wstring (L"stack"), rig.site.GetTabNeighbor (L"regs"));
+            Assert::AreEqual (std::wstring (L"regs"),  rig.site.GetTabNeighbor (L"stack"));
+            Assert::AreEqual (std::wstring(),          rig.site.GetTabNeighbor (L"code"), L"alone in its group");
+        }
+
+
         TEST_METHOD (APressOnATabShowsItAndIsReported)
         {
             Rig            rig;

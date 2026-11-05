@@ -3,6 +3,7 @@
 #include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/Components/ShellHistory.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Shell/CpuManager.h"
 
 #include "Config/WindowPlacementProfile.h"
@@ -138,6 +139,7 @@ void ShellDebugger::OpenDebuggerWindow (bool activate)
         CHRF (hr, m_debuggerWindow.reset());
 
         m_host.ApplyAppIcon (m_debuggerWindow->GetHwnd());
+        m_debuggerWindow->SetTitlePrefix (m_host.GetTitlePrefix());
 
         //  While the debugger's title bar is held the OS runs its own move
         //  loop on this thread, so no frame runs for it or for the machine's
@@ -552,11 +554,15 @@ void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
     deltas.input.clear();
     deltas.video.clear();
     deltas.sound.clear();
+    deltas.serial.clear();
+    deltas.network.clear();
 
-    deltas.disk.swap  (m_eventLogsPending.disk);
-    deltas.input.swap (m_eventLogsPending.input);
-    deltas.video.swap (m_eventLogsPending.video);
-    deltas.sound.swap (m_eventLogsPending.sound);
+    deltas.disk.swap    (m_eventLogsPending.disk);
+    deltas.input.swap   (m_eventLogsPending.input);
+    deltas.video.swap   (m_eventLogsPending.video);
+    deltas.sound.swap   (m_eventLogsPending.sound);
+    deltas.serial.swap  (m_eventLogsPending.serial);
+    deltas.network.swap (m_eventLogsPending.network);
 }
 
 
@@ -587,6 +593,36 @@ void ShellDebugger::SetDebuggerHeatMapShown (bool shown)
 void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 {
     m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("heatcolumns on") : std::string ("heatcolumns off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerTraceShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerTraceShown (bool shown)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("trace on") : std::string ("trace off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerSoundMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerSoundMuted (int channel, bool isMuted)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("soundmute {} {}", channel, isMuted ? "on" : "off"));
 }
 
 
@@ -995,6 +1031,31 @@ void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebugSoundMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugSoundMuted (int channel, bool isMuted)
+{
+    MockingboardCard             * card = m_machine.GetRefs().mockingboard;
+    std::lock_guard<std::mutex>    viewHeld (m_debugViewStateLock);
+
+
+
+    if (card != nullptr)
+    {
+        card->SetSoundMuted (channel, isMuted);
+    }
+
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebugHeatColumnsShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1006,6 +1067,26 @@ void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 
 
     m_debugViewState.SetHeatColumnsShown (shown);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugTraceShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugTraceShown (bool shown)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    m_debugViewState.SetTraceShown (shown);
     m_isDebugViewDirty = true;
 }
 
@@ -1243,7 +1324,7 @@ void ShellDebugger::RedrawDebugFrame()
 void ShellDebugger::PublishDebuggerView()
 {
     HRESULT               hr         = S_OK;
-    ULONGLONG             now        = GetTickCount64();
+    ULONGLONG             now        = m_clock();
     bool                  isDue      = false;
     bool                  isBreaking = false;
     bool                  isTaken    = true;
@@ -1345,6 +1426,7 @@ void ShellDebugger::PublishDebuggerView()
 
     GatherDebugView (input, live);
     m_debugViewPublisher.Submit (std::move (input), std::move (live));
+    m_buildsSubmitted++;
 
     m_debugViewBuiltAt      = now;
     m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
@@ -1400,7 +1482,7 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
 
     first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
 
-    DebugViewCapture::Take (target, CallRecord(), (size_t) first, DebuggerViewState::kTraceRows, *capture);
+    DebugViewCapture::Take (target, CallRecord(), (size_t) first, m_debugViewState.IsTraceShown() ? DebuggerViewState::kTraceRows : 0, *capture);
     session.TakeView (m_debugSessionView);
 
     input.capture  = std::move (capture);
@@ -1716,12 +1798,13 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     //  the machine is stopped and in the background while it runs.
     m_eventLogs.GetTraceHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
     m_eventLogs.GetProfileHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
-    m_debugController->GetHandlers().GetExecution().SetHistoryProfiler ([this] (uint64_t fromCycle, std::string & error)
+    m_debugController->GetHandlers().GetExecution().SetHistoryProfiler ([this] (uint64_t fromCycle, std::optional<uint64_t> toCycle, std::string & error)
     {
-        return m_eventLogs.GetProfileHistory().Build (fromCycle, error);
+        return m_eventLogs.GetProfileHistory().Build (fromCycle, error, toCycle);
     });
     m_debugController->GetTarget().GetTrace().SetHistory (&m_eventLogs.GetTraceHistory());
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
+    m_debugController->GetSession().SetMachineControl (&m_host.GetMachineControl());
 
     m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
     {
@@ -1901,10 +1984,14 @@ void ShellDebugger::ServiceEventLogs()
     InputLogDelta  input;
     IoLogDelta     video;
     IoLogDelta     sound;
-    bool           isDisk  = false;
-    bool           isInput = false;
-    bool           isVideo = false;
-    bool           isSound = false;
+    IoLogDelta     serial;
+    IoLogDelta     network;
+    bool           isDisk    = false;
+    bool           isInput   = false;
+    bool           isVideo   = false;
+    bool           isSound   = false;
+    bool           isSerial  = false;
+    bool           isNetwork = false;
 
 
 
@@ -1931,9 +2018,11 @@ void ShellDebugger::ServiceEventLogs()
     isDisk  = m_eventLogs.TakeDelta (disk);
     isInput = m_eventLogs.TakeDelta (input);
     isVideo = m_eventLogs.TakeDelta (DebugLogKind::Video, video);
-    isSound = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
+    isSound   = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
+    isSerial  = m_eventLogs.TakeDelta (DebugLogKind::Serial, serial);
+    isNetwork = m_eventLogs.TakeDelta (DebugLogKind::Network, network);
 
-    if (isDisk || isInput || isVideo || isSound)
+    if (isDisk || isInput || isVideo || isSound || isSerial || isNetwork)
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
@@ -1955,6 +2044,16 @@ void ShellDebugger::ServiceEventLogs()
         if (isSound)
         {
             m_eventLogsPending.sound.push_back (std::move (sound));
+        }
+
+        if (isSerial)
+        {
+            m_eventLogsPending.serial.push_back (std::move (serial));
+        }
+
+        if (isNetwork)
+        {
+            m_eventLogsPending.network.push_back (std::move (network));
         }
     }
 }

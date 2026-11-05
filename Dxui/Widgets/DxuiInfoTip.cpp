@@ -177,7 +177,7 @@ void DxuiInfoTip::OnFocusChanged (bool focused)
 void DxuiInfoTip::Tick (int64_t nowMs)
 {
     POINT  pointer = {};
-    bool   isOnTip = m_tooltip.IsVisible() && GetCursorPos (&pointer) && m_tooltip.IsOnPopup (pointer);
+    bool   isOnTip = m_tooltip.IsVisible() && DxuiInputState::GetCursorPos (&pointer) && m_tooltip.IsOnPopup (pointer);
 
 
 

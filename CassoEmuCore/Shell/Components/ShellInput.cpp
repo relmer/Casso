@@ -202,8 +202,8 @@ void ShellInput::ApplyAppleModifierKeys (WPARAM vk, bool keyDown)
 
     if (isAlt)
     {
-        m_appleModifierContribution.buttons.set (kOpenAppleButton,  (GetKeyState (VK_LMENU) & 0x8000) != 0);
-        m_appleModifierContribution.buttons.set (kSolidAppleButton, (GetKeyState (VK_RMENU) & 0x8000) != 0);
+        m_appleModifierContribution.buttons.set (kOpenAppleButton,  DxuiInputState::IsKeyDown (VK_LMENU));
+        m_appleModifierContribution.buttons.set (kSolidAppleButton, DxuiInputState::IsKeyDown (VK_RMENU));
     }
     else
     {
@@ -559,7 +559,7 @@ void ShellInput::RouteKeyToGamePort (const DxuiKeyEvent & ev)
 Byte ShellInput::MapHostCharToApple (WPARAM ch)
 {
     Byte  code         = static_cast<Byte> (ch);
-    bool  hostCapsLock = (GetKeyState (VK_CAPITAL) & 1) != 0;
+    bool  hostCapsLock = (DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0;
 
 
 
@@ -686,10 +686,10 @@ void ShellInput::UpdateJoystickAxesFromKeys()
 
 
 
-    left  = (GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
-    right = (GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
-    up    = (GetAsyncKeyState (VK_UP)    & 0x8000) != 0;
-    down  = (GetAsyncKeyState (VK_DOWN)  & 0x8000) != 0;
+    left  = (DxuiInputState::GetAsyncKeyState (VK_LEFT)  & 0x8000) != 0;
+    right = (DxuiInputState::GetAsyncKeyState (VK_RIGHT) & 0x8000) != 0;
+    up    = (DxuiInputState::GetAsyncKeyState (VK_UP)    & 0x8000) != 0;
+    down  = (DxuiInputState::GetAsyncKeyState (VK_DOWN)  & 0x8000) != 0;
 
     if (left && right)
     {
@@ -772,10 +772,10 @@ void ShellInput::UpdateJoystickButtonsFromKeys()
     // elsewhere (GetForegroundWindow() != m_host.GetMainWindow()).
     if (GetForegroundWindow() == m_host.GetMainWindow())
     {
-        xDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
-        zDown        = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
-        leftAltDown  = (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
-        rightAltDown = (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+        xDown        = (DxuiInputState::GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0;
+        zDown        = (DxuiInputState::GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0;
+        leftAltDown  = DxuiInputState::IsKeyDown (VK_LMENU);
+        rightAltDown = DxuiInputState::IsKeyDown (VK_RMENU);
     }
 
     buttons = InputModeRules::GetFireKeyButtons (xDown, zDown, leftAltDown, rightAltDown,
@@ -1282,8 +1282,25 @@ void ShellInput::ToggleInputMappingMode (InputMappingMode target)
 
 void ShellInput::PasteClipboardText()
 {
+    Paste (nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paste
+//
+//  The clipboard's text when `text` is null, else the text given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::Paste (const std::wstring * text)
+{
     bool    hasCapsLockKey = m_machine.GetRefs().iieKeyboard != nullptr;
-    bool    hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
+    bool    hostCapsLock   = (DxuiInputState::GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
     bool    raisedLetters  = false;
     bool    isBehindLive   = m_history.IsBehindLiveForUi();
@@ -1302,7 +1319,8 @@ void ShellInput::PasteClipboardText()
         m_history.SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
     }
 
-    raisedLetters = m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
+    raisedLetters = (text != nullptr) ? m_host.GetClipboard()->PasteText (*text, capsLockOn)
+                                      : m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
     length        = m_host.GetClipboard()->GetPasteLength (first);
 
     if (isBehindLive && length > m_history.GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
@@ -1314,6 +1332,55 @@ void ShellInput::PasteClipboardText()
     if (raisedLetters)
     {
         m_host.ShowNotice (CapsLockTracker::kpszPasteRaisedNotice);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueuePasteText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::QueuePasteText (const std::wstring & text)
+{
+    {
+        std::lock_guard<std::mutex>  lock (m_queuedPasteMutex);
+
+        m_queuedPaste += text;
+    }
+
+    PostMessageW (m_host.GetMainWindow(), WM_APP_PASTE_TEXT, 0, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeliverQueuedPaste
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::DeliverQueuedPaste()
+{
+    std::wstring  text;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_queuedPasteMutex);
+
+        text.swap (m_queuedPaste);
+    }
+
+    if (!text.empty())
+    {
+        Paste (&text);
     }
 }
 

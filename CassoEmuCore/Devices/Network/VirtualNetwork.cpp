@@ -403,6 +403,131 @@ void VirtualNetwork::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VirtualNetwork::Rewind
+//
+//  The frames queued now are dropped where they are TCP, which the relays
+//  send again from the point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void VirtualNetwork::Rewind (
+    std::span<const std::span<const Byte>>   toGuest,
+    size_t                                   firstToGuestAfter,
+    std::span<const std::span<const Byte>>   fromGuest,
+    size_t                                   firstFromGuestAfter,
+    uint64_t                                 now)
+{
+    std::deque<std::vector<Byte>>  queued;
+    TcpSegment                     segment;
+    size_t                         i       = 0;
+
+
+
+    for (i = 0; i < fromGuest.size(); i++)
+    {
+        if (TryParseTcpFrame (fromGuest[i], segment))
+        {
+            m_tcp.NoteRewindSegment (segment, false, i >= firstFromGuestAfter);
+        }
+    }
+
+    for (i = 0; i < toGuest.size(); i++)
+    {
+        if (TryParseTcpFrame (toGuest[i], segment))
+        {
+            m_tcp.NoteRewindSegment (segment, true, i >= firstToGuestAfter);
+        }
+        else if (i >= firstToGuestAfter && IsRelayedUdp (toGuest[i]))
+        {
+            queued.emplace_back (toGuest[i].begin(), toGuest[i].end());
+        }
+    }
+
+    m_tcp.Rewind (now);
+    m_udp.Rewind (now);
+
+    for (std::vector<Byte> & frame : m_outbound)
+    {
+        if (!TryParseTcpFrame (frame, segment))
+        {
+            queued.push_back (std::move (frame));
+        }
+    }
+
+    while (queued.size() > kMaxQueuedFrames)
+    {
+        queued.pop_back();
+    }
+
+    m_outbound = std::move (queued);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VirtualNetwork::TryParseTcpFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool VirtualNetwork::TryParseTcpFrame (
+    std::span<const Byte>   frame,
+    TcpSegment            & out)
+{
+    EthernetFrame  ethernet;
+    Ipv4Packet     packet;
+
+
+
+    return P::TryParseEthernet (frame, ethernet)
+        && ethernet.etherType == P::kEtherTypeIpv4
+        && P::TryParseIpv4 (ethernet.payload, packet)
+        && packet.protocol == P::kProtocolTcp
+        && P::TryParseTcp (packet, out);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  VirtualNetwork::IsRelayedUdp
+//
+//  A datagram from the network, not a reply from the gateway's DHCP
+//  server or DNS relay, which answer requests the guest makes again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool VirtualNetwork::IsRelayedUdp (std::span<const Byte> frame)
+{
+    EthernetFrame  ethernet;
+    Ipv4Packet     packet;
+    UdpDatagram    datagram;
+
+
+
+    if (!P::TryParseEthernet (frame, ethernet)
+        || ethernet.etherType != P::kEtherTypeIpv4
+        || !P::TryParseIpv4 (ethernet.payload, packet)
+        || packet.protocol != P::kProtocolUdp
+        || !P::TryParseUdp (packet, datagram))
+    {
+        return false;
+    }
+
+    return !(packet.source == VirtualSubnet::kGatewayIp && datagram.sourcePort == DhcpServer::kServerPort)
+        && packet.source != VirtualSubnet::kDnsIp;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  VirtualNetwork::IsActive
 //
 ////////////////////////////////////////////////////////////////////////////////

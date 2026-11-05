@@ -78,6 +78,7 @@ void DxuiEditableGrid::SetGridRows (std::vector<GridRow> rows)
 
     m_rows = std::move (rows);
     RebuildRows();
+    ShowAddedRow();
 
     if (isAddEdit)
     {
@@ -138,9 +139,10 @@ void DxuiEditableGrid::RebuildRows()
     if (!m_noteText.empty() && m_noteColumn >= 0 && m_noteColumn < (int) m_columns.size() &&
         ((size_t) m_noteColumn >= m_pending.size() || m_pending[(size_t) m_noteColumn].empty()))
     {
-        addRow[(size_t) m_noteColumn + 1].text = m_noteText;
-        addRow[(size_t) m_noteColumn + 1].argb = m_noteArgb;
-        addRow[(size_t) m_noteColumn + 1].tip  = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].text     = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].argb     = m_noteArgb;
+        addRow[(size_t) m_noteColumn + 1].tip      = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].spansRow = true;
     }
 
     if (!isTyped && first >= 0)
@@ -352,6 +354,28 @@ bool DxuiEditableGrid::TryGetEditorRect (int row, int column, RECT & outRect) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiEditableGrid::ShowAddedRow
+//
+//  An add's row is listed during the add or by a later SetGridRows. Once it
+//  is, the hint row under it comes into view, and the new row with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::ShowAddedRow()
+{
+    if (m_addFromCount.has_value() && GetDataRowCount() > *m_addFromCount)
+    {
+        m_addFromCount.reset();
+        EnsureVisible (GetDataRowCount());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiEditableGrid::BeginEdit
 //
 //  In the list's own face and size, so the text does not move when the box
@@ -523,8 +547,13 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next, bool i
         }
     }
 
+    m_addFromCount = GetDataRowCount();
+
+    m_wasAdded = false;
+
     if (isComplete && m_add && m_add (m_pending, error))
     {
+        m_wasAdded = true;
         m_pending.assign (m_columns.size(), std::wstring());
         m_missing.clear();
         m_editRow    = -1;
@@ -532,9 +561,11 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next, bool i
         m_editor.SetFocused (false);
         ReportError (L"");
         RebuildRows();
+        ShowAddedRow();
         return true;
     }
 
+    m_addFromCount.reset();
     RebuildRows();
 
     if (isComplete)
@@ -1207,15 +1238,29 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 //  DxuiEditableGrid::GetCursorForPoint
 //
 //  The point is relative to the grid, as the list takes it. Over a gripper,
-//  and while a row is dragged, the cursor is the up-and-down arrow.
+//  and while a row is dragged, the cursor is the up-and-down arrow; over the
+//  box of a cell being edited, or the row a new entry is typed into, the
+//  I-beam.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
 {
-    int  row = HitTestRow (localPx.x, localPx.y);
+    int    row    = HitTestRow (localPx.x, localPx.y);
+    RECT   bounds = GetBounds();
+    POINT  client = { localPx.x + bounds.left, localPx.y + bounds.top };
 
 
+
+    if (IsEditing() && m_editor.GetCursorForPoint (client) != nullptr)
+    {
+        return m_editor.GetCursorForPoint (client);
+    }
+
+    if (!IsEditing() && row >= 0 && IsAddRow (row) && GetGridColumnAt (localPx.x) >= 0)
+    {
+        return IDC_IBEAM;
+    }
 
     if (IsDraggingRow() || (m_isMovable && row >= 0 && row < GetDataRowCount() && GetGridColumnAt (localPx.x) < 0))
     {
@@ -1258,9 +1303,18 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
 
             if (text.find_first_not_of (L" \t") != std::wstring::npos)
             {
+                int  column = m_editColumn;
+
+
+
                 m_isTabCommit = ev.vk == VK_TAB;
                 (void) CommitAddRow (text, -1);
                 m_isTabCommit = false;
+
+                if (m_wasAdded && m_isReopened && ev.vk == VK_RETURN)
+                {
+                    (void) BeginEdit (GetDataRowCount(), column);
+                }
             }
 
             return true;

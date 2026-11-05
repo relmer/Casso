@@ -147,6 +147,31 @@ namespace DebuggerTests
 
         //  A plain symbol file loaded into the debug file's table replaces
         //  the debug file too: its lines are a program no longer loaded.
+        //  A BASIC program isn't a symbol file. Read as one, `10 HOME` was the
+        //  symbol HOME at $0010, and a listing filled the User table with
+        //  its keywords.
+        TEST_METHOD (SYM_Load_ABasicProgramIsNotASymbolFile)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\game.bas", "10 HOME\n20 VTAB 5: HTAB 3\n30 PRINT \"HI\"\n");
+            rig.files.WriteAllText (L"C:\\Work\\game.txt", "10 HOME\n20 VTAB 5: HTAB 3\n30 PRINT \"HI\"\n");
+
+            rig.RunFails ("SYMUSER LOAD \"game.bas\"", "not a symbol file");
+            rig.RunFails ("SYMUSER LOAD \"game.txt\"", "not a symbol file");
+            Assert::AreEqual ((size_t) 0, rig.session.GetSymbols().GetCount (SymbolTableId::User), L"nothing is loaded");
+
+            Assert::IsTrue  (SymbolHandlers::IsBasicListing ("C:\\Work\\GAME.BAS", ""), L"by its name");
+            Assert::IsFalse (SymbolHandlers::IsBasicListing ("labels.sym", "0300 START\n0310 LOOP\n"), L"a symbol file's symbols aren't keywords");
+            Assert::IsFalse (SymbolHandlers::IsBasicListing ("labels.sym", "C000 KBD\n"), L"nor its hex addresses line numbers");
+            Assert::IsFalse (SymbolHandlers::IsBasicListing ("mixed.sym", "10 HOME\n0310 LOOP\n"), L"every line must be BASIC");
+            Assert::IsFalse (SymbolHandlers::IsBasicListing ("prog.sym", "0900 PRINTIT\n"), L"a name that starts with a keyword");
+            Assert::IsFalse (SymbolHandlers::IsBasicListing ("zero.sym", "0900 PRINTIT\n0910 PRINTAT\n0920 ENDIT\n"), L"a line number has no leading zero");
+        }
+
+
         TEST_METHOD (SYM_Load_SymbolFileOverTheDebugFilesTable_DropsTheDebugFile)
         {
             Rig  rig;

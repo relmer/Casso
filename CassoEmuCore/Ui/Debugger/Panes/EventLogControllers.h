@@ -32,13 +32,15 @@ public:
 
     DxuiToolbar                * GetBar             () const { return m_bar.GetBar(); }
 
-    std::wstring                 GetId              () const override { return m_id; }
+    const std::wstring         & GetId              () const override { return m_id; }
     std::wstring                 GetTitle           () const override { return m_title; }
     bool                         TryGetOpened       (bool & isOpened) const override { isOpened = m_isOpened; return true; }
     void                         Open               () override;
     IDxuiControl               * GetContent         () const override;
     std::vector<DxuiListView *>  GetLists           () const override { return { m_list }; }
     std::vector<DxuiToolbar *>   GetBars            () const override { return { m_bar.GetBar() }; }
+    IDxuiFindTarget            * GetFindView        () const override { return m_list; }
+    DebuggerPaneFrame          * GetFindFrame       () const override { return m_frame.get(); }
     bool                         HasOwnColumnWidths () const override { return true; }
     void                         Apply              (const DebuggerViewSnapshot & snapshot) override;
     void                         OnProjectSwitched  () override;
@@ -46,7 +48,6 @@ public:
     void                         PlaceBar           () override { m_bar.Place(); }
     bool                         RouteBarMouse      (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                         RouteEditKey       (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    const wchar_t              * GetBarTip          (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
     bool                         AddMenuItems       (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                         AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 
@@ -127,7 +128,6 @@ public:
     void                              ApplyLogDeltas   (const DebugLogDeltas & deltas, bool isWindowVisible) override;
     void                              PlaceBar         () override;
     bool                              RouteBarMouse    (const DxuiMouseEvent & ev) override;
-    bool                              IsMonospaceTipAt (POINT clientPx) const override;
     bool                              AddMenuItems     (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 protected:

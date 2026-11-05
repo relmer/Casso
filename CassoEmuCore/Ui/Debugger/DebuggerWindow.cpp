@@ -88,7 +88,7 @@ static std::wstring Widen (const std::string & text)
 ////////////////////////////////////////////////////////////////////////////////
 
 DebuggerWindow::DebuggerWindow() :
-    m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this), static_cast<const ICodeViews &> (*this))),
+    m_operandTips (std::make_unique<OperandTipController> (static_cast<IOperandTipHost &> (*this))),
     m_tips        (std::make_unique<TooltipCoordinator> (static_cast<ITooltipSources &> (*this))),
     m_gutter      (std::make_unique<DisassemblyGutter> (static_cast<IDebuggerPaneHost &> (*this), static_cast<const ICodeViews &> (*this),
                                                         [this] (int view) { ApplyCodeView (view); })),
@@ -112,6 +112,21 @@ DebuggerWindow::~DebuggerWindow()
     //  The operand tip's popup goes back to its window before the window goes.
     m_operandTips->Hide();
     DestroyBackend();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCaption
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetCaption (const std::wstring & titlePrefix)
+{
+    return titlePrefix.empty() ? std::wstring (s_kpszWindowTitle) : titlePrefix + L" - " + s_kpszWindowTitle;
 }
 
 
@@ -153,7 +168,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     params.minSizeDip               = { kMinWidthDip, kMinHeightDip };
     params.resizable                = true;
     params.insetContentBelowCaption = false;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.captionStyle             = DxuiCaptionStyle::Standard;
     params.classNameOverride        = s_kpszClassName;
 
     hr = DxuiWindow::Create (params);
@@ -244,6 +259,7 @@ void DebuggerWindow::ConfigureWidgets()
         pane->Configure();
     }
 
+    ConfigureTips();
     SetAcceptsDroppedFiles  (true);
 
     for (DxuiListView * list : GetLists())
@@ -358,8 +374,8 @@ void DebuggerWindow::ConfigureCommandBar()
 //
 //  DebuggerWindow::GetMenuState
 //
-//  What the drop-downs show: the command mode, and each panel and whether it
-//  is open.
+//  What the drop-downs list: the command mode, each panel and whether it is
+//  open, and each symbol file loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -381,6 +397,11 @@ std::string DebuggerWindow::GetMenuState() const
         state += std::format ("|{}={}", panel.id, panel.open ? 1 : 0);
     }
 
+    for (const DebuggerViewSnapshot::SymbolTableRow & table : GetLoadedSymbolTables())
+    {
+        state += std::format ("|{}:{}", table.name, table.origins.back());
+    }
+
     return state;
 }
 
@@ -400,9 +421,20 @@ std::string DebuggerWindow::GetMenuState() const
 
 void DebuggerWindow::RunCommandBarEntry (int id)
 {
+    //  Pause while there is something to stop, Run otherwise.
+    if (id == DebuggerCommands::kRunOrPause)
+    {
+        id = IsCommandBarEntryEnabled (DebuggerCommands::kPause) ? DebuggerCommands::kPause : DebuggerCommands::kRun;
+
+        if (!IsCommandBarEntryEnabled (id))
+        {
+            return;
+        }
+    }
+
     if (id == DebuggerCommands::kShowNext)
     {
-        ShowCode (std::nullopt);
+        ShowNextStatement();
         return;
     }
 
@@ -462,6 +494,11 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
     if (id == DebuggerCommands::kRun)
     {
         return paused;
+    }
+
+    if (id == DebuggerCommands::kRunOrPause)
+    {
+        return IsCommandBarEntryEnabled (DebuggerCommands::kRun) || IsCommandBarEntryEnabled (DebuggerCommands::kPause);
     }
 
     //  A replay runs with the machine stopped, and Pause stops it.
@@ -1287,12 +1324,21 @@ void DebuggerWindow::SyncHeatMapRecording()
 {
     bool  isWanted        = IsPaneShown (DebuggerLayout::kHeatMap) && m_heatMapPane->GetView()->IsVisible();
     bool  isColumnsWanted = IsAnyHeatColumnOn();
+    bool  isTraceShown    = m_tracePane != nullptr && IsPaneShown (DebuggerLayout::kTrace) && m_tracePane->GetList()->IsVisible();
 
 
 
     if (m_host == nullptr)
     {
         return;
+    }
+
+    //  The trace's rows are read from history for each snapshot only while
+    //  its pane is on screen.
+    if (!m_isTraceShownSent.has_value() || *m_isTraceShownSent != isTraceShown)
+    {
+        m_isTraceShownSent = isTraceShown;
+        m_host->SetDebuggerTraceShown (isTraceShown);
     }
 
     if (isColumnsWanted != m_isHeatColumnsRecording)
@@ -1533,6 +1579,15 @@ void DebuggerWindow::KeepOpenViews()
             RunAction (reopen);
         }
 
+        //  A tool or BASIC pane open at the last close is on screen again
+        //  after a layout; without one it stayed hidden until the next.
+        if (!m_basicOpened.empty())
+        {
+            m_floating->MarkSyncNeeded();
+            m_dockSite->Relayout();
+            SetWindowMenus();
+        }
+
         return;
     }
 
@@ -1717,7 +1772,7 @@ void DebuggerWindow::ConfigureCommandBarHost()
 
         tip->SetPopupHost (window.GetPopupHost());
         tip->SetTheme     (*m_theme);
-        tip->SetDpi       (GetDpiForWindow (window.GetHwnd()));
+        tip->SetDpi       (DxuiDisplay::Get().GetDpiForWindow (window.GetHwnd()));
         tip->SetMonospace (false);
         tip->ApplyVisualStudioLook();
         m_floating->SetTip (kBarFloatKey, std::move (tip));
@@ -1762,7 +1817,7 @@ void DebuggerWindow::SyncCommandBarFloatTip()
 
     if (GetClientRect (window->GetHwnd(), &client))
     {
-        tip->SetDpi          (GetDpiForWindow (window->GetHwnd()));
+        tip->SetDpi          (DxuiDisplay::Get().GetDpiForWindow (window->GetHwnd()));
         tip->SetViewportSize (client.right - client.left, client.bottom - client.top);
     }
 

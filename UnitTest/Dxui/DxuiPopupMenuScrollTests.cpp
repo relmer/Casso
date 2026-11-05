@@ -144,6 +144,21 @@ public:
 
 
 
+    TEST_METHOD (HomeAndEnd_GoToTheFirstAndLastRows)
+    {
+        Fixture  f;
+
+        f.menu.OnKey (VK_END);
+        Assert::AreEqual (s_kRows - 1, f.menu.GetHighlight());
+        Assert::AreEqual (s_kRows - s_kVisible, f.menu.GetScrollRow(), L"The last row is in view");
+
+        f.menu.OnKey (VK_HOME);
+        Assert::AreEqual (0, f.menu.GetHighlight());
+        Assert::AreEqual (0, f.menu.GetScrollRow(), L"The first row is in view");
+    }
+
+
+
     TEST_METHOD (UpFromTheTop_WrapsToTheLastRowInView)
     {
         Fixture  f;
@@ -153,5 +168,80 @@ public:
 
         Assert::AreEqual (s_kRows - 1, f.menu.GetHighlight());
         Assert::AreEqual (s_kRows - s_kVisible, f.menu.GetScrollRow());
+    }
+
+
+
+    TEST_METHOD (AMenuAboveItsAnchor_EndsAtTheAnchorScrolledToItsEnd)
+    {
+        DxuiPopupMenu                   menu;
+        MockDxuiTextRenderer            text;
+        std::vector<DxuiPopupMenuItem>  rows;
+        int                             rowPx  = menu.GetMetrics().rowHeightPx;
+        RECT                            anchor = { 100, 2000, 600, 2030 };
+        RECT                            r      = {};
+
+        for (int i = 0; i < s_kRows; i++)
+        {
+            std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+            command->label = L"Line";
+            rows.push_back (DxuiPopupMenuItem::ForCommand (command));
+        }
+
+        menu.SetMaxHeightPx (s_kVisible * rowPx);
+        menu.ShowAbove (anchor, std::move (rows), text, RECT { 0, 0, 4000, 4000 });
+
+        r = menu.GetRect();
+
+        Assert::AreEqual (anchor.top,  r.bottom, L"The menu rises from the anchor's top edge");
+        Assert::AreEqual (anchor.left, r.left);
+        Assert::AreEqual (s_kRows - s_kVisible, menu.GetScrollRow(), L"The last row is the one nearest the anchor");
+    }
+
+
+
+    TEST_METHOD (AWidthCap_CutsOnlyTheLabelsTooLongForIt)
+    {
+        DxuiPopupMenu                   menu;
+        MockDxuiTextRenderer            text;
+        std::vector<DxuiPopupMenuItem>  rows;
+        std::shared_ptr<DxuiCommand>    shortLine = std::make_shared<DxuiCommand>();
+        std::shared_ptr<DxuiCommand>    longLine  = std::make_shared<DxuiCommand>();
+        constexpr int                   kWidthPx  = 200;
+        RECT                            r         = {};
+
+        shortLine->label = L"R";
+        longLine->label  = std::wstring (200, L'x');
+
+        rows.push_back (DxuiPopupMenuItem::ForCommand (shortLine));
+        rows.push_back (DxuiPopupMenuItem::ForCommand (longLine));
+
+        menu.SetMinWidthPx (kWidthPx);
+        menu.SetMaxWidthPx (kWidthPx);
+        menu.ShowAt (0, 0, std::move (rows), text, RECT { 0, 0, 4000, 4000 });
+
+        r = menu.GetRect();
+
+        Assert::AreEqual ((LONG) kWidthPx, r.right - r.left, L"The menu is no wider than the cap");
+        Assert::IsFalse  (menu.IsRowCut (0));
+        Assert::IsTrue   (menu.IsRowCut (1));
+    }
+
+
+
+    TEST_METHOD (WithoutAWidthCap_NoRowIsCut)
+    {
+        DxuiPopupMenu                   menu;
+        MockDxuiTextRenderer            text;
+        std::vector<DxuiPopupMenuItem>  rows;
+        std::shared_ptr<DxuiCommand>    longLine = std::make_shared<DxuiCommand>();
+
+        longLine->label = std::wstring (200, L'x');
+        rows.push_back (DxuiPopupMenuItem::ForCommand (longLine));
+
+        menu.ShowAt (0, 0, std::move (rows), text, RECT { 0, 0, 4000, 4000 });
+
+        Assert::IsFalse (menu.IsRowCut (0));
     }
 };

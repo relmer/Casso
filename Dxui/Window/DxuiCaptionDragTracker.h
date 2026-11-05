@@ -46,6 +46,9 @@ public:
     //  Once a frame, for a loop whose end was not reported.
     Event  OnPoll    (bool buttonDown, SIZE windowSize);
 
+    //  Escape ended the drag where it began: Canceled if a move was reported.
+    Event  Cancel    ();
+
     //  The window moved to a monitor at another scale, which resized it:
     //  `windowSize` is its size now, and still a move's.
     void   Rebase    (SIZE windowSize);

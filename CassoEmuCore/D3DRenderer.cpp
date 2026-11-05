@@ -959,7 +959,7 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         fSuccess = GetWindowPlacement (hwnd, &m_windowedPlacement);
         CWRA (fSuccess);
 
-        hMon     = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+        hMon     = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
         fSuccess = GetMonitorInfo (hMon, &mi);
         CWRA (fSuccess);
 

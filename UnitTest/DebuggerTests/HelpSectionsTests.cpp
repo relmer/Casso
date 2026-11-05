@@ -64,9 +64,15 @@ namespace DebuggerTests
 
 
 
+            //  A syntax too wide for the column has its description on the
+            //  next line, deeper in; the two are one command.
             for (const std::string & line : lines)
             {
-                if (line.starts_with ("    "))
+                if (line.starts_with ("     ") && !commands.empty())
+                {
+                    commands.back() += line;
+                }
+                else if (line.starts_with ("    "))
                 {
                     commands.push_back (line);
                 }

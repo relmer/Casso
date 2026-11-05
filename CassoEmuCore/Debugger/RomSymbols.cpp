@@ -125,7 +125,10 @@ static constexpr const char * s_kpszIieSymbols =
 //
 //  Applesoft's documented entry points and zero-page pointers. Sources:
 //  Applesoft BASIC Programmer's Reference Manual (Apple Computer, 1978),
-//  appendix on zero-page usage; Apple II Reference Manual, chapter 4.
+//  appendix on zero-page usage; Apple II Reference Manual, chapter 4. The
+//  internal routines a profile of a BASIC program spends its time in
+//  (EXECUTE_STATEMENT, OUTDO, FRM_ELEMENT, MUL10) are from the annotated
+//  Applesoft disassembly at 6502disassembly.com/a2-rom/Applesoft.html.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,7 +152,8 @@ static constexpr const char * s_kpszApplesoftSymbols =
     "STROUT=$DB3A\n"  "LINPRT=$ED24\n"  "FOUT=$ED34\n"
     "HPOSN=$F411\n"   "HPLOT=$F457\n"   "HLIN=$F53A\n"    "HFIND=$F5CB\n"
     "DRAW=$F601\n"    "XDRAW=$F65D\n"   "HGR2=$F3D8\n"    "HGR=$F3E2\n"
-    "HCLR=$F3F2\n"    "BKGND=$F3F6\n"   "HCOLOR=$F6E9\n"  "AMPERSAND=$03F5\n";
+    "HCLR=$F3F2\n"    "BKGND=$F3F6\n"   "HCOLOR=$F6E9\n"  "AMPERSAND=$03F5\n"
+    "EXECUTE_STATEMENT=$D828\n" "OUTDO=$DB5C\n" "FRM_ELEMENT=$DE60\n" "MUL10=$EA39\n";
 
 
 

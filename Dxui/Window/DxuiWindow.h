@@ -10,6 +10,7 @@
 
 
 class DxuiButton;
+class DxuiTextInput;
 
 
 
@@ -124,6 +125,18 @@ public:
     //  the subclass can populate its children. Call Show() to display.
     //
     HRESULT  Create      (const CreateParams & params);
+
+    //
+    //  The window with no OS window behind it, for a test: a host with no
+    //  HWND and no device, at the initial window rect, or at the initial
+    //  size at the origin. Its messages arrive through Deliver, its rect
+    //  and capture are the host's, and nothing is drawn.
+    //
+    HRESULT  CreateHeadless (const CreateParams & params);
+
+    //  A message to the window's procedure, as the system sends one, for a
+    //  window CreateHeadless made.
+    LRESULT  Deliver     (UINT msg, WPARAM wp, LPARAM lp) { return m_source != nullptr ? m_source->WndProc (msg, wp, lp) : 0; }
     // activate=false shows the window without pulling foreground/focus (for
     // windows that pop up on their own and must not steal keystrokes).
     void     Show        (bool activate = true);
@@ -278,6 +291,12 @@ public:
     static bool  TryGetGrownRect (const RECT & windowPx, const SIZE & maxPx, const RECT & workPx, RECT & outPx);
 
     //
+    //  The front-most visible text box under a point among the controls under
+    //  `node`, or null.
+    //
+    static DxuiTextInput *  FindTextBoxAt (const IDxuiControl & node, POINT clientPx);
+
+    //
     //  Like FitToMaxSize, but never shrinks the window. For content that
     //  grows while the window is open.
     //
@@ -313,6 +332,11 @@ protected:
     //  Whether the first key of a two-key chord was pressed and the second
     //  is awaited.
     bool  IsKeyPrefixPending () const { return m_keyPrefix.has_value(); }
+
+    //  The pointer left the client area: send the controls a Leave event, at
+    //  a point outside every control, so hover, tips and previews end.
+    //  Not while the left button is down, since a drag goes on outside.
+    void  SendMouseLeave ();
 
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
@@ -424,6 +448,14 @@ protected:
     virtual bool  OnOverlayKey      (WPARAM vk)                 { UNREFERENCED_PARAMETER (vk); return false; }
 
     //
+    //  A right-press over a text box in the window's controls focuses the box
+    //  and opens its edit menu, ahead of OnMouse. False when no box is under
+    //  the point. A window that routes presses to its boxes itself returns
+    //  false.
+    //
+    virtual bool  TryShowTextBoxMenu (POINT clientPx);
+
+    //
     //  What a drag shows over the window, as a dock site's drop preview and
     //  guides. While HasDragLayer() returns true the window paints
     //  PaintDragLayer in a flush of its own, after the page's and the top
@@ -441,6 +473,9 @@ protected:
     //
     static constexpr UINT  kDefaultDialogTickMs = 250;
 
+    //  The point of a Leave event: left of and above every control.
+    static constexpr int   kOutsidePx = -32768;
+
     void  SetDialogTickIntervalMs (UINT ms);
 
     //
@@ -451,14 +486,20 @@ protected:
     //
     void  DestroyBackend ();
 
+    //  The host, for a subclass that moves the window or takes the mouse
+    //  through it, so a window CreateHeadless made moves and captures too.
+    DxuiHwndSource *  GetSource () const { return m_source.get(); }
+
 
 private:
+    void               AttachSource  ();
     DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnXButtonUp   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnMouseLeave  () override;
     DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor   (WORD hitTest) override;

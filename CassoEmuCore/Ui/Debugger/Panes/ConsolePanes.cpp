@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Debugger/CommandModeHelp.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
@@ -75,11 +76,31 @@ void ConsoleOutput::Configure()
 
 void ConsoleOutput::Append (const std::vector<std::string> & lines)
 {
-    std::vector<DxuiTextView::Row>  rows;
-    bool                            atEnd   = m_view->IsAtEnd();
-    int                             top     = m_view->GetTopLine();
-    int                             dropped = 0;
-    auto                            first   = lines.begin();
+    SYSTEMTIME  now = {};
+
+
+
+    GetLocalTime (&now);
+    Append (lines, now);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::Append
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::Append (const std::vector<std::string> & lines, const SYSTEMTIME & time)
+{
+    bool          atEnd   = m_view->IsAtEnd();
+    int           top     = m_view->GetTopLine();
+    int           dropped = 0;
+    auto          first   = lines.begin();
+    std::wstring  stamp   = GetTimeStamp (time);
 
 
 
@@ -93,7 +114,10 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
         return;
     }
 
-    m_lines.insert (m_lines.end(), first, lines.end());
+    for (auto line = first; line != lines.end(); ++line)
+    {
+        m_lines.push_back (Line { *line, time, stamp });
+    }
 
     if ((int) m_lines.size() > kLineLimit)
     {
@@ -101,30 +125,158 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
         m_lines.erase (m_lines.begin(), m_lines.begin() + dropped);
     }
 
-    for (const std::string & line : m_lines)
-    {
-        DxuiTextView::Row  row;
-
-        if (DebuggerViewState::IsCommandGap (line))
-        {
-            row.cells  = { std::wstring() };
-            row.height = DebuggerViewState::kCommandGapHeight;
-        }
-        else
-        {
-            row.cells = { TextEncoding::NarrowToWide (line) };
-        }
-
-        rows.push_back (std::move (row));
-    }
-
-    m_view->SetRowsDroppingFront (std::move (rows), dropped);
+    m_columns = m_view->GetVisibleColumns();
+    m_view->SetRowsDroppingFront (GetRows(), dropped);
+    m_changedMs = (std::max) ((int64_t) 1, (int64_t) GetTickCount64());
     m_view->SetTopLine (atEnd ? m_view->GetLineCount() : top - dropped);
 
     if (!m_view->IsVisible())
     {
         m_host.MarkPaneTab (DebuggerLayout::kConsole);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::Reflow
+//
+//  A console at its end remains at its end; otherwise the top line is the same.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::Reflow()
+{
+    int   columns = m_view->GetVisibleColumns();
+    bool  atEnd   = m_view->IsAtEnd();
+    int   top     = m_view->GetTopLine();
+
+
+
+    if (columns <= 0 || columns == m_columns || m_lines.empty())
+    {
+        return;
+    }
+
+    m_columns = columns;
+    m_view->UpdateRows (GetRows());
+    m_view->SetTopLine (atEnd ? m_view->GetLineCount() : top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetRows
+//
+//  Each command's output is laid out apart from the rest, so a help
+//  listing's syntax column fits its rows at the view's width less the time
+//  stamps' column. The time stamp is the first cell of a line's first row;
+//  a help row laid out as two has an empty first cell on the second.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> ConsoleOutput::GetRows()
+{
+    std::vector<DxuiTextView::Row>  rows;
+    size_t                          start   = 0;
+    size_t                          stampAt = 0;
+    std::vector<std::string>        texts;
+    std::vector<std::string>        laidOut;
+    std::vector<size_t>             sources;
+
+
+
+    for (const Line & line : m_lines)
+    {
+        stampAt = (std::max) (stampAt, line.stamp.size() + 1);
+    }
+
+    m_rowLines.clear();
+
+    while (start < m_lines.size())
+    {
+        size_t  end = start + 1;
+
+        while (end < m_lines.size() && !DebuggerViewState::IsCommandGap (m_lines[end].text))
+        {
+            end++;
+        }
+
+        texts.clear();
+
+        for (size_t i = start; i < end; i++)
+        {
+            texts.push_back (m_lines[i].text);
+        }
+
+        laidOut = CommandModeHelp::LayOutTabbedRows (texts, (std::max) (0, m_columns - (int) stampAt), sources);
+
+        for (size_t r = 0; r < laidOut.size(); r++)
+        {
+            const std::string  & text   = laidOut[r];
+            size_t               source = start + sources[r];
+            bool                 isLead = r == 0 || sources[r - 1] != sources[r];
+            DxuiTextView::Row    row;
+
+            if (DebuggerViewState::IsCommandGap (text))
+            {
+                row.cells  = { std::wstring() };
+                row.height = DebuggerViewState::kCommandGapHeight;
+                m_rowLines.push_back (-1);
+            }
+            else
+            {
+                row.cells      = { isLead ? m_lines[source].stamp : std::wstring(), TextEncoding::NarrowToWide (text) };
+                row.wrapIndent = GetWrapIndent (text);
+                m_rowLines.push_back (isLead ? (int) source : -1);
+            }
+
+            rows.push_back (std::move (row));
+        }
+
+        start = end;
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetWrapIndent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ConsoleOutput::GetWrapIndent (const std::string & line)
+{
+    size_t  limit  = std::min (line.size(), kWrapIndentLimit);
+    size_t  indent = 0;
+    size_t  i      = 0;
+
+
+
+    for (i = 0; i < limit; i++)
+    {
+        bool  isGap = line[i] == ' ' && (i == 0 || (i + 1 < line.size() && line[i + 1] == ' ') || line[i - 1] == ' ');
+
+
+
+        if (isGap && i + 1 < line.size() && line[i + 1] != ' ')
+        {
+            indent = i + 1;
+        }
+    }
+
+    return (int) indent;
 }
 
 
@@ -140,7 +292,235 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
 void ConsoleOutput::Clear()
 {
     m_lines.clear();
+    m_rowLines.clear();
     m_view->SetRows ({});
+    m_changedMs = (std::max) ((int64_t) 1, (int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::FormatSaved
+//
+//  A line's time is its local date and time, as YYYY-MM-DD HH:MM:SS.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ConsoleOutput::FormatSaved() const
+{
+    std::string  text;
+
+
+
+    for (const Line & line : m_lines)
+    {
+        text += std::format ("{:04}-{:02}-{:02} {:02}:{:02}:{:02}\t{}\n", line.time.wYear, line.time.wMonth, line.time.wDay,
+                             line.time.wHour, line.time.wMinute, line.time.wSecond, line.text);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::RestoreSaved
+//
+//  A line whose time cannot be read is passed over. With `keepCurrent`, the
+//  lines written since the window opened follow the saved ones.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::RestoreSaved (const std::string & text, bool keepCurrent)
+{
+    std::istringstream  in (text);
+    std::string         line;
+    std::vector<Line>   current = keepCurrent ? std::move (m_lines) : std::vector<Line>();
+
+
+
+    m_lines.clear();
+
+    while (std::getline (in, line))
+    {
+        SYSTEMTIME  time   = {};
+        size_t      tab    = line.find ('\t');
+        int         year   = 0;
+        int         month  = 0;
+        int         day    = 0;
+        int         hour   = 0;
+        int         minute = 0;
+        int         second = 0;
+
+        if (tab == std::string::npos ||
+            sscanf_s (line.substr (0, tab).c_str(), "%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second) != 6)
+        {
+            continue;
+        }
+
+        time.wYear   = (WORD) year;
+        time.wMonth  = (WORD) month;
+        time.wDay    = (WORD) day;
+        time.wHour   = (WORD) hour;
+        time.wMinute = (WORD) minute;
+        time.wSecond = (WORD) second;
+
+        m_lines.push_back (Line { line.substr (tab + 1), time, GetTimeStamp (time) });
+    }
+
+    m_lines.insert (m_lines.end(), std::make_move_iterator (current.begin()), std::make_move_iterator (current.end()));
+
+    if ((int) m_lines.size() > kLineLimit)
+    {
+        m_lines.erase (m_lines.begin(), m_lines.end() - kLineLimit);
+    }
+
+    m_columns = m_view->GetVisibleColumns();
+    m_view->SetRows (GetRows());
+    m_view->SetTopLine (m_view->GetLineCount());
+    m_changedMs = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::SaveIfChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ConsoleOutput::SaveIfChanged (int64_t nowMs)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+    if (m_changedMs == 0 || nowMs - m_changedMs < kSaveDelayMs || host == nullptr)
+    {
+        return;
+    }
+
+    host->SetDebuggerWindowState ("consoleText", FormatSaved());
+    m_changedMs = 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::TryGetTimeTip
+//
+//  The time stamp is the first cell of a row's first line, so a point on a
+//  wrapped row's later lines is not over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsoleOutput::TryGetTimeTip (POINT point, RECT & anchor, std::wstring & text) const
+{
+    DxuiTextView::Position  pos    = {};
+    float                   left   = 0.0f;
+    float                   right  = 0.0f;
+    float                   middle = 0.0f;
+    float                   half   = 0.0f;
+    int                     line   = -1;
+
+
+
+    if (m_view == nullptr || !m_view->IsVisible() || !m_host.IsRoutable (m_view) || !DxuiDockSite::Contains (m_view->GetBounds(), point))
+    {
+        return false;
+    }
+
+    pos = m_view->HitTest (point);
+
+    if (pos.row < 0 || pos.row >= (int) m_rowLines.size() || m_rowLines[(size_t) pos.row] < 0)
+    {
+        return false;
+    }
+
+    line = m_rowLines[(size_t) pos.row];
+
+    if (!m_view->GetCellAnchorPx (pos.row, 0, left, middle) || !m_view->GetCellAnchorPx (pos.row, 1, right, middle))
+    {
+        return false;
+    }
+
+    half = (float) m_view->GetCellHeightPx() * 0.5f;
+
+    if ((float) point.x < left || (float) point.x >= right || (float) point.y < middle - half || (float) point.y >= middle + half)
+    {
+        return false;
+    }
+
+    anchor = RECT { (LONG) left, (LONG) (middle - half), (LONG) right, (LONG) (middle + half) };
+    text   = GetFullTime (m_lines[(size_t) line].time);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetTimeStamp
+//
+//  The short time format is the one the user picks in the region settings,
+//  which GetTimeFormatEx with no format would not use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ConsoleOutput::GetTimeStamp (const SYSTEMTIME & time, const wchar_t * locale)
+{
+    wchar_t  format[80]  = {};
+    wchar_t  stamp[80]   = {};
+
+
+
+    if (GetLocaleInfoEx (locale, LOCALE_SSHORTTIME, format, (int) std::size (format)) == 0 ||
+        GetTimeFormatEx (locale, 0, &time, format, stamp, (int) std::size (stamp)) == 0)
+    {
+        return std::format (L"[{:02}:{:02}]", time.wHour, time.wMinute);
+    }
+
+    return std::format (L"[{}]", stamp);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsoleOutput::GetFullTime
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ConsoleOutput::GetFullTime (const SYSTEMTIME & time, const wchar_t * locale)
+{
+    wchar_t  date[128]  = {};
+    wchar_t  clock[80]  = {};
+
+
+
+    if (GetDateFormatEx (locale, DATE_LONGDATE, &time, nullptr, date, (int) std::size (date), nullptr) == 0 ||
+        GetTimeFormatEx (locale, 0, &time, nullptr, clock, (int) std::size (clock)) == 0)
+    {
+        return std::format (L"{:04}-{:02}-{:02} {:02}:{:02}:{:02}", time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond);
+    }
+
+    return std::format (L"{} {}", date, clock);
 }
 
 
@@ -455,28 +835,42 @@ void CommandLine::RefreshGhost()
 //
 //  CommandLine::ShowHistoryList
 //
-//  The earlier lines, newest first, in a menu over the command line; picking
-//  one puts it in the box to edit or run.
+//  The earlier lines in a list rising from the command line, from where the
+//  typed text starts to a little short of the console's right edge, in the
+//  command line's face and size, with the newest nearest the box. A long
+//  line is cut, with no tip of the whole line. Home and End go to the oldest
+//  and newest, and Up and Down stop at them. Picking one puts it in the box
+//  to edit or run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommandLine::ShowHistoryList()
 {
-    static constexpr size_t           s_kMaxRows = 30;
-    const std::vector<std::wstring> & lines      = m_history.GetLines();
+    static constexpr size_t           s_kMaxRows     = 200;
+    static constexpr int              s_kShownRows   = 10;
+    static constexpr int              s_kRightGapDip = 24;   // between the list's right edge and the console's
+    const std::vector<std::wstring> & lines          = m_history.GetLines();
+    const DxuiTheme                 * theme          = m_host.GetTheme();
+    const DxuiDpiScaler             & scaler         = m_host.GetPaneScaler();
+    DxuiTextView                    * view           = m_output.GetView();
     PaneMenuItems                     items;
-    RECT                              box        = m_box->GetBounds();
+    RECT                              box            = m_box->GetBounds();
+    RECT                              pane           = view->GetBounds();
+    DxuiContextMenu::ListLook         look;
+    size_t                            first          = 0;
 
 
 
-    if (lines.empty())
+    if (lines.empty() || theme == nullptr)
     {
         return;
     }
 
-    for (auto it = lines.rbegin(); it != lines.rend() && items.size() < s_kMaxRows; ++it)
+    first = (lines.size() > s_kMaxRows) ? lines.size() - s_kMaxRows : 0;
+
+    for (size_t i = first; i < lines.size(); i++)
     {
-        std::wstring  line = *it;
+        std::wstring  line = lines[i];
 
         items.push_back ({ line, [this, line]
         {
@@ -488,7 +882,19 @@ void CommandLine::ShowHistoryList()
         } });
     }
 
-    m_host.ShowPopupMenu (items, POINT { box.left, box.top });
+    look.face                 = m_box->GetFace();
+    look.metrics              = DxuiMenuMetrics::FromSystem (scaler.GetDpi());
+    look.metrics.fontPx       = scaler.ToPxf (m_box->GetFontDip());
+    look.metrics.minWidthPx   = 0;
+    look.maxHeightPx          = look.metrics.rowHeightPx * s_kShownRows;
+    look.isCutTipShown        = false;
+    look.isWrapping           = false;
+
+    //  Each command's text starts where the typed text does after the
+    //  prompt, so the list's edge is apart from the console's beneath it.
+    look.labelLeftAtPx = box.left + m_box->GetTypedTextLeftPx();
+
+    m_host.ShowListAbove (items, RECT { pane.left, box.top, pane.right - scaler.ToPx (s_kRightGapDip), box.bottom }, look);
 }
 
 
@@ -767,9 +1173,13 @@ ConsolePane::~ConsolePane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ConsolePane::GetId() const
+const std::wstring & ConsolePane::GetId() const
 {
-    return DebuggerLayout::kConsole;
+    static const std::wstring  s_kId = DebuggerLayout::kConsole;
+
+
+
+    return s_kId;
 }
 
 
@@ -804,6 +1214,9 @@ void ConsolePane::Configure()
     m_output.Configure();
     m_commandLine.Configure();
     m_modeBar.Configure();
+
+    //  Over a line's time stamp, the date and time in full.
+    m_output.GetView()->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
 }
 
 
@@ -903,6 +1316,23 @@ void ConsolePane::SetTextZoom (float zoom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConsolePane::Tick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsolePane::Tick (int64_t nowMs)
+{
+    m_output.Reflow();
+    m_output.SaveIfChanged (nowMs);
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ConsolePane::RouteEditKey
 //
 //  The command line's own keys: Ctrl+C with nothing selected in it copies
@@ -967,5 +1397,28 @@ bool ConsolePane::SubmitTextBox (DxuiTextInput * box)
     }
 
     m_commandLine.Submit();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsolePane::TryGetTipAt
+//
+//  Over a line's time stamp, the date and the time in full.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ConsolePane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
+{
+    if (!m_output.TryGetTimeTip (clientPx, tip.anchor, tip.text))
+    {
+        return false;
+    }
+
+    tip.placement = DxuiTip::Placement::AtPointer;
     return true;
 }

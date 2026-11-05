@@ -157,6 +157,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ResourceCompile Include="..\UnitTest\EmuTests\MachineConfigs.rc" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -192,10 +195,14 @@
     <ClCompile Include="GuestVisibleKermitTests.cpp" />
     <ClCompile Include="GuestVisibleTextScreenTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
+    <ClCompile Include="..\UnitTest\TestSystemState.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\EmbeddedMachineJson.cpp" />
+    <ClCompile Include="ExeManifestTests.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureRomSource.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\KeystrokeInjector.cpp" />

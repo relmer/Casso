@@ -6,6 +6,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/DxuiTheme.h"
 #include "DxuiScrollbar.h"
+#include "IDxuiFindTarget.h"
 
 
 
@@ -29,7 +30,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiListView : public IDxuiControl
+class DxuiListView : public IDxuiControl, public IDxuiFindTarget
 {
 public:
     struct Column
@@ -40,13 +41,19 @@ public:
         DxuiTextHAlign  align    = DxuiTextHAlign::Left;
         bool            visible  = true;
 
-        //  Tip text for the heading, put up by the host. The list never
-        //  draws it.
-        std::wstring    tip;
+        //  Tip text for the heading, put up by the host, and a color scale for
+        //  each of its lines that has one (DxuiTooltip::SetLineScales). The
+        //  list never draws them.
+        std::wstring                        tip;
+        std::vector<std::vector<uint32_t>>  tipLineScales;
 
         //  A filter of the host's is in force on the column: a funnel is
         //  drawn at the right end of its heading.
         bool            isFiltered = false;
+
+        //  Whether the cells are text to read and select. A strip of glyphs,
+        //  as a heat column's, is not, and the pointer is an arrow over it.
+        bool            isText     = true;
     };
 
     struct Cell
@@ -69,6 +76,16 @@ public:
         //  a muted range over one wins.
         std::vector<std::tuple<int, int, uint32_t>>  colorRanges;
 
+        //  Half-open character ranges with a fill behind them, the row's
+        //  height tall: first, end and color, which may be partly
+        //  transparent. Sorted, non-overlapping, left-aligned columns only.
+        //  The text over a range is drawn in an ink that reads on its fill.
+        std::vector<std::tuple<int, int, uint32_t>>  backgroundRanges;
+
+        //  Half-open character ranges, each with a tip: first, end and text.
+        //  The tip over the pointer is the range's, with the cell's under it.
+        std::vector<std::tuple<int, int, std::wstring>>  rangeTips;
+
         //  A checkbox at the start of the cell, ahead of the icon, checked or
         //  not; none draws none. Pressing it, or Space on its row, reports the
         //  toggle to the host, which sets the new state with the next rows.
@@ -76,6 +93,10 @@ public:
 
         //  Drawn at the start of the cell, the text moved along past it.
         std::shared_ptr<const DxuiIconImage>  icon;
+
+        //  A square of this color after the checkbox and icon, the text moved
+        //  along past it, for a key to colors drawn elsewhere; zero for none.
+        uint32_t  swatch = 0;
 
         //  The text's color in place of the palette's, and a fill behind the
         //  cell. Zero leaves each as the list would draw it. A fill given on
@@ -92,14 +113,22 @@ public:
         //  A face and weight of the cell's own in place of the list's, for a
         //  row that is a label rather than a value, or a value whose
         //  characters line up only in a fixed-width face; null for the
-        //  list's. The face is honored in every run of the cell; the weight
-        //  where the cell is drawn in one color.
+        //  list's. The face is honored in every run of the cell, and so is
+        //  italic, whose characters a fixed-width face places where it places
+        //  upright ones; any other weight only where the cell is drawn in one
+        //  color.
         const wchar_t   * face       = nullptr;
         DxuiFontWeight    weight     = DxuiFontWeight::Normal;
 
         //  A tip for the host to show over the cell, such as what its color
         //  means. The list keeps it with the cell and never draws it.
         std::wstring      tip;
+
+        //  A color scale for the tip to draw under its text, and where on it
+        //  the cell's color is (DxuiTooltip::SetGradient); none for a tip of
+        //  text alone.
+        std::vector<uint32_t>  tipGradient;
+        float                  tipGradientMark = -1.0f;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -175,6 +204,10 @@ public:
     void  FitColumnToContent        (size_t idx);
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
+
+    //  The width the content auto-fit gives a cell of `chars` characters
+    //  with no lead, padding included.
+    int   GetFittedWidthPx          (size_t chars) const;
     int   GetTotalMeasuredWidthPx   () const;
     void  MeasureColumnsPx          (IDxuiTextRenderer & text) const;
 
@@ -288,7 +321,14 @@ public:
     void                      SetTextSelection   (bool enabled);
     bool                      HasTextSelection   () const   { return m_hasTextSel; }
     void                      ClearTextSelection ();
-    std::wstring              GetSelectionText () const;
+    std::wstring              GetSelectionText () const override;
+
+    //  The first and last rows the text selection touches; false without one.
+    bool                      GetTextSelectionRows (int & first, int & last) const;
+
+    //  The row, the cell and the caret position in the cell's text under a
+    //  point in the list's pixels; false off the rows or the cells' text.
+    bool                      TryHitTestCellChar   (POINT localPx, int & row, size_t & column, int & ch) const;
 
     //  Whether any of a cell's characters are in the text selection.
     bool                      IsCellTextSelected (int row, size_t col) const;
@@ -338,6 +378,48 @@ public:
     // Scroll just enough to bring `row` into the visible window, without
     // changing selection (SetSelectedRow does the same but also selects).
     void  EnsureVisible         (int row);
+
+    //  Find, over the text of the visible columns of every row: each match is
+    //  drawn on the match fill, the selected one on the current fill, and the
+    //  selected match's row is selected.
+    struct FindSpot
+    {
+        int     row    = -1;
+        size_t  column = 0;
+        int     start  = 0;
+        int     end    = 0;
+
+        auto operator<=> (const FindSpot & other) const = default;
+    };
+
+    IDxuiControl  * GetFindControl   () override { return this; }
+    RECT            GetFindBounds    () const override { return GetBounds(); }
+    bool            IsFindVisible    () const override { return IsVisible(); }
+
+    DxuiFindResult  SelectMatch      (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount) override;
+    DxuiFindResult  SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount) override;
+    void            SetFindScopeToSelection () override {}
+    void            ClearFindScope   () override {}
+    void            ClearFindHighlights () override { m_findNeedle.clear(); m_findCurrent.reset(); }
+    void            SetFindColors    (uint32_t matchArgb, uint32_t currentArgb) override { m_findMatchArgb = matchArgb; m_findCurrentArgb = currentArgb; }
+
+    //  Every match of the last search, in row, column and character order.
+    std::vector<FindSpot>          GetFindSpots   () const;
+    const std::optional<FindSpot> & GetFindCurrent () const { return m_findCurrent; }
+
+    //  A cell's highlight bands, each a range and its fill.
+    std::vector<std::tuple<int, int, uint32_t>>  GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb, uint32_t under) const;
+
+    //  The fill under each of a cell's characters: `under`, or a background
+    //  range's color drawn over it.
+    static std::vector<uint32_t>                 GetCharacterFills (const Cell & cell, uint32_t under);
+
+    //  The range tip at a caret position in a cell's text: the range the
+    //  position is in, or at the text's end the range that ends there.
+    static const std::wstring *                  FindRangeTip      (const Cell & cell, int position);
+    // Scrolls to the first row whose key the last call did not have, as when
+    // a row was added. The first call only takes note of the keys.
+    void  ShowNewRow            (const std::vector<std::wstring> & keys);
     // Scroll so `row` sits as close to the middle of the visible window as
     // the ends of the list allow, without changing selection.
     void  CenterOnRow           (int row);
@@ -383,6 +465,7 @@ public:
     int    GetCellPadRightDip          () const                { return m_cellPadRightDip; }
     void   SetFontSizeDip              (float dip)             { m_fontDip = (dip > 0.0f) ? dip : s_kFontDip; }
     float  GetFontSizeDip              () const                { return m_fontDip; }
+    const wchar_t *  GetFace           () const                { return GetBodyFace(); }
 
     //  A list that fills a pane: the columns start far enough in that the
     //  first column's text lines up with the pane's title, while the row,
@@ -420,6 +503,10 @@ public:
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const;
     int   HitTestHeaderColumn (int xPx, int yPx) const;
     int   HitTestRow          (int xPx, int yPx) const;
+
+    //  The column under an x, counted from the pane lead, where a point in
+    //  the lead is in the first column; -1 past the last.
+    int   HitTestColumn       (int xPx) const;
 
     //  Explorer's eight views. Details is the table of columns; the others
     //  lay the rows out as items with the first cell's icon and text, and
@@ -546,6 +633,16 @@ public:
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
+    bool                TryGetTip      (POINT pointPx, DxuiTip & tip) const override;
+
+    //  The tip of the heading or the cell under a point, in local pixels,
+    //  without the host's tip function.
+    bool                TryGetCellTip  (POINT pointPx, DxuiTip & tip) const;
+    bool                UsesLocalPoints() const override { return true; }
+
+    //  Whether the cells' and headings' tips are drawn in a fixed-width face,
+    //  for tips whose characters line up in columns, such as a hex dump.
+    void                SetMonospaceTips (bool mono) { m_isMonospaceTips = mono; }
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
     bool                QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand  (DxuiStandardCommand command) override;
@@ -563,6 +660,7 @@ private:
     static constexpr int    s_kScrollbarWidthDip = 10;
     static constexpr int    s_kCellIconDip       = 16;
     static constexpr int    s_kCellIconGapDip    = 6;
+    static constexpr int    s_kCellSwatchDip     = 10;
     static constexpr int    s_kCellCheckDip      = 14;
     static constexpr int    s_kCellCheckGapDip   = 6;
     static constexpr int    s_kMinColWidthDip    = 48;
@@ -600,8 +698,15 @@ private:
     // that values never clip.
     static constexpr float  s_kAutoCharWidthEm   = 0.62f;
 
-    //  The width a heading's filter funnel takes, with room on its left.
+    //  The width a heading's filter funnel takes, with room on its left, and
+    //  the width a sort chevron at a heading's right end takes.
     static constexpr float  s_kFilterGlyphDip    = 12.0f;
+    static constexpr float  s_kSortGlyphDip      = 10.0f;
+
+    //  The space above a vertically centered title that the sort chevron
+    //  above it takes, and the title's line height as a share of its font.
+    static constexpr float  s_kSortAboveDip      = 8.0f;
+    static constexpr float  s_kTitleLineEm       = 1.3f;
 
     // Per-element ARGB colors derived once per paint from the theme.
     struct Palette
@@ -699,6 +804,7 @@ private:
     bool    DispatchMouseUp        (int lx, int ly, bool inside);
     bool    DispatchMouseWheel     (const DxuiMouseEvent & ev, bool inside);
 
+    bool    IsSortAboveTitle        (float headerPx, float fontPx) const;
     void    PaintHeader             (IDxuiPainter           & painter,
                                      IDxuiTextRenderer    & text,
                                      const Palette          & pal,
@@ -794,6 +900,9 @@ private:
     bool                      m_preciseAutoFit = false;
     bool                      m_refitOnSetRows = false;
     mutable bool              m_measureDirty   = false;
+
+    std::optional<std::vector<std::wstring>>  m_rowKeys;   // sorted
+
     DxuiDpiScaler             m_scaler;
     // Virtual (provider) row model — see SetRowProvider. When m_virtual is
     // true, m_rows is empty and rows are pulled on demand into m_providerScratch.
@@ -803,12 +912,20 @@ private:
     mutable std::vector<Cell>  m_providerScratch;
     int                        m_hovered           = -1;
     int                        m_selectedRow       = -1;
+    std::wstring               m_findNeedle;
+    bool                       m_findCase          = false;
+    bool                       m_findWord          = false;
+    bool                       m_findRegex         = false;
+    uint32_t                   m_findMatchArgb     = 0;
+    uint32_t                   m_findCurrentArgb   = 0;
+    std::optional<FindSpot>    m_findCurrent;
     bool                       m_multiSelect       = false;
     int                        m_anchorRow         = -1;
     std::vector<int>           m_selectedRows;
     int                        m_sortColumn        = -1;
     bool                       m_sortDescending    = false;
     bool                       m_showHeader        = false;
+    bool                       m_isMonospaceTips   = false;
     View                       m_view              = View::Details;
     bool                       m_detailsHeader     = false;   // the header Details had, while another view shows
     int                        m_topRow            = 0;
@@ -873,6 +990,7 @@ private:
     };
 
     TextPos       HitTestText          (int lx, int ly) const;
+    bool          IsOverCellText       (POINT localPx) const;
     int           HitTestCharInCell    (int row, size_t col, int lx) const;
     int           GetCellLeadPx        (const Cell & cell) const;
     int           HitTestCheck         (int lx, int ly, int row) const;

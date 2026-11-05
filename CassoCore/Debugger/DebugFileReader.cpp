@@ -119,26 +119,30 @@ HRESULT DebugFileReader::ReadMerlinListing (std::string_view text, const std::st
 
     while (at < text.size())
     {
-        std::string_view  line          = GetNextLine (text, at);
-        uint32_t          address       = 0;
-        uint32_t          count         = 0;
-        bool              hasLineNumber = false;
+        std::string_view   line          = GetNextLine (text, at);
+        uint32_t           address       = 0;
+        std::vector<Byte>  bytes;
+        uint32_t           count         = 0;
+        bool               hasLineNumber = false;
 
         lineNumber++;
 
-        if (!TryParseListingLine (line, address, count, hasLineNumber) || count == 0)
+        if (!TryParseListingLine (line, address, bytes, hasLineNumber) || bytes.empty())
         {
             continue;
         }
+
+        count = (uint32_t) bytes.size();
 
         if (!hasLineNumber && !file.spans.empty() &&
             file.spans.back().start + file.spans.back().size == address)
         {
             file.spans.back().size += count;
+            file.spans.back().bytes.insert (file.spans.back().bytes.end(), bytes.begin(), bytes.end());
             continue;
         }
 
-        file.spans.push_back ({ (int) file.spans.size(), 0, address, count });
+        file.spans.push_back ({ (int) file.spans.size(), 0, address, count, std::move (bytes) });
         file.lines.push_back ({ (int) file.lines.size(), 0, lineNumber, DebugLineType::Asm, 0, { file.spans.back().id } });
     }
 
@@ -180,7 +184,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugFileReader::TryParseListingLine (std::string_view line, uint32_t & address, uint32_t & byteCount, bool & hasLineNumber)
+bool DebugFileReader::TryParseListingLine (std::string_view line, uint32_t & address, std::vector<Byte> & bytes, bool & hasLineNumber)
 {
     static constexpr size_t  kFirstByte = 6;
     uint64_t                 value      = 0;
@@ -189,7 +193,7 @@ bool DebugFileReader::TryParseListingLine (std::string_view line, uint32_t & add
 
 
 
-    byteCount     = 0;
+    bytes.clear();
     hasLineNumber = false;
 
     if (line.size() < kFirstByte || line[4] != ':' || !TryParseNumber (std::string ("0x") + std::string (line.substr (0, 4)), value))
@@ -202,7 +206,7 @@ bool DebugFileReader::TryParseListingLine (std::string_view line, uint32_t & add
     while (pos + 2 <= line.size() && line[pos - 1] == ' ' && isHex (line[pos]) && isHex (line[pos + 1]) &&
            (pos + 2 == line.size() || line[pos + 2] == ' '))
     {
-        byteCount++;
+        bytes.push_back ((Byte) std::stoul (std::string (line.substr (pos, 2)), nullptr, 16));
         pos += 3;
     }
 

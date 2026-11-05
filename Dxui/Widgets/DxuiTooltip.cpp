@@ -214,7 +214,7 @@ DxuiTooltip::PointerExtent DxuiTooltip::MeasurePointerExtent()
     constexpr WORD        kBitsPerPixel = 32;
     constexpr uint32_t    kRgbMask      = 0x00FFFFFFu;
     HRESULT               hr            = S_OK;
-    PointerExtent         extent        = { 0, GetSystemMetrics (SM_CYCURSOR) };
+    PointerExtent         extent        = { 0, DxuiSystemSettings::Instance().GetCursorHeightPx() };
     CURSORINFO            cursor        = { sizeof (cursor) };
     ICONINFO              icon          = {};
     BITMAP                mask          = {};
@@ -381,7 +381,7 @@ RECT DxuiTooltip::GetPlacementAnchor() const
 
 bool DxuiTooltip::LocatePointer (HWND owner, POINT & outClientPx)
 {
-    bool  isFound = GetCursorPos (&outClientPx) != FALSE;
+    bool  isFound = DxuiInputState::GetCursorPos (&outClientPx) != FALSE;
 
 
 
@@ -399,13 +399,30 @@ bool DxuiTooltip::LocatePointer (HWND owner, POINT & outClientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetHoverHideAtMs
+//
+//  Zero, for no hide time, unless SetHasLifetime turned the lifetime on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiTooltip::GetHoverHideAtMs (int64_t nowMs) const
+{
+    return m_hasLifetime ? nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs()) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetSystemVisibleMs
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiTooltip::GetSystemVisibleMs()
 {
-    UINT  doubleClickMs = GetDoubleClickTime();
+    UINT  doubleClickMs = (UINT) DxuiSystemSettings::Instance().GetDoubleClickMs();
 
 
 
@@ -449,11 +466,13 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
     if (m_visible)
     {
-        bool  changed = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs ||
-                        anchor.left   != m_anchor.left  ||
-                        anchor.top    != m_anchor.top   ||
-                        anchor.right  != m_anchor.right ||
-                        anchor.bottom != m_anchor.bottom;
+        bool  isNewText = text != m_text;
+        bool  changed   = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches || m_lineScales != m_shownLineScales ||
+                          m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark ||
+                          anchor.left   != m_anchor.left  ||
+                          anchor.top    != m_anchor.top   ||
+                          anchor.right  != m_anchor.right ||
+                          anchor.bottom != m_anchor.bottom;
 
         m_anchor       = anchor;
         m_text         = text;
@@ -465,9 +484,29 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
         // sixty times a second and the tip never dismissed itself -- the
         // lifetime existed and could not once be reached. A move to a
         // DIFFERENT control is a new tip and starts its own clock.
+        //  A balloon already up takes the new anchor and text in place: sized
+        //  and drawn again only for new text or colors, and only moved for a
+        //  new anchor, so a pointer crossing from part to part of a view does
+        //  not close one window and open another, which flickered.
+        if (changed && m_popupHost != nullptr && m_activePopup != nullptr && wasAtPointer == isAtPointer)
+        {
+            bool  isNewLook = isNewText || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches || m_lineScales != m_shownLineScales ||
+                              m_gradient != m_shownGradient || m_gradientMark != m_shownGradientMark;
+
+            m_hideAtMs          = isNewText ? GetHoverHideAtMs (nowMs) : m_hideAtMs;
+            m_shownLineArgbs    = m_lineArgbs;
+            m_shownLineSwatches = m_lineSwatches;
+            m_shownLineScales   = m_lineScales;
+            m_shownGradient     = m_gradient;
+            m_shownGradientMark = m_gradientMark;
+
+            MovePopup (isNewLook);
+            return;
+        }
+
         if (changed && m_popupHost != nullptr)
         {
-            m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+            m_hideAtMs = GetHoverHideAtMs (nowMs);
 
             MeasurePointerForPlacement();
             ReleaseActivePopup();
@@ -548,7 +587,7 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
 
     if (!isUp || isNew)
     {
-        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+        m_hideAtMs = GetHoverHideAtMs (nowMs);
     }
 
     if (isMoved)
@@ -560,6 +599,47 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
     m_isPointerTip = true;
 
     MeasurePointerForPlacement();
+    ReleaseActivePopup();
+    ShowPopup();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::ShowAt (const RECT & anchor, const std::wstring & text)
+{
+    bool  isUp  = m_visible && !m_fadingOut && !m_isPointerTip && m_activePopup != nullptr;
+    bool  isNew = text != m_text;
+
+
+
+    if (isUp && !isNew && EqualRect (&anchor, &m_anchor) != FALSE)
+    {
+        return;
+    }
+
+    m_anchor       = anchor;
+    m_text         = text;
+    m_pending      = false;
+    m_visible      = true;
+    m_fadingOut    = false;
+    m_isInstant    = true;
+    m_isPointerTip = false;
+    m_hideAtMs     = 0;
+
+    if (isUp)
+    {
+        MovePopup (isNew);
+        return;
+    }
+
     ReleaseActivePopup();
     ShowPopup();
 }
@@ -627,12 +707,61 @@ void DxuiTooltip::RequestHide (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsPointerOverApp
+//
+//  Whether the window under the pointer is one of this process's. A test of
+//  the app in front hid every tip while the user hovered the debugger with
+//  another app in front, and closed the instant ones a frame after they
+//  opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTooltip::IsPointerOverApp()
+{
+    POINT  pointer   = {};
+    HWND   under     = nullptr;
+    DWORD  processId = 0;
+
+
+
+    if (DxuiInputState::GetCursorPos (&pointer) == FALSE)
+    {
+        return true;
+    }
+
+    under = DxuiDisplay::Get().WindowFromPoint (pointer);
+
+    if (under == nullptr)
+    {
+        return false;
+    }
+
+    GetWindowThreadProcessId (under, &processId);
+    return processId == GetCurrentProcessId();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Tick
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTooltip::Tick (int64_t nowMs)
 {
+    //  A hover tip is hidden once the pointer is over another app's window,
+    //  such as one brought over this one, since this app's windows get no
+    //  pointer messages to dismiss it then. A timed notice ends at its set
+    //  time.
+    if (m_isPointerTip && (m_pending || m_visible) && m_pfnIsActive != nullptr && !m_pfnIsActive())
+    {
+        m_pending = false;
+        FinishHide();
+    }
+
     if (m_pending && nowMs >= m_showAtMs)
     {
         m_anchor       = m_pendingAnchor;
@@ -643,13 +772,13 @@ void DxuiTooltip::Tick (int64_t nowMs)
 
         MeasurePointerForPlacement();
 
-        // A TOOLTIP HAS A LIFETIME. A hover tip used to set no hide time at
-        // all, so it stayed up for as long as the pointer rested -- and a
-        // pointer that has been captured, or simply parked, rests forever.
-        // The OS dismisses its own after a few seconds for the same reason:
-        // the tip has been read by then, and what is left is an obstruction
-        // sitting over the thing it was explaining.
-        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+        // A hover tip has no hide time unless SetHasLifetime turned that on.
+        // With one, a consumer that requests the tip again on every frame
+        // closed it at the deadline and opened it again a dwell later, with
+        // the pointer at rest. A caller that captures the pointer calls
+        // HideImmediate as the capture starts, since no later move dismisses
+        // the tip.
+        m_hideAtMs = GetHoverHideAtMs (nowMs);
 
         ShowPopup();
 
@@ -832,9 +961,13 @@ void DxuiTooltip::ShowPopup()
     if (shows)
     {
         m_shownLineArgbs            = m_lineArgbs;
+        m_shownLineSwatches         = m_lineSwatches;
+        m_shownLineScales           = m_lineScales;
+        m_shownGradient             = m_gradient;
+        m_shownGradientMark         = m_gradientMark;
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = GetScreenAnchor();
-        showParams.placement        = DxuiPopupPlacement::Below;
+        showParams.placement        = m_placement;
         showParams.flipIfOffscreen  = true;
         showParams.dismiss          = DxuiPopupDismiss::Manual;
         showParams.input            = DxuiPopupInput::PassThrough;
@@ -931,7 +1064,7 @@ void DxuiTooltip::MeasureBoxPx (
 
 
 
-    if (IsTable (m_text) && m_activePopup != nullptr)
+    if (IsTableTip() && m_activePopup != nullptr)
     {
         TableLayout  table;
 
@@ -940,7 +1073,7 @@ void DxuiTooltip::MeasureBoxPx (
             return m_activePopup->MeasureTextWrapped (part.c_str(), fontPx, GetFace(), s_kNoWrapPx, w, h);
         }, table);
 
-        textWPx = table.width;
+        textWPx = table.width + GetLineIndentPx (table.lineHeight);
         textHPx = table.lineHeight * (float) table.lines.size();
     }
     else
@@ -966,6 +1099,106 @@ void DxuiTooltip::MeasureBoxPx (
 
     widthPx  = std::ceil (textWPx) + GetPadXPx() * 2.0f;
     heightPx = std::ceil (textHPx) + GetPadYPx() * 2.0f;
+
+    if (!m_shownGradient.empty())
+    {
+        widthPx   = std::max (widthPx, std::ceil (m_scaler.ToPxf (kGradientWidthDip)) + GetPadXPx() * 2.0f);
+        heightPx += GetGradientExtraPx();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGradientExtraPx
+//
+//  The height a scale adds under the text: a gap, the scale, and the arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetGradientExtraPx() const
+{
+    return std::ceil (m_scaler.ToPxf (kGradientGapDip + kGradientHeightDip + kGradientArrowDip));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetGradientColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiTooltip::GetGradientColor (const std::vector<uint32_t> & stops, float at)
+{
+    float   scaled = 0.0f;
+    size_t  low    = 0;
+
+
+
+    if (stops.empty())
+    {
+        return 0;
+    }
+
+    if (stops.size() == 1)
+    {
+        return stops[0];
+    }
+
+    scaled = std::clamp (at, 0.0f, 1.0f) * (float) (stops.size() - 1);
+    low    = std::min ((size_t) scaled, stops.size() - 2);
+
+    return DxuiColor::Mix (stops[low], stops[low + 1], scaled - (float) low);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawGradient
+//
+//  The scale in thin slices across the width, and under it an arrow whose
+//  point touches the scale at the mark, in the tip's text color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::DrawGradient (IDxuiPainter & painter, float left, float width, float bottom) const
+{
+    float  arrowPx = m_scaler.ToPxf (kGradientArrowDip);
+    float  barPx   = m_scaler.ToPxf (kGradientHeightDip);
+    float  top     = bottom - arrowPx - barPx;
+    float  slice   = width / (float) kGradientSlices;
+    float  tipX    = left + width * m_shownGradientMark;
+
+
+
+    for (int i = 0; i < kGradientSlices; i++)
+    {
+        float  at = ((float) i + 0.5f) / (float) kGradientSlices;
+
+        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, barPx, GetGradientColor (m_shownGradient, at));
+    }
+
+    painter.OutlineRect (left, top, width, barPx, 1.0f, m_borderArgb);
+
+    if (m_shownGradientMark < 0.0f || m_shownGradientMark > 1.0f)
+    {
+        return;
+    }
+
+    painter.FillConvexQuad (tipX,           top + barPx,
+                            tipX + arrowPx, bottom,
+                            tipX - arrowPx, bottom,
+                            tipX,           top + barPx,
+                            m_textArgb);
 }
 
 
@@ -1150,7 +1383,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     float        boxLeft   = 0.0f;
     float        boxTop    = 0.0f;
     RECT         anchor    = {};
-    bool         isTable   = IsTable (m_text);
+    bool         isTable   = IsTableTip();
     TableLayout  table;
 
 
@@ -1165,7 +1398,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
         hr = LayOutTableWith (const_cast<IDxuiTextRenderer &> (text), table);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        textW = table.width;
+        textW = table.width + GetSwatchIndentPx (table.lineHeight);
         textH = table.lineHeight * (float) table.lines.size();
     }
     else
@@ -1212,7 +1445,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     if (isTable)
     {
-        DrawTable (text, table, boxLeft + padX, boxTop + padY);
+        DrawTable (painter, text, table, boxLeft + padX, boxTop + padY);
         return;
     }
 
@@ -1302,7 +1535,13 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, m_borderArgb);
 
-    if (IsTable (m_text))
+    if (!m_shownGradient.empty())
+    {
+        DrawGradient (painter, padX, width - padX * 2.0f, height - padY);
+        height -= GetGradientExtraPx();
+    }
+
+    if (IsTableTip())
     {
         TableLayout  table;
 
@@ -1310,7 +1549,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
         if (SUCCEEDED (hr))
         {
-            DrawTable (text, table, padX, padY);
+            DrawTable (painter, text, table, padX, padY);
         }
 
         return;
@@ -1450,15 +1689,26 @@ HRESULT DxuiTooltip::LayOutTableWith (IDxuiTextRenderer & text, TableLayout & ta
 //
 //  DrawTable
 //
+//  A line's swatch is a square a little shorter than the line, centered on
+//  it, in the indent before the text.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::DrawTable (IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const
+void DxuiTooltip::DrawTable (
+    IDxuiPainter             & painter,
+    IDxuiTextRenderer        & text,
+    const TableLayout        & table,
+    float                      left,
+    float                      top) const
 {
-    HRESULT  hr     = S_OK;
-    float    fontPx = m_scaler.ToPxf (m_fontDip);
-    float    y      = top;
-    float    x      = 0.0f;
-    float    w      = 0.0f;
+    constexpr float  kSwatchShare = 0.6f;
+    HRESULT          hr           = S_OK;
+    float            fontPx       = m_scaler.ToPxf (m_fontDip);
+    float            indent       = GetSwatchIndentPx (table.lineHeight);
+    float            side         = std::round (table.lineHeight * kSwatchShare);
+    float            y            = top;
+    float            x            = 0.0f;
+    float            w            = 0.0f;
 
 
 
@@ -1466,6 +1716,20 @@ void DxuiTooltip::DrawTable (IDxuiTextRenderer & text, const TableLayout & table
     {
         const std::vector<std::wstring>  & parts = table.lines[line];
         uint32_t                           argb  = (line < m_lineArgbs.size() && m_lineArgbs[line] != 0) ? m_lineArgbs[line] : m_textArgb;
+        bool                               scale = line < m_lineScales.size() && !m_lineScales[line].empty();
+
+        indent = scale ? GetLineIndentPx (table.lineHeight) : GetSwatchIndentPx (table.lineHeight);
+
+        if (line < m_lineSwatches.size() && m_lineSwatches[line] != 0)
+        {
+            painter.FillRect    (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, m_lineSwatches[line]);
+            painter.OutlineRect (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, 1.0f, m_borderArgb);
+        }
+
+        if (scale)
+        {
+            DrawLineScale (painter, m_lineScales[line], left, y + std::round ((table.lineHeight - side) / 2.0f), side);
+        }
 
         for (size_t c = 0; c < parts.size(); c++)
         {
@@ -1473,10 +1737,82 @@ void DxuiTooltip::DrawTable (IDxuiTextRenderer & text, const TableLayout & table
 
             x  = isSpan ? 0.0f        : table.columnX[c];
             w  = isSpan ? table.width : table.width - table.columnX[c];
-            hr = text.DrawString (parts[c].c_str(), left + x, y, w, table.lineHeight, argb, fontPx, GetFace());
+            hr = text.DrawString (parts[c].c_str(), left + indent + x, y, w, table.lineHeight, argb, fontPx, GetFace());
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         y += table.lineHeight;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawLineScale
+//
+//  A line's scale in thin slices from its first color on the left to its
+//  last on the right, heightPx high, outlined in the tip's border color.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::DrawLineScale (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const
+{
+    float  width = std::round (m_scaler.ToPxf (kLineScaleWidthDip));
+    float  slice = width / (float) kGradientSlices;
+
+
+
+    for (int i = 0; i < kGradientSlices; i++)
+    {
+        painter.FillRect (left + slice * (float) i, top, slice + 0.5f, heightPx, GetGradientColor (stops, ((float) i + 0.5f) / (float) kGradientSlices));
+    }
+
+    painter.OutlineRect (left, top, width, heightPx, 1.0f, m_borderArgb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLineIndentPx
+//
+//  The room before a line with a scale: the scale's width and a gap of half
+//  a line. With no scales, a swatch's indent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetLineIndentPx (float lineHeight) const
+{
+    bool  hasScales = std::ranges::any_of (m_lineScales, [] (const std::vector<uint32_t> & stops) { return !stops.empty(); });
+
+
+
+    return hasScales ? std::round (m_scaler.ToPxf (kLineScaleWidthDip) + lineHeight * 0.5f) : GetSwatchIndentPx (lineHeight);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSwatchIndentPx
+//
+//  The room before a line for its swatch and the gap after it, a line's
+//  height; none when the tip has no swatches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetSwatchIndentPx (float lineHeight) const
+{
+    constexpr float  kIndentShare = 1.0f;
+
+
+
+    return m_lineSwatches.empty() ? 0.0f : std::round (lineHeight * kIndentShare);
 }

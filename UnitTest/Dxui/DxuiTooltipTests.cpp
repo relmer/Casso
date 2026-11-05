@@ -107,14 +107,56 @@ public:
     }
 
     //
-    //  A tip left alone dismisses itself. Without this a pointer parked on a
-    //  control -- or captured by the guest, which parks it by force -- left
-    //  the balloon on screen for the rest of the session.
+    //  A hover tip has no lifetime: a consumer that requests it on every frame
+    //  closed it at the deadline and raised it again a dwell later, with the
+    //  pointer at rest.
+    //
+    TEST_METHOD (Visible_HoverTipStaysUpWhileThePointerRests)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (100);
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (100);
+
+        for (int64_t now = 110; now < 100 + DxuiTooltip::kMaxReadMs * 2; now += 1000)
+        {
+            t.RequestShow (MakeRect (0, 0, 50, 20), L"x", now);
+            t.Tick (now);
+            Assert::IsTrue (t.IsVisible(), L"A hover tip must stay up while the pointer rests on its area.");
+        }
+    }
+
+    //
+    //  A hover tip is hidden once the pointer is over another app's window,
+    //  since no pointer message dismisses it then. It is shown while the
+    //  pointer is over this app's, whichever app is in front.
+    //
+    TEST_METHOD (Visible_HoverTipHidesWhenThePointerIsOverAnotherApp)
+    {
+        static bool  s_isOverApp = true;
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (100);
+        t.SetActiveTest ([] () { return s_isOverApp; });
+
+        s_isOverApp = true;
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (100);
+        Assert::IsTrue (t.IsVisible());
+
+        s_isOverApp = false;
+        t.Tick (200);
+        Assert::IsFalse (t.IsVisible(), L"A hover tip must hide when the pointer is over another app's window.");
+    }
+
+    //
+    //  A tip with a lifetime dismisses itself.
     //
     TEST_METHOD (Visible_DismissesAfterMaxLifetime)
     {
         DxuiTooltip  t;
         t.SetDwellOpenMs (100);
+        t.SetHasLifetime (true);
 
         t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
         t.Tick (100);
@@ -138,6 +180,7 @@ public:
     {
         DxuiTooltip  t;
         t.SetDwellOpenMs (100);
+        t.SetHasLifetime (true);
 
         t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
         t.Tick (100);
@@ -254,6 +297,38 @@ public:
     //  moves it: hiding it and raising another at every step made it flicker
     //  from place to place. New text is put in place and starts its own
     //  lifetime; the same text moved along keeps the deadline it had.
+    //  A tip fades in over several ticks, so WantsTick is true until the
+    //  fade ends. Without that, a hover tip with no lifetime stopped at the
+    //  first frame of its fade and was invisible until the pointer moved off.
+    TEST_METHOD (AFadingInTipWantsTicksUntilTheFadeEnds)
+    {
+        DxuiHwndSource  host;
+        DxuiTooltip     t;
+
+
+
+        t.SetPopupHost       (&host);
+        t.SetPointerMeasurer (GetTallPointer);
+        t.SetPointerLocator  (FindNoPointer);
+        t.SetDwellOpenMs     (100);
+
+        t.RequestShow (MakeRect (100, 200, 140, 220), L"Run", 0);
+        t.Tick (100);
+
+        Assert::IsTrue    (t.IsVisible(), L"up after its dwell");
+        Assert::IsNotNull (t.GetActivePopup());
+        Assert::IsFalse   (t.WantsTick(), L"a hover tip with no fade has no close time to wait for");
+
+        t.GetActivePopup()->SetRevealingForTest (true);
+        Assert::IsTrue (t.WantsTick(), L"fading in, so more ticks are wanted");
+
+        t.Tick (200);
+        Assert::IsFalse (t.WantsTick(), L"the fade is over");
+
+        t.HideImmediate();
+    }
+
+
     TEST_METHOD (RequestShowNow_MovesTheBalloonItHasUp)
     {
         DxuiHwndSource     host;
@@ -315,6 +390,42 @@ public:
         }
 
         Assert::AreEqual ((size_t) 6, text.Calls().size(), L"three parts on each of two lines");
+    }
+
+    //  A line with a swatch has a square of its color before it, inside
+    //  the line; every line's text moves right by the same indent, so the
+    //  lines without one stay lined up with the rest.
+    TEST_METHOD (ASwatchIsDrawnBeforeItsLine)
+    {
+        constexpr uint32_t    kBlue   = 0xFF5B9BD5;
+        DxuiTooltip           t;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        float                 swatchX = -1.0f;
+        float                 headX   = -1.0f;
+        float                 lineX   = -1.0f;
+
+
+
+        t.SetPointerLocator (FindNoPointer);
+        t.SetLineSwatches   ({ 0, kBlue });
+        t.RequestShowNow    (MakeRect (0, 0, 10, 10), L"Frame 9\nPLOT", 0);
+        t.Paint             (painter, text);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            swatchX = (call.kind == RecordedPaintKind::FillRect && call.argb == kBlue) ? call.x : swatchX;
+        }
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            headX = (call.text == L"Frame 9") ? call.x : headX;
+            lineX = (call.text == L"PLOT")    ? call.x : lineX;
+        }
+
+        Assert::IsTrue   (swatchX >= 0.0f, L"the blue line's swatch is drawn");
+        Assert::IsTrue   (lineX > swatchX, L"after its swatch");
+        Assert::AreEqual (headX, lineX, L"the line without one indented the same");
     }
 
     TEST_METHOD (LayOutTable_LinesUpTheColumnsOfEveryLine)

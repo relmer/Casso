@@ -76,6 +76,12 @@ public:
         NextBookmark,
         PreviousBookmark,
 
+        //  The emulator window's Reset and Power cycle. Alt with Reset is the
+        //  Open Apple key down through the reset, a reboot. Each runs a paused
+        //  machine.
+        Reset,
+        PowerCycle,
+
         //  Each opens its pane, or brings it forward, and focuses it.
         ShowDisassembly,
         ShowBreakpoints,
@@ -95,8 +101,12 @@ public:
         ShowInputLog,
         ShowBasicProgram,
 
+        //  Run while the machine is stopped, Pause while it runs or replays
+        //  history: the one button on the command bar, and Pause/Break.
+        RunOrPause,
+
         First = Run,
-        Last  = ShowBasicProgram,
+        Last  = RunOrPause,
     };
 
     static constexpr DebuggerKeyScheme  kDefault = DebuggerKeyScheme::VisualStudio;

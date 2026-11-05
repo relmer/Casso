@@ -165,6 +165,46 @@ public:
 
 
 
+    //  A row filled cell by cell runs to the list's edge, past its last column.
+    TEST_METHOD (AFilledRowReachesTheListsEdge)
+    {
+        constexpr uint32_t    kFill = 0xFF102030;
+        constexpr float       kList = 800.0f;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        DxuiListView          list;
+        DxuiDpiScaler         scaler;
+        DxuiListView::Cell    first { L"$0803" };
+        DxuiListView::Cell    last  { L"JSR $0900" };
+        float                 right = 0.0f;
+
+
+
+        scaler.SetDpi (96);
+
+        first.background = kFill;
+        last.background  = kFill;
+
+        list.SetColumns    ({ DxuiListView::Column { L"Site", 100 }, DxuiListView::Column { L"Routine", 100 } });
+        list.SetShowHeader (true);
+        list.SetRows       ({ { first, last } });
+        list.Layout        (RECT { 0, 0, (LONG) kList, 400 }, scaler);
+        list.Paint         (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.kind == RecordedPaintKind::FillRect && call.argb == kFill)
+            {
+                right = std::max (right, call.x + call.width);
+            }
+        }
+
+        Assert::AreEqual (kList, right, L"the fill runs to the edge");
+    }
+
+
+
     //  Copying the row gives the note alone, without a tab for each cell it
     //  covers.
     TEST_METHOD (CopyingASpanningRowTakesItsTextAlone)

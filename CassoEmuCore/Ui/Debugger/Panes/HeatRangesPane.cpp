@@ -50,9 +50,13 @@ HeatRangesPane::~HeatRangesPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring HeatRangesPane::GetId() const
+const std::wstring & HeatRangesPane::GetId() const
 {
-    return DebuggerLayout::kHeatRanges;
+    static const std::wstring  s_kId = DebuggerLayout::kHeatRanges;
+
+
+
+    return s_kId;
 }
 
 

@@ -59,13 +59,20 @@ public:
     //  Whether the machine is stopped, so the stretch since the newest
     //  keyframe has an end; unset in a test.
     void  SetIsStopped (IsStoppedFn isStopped) { m_isStopped = std::move (isStopped); }
+
+    //  The calls open at a keyframe's position, from the call record copies,
+    //  outermost first; false where there is no copy. A block replayed from
+    //  that keyframe starts inside them.
+    using CallsAtFn = std::function<bool (uint64_t position, std::vector<CallStackFrame> & outFrames)>;
+
+    void  SetCallsAt   (CallsAtFn callsAt) { m_callsAt = std::move (callsAt); }
     void  SetWorkQueue (IWorkQueue * queue);
     void  WaitForWork  ();
 
     //  The profile from fromCycle, or from history's start when it is
-    //  earlier, to the machine's position. An error when there is no
-    //  history to replay.
-    HRESULT  Build (uint64_t fromCycle, std::string & error);
+    //  earlier, to toCycle or, with none, the machine's position. An error
+    //  when there is no history to replay.
+    HRESULT  Build (uint64_t fromCycle, std::string & error, std::optional<uint64_t> toCycle = {});
 
     //  The finished profile, once the last block is in.
     bool  Pump (ProfileCountsPtr & outCounts);
@@ -77,7 +84,9 @@ public:
     //  wherever no gap divides them; for a test.
     void  GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds> & outBounds) const;
 
-    //  Those stretches cut into blocks, oldest first.
+    //  Those stretches cut into blocks, oldest first, the ones that start
+    //  at or past toCycle left out. A block that runs past toCycle is not
+    //  cached, since its counts stop there.
     struct Block
     {
         DebugEventBounds  bounds;
@@ -86,7 +95,7 @@ public:
         bool              isCacheable   = false;   // ends at a keyframe and lies wholly in the period
     };
 
-    void  GetBlocks (uint64_t fromCycle, std::vector<Block> & outBlocks) const;
+    void  GetBlocks (uint64_t fromCycle, std::vector<Block> & outBlocks, std::optional<uint64_t> toCycle = {}) const;
 
     //  How many blocks the last build used from the cache; for a test.
     size_t  GetReusedCount () const { return m_reused; }
@@ -109,6 +118,7 @@ private:
     void      CancelAll    ();
     HRESULT   SubmitBlocks (const std::vector<size_t> & pending, uint64_t fromCycle, uint64_t toCycle);
     static BlockKey  GetKey (const Block & block);
+    std::map<uint64_t, std::vector<CallStackFrame>>  GetStartCalls (const DebugEventJob & job) const;
 
     MachineHost                           & m_machine;
     DebugEventHistory                     & m_history;
@@ -123,6 +133,9 @@ private:
     bool                                    m_isBuilding     = false;
     uint64_t                                m_totalSpan      = 0;
     uint64_t                                m_doneSpan       = 0;
+    CycleRange                              m_range;                     // the cycles of the build under way
+    bool                                    m_isFromStart    = false;     // the build's period begins at the oldest keyframe
     uint64_t                                m_blockPositions = kBlockPositions;
     IsStoppedFn                             m_isStopped;
+    CallsAtFn                               m_callsAt;
 };

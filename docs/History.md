@@ -83,6 +83,6 @@ MB by default). The History page of the debugger's options edits the same
 settings. Turning history off deletes all of the machine's history, in memory
 and saved, after a confirmation.
 
-While the Uthernet II has a socket or a connection open, history is off: its
-connections are on the host, and no replay can open them again. Recording
-starts again once all are closed.
+History covers the Uthernet II in use, as the debugger's history does; see
+[Debugger.md](Debugger.md) for what happens to its connections on a resume
+from the past.

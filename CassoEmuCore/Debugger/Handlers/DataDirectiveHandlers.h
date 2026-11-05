@@ -36,6 +36,9 @@ public:
     // direction the opcode accesses it in.
     static void  ChooseOperandSymbol (DebugSession & session, DisassemblyLine & line);
 
+    // The directive's kind, items per line and bytes per item from its name.
+    static bool  TryGetShape   (const std::string & name, DataBlockKind & kind, int & perLine, int & itemBytes);
+
 private:
     static constexpr int   kDefaultLines   = 20;
     static constexpr int   kMaxLines       = 0x10000;
@@ -57,8 +60,7 @@ private:
     void         List          (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  EnterAssembler (DebugSession & session, const DebugCommand & command, Reply & reply);
 
-    static bool  TryGetShape   (const std::string & name, DataBlockKind & kind, int & perLine, int & itemBytes);
-    static void  MakeDataLine  (IDebugTarget & target, const DataBlockEntry & block, Word address, DisassemblyLine & line);
+    static void  MakeDataLine  (DebugSession & session, const DataBlockEntry & block, Word address, DisassemblyLine & line);
     static std::string  FormatItems (const DataBlockEntry & block, std::span<const Byte> bytes);
     static double       DecodeFloat (std::span<const Byte> bytes);
     static Byte         Peek        (IDebugTarget & target, Word address);

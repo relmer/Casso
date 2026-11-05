@@ -53,6 +53,7 @@ public:
     enum class RowKind
     {
         Execution,
+        Function,
         DataRead,
         DataWrite,
         DataReadOrWrite,

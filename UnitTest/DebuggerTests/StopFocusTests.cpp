@@ -133,7 +133,7 @@ namespace StopFocusTests
 
 
 
-            Assert::IsTrue (GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRun, run));
+            Assert::IsTrue (GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, run));
 
             ev.button      = DxuiMouseButton::Left;
             ev.positionDip = POINT { (run.left + run.right) / 2, (run.top + run.bottom) / 2 };

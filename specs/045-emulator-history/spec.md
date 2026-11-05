@@ -51,6 +51,10 @@ This feature adds history to the emulator window, makes it non-destructive (a ch
 - Q: When a disk image file changes outside Casso while the machine is behind live, when does the "Disk modified outside Casso" prompt appear? -> A: Once the machine is live: at the live end, or after a change behind live forks and makes that point live. Behind live, the emulated past is drawn with each disk as it was then, so news about the files now is deferred. The deferred reports are displayed first, then each question in turn; a later prompt for the same drive replaces an earlier one.
 - Q: Where is a branch's preview drawn, and in what order are a fork mark's rows? -> A: As a git branch list orders them: the active branch's row first (its picture is where history ends, and a click on it doesn't switch), then the other branches, the most recently left first. A row's preview is placed on the side of the rewind bar's flyout with more room, above the bar, so neither covers it; with too little room beside the flyout, it fills the screen above the bar. A row of the debugger timeline's flyout is previewed over the whole screen.
 
+### Session 2026-11-05
+
+- Q: Is history on while the Uthernet II has a socket or a connection open? -> A: Yes, as in 035, which replaced its network fence with journaled network input. What the network sends the card is stored in history and replayed; a replay sends nothing to the network. A change behind live forks there, and the host connections are brought back in step: each one that matches a socket open at that point stays open, and what the host sent after the point goes to the guest again.
+
 ## User Scenarios & Testing *(mandatory)*
 
 All stories ship together in one merge. Priorities order the work; they do not mark a releasable subset.
@@ -162,7 +166,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - A disk image file changed outside Casso while history has versions of it: the existing "Disk modified outside Casso" prompt runs at once while the machine is live, and is deferred until the machine is live while it is behind live (FR-021a), so inserting the changed disk always happens live and forks nothing.
 - History saved in an earlier session whose disks no longer match the files at launch: the stretch captured with other disks is drawn past a gap mark and can be viewed and replayed. A change made in that stretch is ignored with a notice instead of forking, so no fork can write a disk version from before the file changed outside Casso.
 - Exit while behind live: the disks are written at the live end of the active branch, and the next launch returns to the position on screen, paused.
-- The Uthernet II in use (a socket or connection open): its connections are host state no replay can open again, so history is dropped and recording is off until the card is idle, then starts again there. This is not the user's setting: no confirmation is displayed, and the setting is not changed.
+- The Uthernet II in use (a socket or connection open): history is on. What the network sends the card is stored in history and replayed, and a replay sends nothing to the network. A change behind live forks there, and the host connections are brought back in step: each one that matches a socket open at that point stays open, and what the host sent after the point goes to the guest again.
 - A machine switch: the outgoing machine's history is saved with its automatic state; the incoming machine's saved history is loaded.
 - History turned off: after the confirmation, recording stops, the rewind bar and key are disabled, the machine's history is discarded, and the next save contains none.
 - History turned off while state files saved earlier with File > Save state contain history: those files are not altered; loading one while history is off restores the machine without its history.

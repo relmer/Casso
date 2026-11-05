@@ -360,6 +360,8 @@ void AppleWinFormatter::FormatData (const ReplyData & data, Lines & lines)
         lines.push_back (std::format ("Debug project for {}, {}", v->label, v->isAutomatic ? "saved automatically" : "saved where it was chosen"));
         lines.push_back ("File: " + v->file);
     }
+    else if (auto * v = std::get_if<TextScreenData>     (&data)) { lines.insert (lines.end(), v->rows.begin(), v->rows.end()); }
+    else if (auto * v = std::get_if<ScreenshotData>     (&data)) { lines.push_back (std::format ("Saved a {}x{} screenshot to {}", v->width, v->height, v->path)); }
     else if (auto * v = std::get_if<CallStackModeData>  (&data)) { lines.push_back (std::format ("Call stack: {}", CallStack::GetMechanismName (v->mechanism))); }
     else if (auto * v = std::get_if<MessageData>        (&data)) { lines.insert (lines.end(), v->lines.begin(), v->lines.end()); }
     else if (auto * v = std::get_if<CyclesData>         (&data)) { lines.push_back (std::format ("Cycles: {}", v->count)); }
@@ -602,7 +604,7 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
         }
         else if (entry.valueText.has_value())
         {
-            text += " = $" + *entry.valueText;
+            text += (entry.valueText->starts_with ('"') ? " = " : " = $") + *entry.valueText;
         }
         else if (!entry.expression.empty() && !entry.value.has_value())
         {

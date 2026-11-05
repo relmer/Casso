@@ -39,6 +39,7 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
         { Pane::Registers,   Meaning::Changed,            Swatch::Text    },
         { Pane::Watch,       Meaning::Changed,            Swatch::Text    },
         { Pane::Watch,       Meaning::PreviousAutoWatch,  Swatch::Italic  },
+        { Pane::Watch,       Meaning::PreviousStatement,  Swatch::Italic  },
         { Pane::Watch,       Meaning::DisabledWatch,      Swatch::Text    },
         { Pane::Stack,       Meaning::Changed,            Swatch::Text    },
         { Pane::CallStack,   Meaning::UnverifiedFrame,    Swatch::Text    },
@@ -171,6 +172,7 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     case Meaning::Annotation:         return L"What this instruction reads";
     case Meaning::Result:             return L"Result: what this instruction leaves behind";
     case Meaning::PreviousAutoWatch:  return L"Touched by the previous instruction";
+    case Meaning::PreviousStatement:  return L"Used by the BASIC statement just run";
     case Meaning::DisabledWatch:      return L"Disabled watch";
     case Meaning::UnverifiedFrame:    return L"Unverified frame: it may no longer be a live call";
     case Meaning::LastReturn:         return L"Last return: the call has returned and left the stack";
@@ -239,6 +241,7 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::Annotation:         return palette.text.annotation;
     case Meaning::Result:             return palette.text.result;
     case Meaning::PreviousAutoWatch:  return palette.muted;
+    case Meaning::PreviousStatement:  return palette.muted;
     case Meaning::DisabledWatch:      return palette.muted;
     case Meaning::UnverifiedFrame:    return palette.muted;
     case Meaning::LastReturn:         return palette.muted;
@@ -288,9 +291,10 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
 //
 //  ColorLegend::GetBranchTip
 //
-//  The eight branches on a flag say which flag and how it stands; BBR and
-//  BBS, which test a bit of a byte rather than a flag, say which bit; a
-//  branch or jump that always goes says so.
+//  Whether the instruction at the PC will go to its target: the eight
+//  branches on a flag with which flag and its state, BBR and BBS, which
+//  test a bit of a byte rather than a flag, with which bit, and a branch or
+//  jump that always goes with that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,7 +323,7 @@ std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool is
     constexpr size_t  kBitBranchLength = 4;
     std::string       mnemonic;
     std::wstring      wide;
-    const wchar_t   * head = isTaken ? L"Branch taken" : L"Branch not taken";
+    const wchar_t   * head = isTaken ? L"Will branch" : L"Won't branch";
 
 
 
@@ -363,20 +367,40 @@ std::wstring ColorLegend::GetBranchTip (const std::string & instruction, bool is
 
     if (mnemonic == "BRA")
     {
-        return L"Branch taken: BRA always branches";
+        return L"Will branch: BRA always branches";
     }
 
     if (mnemonic == "JMP")
     {
-        return L"Jump: JMP always goes to its target";
+        return L"Will jump: JMP always goes to its target";
     }
 
     if (mnemonic == "JSR")
     {
-        return L"Call: JSR always calls its target";
+        return L"Will call: JSR always calls its target";
     }
 
     return head;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetTakenBranchTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ColorLegend::GetTakenBranchTip (const std::string & instruction, Word from)
+{
+    if (instruction.empty())
+    {
+        return std::format (L"Taken by the last step, from ${:04X}", from);
+    }
+
+    return std::format (L"Taken by the last step: {} at ${:04X}", TextEncoding::NarrowToWide (instruction), from);
 }
 
 

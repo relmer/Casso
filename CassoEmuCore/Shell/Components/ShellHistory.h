@@ -104,8 +104,8 @@ public:
     bool         IsMenuCommandEnabled (WORD id) const;
     static bool  IsMenuItemEnabled    (WORD id, bool isOn, bool isBehindLive, bool isAtOldest);
 
-    // CPU thread, ahead of each frame: the network fence, and the machine run
-    // from the past made live again.
+    // CPU thread, ahead of each frame: the machine run from the past made
+    // live again.
     void  RecordFrame    ();
 
     // Moves through history. PostCommand is the UI thread's way in; the
@@ -200,7 +200,6 @@ public:
     const ReverseHost  *  GetReverseHost () const { return m_reverseHost.get(); }
 
 private:
-    void     FenceForNetwork    ();
     bool     TryPublishPlayhead ();
     void     PublishMarks       ();
     bool     ConfirmTurnOff     ();
@@ -228,7 +227,6 @@ private:
     // until the CPU thread first starts it. CPU thread only.
     std::unique_ptr<ReverseHost>  m_reverseHost;
     bool                          m_isOn              = false;   // the settings, read when the CPU thread starts and changed by the options
-    bool                          m_isNetworkFenced   = false;   // the Uthernet II was in use at the last check, so history is off
     int                           m_budgetMb          = 0;
     std::optional<ReverseOutcome> m_lastOutcome;                 // the last reverse command's, for the history band
     uint64_t                      m_lastPosition      = 0;       // where it landed

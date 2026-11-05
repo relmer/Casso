@@ -91,7 +91,8 @@ namespace BreakpointColumnsTests
 
         //  A breakpoint set by a symbol has that symbol in Name and Symbol,
         //  whichever of the address's symbols the view's label is; its Kind
-        //  is Breakpoint.
+        //  is Function, as Visual Studio's breakpoint set on a function's
+        //  name is.
         TEST_METHOD (ASymbolABreakpointWasSetByIsItsName)
         {
             DebuggerViewSnapshot  snapshot;
@@ -104,7 +105,8 @@ namespace BreakpointColumnsTests
 
             Assert::AreEqual (std::string ("COUT $FDED"), Cell (snapshot, 0, Column::Name));
             Assert::AreEqual (std::string ("COUT"),       Cell (snapshot, 0, Column::Symbol));
-            Assert::AreEqual (std::string ("Breakpoint"), Cell (snapshot, 0, Column::Kind));
+            Assert::AreEqual (std::string ("Function"),   Cell (snapshot, 0, Column::Kind));
+            Assert::AreEqual (std::string ("Execute"),    Cell (snapshot, 0, Column::Trigger));
         }
 
 
@@ -164,12 +166,12 @@ namespace BreakpointColumnsTests
             std::vector<std::string>           kinds    =
             {
                 "Breakpoint", "Breakpoint", "Breakpoint", "Breakpoint", "Memory", "Memory", "Memory",
-                "Memory", "Register", "Opcode", "BRK", "Interrupt",
+                "Memory", "Register", "Opcode", "BRK", "Interrupt", "Function",
             };
             std::vector<std::string>           triggers =
             {
                 "Execute", "Execute", "Execute", "Execute", "Read", "Write", "Read or write",
-                "Value", "Condition", "Execute", "Execute", "IRQ or NMI",
+                "Value", "Condition", "Execute", "Execute", "IRQ or NMI", "Execute",
             };
 
 
@@ -192,16 +194,19 @@ namespace BreakpointColumnsTests
             snapshot.breakpoints.push_back (MakeLine (10, BreakpointKind::Opcode,      0));
             snapshot.breakpoints.push_back (MakeLine (11, BreakpointKind::Brk,         0));
             snapshot.breakpoints.push_back (MakeLine (12, BreakpointKind::Interrupt,   0));
+            snapshot.breakpoints.push_back (MakeLine (13, BreakpointKind::Address,     0xFDED));
 
             //  A symbol at the address makes no execution breakpoint a
             //  function, whether at one address or at a range's start, and a
             //  breakpoint on a source line is an execution breakpoint too.
-            snapshot.breakpoints[1].label       = "BUFFER";
-            snapshot.breakpoints[2].label       = "START";
-            snapshot.breakpoints[3].label       = "COUT";
-            snapshot.breakpoints[4].info.access = WatchAccess::Read;
-            snapshot.breakpoints[5].info.access = WatchAccess::Write;
-            snapshot.breakpoints[6].info.access = WatchAccess::ReadWrite;
+            //  One set by the symbol's name is a function breakpoint.
+            snapshot.breakpoints[1].label        = "BUFFER";
+            snapshot.breakpoints[2].label        = "START";
+            snapshot.breakpoints[3].label        = "COUT";
+            snapshot.breakpoints[4].info.access  = WatchAccess::Read;
+            snapshot.breakpoints[5].info.access  = WatchAccess::Write;
+            snapshot.breakpoints[6].info.access  = WatchAccess::ReadWrite;
+            snapshot.breakpoints[12].info.symbol = "COUT";
 
             for (size_t i = 0; i < kinds.size(); i++)
             {

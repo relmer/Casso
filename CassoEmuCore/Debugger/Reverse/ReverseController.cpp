@@ -352,7 +352,12 @@ Error:
 //  future no longer follows from it, so it becomes a branch left behind, and
 //  the changed state becomes a boundary keyframe, which a replay reaching it
 //  loads, since no replay from an earlier one would reproduce the change.
-//  The machine is live again where it stands.
+//  The machine is live again at its position. From the past, its connections
+//  on the host are from later, so they are brought back in step with it
+//  ahead of the keyframe and before the journal's later entries move into
+//  the branch, since the journal has what the host sent after the point: one
+//  that matches the restored state stays open, and what it sent after the
+//  point goes to the guest again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,6 +380,8 @@ HRESULT ReverseController::OnMachineChanged()
     // do the journal's records from the replay's cursor on.
     if (!m_isLive)
     {
+        m_machine.ResyncHostConnections (m_replayer.GetJournalCursor());
+
         hr = m_keyframes.Fork (position, cpu->GetHistoryCycles(), m_machine.GetInputJournal(), m_replayer.GetJournalCursor());
         CHR (hr);
     }
@@ -901,6 +908,58 @@ uint64_t ReverseController::GetWallTimeAt (uint64_t cycle) const
     }
 
     return HistoryStatus::GetWallTimeAt (m_keyframes.GetInfo (index).wallTime, m_keyframes.GetInfo (index).cycle, cycle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetWallTimeAtPosition
+//
+//  The host's clock when the machine was at position. Between two keyframes
+//  with no gap, the time is spread between theirs by position, since a
+//  position never starts again and the CPU's cycle count does at a power
+//  cycle. Before the oldest keyframe it is counted back at the pace of the
+//  first stretch. After the newest, or before a gap, it is counted on from
+//  the keyframe by the emulated time to cycle, given in history's cycles.
+//  0 with no keyframe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ReverseController::GetWallTimeAtPosition (
+    uint64_t  position,
+    uint64_t  cycle) const
+{
+    size_t                 count   = m_keyframes.GetCount();
+    size_t                 index   = 0;
+    bool                   isFound = m_keyframes.TryFindByPosition (position, index);
+    const KeyframeInfo   * at      = nullptr;
+    const KeyframeInfo   * next    = nullptr;
+    double                 span    = 0;
+    double                 offset  = 0;
+
+
+
+    if (count == 0)
+    {
+        return 0;
+    }
+
+    index = isFound ? index : 0;
+    at    = &m_keyframes.GetInfo (index);
+    next  = (index + 1 < count) ? &m_keyframes.GetInfo (index + 1) : nullptr;
+
+    if (next == nullptr || next->hasGapBefore || next->position <= at->position || at->wallTime == 0)
+    {
+        return HistoryStatus::GetWallTimeAt (at->wallTime, at->cycle, cycle);
+    }
+
+    span   = (double) next->position - (double) at->position;
+    offset = ((double) next->wallTime - (double) at->wallTime) * ((double) position - (double) at->position) / span;
+
+    return (uint64_t) ((int64_t) at->wallTime + std::llround (offset));
 }
 
 

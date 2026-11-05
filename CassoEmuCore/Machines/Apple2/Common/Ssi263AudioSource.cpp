@@ -41,6 +41,7 @@ void Ssi263AudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
             outMono[i] = 0.0f;
         }
 
+        m_speech->CaptureSilence (numSamples);
         return;
     }
 
@@ -52,6 +53,6 @@ void Ssi263AudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         m_dcPrevIn  = raw;
         m_dcPrevOut = filtered;
 
-        outMono[i] = filtered * kMasterGain;
+        outMono[i] = m_isMuted ? 0.0f : filtered * kMasterGain;
     }
 }

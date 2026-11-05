@@ -83,6 +83,7 @@ std::unique_ptr<TcpNatConnection> TcpNatConnection::MakeInbound (
 
 
     connection->m_state         = State::SynSentToGuest;
+    connection->m_isInbound     = true;
     connection->m_lastSendCycle = now;
     connection->SendToGuest (P::kTcpSyn, isn, {}, kMaxMss);
 
@@ -552,6 +553,217 @@ void TcpNatConnection::PumpRetransmit (uint64_t now)
     {
         SendToGuest (P::kTcpFin | P::kTcpAck, m_ourUnacked, {}, 0);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TcpNatConnection::Rewind
+//
+//  The guest is back at `point`, and this side and the host have moved on.
+//  This side's sequence numbers go back to what the guest had by the point,
+//  and the data sent since is sent again, from the frames after the point
+//  for what the guest acknowledged since. What the guest sent since is
+//  dropped from the queue for the host; what the host already took can't be
+//  taken back. A handshake that finished after the point starts again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TcpNatConnection::Rewind (
+    const RewindPoint  & point,
+    uint64_t             now)
+{
+    std::deque<Byte>  data;
+    uint32_t          dataEnd   = point.sentEnd - (point.isFinSentBefore ? 1 : 0);
+    uint32_t          guestEnd  = m_guestNext - (m_guestFin ? 1 : 0);
+    uint32_t          ourEnd    = m_ourUnacked - (m_finAcked ? 1 : 0);
+    uint32_t          start     = 0;
+    size_t            drop      = 0;
+    size_t            remaining = 0;
+
+
+
+    m_retransmits   = 0;
+    m_lastSendCycle = now;
+
+    if (point.isGuestSynAfter)
+    {
+        return false;
+    }
+
+    if (!point.hasSentBefore)
+    {
+        if (!point.hasSentAfter)
+        {
+            return true;
+        }
+
+        if (!TakeSentData (point, m_ourIsn + 1, ourEnd, data))
+        {
+            return false;
+        }
+
+        if (m_isInbound)
+        {
+            RewindToSynSent (data);
+            SendToGuest (P::kTcpSyn, m_ourIsn, {}, kMaxMss);
+            return true;
+        }
+
+        if (!point.hasGuestSyn)
+        {
+            return false;
+        }
+
+        m_state      = State::Established;
+        m_guestNext  = point.guestSyn + 1;
+        m_guestFin   = false;
+        m_ourUnacked = m_ourIsn + 1;
+        m_ourNext    = m_ourIsn + 1;
+        m_finSent    = false;
+        m_finAcked   = false;
+        m_toHost.clear();
+        m_toGuest.insert (m_toGuest.begin(), data.begin(), data.end());
+
+        SendToGuest (P::kTcpSyn | P::kTcpAck, m_ourIsn, {}, kMaxMss);
+        return true;
+    }
+
+    if (m_state != State::Established)
+    {
+        return true;
+    }
+
+    if (m_isInbound && point.isSynAckAfter)
+    {
+        if (!TakeSentData (point, m_ourIsn + 1, ourEnd, data))
+        {
+            return false;
+        }
+
+        RewindToSynSent (data);
+        return true;
+    }
+
+    if (IsAfter (ourEnd, dataEnd))
+    {
+        if (!TakeSentData (point, dataEnd, ourEnd, data))
+        {
+            SendResetAndClose();
+            return false;
+        }
+
+        m_toGuest.insert (m_toGuest.begin(), data.begin(), data.end());
+    }
+    else
+    {
+        drop = std::min ((size_t) (dataEnd - ourEnd), m_toGuest.size());
+        m_toGuest.erase (m_toGuest.begin(), m_toGuest.begin() + drop);
+    }
+
+    m_ourUnacked = point.sentEnd;
+    m_ourNext    = point.sentEnd;
+    m_finSent    = point.isFinSentBefore;
+    m_finAcked   = point.isFinSentBefore;
+
+    if (point.hasAckBefore)
+    {
+        start     = guestEnd - (uint32_t) m_toHost.size();
+        remaining = IsAfter (point.ackBefore, start) ? std::min ((size_t) (point.ackBefore - start), m_toHost.size()) : 0;
+
+        m_toHost.resize (remaining);
+
+        m_guestFin  = m_guestFin && IsAfter (point.ackBefore, guestEnd);
+        m_guestNext = point.ackBefore;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TcpNatConnection::RewindToSynSent
+//
+//  An inbound connection whose handshake finished after the point: the SYN
+//  is outstanding again, and the host's data from the first byte on, `data`
+//  ahead of the queue, waits for the guest's SYN-ACK.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TcpNatConnection::RewindToSynSent (const std::deque<Byte> & data)
+{
+    m_state      = State::SynSentToGuest;
+    m_guestNext  = 0;
+    m_guestFin   = false;
+    m_ourUnacked = m_ourIsn;
+    m_ourNext    = m_ourIsn;
+    m_finSent    = false;
+    m_finAcked   = false;
+    m_toHost.clear();
+    m_toGuest.insert (m_toGuest.begin(), data.begin(), data.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TcpNatConnection::TakeSentData
+//
+//  The data from sequence number `from` up to `to`, from the frames sent
+//  after the point. False when part of it isn't in them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TcpNatConnection::TakeSentData (
+    const RewindPoint  & point,
+    uint32_t             from,
+    uint32_t             to,
+    std::deque<Byte>   & out) const
+{
+    uint32_t  cursor = from;
+    uint32_t  offset = 0;
+    size_t    count  = 0;
+    bool      found  = false;
+
+
+
+    out.clear();
+
+    while (IsAfter (to, cursor))
+    {
+        found = false;
+
+        for (const auto & [sequence, bytes] : point.dataAfter)
+        {
+            offset = cursor - sequence;
+
+            if (!IsAfter (sequence, cursor) && offset < bytes.size())
+            {
+                count = std::min ((size_t) (to - cursor), bytes.size() - offset);
+                out.insert (out.end(), bytes.begin() + offset, bytes.begin() + offset + count);
+
+                cursor += (uint32_t) count;
+                found   = true;
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 

@@ -513,8 +513,8 @@ std::wstring DebuggerWindow::ReadSavedLayout()
     }
 
 
-    m_barHost.SetDock      (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
-    m_timelineHost.SetDock (DxuiToolbarDock::FromText (SourcePathList::Utf8ToWide (m_host->GetDebuggerTimelineDock())));
+    m_barHost.SetDock      (DebuggerLayout::GetCommandBarDock (SourcePathList::Utf8ToWide (m_host->GetDebuggerCommandBarDock())));
+    m_timelineHost.SetDock (DebuggerLayout::GetTimelineDock   (SourcePathList::Utf8ToWide (m_host->GetDebuggerTimelineDock())));
 
     if (layoutText != savedText)
     {
@@ -606,7 +606,7 @@ void DebuggerWindow::ConfigureDockSite()
     //  button comes up, with the button already up, which is no loss.
     dragFilter.onMouseLost = [this] (UINT)
     {
-        m_dockSite->OnDragMouseLost ((GetKeyState (VK_LBUTTON) & 0x8000) != 0);
+        m_dockSite->OnDragMouseLost (DxuiInputState::IsKeyDown (VK_LBUTTON));
     };
 
     AddInputFilter (m_dockSite, std::move (dragFilter));
@@ -929,7 +929,7 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 //
 //  The pane the View menu chose comes forward once it shows: its tab is
 //  selected, an auto-hidden one slides out, and a floating one's window is
-//  raised.
+//  raised. It takes the focus, as a click on it would.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -948,6 +948,21 @@ void DebuggerWindow::ShowPendingPane()
     m_dockSite->ActivatePane (pane);
 
     m_floating->Show (pane);
+
+    //  The focus moves to the pane, in whichever window it is in.
+    if (m_dockSite->GetPaneLayout().IsFloating (pane))
+    {
+        FloatingPanes::RouteScope  scope (*m_floating, pane);
+
+        if (GetMainControl (pane) != nullptr)
+        {
+            SetFocusedControl (GetMainControl (pane));
+        }
+    }
+    else
+    {
+        FocusPane (pane);
+    }
 }
 
 
@@ -966,7 +981,9 @@ void DebuggerWindow::ShowPendingPane()
 
 void DebuggerWindow::ClosePane (const std::wstring & pane)
 {
-    int  slot = GetSourceSlotOf (pane);
+    int           slot      = GetSourceSlotOf (pane);
+    bool          isFocused = GetPaneOfFocus() == pane;
+    std::wstring  neighbor  = m_dockSite->GetTabNeighbor (pane);
 
 
 
@@ -977,6 +994,14 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
         m_dockSite->Relayout();
         SetWindowMenus();
         SaveLayout();
+
+        //  The keys go to the tab that takes the closed one's place in its
+        //  group, not to a pane in another group.
+        if (isFocused && !neighbor.empty())
+        {
+            FocusPane (neighbor);
+        }
+
         Invalidate();
         return;
     }
@@ -984,17 +1009,15 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
     if (slot >= 0)
     {
         m_sources->Close (slot);
-        return;
     }
-
-    if (m_host == nullptr)
+    else if (m_host == nullptr || FindPane (pane) == nullptr || !FindPane (pane)->RequestClose())
     {
         return;
     }
 
-    if (FindPane (pane) != nullptr && FindPane (pane)->RequestClose())
+    if (isFocused && !neighbor.empty() && IsPaneShown (neighbor))
     {
-        return;
+        FocusPane (neighbor);
     }
 }
 
@@ -1178,7 +1201,7 @@ std::vector<DxuiPaneLayout::Monitor> DebuggerWindow::GetMonitors()
 
 
 
-    EnumDisplayMonitors (nullptr, nullptr,
+    DxuiDisplay::Get().EnumDisplayMonitors (nullptr, nullptr,
         [] (HMONITOR monitor, HDC, LPRECT, LPARAM data) -> BOOL
         {
             MONITORINFOEXW            info = {};
@@ -1186,7 +1209,7 @@ std::vector<DxuiPaneLayout::Monitor> DebuggerWindow::GetMonitors()
 
             info.cbSize = sizeof (info);
 
-            if (GetMonitorInfoW (monitor, &info))
+            if (DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
             {
                 entry.key       = info.szDevice;
                 entry.workDip   = info.rcWork;
@@ -1359,18 +1382,33 @@ void DebuggerWindow::OnWindowFocusChanged (bool focused)
 //  the window losing the accent repaints without it in the same message
 //  rather than at its next frame paint, up to kIdlePaintMs later.
 //
+//  The pane with the focus is saved as the focus moves to it, once the focus
+//  saved last time has been placed, so the focus comes back to it however
+//  Casso is closed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ShowFocusAccent()
 {
+    std::wstring  focused;
+
+
+
     if (m_dockSite == nullptr || m_theme == nullptr)
     {
         return;
     }
 
-    m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? GetPaneOfFocus() : std::wstring());
+    focused = GetPaneOfFocus();
+    m_dockSite->SetFocusedPane (m_accentOwner.GetFocusedFloat().empty() ? focused : std::wstring());
 
     m_floating->SetFocusedLooks (m_accentOwner.GetFocusedFloat(), *m_theme);
+
+    if (!m_isOpeningFocusDue && !m_openingFocus.IsPending() && !focused.empty() && focused != m_savedFocusPane)
+    {
+        m_savedFocusPane = focused;
+        SaveFocusedPane();
+    }
 }
 
 
@@ -1587,10 +1625,12 @@ void DebuggerWindow::SavePlacementIfMoved()
     //  and move events of its own creation have nothing to compare against.
     //  A minimized window is parked far off the desktop -- x=-32000 -- and
     //  that is not a placement anyone chose. The log caught one being
-    //  written as the arrangement for the whole monitor set.
-    if (!m_placed || m_host == nullptr || !IsCreated() || IsIconic (GetHwnd()))
+    //  written as the arrangement for the whole monitor set. A maximized
+    //  window fills its monitor, and the rect to open at is the one it is
+    //  restored to.
+    if (!m_placed || m_host == nullptr || !IsCreated() || IsIconic (GetHwnd()) || IsZoomed (GetHwnd()))
     {
-        WindowTrace::Log ("save.skipped", "debugger", "not placed yet, or no host");
+        WindowTrace::Log ("save.skipped", "debugger", "not placed yet, no host, or minimized or maximized");
         return;
     }
 

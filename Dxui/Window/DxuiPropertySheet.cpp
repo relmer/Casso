@@ -627,11 +627,12 @@ bool DxuiPropertySheet::TryApplyAllDirtyPages()
 //
 //  LayoutTabRects
 //
-//  Sizes each tab to its label: the measured label width plus kTabPadXDip
-//  on both sides, rounded up to whole pixels and held to at least
-//  kTabMinWidthDip. Visible tabs run edge to edge from the strip's left pad
-//  and span the strip's full height; a hidden tab gets an empty rect and
-//  moves nothing.
+//  Sizes each tab to its label: the measured label width plus
+//  DxuiTabStrip::kLabelPadXDip on both sides, rounded up to whole pixels.
+//  The label is drawn that far in from the tab's left edge, so the same pad
+//  on the right makes the space equal on both sides. Visible tabs run edge
+//  to edge from the strip's left pad and span the strip's full height; a
+//  hidden tab gets an empty rect and moves nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -641,11 +642,10 @@ void DxuiPropertySheet::LayoutTabRects (
     std::span<const DxuiSheetTab>    tabs,
     std::span<RECT>                  outRects)
 {
-    int  minW = scaler.ToPx (kTabMinWidthDip);
-    int  padX = scaler.ToPx (kTabPadXDip);
-    int  x    = stripPx.left + scaler.ToPx (s_kContentPadDip);
-    int  w    = 0;
-    int  i    = 0;
+    float  padX = scaler.ToPxf (DxuiTabStrip::kLabelPadXDip);
+    int    x    = stripPx.left + scaler.ToPx (s_kContentPadDip);
+    int    w    = 0;
+    int    i    = 0;
 
 
 
@@ -660,8 +660,7 @@ void DxuiPropertySheet::LayoutTabRects (
             continue;
         }
 
-        w = (int) std::ceil (scaler.ToPxf (tab.labelWidthDip)) + padX * 2;
-        w = std::max (w, minW);
+        w = (int) std::ceil (scaler.ToPxf (tab.labelWidthDip) + padX * 2.0f);
 
         outRects[(size_t) i] = { x, stripPx.top, x + w, stripPx.bottom };
         x += w;
@@ -676,7 +675,9 @@ void DxuiPropertySheet::LayoutTabRects (
 //
 //  MeasureTabLabelDip
 //
-//  Measures a tab label in the font DxuiTabStrip draws it in.
+//  Measures a tab label in the font DxuiTabStrip draws it in, at the
+//  semibold weight of a selected tab, so a tab fits its label whether or
+//  not it is selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -692,7 +693,7 @@ HRESULT DxuiPropertySheet::MeasureTabLabelDip (
 
     outWidthDip = 0.0f;
 
-    hr = text.MeasureString (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTheme::kBodyFace, outWidthDip, heightDip);
+    hr = text.MeasureStringWeighted (label.c_str(), DxuiTabStrip::kLabelFontDip, DxuiTheme::kBodyFace, DxuiFontWeight::SemiBold, outWidthDip, heightDip);
     CHRA (hr);
 
 Error:

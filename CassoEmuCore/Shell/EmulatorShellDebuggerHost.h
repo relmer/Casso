@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Debugger/IMachineControl.h"
 #include "Shell/IDebuggerHost.h"
 
 
@@ -19,7 +20,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell::DebuggerHost : public IDebuggerHost
+class EmulatorShell::DebuggerHost : public IDebuggerHost, public IMachineControl
 {
 public:
     explicit DebuggerHost (EmulatorShell & shell) : m_shell (shell) {}
@@ -47,6 +48,15 @@ public:
     HeldHostInputs        & GetHeldHostInputs   () override;
     void                    TruncatePaste       (size_t length) override;
     ITapeControl          & GetTapeControl      () override;
+    IMachineControl       & GetMachineControl   () override;
+
+    void                    Reset               (bool isPowerCycle) override;
+    void                    InsertDisk          (int drive, const std::wstring & path) override;
+    void                    EjectDisk           (int drive) override;
+    void                    PasteText           (const std::wstring & text) override;
+    bool                    GetScreenText       (int & columns, std::vector<std::string> & rows) override;
+    HRESULT                 SaveScreenshot      (const std::wstring & path, int & width, int & height) override;
+    void                    Exit                () override;
 
 private:
     EmulatorShell  & m_shell;

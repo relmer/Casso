@@ -2,6 +2,7 @@
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "../Dxui/MockDxuiPainter.h"
@@ -93,6 +94,7 @@ namespace HistoryBandGoLiveTests
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::MakePendingSeek;
         using DebuggerWindow::GetCodeList;
+        using DebuggerWindow::OnMappedCommand;
 
         //  The band across the top of the first disassembly view: the one
         //  over its rows, rather than the registers pane's.
@@ -246,6 +248,79 @@ namespace HistoryBandGoLiveTests
             Assert::AreEqual (0,                    host.pauses, L"nothing to stop");
             Assert::AreEqual ((size_t) 1,           host.lines.size(), L"the go live alone");
             Assert::AreEqual (std::string ("LIVE"), host.lines[0]);
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RunKeyTogglesTests
+    //
+    //  A key that runs the machine pauses it while it runs, so pressing F5
+    //  twice runs and stops it.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (RunKeyTogglesTests)
+    {
+    public:
+
+        TEST_METHOD (ARunKeyPausesTheRunningMachine)
+        {
+            using Action = DebuggerKeySchemes::Action;
+
+            CassoTheme    theme   = CassoTheme::MakeSkeuomorphic();
+            GoLiveHost    host;
+            GoLiveWindow  window  (theme, host);
+            auto          running = std::make_shared<DebuggerViewSnapshot>();
+            auto          paused  = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            running->isPaused = false;
+            paused->isPaused  = true;
+
+            window.OnCreate();
+
+            for (Action action : { Action::Run, Action::ReverseRun, Action::RunToCursor })
+            {
+                host.pauses = 0;
+                host.lines.clear();
+
+                window.TakeSnapshot (running);
+                (void) window.OnMappedCommand ((int) action);
+
+                Assert::AreEqual (1, host.pauses, L"the running machine is paused");
+                Assert::IsTrue   (host.lines.empty(), L"and nothing else is run");
+            }
+
+            host.pauses = 0;
+            window.TakeSnapshot (paused);
+            (void) window.OnMappedCommand ((int) Action::Run);
+
+            Assert::AreEqual (0,                 host.pauses, L"a stopped machine isn't paused");
+            Assert::AreEqual ((size_t) 1,        host.lines.size(), L"it runs");
+            Assert::AreEqual (std::string ("G"), host.lines[0]);
+        }
+
+
+
+        TEST_METHOD (OnlyTheRunKeysPause)
+        {
+            using Action = DebuggerKeySchemes::Action;
+
+
+
+            Assert::IsTrue  (DebuggerActions::IsRunAction (Action::Run));
+            Assert::IsTrue  (DebuggerActions::IsRunAction (Action::ReverseRun));
+            Assert::IsTrue  (DebuggerActions::IsRunAction (Action::RunToCursor));
+            Assert::IsFalse (DebuggerActions::IsRunAction (Action::StepInto));
+            Assert::IsFalse (DebuggerActions::IsRunAction (Action::StepOver));
+            Assert::IsFalse (DebuggerActions::IsRunAction (Action::RunFrame));
+            Assert::IsFalse (DebuggerActions::IsRunAction (Action::ToggleBreakpoint));
         }
     };
 }

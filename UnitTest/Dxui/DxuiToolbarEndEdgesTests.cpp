@@ -121,6 +121,31 @@ public:
     }
 
 
+    //  A horizontal strip draws its bottom hairline, unless it is a pane's
+    //  bar with the hairline turned off.
+    TEST_METHOD (APaneBarHasNoBottomHairline)
+    {
+        DxuiToolbar           bar;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+
+        scaler.SetDpi       (96);
+        bar.SetTextRenderer (&text);
+        bar.SetEntries      (MakeEntries());
+        bar.Layout          (RECT { 100, 50, 700, 80 }, scaler);
+        bar.Paint           (painter, text, theme);
+        Assert::AreEqual ((size_t) 1, GetEdgeFills (painter, theme.ContentEdge()).size(), L"a strip's bottom hairline");
+
+        painter.Reset();
+        bar.SetBottomEdge (false);
+        bar.Paint         (painter, text, theme);
+        Assert::AreEqual ((size_t) 0, GetEdgeFills (painter, theme.ContentEdge()).size(), L"a pane's bar, with no hairline");
+    }
+
+
     TEST_METHOD (AStripAtItsNaturalLengthOverflowsNothing)
     {
         DxuiToolbar           bar;

@@ -199,6 +199,8 @@ already arrived.
 | `basicVariables` | `variables`: `{name, type, address, value}`, and `arrays`: `{name, type, address, sizes, values}`, where `type` is `real`, `integer` or `string`, each value is the text `PRINT` writes, `sizes` has each subscript's count, first subscript first, and `values` runs the first subscript fastest |
 | `basicStack` | `frames`, newest first: `{kind, address, line}`, `kind` being `gosub` or `for`, and a `for` frame's `variable`, `limit` and `step` as `PRINT` writes them |
 | `project` | `scope` (`debugFile`, `binary`, `machineBoot` or `machine`), `key`, `label`, `file` and `isAutomatic`, false for a project saved in a file of the user's choosing |
+| `textScreen` | `columns`, 40 or 80, and `rows`, the text screen's rows as displayed, trailing spaces trimmed |
+| `screenshot` | `path`, the PNG file the machine's picture was saved to, and its `width` and `height` |
 | `message` | nothing beyond `text` |
 
 More kinds may be added. For a kind you do not recognize, show `text`.

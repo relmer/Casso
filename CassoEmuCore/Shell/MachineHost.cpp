@@ -543,6 +543,7 @@ void MachineHost::AttachInputJournal()
 
 
     m_inputJournal.SetCycleSource    ((m_cpu != nullptr) ? m_cpu->GetCycleCounterPtr() : nullptr);
+    m_inputJournal.SetCycleBase      ((m_cpu != nullptr) ? m_cpu->GetCycleBasePtr() : nullptr);
     m_inputJournal.SetPositionSource (&m_position);
 
     if (m_refs.keyboard != nullptr)
@@ -575,6 +576,14 @@ void MachineHost::AttachInputJournal()
         m_refs.serialChips[i]->SetInputJournal  (journal, (uint16_t) i);
         m_refs.serialChips[i]->SetHostInputGate (&m_hostInputGate);
     }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->SetInputJournal  (journal);
+        m_refs.uthernet->SetHostInputGate (&m_hostInputGate);
+    }
+
+    AttachCommEventSink (m_commSink);
 }
 
 
@@ -629,7 +638,68 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
         isApplied = m_refs.serialChips[record.detail]->ApplyInput (record);
     }
 
+    if (!isApplied && m_refs.uthernet != nullptr)
+    {
+        isApplied = m_refs.uthernet->ApplyInput (record);
+    }
+
     return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::DropHostConnections
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::DropHostConnections()
+{
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->DropHostConnections();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ResyncHostConnections
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ResyncHostConnections (size_t cursor)
+{
+    size_t                          index = 0;
+    std::vector<std::vector<Byte>>  bytes (m_refs.serialChips.size());
+
+
+
+    for (index = cursor; index < m_inputJournal.GetEndIndex(); index++)
+    {
+        const InputRecord  & record = m_inputJournal.GetRecord (index);
+
+        if (record.kind == InputKind::AciaByte && record.detail < bytes.size())
+        {
+            bytes[record.detail].push_back (record.value);
+        }
+    }
+
+    for (index = 0; index < bytes.size(); index++)
+    {
+        m_refs.serialChips[index]->RequeueReceivedBytes (bytes[index]);
+    }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->ResyncHostConnections (&m_inputJournal, cursor);
+    }
 }
 
 
@@ -2035,6 +2105,40 @@ void MachineHost::AttachObservers (const MachineObservers & observers, ObserverS
     if (m_memoryBus != nullptr)
     {
         m_memoryBus->SetIoAccessSink (slot, (observers.ioFilter != nullptr) ? observers.io : nullptr, (observers.ioFilter != nullptr) ? *observers.ioFilter : IoAccessFilter());
+    }
+
+    if (slot == ObserverSlot::History)
+    {
+        AttachCommEventSink (observers.comm);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachCommEventSink
+//
+//  Each serial chip, numbered as the input journal numbers it, and the
+//  network card. AttachInputJournal calls this again, for the devices of a
+//  machine the builder switched to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::AttachCommEventSink (ICommEventSink * sink)
+{
+    m_commSink = sink;
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->SetCommEventSink (sink);
+    }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->SetCommEventSink (sink);
     }
 }
 

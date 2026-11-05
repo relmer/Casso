@@ -27,7 +27,7 @@ public:
 
     //  The text a pane's widget searches and the frame it lies in; none for
     //  a pane that is not text to search.
-    virtual DxuiTextView         * GetFindView      (const std::wstring & pane) const = 0;
+    virtual IDxuiFindTarget      * GetFindView      (const std::wstring & pane) const = 0;
     virtual DebuggerPaneFrame    * GetFindFrame     (const std::wstring & pane) const = 0;
 
     //  The window a pane is in now, and the main window.
@@ -178,10 +178,8 @@ public:
     void                 OnMouseMove    (const DxuiMouseEvent & ev, bool isLeftDown);
     bool                 IsOverPlate    (POINT clientPx) const;
 
-    //  The tip of a widget's control under a point; the cursor over a
-    //  widget, none where no widget is; and the pane whose widget has a
-    //  control, empty for none.
-    const wchar_t      * GetTip         (POINT clientPx, RECT & anchor) const;
+    //  The cursor over a widget, none where no widget is; and the pane whose
+    //  widget has a control, empty for none.
     LPCWSTR              GetCursor      (POINT clientPx) const;
     std::wstring         GetPaneOfControl (const IDxuiControl * control) const;
 
@@ -211,7 +209,9 @@ private:
     static constexpr int     kWidthDip        = 460;
     static constexpr int     kHeightDip       = 34;
     static constexpr int     kScrollDip       = 18;
-    static constexpr int     kCountDip        = 74;
+
+    //  Room for "99999 of 99999" on one line.
+    static constexpr int     kCountDip        = 112;
 
     void                 Create         (const std::wstring & pane, FindWidget & widget);
     void                 ApplySaved     (const std::wstring & pane, FindWidget & widget) const;
@@ -223,7 +223,10 @@ private:
     void                 SearchAsTyped  ();
     void                 RefindAfterOptionChange ();
 
-    static std::wstring  GetStatusText  (DxuiTextView::FindResult result, int index, int count);
+    static std::wstring  GetStatusText  (DxuiFindResult result, int index, int count);
+
+    //  The find box's hint: where the text is looked for in the pane.
+    static std::wstring  GetPlaceholder (const std::wstring & pane);
 
     IDebuggerPaneHost                     & m_host;
     IFindWidgetHost                       & m_window;

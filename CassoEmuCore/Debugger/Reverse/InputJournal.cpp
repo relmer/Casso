@@ -37,7 +37,7 @@ void InputJournal::Record (
     record = &AppendSlot();
 
     record->position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
-    record->cycle      = cycle;
+    record->cycle      = cycle + ((m_cycleBase != nullptr) ? *m_cycleBase : 0);
     record->kind       = kind;
     record->value      = value;
     record->detail     = detail;
@@ -67,11 +67,12 @@ void InputJournal::Record (
 ////////////////////////////////////////////////////////////////////////////////
 
 __declspec (noinline) void InputJournal::RecordObserved (
-    uint64_t   cycle,
-    InputKind  kind,
-    Byte       value,
-    uint16_t   detail,
-    uint64_t   data)
+    uint64_t          cycle,
+    InputKind         kind,
+    Byte              value,
+    uint16_t          detail,
+    uint64_t          data,
+    std::string_view  payload)
 {
     InputRecord  * record = nullptr;
 
@@ -85,14 +86,14 @@ __declspec (noinline) void InputJournal::RecordObserved (
     record = &AppendSlot();
 
     record->position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
-    record->cycle      = cycle;
+    record->cycle      = cycle + ((m_cycleBase != nullptr) ? *m_cycleBase : 0);
     record->kind       = kind;
     record->value      = value;
     record->detail     = detail;
     record->data       = data;
     record->isObserved = !m_isSampling;
 
-    record->payload.clear();
+    record->payload.assign (payload);
 }
 
 

@@ -62,9 +62,13 @@ HeatMapPane::~HeatMapPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring HeatMapPane::GetId() const
+const std::wstring & HeatMapPane::GetId() const
 {
-    return DebuggerLayout::kHeatMap;
+    static const std::wstring  s_kId = DebuggerLayout::kHeatMap;
+
+
+
+    return s_kId;
 }
 
 
@@ -82,6 +86,7 @@ std::wstring HeatMapPane::GetId() const
 void HeatMapPane::CreateControls()
 {
     m_view    = m_host.GetControlParent().CreateChild<HeatMapView>();
+    m_view->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
     m_bar.Create();
     m_viewBar = m_host.GetControlParent().CreateChild<DxuiToolbar>();
 }
@@ -133,6 +138,7 @@ void HeatMapPane::Configure()
     m_viewBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_viewBar->SetCompact      (true);
     m_viewBar->SetBandDp       (HeatMapView::kBarDip);
+    m_viewBar->SetBottomEdge   (false);
     m_viewBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_viewBar->SetEntries      (m_commands->BuildViewRowEntries());
     m_viewBar->SetVisible      (false);
@@ -678,30 +684,6 @@ bool HeatMapPane::RouteBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapPane::GetBarTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * HeatMapPane::GetBarTip (POINT clientPx, RECT & anchor) const
-{
-    const wchar_t  * tip = m_bar.GetTip (clientPx, anchor);
-
-
-
-    if (tip == nullptr || *tip == L'\0')
-    {
-        tip = PaneBarSlot::GetToolbarTip (m_host, GetId(), m_viewBar, clientPx, anchor);
-    }
-
-    return tip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HeatMapPane::IsBarEnabled
 //
 //  There is a bank to choose only on a machine with aux RAM or a language
@@ -847,8 +829,17 @@ void HeatMapPane::RunBarEntry (int id)
 
 bool HeatMapPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
 {
-    return ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && m_host.IsRoutable (m_view) && m_view->IsVisible() &&
-           m_view->IsOverMap (ev.positionDip) && RouteContentMouse (ev);
+    bool  isZoom = ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && m_host.IsRoutable (m_view) && m_view->IsVisible() &&
+                   m_view->IsOverMap (ev.positionDip);
+
+
+
+    if (isZoom)
+    {
+        m_zoomedAtMs = (int64_t) GetTickCount64();
+    }
+
+    return isZoom && RouteContentMouse (ev);
 }
 
 
@@ -914,7 +905,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapPane::TryGetTip
+//  HeatMapPane::TryGetTipAt
 //
 //  Over the zoom, how to zoom, as a control's tip. Over the map, the cell the
 //  mouse picks and what touched it, at once and following the pointer. Until
@@ -924,7 +915,7 @@ bool HeatMapPane::RouteContentMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapPane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     bool  isShown = m_host.IsRoutable (m_view) && m_view->IsVisible();
 
@@ -932,12 +923,17 @@ bool HeatMapPane::TryGetTip (POINT clientPx, PaneTip & tip)
 
     if (isShown && m_view->TryGetZoomTipAt (clientPx, tip.anchor, tip.text))
     {
-        tip.kind = PaneTip::Kind::Control;
+        tip.placement = DxuiTip::Placement::AtPointer;
         return true;
     }
 
     m_tipAt.reset();
     m_isTipPending = false;
+
+    if ((int64_t) GetTickCount64() - m_zoomedAtMs < kZoomQuietMs)
+    {
+        return false;
+    }
 
     if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text))
     {
@@ -946,7 +942,8 @@ bool HeatMapPane::TryGetTip (POINT clientPx, PaneTip & tip)
 
     m_tipAt        = clientPx;
     m_isTipPending = !m_view->IsTipComplete (clientPx);
-    tip.kind       = m_isTipPending ? PaneTip::Kind::Pending : PaneTip::Kind::Pointer;
+    tip.placement  = DxuiTip::Placement::FollowPointer;
+    tip.isPending  = m_isTipPending;
 
     return true;
 }

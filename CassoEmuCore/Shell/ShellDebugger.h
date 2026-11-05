@@ -128,6 +128,14 @@ public:
     // build reads. Any thread.
     std::mutex & GetViewStateLock () noexcept { return m_debugViewStateLock; }
 
+    //  The milliseconds a view build is timed by, which a test replaces with
+    //  a clock it moves on rather than sleeping; and how many views have been
+    //  sent to be built, so a test checks that a pass built nothing without
+    //  waiting out a timeout.
+    using Clock = std::function<uint64_t()>;
+    void      SetClock          (Clock clock)    { m_clock = std::move (clock); }
+    uint64_t  GetBuildsSubmitted () const noexcept { return m_buildsSubmitted; }
+
     // Whether the beam mark is drawn: turned on and the session stopped.
     bool  IsBeamMarkShown  ();
 
@@ -168,6 +176,8 @@ public:
     // Whether the heat map pane is shown, and so recording.
     void    SetDebugHeatMapShown   (bool shown) override;
     void    SetDebugHeatColumnsShown (bool shown) override;
+    void    SetDebugTraceShown       (bool shown) override;
+    void    SetDebugSoundMuted       (int channel, bool isMuted) override;
     void    SetDebugBasicShown     (bool isVisible) override;
     void    SetDebugHeatMapOptions (const std::string & text) override;
     void    ResetDebugHeatMap      () override;
@@ -207,6 +217,8 @@ public:
     void         SetDebuggerEventLogOptions (DebugLogKind kind, const std::string & text) override { m_prefs.SetDebuggerEventLogOptions (kind, text); }
     void    SetDebuggerHeatMapShown  (bool shown) override;
     void    SetDebuggerHeatColumnsShown (bool shown) override;
+    void    SetDebuggerTraceShown       (bool shown) override;
+    void    SetDebuggerSoundMuted   (int channel, bool isMuted) override;
     void    SetDebuggerBasicShown    (bool isVisible) override;
     void    GoToDebuggerMemory       (int window, const std::string & text) override;
     void    ScrollDebuggerCode       (int lines, int view) override;
@@ -243,12 +255,18 @@ public:
     std::map<std::string, std::string>  GetProjectWindowStrings () const;
     void         SetProjectWindowStrings (const std::map<std::string, std::string> & strings);
     void         SetDebuggerWindowState (const std::string & name, const std::string & text) override { m_prefs.SetDebuggerWindowState (name, text); }
+    bool         IsDebuggerSkipNoticeShown  () override { return m_prefs.IsDebuggerSkipNoticeShown(); }
+    void         SetDebuggerSkipNoticeShown (bool isShown) override { m_prefs.SetDebuggerSkipNoticeShown (isShown); }
     int          GetDebuggerTextZoomPercent () override { return m_prefs.GetDebuggerTextZoomPercent(); }
     void         SetDebuggerTextZoomPercent (int percent) override { m_prefs.SetDebuggerTextZoomPercent (percent); }
     std::string  GetDebuggerDisassemblyOptions () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
     void         SetDebuggerDisassemblyOptions (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
     std::string  GetDebuggerHeatMapOptions () override { return m_prefs.GetDebuggerHeatMapOptions(); }
     void         SetDebuggerHeatMapOptions (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
+    std::string  GetDebuggerDiskDrives     () override { return m_prefs.GetDebuggerDiskDrives(); }
+    void         SetDebuggerDiskDrives     (const std::string & text) override { m_prefs.SetDebuggerDiskDrives (text); }
+    std::string  GetDebuggerProfilerPeriod () override { return m_prefs.GetDebuggerProfilerPeriod(); }
+    void         SetDebuggerProfilerPeriod (const std::string & text) override { m_prefs.SetDebuggerProfilerPeriod (text); }
     void         ResetDebuggerHeatMap      () override;
     void         SendDebuggerHeatMapRequest (const std::string & words) override;
     std::string  GetDebuggerHeatMapRanges  () override { return m_prefs.GetDebuggerHeatMapRanges(); }
@@ -416,6 +434,8 @@ private:
     bool                             m_wasCallRebuilding     = false;   // the last build's call stack awaited its rebuilt record
     bool                             m_wasStepping           = false;   // a step or a trace run was under way at the last pass
     ULONGLONG                        m_steppingSince         = 0;       // the first pass during it
+    Clock                            m_clock                 = [] () -> uint64_t { return GetTickCount64(); };
+    uint64_t                         m_buildsSubmitted       = 0;
 
     // While the window is closed and BRKUNINIT keeps the heat map on, how
     // often it is folded, and when it last was.

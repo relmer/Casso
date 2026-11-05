@@ -1,5 +1,7 @@
 #pragma once
 
+struct CallStackFrame;
+
 
 
 
@@ -93,6 +95,11 @@ public:
     //  next instruction starts its routine.
     void  OnInterrupt (Word pc);
 
+    //  The calls open where counting starts, outermost first, with the stack
+    //  pointer there: each is entered under the one before it, and ends when
+    //  the stack rises to its level, so its cycles are not Top level's.
+    void  Seed        (const std::vector<CallStackFrame> & frames, Byte sp);
+
     void  Reset       ();
 
     //  Every frame since the reset is in a bar, of more than one frame once
@@ -106,6 +113,10 @@ public:
     const std::vector<Routine> &  GetRoutines () const { return m_routines; }
     const std::vector<Node> &     GetNodes    () const { return m_nodes; }
     const std::deque<Frame> &     GetFrames   () const { return m_frames; }
+
+    //  The cycles at each address while no call is running, which is Top
+    //  level's self.
+    const std::unordered_map<Word, uint64_t> &  GetTopCycles () const { return m_topCycles; }
 
     //  Each node's total: its own cycles and those of every node under it.
     std::vector<uint64_t>  GetNodeTotals    () const;
@@ -149,6 +160,7 @@ private:
     std::deque<Frame>                       m_frames;
     Byte                                    m_lastSp      = 0xFF;
     int64_t                                 m_depth       = 0;      // the stack's fall since the start, unwrapped, so a deep frame is not taken for a return
+    std::unordered_map<Word, uint64_t>      m_topCycles;
     bool                                    m_isAllFrames = false;
     uint64_t                                m_bucket      = 1;      // frames a bar covers, with m_isAllFrames
 };

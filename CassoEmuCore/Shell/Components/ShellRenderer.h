@@ -97,6 +97,9 @@ public:
     // no frame has been published.
     HRESULT CaptureStateThumbnail (std::vector<Byte> & outPng);
 
+    // The last published frame at full size, as a PNG.
+    HRESULT CaptureFramePng (std::vector<Byte> & outPng, int & width, int & height);
+
     // Presentation pacing + render-skip gate (rationale in the .cpp).
     // ShouldPublishFrame throttles rasterize/publish to ~60 Hz at Maximum
     // speed; the Compute* signatures feed the dirty-tracked render gate that

@@ -210,7 +210,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Is a store's read of its own target a data read in the heat map? -> A: No. The CPU reads a store's target before it writes it, except at an absolute address; that read is removed from the heat map's counts when the store writes the address, so it is neither a read nor a read before written.
 - Q: Does the profiler count cycles by routine? -> A: Yes. While profiling is on, each instruction's cycles go to the routine running it. A JSR, a BRK or an interrupt starts a routine at the address it lands on, and the routine ends when the stack pointer rises back to where it was before the call, so RTS, RTI and stack tricks such as PLA PLA RTS end it; code outside any call is Top level. The profile has a call tree (each routine under its caller, with self cycles, total cycles and calls), the routines (self, total, calls and cycles per call, each counted once per call chain) and a timeline of the last 600 video frames with each frame's cycles by routine. `PROFILE LIST ROUTINES` and `PROFILE LIST TREE` list them, `PROFILE SAVE` writes them, and the debug channel's profile reply has them (FR-243, FR-244).
 - Q: How does the Profiler pane present the routines? -> A: Its view drop-down chooses Opcodes, Addresses, Routines, Call tree or Flame graph. A timeline of frames runs across the top, each frame a bar of its cycles stacked by routine, with a tip listing the frame's routines. The flame graph draws each routine as a bar as wide as its total, under its caller, with a tip giving its self, total and calls; a click zooms into a routine and a click on Top level zooms out. Activating a routine in any view moves the disassembly to it (FR-193, FR-245).
-- Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane over the bytes of the line's tokens, where the interpreter's reads of them count as the line running. A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
+- Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane's Heat column colors each line by how often BASIC began it, a compound line by its hottest statement, with each statement of a compound line also tinted in place (amended 2026-11-04, T1273: the interpreter's reads of the tokens counted LIST and skipped statements too). A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
 - Q: Is the refactor of the debugger window its own spec, built after 035 merges? -> A: No. It is done in 035, on this branch, before 035 merges. `DebuggerWindow.cpp` passed the compiler's section limit and builds only with `/bigobj`; the window is one class across its partial files, every pane's state in `DebuggerWindow` itself, and central dispatchers that handle every pane by its id, so adding the Profiler pane's bar took edits in seven places. Each debug pane becomes its own class behind one pane interface, the window becomes the panes' host, and `/bigobj` is removed. The debugger's behavior, look and saved settings stay as they are (FR-249 to FR-254, SC-060 to SC-062).
 
 ### Session 2026-10-18 (owner review: the refactored build)
@@ -296,6 +296,48 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 ### Session 2026-10-23 (owner decision during the branch code review)
 
 - Q: A power cycle sets the CPU's cycle count back to zero; what becomes of history across it? -> A: The count is reset as before, and history spans the power cycle: the user can rewind to before it, run in reverse across it, and seek by cycle on either side. History's cycles are the CPU's count plus a base that each power cycle grows by the count at that moment, so history's cycles never go back (FR-321).
+
+### Session 2026-10-27 (owner decisions: network history, serial and network logs)
+
+- Q: Is history off while the Uthernet II has a socket open, as T1149 built it? -> A: No. Rewinding through its traffic is what debugging a network program takes. The host sockets' replies are stored in history at the host network boundary, as host serial bytes are, and a replay reads them from history and sends nothing to the real network. This replaces T1149's rule that history stops while the card is in use (FR-322, FR-323).
+- Q: What happens to a socket that is open when the user resumes from a point in the past? -> A: During a replay it is fed from history and stays valid. When the user resumes from the past, the real connection has moved on, so the socket is closed to the guest as reset by the remote end (FR-324). Superseded 2026-10-28: a connection that matches the socket stays open (FR-324 as amended).
+- Q: Is the serial log drawn at bit level, when the guest reads and writes the 6551 a whole byte at a time? -> A: Yes, in the signal graph. Each byte's start, data, parity and stop bits are drawn on TxD and RxD from the byte, the framing in force (for example 8N1) and the baud rate, starting at the cycle the byte started. The emulator times each character by the same framing and baud rate, so the drawn bits match the emulated timing (FR-325, FR-326).
+- Q: What words does the serial graph's tip use for the signal states? -> A: Control lines are on or off; the data lines are mark or space (FR-327).
+- Q: What does the network log draw? -> A: A lane per W5100 socket colored by state, with bars for data in and out, each lane turned on and off, and a tip with each socket's state and byte counts; a data view under it (FR-328, FR-329).
+- Q: Do the serial and network logs, and the recording they depend on, ship in 035 or later? -> A: In 035, both the emulator side (the recording and the 6551 and W5100 events the logs read) and the debugger side (FR-322 to FR-330).
+- Q: What does the memory map call $C800-$CFFF with no card's expansion ROM selected? -> A: Unused (floating bus); $CF00-$CFFF always reads it, since any access there deselects every card. Done in e16465173 (FR-331).
+
+### Session 2026-10-28 (owner decisions: resuming from the past during a call; breakpoint columns; the disassembly tip; the profiler)
+
+- Q: Under FR-324 as written, a rewind and resume during a BBS call drops the call. Does the user then have to dial again? -> A: No. On a resume from the past, the real host connections stay open, and one closes only when the host side has actually dropped; FR-324 is amended to match, for Uthernet sockets here and for the serial attachments in 047 (its FR-019). Loading a state file closes them.
+- Q: Why does a MACRAW socket start its virtual network over, and should the data received between the resume point and the live point be delivered again? -> A: MACRAW can be recovered: the relay's guest-facing TCP state was the only part not rewound, and the frames in history indicate where the guest's stack was at the point, so each relay returns to it and sends again what it sent since. Yes, deliver it again: what each socket, relay and serial port received after the point is in the journal, so it goes to the guest again ahead of anything new. What the guest sent after the point was delivered to the peer and can't be taken back, so the peer can get it twice.
+- Q: Is Kind visible when a column choice saved before the breakpoints pane had a Kind column is loaded? -> A: Yes. Kind is a default column and that choice doesn't mention it, so it is visible, as in the build (T736).
+- Q: Should an execution breakpoint set by a symbol's name be stored with that name, so its Kind reads "Function", like Visual Studio's function breakpoint? -> A: Yes, and it follows the symbol: `BPSAVE`, undo, redo and import write the name back, and a symbol load that moves the name moves the breakpoint. Kind reads "Function" for a breakpoint set by name and "Breakpoint" for any other, a symbol at its address included (FR-117, T736).
+- Q: Is the disassembly's in-place tip for a cut-off operand on the cell's fill or on a dark background? -> A: The cell's fill (the selection's on a selected row), matching Visual Studio's in-place tips (T337).
+- Q: What does a click on a flame graph bar do? -> A: It selects the routine: the bar is marked, its row in the list is selected and the disassembly moves to it. A double-click zooms to it, and the mouse's back and forward buttons and Alt+Left and Alt+Right move through the zooms (T1178, T1179).
+- Q: Which view does the Profiler pane open on? -> A: Routines. The view drop-down lists the views most used first: Routines, Call tree, Flame graph, Addresses, Opcodes (T1180).
+
+### Session 2026-10-31 (owner decision: the speech chip in the Mockingboard panel)
+
+- Q: The Mockingboard panel had rows for the 6522s and AY chips only. Does it include the speech chip? -> A: Yes, now, ahead of the rest of the panel work in T627, which also gains the voice (FR-332).
+- Q: Are the speech chip's writes decoded in the sound log? -> A: Yes, now (FR-333).
+- Q: Does the rest of T627's Mockingboard panel wait for a later spec? -> A: No. The owner: "just do all of 627 here... make it super sexy." A graphical view replaces the list and meters on the panel's pane, and the rows remain for the PANEL text (FR-334 to FR-341).
+
+### Session 2026-11-03 (owner decisions: Show next statement; tooltips)
+
+- Q: With a source file and the disassembly both following the PC, which one comes forward at a stop, and which one does Show next statement bring forward? -> A: At a stop at a source line, the source file; at a stop with no source line after one at a line, the disassembly view following the PC. On Show next statement, the view of the step mode comes forward. The step mode follows the view last used: the PC's line in its file while steps go by source line, the disassembly while they go by instruction or when the PC has no source line. No "Prefer source" option: the source is used whenever the PC has a line and steps go by source line (T1320).
+- Q: Does each control have a tip, displayed by a window-level service, as with Win32's tooltip control and WPF's ToolTipService? -> A: Yes. Every control has a tip (`IDxuiControl::SetTip`, `TryGetTip`) and returns a `DxuiTip` with its text, anchor, placement (by the pointer where it rests, against the anchor, or following the pointer at once), lifetime (until the pointer moves out of it, a reading time, or a set time) and look. One `DxuiTipService` per window displays it, by these rules: the pointer has to rest for the open delay; a repeat of the tip that is up changes nothing; after a press the tip is hidden until the pointer is over another tip or none; no tip opens while a menu is open (T1322).
+
+### Session 2026-11-04 (owner decisions: symbols for a program not in memory)
+
+- Q: What happens to a loaded debug file's source and a symbol file's labels when the program they were made for is no longer in memory, such as after a reboot with another disk? -> A: Both are hidden while the program is gone. The owner: "mostly I want to solve the problem of having symbols/src loaded for code that's not actually running." Each file is checked against memory at each stop: a debug file by its source's mnemonics, a listing by its bytes, a symbol file without lines by the bytes at its labels at the first stop in its range. A mark on instructions modified in memory was offered and declined ("Not sure we need it"), so the assembler's debug file doesn't record its bytes (FR-342, T1340).
+- Q: While the disassembly has source rows, which rows have the PC, the breakpoints, the operands and results, and the branch arrows? -> A: The source rows. The owner: "it should be 'source-forward' and lean into the source being the focus of the action in that window", and "PC and breakpoints should move to source lines when we have source and when the disasm window has 'show source' enabled." A source row represents the first instruction its line produced. A line that produced several instructions has its operands on the instructions' rows, since there isn't one operand for the whole line (FR-343, T1341).
+- Q: Does the MCP adapter ship in 035, and what does it require inside Casso? -> A: It ships in 035. The owner: "We might just integrate that with 035", then "MCP - let's do it." It was item 5 of `follow-on-spec-input.md`, whose note had no change inside Casso; matching GSSquared's demo requires a reset, typed text, disk insert and eject, the text screen and a screenshot, which the channel didn't have. They are added as debugger commands, so the window, scripts and `CassoCli debug` have them too, and the server connects to Casso through the channel only. The server is `CassoCli mcp`, so it is installed beside `Casso.exe` and requires no separate runtime (User Story 26, FR-344 to FR-348, SC-063).
+
+### Session 2026-11-05 (owner review: data, scrolling, tips)
+
+- Q: Which bytes does the disassembly read as data, besides those a data directive marks? -> A: The bytes a loaded debug file maps to a data directive, while the file matches memory, and on request the bytes the heat map has as read or written and never run. The owner: "automatically mark data bytes as data when the src/symbol files have that information and those files match what's in memory", and "right-click on the heatmap chunk and have it mark that contiguous range of read/written lines as data". Marking from the heat map without a request wasn't built: a loader writes a program's code before it runs, so code that hasn't run yet would be read as data. A range the user marked was called B_60C1 where the symbol count was already at its start; it is now called count (FR-349 to FR-352).
+- Q: While the machine runs, when is a following view the user scrolled moved back to the PC? -> A: After five seconds with no more scrolling. The owner: "let's allow 3? 5? seconds of no additional manual scroll inputs before we take over scrolling PC into view" (FR-353).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1024,14 +1066,16 @@ confirm it disables without being removed.
 14. **Given** breakpoints, **When** the user exports them to a file, clears
     them and imports the file, **Then** the same breakpoints return, with the
     same enabled states, conditions and When hit settings.
-15. **Given** a write watchpoint, a breakpoint on a line of the loaded source
-    and one at `COUT`, **When** the pane opens, **Then** their Kind cells are
-    "Memory", "Breakpoint" and "Breakpoint", and their Trigger cells "Write",
-    "Execute" and "Execute" (a symbol at the address does not make a
-    function breakpoint); **and when** the user clicks the Kind
-    heading, **Then** the rows group by kind in FR-117's order, each kind's
-    rows in the order they were set. Added 2026-10-08, and amended the same
-    day, and again when Trigger was added.
+15. **Given** a write watchpoint, a breakpoint on a line of the loaded source,
+    one set as `BP FDED` and one set as `BP COUT`, **When** the pane opens,
+    **Then** their Kind cells are "Memory", "Breakpoint", "Breakpoint" and
+    "Function", and their Trigger cells "Write", "Execute", "Execute" and
+    "Execute" (a symbol at the address does not make a function breakpoint;
+    setting it by the symbol's name does); **and when** the user clicks the
+    Kind heading, **Then** the rows group by kind in FR-117's order, each
+    kind's rows in the order they were set. Added 2026-10-08, and amended
+    the same day, again when Trigger was added, and on 2026-10-28 for
+    function breakpoints.
 
 ---
 
@@ -1111,7 +1155,7 @@ trace, with the next instructions shown below it.
 1. **Given** the trace pane, **Then** a line above its rows lists its keys.
 2. **Given** the trace pane has focus and the machine is stopped, **When** the
    user presses Space, O or R, **Then** the machine steps into, over or out;
-   Return runs it; T turns tracing off and on; B shows and hides the bytes
+   Enter runs it; T turns tracing off and on; B shows and hides the bytes
    column.
 3. **Given** the machine is stopped, **Then** the next several instructions
    from PC are shown below the trace, following a branch whose outcome the
@@ -1439,6 +1483,44 @@ run something, switch back to the //e: it is where it was left.
 
 ---
 
+### User Story 26 - Let an AI assistant drive Casso (Priority: P3)
+
+A user asks an AI assistant, in a chat client that speaks the Model Context
+Protocol but has no shell, to start Casso, wait for a boot to fail, press
+Ctrl+Reset, type in an Applesoft program that draws lo-res color bars, run it
+and look at the result. The assistant does all of it through Casso's MCP
+server, `CassoCli mcp`, which the user added to the client's list of servers.
+
+**Why this priority**: the debug channel and `CassoCli debug --attach` already
+let an agent with a shell drive Casso. An MCP server is for the clients that
+have no shell, and its typed tools are easier for an assistant to call
+correctly than console text is to parse. GSSquared's author ships one, and its
+demo is the bar this one has to clear.
+
+**Independent Test**: With `CassoCli mcp` as the only server of an MCP client,
+start Casso with no disk, wait five seconds, press Ctrl+Reset, type a program
+that draws color bars with `GR`, `COLOR=` and `VLIN`, run it, and take a
+screenshot: the screenshot has the bars, and every step is one tool call.
+
+**Acceptance Scenarios**:
+
+1. **Given** an MCP client with `CassoCli mcp` configured, **When** it lists
+   the tools, **Then** each tool has a description and an input schema.
+2. **Given** no Casso running, **When** the client calls `launch`, **Then**
+   Casso starts with its debugger open, and the result has its process id
+   once its debug channel is open.
+3. **Given** a running Casso, **When** the client calls `reset`, `type_text`
+   and `screenshot`, **Then** the machine resets, the text is typed as if
+   pasted, and the result has a PNG image of the display.
+4. **Given** a command that fails, **When** the client calls `command` with
+   it, **Then** the result is a tool error with the reply's label and detail.
+5. **Given** a run that doesn't stop before its timeout, **When** the timeout
+   passes, **Then** the machine is paused and the result reports it.
+6. **Given** a Casso the user started, **When** the client calls `close` on
+   it, **Then** the call fails and Casso stays open.
+
+---
+
 ### Edge Cases
 
 - **A copy-protected disk's fields**: A disk whose address fields have
@@ -1719,7 +1801,11 @@ run something, switch back to the //e: it is where it was left.
   subroutine, and run to a chosen address. Step over MUST run until the stack
   pointer rises back above its value before the call and then stop at the
   next instruction, so a call followed by inline parameters, and a recursive
-  call, both step over correctly.
+  call, both step over correctly. Step out MUST end with the innermost call
+  on record. With no call on record, or with the PC moved since the stop, it
+  MUST end at the first RTS or RTI that raises the stack above its value
+  when the step began, and a line about it MUST be added to the console and
+  the status bar.
 - **FR-003**: Users MUST be able to set, list, enable, disable and clear
   breakpoints by address, by opcode, and by condition on registers or memory.
 - **FR-004**: Users MUST be able to set watchpoints that stop execution on a
@@ -1841,7 +1927,11 @@ run something, switch back to the //e: it is where it was left.
   newest earlier line starting with the typed text MUST appear in gray, and
   Right arrow at the end of the line MUST accept it; F8 MUST step back through
   earlier lines starting with the typed text; F7 MUST open a list of earlier
-  lines to pick from.
+  lines to pick from, directly above the command line at the console's width,
+  in the console's face and row height, about ten rows tall with a scroll
+  bar, with the newest line nearest the command line. A line too long for
+  the list MUST be cut off with an ellipsis and drawn whole over its row
+  while it is highlighted.
 - **FR-132**: A Monitor-mode slot command (`n` Ctrl+P, `n` Ctrl+K) whose slot
   is out of range MUST keep the ROM's behavior and print one line saying
   which slot was used, such as "Slot 10 is out of range; the ROM uses slot
@@ -1861,7 +1951,7 @@ run something, switch back to the //e: it is where it was left.
   reply MUST quote the command as the user typed it, never another mode's
   form. 035 does not ship without this.
 - **FR-136**: The trace pane MUST show a line listing its keys, and while it
-  has focus MUST take Space (step into), O (step over), R (step out), Return
+  has focus MUST take Space (step into), O (step over), R (step out), Enter
   (run), T (tracing on and off) and B (bytes column on and off).
 - **FR-137**: While the machine is stopped, the trace pane MUST show the next
   several instructions from PC below the last traced row, following each
@@ -2151,16 +2241,20 @@ run something, switch back to the //e: it is where it was left.
   and Data (what a data breakpoint watches). Kind and Trigger MUST be one of
   these pairs, in sentence case: "Breakpoint" and "Execute" for an execution
   breakpoint (amended 2026-10-14), whether or not a line of the loaded source produced the code
-  at its address (File shows the line); "Memory" and "Read", "Write" or
+  at its address (File shows the line); "Function" and "Execute" for an
+  execution breakpoint set by a symbol's name (amended 2026-10-28); "Memory" and "Read", "Write" or
   "Read or write" for a data breakpoint; "Memory" and "Value" for a value
   breakpoint (FR-062); "Register" and "Condition"; "Opcode" and "Execute";
   "BRK" and "Execute"; "Interrupt" and "IRQ or NMI"; or "Disk" and a disk
   event (FR-163). There is no I/O kind: the New drop-down's I/O range is a
   memory watchpoint over $C000-$C0FF, as AppleWin's `BPIO` is (amended
   2026-10-14). A symbol at an execution
-  breakpoint's address MUST NOT make its Kind "Function": the engine keeps
-  the address, not how it was given, and the symbol may label a loop or data
-  as well as a routine. Clicking a column's heading MUST sort by it; Kind
+  breakpoint's address MUST NOT make its Kind "Function", since the symbol
+  may label a loop or data as well as a routine; only setting it by the
+  symbol's name does. The name a function breakpoint was set by MUST be
+  stored with it: `BPSAVE`, undo, redo and import write it back, and when loaded symbols put
+  the name at another address, the breakpoint moves there (amended
+  2026-10-28). Clicking a column's heading MUST sort by it; Kind
   sorts by the pairs in the order listed here, and within a pair in the
   order the breakpoints were set. Amended 2026-10-08 to the columns as built, and
   again the same day on the owner's request: Kind added, Filter (always
@@ -2282,8 +2376,10 @@ run something, switch back to the //e: it is where it was left.
   replaces the expression with what is typed, and double-clicking its value
   writes what is typed to the watched address. A manual watch MUST be
   removable with Delete and from its context menu.
-- **FR-097**: The watch pane MUST keep an undo history of its own value and
-  expression edits, separate from every memory window's.
+- **FR-097**: The watch pane MUST keep an undo history of its value and
+  expression edits, of each watch added or removed, and of each zero-page
+  pointer removed, separate from every memory window's. An undone removal
+  MUST put the watch back under the id it had, in its place in the list.
 - **FR-098**: The watch pane MUST highlight each value that changed since the
   previous update.
 
@@ -2388,7 +2484,7 @@ run something, switch back to the //e: it is where it was left.
   returning past inline parameters and MUST NOT be treated as a break.
 
 - **FR-099**: Each frame MUST state its source in plain words (for example,
-  "recorded" or "found on the stack"), and the marker for the point below
+  "found during execution" or "found by stack walk"), and the marker for the point below
   which the recorder has no history MUST say that the recorder began there,
   when the debugger attached, and that nothing below it is known -- worded so
   it cannot be read as a reference to the trace pane.
@@ -2416,7 +2512,8 @@ run something, switch back to the //e: it is where it was left.
   state; changes go through commands.
 - **FR-050**: The first release MUST publish panels for: the Disk II
   controller (phase magnets, quarter track, motor state and spin-up, the read
-  state), the //e MMU and soft switches (every switch, and for each page which
+  state, with a D1, D2 or both choice on its bar, both by default and saved,
+  the two drives side by side or stacked on a narrow pane), the //e MMU and soft switches (every switch, and for each page which
   bank it reads and writes from), the video mode, the keyboard (latch, strobe,
   modifiers), the Mockingboard (each 6522's ports, timers and interrupt
   registers; each sound chip's registers), the printer (head position and
@@ -3165,7 +3262,8 @@ run something, switch back to the //e: it is where it was left.
 - **FR-234**: In both event logs the columns MUST be chosen from the column
   headings' context menu, a check for each column, and Copy MUST be on the
   rows' context menu only. The Disk II log's Event column MUST fit the widest
-  label drawn in it. A log's selection, its anchor and its keyboard row MUST
+  label drawn in it, and the log MUST have Track, Sector and Volume columns,
+  filled where the event has a value. A log's selection, its anchor and its keyboard row MUST
   be the same rows through each refresh, so Shift+arrow and a drag extend the
   range they began; a right-click on a selected row MUST NOT change the
   selection, and a mouse release with no press in the list MUST select
@@ -3232,12 +3330,27 @@ run something, switch back to the //e: it is where it was left.
   disassembly to it.
 - **FR-246**: A disassembly view MUST offer Show heat on its bar, off by
   default and saved with its options: a strip with a block per byte of the
-  line, in the heat map's color for that byte, and `r` or `w` in place of the
-  block for a byte read or written as data more than it is run.
+  line, filled from a separate color scale for run, read and write, each
+  distinct from the others and bright across its range in every theme, by
+  what touched the byte most. The tip on a heat cell in the disassembly, the
+  source view and the BASIC program pane MUST list the run, read and write
+  counts of the line's bytes and the color's meaning, and draw the scale as
+  a gradient with an arrow at the cell's level. The column's heading tip
+  MUST have the scales' definitions. A source line shown between a
+  disassembly's instructions MUST have the heat of the instructions it
+  assembled to.
 - **FR-247**: While Show heat is on in any disassembly view, the source view
   MUST have the heat strip over the bytes its line assembled to, up to four
-  blocks, and the BASIC program pane over the bytes of the line's tokens, the
-  interpreter's reads of them counting as the line running.
+  blocks. The BASIC program pane's Heat column MUST color each line, in one
+  fill, by how often BASIC began it, from the statements Applesoft's
+  statement loop began at its first token, and a compound line by its
+  hottest statement. Where a compound line's statements differ in heat,
+  each MUST also be tinted in place by the statement's count, its text in an
+  ink that reads on the tint in
+  place of its syntax colors; the line under the pointer MUST fade to its
+  syntax colors and back. Other reads of a line's tokens, such as LIST's or
+  a skipped IF's, MUST NOT count. Each tip MUST have the count in plain
+  words, and the listing MUST be in the monospace face, as LIST prints.
 - **FR-248**: A memory window MUST offer Heat on its bar, which tints each
   byte by its heat. Every heat column MUST follow the heat map's fade or
   cumulative mode and read the CPU's address space, and the heat map MUST
@@ -3458,6 +3571,185 @@ run something, switch back to the //e: it is where it was left.
 - **FR-321**: History MUST span a power cycle: keyframes MUST be taken after it
   as before it, and rewinding, reverse execution and seeks by cycle MUST work
   across it, while the CPU's own cycle count is reset by the power cycle.
+- **FR-322**: Every reply from the host's sockets to the Uthernet II MUST be
+  stored in history at the cycle the emulated machine takes it in: received
+  data, a connect or accept completing, an error, and a DNS reply through the
+  virtual network.
+- **FR-323**: A replay MUST read the stored replies from history and MUST
+  send nothing to the real network. History MUST be taken while the Uthernet
+  II is in use.
+- **FR-324**: When the user resumes from a point in the past, a host
+  connection that matches a socket the guest has open there (the same ports
+  and peer) MUST stay open. A connection the peer has closed since MUST read
+  to the guest as closed by the peer, and a socket whose connection is gone
+  MUST read as reset by the remote end. A host connection that doesn't match
+  any socket MUST be closed. A connect in progress, a listen and a UDP socket
+  MUST start again on the host. What a connection that stays open received
+  after the point MUST go to the guest again, ahead of anything new, and the
+  same for the bytes a serial port took from its attachment after the point.
+  A MACRAW socket's relayed connections MUST return to the point: the data
+  sent to the guest after it is sent again from where the guest's stack
+  was, and a connection opened after the point is closed. UDP the guest
+  received after the point MUST be queued for it again. Loading a state file
+  MUST close every host connection.
+- **FR-325**: The debugger MUST have a serial log for each serial port: a
+  signal graph with one colored line for each of TxD, RxD, RTS, CTS, DTR, DSR,
+  DCD and IRQ, each line turned on and off by the user, and under the graph a
+  data view with a row per byte: time, port, direction, hex and ASCII.
+- **FR-326**: The serial graph MUST draw TxD and RxD at bit level: each byte's
+  start, data, parity and stop bits from the byte, the framing in force and
+  the baud rate, from the cycle the byte started.
+- **FR-327**: A tip at the pointer on the serial graph MUST list the state of
+  every line drawn: on or off for a control line, mark or space for a data
+  line.
+- **FR-328**: The debugger MUST have a network log: a lane for each W5100
+  socket colored by its state (closed, listening, connecting, connected,
+  closing) with bars for data in and out, each lane turned on and off by the
+  user, and a tip at the pointer with each socket's state and byte counts.
+- **FR-329**: Under the network graph a data view MUST list a row per send or
+  receive: time, socket, direction, length, hex and ASCII.
+- **FR-330**: The serial and network logs MUST be rebuilt from history, as the
+  video and sound logs are, so they follow scrubbing. Reads of the 6551 status
+  register MUST NOT be logged.
+- **FR-331**: The memory map MUST list $C800-$CEFF as the selected card's ROM,
+  and as unused (floating bus) when no card's ROM is selected; $CF00-$CFFF
+  MUST read as unused (floating bus).
+- **FR-332**: The Mockingboard panel MUST include the SSI-263 on a card that has
+  one: power down, sounding, the A/R request, the mode, the phoneme with its
+  datasheet name and example, duration, rate, inflection, articulation,
+  amplitude, filter and formants, and a meter for the chip's output.
+
+- **FR-333**: The sound log MUST have an entry for each write to the
+  SSI-263, decoded by register, with a source of its own in the Source column's
+  filter.
+
+- **FR-334**: The Mockingboard panel's pane MUST consist of one graphical view
+  that fills the pane, scrolls when its content is taller than the pane, and
+  reflows into columns by width. Its labels MUST be in sentence case, and its
+  colors MUST come from the theme in force.
+
+- **FR-335**: The view MUST have, per AY-3-8910, the chip's 6522 and slot
+  address, an IRQ lamp and the noise frequency. Per channel A, B and C it MUST
+  have a mute toggle, the note name with cents, the frequency, tone and noise
+  indicators, a segmented level meter with the numeric volume and an envelope
+  mark, and a live triggered waveform scope. The envelope MUST be drawn as a picture of its level over time, with its R13 value, the ramp time and a marker at the current level.
+
+- **FR-336**: The view MUST have, per 6522, the bus state, the AY write count,
+  the last AY register write (for example R9=$05), ORA, ORB, DDRA, DDRB, ACR,
+  PCR, IFR, IER, the T1 counter and latch, the T2 counter, the T1 rate in Hz,
+  and RUN, FIRED and T1 IRQ lamps.
+
+- **FR-337**: On a card with the speech chip, the view MUST have the phoneme
+  playing by name with its example word, a strip of the recent phonemes with
+  widths in proportion to their durations, the three formants as a picture on
+  a logarithmic frequency axis with the pitch, a level meter, a mute toggle, a
+  live waveform scope, power, sounding and request lamps, and the mode,
+  duration, rate, articulation, amplitude and filter.
+
+- **FR-338**: A mute MUST change the host's audio only. It MUST NOT be saved
+  in machine state or change the machine's behavior, history or replay, and a muted channel's signal MUST remain in its scope.
+
+- **FR-339**: Capture for the scopes MUST cost one test per sample while the
+  panel is closed, and MUST stop without any other action after the panel
+  closes.
+
+- **FR-340**: The AY write count, the last AY write and the recent phonemes
+  MUST be saved in machine state, so a rewind restores them, and states saved without them MUST load.
+
+- **FR-341**: A tip on each of the view's parts MUST contain the raw register values behind it.
+
+- **FR-342**: At each stop, and never while the machine runs, each loaded
+  debug or symbol file MUST be checked against memory: a debug file by the
+  mnemonic and length of each instruction line in its source, a Merlin
+  listing by the bytes on its lines, and a symbol file without lines by the
+  bytes at its labels in RAM ($0200 to $BFFF), taken at the first stop with
+  the PC among them. A file matches while at least a quarter of its entries
+  do. While a file doesn't match, the disassembly MUST NOT have its labels or
+  its source lines, its source documents MUST NOT map lines to addresses,
+  steps MUST go by instruction, and each disassembly view and source document
+  MUST have a banner with the file's name; all of it MUST return at the first
+  stop where the file matches again. Its symbols MUST resolve by name in
+  expressions throughout, and equates MUST NOT be checked.
+
+- **FR-343**: While a disassembly view has source rows, each source row MUST
+  represent the first instruction its line produced: the row MUST have that
+  instruction's breakpoint, the gray breakpoint under the pointer, the PC's
+  marker and the PC's, target's and navigated row colors, a press in its
+  gutter MUST act on that instruction, and the PC's arrow MUST be dragged
+  from and to it. The instruction's row under it MUST NOT have them. The PC's
+  branch arrow MUST run from the row representing the PC's instruction to
+  the row representing the target. A source line that produced one
+  instruction in view and whose opcode is a mnemonic MUST have the
+  instruction's operand and result in the operand column, before the line's
+  comment, and the instruction's row MUST NOT have them. For a line that
+  produced several instructions, such as a macro or a C line, the operands
+  MUST be on the instructions' rows, and the PC past its first instruction
+  MUST be marked on the instruction's row.
+
+- **FR-344**: `CassoCli mcp` MUST run a Model Context Protocol server over
+  standard input and output: JSON-RPC 2.0, one message per line, answering
+  `initialize`, `ping`, `tools/list` and `tools/call`, with an input schema for
+  each tool. It MUST write nothing but protocol messages to standard output,
+  and it MUST connect to Casso only through the debug channel.
+- **FR-345**: The server MUST have these tools: `list_instances`; `launch`,
+  which starts the `Casso.exe` beside it with its debugger open and an
+  optional machine, disks and title, and returns the process id once the
+  channel is open; `attach`, which chooses the instance the other tools act
+  on; `close`, for an instance this server launched only; `command`, any
+  debugger line in a command mode; `run`, `pause` and `step` (into, over or
+  out, with a count); `registers`; `read_memory` and `write_memory`;
+  `disassemble`; `set_breakpoint`, `clear_breakpoint` and `list_breakpoints`;
+  `reset` (soft or power); `type_text`; `press_keys`, by key name, Ctrl+Reset
+  among them; `insert_disk` and `eject_disk`; `read_screen`; `screenshot`,
+  returning a PNG image; and `wait`, a number of seconds.
+- **FR-346**: A tool's result MUST contain the reply's text, and its typed
+  data as structured content. A command that fails MUST make the result a tool
+  error with the reply's label and detail. Each run MUST have a cycle budget
+  and a timeout, and a run past its timeout MUST be paused, as
+  `CassoCli debug --attach` does.
+- **FR-347**: The debugger MUST have these commands in every mode, each doing
+  what the menu command of the same purpose does: `RESET [SOFT|POWER]`;
+  `PASTE "text"`, typing the text as the clipboard's paste does; `DISK INSERT
+  [D1|D2] file` and `DISK EJECT [D1|D2]`; `SCREEN`, the text screen as
+  displayed, as a `textScreen` reply; `SCREENSHOT [file]`, the display saved
+  as a PNG file, as a `screenshot` reply with its path, width and height; and
+  `EXIT`, closing Casso as File > Exit does.
+- **FR-348**: `docs/DebuggerForAgents.md` MUST have the steps to add `CassoCli mcp` to
+  an MCP client and a table of its tools, and `docs/DebugChannel.md` MUST have
+  the `textScreen` and `screenshot` replies.
+- **FR-349**: The bytes a loaded debug file maps to a data directive MUST be
+  disassembled as data while the file matches memory: text for a string,
+  words for a word directive, addresses for an address directive and bytes
+  for the rest, each line under its symbol's label. `X` over them, or Clear
+  data marking, MUST disassemble them as code until the file loads again.
+- **FR-350**: A data directive given no name MUST call its block after the
+  symbol at its start where there is one, and a data line's label MUST be
+  the symbol at its address before the block's name.
+- **FR-351**: A data line MUST be drawn in italics, with a tip over it that has
+  why its bytes are data and how to disassemble them as code, and MUST NOT
+  have an operand or a result.
+- **FR-352**: The data marking commands on a disassembly row's menu MUST act on
+  the rows a text drag selected when the row is among them. While the heat
+  columns are on, a row whose bytes were read or written and never run MUST
+  offer marking the run of such bytes around it as data.
+- **FR-353**: While the machine runs, a view following the PC that the user
+  scrolled with the wheel, the arrow keys or the scroll bar MUST NOT be moved
+  to the PC until five seconds pass with no more scrolling.
+- **FR-354**: The tip over the PC's branch arrow MUST be whether the branch will
+  be taken, then the flag it tests and the flag's state; the dotted arrow of
+  the branch the last step took MUST have a tip with that instruction and its
+  address.
+- **FR-355**: The tip over a symbol's name in a source line, in a source
+  document or on a source row of the disassembly, MUST have its value, and
+  after `<` or `>` the byte that operator takes.
+- **FR-356**: A watch's `.s` suffix MUST read the text at its address, to a zero
+  byte; a symbol at the start of a text data block MUST read as its text; a
+  symbol's Type cell MUST have its address; `&name` MUST evaluate to the
+  symbol's address; and the reason an entry can't be watched MUST run across
+  the add row.
+- **FR-357**: The tip over a symbol table's heading in the User symbols pane
+  MUST have the full path of the file loaded into it, and a source document
+  MUST have room between the line numbers and the text for the branch arrow.
 
 ### Key Entities
 
@@ -3722,6 +4014,10 @@ run something, switch back to the //e: it is where it was left.
 - **SC-062**: Adding a pane takes its class and one line in the pane list,
   with no other edit to the window, as a unit test with a trivial test pane
   demonstrates.
+- **SC-063**: Through `CassoCli mcp` alone, an MCP client starts Casso,
+  waits five seconds, presses Ctrl+Reset, types and runs an Applesoft program
+  that draws lo-res color bars, and takes a screenshot that has the bars, one
+  tool call a step.
 
 **Out of scope for the automatic states**: a state picker or browser, more than
 one automatic state per machine kind, and states saved on a timer.
@@ -3729,8 +4025,8 @@ one automatic state per machine kind, and states saved on a timer.
 **Out of scope, for a follow-on spec**: video thumbnails (making GSSquared's
 `video` and `novideo` real), a beam view while stepping, per-session trace
 files with seamless scroll-back (kept in User Story 21's debug projects),
-source-level debugging of languages other than Applesoft, and an MCP adapter over the
-debug channel.
+and source-level debugging of languages other than Applesoft. The MCP adapter
+over the debug channel moved into 035 (User Story 26).
 
 ## Assumptions
 

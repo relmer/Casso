@@ -107,7 +107,7 @@ public:
     void  TickTooltips               (int64_t nowMs);
     RECT  GetSwitchBandBounds        () const { return m_switchBand.GetBounds(); }
     int   GetDriveBarThicknessDp     () const { return m_driveBarThicknessDp; }
-    bool  IsDriveTooltipVisible      () const { return m_driveTooltip.IsVisible(); }
+    bool  IsDriveTooltipVisible      () const { return m_tooltip.IsVisible() && !m_driveTipText.empty() && m_tooltip.GetText() == m_driveTipText; }
     void  SetDriveBandSurfaceVisible (bool isVisible) { m_driveBandSurface.SetVisible (isVisible); }
     bool  IsDriveBandSurfaceVisible  () const { return m_driveBandSurface.IsVisible(); }
     RECT  GetDriveBandSurfaceBounds  () const { return m_driveBandSurface.GetBounds(); }
@@ -124,16 +124,21 @@ public:
     bool  OnLButtonDown      (int x, int y);
     bool  OnLButtonUp        (int x, int y, Apple2cSwitchBar::Part & outSwitchPart);
 
-    // Pointer moves: the toolbar's and the switch bar's hover and tooltips;
-    // the drive tooltip request, where an empty text hides it; and the hover
+    // Pointer moves: the toolbar's and the switch bar's hover, and the window's
+    // tip, from the control the hit test finds under the pointer; and the hover
     // reset for a pointer outside the window.
     void  OnMouseMove         (int x, int y, int64_t nowMs);
-    void  RequestDriveTooltip (const RECT & anchor, const std::wstring & tip, int64_t nowMs);
+
+    // The drives' tip, at a point in the client area, which the shell finds:
+    // the controls in front of the drives, the toolbar and the switch bar,
+    // cover it.
+    void  SetDriveTipFn       (IDxuiControl::TipFn fn) { m_driveTipFn = std::move (fn); }
     void  OnMouseLeave        (int64_t nowMs);
 
-    // The caption buttons' tooltip, which the update indicator in the caption
-    // shares.
-    DxuiTooltip &  GetCaptionTooltip () { return m_captionTooltip; }
+    // The caption buttons' tooltip and its tip service; the update indicator
+    // in the caption has the same tooltip.
+    DxuiTooltip &     GetCaptionTooltip () { return m_captionTooltip; }
+    DxuiTipService &  GetCaptionTips    () { return m_captionTips; }
     //  How many bands peel an edge off the client area before the emulator
     //  viewport gets the rest. Named so the two directions that walk them
     //  cannot size their arrays differently.
@@ -285,7 +290,13 @@ private:
     // themes and at the 100%-zoom default window size.
     float                      m_chromeSceneScale = 1.0f;
 
-    DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
+    // The client area's one tooltip, for the toolbar's buttons, the //c switch
+    // bar's parts and the drives, and its tip service. The drive tip's text,
+    // while the pointer is over a drive, indicates whether the tip that is up
+    // is the drive tip.
+    DxuiTooltip          m_tooltip;
+    DxuiTipService       m_tips             { m_tooltip };
+    std::wstring         m_driveTipText;
 
     // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
     // switches + disk-use / power LEDs), painted in its own chrome band between
@@ -293,19 +304,20 @@ private:
     // band collapses to zero height on every other machine. Manually
     // hit-tested / actioned by the mouse handlers, like the other chrome.
     Apple2cSwitchBar  m_switchBar;
-    DxuiTooltip       m_switchBarTooltip;
 
-    // Hover tooltip for the drive widgets, surfaced when the pointer
-    // rests over a write-protected drive. Explains that the disk is
-    // write-protected and names the source(s) -- image flag, user
-    // setting, or an unwritable backing file. Shares the host popup pool
-    // with the other chrome tooltips (the hover regions are mutually exclusive).
-    DxuiTooltip               m_driveTooltip;
+    // The client area's controls for the tip's hit test: the drives' area at
+    // the back, over the whole client area, then the toolbar and the switch
+    // bar in front of it. The root comes after every control it adopts, so it
+    // is destroyed first.
+    IDxuiControl::TipFn  m_driveTipFn;
+    DxuiPanel            m_driveTipArea;
+    DxuiPanel            m_tipRoot;
 
     // Hover tooltip for the caption's minimize, maximize and close buttons.
     // The stock system tooltip for those is suppressed at the host, so this
     // is the only one, and it matches every other tooltip in the window.
     DxuiTooltip               m_captionTooltip;
+    DxuiTipService            m_captionTips      { m_captionTooltip };
 
     // Solid background for the bottom drive-bar band. The CRT composite
     // writes the whole back buffer (emulator frame + black), so the chrome

@@ -335,4 +335,127 @@ namespace TcpNatTests
             Assert::AreEqual (kGuestIsn + 1,     sink.tcp.back().acknowledgment);
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  TcpNatRewindTests
+    //
+    //  A resume from the past: the segments each way are noted as history
+    //  would have them, before and after the point, then the relay rewinds.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static TcpSegment ToGuest (
+        Byte                       flags,
+        uint32_t                   sequence,
+        uint32_t                   acknowledgment,
+        const std::vector<Byte>  & payload = {})
+    {
+        TcpSegment  segment;
+
+        segment.sourceIp        = kLanPeer;
+        segment.destinationIp   = VirtualSubnet::kGuestIp;
+        segment.sourcePort      = kPeerPort;
+        segment.destinationPort = kGuestPort;
+        segment.sequence        = sequence;
+        segment.acknowledgment  = acknowledgment;
+        segment.flags           = flags;
+        segment.payload         = payload;
+
+        return segment;
+    }
+
+
+    //  The handshake, before the point.
+    static void NoteHandshake (Connected & c)
+    {
+        c.nat.NoteRewindSegment (FromGuest (P::kTcpSyn, kGuestIsn, 0),                                false, false);
+        c.nat.NoteRewindSegment (ToGuest   (P::kTcpSyn | P::kTcpAck, c.ourNext - 1, kGuestIsn + 1),  true,  false);
+    }
+
+
+    TEST_CLASS (TcpNatRewindTests)
+    {
+    public:
+
+        TEST_METHOD (DataSentAfterThePointIsSentAgain)
+        {
+            Connected          c;
+            std::vector<Byte>  data = MakePattern (100);
+
+            c.peer->inbound.assign (data.begin(), data.end());
+            c.nat.Pump (++c.now);
+            c.nat.OnGuestSegment (FromGuest (P::kTcpAck, kGuestIsn + 1, c.ourNext + (uint32_t) data.size()), ++c.now);
+
+            NoteHandshake (c);
+
+            for (const TcpSegment & s : c.sink.tcp)
+            {
+                c.nat.NoteRewindSegment (s, true, true);
+            }
+
+            c.sink.tcp.clear();
+            c.nat.Rewind (++c.now);
+            c.nat.Pump (++c.now);
+
+            Assert::AreEqual ((size_t) 1, c.sink.tcp.size());
+            Assert::AreEqual (c.ourNext,      c.sink.tcp[0].sequence,       L"from where the guest was");
+            Assert::AreEqual (kGuestIsn + 1,  c.sink.tcp[0].acknowledgment);
+            Assert::IsTrue   (c.sink.tcp[0].payload == data, L"the same data, though the guest had acknowledged it");
+            Assert::IsFalse  (c.peer->destroyed);
+        }
+
+
+        TEST_METHOD (AConnectionOpenedAfterThePointIsClosed)
+        {
+            Connected  c;
+
+            c.nat.NoteRewindSegment (FromGuest (P::kTcpSyn, kGuestIsn, 0), false, true);
+            c.nat.Rewind (++c.now);
+
+            Assert::AreEqual ((size_t) 0, c.nat.GetConnectionCount());
+            Assert::IsTrue   (c.peer->destroyed);
+            Assert::IsTrue   (c.sink.tcp.empty(), L"the guest never had it, so nothing is sent");
+        }
+
+
+        TEST_METHOD (GuestDataAfterThePointIsTakenAgain)
+        {
+            Connected          c;
+            std::vector<Byte>  data = { 'x', 'y', 'z' };
+
+            c.nat.OnGuestSegment (FromGuest (P::kTcpAck | P::kTcpPsh, kGuestIsn + 1, c.ourNext, data), ++c.now);
+            c.nat.Pump (++c.now);
+
+            NoteHandshake (c);
+
+            for (const TcpSegment & s : c.sink.tcp)
+            {
+                c.nat.NoteRewindSegment (s, true, true);
+            }
+
+            c.sink.tcp.clear();
+            c.nat.Rewind (++c.now);
+            c.nat.OnGuestSegment (FromGuest (P::kTcpAck | P::kTcpPsh, kGuestIsn + 1, c.ourNext, data), ++c.now);
+            c.nat.Pump (++c.now);
+
+            Assert::AreEqual (kGuestIsn + 4,   c.sink.tcp.back().acknowledgment, L"taken from where the guest was");
+            Assert::AreEqual ((size_t) 6,      c.peer->sent.size(),              L"the host has it twice: what it took can't be taken back");
+        }
+
+
+        TEST_METHOD (AConnectionWithNoHistoryIsLeftAsItIs)
+        {
+            Connected  c;
+
+            c.nat.Rewind (++c.now);
+
+            Assert::AreEqual ((size_t) 1, c.nat.GetConnectionCount());
+            Assert::IsFalse  (c.peer->destroyed);
+        }
+    };
 }

@@ -5,6 +5,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiTip.h"
 
 
 
@@ -461,6 +462,41 @@ bool DxuiScrollPanel::OnMouse (const DxuiMouseEvent & ev)
 LPCWSTR DxuiScrollPanel::GetCursorForPoint (POINT clientPx) const
 {
     return IsInViewport (clientPx) ? DxuiPanel::GetCursorForPoint (clientPx) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsHitAt
+//
+//  Every point of its bounds: the page scrolls inside it, and its scroll
+//  bars lie at its edges.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollPanel::IsHitAt (POINT pointPx) const
+{
+    return IsVisible() && PtInRect (&m_boundsDip, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetTip
+//
+//  As OnMouse: outside the viewport a child has no tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiScrollPanel::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    return IsInViewport (pointPx) && DxuiPanel::TryGetTip (pointPx, tip);
 }
 
 

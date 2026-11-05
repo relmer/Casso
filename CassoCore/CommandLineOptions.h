@@ -55,7 +55,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Debug };
+    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Debug, Mcp };
     enum class CpuTarget     { M6502, M65C02 };
 
     //  What the parser made of the command line itself, apart from anything
@@ -443,7 +443,7 @@ struct CommandLineOptions
         bool                      writeDisks    = false;         // --write-disks
 
         //  A running Casso instead of a machine built here. list prints the
-        //  instances with a debug channel open; ttachPid runs the script
+        //  instances with a debug channel open; `attachPid` runs the script
         //  against one of them, waiting at most 	imeoutSeconds for a run.
         bool                      list           = false;                 // --list
         uint32_t                  attachPid      = 0;                     // --attach <pid>

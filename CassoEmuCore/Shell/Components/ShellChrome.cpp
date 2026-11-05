@@ -85,6 +85,25 @@
 ShellChrome::ShellChrome (EmulatorShell & shell)
     : m_shell (shell)
 {
+    constexpr LONG  kWholeClient = 32767;
+
+
+
+    m_driveTipArea.SetBounds (RECT { 0, 0, kWholeClient, kWholeClient });
+    m_driveTipArea.SetTipFn  ([this] (POINT clientPx, DxuiTip & tip)
+    {
+        if (m_driveTipFn == nullptr || !m_driveTipFn (clientPx, tip))
+        {
+            return false;
+        }
+
+        m_driveTipText = tip.text;
+        return true;
+    });
+
+    m_tipRoot.Adopt (m_driveTipArea);
+    m_tipRoot.Adopt (m_toolbar);
+    m_tipRoot.Adopt (m_switchBar);
 }
 
 
@@ -455,7 +474,7 @@ void ShellChrome::TickFullscreenTopChrome()
     toolbarH = m_shell.m_scaler.ToPx (m_toolbar.GetBandDp());
     bandH    = menuH + toolbarH;
 
-    if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
+    if (DxuiInputState::GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor) && PtInRect (&client, cursor))
     {
         // The edge zone summons; the whole band holds it open, so the
         // pointer can travel down onto the buttons without dismissing them.
@@ -1067,17 +1086,13 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
     // here. Without this the balloons kept the palette that was live when the
     // window was built, leaving skeuomorphic blue tips over a green
     // RetroTerminal chrome.
-    m_toolbarTooltip.SetTheme   (theme);
-    m_switchBarTooltip.SetTheme (theme);
-    m_driveTooltip.SetTheme     (theme);
-    m_captionTooltip.SetTheme   (theme);
+    m_tooltip.SetTheme        (theme);
+    m_captionTooltip.SetTheme (theme);
 
     // A balloon that is already up was sized and cleared with the outgoing
     // colors, and nothing repaints its background. Take it down; the next
     // hover raises it in the new palette.
-    m_toolbarTooltip.HideImmediate();
-    m_switchBarTooltip.HideImmediate();
-    m_driveTooltip.HideImmediate();
+    m_tooltip.HideImmediate();
     m_captionTooltip.HideImmediate();
 
     // Every path applies the new thickness; only the window resize is
@@ -1299,7 +1314,7 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
     {
         case Apple2cSwitchBar::Part::Reset:
             // Only a modifier-qualified press resets, matching the case key.
-            if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+            if (DxuiInputState::IsKeyDown (VK_CONTROL))
             {
                 if (m_shell.m_machine.GetRefs().keyboard != nullptr)
                 {
@@ -1589,6 +1604,10 @@ bool ShellChrome::OnLButtonDown (int x, int y)
 
 
 
+    // A press hides the tip, which then stays hidden over the control
+    // pressed, as the system's tips do.
+    m_tips.OnPress();
+
     // Command toolbar press (button press states + slider drag start).
     toolbarTook = m_toolbar.OnToolbarLButtonDown (x, y);
 
@@ -1668,18 +1687,17 @@ bool ShellChrome::OnLButtonUp (int x, int y, Apple2cSwitchBar::Part & outSwitchP
 //
 //  ShellChrome::OnMouseMove
 //
-//  The command toolbar's hover and slider drag, with the hovered button's
-//  label as a tooltip in icon-only mode, and on the //c the switch bar's hover
-//  and per-part tooltip. A tooltip request starts a dwell timer and the
-//  tooltip appears when it expires, so none appears during a fast pass over
-//  several controls.
+//  The command toolbar's hover and slider drag, and on the //c the switch
+//  bar's hover. The window has one tip, the tip of the control the hit test
+//  finds under the pointer: a toolbar button's, its label in icon-only mode,
+//  a switch bar part's, or the drives'. The tip service opens it once the
+//  pointer rests, so none appears during a fast pass over several controls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellChrome::OnMouseMove (int x, int y, int64_t nowMs)
 {
-    RECT             anchor     = {};
-    const wchar_t *  toolbarTip = nullptr;
+    POINT    pointer = { x, y };
 
 
 
@@ -1688,22 +1706,10 @@ void ShellChrome::OnMouseMove (int x, int y, int64_t nowMs)
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
-    toolbarTip = m_toolbar.GetTooltipAt (x, y, anchor);
-
-    if (toolbarTip != nullptr)
-    {
-        m_toolbarTooltip.RequestShow (anchor, toolbarTip, nowMs);
-    }
-    else
-    {
-        m_toolbarTooltip.RequestHide (nowMs);
-    }
-
     if (m_shell.MachineHasCaseSwitches())
     {
-        const wchar_t *  switchTip    = m_switchBar.GetTooltipTextAt (x, y);
-        bool             hoverChanged = m_switchBar.SetHovered (m_switchBar.HitTest (x, y));
-        bool             partChanged  = m_switchBar.SetHoverPoint (x, y);
+        bool  hoverChanged = m_switchBar.SetHovered (m_switchBar.HitTest (x, y));
+        bool  partChanged  = m_switchBar.SetHoverPoint (x, y);
 
         // The strip is painted only when a frame is presented, and a static
         // screen presents none, so a highlight that moved requests one.
@@ -1712,39 +1718,10 @@ void ShellChrome::OnMouseMove (int x, int y, int64_t nowMs)
             m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
         }
 
-        if (switchTip != nullptr)
-        {
-            m_switchBarTooltip.RequestShow (m_switchBar.GetBounds(), switchTip, nowMs);
-        }
-        else
-        {
-            m_switchBarTooltip.RequestHide (nowMs);
-        }
     }
-}
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellChrome::RequestDriveTooltip
-//
-//  Request the drive tooltip over the anchor; an empty text hides it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::RequestDriveTooltip (const RECT & anchor, const std::wstring & tip, int64_t nowMs)
-{
-    if (!tip.empty())
-    {
-        m_driveTooltip.RequestShow (anchor, tip, nowMs);
-    }
-    else
-    {
-        m_driveTooltip.RequestHide (nowMs);
-    }
+    m_driveTipText.clear();
+    m_tips.Update (m_tipRoot, pointer, nowMs);
 }
 
 
@@ -1768,8 +1745,7 @@ void ShellChrome::OnMouseLeave (int64_t nowMs)
 
 
     m_toolbar.OnToolbarMouseLeave();
-    m_toolbarTooltip.RequestHide (nowMs);
-    m_driveTooltip.RequestHide (nowMs);
+    m_tips.OnLeave (nowMs);
 
     hoverChanged = m_switchBar.SetHovered (false);
     pressChanged = m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
@@ -1779,7 +1755,6 @@ void ShellChrome::OnMouseLeave (int64_t nowMs)
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 
-    m_switchBarTooltip.RequestHide (nowMs);
 }
 
 
@@ -1829,9 +1804,7 @@ void ShellChrome::RegisterDock()
 
 void ShellChrome::HideTooltipsNow()
 {
-    m_toolbarTooltip.HideImmediate();
-    m_driveTooltip.HideImmediate();
-    m_switchBarTooltip.HideImmediate();
+    m_tooltip.HideImmediate();
     m_rewindBar.GetTooltip().HideImmediate();
 }
 
@@ -1973,7 +1946,7 @@ void ShellChrome::AttachPopupHost (DxuiHwndSource & host)
     m_mainMenu.SetPopupHost  (&host);
     m_rewindBar.SetPopupHost (&host);
 
-    for (DxuiTooltip * tooltip : { &m_toolbarTooltip, &m_switchBarTooltip, &m_driveTooltip, &m_captionTooltip, &m_rewindBar.GetTooltip() })
+    for (DxuiTooltip * tooltip : { &m_tooltip, &m_captionTooltip, &m_rewindBar.GetTooltip() })
     {
         tooltip->SetPopupHost (&host);
         tooltip->SetTheme     (m_chromeTheme);
@@ -2015,17 +1988,15 @@ void ShellChrome::SetTextRendererForMeasure (IDxuiTextRenderer * text)
 //
 //  ShellChrome::TickTooltips
 //
-//  Each tooltip's popup opens or closes once its open or close delay has
-//  elapsed after a hover.
+//  The client area's and the caption's tooltips open or close once their
+//  open or close delay has elapsed after a hover.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellChrome::TickTooltips (int64_t nowMs)
 {
-    m_toolbarTooltip.Tick   (nowMs);
-    m_switchBarTooltip.Tick (nowMs);
-    m_driveTooltip.Tick     (nowMs);
-    m_captionTooltip.Tick   (nowMs);
+    m_tooltip.Tick        (nowMs);
+    m_captionTooltip.Tick (nowMs);
 
     m_rewindBar.GetTooltip().Tick (nowMs);
 }
@@ -2042,8 +2013,7 @@ void ShellChrome::TickTooltips (int64_t nowMs)
 
 bool ShellChrome::WantsAnimationTick() const
 {
-    return m_switchBarTooltip.WantsTick() ||
-           m_driveTooltip.WantsTick()     ||
+    return m_tooltip.WantsTick()          ||
            m_captionTooltip.WantsTick()   ||
            m_rewindBar.WantsTick()        ||
            m_replayIndicator.IsVisible()  ||

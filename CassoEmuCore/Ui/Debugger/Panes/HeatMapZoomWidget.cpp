@@ -29,7 +29,7 @@ int HeatMapZoomWidget::GetPercent (int cellPx, int startCellPx)
 
 std::wstring HeatMapZoomWidget::GetPercentLabel (int cellPx, int startCellPx)
 {
-    return std::format (L"{}%", GetPercent (cellPx, startCellPx));
+    return std::format (L"Zoom {}%", GetPercent (cellPx, startCellPx));
 }
 
 

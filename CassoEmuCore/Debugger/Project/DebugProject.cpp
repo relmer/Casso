@@ -11,6 +11,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/Handlers/SymbolHandlers.h"
 #include "Debugger/Handlers/WatchHandlers.h"
 #include "Debugger/ReplyJson.h"
 
@@ -40,7 +41,14 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
 
 
-    script  = BreakpointHandlers::MakeScript (session);
+    //  The symbols the user added first, so a breakpoint or watch set by
+    //  such a symbol's name resolves.
+    for (const DebugSession::AddedSymbol & added : session.GetAddedSymbols())
+    {
+        script += std::format ("SYM{} {} = {:04X}\n", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (added.table)), added.name, added.address);
+    }
+
+    script += BreakpointHandlers::MakeScript (session);
     script += WatchHandlers::MakeScript (session, WatchListKind::Watch);
     script += WatchHandlers::MakeScript (session, WatchListKind::ZeroPage);
     script += WatchHandlers::MakeScript (session, WatchListKind::Bookmark);
@@ -165,16 +173,23 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
 
 
 
-    for (const SymbolFile & file : symbolFiles)
+    //  A load replaces its table, so of a table's files only the last is
+    //  loaded; a project saved before that listed every file a table had
+    //  ever been loaded from. A BASIC program an earlier Casso loaded as
+    //  symbols is passed over. Either way, the next save drops them.
+    for (size_t i = 0; i < symbolFiles.size(); i++)
     {
-        bool  isLoaded = std::ranges::any_of (session.GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
+        const SymbolFile  & file     = symbolFiles[i];
+        auto                isUsable = [] (const SymbolFile & each) { return !SymbolHandlers::IsBasicListing (TextEncoding::WideToNarrow (each.path), std::string()); };
+        bool                isLater  = std::any_of (symbolFiles.begin() + (std::ptrdiff_t) i + 1, symbolFiles.end(), [&] (const SymbolFile & each) { return each.table == file.table && isUsable (each); });
+        bool                isLoaded = std::ranges::any_of (session.GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
         {
             return load.table == file.table && load.path == file.path;
         });
 
 
 
-        if (!isLoaded)
+        if (!isLoaded && !isLater && isUsable (file))
         {
             run (std::format ("SYM{} LOAD \"{}\",{:04X}", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (file.table)),
                               TextEncoding::WideToNarrow (file.path), file.offset));

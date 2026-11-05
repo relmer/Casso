@@ -317,7 +317,7 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
     m_projectSaved = project.ToJson (fs::path (project.filePath).parent_path().native());
     PublishProject();
 
-    lines.push_back (std::format ("Debug project for {}: {}", project.scope.label, TextEncoding::WideToNarrow (project.filePath)));
+    lines.push_back (std::format ("Loaded the debug project for {} from {}", project.scope.label, TextEncoding::WideToNarrow (project.filePath)));
 
     for (const std::string & failure : failures)
     {
@@ -795,6 +795,8 @@ std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() cons
     strings["inputLogOptions"] = m_settings.inputLogOptions;
     strings["videoLogOptions"] = m_settings.videoLogOptions;
     strings["soundLogOptions"] = m_settings.soundLogOptions;
+    strings["serialLogOptions"]  = m_settings.serialLogOptions;
+    strings["networkLogOptions"] = m_settings.networkLogOptions;
     return strings;
 }
 
@@ -824,6 +826,8 @@ void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::st
         { "inputLogOptions", &m_settings.inputLogOptions },
         { "videoLogOptions", &m_settings.videoLogOptions },
         { "soundLogOptions", &m_settings.soundLogOptions },
+        { "serialLogOptions",  &m_settings.serialLogOptions },
+        { "networkLogOptions", &m_settings.networkLogOptions },
     };
 
 

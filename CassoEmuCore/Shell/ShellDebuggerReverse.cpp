@@ -95,6 +95,31 @@ void ShellDebugger::OnHistoryRestarted (ReverseController * controller)
         m_callReplayer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     }
 
+    //  A profile from history starts each block inside the calls open at its
+    //  keyframe, from the copies of the call record taken there.
+    m_eventLogs.GetProfileHistory().SetCallsAt ([this] (uint64_t position, std::vector<CallStackFrame> & outFrames)
+    {
+        CallRecord             record;
+        std::span<const Byte>  packed;
+        HRESULT                hr     = S_OK;
+
+        if (m_debugController == nullptr)
+        {
+            return false;
+        }
+
+        packed = m_debugController->GetCallHistory().GetCopies().GetPacked (position);
+        hr     = packed.empty() ? E_FAIL : CallRecordCopies::Unpack (packed, record);
+
+        if (FAILED (hr))
+        {
+            return false;
+        }
+
+        outFrames = std::move (record.frames);
+        return true;
+    });
+
     m_eventLogs.Start (controller);
 }
 

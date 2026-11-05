@@ -3,6 +3,9 @@
 
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/StateThumbnail.h"
+#include "Capture/CapturedImage.h"
+#include "Devices/Printer/PngCodec.h"
+#include "Devices/Printer/RgbaImage.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/MachineBuilder.h"
@@ -1189,6 +1192,63 @@ HRESULT ShellRenderer::CaptureStateThumbnail (std::vector<Byte> & outPng)
     BAIL_OUT_IF (!hasFrame, S_OK);
 
     hr = StateThumbnail::Encode (frame, kFramebufferWidth, kFramebufferHeight, outPng);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureFramePng
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellRenderer::CaptureFramePng (std::vector<Byte> & outPng, int & width, int & height)
+{
+    constexpr int          kScreenshotDpi = 96;
+    HRESULT                hr             = S_OK;
+    bool                   hasFrame       = false;
+    std::vector<uint32_t>  frame;
+    CapturedImage          image;
+    RgbaImage              rgba;
+
+
+
+    outPng.clear();
+    width  = kFramebufferWidth;
+    height = kFramebufferHeight;
+
+    {
+        lock_guard<mutex>  lock (m_framebufferMutex);
+
+        frame = m_uiFramebuffer;
+    }
+
+    hasFrame = frame.size() == (size_t) kFramebufferWidth * (size_t) kFramebufferHeight;
+    CBREx (hasFrame, E_NOT_VALID_STATE);
+
+    //  The words are 0xAARRGGBB, B, G, R, A in memory, as a capture's bytes
+    //  are; the alpha is made opaque, since the renderer doesn't set it.
+    image.widthPx  = kFramebufferWidth;
+    image.heightPx = kFramebufferHeight;
+    image.bgra.resize (frame.size() * CapturedImage::kBytesPerPixel);
+
+    for (size_t i = 0; i < frame.size(); i++)
+    {
+        uint32_t  word = frame[i] | 0xFF000000u;
+
+        memcpy (&image.bgra[i * CapturedImage::kBytesPerPixel], &word, sizeof (word));
+    }
+
+    hr = CapturedImage::ToRgbaImage (image, rgba);
+    CHR (hr);
+
+    hr = PngCodec::EncodeRgba (rgba, kScreenshotDpi, outPng);
     CHR (hr);
 
 Error:

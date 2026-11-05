@@ -701,6 +701,30 @@ DebuggerAction DebuggerActions::GetAddZeroPagePointer (Byte address, CommandMode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetAddZeroPagePointerAt
+//
+//  A pointer in the slot its name gives, ZP0 to ZP7, as an undone removal
+//  puts it back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetAddZeroPagePointerAt (int slot, Byte address, CommandMode mode)
+{
+    DebuggerAction  action = Make (DebugVerb::AddZeroPagePointer, std::format ("ZP{} {:02X}", slot, address), mode);
+
+
+
+    action.command.a1    = address;
+    action.command.hasA1 = true;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetClearZeroPagePointer
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -868,6 +892,48 @@ DebuggerAction DebuggerActions::GetLoadSymbols (const std::string & path, Comman
 {
     std::string     quoted = std::format ("\"{}\"", path);
     DebuggerAction  action = Make (DebugVerb::LoadSymbols, "SYM LOAD " + quoted, mode);
+
+
+
+    action.command.text = quoted;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetLoadBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetLoadBasic (const std::string & path, CommandMode mode)
+{
+    std::string     quoted = std::format ("\"{}\"", path);
+    DebuggerAction  action = Make (DebugVerb::LoadBasic, "BASICLOAD " + quoted, mode);
+
+
+
+    action.command.text = quoted;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetSaveBasic
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetSaveBasic (const std::string & path, CommandMode mode)
+{
+    std::string     quoted = std::format ("\"{}\"", path);
+    DebuggerAction  action = Make (DebugVerb::SaveBasic, "BASICSAVE " + quoted, mode);
 
 
 
@@ -1383,6 +1449,29 @@ DebuggerAction DebuggerActions::GetAddWatch (const std::string & expression, Com
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetAddWatchAt
+//
+//  The id goes in the count, one past it, so a count of zero is an add with
+//  no id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetAddWatchAt (int id, const std::string & expression, CommandMode mode)
+{
+    DebuggerAction  action = GetAddWatch (expression, mode);
+
+
+
+    action.command.count = (uint32_t) id + 1;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetEnterWord / GetEnterByte
 //
 //  A value given as a number is written whole, as a typed deposit's values
@@ -1720,15 +1809,36 @@ bool DebuggerActions::IsStepAction (DebuggerKeySchemes::Action action)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::IsRunAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerActions::IsRunAction (DebuggerKeySchemes::Action action)
+{
+    using Action = DebuggerKeySchemes::Action;
+
+
+
+    return action == Action::Run || action == Action::ReverseRun || action == Action::RunToCursor;
+}
+
+
+
+
+
 //  The verbs a watch edit's action can have, each by the AppleWin command it
 //  is, which a saved action has in place of the verb's number.
 static constexpr std::pair<DebugVerb, const char *>  s_kSavedVerbs[] =
 {
-    { DebugVerb::AddWatch,    "W"   },
-    { DebugVerb::ClearWatch,  "WC"  },
-    { DebugVerb::EnterBytes,  "MEB" },
-    { DebugVerb::EnterWords,  "MEW" },
-    { DebugVerb::SetRegister, "R"   },
+    { DebugVerb::AddWatch,             "W"   },
+    { DebugVerb::ClearWatch,           "WC"  },
+    { DebugVerb::AddZeroPagePointer,   "ZP"  },
+    { DebugVerb::ClearZeroPagePointer, "ZPC" },
+    { DebugVerb::EnterBytes,           "MEB" },
+    { DebugVerb::EnterWords,           "MEW" },
+    { DebugVerb::SetRegister,          "R"   },
 };
 
 
@@ -1805,5 +1915,8 @@ bool DebuggerActions::TryFromText (const std::string & text, DebuggerAction & ac
     action.command.a1         = (Word) a1;
     action.command.hasA1      = fields[2] == "1";
     action.command.count      = count;
+
+    //  A typed watch is the only add with its text in the operand.
+    action.command.isTypedWatch = action.command.verb == DebugVerb::AddWatch && !action.operand.empty();
     return true;
 }

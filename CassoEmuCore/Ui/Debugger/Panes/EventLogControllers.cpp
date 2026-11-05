@@ -421,6 +421,9 @@ void DiskLogController::CreateControls()
 
     CreateListAndBar();
 
+    //  A sector's hex dump in a row's tip lines up in columns.
+    m_list->SetMonospaceTips (true);
+
     m_trackBox  = parent.CreateChild<DxuiTextInput>();
     m_sectorBox = parent.CreateChild<DxuiTextInput>();
     m_error     = parent.CreateChild<DxuiLabel>();
@@ -546,6 +549,8 @@ void DiskLogController::SetBarEntries()
 
         entries.push_back (std::move (box));
     }
+
+    entries.push_back (m_host.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -718,23 +723,6 @@ bool DiskLogController::RouteBarMouse (const DxuiMouseEvent & ev)
     }
 
     return m_bar.RouteMouse (ev);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskLogController::IsMonospaceTipAt
-//
-//  A sector's hex dump in the log lines up in columns.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskLogController::IsMonospaceTipAt (POINT clientPx) const
-{
-    return m_list->IsVisible() && DxuiDockSite::Contains (m_list->GetBounds(), clientPx);
 }
 
 
@@ -1008,6 +996,8 @@ void InputLogController::SetBarEntries()
 
     AddEntry (entries, s_kInputPair0, GetPairLabel (0).c_str(), L"View paddles 0 and 1 as joystick 0 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
     AddEntry (entries, s_kInputPair1, GetPairLabel (1).c_str(), L"View paddles 2 and 3 as joystick 1 or as two paddles", DxuiToolbar::Kind::DropDown, 1);
+
+    entries.push_back (m_host.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -1326,17 +1316,19 @@ void IoLogController::SetBarEntries()
 
     m_commands.clear();
 
-    command           = AddEntry (entries, s_kIoLogClear, L"Clear", IsVideo() ? L"Clear: hide the video log's entries until now"
-                                                                              : L"Clear: hide the sound log's entries until now",
+    command           = AddEntry (entries, s_kIoLogClear, L"Clear", IsVideo() ? L"Hide the video log's entries up to now"
+                                                                              : L"Hide the sound log's entries up to now",
                                   DxuiToolbar::Kind::Command, 0);
     command->glyph    = s_kpszMdl2Broom;
     command->dispatch = [this] { Clear(); };
     entries.back().iconOnly = true;
 
-    command           = AddEntry (entries, s_kIoLogSave, L"Save...", L"Save...: save the log's entries to a text file", DxuiToolbar::Kind::Command, 0);
+    command           = AddEntry (entries, s_kIoLogSave, L"Save...", L"Save the log's entries to a text file", DxuiToolbar::Kind::Command, 0);
     command->glyph    = s_kpszMdl2Save;
     command->dispatch = [this] { Save(); };
     entries.back().iconOnly = true;
+
+    entries.push_back (m_host.GetFindEntry (m_id));
 
     m_bar.GetBar()->SetEntries (std::move (entries));
 }
@@ -1447,7 +1439,7 @@ std::vector<DxuiPopupMenuItem> IoLogController::GetColumnFilterItems (DxuiListVi
         return items;
     }
 
-    for (IoLogPane::Lane lane : { IoLogPane::kSpeaker, IoLogPane::kVia, IoLogPane::kAy })
+    for (IoLogPane::Lane lane : { IoLogPane::kSpeaker, IoLogPane::kVia, IoLogPane::kAy, IoLogPane::kSpeech })
     {
         item = DebuggerMenuCommand::Make (IoLogPane::GetLaneLabel (lane), m_model->IsLaneShown (lane), [this, lane]
         {

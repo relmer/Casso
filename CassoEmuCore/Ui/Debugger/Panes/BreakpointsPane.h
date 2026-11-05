@@ -65,7 +65,7 @@ public:
     void                             Export         ();
     void                             Import         ();
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"Breakpoints"; }
     void                             CreateControls () override;
     void                             CreateOverlays () override;
@@ -82,7 +82,6 @@ public:
     bool                             RouteEditMouse (const DxuiMouseEvent & ev) override;
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                             RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
     bool                             AddMenuItems   (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                             AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 
@@ -108,6 +107,7 @@ private:
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
     int                              GetIdOfRow     (int row) const;
     int                              GetRowOfId     (int id) const;
+    std::vector<std::wstring>        GetRowKeys     () const;
 
     PaneBarSlot                              m_bar;
     DxuiListView                           * m_list       = nullptr;

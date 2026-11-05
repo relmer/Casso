@@ -57,7 +57,7 @@ public:
 
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetRangeSetCommands () const { return m_rangeSetCommands; }
 
-    std::wstring                 GetId             () const override;
+    const std::wstring         & GetId             () const override;
     std::wstring                 GetTitle          () const override { return L"Heat map ranges"; }
     void                         CreateControls    () override;
     void                         CreateOverlays    () override;
@@ -77,7 +77,6 @@ public:
     bool                         RouteEditMouse    (const DxuiMouseEvent & ev) override;
     bool                         RouteBarMouse     (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                         RouteEditKey      (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    const wchar_t              * GetBarTip         (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
     bool                         AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
 
 private:

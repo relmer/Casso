@@ -79,11 +79,12 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 //
 //  BreakpointColumns::GetRowKind
 //
-//  A data breakpoint's kind is its access. Every execution breakpoint is
-//  Execution: a symbol at the address does not make it a function
-//  breakpoint, since the symbol may label a loop or data as well as a
-//  routine, and the engine has the address, not how it was given. A disk
-//  breakpoint's kind is its event, the three write events one.
+//  A data breakpoint's kind is its access. An execution breakpoint set by
+//  a symbol's name is Function, as Visual Studio's breakpoint set on a
+//  function's name is, and follows the symbol when it moves; any other is
+//  Execution, a symbol at its address included, since that symbol may
+//  label a loop or data as well as a routine. A disk breakpoint's kind is
+//  its event, the three write events one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +115,7 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
     case BreakpointKind::UnwrittenRead: return RowKind::UnwrittenRead;
     case BreakpointKind::VideoLine:     return RowKind::VideoLine;
     case BreakpointKind::Beam:          return RowKind::Beam;
-    case BreakpointKind::Address:       break;
+    case BreakpointKind::Address:       return info.symbol.empty() ? RowKind::Execution : RowKind::Function;
     }
 
     return RowKind::Execution;
@@ -135,7 +136,7 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
 
 std::string BreakpointColumns::GetKindText (RowKind kind)
 {
-    static constexpr const char *  kTexts[] = { "Breakpoint", "Memory", "Memory", "Memory", "Memory",
+    static constexpr const char *  kTexts[] = { "Breakpoint", "Function", "Memory", "Memory", "Memory", "Memory",
                                                 "Register", "Opcode", "BRK", "Interrupt",
                                                 "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
                                                 "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
@@ -164,7 +165,7 @@ std::string BreakpointColumns::GetKindText (RowKind kind)
 
 std::string BreakpointColumns::GetTriggerText (RowKind kind)
 {
-    static constexpr const char *  kTexts[] = { "Execute", "Read", "Write", "Read or write", "Value",
+    static constexpr const char *  kTexts[] = { "Execute", "Execute", "Read", "Write", "Read or write", "Value",
                                                 "Condition", "Execute", "Execute", "IRQ or NMI",
                                                 "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS block",
                                                 "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject",

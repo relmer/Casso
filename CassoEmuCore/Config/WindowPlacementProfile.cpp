@@ -108,7 +108,7 @@ BOOL CALLBACK WindowPlacementProfile::CollectMonitorsProc (HMONITOR hMon, HDC hd
     UNREFERENCED_PARAMETER (hdc);
     UNREFERENCED_PARAMETER (prc);
 
-    if (keepEnumerating && GetMonitorInfoW (hMon, &mi))
+    if (keepEnumerating && DxuiDisplay::Get().GetMonitorInfoW (hMon, &mi))
     {
         snap.device    = mi.szDevice;
         snap.rcMonitor = mi.rcMonitor;
@@ -185,7 +185,7 @@ std::vector<WindowPlacementProfile::MonitorSnapshot> WindowPlacementProfile::Get
 
 
 
-    EnumDisplayMonitors (nullptr, nullptr, CollectMonitorsProc, reinterpret_cast<LPARAM> (&monitors));
+    DxuiDisplay::Get().EnumDisplayMonitors (nullptr, nullptr, CollectMonitorsProc, reinterpret_cast<LPARAM> (&monitors));
 
     return monitors;
 }

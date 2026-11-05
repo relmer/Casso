@@ -276,7 +276,6 @@ namespace CallHistoryShellTests
         //  How long a test waits for a view built on the pool, and how long
         //  it lets pass for the next one to be due.
         static constexpr int  kViewWaitMs     = 5000;
-        static constexpr int  kNoViewWaitMs   = 200;
         static constexpr int  kBuildPassingMs = (int) DebuggerViewState::kBuildIntervalMs * 3;
 
 
@@ -461,9 +460,14 @@ namespace CallHistoryShellTests
         TEST_METHOD (TheViewIsBuiltAgainWhileTheRecordIsRebuilt)
         {
             ShellRig  rig;
+            uint64_t  nowMs  = 1000000;
+            uint64_t  before = 0;
 
 
 
+            //  The shell's clock is moved on a few build intervals between
+            //  passes rather than slept through.
+            rig.shell->GetDebugger().SetClock ([&nowMs] () { return nowMs; });
             rig.shell->GetDebugger().SetDebugWindowShown (true);
 
             rig.shell->GetDebugger().ServiceDebugger();
@@ -471,22 +475,25 @@ namespace CallHistoryShellTests
             Assert::IsTrue (rig.debugger->GetCallHistory().IsRebuilding(), L"the rebuild is under way");
             Assert::IsTrue (rig.TryTakeView (kViewWaitMs),                L"the window's first view");
 
-            std::this_thread::sleep_for (std::chrono::milliseconds (kBuildPassingMs));
+            nowMs += kBuildPassingMs;
             rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsTrue (rig.TryTakeView (kViewWaitMs), L"built again while the rebuild runs");
 
             rig.queue.WaitAll();
-            std::this_thread::sleep_for (std::chrono::milliseconds (kBuildPassingMs));
+            nowMs += kBuildPassingMs;
             rig.shell->GetDebugger().ServiceDebugger();
 
             Assert::IsFalse (rig.debugger->GetCallHistory().IsRebuilding(), L"the rebuild was taken in");
             Assert::IsTrue  (rig.TryTakeView (kViewWaitMs),                L"and built again with it");
 
-            std::this_thread::sleep_for (std::chrono::milliseconds (kBuildPassingMs));
+            //  The shell's count of views sent to be built, read at once
+            //  rather than after waiting out a timeout.
+            before = rig.shell->GetDebugger().GetBuildsSubmitted();
+            nowMs += kBuildPassingMs;
             rig.shell->GetDebugger().ServiceDebugger();
 
-            Assert::IsFalse (rig.TryTakeView (kNoViewWaitMs), L"then a stopped machine builds no more");
+            Assert::AreEqual (before, rig.shell->GetDebugger().GetBuildsSubmitted(), L"then a stopped machine doesn't build again");
 
             rig.shell->GetDebugger().SetDebugWindowShown (false);
         }

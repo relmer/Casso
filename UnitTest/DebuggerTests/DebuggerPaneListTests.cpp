@@ -28,7 +28,7 @@ namespace DebuggerPaneListTests
     public:
         explicit TestPane (IDebuggerPaneHost & host) : IDebuggerPane (host) {}
 
-        std::wstring  GetId() const override { return L"testpane"; }
+        const std::wstring & GetId() const override { static const std::wstring  s_kId = L"testpane"; return s_kId; }
         std::wstring  GetTitle() const override { return L"Test pane"; }
 
         void  CreateControls() override

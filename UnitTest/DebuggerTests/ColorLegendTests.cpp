@@ -172,10 +172,10 @@ namespace ColorLegendTests
 
         static std::wstring  GetTipOverCell (const LegendWindow & window, const DxuiListView & list, int row, size_t column)
         {
-            RECT          cell   = {};
-            RECT          anchor = {};
-            RECT          bounds = list.GetBounds();
-            std::wstring  text;
+            RECT     cell       = {};
+            RECT     bounds     = list.GetBounds();
+            DxuiTip  tip;
+            bool     isColorTip = false;
 
             //  The gutter's dot is an icon, with no text to aim at.
             if (column == 0 || !list.GetCellTextRectPx (row, column, cell))
@@ -183,8 +183,8 @@ namespace ColorLegendTests
                 cell = RECT { 2, list.GetHeaderHeightPx() + row * list.GetRowHeightDip(), 4, list.GetHeaderHeightPx() + (row + 1) * list.GetRowHeightDip() };
             }
 
-            (void) window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + (cell.top + cell.bottom) / 2 }, anchor, text);
-            return text;
+            (void) window.GetTipCoordinator().TryGetTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + (cell.top + cell.bottom) / 2 }, tip, isColorTip);
+            return tip.text;
         }
 
 
@@ -311,18 +311,25 @@ namespace ColorLegendTests
             Assert::AreEqual (255u, alpha (ColorLegend::MakeSwatchIcon (ColorLegend::Swatch::Fill,    0xFFFF0000), kCenter));
         }
 
-        TEST_METHOD (TheBranchTipSaysWhichFlagAndHowItStands)
+        TEST_METHOD (TheBranchTipHasWhichFlagAndItsState)
         {
-            Assert::AreEqual (std::wstring (L"Branch taken: BNE branches while Z is clear, and Z is clear"),
+            Assert::AreEqual (std::wstring (L"Will branch: BNE branches while Z is clear, and Z is clear"),
                               ColorLegend::GetBranchTip ("BNE $0310", true, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Branch not taken: BEQ branches while Z is set, and Z is clear"),
+            Assert::AreEqual (std::wstring (L"Won't branch: BEQ branches while Z is set, and Z is clear"),
                               ColorLegend::GetBranchTip ("beq $0310", false, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Branch not taken: BCC branches while C is clear, and C is set"),
+            Assert::AreEqual (std::wstring (L"Won't branch: BCC branches while C is clear, and C is set"),
                               ColorLegend::GetBranchTip ("BCC LOOP", false, (Byte) 0x01));
-            Assert::AreEqual (std::wstring (L"Branch taken: BBS3 branches while bit 3 of its byte is set"),
+            Assert::AreEqual (std::wstring (L"Will branch: BBS3 branches while bit 3 of its byte is set"),
                               ColorLegend::GetBranchTip ("BBS3 $10,$0310", true, (Byte) 0x00));
-            Assert::AreEqual (std::wstring (L"Call: JSR always calls its target"),
+            Assert::AreEqual (std::wstring (L"Will call: JSR always calls its target"),
                               ColorLegend::GetBranchTip ("JSR $FDED", true, std::nullopt));
+        }
+
+        //  The dotted arrow's tip: the branch the last step took to the PC.
+        TEST_METHOD (TheTakenBranchTipHasTheStepsInstruction)
+        {
+            Assert::AreEqual (std::wstring (L"Taken by the last step: BNE w_inner at $60BB"), ColorLegend::GetTakenBranchTip ("BNE w_inner", 0x60BB));
+            Assert::AreEqual (std::wstring (L"Taken by the last step, from $60BB"),           ColorLegend::GetTakenBranchTip ("", 0x60BB), L"scrolled out of the lines");
         }
 
 
@@ -355,8 +362,8 @@ namespace ColorLegendTests
             DiskHeadView         view;
             DxuiDpiScaler        scaler;
             DiagnosticsDiskHead  head;
-            POINT                ruler = { 50, 4 };
-            POINT                lamps = { 50, 30 };
+            POINT                ruler = { DiskHeadView::kDriveDip + 50, 4 };
+            POINT                lamps = { DiskHeadView::kDriveDip + 50, 30 };
 
 
 
@@ -379,6 +386,7 @@ namespace ColorLegendTests
 
             Assert::AreEqual (std::wstring (ColorLegend::GetText (Meaning::HeadMoving)), view.GetColorTipAt (ruler));
             Assert::IsTrue   (view.GetColorTipAt (POINT { 400, 4 }).empty(), L"a tip off the view");
+            Assert::IsTrue   (view.GetColorTipAt (POINT { 10, 4 }).empty(),  L"no tip over the drive's name");
         }
 
 
@@ -424,14 +432,14 @@ namespace ColorLegendTests
             LegendHost              host;
             LegendWindow            window (theme, host);
             DxuiDpiScaler           scaler;
-            DxuiListView          * list    = nullptr;
+            DxuiListView          * list       = nullptr;
             MockDxuiPainter         painter;
             MockDxuiTextRenderer    text;
-            RECT                    cell    = {};
-            RECT                    bounds  = {};
-            RECT                    anchor  = {};
-            std::wstring            tip;
-            int                     right   = 0;
+            RECT                    cell       = {};
+            RECT                    bounds     = {};
+            DxuiTip                 tip;
+            bool                    isColorTip = false;
+            int                     right      = 0;
 
 
 
@@ -446,8 +454,8 @@ namespace ColorLegendTests
             bounds = list->GetBounds();
 
             Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell));
-            Assert::IsTrue (window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, anchor, tip));
-            Assert::AreEqual (list->GetColumnAt (DisassemblyCells::kOperandColumn).tip, tip, L"the operand's heading");
+            Assert::IsTrue (window.GetTipCoordinator().TryGetTip (POINT { bounds.left + (cell.left + cell.right) / 2, bounds.top + list->GetHeaderHeightPx() / 2 }, tip, isColorTip));
+            Assert::AreEqual (list->GetColumnAt (DisassemblyCells::kOperandColumn).tip, tip.text, L"the operand's heading");
 
             right = list->GetPaneLeadPx() - list->GetLeftPx();
 
@@ -457,7 +465,7 @@ namespace ColorLegendTests
             }
 
             Assert::IsTrue  (bounds.left + right + 20 < bounds.right, L"the pane is wider than its columns");
-            Assert::IsFalse (window.GetTipCoordinator().TryGetCellTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, anchor, tip), L"past the PC's row's last column");
+            Assert::IsFalse (window.GetTipCoordinator().TryGetTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, tip, isColorTip), L"past the PC's row's last column");
         }
     };
 }

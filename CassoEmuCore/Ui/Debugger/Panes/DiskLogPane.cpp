@@ -190,7 +190,7 @@ std::wstring DiskLogPane::ListRejected (
 //
 //  GetOptionsText
 //
-//  kinds=11111111;severity=111;drive=0;track=...;sector=...;columnLayout=101111 0,0,0,0,0,0
+//  kinds=11111111;severity=111;drive=0;track=...;sector=...;headings=2;columnLayout=101111111 0,0,0,0,0,0,0,0,0
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,8 +211,8 @@ std::string DiskLogPane::GetOptionsText() const
         severities += isShown ? '1' : '0';
     }
 
-    return std::format ("kinds={};severity={};drive={};track={};sector={};columnLayout={}", kinds, severities, m_drive,
-                        TextEncoding::WideToUtf8 (CleanForOptions (m_trackText)), TextEncoding::WideToUtf8 (CleanForOptions (m_sectorText)),
+    return std::format ("kinds={};severity={};drive={};track={};sector={};headings={};columnLayout={}", kinds, severities, m_drive,
+                        TextEncoding::WideToUtf8 (CleanForOptions (m_trackText)), TextEncoding::WideToUtf8 (CleanForOptions (m_sectorText)), kHeadingsVersion,
                         GetColumnsText());
 }
 
@@ -230,13 +230,15 @@ std::string DiskLogPane::GetOptionsText() const
 
 void DiskLogPane::SetOptionsText (const std::string & text)
 {
-    size_t       start = 0;
-    size_t       end   = 0;
-    size_t       equal = 0;
-    size_t       i     = 0;
+    size_t       start    = 0;
+    size_t       end      = 0;
+    size_t       equal    = 0;
+    size_t       i        = 0;
     std::string  field;
     std::string  key;
     std::string  value;
+    std::string  layout;
+    int          headings = 1;
 
 
 
@@ -275,12 +277,22 @@ void DiskLogPane::SetOptionsText (const std::string & text)
         {
             m_sectorText = TextEncoding::Utf8ToWide (value);
         }
+        else if (key == "headings" && !value.empty() && value.find_first_not_of ("0123456789") == std::string::npos)
+        {
+            headings = std::stoi (value);
+        }
         else if (key == "columnLayout")
         {
-            SetColumnsText (value);
+            layout = value;
         }
 
         start = end + 1;
+    }
+
+    //  A layout saved before the place columns is for other columns.
+    if (!layout.empty() && headings >= kHeadingsVersion)
+    {
+        SetColumnsText (layout);
     }
 
     m_sector = TrackSectorPredicate::Parse (m_sectorText, TrackSectorPredicate::Mode::Sector);
@@ -455,14 +467,13 @@ const wchar_t * DiskLogPane::GetEventLabel (Disk2EventType type)
 //
 //  GetDetail
 //
-//  A track, sector or volume not known yet is "?": a data field read before
-//  any address field. A sector's detail ends with its first bytes.
+//  What is not in the Track, Sector and Volume columns: where a step came
+//  from, a sector's length and first bytes, and what went wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector<Byte> * bytes)
 {
-    auto          field  = [] (wchar_t prefix, int value) { return (value < 0) ? std::format (L"{}?", prefix) : std::format (L"{}{}", prefix, value); };
     auto          track  = [] (int quarterTrack) { return TextEncoding::NarrowToWide (DiskImage::FormatQuarterTrack (quarterTrack)); };
     std::wstring  detail;
     std::wstring  first;
@@ -480,44 +491,28 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
         first += L" ...";
     }
 
-
-
     switch (event.type)
     {
         case Disk2EventType::HeadStep:
-            detail = std::format (L"track {} -> {}", track (event.payload.step.prevQt), track (event.payload.step.newQt));
-            break;
-
-        case Disk2EventType::HeadBump:
-            detail = std::format (L"at track {}", track (event.payload.bump.atQt));
-            break;
-
-        case Disk2EventType::AddrMark:
-            detail = std::format (L"{} {} {}", field (L'T', event.payload.addrMark.track), field (L'S', event.payload.addrMark.sector),
-                                  field (L'V', event.payload.addrMark.volume));
+            detail = std::format (L"from track {}", track (event.payload.step.prevQt));
             break;
 
         case Disk2EventType::DataRead:
         case Disk2EventType::DataWrite:
         case Disk2EventType::DataNoAddress:
-            detail = std::format (L"{} {} {} ({} bytes){}", field (L'T', event.payload.dataMark.track), field (L'S', event.payload.dataMark.sector),
-                                  field (L'V', event.payload.dataMark.volume), event.payload.dataMark.byteCount, first);
+            detail = std::format (L"{} bytes{}", event.payload.dataMark.byteCount, first);
             break;
 
         case Disk2EventType::DataChecksumError:
-            detail = std::format (L"{} {} {}: the checksum does not match ({} bytes){}", field (L'T', event.payload.dataMark.track),
-                                  field (L'S', event.payload.dataMark.sector), field (L'V', event.payload.dataMark.volume),
-                                  event.payload.dataMark.byteCount, first);
+            detail = std::format (L"the checksum does not match ({} bytes){}", event.payload.dataMark.byteCount, first);
             break;
 
         case Disk2EventType::AddrChecksumError:
-            detail = std::format (L"{} {} {} as read: the checksum does not match", field (L'T', event.payload.addrMark.track),
-                                  field (L'S', event.payload.addrMark.sector), field (L'V', event.payload.addrMark.volume));
+            detail = L"the checksum does not match";
             break;
 
         case Disk2EventType::DataCutOff:
-            detail = std::format (L"after {} {} {}: no epilogue at either sector length", field (L'T', event.payload.addrMark.track),
-                                  field (L'S', event.payload.addrMark.sector), field (L'V', event.payload.addrMark.volume));
+            detail = L"no epilogue at either sector length";
             break;
 
         case Disk2EventType::WriteProtected:
@@ -525,7 +520,7 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
             break;
 
         case Disk2EventType::ReadStall:
-            detail = std::format (L"no address field in two revolutions at track {}", track (event.payload.bump.atQt));
+            detail = L"no address field in two revolutions";
             break;
 
         default:
@@ -533,6 +528,60 @@ std::wstring DiskLogPane::GetDetail (const Disk2Event & event, const std::vector
     }
 
     return detail;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPlace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskLogPane::GetPlace (const Disk2Event & event, std::wstring & track, std::wstring & sector, std::wstring & volume)
+{
+    auto  field = [] (int value) { return (value < 0) ? std::wstring (L"?") : std::format (L"{}", value); };
+    auto  qt    = [] (int quarterTrack) { return TextEncoding::NarrowToWide (DiskImage::FormatQuarterTrack (quarterTrack)); };
+
+
+
+    track.clear();
+    sector.clear();
+    volume.clear();
+
+    switch (event.type)
+    {
+        case Disk2EventType::HeadStep:
+            track = qt (event.payload.step.newQt);
+            break;
+
+        case Disk2EventType::HeadBump:
+        case Disk2EventType::ReadStall:
+            track = qt (event.payload.bump.atQt);
+            break;
+
+        case Disk2EventType::AddrMark:
+        case Disk2EventType::AddrChecksumError:
+        case Disk2EventType::DataCutOff:
+            track  = field (event.payload.addrMark.track);
+            sector = field (event.payload.addrMark.sector);
+            volume = field (event.payload.addrMark.volume);
+            break;
+
+        case Disk2EventType::DataRead:
+        case Disk2EventType::DataWrite:
+        case Disk2EventType::DataChecksumError:
+        case Disk2EventType::DataNoAddress:
+            track  = field (event.payload.dataMark.track);
+            sector = field (event.payload.dataMark.sector);
+            volume = field (event.payload.dataMark.volume);
+            break;
+
+        default:
+            break;
+    }
 }
 
 
@@ -549,9 +598,12 @@ DiskLogPane::ColumnSpecs DiskLogPane::GetColumnSpecs() const
 {
     return { { L"Time",      DxuiTextHAlign::Left,  kFit, true  },
              { L"Cycle",     DxuiTextHAlign::Right,  110, false },
-             { L"Drive",     DxuiTextHAlign::Right,   48, true  },
              { L"Severity",  DxuiTextHAlign::Left,  kFit, true  },
              { L"Event",     DxuiTextHAlign::Left,  kFit, true  },
+             { L"Drive",     DxuiTextHAlign::Right,   48, true  },
+             { L"Volume",    DxuiTextHAlign::Right,   60, true  },
+             { L"Track",     DxuiTextHAlign::Right,   56, true  },
+             { L"Sector",    DxuiTextHAlign::Right,   56, true  },
              { L"Detail",    DxuiTextHAlign::Left,     0, true  } };
 }
 
@@ -678,6 +730,9 @@ void DiskLogPane::MakeCells (
 
 
     out[kDrive].text    = (row.event.drive >= 0) ? std::format (L"{}", row.event.drive + 1) : std::wstring();
+
+    GetPlace (row.event, out[kTrack].text, out[kSector].text, out[kVolume].text);
+
     out[kSeverity].text = GetSeverityLabel (severity);
     out[kEvent].text    = GetEventLabel (row.event.type);
     out[kDetail].text   = GetDetail (row.event, row.data.get());

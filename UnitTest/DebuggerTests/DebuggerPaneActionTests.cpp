@@ -194,6 +194,70 @@ public:
 
 
 
+    //  The Condition tip opens with the type and lists what its condition
+    //  reads: the registers, flags and memory for every type, ACCESS and
+    //  VALUE for a memory breakpoint only, and the disk's values for a disk
+    //  or a condition breakpoint only.
+    TEST_METHOD (TheConditionTipListsWhatTheTypesConditionReads)
+    {
+        using Type = BreakpointDialog::Type;
+
+        std::wstring  memory    = BreakpointDialog::GetConditionTip (Type::ReadWrite);
+        std::wstring  execution = BreakpointDialog::GetConditionTip (Type::Execute);
+        std::wstring  disk      = BreakpointDialog::GetConditionTip (Type::Disk);
+        std::wstring  rule      = BreakpointDialog::GetConditionTip (Type::Condition);
+
+
+
+        Assert::IsTrue (memory.starts_with (L"A memory breakpoint can set conditions using these items:"), memory.c_str());
+        Assert::IsTrue (execution.starts_with (L"An execution breakpoint"), execution.c_str());
+        Assert::IsTrue (disk.starts_with (L"A disk breakpoint"), disk.c_str());
+        Assert::IsTrue (rule.starts_with (L"A condition breakpoint"), rule.c_str());
+
+        for (const std::wstring & tip : { memory, execution, disk, rule })
+        {
+            Assert::IsTrue (tip.find (L"The registers: A, X, Y, S, P and PC") != std::wstring::npos, tip.c_str());
+            Assert::IsTrue (tip.find (L"The flags: P.C, P.Z") != std::wstring::npos, tip.c_str());
+            Assert::IsTrue (tip.find (L"For decimal, prefix with 0n, for example 0n123.") != std::wstring::npos, tip.c_str());
+        }
+
+        Assert::IsTrue  (memory.find    (L"ACCESS") != std::wstring::npos, L"a memory breakpoint's access");
+        Assert::IsFalse (execution.find (L"ACCESS") != std::wstring::npos, L"not for an execution breakpoint");
+        Assert::IsFalse (disk.find      (L"ACCESS") != std::wstring::npos, L"or a disk breakpoint");
+
+        Assert::IsTrue  (disk.find      (L"DISK.AVOLUME") != std::wstring::npos, L"every disk value for a disk breakpoint");
+        Assert::IsTrue  (rule.find      (L"DISK.AVOLUME") != std::wstring::npos, L"and a condition breakpoint");
+        Assert::IsFalse (memory.find    (L"DISK.") != std::wstring::npos,        L"not for a memory breakpoint");
+    }
+
+
+
+    //  Moving the focus off a field checks the fields only while each field
+    //  the type requires has text; an empty one is reported by OK.
+    TEST_METHOD (AnEmptyFieldIsCheckedOnlyByOk)
+    {
+        using Type = BreakpointDialog::Type;
+
+        BreakpointDialog::Fields  fields;
+
+
+
+        fields.type = Type::Condition;
+        Assert::IsFalse (BreakpointDialog::IsCheckedOnFocusLoss (fields), L"an empty condition, before typing");
+
+        fields.condition = "A ==";
+        Assert::IsTrue  (BreakpointDialog::IsCheckedOnFocusLoss (fields), L"a condition typed is checked");
+
+        fields      = BreakpointDialog::Fields();
+        fields.type = Type::Execute;
+        Assert::IsFalse (BreakpointDialog::IsCheckedOnFocusLoss (fields), L"an empty address");
+
+        fields.address = "300";
+        Assert::IsTrue  (BreakpointDialog::IsCheckedOnFocusLoss (fields), L"an execution breakpoint's condition may be empty");
+    }
+
+
+
     //  A disk event's fields make the arguments BPDISK takes, which read back
     //  into the same fields, and each definition is one the console runs.
     TEST_METHOD (ADiskEventsFieldsMakeArgumentsThatReadBack)

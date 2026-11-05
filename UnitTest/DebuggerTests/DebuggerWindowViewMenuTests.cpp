@@ -99,6 +99,8 @@ namespace DebuggerViewMenuTests
         using DebuggerWindow::GetViewMenuPanes;
         using DebuggerWindow::GetPaneLayout;
         using DebuggerWindow::EditPaneLayout;
+        using DebuggerWindow::OnMouse;
+        using DebuggerWindow::GetDockSite;
     };
 
 
@@ -139,6 +141,50 @@ namespace DebuggerViewMenuTests
             window.ShowPane (DebuggerLayout::kRegisters);
 
             Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kRegisters), L"the View menu shows it again");
+        }
+
+
+        //  A right-click on a tab behind another brings it forward before its
+        //  menu opens.
+        TEST_METHOD (RightClickingATabBringsItsPaneForward)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            ViewMenuHost    host;
+            ViewMenuWindow  window (theme, host);
+            DxuiDpiScaler   scaler;
+            RECT            tab    = {};
+            std::wstring    tip;
+            POINT           at     = {};
+            bool            found  = false;
+            DxuiMouseEvent  press;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            for (int y = 0; y < 900 && !found; y += 2)
+            {
+                for (int x = 0; x < 1400 && !found; x += 4)
+                {
+                    at    = POINT { x, y };
+                    found = window.GetDockSite()->GetTabAt (at, tab, tip) == DebuggerLayout::kTrace;
+                }
+            }
+
+            Assert::IsTrue (found, L"the trace has a tab");
+
+            POINT  inside = { (tab.left + tab.right) / 2, tab.top - 60 };
+
+            Assert::IsTrue (window.GetDockSite()->GetPaneAt (inside) != DebuggerLayout::kTrace, L"another pane is in front of the trace");
+
+            press.kind        = DxuiMouseEventKind::Down;
+            press.button      = DxuiMouseButton::Right;
+            press.positionDip = at;
+            (void) window.OnMouse (press);
+
+            Assert::IsTrue (window.GetDockSite()->GetPaneAt (inside) == DebuggerLayout::kTrace, L"the trace is in front");
         }
 
 
@@ -192,6 +238,29 @@ namespace DebuggerViewMenuTests
             {
                 Assert::IsTrue (std::ranges::find (panes, DebuggerLayout::GetMemoryPaneId (memory)) != panes.end());
             }
+        }
+
+
+        TEST_METHOD (TheLogsAreTogetherAheadOfTheTools)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            ViewMenuHost               host;
+            ViewMenuWindow             window (theme, host);
+            std::vector<std::wstring>  panes;
+            std::vector<std::wstring>  order  = { DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
+                                                  DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog,
+                                                  DebuggerLayout::kBasicProgram, DebuggerLayout::kSymbols };
+            auto                       begin  = panes.end();
+
+
+
+            window.OnCreate();
+            panes = window.GetViewMenuPanes();
+            begin = std::ranges::find (panes, order.front());
+
+            Assert::IsTrue (begin != panes.end());
+            Assert::IsTrue (std::distance (begin, panes.end()) >= (ptrdiff_t) order.size());
+            Assert::IsTrue (std::equal (order.begin(), order.end(), begin));
         }
 
 

@@ -52,6 +52,16 @@ private:
     static void  Add    (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
     static bool  TryResolveTyped (DebugSession & session, const std::string & text, WatchItem & item, std::string & error);
     static void  ReadTyped       (DebugSession & session, const WatchItem & item, WatchEntry & entry);
+
+    //  The text at an address, in quotes: up to kMaxTextChars characters, to
+    //  a zero byte, with the high bit dropped and a control character as a
+    //  period.
+    static constexpr size_t  kMaxTextChars = 40;
+
+    static std::string  ReadText (DebugSession & session, Word address);
+
+    //  Whether a text data block starts at an address.
+    static bool         IsTextAt (DebugSession & session, Word address);
     static void  Clear  (DebugSession & session, const DebugCommand & command, WatchListKind kind, Reply & reply);
     static void  Enable (DebugSession & session, const DebugCommand & command, WatchListKind kind, bool enabled, Reply & reply);
     static void  GoTo   (DebugSession & session, const DebugCommand & command, Reply & reply);

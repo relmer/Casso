@@ -144,7 +144,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
     std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
-                                       kVideoLog, kSoundLog, kBasicProgram, kSymbols, kBookmarks, kProfiler, kDataBlocks };
+                                       kVideoLog, kSoundLog, kSerialLog, kNetworkLog, kBasicProgram, kSymbols, kMachineSymbols, kBookmarks, kProfiler, kDataBlocks };
 
 
 
@@ -355,7 +355,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kStack;
     }
 
-    if ((pane == kTrace || pane == kDiskLog || pane == kInputLog || pane == kVideoLog || pane == kSoundLog) && layout.Contains (kConsole))
+    if ((pane == kTrace || pane == kDiskLog || pane == kInputLog || pane == kVideoLog || pane == kSoundLog || pane == kSerialLog || pane == kNetworkLog) && layout.Contains (kConsole))
     {
         return kConsole;
     }
@@ -370,7 +370,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kConsole;
     }
 
-    if ((pane == kSymbols || pane == kBookmarks || pane == kDataBlocks) && layout.Contains (kBreakpoints))
+    if ((pane == kSymbols || pane == kMachineSymbols || pane == kBookmarks || pane == kDataBlocks) && layout.Contains (kBreakpoints))
     {
         return kBreakpoints;
     }
@@ -405,7 +405,7 @@ bool DebuggerLayout::IsBasicPane (const std::wstring & pane)
 
 std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
 {
-    return { kSymbols, kBookmarks, kProfiler, kDataBlocks };
+    return { kSymbols, kMachineSymbols, kBookmarks, kProfiler, kDataBlocks };
 }
 
 
@@ -434,7 +434,9 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
         { kInputLog,     126 },
         { kVideoLog,     127 },
         { kSoundLog,     128 },
-        { kBasicProgram, 129 },
+        { kSerialLog,    129 },
+        { kNetworkLog,   130 },
+        { kBasicProgram, 131 },
         { kConsole,      150 },
     };
     std::vector<std::wstring>  tools = GetToolPaneIds();
@@ -478,7 +480,7 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
     {
         if (pane == tools[i])
         {
-            return 130 + (int) i;
+            return 140 + (int) i;
         }
     }
 
@@ -519,6 +521,27 @@ std::wstring DebuggerLayout::GetViewMenuGroup (const std::wstring & pane)
         if (pane == GetMemoryPaneId (window))
         {
             return L"Memory";
+        }
+    }
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        if (pane == GetSourcePaneId (slot))
+        {
+            return L"Source files";
+        }
+    }
+
+    if (pane == kBasicProgram)
+    {
+        return L"Source files";
+    }
+
+    for (const wchar_t * log : { kDiskLog, kInputLog, kVideoLog, kSoundLog, kSerialLog, kNetworkLog })
+    {
+        if (pane == log)
+        {
+            return L"Logs";
         }
     }
 
@@ -670,15 +693,18 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add (kInputLog, kConsole);
     layout.Add (kVideoLog, kConsole);
     layout.Add (kSoundLog, kConsole);
+    layout.Add (kSerialLog, kConsole);
+    layout.Add (kNetworkLog, kConsole);
 
     //  The BASIC program is a tab of the disassembly, the profiler of the
-    //  console, and the symbols, bookmarks and data ranges of the
-    //  breakpoints.
-    layout.Add (kBasicProgram, kCode);
-    layout.Add (kProfiler,     kConsole);
-    layout.Add (kSymbols,      kBreakpoints);
-    layout.Add (kBookmarks,    kBreakpoints);
-    layout.Add (kDataBlocks,   kBreakpoints);
+    //  console, and both symbols panes, the bookmarks and the data ranges
+    //  of the breakpoints.
+    layout.Add (kBasicProgram,   kCode);
+    layout.Add (kProfiler,       kConsole);
+    layout.Add (kSymbols,        kBreakpoints);
+    layout.Add (kMachineSymbols, kBreakpoints);
+    layout.Add (kBookmarks,      kBreakpoints);
+    layout.Add (kDataBlocks,     kBreakpoints);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {
@@ -714,4 +740,58 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.SetRatio (L"1111", 0.50f);
 
     return layout;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetCommandBarDock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarDock DebuggerLayout::GetCommandBarDock (const std::wstring & saved)
+{
+    DxuiToolbarDock  dock;
+
+
+
+    if (!saved.empty())
+    {
+        return DxuiToolbarDock::FromText (saved);
+    }
+
+    dock.band = 0;
+    return dock;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerLayout::GetTimelineDock
+//
+//  The band lays its bars out by their offsets, each pushed past the one
+//  before it, so any offset past the bar's puts the timeline after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbarDock DebuggerLayout::GetTimelineDock (const std::wstring & saved)
+{
+    DxuiToolbarDock  dock;
+
+
+
+    if (!saved.empty())
+    {
+        return DxuiToolbarDock::FromText (saved);
+    }
+
+    dock.band      = 0;
+    dock.offsetDip = 1;
+    return dock;
 }

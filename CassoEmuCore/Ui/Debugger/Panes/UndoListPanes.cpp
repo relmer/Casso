@@ -553,6 +553,9 @@ void RegistersPane::Configure()
     m_list->SetColumns ({ { L"Reg",   0, false, DxuiTextHAlign::Left },
                           { L"Value", 0, false, DxuiTextHAlign::Left },
                           { L"",      0, false, DxuiTextHAlign::Left } });
+
+    //  Over P's value, its flags.
+    m_list->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
 }
 
 
@@ -947,14 +950,14 @@ bool RegistersPane::RouteBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RegistersPane::TryGetTip
+//  RegistersPane::TryGetTipAt
 //
 //  Over P's flags, a line for each flag, a flag that changed since the last
 //  stop in the changed color, as its letter is in the cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RegistersPane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool RegistersPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     RECT                 bounds  = m_list->GetBounds();
     RECT                 cell    = {};
@@ -992,9 +995,9 @@ bool RegistersPane::TryGetTip (POINT clientPx, PaneTip & tip)
 
     OffsetRect (&cell, bounds.left, bounds.top);
 
-    tip.kind   = PaneTip::Kind::Control;
-    tip.anchor = cell;
-    tip.text   = FlagsDialog::Describe (*p);
+    tip.placement = DxuiTip::Placement::AtPointer;
+    tip.anchor    = cell;
+    tip.text      = FlagsDialog::Describe (*p);
     return true;
 }
 

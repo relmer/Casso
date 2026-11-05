@@ -66,6 +66,7 @@ void PaneBarSlot::Configure()
     m_bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
     m_bar->SetCompact       (true);
     m_bar->SetPaneTextInset (true);
+    m_bar->SetBottomEdge    (false);
     m_bar->EnableSeeMore    (s_kpszMdl2More, L"See more");
     m_bar->SetVisible       (false);
 }
@@ -190,24 +191,4 @@ bool PaneBarSlot::RouteToolbarMouse (IDebuggerPaneHost & host, const std::wstrin
     default:
         return open;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaneBarSlot::GetToolbarTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * PaneBarSlot::GetToolbarTip (IDebuggerPaneHost & host, const std::wstring & pane, const DxuiToolbar * bar, POINT clientPx, RECT & anchor)
-{
-    if (bar == nullptr || !host.IsBarRouted (pane) || !bar->IsVisible())
-    {
-        return nullptr;
-    }
-
-    return bar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
 }

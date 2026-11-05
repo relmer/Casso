@@ -126,6 +126,28 @@ int DxuiSystemSettings::ReadWheel (UINT action, int fallback) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiSystemSettings::ReadMetric
+//
+//  One system metric. A zero or less is a failure, since every metric read
+//  here is greater than zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiSystemSettings::ReadMetric (int index, int fallback) const
+{
+    int  value = m_pfnReadMetric (index);
+
+
+
+    return (value > 0) ? value : fallback;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiSystemSettings::Refresh
 //
 //  Re-reads every setting. Cheap enough to call on `WM_SETTINGCHANGE`
@@ -145,6 +167,12 @@ void DxuiSystemSettings::Refresh()
 
     m_wheelLines = ReadWheel (SPI_GETWHEELSCROLLLINES, kDefaultWheelLines);
     m_wheelChars = ReadWheel (SPI_GETWHEELSCROLLCHARS, kDefaultWheelChars);
+
+    m_doubleClickPx  = SIZE { ReadMetric (SM_CXDOUBLECLK, kDefaultDoubleClickPx), ReadMetric (SM_CYDOUBLECLK, kDefaultDoubleClickPx) };
+    m_dragPx         = SIZE { ReadMetric (SM_CXDRAG,      kDefaultDragPx),        ReadMetric (SM_CYDRAG,      kDefaultDragPx) };
+    m_cursorHeightPx = ReadMetric (SM_CYCURSOR, kDefaultCursorHeightPx);
+    m_doubleClickMs  = (m_pfnReadDoubleClick() != 0) ? (int) m_pfnReadDoubleClick() : kDefaultDoubleClickMs;
+    m_caretBlinkMs   = (m_pfnReadCaretBlink()  != 0) ? m_pfnReadCaretBlink()         : kDefaultCaretBlinkMs;
 }
 
 
@@ -164,6 +192,26 @@ void DxuiSystemSettings::SetParameterReader (ParameterReader reader)
 {
     m_pfnRead = (reader != nullptr) ? reader : SystemParametersInfoW;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSystemSettings::SetMetricReaders
+//
+//  Takes effect at the next Refresh, as SetParameterReader does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiSystemSettings::SetMetricReaders (MetricReader metric, TimeReader doubleClickTime, TimeReader caretBlinkTime)
+{
+    m_pfnReadMetric      = (metric          != nullptr) ? metric          : GetSystemMetrics;
+    m_pfnReadDoubleClick = (doubleClickTime != nullptr) ? doubleClickTime : GetDoubleClickTime;
+    m_pfnReadCaretBlink  = (caretBlinkTime  != nullptr) ? caretBlinkTime  : GetCaretBlinkTime;
+}
+
 
 
 

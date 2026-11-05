@@ -4,6 +4,8 @@
 #include "Core/ComponentRegistry.h"
 #include "Core/InterruptController.h"
 #include "Core/Prng.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Network/VirtualSubnet.h"
 #include "Devices/Network/W5100Registers.h"
@@ -37,16 +39,14 @@ namespace UthernetCardTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  EnableCard
+    //  EnableCardSlot
     //
     //  The shipped slot-3 entry, switched on.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static void EnableCard (MachineConfig & config, MachineBuildServices & services)
+    static void EnableCardSlot (MachineConfig & config)
     {
-        (void) services;
-
         for (SlotConfig & slot : config.slots)
         {
             if (slot.device == "uthernet2")
@@ -54,6 +54,25 @@ namespace UthernetCardTests
                 slot.enabled = true;
             }
         }
+    }
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  EnableCard
+    //
+    //  EnableCardSlot, as a build step.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static void EnableCard (MachineConfig & config, MachineBuildServices & services)
+    {
+        (void) services;
+
+        EnableCardSlot (config);
     }
 
 
@@ -207,6 +226,51 @@ namespace UthernetCardTests
 
             Assert::AreEqual ((Word) 0, card.GetChip().GetAddressPointer());
             Assert::AreEqual ((Byte) 0, card.Read (kSlot3Mode));
+        }
+
+
+        //  A saved machine has the W5100's registers, buffers and address
+        //  pointer, so a load, or a replay from a keyframe, puts them back.
+        TEST_METHOD (TheMachineStateHasTheChipsRegistersAndPointer)
+        {
+            TestMachine     machine ("Apple2e", [] (MachineConfig & config) { EnableCard (config, *(MachineBuildServices *) nullptr); });
+            UthernetCard  * card    = machine.GetRefs().uthernet;
+            MemoryBus     & bus     = machine.GetMemoryBus();
+            StateWriter     writer;
+            HRESULT         hr      = S_OK;
+            Byte            ip[]    = { 192, 168, 1, 10 };
+
+
+
+            Assert::IsNotNull (card);
+
+            bus.WriteByte (kSlot3Mode, R::kMrIndirect | R::kMrAutoIncrement);
+            bus.WriteByte (kSlot3High, 0x00);
+            bus.WriteByte (kSlot3Low,  (Byte) R::kSipr);
+
+            for (Byte each : ip)
+            {
+                bus.WriteByte (kSlot3Data, each);
+            }
+
+            hr = machine.SaveState (writer);
+            Assert::AreEqual (S_OK, hr, L"SaveState");
+
+            bus.WriteByte (kSlot3High, 0x00);
+            bus.WriteByte (kSlot3Low,  (Byte) R::kSipr);
+            bus.WriteByte (kSlot3Data, 10);
+            bus.WriteByte (kSlot3Mode, R::kMrIndirect);
+
+            {
+                StateReader  reader (writer.GetBytes());
+
+                hr = machine.LoadState (reader);
+                Assert::AreEqual (S_OK, hr, L"LoadState");
+            }
+
+            Assert::AreEqual ((Byte) 192, card->GetChip().PeekCommon (R::kSipr), L"the IP address register");
+            Assert::AreEqual ((Byte) (R::kMrIndirect | R::kMrAutoIncrement), card->GetChip().PeekCommon (R::kMr), L"the mode register");
+            Assert::AreEqual ((Word) (R::kSipr + 4), card->GetChip().GetAddressPointer(), L"the address pointer");
         }
 
 
