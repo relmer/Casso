@@ -376,9 +376,10 @@ public:
 
 
     //  A byte of the cassette audio's data flipped: the monitor's checksum
-    //  fails and it reports ERR, and the shim doesn't start. The same audio
-    //  with no fault starts it.
-    TEST_METHOD (ACassetteFlip_FailsTheMonitorsCheck_AndATapeWithoutItLoads)
+    //  fails and it reports ERR, the shim doesn't start, and the slot finder
+    //  has the monitor read the tape again. The audio sent again, with
+    //  nothing typed, starts it.
+    TEST_METHOD (ACassetteFlip_FailsTheMonitorsCheck_AndTheAudioSentAgainLoads)
     {
         Enabled                               enabled;
         TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
@@ -406,7 +407,7 @@ public:
         Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
 
         Type (machine, "CALL -151\r");
-        PlayCassette (machine);
+        PlayCassette (machine, true);
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
 
@@ -421,15 +422,15 @@ public:
         Assert::IsTrue (shown.find ("ERR") != std::string::npos, TextEncoding::NarrowToWide (shown).c_str());
         Assert::IsTrue (shown.find ("SSC, SLOT 5") == std::string::npos, L"the shim didn't start");
 
-        PlayCassette (machine);
+        PlayCassette (machine, false);
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
         Assert::IsTrue (screen[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
     }
 
-    //  The monitor's command typed, and the cassette audio sent to the
-    //  machine's tape input.
-    static void  PlayCassette (TestMachine & machine)
+    //  The cassette audio sent to the machine's tape input, after the
+    //  monitor's command when it is to be typed.
+    static void  PlayCassette (TestMachine & machine, bool typeCommand)
     {
         std::vector<Byte>     wav;
         std::string           command;
@@ -446,7 +447,10 @@ public:
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
 
-        Type (machine, command.c_str());
+        if (typeCommand)
+        {
+            Type (machine, command.c_str());
+        }
 
         machine.GetTapeDeck().Insert (std::move (image));
         machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());

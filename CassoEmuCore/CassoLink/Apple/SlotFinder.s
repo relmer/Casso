@@ -25,13 +25,15 @@
 ; command reads the tape and runs this on one line, so a read that fails its
 ; checksum prints ERR and runs this anyway. The PC sets the last byte before
 ; the shim so the monitor's XOR of the record, which starts at $FF, ends at
-; 0; any other value is a damaged read, and this returns to the monitor.
+; 0; any other value is a damaged read. The monitor then runs the line in its
+; input buffer again, the command that read the tape, so the tape is read
+; again when the PC sends the audio again, with nothing typed.
 
 SHIM     = $3B00
 SHIMSLOT = $3B38                ; the shim's 6551 slot
 KSWH     = $39                  ; the input hook's high byte
 CHKSUM   = $2E                  ; the monitor's XOR of the bytes it read from tape
-MONZ     = $FF69                ; the monitor's prompt
+REPARSE  = $FF70                ; the monitor's prompt, past reading a line: the line read last is run again
 
         ifdef SERIALLOAD
 ORIGIN   = $3A50
@@ -44,7 +46,7 @@ ORIGIN   = $3AA0
         ifndef SERIALLOAD
         lda CHKSUM              ; 0 when the tape was read whole
         beq whole
-        jmp MONZ
+        jmp REPARSE
 whole:
         endif
         lda KSWH                ; $C1 to $C7: IN# and a slot

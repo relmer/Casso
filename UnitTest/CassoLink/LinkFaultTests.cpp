@@ -279,6 +279,23 @@ public:
 
 
 
+    TEST_METHOD (CassetteWav_HasTheLengthItPlaysFor)
+    {
+        std::vector<Byte>  wav;
+        std::string        command;
+        LinkShimOptions    options;
+        DWORD              ms      = 0;
+
+
+
+        Assert::AreEqual (S_OK, LinkAudioBootstrap::BuildWav (options, wav, command));
+
+        ms = LinkAudioBootstrap::GetLengthMs (wav);
+        Assert::IsTrue (ms > (DWORD) (LinkAudioBootstrap::kLeaderSeconds * 1000), std::format (L"{} ms, past the leader", ms).c_str());
+        Assert::AreEqual ((DWORD) 0, LinkAudioBootstrap::GetLengthMs (std::vector<Byte> (16, 0)), L"not a WAV");
+    }
+
+
     TEST_METHOD (ProgramWithFaults_AssemblesForBothChips)
     {
         std::vector<Byte>  plain;

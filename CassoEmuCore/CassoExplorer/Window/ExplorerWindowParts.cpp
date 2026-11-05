@@ -463,6 +463,12 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
         return true;
     }
 
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerCassette)
+    {
+        context.cassoLinkManager.HandleCassetteTimer();
+        return true;
+    }
+
     if (timerId == (UINT_PTR) AppTimerId::ExplorerRefresh)
     {
         KillTimer (hwnd, (UINT_PTR) AppTimerId::ExplorerRefresh);

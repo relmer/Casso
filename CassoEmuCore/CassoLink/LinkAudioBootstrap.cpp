@@ -80,6 +80,33 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkAudioBootstrap::GetLengthMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DWORD LinkAudioBootstrap::GetLengthMs (std::span<const Byte> wav)
+{
+    constexpr uint64_t  kMsPerSecond = 1000;
+    TapeAudio           audio;
+    std::string         error;
+    HRESULT             hr           = WavCodec::Decode (wav, audio, error);
+
+
+
+    if (FAILED (hr) || audio.sampleRate == 0)
+    {
+        return 0;
+    }
+
+    return (DWORD) (audio.samples.size() * kMsPerSecond / audio.sampleRate);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkAudioBootstrap::AppendRecord
 //
 //  One closing half-cycle follows the checksum, so its last edge is

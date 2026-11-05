@@ -76,6 +76,7 @@ public:
     void          ApplyFullSendPrefs      ();
     void          ApplyVerifyPrefs        ();
     void          HandleTransferTimer     ();
+    void          HandleCassetteTimer     ();
     void          NoteListFilled          ();
 
     static std::wstring  GetDefaultFullSendFolder ();
@@ -107,6 +108,14 @@ private:
     static constexpr UINT  kTransferFrameMs = 150;
     static constexpr int   kPulseFrames     = 8;
 
+    //  The cassette audio is sent again while no Ready from the shim has
+    //  arrived a few seconds after it ends, up to kCassettePlays in all.
+    static constexpr int   kCassettePlays   = 5;
+    static constexpr UINT  kCassetteGraceMs = 4000;
+
+    bool  PlayCassette         ();
+    bool  HasCassetteStarted   () const;
+
     ExplorerContext  & m_context;
     bool               m_transferTimer        = false;
     int                m_pulseFrame           = 0;
@@ -120,6 +129,9 @@ private:
     std::string        m_listActionConnection;
     bool               m_listActionConnects   = false;
 
-    //  The cassette bootstrap's audio, while PlaySound sends it from memory.
+    //  The cassette bootstrap's audio, while PlaySound sends it from memory,
+    //  the link it starts, and how many times it was sent.
     std::vector<Byte>        m_cassetteWav;
+    std::string              m_cassetteLink;
+    int                      m_cassettePlays = 0;
 };

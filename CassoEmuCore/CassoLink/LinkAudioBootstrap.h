@@ -51,6 +51,9 @@ public:
     //  The same audio as a 16-bit mono WAV file's bytes.
     static HRESULT  BuildWav   (const LinkShimOptions & options, std::vector<Byte> & outWav, std::string & outCommand);
 
+    //  A WAV's length, in milliseconds; 0 for bytes that aren't one.
+    static DWORD    GetLengthMs (std::span<const Byte> wav);
+
     //  The half-cycles of one record, in microseconds. With a fault, its byte
     //  of the record, the checksum last, is flipped or left out, and the
     //  checksum is computed from the data before the change.

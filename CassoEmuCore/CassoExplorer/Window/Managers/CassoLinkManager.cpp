@@ -1297,7 +1297,7 @@ void CassoLinkManager::PlayCassetteBootstrap (const std::string & name)
     std::string        command;
     std::wstring       steps;
     int                answer  = IDCANCEL;
-    BOOL               played  = FALSE;
+    bool               played  = false;
 
 
 
@@ -1319,12 +1319,15 @@ void CassoLinkManager::PlayCassetteBootstrap (const std::string & name)
                           L"On the Apple, at the prompt, type:\n\n"
                           L"1. **CALL -151**, then press Return\n"
                           L"2. **{}**, then press Return\n\n"
-                          L"Then choose Send. The audio takes about 12 seconds.", TextEncoding::NarrowToWide (command));
+                          L"Then choose Send. The audio takes about 12 seconds, and is sent again if the Apple doesn't start.", TextEncoding::NarrowToWide (command));
     answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Bootstrap from the cassette input",
                              MB_OKCANCEL | MB_ICONINFORMATION, { L"Send", L"Cancel" });
     BAIL_OUT_IF (answer != IDOK, S_OK);
 
-    played = PlaySoundW (reinterpret_cast<LPCWSTR> (m_cassetteWav.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+    m_cassetteLink  = name;
+    m_cassettePlays = 0;
+
+    played = PlayCassette();
     CBR (played);
 
     s_cassettePlayer = &m_context;
@@ -1339,6 +1342,92 @@ Error:
     {
         m_context.window.ShowMessage (L"The cassette bootstrap could not be sent to this PC's sound output.", MB_ICONERROR);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::PlayCassette
+//
+//  The audio sent once more, with the timer for the look at whether the
+//  Apple started set past its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::PlayCassette()
+{
+    BOOL  played = PlaySoundW (reinterpret_cast<LPCWSTR> (m_cassetteWav.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+
+
+
+    if (!played)
+    {
+        return false;
+    }
+
+    m_cassettePlays++;
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerCassette, LinkAudioBootstrap::GetLengthMs (m_cassetteWav) + kCassetteGraceMs, nullptr);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::HasCassetteStarted
+//
+//  The shim replied: the program is loading, or loaded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::HasCassetteStarted() const
+{
+    CassoLinkSession  * session = m_context.app.links->GetSession (m_cassetteLink);
+    LinkState           state   = (session != nullptr) ? session->GetState() : LinkState::Closed;
+
+
+
+    return state == LinkState::LoadingProgram || state == LinkState::Ready || state == LinkState::Busy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::HandleCassetteTimer
+//
+//  A few seconds past the audio's end. While the Apple hasn't started, the
+//  shim's slot finder has the monitor read the tape again, so the audio is
+//  sent again; after kCassettePlays, ShowMessage reports the failure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::HandleCassetteTimer()
+{
+    KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerCassette);
+
+    //  Started, or disconnected by the user since.
+    if (m_cassetteLink.empty() || HasCassetteStarted() || !m_context.app.links->IsStarted (m_cassetteLink))
+    {
+        m_cassetteLink.clear();
+        return;
+    }
+
+    if (m_cassettePlays < kCassettePlays && PlayCassette())
+    {
+        m_context.app.links->AppendLogRow (m_cassetteLink, "The Apple didn't start from the cassette audio, so it was sent again");
+        return;
+    }
+
+    m_cassetteLink.clear();
+    m_context.window.ShowMessage (std::format (L"The Apple didn't start from the cassette audio after it was sent {} times. Turn the volume up, check the cable, and choose Bootstrap from the cassette input again.", kCassettePlays).c_str(), MB_ICONWARNING);
 }
 
 
