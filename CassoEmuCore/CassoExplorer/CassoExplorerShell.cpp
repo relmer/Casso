@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
+#include "Core/PathResolver.h"
 #include "CassoExplorer/ExplorerUpdaterHost.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
@@ -62,6 +63,7 @@ CassoExplorerShell::CassoExplorerShell()
 {
     m_links.SetAnnouncements (&m_announcements);
     m_links.SetFirewall (&m_firewall);
+    m_links.SetLogFolder (PathResolver::GetLocalAppDataDir (L"Casso") / L"Logs");
     m_links.SetFolderMaker ([this] (const std::wstring & path) -> std::unique_ptr<ICassoLinkFolder>
     {
         auto  folder = std::make_unique<CassoLinkFolder> (m_fs, m_fileIo);

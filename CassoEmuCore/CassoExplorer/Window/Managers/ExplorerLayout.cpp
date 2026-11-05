@@ -4,7 +4,6 @@
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Core/MachineConfig.h"
-#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
@@ -110,12 +109,11 @@ void ExplorerLayout::ConfigureWidgets()
     if (m_context.app.links != nullptr)
     {
         m_context.app.links->SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCassoLink);
-        m_context.app.links->SetLogFolder (PathResolver::GetLocalAppDataDir (L"Casso") / L"Logs");
         m_context.cassoLinkManager.ApplyFullSendPrefs();
         m_context.cassoLinkManager.ApplyVerifyPrefs();
         m_context.app.links->SetLinks (m_context.prefs.links);
         m_context.browser.SetLinks (m_context.app.links);
-    m_context.browser.SetFilesystemChoices (&m_context.prefs.filesystemChoices);
+        m_context.browser.SetFilesystemChoices (&m_context.prefs.filesystemChoices);
         m_context.browser.GetTreeModel().SetLinks (m_context.app.links->BuildTreeEntries());
         m_context.treePane.RefreshTree();
         m_context.cassoLinkManager.StartConnections();
