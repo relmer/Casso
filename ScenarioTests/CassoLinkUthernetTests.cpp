@@ -282,7 +282,7 @@ public:
             Byte              version = rig.machine.GetCpu()->ReadByte ((Word) (ready + 5));
 
             rig.machine.GetCpu()->WriteByte ((Word) (ready + 5),  (Byte) (version - 1));
-            rig.machine.GetCpu()->WriteByte ((Word) (ready + 14), (Byte) (rig.machine.GetCpu()->ReadByte ((Word) (ready + 14)) ^ version ^ (Byte) (version - 1)));
+            rig.machine.GetCpu()->WriteByte ((Word) (ready + 16), (Byte) (rig.machine.GetCpu()->ReadByte ((Word) (ready + 16)) ^ version ^ (Byte) (version - 1)));
 
             session.SetRetryInterval (kRetryMs);
             settings.use40 = true;
@@ -446,10 +446,10 @@ public:
         Assert::IsTrue (macs[0] != macs[1], L"two Apples whose memory differs have two addresses");
     }
 
-    //  The program's Ready packet in memory: its envelope, with nine bytes.
+    //  The program's Ready packet in memory: its envelope, with eleven bytes.
     static Word  FindReady (TestMachine & machine)
     {
-        const Byte  header[] = { 0xC1, 0x09, 0x00, CassoLinkCodec::kReady };
+        const Byte  header[] = { 0xC1, 0x0B, 0x00, CassoLinkCodec::kReady };
         Word        found    = 0;
 
         for (Word at = LinkProgram::kProgramAddress; at < LinkProgram::kZeroPageSave && found == 0; at++)

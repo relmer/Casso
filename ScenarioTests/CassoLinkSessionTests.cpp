@@ -514,7 +514,7 @@ public:
     TEST_METHOD (AnOlderProgram_ReloadsAtTheLinksSpeed)
     {
         Rig                   rig (true, 9600);
-        std::vector<Byte>     header = { 0xC1, 0x09, 0x00, CassoLinkCodec::kReady };
+        std::vector<Byte>     header = { 0xC1, 0x0B, 0x00, CassoLinkCodec::kReady };
         Word                  ready  = 0;
         bool                  seen   = false;
         uint64_t              spent  = 0;
@@ -524,7 +524,7 @@ public:
 
         //  The Ready packet's version, and its check with it, as an older
         //  program's.
-        for (Word at = 0x0800; at < 0x2000 && ready == 0; at++)
+        for (Word at = LinkProgram::kProgramAddress; at < LinkProgram::kZeroPageSave && ready == 0; at++)
         {
             bool  match = true;
 
@@ -541,7 +541,7 @@ public:
         Byte  version = rig.machine.GetCpu()->ReadByte ((Word) (ready + 5));
 
         rig.machine.GetCpu()->WriteByte ((Word) (ready + 5), (Byte) (version - 1));
-        rig.machine.GetCpu()->WriteByte ((Word) (ready + 14), (Byte) (rig.machine.GetCpu()->ReadByte ((Word) (ready + 14)) ^ version ^ (Byte) (version - 1)));
+        rig.machine.GetCpu()->WriteByte ((Word) (ready + 16), (Byte) (rig.machine.GetCpu()->ReadByte ((Word) (ready + 16)) ^ version ^ (Byte) (version - 1)));
 
         //  Stop closed the line; the next start has a new one.
         InProcessByteStream::CreatePair (rig.machineEnd, rig.factory.pcEnd);
