@@ -2147,7 +2147,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-148**: A Debug build of Casso Explorer MUST arm a fault for the next operation from a Debug menu, and a list of them from `--link-faults` at launch. Each injected fault MUST be logged.
 - **FR-149**: Each fault kind MUST have a scenario test on an emulated machine that checks the recovery, over the //c's serial port, a ][+'s Super Serial Card, a //e's Uthernet II and a ][+'s cassette input.
 - **FR-150**: After an operation fails, FAILED MUST be drawn over that drive's bar on the Apple's screen until the next operation on the drive.
-- **FR-151**: A cassette bootstrap read that fails the monitor's checksum MUST return to the monitor instead of running. The monitor's command reads the tape and runs it on one line, so the monitor alone prints ERR and runs what it read.
+- **FR-151**: A cassette bootstrap read that fails the monitor's checksum MUST NOT run. The monitor's command reads the tape and runs it on one line, so the monitor alone prints ERR and runs what it read. The Apple MUST read the tape again with nothing typed, and Casso Explorer MUST send the audio again while the shim hasn't sent Ready, up to five times, then report that the Apple didn't start.
 
 ### Key Entities
 
