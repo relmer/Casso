@@ -189,7 +189,8 @@ public:
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once
-    //  a second, is left out.
+    //  a second, and each Idle are left out, and a Ready appears only when it
+    //  differs from the last one.
     using TraceFn = std::function<void (bool sent, const std::string & text)>;
 
     void     SetTraceSink    (TraceFn sink) { m_trace = std::move (sink); }
@@ -296,6 +297,7 @@ private:
     HRESULT  Fill            (size_t count, DWORD timeoutMs, bool & outFilled);
     void     Consume         (size_t count);
     HRESULT  ReadPacket      (DWORD timeoutMs, CassoLinkPacket & outPacket);
+    void     TraceReceived   (const CassoLinkPacket & packet);
     HRESULT  Send            (std::span<const Byte> bytes);
     HRESULT  SendByte        (Byte value);
 
@@ -370,6 +372,7 @@ private:
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
     TraceFn                         m_trace;
+    std::string                     m_tracedReady;     // text of the last Ready traced
 
     //  The host's parts, each with the state it uses.
     friend class           CassoLinkAdtProServer;

@@ -121,9 +121,9 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
         Consume (consumed);
         CHR (hr);
 
-        if (complete && m_trace && !(outPacket.command == CassoLinkCodec::kWaitForKey && outPacket.payload.size() == 1 && outPacket.payload[0] == CassoLinkCodec::kKeyNone))
+        if (complete)
         {
-            m_trace (false, CassoLinkPacketText::Describe (outPacket.command, outPacket.payload));
+            TraceReceived (outPacket);
         }
 
         BAIL_OUT_IF (complete, S_OK);
@@ -1283,6 +1283,46 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::TraceReceived
+//
+//  An idle Apple sends the same Ready in reply to each Idle, so a Ready is
+//  traced only when it differs from the last one traced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkHost::TraceReceived (const CassoLinkPacket & packet)
+{
+    bool         noKey = packet.command == CassoLinkCodec::kWaitForKey && packet.payload.size() == 1 && packet.payload[0] == CassoLinkCodec::kKeyNone;
+    std::string  text;
+
+
+
+    if (!m_trace || noKey)
+    {
+        return;
+    }
+
+    text = CassoLinkPacketText::Describe (packet.command, packet.payload);
+
+    if (packet.command == CassoLinkCodec::kReady)
+    {
+        if (text == m_tracedReady)
+        {
+            return;
+        }
+
+        m_tracedReady = text;
+    }
+
+    m_trace (false, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::SendPacket
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1297,7 +1337,7 @@ HRESULT CassoLinkHost::SendPacket (Byte command, std::span<const Byte> payload)
     hr = CassoLinkCodec::Encode (command, payload, encoded);
     CHR (hr);
 
-    if (m_trace)
+    if (m_trace && command != CassoLinkCodec::kIdle)
     {
         m_trace (true, CassoLinkPacketText::Describe (command, payload));
     }
