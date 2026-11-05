@@ -62,6 +62,11 @@ public:
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                             TryGetHeatTip  (POINT clientPx, DxuiTip & tip) const;
+
+    //  Whether the tab has the PC's marker: at a stop, whether the PC is in
+    //  the file; while running, as at the last stop, so a running machine
+    //  doesn't change the tab's width or move the tabs after it.
+    static bool  HasPcMark (bool hadMark, bool isPaused, bool isPcInFile) { return isPaused ? isPcInFile : hadMark; }
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
@@ -75,6 +80,7 @@ private:
     std::unique_ptr<DebuggerPaneFrame>    m_frame;
     bool                                  m_isShown       = false;
     bool                                  m_isBannerShown = false;
+    bool                                  m_hasPcMark     = false;
     std::wstring                          m_bannerKey;
     std::wstring                          m_title         = L"Source";
 };

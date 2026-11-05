@@ -316,7 +316,8 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
 //  SourceDocumentPane::ApplyDocument
 //
 //  The document the PC is in has the PC's own marker ahead of its title, as
-//  the following disassembly view's tab does (FR-113).
+//  the following disassembly view's tab does (FR-113), set at each stop and
+//  left as it is while the machine runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,7 +365,8 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
         m_frame->Relayout();
     }
 
-    hasPc = isShown && source.has_value() && fileId == source->fileId;
+    hasPc       = HasPcMark (m_hasPcMark, snapshot.isPaused, isShown && source.has_value() && fileId == source->fileId);
+    m_hasPcMark = hasPc;
 
     if (hasPc)
     {
