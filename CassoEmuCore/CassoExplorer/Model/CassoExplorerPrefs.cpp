@@ -541,6 +541,8 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
     root.emplace_back ("hexFormat",      JsonValue (hexFormat));
+    root.emplace_back ("treeCassoOpen",     JsonValue (treeCassoOpen));
+    root.emplace_back ("treeCassoLinkOpen", JsonValue (treeCassoLinkOpen));
 
     //  An option the user never set is left out, so it keeps following
     //  File Explorer.
@@ -714,6 +716,8 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("hexShowValues",  hexShowValues);
+    root.HasBool ("treeCassoOpen",     treeCassoOpen);
+    root.HasBool ("treeCassoLinkOpen", treeCassoLinkOpen);
     for (const auto & [key, option] : GetNavOptions())
     {
         bool  value = false;

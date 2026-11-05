@@ -48,6 +48,8 @@ public:
         Assert::IsFalse  (prefs.placement.valid);
         Assert::AreEqual (CassoExplorerPrefs::kDefaultTreeWidthDip, prefs.treeWidthDip);
         Assert::IsTrue   (prefs.tabs.empty());
+        Assert::IsTrue   (prefs.treeCassoOpen, L"the Casso node starts open");
+        Assert::IsFalse  (prefs.treeCassoLinkOpen, L"the CassoLink node starts closed");
     }
 
 
@@ -71,6 +73,8 @@ public:
         saved.placement.valid     = true;
         saved.treeWidthDip        = 300;
         saved.previewWidthDip     = 400;
+        saved.treeCassoOpen       = false;
+        saved.treeCassoLinkOpen   = true;
         saved.typedPaths.push_back (L"C:\\Disks\\Merlin.po");
         saved.typedPaths.push_back (L"C:\\Games");
         saved.columnWidthsDip = { 240, 0, 90 };
@@ -92,6 +96,8 @@ public:
         Assert::IsTrue   (loaded.placement.valid);
         Assert::AreEqual (300, loaded.treeWidthDip);
         Assert::AreEqual (400, loaded.previewWidthDip);
+        Assert::IsFalse  (loaded.treeCassoOpen);
+        Assert::IsTrue   (loaded.treeCassoLinkOpen);
         Assert::AreEqual ((size_t) 3, loaded.tabs.size());
         Assert::IsTrue   (loaded.tabs[1] == Location::MakeDiskDirectory (L"C:\\Disks\\a.po", "SUBDIR"));
         Assert::IsTrue   (loaded.tabs[2] == Location::MakeRoot (TreeModel::kThisPcRootId), L"A root's tab comes back");

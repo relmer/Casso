@@ -96,6 +96,11 @@ struct CassoExplorerPrefs
     std::optional<bool>    navShowAllFolders;
     std::optional<bool>    navExpandToCurrent;
 
+    //  Whether the tree's Casso and CassoLink nodes were open when last
+    //  opened or closed, so a new window opens them the same way.
+    bool                   treeCassoOpen     = true;
+    bool                   treeCassoLinkOpen = false;
+
     //  How a hex preview reads: values in each row, 0 to fit the width;
     //  whether the values show at all; and their format.
     int                    hexColumns      = 0;

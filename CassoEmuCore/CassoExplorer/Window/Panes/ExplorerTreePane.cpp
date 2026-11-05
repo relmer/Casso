@@ -75,7 +75,8 @@ void ExplorerTreePane::Create()
 void ExplorerTreePane::Configure()
 {
     std::vector<DxuiTreeNode>  roots;
-    bool                       opened = false;
+    bool                       opened  = false;
+    std::wstring               topLink = std::wstring (TreeModel::kLinkCopyTag) + TreeModel::kCassoLinkRootId;
 
 
 
@@ -121,19 +122,36 @@ void ExplorerTreePane::Configure()
         m_context.listPane.FillList();
     });
 
-    //  Opening or closing a folder changes which folders are on screen.
-    m_tree->SetOnExpand ([this] (const std::wstring &, bool)
+    //  Opening or closing a folder changes which folders are on screen. The
+    //  states of Casso and of CassoLink at the top of the pane, not its copy
+    //  under This PC, are saved in the preferences.
+    m_tree->SetOnExpand ([this, topLink] (const std::wstring & id, bool expanded)
     {
+        if (id == TreeModel::kCassoRootId)
+        {
+            m_context.prefs.treeCassoOpen = expanded;
+        }
+        else if (id == topLink)
+        {
+            m_context.prefs.treeCassoLinkOpen = expanded;
+        }
+
         m_context.folderSync.UpdateWatchedFolders();
     });
 
-    //  The Casso places and This PC open on their first level; the shell's
-    //  other roots stay closed, as Explorer's do. Network in particular takes
-    //  as long as the network takes to answer.
-    for (const std::wstring & id : { std::wstring (TreeModel::kCassoRootId), std::wstring (TreeModel::kThisPcRootId) })
+    //  This PC opens on its first level, and the Casso and CassoLink nodes
+    //  as they were last left; the shell's other roots stay closed, as
+    //  Explorer's do. Network in particular takes as long as the network
+    //  takes to answer.
+    for (const auto & [id, open] : { std::pair { std::wstring (TreeModel::kCassoRootId),  m_context.prefs.treeCassoOpen },
+                                     std::pair { topLink,                                 m_context.prefs.treeCassoLinkOpen },
+                                     std::pair { std::wstring (TreeModel::kThisPcRootId), true } })
     {
-        opened = m_tree->SetRowExpanded (m_tree->FindRowById (id), true);
-        IGNORE_RETURN_VALUE (opened, true);
+        if (open)
+        {
+            opened = m_tree->SetRowExpanded (m_tree->FindRowById (id), true);
+            IGNORE_RETURN_VALUE (opened, true);
+        }
     }
 }
 
