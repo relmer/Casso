@@ -41,12 +41,14 @@ public:
 
     //  Where a walk reports: a callback for its paths so far, called from
     //  time to time, and a check for whether the search was stopped. Paths
-    //  already listed, lowercased, are passed over.
+    //  already listed, lowercased, are passed over. The disk images the walk
+    //  passes are collected, so they aren't found by a second walk.
     struct Reporter
     {
         std::function<void (const std::vector<std::wstring> & paths)>    progress;
         std::function<bool ()>                                            stopped;
-        const std::unordered_set<std::wstring>                          * known = nullptr;
+        const std::unordered_set<std::wstring>                          * known  = nullptr;
+        std::vector<std::wstring>                                       * images = nullptr;
     };
 
     static HRESULT  RunSearch       (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
@@ -82,7 +84,7 @@ public:
     static constexpr size_t  s_kMaxImages           = 2000;
     static constexpr size_t  s_kMaxImageDirectories = 256;   // in one image, so a looping catalog cannot run on
 
-    static void     SearchImages    (const std::wstring & scope, const SearchExpression & expression, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder = false);
+    static void     SearchImages    (const std::wstring & scope, const SearchExpression & expression, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder = false, const std::vector<std::wstring> * walked = nullptr);
     static void     SearchImage     (const std::wstring & image, const SearchExpression & expression, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
     static void     WalkForImages   (const std::wstring & scope, std::vector<std::wstring> & outImages, bool currentFolder = false);
 

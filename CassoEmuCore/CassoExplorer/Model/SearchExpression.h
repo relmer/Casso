@@ -168,4 +168,5 @@ private:
     MatchOptions                 m_options;
     std::wstring                 m_error;
     bool                         m_plainWords = false;
+    bool                         m_usesPath   = false;    // a path: or folder: term, so a file's path is lowercased
 };

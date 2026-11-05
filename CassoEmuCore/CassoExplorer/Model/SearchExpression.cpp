@@ -247,8 +247,9 @@ SearchExpression SearchExpression::Parse (const std::wstring & query, const Matc
 
     SortByCost (tree->root, options.contents);
 
-    expression.m_error = tree->error;
-    expression.m_tree  = std::move (tree);
+    expression.m_error    = tree->error;
+    expression.m_tree     = std::move (tree);
+    expression.m_usesPath = expression.HasField (Field::Path) || expression.HasField (Field::Folder);
 
     return expression;
 }
@@ -1169,7 +1170,7 @@ void SearchExpression::CollectHighlights (const Node & node, bool contents, std:
 
 bool SearchExpression::Matches (const FileFacts & facts, ISearchSources & sources) const
 {
-    Prepared  file  { facts, ToLower (facts.name), std::wstring(), std::wstring(), ToLower (facts.path) };
+    Prepared  file  { facts, ToLower (facts.name), std::wstring(), std::wstring(), m_usesPath ? ToLower (facts.path) : std::wstring() };
     size_t    dot   = file.name.find_last_of (L'.');
     size_t    slash = file.path.find_last_of (L"\\/");
 

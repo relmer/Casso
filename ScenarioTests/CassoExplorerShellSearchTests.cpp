@@ -282,6 +282,63 @@ public:
         }
     }
 
+    //  A search of C:\Windows by name, timed twice, so the second run reads
+    //  the folders from the cache, and a contents search's first results,
+    //  stopped when they arrive. File Explorer's time for the same search is
+    //  measured in File Explorer. Set CASSO_MEASURE_SEARCH to run it.
+    TEST_METHOD (Measure_WindowsFolder_NameSearchAndFirstContentsResults)
+    {
+        constexpr double  kMaxFirstMs = 2000;
+        constexpr DWORD   kFlagChars  = 8;
+        constexpr int     kRuns       = 2;
+
+        wchar_t               flag[kFlagChars] = {};
+        SearchQuery::Options  options;
+        Items                 found;
+        double                firstMs          = -1;
+        auto                  start            = std::chrono::steady_clock::now();
+        HRESULT               hr               = S_OK;
+
+        if (GetEnvironmentVariableW (L"CASSO_MEASURE_SEARCH", flag, kFlagChars) == 0)
+        {
+            Logger::WriteMessage ("NOT RUN: set CASSO_MEASURE_SEARCH to measure");
+            return;
+        }
+
+        options.contents = false;
+
+        for (int run = 0; run < kRuns; run++)
+        {
+            found.clear();
+            start = std::chrono::steady_clock::now();
+            hr    = Win32ShellSearch::RunSearch (SearchQuery::MakeId (L"C:\\Windows", L"setup", options), found);
+
+            Assert::IsTrue (SUCCEEDED (hr));
+            Logger::WriteMessage (std::format ("Name search, run {}: {} results in {:.0f} ms", run + 1, found.size(),
+                                               std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - start).count()).c_str());
+        }
+
+        options.contents                   = true;
+        start                              = std::chrono::steady_clock::now();
+        IShellItemVerbs::s_listingStopped  = [&firstMs]() { return firstMs >= 0; };
+        IShellItemVerbs::s_listingProgress = [&] (const Items & so)
+        {
+            if (firstMs < 0 && !so.empty())
+            {
+                firstMs = std::chrono::duration<double, std::milli> (std::chrono::steady_clock::now() - start).count();
+            }
+        };
+
+        found.clear();
+        hr = Win32ShellSearch::RunSearch (SearchQuery::MakeId (L"C:\\Windows", L"setup", options), found);
+
+        IShellItemVerbs::s_listingProgress = nullptr;
+        IShellItemVerbs::s_listingStopped  = nullptr;
+
+        Logger::WriteMessage (std::format ("Contents search: first results at {:.0f} ms", firstMs).c_str());
+        Assert::IsTrue (firstMs >= 0 && firstMs <= kMaxFirstMs, L"the first results within 2 seconds");
+    }
+
 private:
 
     Items Search (const wchar_t * query, const SearchQuery::Options & options)

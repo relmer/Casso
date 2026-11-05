@@ -48,16 +48,17 @@ Win32ShellSearch::Win32ShellSearch (Win32ShellItemVerbs & verbs)
 
 HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
 {
-    HRESULT                      hr        = S_OK;
-    std::wstring                 scope;
-    std::wstring                 query;
-    bool                         parsed    = SearchQuery::TryParseId (id, scope, query);
-    SearchQuery::Options         options   = SearchQuery::GetOptions (id);
-    SearchExpression             expression;
-    std::vector<std::wstring>    paths;
-    std::map<std::wstring, int>  ranks;
-    size_t                       described = 0;
-    Reporter                     reporter;
+    HRESULT                                            hr        = S_OK;
+    std::wstring                                       scope;
+    std::wstring                                       query;
+    bool                                               parsed    = SearchQuery::TryParseId (id, scope, query);
+    SearchQuery::Options                               options   = SearchQuery::GetOptions (id);
+    SearchExpression                                   expression;
+    std::vector<std::wstring>                          paths;
+    std::map<std::wstring, int>                        ranks;
+    size_t                                             described = 0;
+    Reporter                                           reporter;
+    std::map<std::wstring, std::vector<std::wstring>>  walkedImages;
 
 
 
@@ -94,7 +95,9 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
         //  by walking it. Everywhere has no folder to walk.
         if (!everywhere && (!indexed || FAILED (hrIndex)))
         {
+            reporter.images = &walkedImages[folder];
             WalkForNames (folder, expression, options, paths, reporter);
+            reporter.images = nullptr;
             continue;
         }
 
@@ -102,7 +105,9 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
 
         if (thisPc)
         {
+            reporter.images = &walkedImages[folder];
             WalkFixedDrives (expression, options, paths, reporter);
+            reporter.images = nullptr;
         }
         else if (everywhere)
         {
@@ -117,19 +122,18 @@ HRESULT Win32ShellSearch::RunSearch (const std::wstring & id, std::vector<IShell
     //  Files inside the disk images there are tested too.
     for (const std::wstring & folder : SearchQuery::SplitScopes (scope))
     {
+        auto  images = walkedImages.find (folder);
+
         if (IsStopped (reporter))
         {
             break;
         }
 
-        if (folder == SearchQuery::kThisPc)
+        if (images != walkedImages.end())
         {
-            for (const std::wstring & root : GetFixedDrives())
-            {
-                SearchImages (root, expression, outItems);
-            }
+            SearchImages (folder, expression, outItems, options.currentFolder, &images->second);
         }
-        else if (folder != SearchQuery::kEverywhere)
+        else if (folder != SearchQuery::kEverywhere && folder != SearchQuery::kThisPc)
         {
             SearchImages (folder, expression, outItems, options.currentFolder);
         }
@@ -581,7 +585,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32ShellSearch::SearchImages (const std::wstring & scope, const SearchExpression & expression, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder)
+void Win32ShellSearch::SearchImages (const std::wstring & scope, const SearchExpression & expression, std::vector<IShellItemVerbs::ShellFolderItem> & outItems, bool currentFolder, const std::vector<std::wstring> * walked)
 {
     std::vector<std::wstring>                                   images;
     std::vector<std::vector<IShellItemVerbs::ShellFolderItem>>  found;
@@ -593,7 +597,15 @@ void Win32ShellSearch::SearchImages (const std::wstring & scope, const SearchExp
         return;
     }
 
-    WalkForImages (scope, images, currentFolder);
+    //  A folder already walked for the search has its images.
+    if (walked != nullptr)
+    {
+        images = *walked;
+    }
+    else
+    {
+        WalkForImages (scope, images, currentFolder);
+    }
 
     //  Each image is read on one of several threads, and its matches are
     //  listed in the order of the images.
@@ -1420,6 +1432,11 @@ void Win32ShellSearch::WalkForNames (const std::wstring & scope, const SearchExp
             if (!IsKnown (reporter, path) && expression.Matches (GetFindFacts (path, found, withDates), sources))
             {
                 ioPaths.push_back (path);
+            }
+
+            if (reporter.images != nullptr && !isFolder && reporter.images->size() < s_kMaxImages && TreeModel::IsSupportedImage (name))
+            {
+                reporter.images->push_back (path);
             }
 
             if (options.zipped && !isFolder && name.size() > 4 && _wcsicmp (name.c_str() + name.size() - 4, L".zip") == 0)
