@@ -39,6 +39,12 @@ public:
     static constexpr int  kRowDip   = 20;
     static constexpr int  kLabelDip = 24;
 
+    //  The ring around the clicked routine's other bars, and the line inside
+    //  it.
+    static constexpr float     kOtherRingDip  = 2.5f;
+    static constexpr uint32_t  kOtherRingArgb = 0xFFFFFFFF;
+    static constexpr uint32_t  kOtherLineArgb = 0xFF101010;
+
     void  SetData       (const std::optional<ProfileData> & profile);
     void  SetOnActivate (ActivateFn activate) { m_activate = std::move (activate); }
     void  SetOnSelect   (SelectFn select)     { m_select   = std::move (select); }
@@ -67,6 +73,12 @@ public:
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
+
+    //  A routine's tip head in place of GetTipHead, as the Profiler's lists have it.
+    void                SetTipHead        (std::function<std::string (const ProfileRoutineEntry & routine)> tipHead) { m_tipHead = std::move (tipHead); }
+
+    //  Takes the time the clicked bar's dashes march to; true while they do.
+    bool                Animate           (int64_t nowMs);
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Flame graph"; }
 
@@ -86,9 +98,12 @@ private:
 
     std::vector<ProfileTreeEntry>     m_tree;
     std::vector<ProfileRoutineEntry>  m_routines;
+    std::string                       m_topTip;
+    std::function<std::string (const ProfileRoutineEntry & routine)>  m_tipHead;
     std::vector<Bar>                  m_bars;
     size_t                            m_zoom  = 0;
     std::optional<size_t>             m_selected;
+    int64_t                           m_nowMs = 0;
     std::optional<Click>              m_click;
     ActivateFn                        m_activate;
     SelectFn                          m_select;

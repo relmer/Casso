@@ -42,7 +42,7 @@ public:
     void                          AddToDock      (DxuiDockSite & dock) override;
     std::vector<IDxuiControl *>   GetControls    () const override;
     void                          ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) override;
-    bool                          TryGetTip      (POINT clientPx, PaneTip & tip) override;
+    bool                          TryGetTipAt    (POINT clientPx, DxuiTip & tip);
 
     void                          Zoom           (bool isIn);
     void                          ShowLane       (size_t lane, bool isShown);

@@ -1,6 +1,9 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
+#include "Debugger/Reply.h"
 #include "Debugger/RoutineProfile.h"
+#include "Debugger/SymbolTable.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -384,6 +387,103 @@ namespace DebuggerTests
             Assert::IsTrue   (FindNode (first.profile, 0x0500) > 0);
             Assert::AreEqual ((size_t) 2,  first.profile.GetFrames().size(), L"frame 0 and frame 10");
             Assert::AreEqual ((uint64_t) 10, first.profile.GetFrames().back().index);
+        }
+
+
+
+        //  Top level's cycles are counted by address, so its tip can list
+        //  where they went; a call's cycles are not among them.
+        TEST_METHOD (TopLevelsCyclesAreCountedByAddress)
+        {
+            Feed  feed;
+
+
+
+            // $0300: LDA #0, JSR $0400, $0400: LDA #0, RTS, then $0300 again
+            feed.Run (0x0300, kLda, 2, 0xFF);
+            feed.Run (0x0302, RoutineProfile::kJsr, 6, 0xFD);
+            feed.Run (0x0400, kLda, 2, 0xFD);
+            feed.Run (0x0402, kRts, 6, 0xFF);
+            feed.Run (0x0300, kLda, 2, 0xFF);
+
+            Assert::AreEqual ((uint64_t) 4, feed.profile.GetTopCycles().at (0x0300));
+            Assert::AreEqual ((uint64_t) 6, feed.profile.GetTopCycles().at (0x0302));
+            Assert::IsFalse  (feed.profile.GetTopCycles().contains (0x0400), L"the call's own");
+        }
+
+
+
+        //  A profile started inside a call bills the call's cycles to it, not
+        //  to Top level, until its RTS takes the stack to the frame's level.
+        TEST_METHOD (AProfileSeededInsideACallBillsItUntilItReturns)
+        {
+            Feed            feed;
+            CallStackFrame  frame;
+            int             node = 0;
+
+
+
+            frame.callSite   = 0x0300;
+            frame.target     = 0x0400;
+            frame.kind       = CallFrameKind::Call;
+            frame.stackLevel = 0xFF;
+
+            // At $0402, inside the call, SP $FD: LDA, RTS, then $0303: LDA
+            feed.profile.Seed ({ frame }, 0xFD);
+            feed.Run (0x0402, kLda, 2, 0xFD);
+            feed.Run (0x0404, kRts, 6, 0xFF);
+            feed.Run (0x0303, kLda, 2, 0xFF);
+
+            node = FindNode (feed.profile, 0x0400);
+
+            Assert::IsTrue   (node > 0, L"the open call is a node");
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[(size_t) node].self, L"its LDA and RTS");
+            Assert::AreEqual ((uint64_t) 2, feed.profile.GetNodes()[0].self, L"only the LDA after the return is Top level's");
+            Assert::AreEqual ((uint64_t) 0, feed.profile.GetNodes()[(size_t) node].calls, L"a call already open is not counted again");
+        }
+
+
+
+        //  A profile from history whose period begins where history does has a
+        //  note in its tip, as a call made before then is counted as Top level.
+        TEST_METHOD (TopLevelsTipNotesAPeriodThatBeginsWithHistory)
+        {
+            ProfileData  data;
+
+
+
+            data.historyRange = CycleRange { 0, 1000 };
+            Assert::IsTrue (data.GetTopLevelTip().find ("wasn't called by a JSR in the period") != std::string::npos);
+            Assert::IsTrue (data.GetTopLevelTip().find ("begins where history does") == std::string::npos);
+
+            data.isFromHistoryStart = true;
+            Assert::IsTrue (data.GetTopLevelTip().find ("begins where history does") != std::string::npos);
+        }
+
+
+
+        //  The tip lists Top level's hottest addresses with the nearest symbol,
+        //  and a symbol a few bytes back reads as an offset from it.
+        TEST_METHOD (TopLevelsTipListsItsHottestAddresses)
+        {
+            ProfileData  data;
+            SymbolTable  symbols;
+            std::string  name;
+
+
+
+            symbols.Add (SymbolTableId::User, "NEWSTT", 0xD7D2);
+
+            Assert::IsTrue   (symbols.TryFindNearestName (0xD7D5, 64, name));
+            Assert::AreEqual (std::string ("NEWSTT+3"), name);
+            Assert::IsTrue   (symbols.TryFindNearestName (0xD7D2, 64, name));
+            Assert::AreEqual (std::string ("NEWSTT"), name);
+            Assert::IsFalse  (symbols.TryFindNearestName (0xD900, 64, name), L"too far past it");
+
+            data.topAddresses = { { 0xD7D5, "NEWSTT+3", 12345 } };
+
+            Assert::IsTrue (data.GetTopLevelTip().starts_with ("Top level: the cycles in code that wasn't called by a JSR in the period, such as code entered by a jump"));
+            Assert::IsTrue (data.GetTopLevelTip().find ("$D7D5 NEWSTT+3: 12,345 cycles") != std::string::npos, TextEncoding::NarrowToWide (data.GetTopLevelTip()).c_str());
         }
     };
 }

@@ -25,6 +25,25 @@ DebugEventHistory::DebugEventHistory (MachineHost & machine)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugEventHistory::GetSynced
+//
+//  The stretches and their runs, brought up to date with the keyframes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const KeyframeStretches & DebugEventHistory::GetSynced() const
+{
+    m_stretches.Sync (m_keyframes);
+
+    return m_stretches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugEventHistory::GetStretches
 //
 //  From each keyframe to the next, or to where recording paused when a gap
@@ -34,20 +53,11 @@ DebugEventHistory::DebugEventHistory (MachineHost & machine)
 
 void DebugEventHistory::GetStretches (std::vector<DebugEventBounds> & outStretches) const
 {
-    size_t  count = (m_keyframes != nullptr) ? m_keyframes->GetCount() : 0;
-    size_t  i     = 0;
+    const KeyframeStretches  & synced = GetSynced();
 
 
 
-    outStretches.clear();
-
-    for (i = 0; i + 1 < count; i++)
-    {
-        const KeyframeInfo  & start = m_keyframes->GetInfo (i);
-        const KeyframeInfo  & next  = m_keyframes->GetInfo (i + 1);
-
-        outStretches.push_back ({ start.position, next.hasGapBefore ? next.gapStart : next.position, next.hasGapBefore });
-    }
+    outStretches.assign (synced.GetStretches().begin(), synced.GetStretches().end());
 }
 
 

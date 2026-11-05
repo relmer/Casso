@@ -37,23 +37,67 @@ public:
     void                 Configure      ();
 
     //  Lines added at the end, the oldest going past the limit; the text
-    //  emptied; and the text scrolled to its end.
+    //  emptied; and the text scrolled to its end. Each line is stamped with
+    //  the local time it was added, or with `time`.
     void                 Append         (const std::vector<std::string> & lines);
+    void                 Append         (const std::vector<std::string> & lines, const SYSTEMTIME & time);
     void                 Clear          ();
     void                 ScrollToEnd    ();
+
+    //  Over a line's time stamp: the time stamp's rect, and the date and the
+    //  time in full for the tip.
+    bool                 TryGetTimeTip  (POINT point, RECT & anchor, std::wstring & text) const;
+
+    //  The text as the project saves it, a line each, its time, a tab and
+    //  its text; and the text put back from it, ahead of the lines written
+    //  so far or in place of them. SaveIfChanged writes it to the project
+    //  kSaveDelayMs after the last change, so a burst of output is written
+    //  once.
+    std::string          FormatSaved    () const;
+    void                 RestoreSaved   (const std::string & text, bool keepCurrent);
+    void                 SaveIfChanged  (int64_t nowMs);
+
+    //  A time in the locale's short time format in brackets, as each line
+    //  starts with; and the locale's long date and long time.
+    static std::wstring  GetTimeStamp   (const SYSTEMTIME & time, const wchar_t * locale = LOCALE_NAME_USER_DEFAULT);
+    static std::wstring  GetFullTime    (const SYSTEMTIME & time, const wchar_t * locale = LOCALE_NAME_USER_DEFAULT);
+
+    //  The text laid out again once the view's width has changed, so a help
+    //  listing's rows fit the width as it is now.
+    void                 Reflow         ();
 
     //  The text takes a press or the wheel inside it, and everything while a
     //  selection drag or its scrollbar is under way; the keys go to `keys`,
     //  as they do in a terminal.
     bool                 RouteMouse     (const DxuiMouseEvent & ev, IDxuiControl * keys);
 
-private:
-    static constexpr int    kLineLimit   = 2000;
-    static constexpr float  kLineSpacing = 1.2f;
+    //  Where a wrapped line continues: under the field after the line's last
+    //  gap of two or more spaces within kWrapIndentLimit characters, as a
+    //  help row's description and a listing's last column are; 0 for none.
+    static int           GetWrapIndent  (const std::string & line);
 
-    IDebuggerPaneHost         & m_host;
-    DxuiTextView              * m_view = nullptr;
-    std::vector<std::string>    m_lines;
+private:
+    static constexpr int      kLineLimit       = 2000;
+    static constexpr float    kLineSpacing     = 1.2f;
+    static constexpr size_t   kWrapIndentLimit = 48;
+    static constexpr int64_t  kSaveDelayMs     = 2000;
+
+    struct Line
+    {
+        std::string   text;
+        SYSTEMTIME    time  = {};
+        std::wstring  stamp;
+    };
+
+    //  The rows, and the line each row's time stamp is from in m_rowLines.
+    std::vector<DxuiTextView::Row>  GetRows ();
+
+    IDebuggerPaneHost  & m_host;
+    DxuiTextView       * m_view      = nullptr;
+    std::vector<Line>    m_lines;
+    std::vector<int>     m_rowLines;   // -1 for a row with no time stamp
+    int                  m_columns   = 0;   // the view's width the rows were laid out for
+    int64_t              m_changedMs = 0;   // when the text last changed and was not yet saved; 0 for saved
 };
 
 
@@ -200,7 +244,7 @@ public:
     ConsoleModeBar                 & GetModeBar     () { return m_modeBar; }
     DebuggerPaneFrame              * GetFrame       () const { return m_frame.get(); }
 
-    std::wstring                     GetId          () const override;
+    const std::wstring             & GetId          () const override;
     std::wstring                     GetTitle       () const override { return L"Console"; }
     void                             CreateControls () override;
     void                             Configure      () override;
@@ -214,11 +258,12 @@ public:
     std::vector<DxuiToolbar *>       GetBars        () const override { return { m_modeBar.GetSlot().GetBar() }; }
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     void                             SetTextZoom    (float zoom) override;
+    bool                             Tick           (int64_t nowMs) override;
     bool                             RouteEditKey   (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
     bool                             SubmitTextBox  (DxuiTextInput * box) override;
     void                             PlaceBar       () override { m_modeBar.GetSlot().Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_modeBar.GetSlot().RouteMouse (ev); }
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_modeBar.GetSlot().GetTip (clientPx, anchor); }
+    bool                             TryGetTipAt    (POINT clientPx, DxuiTip & tip);
 
 private:
     ConsoleOutput                         m_output;

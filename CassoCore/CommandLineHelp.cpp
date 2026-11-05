@@ -147,6 +147,10 @@ std::string CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand mode)
     {
         line = "  CassoCli debug --machine <name> [options]     Run debugger commands on a headless machine";
     }
+    else if (mode == CommandLineOptions::Subcommand::Mcp)
+    {
+        line = "  CassoCli mcp                                  Serve Casso's debugger to an MCP client on stdin and stdout";
+    }
     else if (mode == CommandLineOptions::Subcommand::Merlin)
     {
         line = "  CassoCli merlin <source> [options]         Assemble Merlin source";
@@ -273,6 +277,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
     text += GetUsageLine (CommandLineOptions::Subcommand::Run)   + "\n";
     text += GetUsageLine (CommandLineOptions::Subcommand::Disk)  + "\n";
     text += GetUsageLine (CommandLineOptions::Subcommand::Debug) + "\n";
+    text += GetUsageLine (CommandLineOptions::Subcommand::Mcp)   + "\n";
 
     text += "\nHelp:\n";
 
@@ -292,7 +297,7 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
         text += line + route[1] + "\n";
     }
 
-    text += "\n\n";
+    text += "\n";
     text += BuildExampleCommands (flagPrefix);
 
     return text;

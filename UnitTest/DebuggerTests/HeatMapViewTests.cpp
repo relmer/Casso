@@ -487,7 +487,10 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (ZoomThatChangesTheRowKeepsTheAddressAtThePointersHeight)
+        //  Zoomed in, a row has the same addresses and the rows scroll across,
+        //  as a picture grows, so the address under the pointer stays under it
+        //  across as well as down: with fewer to a row, it moved across.
+        TEST_METHOD (ZoomingInKeepsTheRowAndTheAddressUnderThePointer)
         {
             HeatMapView  view;
             POINT        point   = {};
@@ -500,13 +503,14 @@ namespace DebuggerTests
             point   = GetPointOf (view, 0x1456);
 
             view.ZoomAt (point, 3.0f);
-            Assert::IsTrue (view.GetCellPx() > 3);
-            Assert::IsTrue (view.GetColumns() < columns, L"larger cells, fewer to a row");
-            Assert::IsTrue (IsAtHeight (view, 0x1456, point.y), L"zooming in, its row stays at the pointer");
+            Assert::IsTrue   (view.GetCellPx() > 3);
+            Assert::AreEqual (columns, view.GetColumns(), L"larger cells, the same addresses to a row");
+            Assert::IsTrue   (view.HasHorizontalScroll(), L"so the rows scroll across");
+            Assert::AreEqual ((Word) 0x1456, view.GetAddressAt (point).value_or (0), L"zooming in, the address stays under the pointer");
 
             view.ZoomAt (point, -3.0f);
             Assert::AreEqual (columns, view.GetColumns());
-            Assert::IsTrue (IsAtHeight (view, 0x1456, point.y), L"and zooming out");
+            Assert::IsTrue   (IsAtHeight (view, 0x1456, point.y), L"and zooming out");
         }
 
 
@@ -526,8 +530,8 @@ namespace DebuggerTests
             point = { cell.right - 1, cell.top + 1 };
 
             view.ZoomAt (point, 1.0f);
-            Assert::AreEqual (4,   view.GetCellPx(), L"taller cells");
-            Assert::AreEqual (128, view.GetColumns(), L"since 64 would stretch past one and a half times");
+            Assert::AreEqual (5,   view.GetCellPx(), L"taller cells");
+            Assert::AreEqual (128, view.GetColumns(), L"the same addresses to a row");
             Assert::AreEqual ((Word) 0x1277, view.GetAddressAt (point).value_or (0), L"the cell under the pointer stays under it");
         }
 
@@ -588,7 +592,7 @@ namespace DebuggerTests
             Assert::AreEqual (100,                HeatMapZoomWidget::GetPercent (3, 3));
             Assert::AreEqual (200,                HeatMapZoomWidget::GetPercent (6, 3));
             Assert::AreEqual (33,                 HeatMapZoomWidget::GetPercent (1, 3));
-            Assert::AreEqual (std::wstring (L"300%"), HeatMapZoomWidget::GetPercentLabel (9, 3));
+            Assert::AreEqual (std::wstring (L"Zoom 300%"), HeatMapZoomWidget::GetPercentLabel (9, 3));
 
             Assert::AreEqual (0.0f,               HeatMapZoomWidget::GetPosition (1, kMax));
             Assert::AreEqual (1.0f,               HeatMapZoomWidget::GetPosition (kMax, kMax));

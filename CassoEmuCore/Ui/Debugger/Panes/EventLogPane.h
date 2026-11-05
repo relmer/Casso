@@ -53,14 +53,15 @@ public:
     using RequestFn = std::function<void (const std::string & request)>;
 
     //  A column's heading, alignment, starting width (0 to take the room
-    //  left, kFit to fit the text NoteFitTexts notes for it) and whether it
-    //  is visible by default.
+    //  left, kFit to fit the text NoteFitTexts notes for it), whether it is
+    //  visible by default, and its heading's tip.
     struct ColumnSpec
     {
         const wchar_t   * title    = L"";
         DxuiTextHAlign    align    = DxuiTextHAlign::Left;
         int               widthDip = 0;
         bool              isShown  = true;
+        const wchar_t   * tip      = L"";
     };
 
     static constexpr int     kTopRow       = -1;
@@ -95,7 +96,7 @@ public:
 
         for (const ColumnSpec & spec : GetColumnSpecs())
         {
-            columns.push_back ({ spec.title, (std::max) (spec.widthDip, 0), spec.widthDip == 0, spec.align, spec.isShown });
+            columns.push_back ({ spec.title, (std::max) (spec.widthDip, 0), spec.widthDip == 0, spec.align, spec.isShown, spec.tip });
         }
 
         m_list->SetColumns           (std::move (columns));

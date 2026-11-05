@@ -107,6 +107,37 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, second.rig.session.GetSymbolLoads().size());
         }
 
+        //  A load replaces its table, so the session has one load a table
+        //  and a project replays only a table's last file. A project from
+        //  before listed every file the table had been loaded from, BASIC
+        //  programs among them; its BASIC programs are passed over.
+        TEST_METHOD (OnlyATablesLastSymbolFileIsLoadedAgain)
+        {
+            SessionRig                  first;
+            SessionRig                  second;
+            DebugProject                project;
+            std::vector<std::string>    failures;
+            Word                        address = 0;
+
+
+
+            first.rig.files.WriteAllText (L"C:\\Work\\one.sym", "0900 FIRST\n");
+            first.rig.files.WriteAllText (L"C:\\Work\\two.sym", "0A00 SECOND\n");
+            first.rig.RunOk ("SYMUSER LOAD one.sym");
+            first.rig.RunOk ("SYMUSER LOAD two.sym");
+            Assert::AreEqual ((size_t) 1, first.rig.session.GetSymbolLoads().size(), L"the second load replaced the first");
+
+            second.rig.files.WriteAllText (L"C:\\Work\\one.sym",  "0900 FIRST\n");
+            second.rig.files.WriteAllText (L"C:\\Work\\game.bas", "10 HOME\n20 VTAB 5\n30 END\n");
+            project.symbolFiles = { { SymbolTableId::User, L"C:\\Work\\one.sym", 0 }, { SymbolTableId::User, L"C:\\Work\\game.bas", 0 } };
+            project.ApplyEngine (second.rig.session, failures);
+
+            Assert::IsTrue  (failures.empty(), failures.empty() ? L"" : TextEncoding::NarrowToWide (failures.front()).c_str());
+            Assert::IsTrue  (second.rig.session.GetSymbols().TryResolveIn (SymbolTableId::User, "FIRST", address), L"the table's last symbol file");
+            Assert::IsFalse (second.rig.session.GetSymbols().TryResolveIn (SymbolTableId::User, "HOME", address), L"not the BASIC program");
+        }
+
+
         //  A symbol the user added comes back in the next session, ahead of a
         //  breakpoint set by its name; one removed, or in a table cleared,
         //  does not.

@@ -1386,7 +1386,7 @@ void ShellDisks::ExpireChangeBannerIfDue()
 
     bounds = m_changeBanner.GetBounds();
 
-    if (GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor))
+    if (DxuiInputState::GetCursorPos (&cursor) && ScreenToClient (m_shell.m_hwnd, &cursor))
     {
         hovered = (cursor.x >= bounds.left && cursor.x < bounds.right
                 && cursor.y >= bounds.top  && cursor.y < bounds.bottom);

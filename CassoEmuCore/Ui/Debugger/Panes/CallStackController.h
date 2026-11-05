@@ -28,7 +28,7 @@ public:
 
     DxuiListView                   * GetList         () const { return m_list; }
 
-    std::wstring                     GetId           () const override;
+    const std::wstring             & GetId           () const override;
     std::wstring                     GetTitle        () const override { return L"Call stack"; }
     void                             CreateControls  () override;
     void                             Configure       () override;

@@ -4,12 +4,14 @@
 #include "Theme/DxuiColor.h"
 
 #include "DxuiListView.h"
+#include "DxuiTextFind.h"
 
 #include "Core/DxuiUnicodeSymbols.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Core/DxuiPaneMetrics.h"
 #include "Render/IDxuiPainter.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiTip.h"
 
 
 
@@ -516,6 +518,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListView::GetFittedWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetFittedWidthPx (size_t chars) const
+{
+    int  perCharPx = (std::max) (1, (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm));
+    int  padPx     = m_scaler.ToPx (m_cellPadLeftDip) + m_scaler.ToPx (m_cellPadRightDip);
+
+
+
+    return (int) chars * perCharPx + padPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTotalMeasuredWidthPx
 //
 //  Starts from the pane lead, since the columns start there.
@@ -597,12 +619,15 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
             //  above it, so the title's own width is all a header needs --
             //  with room to either side even in a list whose cells are
             //  packed tight, or a column as wide as its title puts the title
-            //  against the next column's separator.
+            //  against the next column's separator. A heading too short for
+            //  the chevron above has room for it at the right end, in every
+            //  column, so a click that sorts doesn't resize the column.
             hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             wpx = std::max (wpx, (int) std::ceil (w) + std::max (0, m_scaler.ToPx (s_kHeaderPadMinDip) - padPx) +
-                                 (m_columns[c].isFiltered ? (int) std::ceil (m_scaler.ToPxf (s_kFilterGlyphDip)) : 0));
+                                 (m_columns[c].isFiltered ? (int) std::ceil (m_scaler.ToPxf (s_kFilterGlyphDip)) : 0) +
+                                 (IsSortAboveTitle ((float) m_scaler.ToPx (m_headerHeightDip), m_scaler.ToPxf (s_kHeaderFontDip)) ? 0 : (int) std::ceil (m_scaler.ToPxf (s_kSortGlyphDip))));
         }
 
         for (const auto & row : m_rows)
@@ -731,6 +756,36 @@ bool DxuiListView::TrySkipMonoMeasure (size_t column, const Cell & cell) const
 
     *longest = cell.text.size();
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowNewRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ShowNewRow (const std::vector<std::wstring> & keys)
+{
+    auto  found = keys.end();
+
+
+
+    if (m_rowKeys.has_value())
+    {
+        found = std::ranges::find_if (keys, [this] (const std::wstring & key) { return !std::ranges::binary_search (*m_rowKeys, key); });
+
+        if (found != keys.end())
+        {
+            EnsureVisible ((int) (found - keys.begin()));
+        }
+    }
+
+    m_rowKeys = keys;
+    std::ranges::sort (*m_rowKeys);
 }
 
 
@@ -1250,6 +1305,265 @@ void DxuiListView::PruneSelection()
     {
         m_anchorRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFindSpots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiListView::FindSpot> DxuiListView::GetFindSpots() const
+{
+    std::vector<FindSpot>  spots;
+
+
+
+    if (m_findNeedle.empty())
+    {
+        return spots;
+    }
+
+    for (int row = 0; row < GetRowCount(); row++)
+    {
+        const std::vector<Cell> &  cells = GetCellsOfRow (row);
+
+        for (size_t c = 0; c < cells.size() && c < m_columns.size(); c++)
+        {
+            if (!m_columns[c].visible)
+            {
+                continue;
+            }
+
+            for (const auto & [start, end] : DxuiTextFind::FindAll (cells[c].text, m_findNeedle, m_findCase, m_findWord, m_findRegex))
+            {
+                spots.push_back ({ row, c, start, end });
+            }
+        }
+    }
+
+    return spots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetCharacterFills
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint32_t> DxuiListView::GetCharacterFills (const Cell & cell, uint32_t under)
+{
+    std::vector<uint32_t>  fills (cell.text.size(), under);
+
+
+
+    for (const auto & [first, last, rangeArgb] : cell.backgroundRanges)
+    {
+        uint32_t  fill = DxuiColor::Composite (rangeArgb, under);
+
+
+
+        for (int k = (std::max) (0, first); k < last && k < (int) fills.size(); k++)
+        {
+            fills[(size_t) k] = fill;
+        }
+    }
+
+    return fills;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::FindRangeTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::wstring * DxuiListView::FindRangeTip (const Cell & cell, int position)
+{
+    for (const auto & [first, last, text] : cell.rangeTips)
+    {
+        bool  isIn    = position >= first && position < last;
+        bool  isAtEnd = position == last && last == (int) cell.text.size();
+
+
+
+        if (isIn || isAtEnd)
+        {
+            return &text;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMatchBands
+//
+//  A cell's match bands: the host's matches on the list's fill, then the
+//  find's on the match fill, the selected match on the current fill. Each
+//  fill is opaque, with a contrast of at least 3:1 against what is under the
+//  cell, the WCAG minimum for a mark that isn't text; the matched characters
+//  are drawn in the ink that reads on their band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::tuple<int, int, uint32_t>> DxuiListView::GetMatchBands (int row, size_t column, const Cell & cell, uint32_t listArgb, uint32_t under) const
+{
+    constexpr float                              kMinRatio = 3.0f;
+    std::vector<std::tuple<int, int, uint32_t>>  bands;
+    uint32_t                                     match     = DxuiColor::ComputeFillForContrast (((m_findMatchArgb != 0) ? m_findMatchArgb : listArgb) | 0xFF000000u, under | 0xFF000000u, kMinRatio);
+    uint32_t                                     current   = DxuiColor::ComputeFillForContrast (((m_findCurrentArgb != 0) ? m_findCurrentArgb : listArgb) | 0xFF000000u, under | 0xFF000000u, kMinRatio);
+
+
+
+    if (m_columns[column].align == DxuiTextHAlign::Left)
+    {
+        for (const std::pair<int, int> & range : cell.matches)
+        {
+            bands.push_back ({ range.first, range.second, listArgb });
+        }
+    }
+
+    if (m_findNeedle.empty() || !m_columns[column].visible)
+    {
+        return bands;
+    }
+
+    for (const auto & [start, end] : DxuiTextFind::FindAll (cell.text, m_findNeedle, m_findCase, m_findWord, m_findRegex))
+    {
+        bool  isCurrent = m_findCurrent.has_value() && m_findCurrent->row == row && m_findCurrent->column == column && m_findCurrent->start == start;
+
+        bands.push_back ({ start, end, isCurrent ? current : match });
+    }
+
+    return bands;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectMatch
+//
+//  The match after the current one, or before it, going round past the end.
+//  With none current, the search starts at the selected row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult DxuiListView::SelectMatch (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, bool forward, int & outIndex, int & outCount)
+{
+    std::vector<FindSpot>  spots;
+    FindSpot               from;
+    int                    at    = -1;
+    bool                   isNew = needle != m_findNeedle || matchCase != m_findCase || wholeWord != m_findWord || isRegex != m_findRegex;
+
+
+
+    m_findNeedle = needle;
+    m_findCase   = matchCase;
+    m_findWord   = wholeWord;
+    m_findRegex  = isRegex;
+    spots        = GetFindSpots();
+    outIndex     = 0;
+    outCount     = (int) spots.size();
+
+    if (spots.empty())
+    {
+        m_findCurrent.reset();
+        return DxuiFindResult::NotFound;
+    }
+
+    from = (m_findCurrent.has_value() && !isNew) ? *m_findCurrent : FindSpot { std::max (0, m_selectedRow), 0, forward ? -1 : INT_MAX, 0 };
+
+    for (int i = 0; i < (int) spots.size(); i++)
+    {
+        if (forward && spots[(size_t) i] > from && at < 0)
+        {
+            at = i;
+        }
+
+        if (!forward && spots[(size_t) i] < from)
+        {
+            at = i;
+        }
+    }
+
+    outIndex = (at < 0) ? (forward ? 1 : (int) spots.size()) : at + 1;
+
+    m_findCurrent = spots[(size_t) outIndex - 1];
+    SetSelectedRow (m_findCurrent->row);
+
+    return (at < 0) ? DxuiFindResult::Wrapped : DxuiFindResult::Found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectMatchInView
+//
+//  The first match on a row in view, or with none there, the first after the
+//  top of the view, scrolled to; with none after it, the first of all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiFindResult DxuiListView::SelectMatchInView (const std::wstring & needle, bool matchCase, bool wholeWord, bool isRegex, int & outIndex, int & outCount)
+{
+    std::vector<FindSpot>  spots;
+
+
+
+    m_findNeedle = needle;
+    m_findCase   = matchCase;
+    m_findWord   = wholeWord;
+    m_findRegex  = isRegex;
+    spots        = GetFindSpots();
+    outIndex     = 0;
+    outCount     = (int) spots.size();
+
+    m_findCurrent.reset();
+
+    if (spots.empty())
+    {
+        return DxuiFindResult::NotFound;
+    }
+
+    for (size_t i = 0; i < spots.size(); i++)
+    {
+        if (spots[i].row >= m_topRow)
+        {
+            outIndex      = (int) i + 1;
+            m_findCurrent = spots[i];
+            SetSelectedRow (spots[i].row);
+            return DxuiFindResult::Found;
+        }
+    }
+
+    outIndex      = 1;
+    m_findCurrent = spots.front();
+    SetSelectedRow (spots.front().row);
+    return DxuiFindResult::Wrapped;
 }
 
 
@@ -2585,8 +2899,192 @@ LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
     {
         cursor = IDC_SIZEWE;
     }
+    else if (m_textSelect && IsOverCellText (localPx))
+    {
+        cursor = IDC_IBEAM;
+    }
 
     return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOverCellText
+//
+//  Whether a point in list-local px is over a row's cell that has text, for
+//  the I-beam of a list that reads as text. A cell with no text, such as a
+//  gutter's, a column whose cells are not text, such as a heat strip's, and
+//  the space below the rows have the arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsOverCellText (POINT localPx) const
+{
+    int   row  = HitTestRow (localPx.x, localPx.y);
+    RECT  cell = {};
+
+
+
+    if (row < 0)
+    {
+        return false;
+    }
+
+    for (size_t c = 0; c < m_columns.size() && c < GetRowCells (row).size(); c++)
+    {
+        if (m_columns[c].isText && !GetRowCells (row)[c].text.empty() && GetCellTextRectPx (row, c, cell) && localPx.x >= cell.left && localPx.x < cell.right)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HitTestColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::HitTestColumn (int xPx) const
+{
+    int  right = GetPaneLeadPx() - m_leftPx;
+
+
+
+    for (size_t c = 0; c < m_columns.size(); c++)
+    {
+        right += GetColumnEffectiveWidthPx (c);
+
+        if (xPx < right)
+        {
+            return (int) c;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetTip
+//
+//  A heading's tip by the pointer, with the color scales of its lines, or a
+//  cell's tip over its text, with the scale under it. A cell with only an
+//  icon, such as a breakpoint's dot, has no text to anchor on, so its tip goes
+//  by the pointer. The scrollbars, and past the last column, have none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetTip (POINT pointPx, DxuiTip & tip) const
+{
+    RECT  local  = { 0, 0, m_boundsDip.right - m_boundsDip.left, m_boundsDip.bottom - m_boundsDip.top };
+    bool  isOver = false;
+
+
+
+    isOver = IsVisible() && PtInRect (&local, pointPx) != FALSE && !IsOverScrollbar (pointPx);
+
+    if (!isOver)
+    {
+        return false;
+    }
+
+    //  What the host computes for the row under the point first, as a Win32
+    //  list's LVN_GETINFOTIP, then what the cells have.
+    if (TryGetTipFromFn (pointPx, tip) || TryGetCellTip (pointPx, tip))
+    {
+        return true;
+    }
+
+    return IDxuiControl::TryGetTip (pointPx, tip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryGetCellTip
+//
+//  The heading's or the cell's tip under a point, in local pixels. Each is
+//  what a color in the list means, so it's a color key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetCellTip (POINT pointPx, DxuiTip & tip) const
+{
+    const std::vector<Cell>  * cells    = nullptr;
+    RECT                       pointer  = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+    int                        column   = HitTestColumn (pointPx.x);
+    int                        row      = -1;
+    const std::wstring       * rangeTip = nullptr;
+
+
+
+    if (column < 0)
+    {
+        return false;
+    }
+
+    tip             = DxuiTip();
+    tip.isMonospace = m_isMonospaceTips;
+    tip.isColorKey  = true;
+
+    if (pointPx.y < GetHeaderHeightPx())
+    {
+        tip.text       = m_columns[(size_t) column].tip;
+        tip.anchor     = pointer;
+        tip.lineScales = m_columns[(size_t) column].tipLineScales;
+        return !tip.text.empty();
+    }
+
+    row = HitTestRow (pointPx.x, pointPx.y);
+
+    if (row < 0 || row >= GetRowCount())
+    {
+        return false;
+    }
+
+    cells = &GetCellsOfRow (row);
+
+    if ((size_t) column >= cells->size())
+    {
+        return false;
+    }
+
+    rangeTip = (*cells)[(size_t) column].rangeTips.empty() ? nullptr : FindRangeTip ((*cells)[(size_t) column], HitTestCharInCell (row, (size_t) column, pointPx.x));
+
+    if ((*cells)[(size_t) column].tip.empty() && rangeTip == nullptr)
+    {
+        return false;
+    }
+
+    if (!GetCellTextRectPx (row, (size_t) column, tip.anchor))
+    {
+        tip.anchor = pointer;
+    }
+
+    tip.text         = (rangeTip == nullptr)                      ? (*cells)[(size_t) column].tip
+                     : (*cells)[(size_t) column].tip.empty()      ? *rangeTip
+                     :                                              *rangeTip + L"\n\n" + (*cells)[(size_t) column].tip;
+    tip.gradient     = (*cells)[(size_t) column].tipGradient;
+    tip.gradientMark = (*cells)[(size_t) column].tipGradientMark;
+    return true;
 }
 
 
@@ -3138,6 +3636,30 @@ void DxuiListView::SetColumnFiltered (size_t idx, bool isFiltered)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsSortAboveTitle
+//
+//  Whether a heading has room above its vertically centered title for the
+//  sort chevron, as a tall one does; a short one has it at the right end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::IsSortAboveTitle (
+    float  headerPx,
+    float  fontPx) const
+{
+    float  lineH = fontPx * s_kTitleLineEm;
+
+
+
+    return (headerPx - lineH) / 2.0f >= m_scaler.ToPxf (s_kSortAboveDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintHeader
 //
 //  Paints the header background, the column titles, the active sort
@@ -3169,8 +3691,10 @@ void DxuiListView::PaintHeader (
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
         bool   hasSort     = ((int) c == m_sortColumn) && m_columns[c].visible && (colWPx[c] > 0);
+        bool   isSortRight = hasSort && !IsSortAboveTitle (headerH, hdrFontPx);
         float  filterW     = m_columns[c].isFiltered ? m_scaler.ToPxf (s_kFilterGlyphDip) : 0.0f;
-        float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - filterW;
+        float  sortW       = isSortRight ? m_scaler.ToPxf (s_kSortGlyphDip) : 0.0f;
+        float  titleW      = (float) colWPx[c] - cellPadL - cellPadR - filterW - sortW;
 
         if (!m_columns[c].visible || colWPx[c] <= 0)
         {
@@ -3196,13 +3720,16 @@ void DxuiListView::PaintHeader (
 
         //  File Explorer's sort indicator: a small chevron centered over the
         //  column title, pointing up for ascending and down for descending.
+        //  A heading too short for it above the title has it at the right
+        //  end instead, left of any funnel, and the title is narrowed to make room.
         if (hasSort)
         {
             float  halfW = (float) m_scaler.ToPxf (3.0f);
             float  halfH = (float) m_scaler.ToPxf (1.5f);
             float  thick = (float) m_scaler.ToPxf (0.75f);
-            float  cx    = x + colOff + (float) colXPx[c] + (float) colWPx[c] / 2.0f;
-            float  cy    = y + (float) m_scaler.ToPxf (6.0f);
+            float  right = x + colOff + (float) (colXPx[c] + colWPx[c]) - cellPadR - filterW;
+            float  cx    = isSortRight ? right - sortW / 2.0f : x + colOff + (float) colXPx[c] + (float) colWPx[c] / 2.0f;
+            float  cy    = isSortRight ? y + headerH / 2.0f : y + (float) m_scaler.ToPxf (6.0f);
             float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
             float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
 
@@ -3439,12 +3966,23 @@ void DxuiListView::PaintDataRows (
             painter.FillRoundedRect (x, ry, layoutW, rowH, m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), pal.bgHover);
         }
 
+        //  The last column drawn is filled to the row's end, so a filled row
+        //  runs to the list's edge whatever its columns add up to.
+        size_t  lastColumn = 0;
+
+        for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
+        {
+            lastColumn = (m_columns[c].visible && colWPx[c] > 0) ? c : lastColumn;
+        }
+
         for (size_t c = 0; c < m_columns.size() && c < cells.size() && !spans; ++c)
         {
             uint32_t  argb      = (cells[c].argb != 0) ? cells[c].argb : (cells[c].dim ? pal.fgDim : pal.fg);
             uint32_t  under     = (cells[c].background != 0) ? DxuiColor::Composite (cells[c].background, fill) : fill;
             float     iconShift = 0.0f;
             float     cellW     = (float) colWPx[c];
+
+            std::vector<std::tuple<int, int, uint32_t>>  bands;
 
             //  Whatever the row is filled with, the text reads on it.
             argb = GetReadableInk (argb, under);
@@ -3466,8 +4004,14 @@ void DxuiListView::PaintDataRows (
             if (cells[c].background != 0)
             {
                 float  fillX = (colXPx[c] == lead) ? 0.0f : (float) colXPx[c];
+                float  fillW = cellW + (float) colXPx[c] - fillX;
 
-                painter.FillRect (x + colOff + fillX, ry, cellW + (float) colXPx[c] - fillX, rowH, cells[c].background);
+                if (c == lastColumn)
+                {
+                    fillW = (std::max) (fillW, layoutW - colOff - fillX);
+                }
+
+                painter.FillRect (x + colOff + fillX, ry, fillW, rowH, cells[c].background);
             }
 
             if (cells[c].check.has_value())
@@ -3546,20 +4090,72 @@ void DxuiListView::PaintDataRows (
                 }
             }
 
+            // Background ranges: a fill behind each range of characters, the
+            // row's height tall, placed by measuring the text before it.
+            if (!cells[c].backgroundRanges.empty() && m_columns[c].align == DxuiTextHAlign::Left)
+            {
+                const std::wstring &  cellText = cells[c].text;
+                float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
+                float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
+
+                for (const auto & [first, last, rangeArgb] : cells[c].backgroundRanges)
+                {
+                    int      s       = std::clamp (first, 0, (int) cellText.size());
+                    int      e       = std::clamp (last,  s, (int) cellText.size());
+                    float    wS      = 0.0f;
+                    float    wE      = 0.0f;
+                    float    hIgnore = 0.0f;
+                    HRESULT  hrM     = S_OK;
+                    float    hx      = 0.0f;
+                    float    hw      = 0.0f;
+
+                    if (s > 0)
+                    {
+                        hrM = text.MeasureString (cellText.substr (0, (size_t) s).c_str(), fontPx, cellFace, wS, hIgnore);
+                        IGNORE_RETURN_VALUE (hrM, S_OK);
+                    }
+
+                    hrM = text.MeasureString (cellText.substr (0, (size_t) e).c_str(), fontPx, cellFace, wE, hIgnore);
+                    IGNORE_RETURN_VALUE (hrM, S_OK);
+
+                    hx = cellX + wS;
+                    hw = (std::min) (wE - wS, cellX + cellMaxW - hx);
+
+                    if (hw > 0.0f && (rangeArgb >> 24) != 0)
+                    {
+                        painter.FillRect (hx, ry, hw, rowH, rangeArgb);
+                    }
+                }
+            }
+
             // Search-match highlight: an accent band behind each matched
-            // character range, painted before the text. Left-aligned columns
-            // only -- the offset math measures prefixes from the cell's left.
-            if (!cells[c].matches.empty() && m_columns[c].align == DxuiTextHAlign::Left)
+            // character range, painted before the text, and the find's
+            // matches, the selected one on a separate fill. A right-aligned
+            // or centered cell's text starts after the space its width spares.
+            bands = GetMatchBands (r, c, cells[c], pal.matchBg, under);
+
+            if (!bands.empty())
             {
                 const std::wstring &  cellText  = cells[c].text;
                 float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
                 float                 cellMaxW  = cellW - cellPadL - cellPadR - iconShift;
                 float                 bandInset = rowH * 0.14f;
+                float                 fullW     = 0.0f;
+                float                 fullH     = 0.0f;
+                HRESULT               hrF       = S_OK;
 
-                for (const std::pair<int, int> & mr : cells[c].matches)
+                if (m_columns[c].align != DxuiTextHAlign::Left)
                 {
-                    int      s       = std::clamp (mr.first,  0, (int) cellText.size());
-                    int      e       = std::clamp (mr.second, s, (int) cellText.size());
+                    hrF = text.MeasureString (cellText.c_str(), fontPx, cellFace, fullW, fullH);
+                    IGNORE_RETURN_VALUE (hrF, S_OK);
+
+                    cellX += (m_columns[c].align == DxuiTextHAlign::Right) ? std::max (0.0f, cellMaxW - fullW) : std::max (0.0f, (cellMaxW - fullW) * 0.5f);
+                }
+
+                for (const auto & [first, last, bandArgb] : bands)
+                {
+                    int      s       = std::clamp (first, 0, (int) cellText.size());
+                    int      e       = std::clamp (last,  s, (int) cellText.size());
                     float    wS      = 0.0f;
                     float    wE      = 0.0f;
                     float    hIgnore = 0.0f;
@@ -3586,20 +4182,22 @@ void DxuiListView::PaintDataRows (
 
                     if (hw > 0.0f)
                     {
-                        painter.FillRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, pal.matchBg);
+                        painter.FillRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, bandArgb);
                     }
                 }
             }
 
-            // Muted ranges: the text is drawn a run at a time, each run placed
-            // by measuring the text before it, the way a match band is placed.
-            if ((!cells[c].dimRanges.empty() || !cells[c].colorRanges.empty()) && m_columns[c].align == DxuiTextHAlign::Left)
+            // Muted ranges, colored ranges and matches: the text is drawn a run
+            // at a time, each run placed by measuring the text before it, the
+            // way a match band is placed.
+            if ((!cells[c].dimRanges.empty() || !cells[c].colorRanges.empty() || !cells[c].backgroundRanges.empty() || !bands.empty()) && m_columns[c].align == DxuiTextHAlign::Left)
             {
                 const std::wstring &  cellText = cells[c].text;
                 float                 cellX    = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
                 float                 cellMaxW = cellW - cellPadL - cellPadR - iconShift;
                 int                   pos      = 0;
                 std::vector<uint32_t> colors   (cellText.size(), argb);
+                std::vector<uint32_t> fills    = GetCharacterFills (cells[c], under);
 
                 for (const std::tuple<int, int, uint32_t> & range : cells[c].colorRanges)
                 {
@@ -3617,9 +4215,17 @@ void DxuiListView::PaintDataRows (
                     }
                 }
 
-                for (uint32_t & each : colors)
+                for (size_t k = 0; k < colors.size(); k++)
                 {
-                    each = GetReadableInk (each, under);
+                    colors[k] = GetReadableInk (colors[k], fills[k]);
+                }
+
+                for (const auto & [first, last, bandArgb] : bands)
+                {
+                    for (int k = (std::max) (0, first); k < last && k < (int) colors.size(); k++)
+                    {
+                        colors[(size_t) k] = DxuiColor::ChooseInkFor (bandArgb, 0xFF101010u, 0xFFF8F8F8u);
+                    }
                 }
 
                 while (pos < (int) cellText.size())
@@ -3655,7 +4261,7 @@ void DxuiListView::PaintDataRows (
                                           cellFace,
                                           DxuiTextHAlign::Left,
                                           DxuiTextVAlign::CenterOnCapHeight,
-                                          DxuiFontWeight::Normal,
+                                          (cells[c].weight == DxuiFontWeight::Italic) ? DxuiFontWeight::Italic : DxuiFontWeight::Normal,
                                           false);
                     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -4052,7 +4658,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
     {
         int64_t  nowMs = (int64_t) GetTickCount64();
         bool     fit   = (resizeCol == m_lastDividerCol)
-                         && (nowMs - m_lastDividerMs) <= (int64_t) GetDoubleClickTime();
+                         && (nowMs - m_lastDividerMs) <= (int64_t) DxuiSystemSettings::Instance().GetDoubleClickMs();
 
         m_lastDividerCol = fit ? -1 : resizeCol;
         m_lastDividerMs  = nowMs;
@@ -4386,7 +4992,7 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
             int64_t  nowMs = (int64_t) GetTickCount64();
 
             activate = (row == m_lastClickRow) &&
-                       (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime();
+                       (nowMs - m_lastClickMs) <= (int64_t) DxuiSystemSettings::Instance().GetDoubleClickMs();
 
             // A completed double-click consumes the pair so a third click
             // starts a fresh count instead of chaining activations.
@@ -5239,6 +5845,64 @@ void DxuiListView::ClearTextSelection()
     m_textPressed = false;
     m_textAnchor  = TextPos {};
     m_textFocus   = TextPos {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::GetTextSelectionRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetTextSelectionRows (int & first, int & last) const
+{
+    if (!m_hasTextSel)
+    {
+        return false;
+    }
+
+    first = (std::min) (m_textAnchor.row, m_textFocus.row);
+    last  = (std::max) (m_textAnchor.row, m_textFocus.row);
+    return first >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::TryHitTestCellChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryHitTestCellChar (POINT localPx, int & row, size_t & column, int & ch) const
+{
+    RECT  cell = {};
+
+
+
+    row = HitTestRow (localPx.x, localPx.y);
+
+    if (row < 0)
+    {
+        return false;
+    }
+
+    for (size_t c = 0; c < m_columns.size() && c < GetRowCells (row).size(); c++)
+    {
+        if (GetCellTextRectPx (row, c, cell) && localPx.x >= cell.left && localPx.x < cell.right)
+        {
+            column = c;
+            ch     = HitTestCharInCell (row, c, localPx.x);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

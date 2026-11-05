@@ -4,6 +4,8 @@
 #include "Core/StateFloat.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
+#include "Debugger/IDiagnosticsProvider.h"
 
 // Per-phoneme acoustic targets, indexed by phoneme code $00-$3F.
 //
@@ -88,6 +90,75 @@ static constexpr Ssi263PhonemeSpec  s_kPhonemes[Ssi263::kPhonemeCount] =
     {  176, 1922, 2425, true,  false, 0.67f, 0.00f },   // 3D :UH  menu
     {  482, 1730, 2425, true,  false, 0.47f, 0.00f },   // 3E E2   bitte
     {  256,  943, 2756, true,  false, 0.53f, 0.00f },   // 3F LB   lube
+};
+
+// Each phoneme's datasheet name and example, indexed by phoneme code $00-$3F.
+static constexpr const char *  s_kpszPhonemeNames[Ssi263::kPhonemeCount] =
+{
+    "PA (pause)",                 // 00
+    "E (meet)",                   // 01
+    "E1 (bent)",                  // 02
+    "Y (before)",                 // 03
+    "YI (year)",                  // 04
+    "AY (please)",                // 05
+    "IE (any)",                   // 06
+    "I (six)",                    // 07
+    "A (made)",                   // 08
+    "AI (care)",                  // 09
+    "EH (nest)",                  // 0A
+    "EH1 (belt)",                 // 0B
+    "AE (dad)",                   // 0C
+    "AE1 (after)",                // 0D
+    "AH (got)",                   // 0E
+    "AH1 (father)",               // 0F
+    "AW (office)",                // 10
+    "O (store)",                  // 11
+    "OU (boat)",                  // 12
+    "OO (look)",                  // 13
+    "IU (you)",                   // 14
+    "IU1 (could)",                // 15
+    "U (tune)",                   // 16
+    "U1 (cartoon)",               // 17
+    "UH (wonder)",                // 18
+    "UH1 (love)",                 // 19
+    "UH2 (what)",                 // 1A
+    "UH3 (nut)",                  // 1B
+    "ER (bird)",                  // 1C
+    "R (roof)",                   // 1D
+    "R1 (rug)",                   // 1E
+    "R2 (mutter)",                // 1F
+    "L (lift)",                   // 20
+    "L1 (play)",                  // 21
+    "LF (fall)",                  // 22
+    "W (water)",                  // 23
+    "B (bag)",                    // 24
+    "D (paid)",                   // 25
+    "KV (tag)",                   // 26
+    "P (pen)",                    // 27
+    "T (tart)",                   // 28
+    "K (kit)",                    // 29
+    "HV (hold vocal)",            // 2A
+    "HVC (hold vocal closure)",   // 2B
+    "HF (heart)",                 // 2C
+    "HFC (hold fric closure)",    // 2D
+    "HN (hold nasal)",            // 2E
+    "Z (zero)",                   // 2F
+    "S (same)",                   // 30
+    "J (measure)",                // 31
+    "SCH (ship)",                 // 32
+    "V (very)",                   // 33
+    "F (four)",                   // 34
+    "THV (there)",                // 35
+    "TH (with)",                  // 36
+    "M (more)",                   // 37
+    "N (nine)",                   // 38
+    "NG (rang)",                  // 39
+    ":A (maerchen)",              // 3A
+    ":OH (loewe)",                // 3B
+    ":U (fuenf)",                 // 3C
+    ":UH (menu)",                 // 3D
+    "E2 (bitte)",                 // 3E
+    "LB (lube)",                  // 3F
 };
 
 // Synthesis constants: excitation gains, the spectral tilt on the glottal
@@ -423,6 +494,8 @@ void Ssi263::Reset()
     m_request       = false;
     m_phonemeCycles = 0.0;
     m_sounding      = false;
+    m_recentAt      = 0;
+    m_recentCount   = 0;
 
     for (i = 0; i < 3; i++)
     {
@@ -638,6 +711,188 @@ double Ssi263::GetInflectionFrequencyHz() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetPhonemeName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * Ssi263::GetPhonemeName (Byte phoneme)
+{
+    return s_kpszPhonemeNames[phoneme & kPhonemeMask];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetFormantScale
+//
+//  The filter register's scale on the tract's centers, the datasheet's "voice
+//  type" adjustment, relative to the filter's nominal clock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double Ssi263::GetFormantScale() const
+{
+    return std::clamp (GetFilterFrequencyHz() / kNominalFilterHz, 0.5, 2.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendDiagnostics
+//
+//  The phoneme row is the register's value, which stays after the phoneme ends;
+//  the sounding row indicates whether it is playing. The formants are the
+//  centers the resonators filter at, which move only while audio is rendered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const
+{
+    using P = IDiagnosticsProvider;
+
+    static constexpr const char * kModes[]      = { "A/R disabled", "Frame immediate", "Phoneme immediate", "Phoneme transitioned" };
+    constexpr int                 kNibbleDigits = 1;
+    constexpr double              kMsPerSecond  = 1000.0;
+    DiagnosticsGroup              group         { title, {} };
+    double                        scale         = GetFormantScale();
+
+
+
+    group.rows.push_back (P::MakeTextRow ("Power",        IsPoweredDown() ? "Down" : "On"));
+    group.rows.push_back (P::MakeFlagRow ("Sounding",     m_sounding));
+    group.rows.push_back (P::MakeFlagRow ("Requesting",   m_request));
+    group.rows.push_back (P::MakeTextRow ("Mode",         kModes[m_mode]));
+    group.rows.push_back (P::MakeTextRow ("Phoneme",      std::format ("${:02X} {}", GetPhoneme(), GetPhonemeName (GetPhoneme()))));
+    group.rows.push_back (P::MakeTextRow ("Duration",     std::format ("${:X} ({:.1f} ms)", GetDurationSel(), GetPhonemeDurationSec() * kMsPerSecond)));
+    group.rows.push_back (P::MakeTextRow ("Rate",         std::format ("${:X} ({:.1f} ms a frame)", GetRateSel(), GetFrameDurationSec() * kMsPerSecond)));
+    group.rows.push_back (P::MakeTextRow ("Inflection",   std::format ("${:03X} ({:.0f} Hz)", GetInflectionValue(), GetInflectionFrequencyHz())));
+    group.rows.push_back (P::MakeHexRow  ("Articulation", GetArticulation(), kNibbleDigits));
+    group.rows.push_back (P::MakeHexRow  ("Amplitude",    GetAmplitude(),    kNibbleDigits));
+    group.rows.push_back (P::MakeTextRow ("Filter",       std::format ("${:02X} ({:.0f} Hz)", m_reg[kRegFilterFreq], GetFilterFrequencyHz())));
+    group.rows.push_back (P::MakeTextRow ("Formants",     std::format ("{:.0f}, {:.0f}, {:.0f} Hz", m_fCur[0] * scale, m_fCur[1] * scale, m_fCur[2] * scale)));
+
+    snapshot.groups.push_back (std::move (group));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendSoundBoard
+//
+//  The formants are the centers the resonators filter at, as the rows have them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::AppendSoundBoard (DiagnosticsSoundVoice & out) const
+{
+    static constexpr const char * kModes[]     = { "A/R disabled", "Frame immediate", "Phoneme immediate", "Phoneme transitioned" };
+    constexpr double              kMsPerSecond = 1000.0;
+    double                        scale        = GetFormantScale();
+    int                           i            = 0;
+
+
+
+    out.phoneme        = GetPhonemeName (GetPhoneme());
+    out.phonemeCode    = GetPhoneme();
+    out.pitchHz        = GetInflectionFrequencyHz();
+    out.level          = std::clamp (m_envLevel, 0.0f, 1.0f);
+    out.durationSelect = GetDurationSel();
+    out.durationMs     = GetPhonemeDurationSec() * kMsPerSecond;
+    out.rateSelect     = GetRateSel();
+    out.frameMs        = GetFrameDurationSec() * kMsPerSecond;
+    out.articulation   = GetArticulation();
+    out.amplitude      = GetAmplitude();
+    out.filterRegister = m_reg[kRegFilterFreq];
+    out.filterHz       = GetFilterFrequencyHz();
+    out.inflection     = GetInflectionValue();
+    out.mode           = kModes[m_mode];
+    out.isPoweredDown  = IsPoweredDown();
+    out.isSounding     = m_sounding;
+    out.isRequesting   = m_request;
+
+    for (i = 0; i < DiagnosticsSoundVoice::kFormantCount; i++)
+    {
+        out.formantsHz[i] = m_fCur[i] * scale;
+    }
+
+    out.recent.clear();
+
+    for (i = 0; i < m_recentCount; i++)
+    {
+        const RecentPhoneme  & entry = m_recent[(m_recentAt + kRecentCount - m_recentCount + i) % kRecentCount];
+
+        out.recent.push_back ({ GetPhonemeName (entry.code), entry.seconds, entry.code == kPausePhoneme });
+    }
+
+    out.scope.clear();
+
+    for (size_t at = 0; at < kScopeSamples && !m_scope.empty(); at++)
+    {
+        out.scope.push_back (m_scope[(m_scopeAt + at) % kScopeSamples]);
+    }
+
+    if (m_scope.empty())
+    {
+        m_scope.assign (kScopeSamples, 0.0f);
+    }
+
+    m_scopeSamplesLeft = (int64_t) m_sampleRate * kScopeCaptureSeconds;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureScope
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::CaptureScope (float sample)
+{
+    m_scope[m_scopeAt] = sample;
+    m_scopeAt          = (m_scopeAt + 1) % kScopeSamples;
+    m_scopeSamplesLeft--;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureSilence
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Ssi263::CaptureSilence (uint32_t samples)
+{
+    uint32_t  i = 0;
+
+
+
+    for (i = 0; i < samples && m_scopeSamplesLeft > 0; i++)
+    {
+        CaptureScope (0.0f);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GenerateSample
 //
 //  One mono sample of formant synthesis: an excitation source shaped by
@@ -665,14 +920,14 @@ float Ssi263::GenerateSample()
 
     if (IsSilent() || m_sampleRate == 0)
     {
+        CaptureSilence (1);
         return 0.0f;
     }
 
     GlideFormants();
     GlideLevels();
 
-    scale = GetFilterFrequencyHz() / kNominalFilterHz;
-    scale = std::clamp (scale, 0.5, 2.0);
+    scale = GetFormantScale();
 
     // Voiced excitation drives the whole tract from the glottis; frication
     // is front-cavity excitation and enters AFTER the first formant stage.
@@ -732,8 +987,14 @@ float Ssi263::GenerateSample()
     m_envLevel += static_cast<float> (coef) * (target - m_envLevel);
 
     sample *= m_envLevel * s_kfOutputGain;
+    sample  = std::clamp (sample, -1.0f, 1.0f);
 
-    return std::clamp (sample, -1.0f, 1.0f);
+    if (m_scopeSamplesLeft > 0)
+    {
+        CaptureScope (sample);
+    }
+
+    return sample;
 }
 
 
@@ -1094,7 +1355,10 @@ void Ssi263::LatchMode()
 
 void Ssi263::BeginPhoneme()
 {
-    double   seconds = GetPhonemeDurationSec();
+    double   seconds   = GetPhonemeDurationSec();
+    int      last      = (m_recentAt + kRecentCount - 1) % kRecentCount;
+    bool     isRewrite = m_sounding && m_recentCount > 0 && m_recent[last].code == GetPhoneme();
+    double   played    = isRewrite ? (double) m_recent[last].seconds - m_phonemeCycles / GetTickClockHz() : 0.0;
 
 
 
@@ -1113,6 +1377,20 @@ void Ssi263::BeginPhoneme()
     m_phonemeCycles = seconds * GetTickClockHz();
     m_sounding      = (m_phonemeCycles > 0.0);
     m_request       = false;
+
+    //  The same phoneme written again while it sounds is listed as one: a
+    //  driver writes it again to sustain a sung note, or to have the chip
+    //  sounding through its wait. The entry already listed gets the length of
+    //  its sound so far plus the new duration.
+    if (isRewrite)
+    {
+        m_recent[last].seconds = static_cast<float> (std::max (0.0, played) + seconds);
+        return;
+    }
+
+    m_recent[m_recentAt] = { GetPhoneme(), static_cast<float> (seconds) };
+    m_recentAt           = (m_recentAt + 1) % kRecentCount;
+    m_recentCount        = std::min (m_recentCount + 1, kRecentCount);
 }
 
 
@@ -1182,6 +1460,17 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
     StateFloat::Write  (writer, m_outLp);
     StateFloat::Write  (writer, m_outLp2);
 
+    //  The recent phonemes in use, oldest first.
+    writer.WriteUInt32 (static_cast<uint32_t> (m_recentCount));
+
+    for (int each = 0; each < m_recentCount; each++)
+    {
+        const RecentPhoneme  & entry = m_recent[(size_t) ((m_recentAt + kRecentCount - m_recentCount + each) % kRecentCount)];
+
+        writer.WriteByte  (entry.code);
+        StateFloat::Write (writer, entry.seconds);
+    }
+
     return writer.EndSection();
 }
 
@@ -1200,9 +1489,14 @@ HRESULT Ssi263::SaveState (StateWriter & writer) const
 
 HRESULT Ssi263::LoadState (StateReader & reader)
 {
-    HRESULT   hr      = S_OK;
-    uint16_t  version = 0;
-    int       i       = 0;
+    constexpr uint16_t  kFirstWithRecent = 2;
+    constexpr uint16_t  kFirstInOrder    = 3;
+    constexpr uint32_t  kVersion2Count   = 32;
+    HRESULT             hr               = S_OK;
+    uint16_t            version          = 0;
+    int                 i                = 0;
+    uint32_t            recentAt         = 0;
+    uint32_t            recentCount      = 0;
 
 
 
@@ -1240,10 +1534,48 @@ HRESULT Ssi263::LoadState (StateReader & reader)
     StateFloat::Read  (reader, m_outLp);
     StateFloat::Read  (reader, m_outLp2);
 
+    m_recent = {};
+
+    //  Version 3 has the phonemes in use, oldest first; version 2 had a ring
+    //  of 32 and its next slot, put back here oldest first.
+    if (version >= kFirstInOrder)
+    {
+        reader.ReadUInt32 (recentCount);
+        CBREx (recentCount <= (uint32_t) kRecentCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        for (uint32_t each = 0; each < recentCount; each++)
+        {
+            reader.ReadByte  (m_recent[each].code);
+            StateFloat::Read (reader, m_recent[each].seconds);
+        }
+    }
+    else if (version >= kFirstWithRecent)
+    {
+        std::array<RecentPhoneme, kVersion2Count>  ring = {};
+
+        reader.ReadUInt32 (recentAt);
+        reader.ReadUInt32 (recentCount);
+        CBREx (recentAt < kVersion2Count && recentCount <= kVersion2Count, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        for (RecentPhoneme & entry : ring)
+        {
+            reader.ReadByte  (entry.code);
+            StateFloat::Read (reader, entry.seconds);
+        }
+
+        for (uint32_t each = 0; each < recentCount; each++)
+        {
+            m_recent[each] = ring[(recentAt + kVersion2Count - recentCount + each) % kVersion2Count];
+        }
+    }
+
     hr = reader.EndSection();
     CHR (hr);
 
     CBREx (m_mode <= kModePhonemeTransitioned, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_recentCount = (int) recentCount;
+    m_recentAt    = (int) (recentCount % (uint32_t) kRecentCount);
 
 Error:
     return hr;

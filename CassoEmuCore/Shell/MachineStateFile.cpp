@@ -276,6 +276,10 @@ Error:
 //  over them. The state's disks are built from the bytes it carries; no
 //  image file is read.
 //
+//  A device's section newer than this build reads is a newer format, as a
+//  newer payload section is in Parse: a build that raised one device's state
+//  version writes a file whose header and payload this build reads.
+//
 //  A LOAD THAT FAILS PART WAY LEAVES THE MACHINE AS IT WAS, bays included.
 //  The machine is saved before the bays are touched, and the disks that
 //  leave them are kept rather than dropped until the load has worked. A
@@ -294,6 +298,7 @@ HRESULT MachineStateFile::Apply (
     DiskImageStore     & store        = machine.GetDiskStore();
     bool                 wasRetaining = store.IsRetainingMedia();
     bool                 isStaged     = false;
+    bool                 isNewer      = false;
     StateReader          reader (contents.machineState);
     StateWriter          before;
 
@@ -314,8 +319,10 @@ HRESULT MachineStateFile::Apply (
     hr = RestoreDisks (machine, contents);
     CHRF (hr, outError = MakeError ("disk not restored", "A disk in the state file could not be mounted."));
 
-    hr = machine.LoadStateOverMountedMedia (reader);
-    CHRF (hr, outError = MakeError ("state not loaded", "The machine's state could not be read from the file."));
+    hr      = machine.LoadStateOverMountedMedia (reader);
+    isNewer = hr == HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH);
+    CBRFEx (!isNewer, hr, outError = MakeError ("newer state format", "A device in the file was saved by a newer version of Casso."));
+    CHRF   (hr,       outError = MakeError ("state not loaded", "The machine's state could not be read from the file."));
 
     // The host connections open when the state was saved are gone, and the
     // ones open now are from the state just replaced, so each is closed.

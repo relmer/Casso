@@ -71,6 +71,21 @@ int  DxuiMessageBox (HWND                                      owner,
 
 
 
+//  The box with uType's buttons, MB_OK or MB_OKCANCEL, and a check box under
+//  the text, such as a notice's box that turns it off; ioChecked is its state
+//  before and after.
+int  DxuiMessageBox (HWND                 owner,
+                     const IDxuiTheme   * theme,
+                     const wchar_t      * text,
+                     const wchar_t      * caption,
+                     UINT                 uType,
+                     const std::wstring & checkLabel,
+                     bool               & ioChecked);
+
+
+
+
+
 //  How the box's window is created for owner: centered on the owner, on the
 //  owner's monitor and at that monitor's DPI, as every other dialog is.
 DxuiWindow::CreateParams  DxuiMakeMessageBoxParams (HWND owner, const wchar_t * caption, int heightDip);

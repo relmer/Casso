@@ -760,7 +760,7 @@ LPCWSTR ProfileDialogOverlay::GetCursorForPoint (POINT clientPx) const
 
 bool ProfileDialogOverlay::OnKey (WPARAM vk)
 {
-    bool  shiftDown = (GetKeyState (VK_SHIFT) & s_kKeyDownMask) != 0;
+    bool  shiftDown = (DxuiInputState::GetKeyState (VK_SHIFT) & s_kKeyDownMask) != 0;
 
 
 

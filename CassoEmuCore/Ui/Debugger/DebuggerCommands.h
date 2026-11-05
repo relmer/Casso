@@ -40,6 +40,7 @@ public:
     static constexpr int  kStepBackOver    = (int) DebuggerKeySchemes::Action::StepBackOver;
     static constexpr int  kStepBackOut     = (int) DebuggerKeySchemes::Action::StepBackOut;
     static constexpr int  kReverseContinue = (int) DebuggerKeySchemes::Action::ReverseRun;
+    static constexpr int  kRunOrPause      = (int) DebuggerKeySchemes::Action::RunOrPause;
 
     static constexpr int  kShowNext        = 100;
     static constexpr int  kTrace           = 101;
@@ -105,6 +106,10 @@ private:
     static void  PaintBackDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
     static void  PaintArrowHead    (IDxuiPainter & painter, float tipX, float tipY, float dirX, float dirY, float length, float stroke, uint32_t color);
     static void  PaintStepDot      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
+
+    //  Whether the bar's one Run or Pause button is Pause: the machine runs,
+    //  or replays history.
+    bool  IsPausing () const;
 
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;

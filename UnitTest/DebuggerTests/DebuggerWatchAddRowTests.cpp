@@ -44,7 +44,7 @@ namespace DebuggerWatchAddRowTests
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
-        void  RunDebuggerAction       (const DebuggerAction & action)   override { commands.push_back (action.echo); }
+        void  RunDebuggerAction       (const DebuggerAction & action)   override { commands.push_back (action.echo); actions.push_back (action); }
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -57,8 +57,9 @@ namespace DebuggerWatchAddRowTests
         SourceLookup  FindDebuggerSource         (const DebugSourceFile &, const std::wstring &, const std::string &)                     override { return {}; }
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
-        std::vector<std::string>  goTos;
-        std::vector<std::string>  commands;
+        std::vector<std::string>     goTos;
+        std::vector<std::string>     commands;
+        std::vector<DebuggerAction>  actions;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -217,8 +218,9 @@ namespace DebuggerWatchAddRowTests
 
 
         //  A name no symbol has yet is watched all the same: Enter adds it and
-        //  ends the edit.
-        TEST_METHOD (EnterOnANameAddsTheWatchAndEndsTheEdit)
+        //  opens the add row again, empty, so a second name and Enter add a
+        //  second watch with no click. Esc ends it.
+        TEST_METHOD (EnterOnANameAddsTheWatchAndOpensTheAddRowAgain)
         {
             CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost   host;
@@ -233,7 +235,16 @@ namespace DebuggerWatchAddRowTests
 
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"the watch was not added");
             Assert::IsTrue   (host.commands.front().find ("asdf") != std::string::npos);
-            Assert::IsFalse  (grid->IsEditing(), L"the edit is still open");
+            Assert::IsTrue   (grid->IsEditing() && grid->IsAddRow (grid->GetEditRow()), L"the add row is open again");
+
+            window.Type  (L"qwer");
+            window.Press (VK_RETURN);
+
+            Assert::AreEqual ((size_t) 2, host.commands.size(), L"the second watch was not added");
+            Assert::IsTrue   (host.commands.back().find ("qwer") != std::string::npos);
+
+            window.Press (VK_ESCAPE);
+            Assert::IsFalse  (grid->IsEditing(), L"Esc ends it");
         }
 
 
@@ -381,6 +392,136 @@ namespace DebuggerWatchAddRowTests
             Assert::AreEqual (std::wstring (L"$06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[2].text);
             Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[3].text);
             Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check.has_value(), L"nor on the pointer");
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  WatchUndoTests
+    //
+    //  Adding and removing a watch are steps Ctrl+Z takes back: a removed
+    //  watch comes back under the id it had, so in its place, and an added
+    //  one goes again.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (WatchUndoTests)
+    {
+    public:
+
+        TEST_METHOD (ARemovedWatchComesBackUnderItsId)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine   watch;
+
+
+
+            watch.id         = 3;
+            watch.expression = "X";
+            watch.isRegister = true;
+            watch.value      = "00";
+            snapshot->watches = { watch };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            Assert::AreEqual (std::wstring (L"Register"), static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->GetCellsOfRow (FindRow (window, L"3"))[4].text, L"the Type column");
+
+            RunMenuItem (window, FindRow (window, L"3"), L"Remove");
+
+            Assert::IsTrue   (host.actions.back().command.verb == DebugVerb::ClearWatch, L"Remove clears the watch");
+            Assert::AreEqual ((uint32_t) 3, host.actions.back().command.count);
+            Assert::IsTrue   (window.GetWatchesPane().CanUndo (false), L"and can be undone");
+
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot>());
+            window.GetWatchesPane().Undo (false);
+
+            Assert::IsTrue   (host.actions.back().command.verb == DebugVerb::AddWatch, L"the undo adds it back");
+            Assert::AreEqual (std::string ("X"), host.actions.back().operand);
+            Assert::AreEqual ((uint32_t) 4, host.actions.back().command.count, L"under id 3");
+
+            window.GetWatchesPane().Undo (true);
+            Assert::IsTrue   (host.actions.back().command.verb == DebugVerb::ClearWatch, L"the redo removes it again");
+        }
+
+
+        TEST_METHOD (AnAddedWatchIsUndoneOnceASnapshotListsIt)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            auto                              after    = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::WatchLine   watch;
+
+
+
+            (void) AddRowTests::BeginAdd (window, scaler);
+            window.Type  (L"KBD");
+            window.Press (VK_RETURN);
+            window.Press (VK_ESCAPE);
+
+            Assert::IsFalse (window.GetWatchesPane().CanUndo (false), L"nothing to undo before the watch is listed");
+
+            watch.id         = 7;
+            watch.expression = "KBD";
+            after->watches   = { watch };
+            window.TakeSnapshot (after);
+
+            Assert::IsTrue (window.GetWatchesPane().CanUndo (false), L"the add can be undone");
+            window.GetWatchesPane().Undo (false);
+
+            Assert::IsTrue   (host.actions.back().command.verb == DebugVerb::ClearWatch, L"the undo removes it");
+            Assert::AreEqual ((uint32_t) 7, host.actions.back().command.count);
+        }
+
+    private:
+
+        static int FindRow (WatchWindow & window, const std::wstring & id)
+        {
+            DxuiEditableGrid  * grid = static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList());
+
+
+
+            for (int row = 0; row < grid->GetDataRowCount(); row++)
+            {
+                if (grid->GetCellsOfRow (row)[1].text == id)
+                {
+                    return row;
+                }
+            }
+
+            Assert::Fail (L"no row with that id");
+        }
+
+
+        static void RunMenuItem (WatchWindow & window, int row, const std::wstring & label)
+        {
+            PaneMenuItems  items;
+
+
+
+            (void) window.GetWatchesPane().AddMenuItems (window.GetWatchesPane().GetList(), row, items);
+
+            for (const auto & [text, run] : items)
+            {
+                if (text == label)
+                {
+                    run();
+                    return;
+                }
+            }
+
+            Assert::Fail (L"no such menu item");
         }
     };
 }

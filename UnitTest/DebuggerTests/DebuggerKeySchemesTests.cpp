@@ -95,6 +95,20 @@ namespace DebuggerTests
         }
 
 
+        TEST_METHOD (EverySchemeRestartsWithTheEmulatorWindowsKeys)
+        {
+            for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+            {
+                const DxuiKeyMap &  map = DebuggerKeySchemes::GetMap (scheme);
+                int                 id  = 0;
+
+                Assert::IsTrue (Translate (scheme, 'R', true, true) == Action::Reset,      L"Ctrl+Shift+R resets");
+                Assert::IsTrue (Translate (scheme, 'P', true, true) == Action::PowerCycle, L"Ctrl+Shift+P power cycles");
+                Assert::IsTrue (map.TryTranslate ('R', true, true, true, id) && (Action) id == Action::Reset, L"Ctrl+Shift+Alt+R resets with the Open Apple key down");
+            }
+        }
+
+
         TEST_METHOD (EverySchemeFindsWithTheWindowsKeys)
         {
             for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
@@ -211,6 +225,20 @@ namespace DebuggerTests
 
 
 
+        //  Pause/Break runs or pauses in every scheme, as it does in the
+        //  emulator's window.
+        TEST_METHOD (PauseBreakRunsOrPausesInEveryScheme)
+        {
+            for (DebuggerKeyScheme scheme : { DebuggerKeyScheme::VisualStudio, DebuggerKeyScheme::AppleWin, DebuggerKeyScheme::GSSquared })
+            {
+                int  id = 0;
+
+                Assert::IsTrue (DebuggerKeySchemes::GetMap (scheme).Match ({ VK_PAUSE, false, false, false }, std::nullopt, id) == DxuiKeyMatch::Command);
+                Assert::AreEqual ((int) Action::RunOrPause, id);
+            }
+        }
+
+
         TEST_METHOD (AChordsSecondKeyMayKeepTheFirstKeysModifiers)
         {
             const DxuiKeyMap  & map    = DebuggerKeySchemes::GetMap (DebuggerKeyScheme::VisualStudio);
@@ -240,7 +268,7 @@ namespace DebuggerTests
 
         TEST_METHOD (EachShowActionHasItsPaneAndBack)
         {
-            for (int a = (int) Action::ShowDisassembly; a <= (int) Action::Last; a++)
+            for (int a = (int) Action::ShowDisassembly; a <= (int) Action::ShowBasicProgram; a++)
             {
                 std::wstring  pane = DebuggerKeySchemes::GetPaneOfAction ((Action) a);
 
@@ -249,6 +277,7 @@ namespace DebuggerTests
             }
 
             Assert::IsTrue (DebuggerKeySchemes::GetPaneOfAction (Action::Run).empty());
+            Assert::IsTrue (DebuggerKeySchemes::GetPaneOfAction (Action::RunOrPause).empty());
             Assert::IsTrue (!DebuggerKeySchemes::GetActionOfPane (L"source").has_value());
         }
     };

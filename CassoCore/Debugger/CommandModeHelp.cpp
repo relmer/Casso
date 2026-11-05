@@ -705,7 +705,8 @@ std::vector<std::string> CommandModeHelp::BuildListing (CommandMode mode, const 
     std::vector<Row>          own;
     std::vector<Row>          casso;
     std::vector<std::string>  lines;
-    size_t                    width = 0;
+    size_t                    width       = 0;
+    size_t                    description = 0;
 
 
 
@@ -744,9 +745,12 @@ std::vector<std::string> CommandModeHelp::BuildListing (CommandMode mode, const 
     {
         for (const Row & row : *rows)
         {
-            width = (std::max) (width, row.syntax.size());
+            width       = (std::max) (width, row.syntax.size());
+            description = (std::max) (description, row.description.size());
         }
     }
+
+    width = GetSyntaxColumn (width, description, 0);
 
     if (!own.empty())
     {
@@ -1112,6 +1116,31 @@ std::string CommandModeHelp::GetModesThatRun (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandModeHelp::GetSyntaxColumn
+//
+//  A row is the indent, the syntax column, a gap of two and the description.
+//  Where every row fits the console that way, nothing wraps and the column is
+//  as wide as the widest syntax. Otherwise one long syntax doesn't push every
+//  description to the right, and the descriptions wrap to the column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CommandModeHelp::GetSyntaxColumn (size_t widestSyntax, size_t widestDescription, int consoleColumns)
+{
+    if (consoleColumns > 0 && kRowIndent + widestSyntax + kRowGap + widestDescription <= (size_t) consoleColumns)
+    {
+        return widestSyntax;
+    }
+
+    return (std::min) (widestSyntax, kMaxSyntaxColumn);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandModeHelp::AppendSection
 //
 //  A heading, then each category's heading and its commands, alphabetical
@@ -1145,8 +1174,117 @@ void CommandModeHelp::AppendSection (const std::string & heading, std::vector<Ro
             lines.push_back (std::string ("  ") + CassoCommandReference::GetCategoryTitle (row.category));
         }
 
-        lines.push_back (std::format ("    {:<{}}  {}", row.syntax, width, row.description));
+        if (s_isTabbed)
+        {
+            lines.push_back (std::string (kRowIndent, ' ') + row.syntax + '\t' + row.description);
+            continue;
+        }
+
+        AppendRow (row.syntax, row.description, width, lines);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::AppendRow
+//
+//  A syntax wider than the column is a row by itself, its description on the
+//  next row in the description column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandModeHelp::AppendRow (const std::string & syntax, const std::string & description, size_t width, std::vector<std::string> & lines)
+{
+    std::string  indent (kRowIndent, ' ');
+    std::string  gap    (kRowGap, ' ');
+
+
+
+    if (syntax.size() > width)
+    {
+        lines.push_back (indent + syntax);
+        lines.push_back (std::format ("{}{:<{}}{}{}", indent, "", width, gap, description));
+        return;
+    }
+
+    lines.push_back (std::format ("{}{:<{}}{}{}", indent, syntax, width, gap, description));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::LayOutTabbedRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandModeHelp::LayOutTabbedRows (const std::vector<std::string> & lines, int consoleColumns)
+{
+    std::vector<size_t>  sources;
+
+
+
+    return LayOutTabbedRows (lines, consoleColumns, sources);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandModeHelp::LayOutTabbedRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> CommandModeHelp::LayOutTabbedRows (const std::vector<std::string> & lines, int consoleColumns, std::vector<size_t> & sources)
+{
+    std::vector<std::string>  laidOut;
+    size_t                    syntax      = 0;
+    size_t                    description = 0;
+    size_t                    width       = 0;
+
+
+
+    sources.clear();
+
+    for (const std::string & line : lines)
+    {
+        size_t  tab = line.find ('\t');
+
+        if (tab != std::string::npos)
+        {
+            syntax      = (std::max) (syntax, tab - (std::min) (tab, kRowIndent));
+            description = (std::max) (description, line.size() - tab - 1);
+        }
+    }
+
+    width = GetSyntaxColumn (syntax, description, consoleColumns);
+
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        const std::string  & line = lines[i];
+        size_t               tab  = line.find ('\t');
+
+        if (tab == std::string::npos)
+        {
+            laidOut.push_back (line);
+        }
+        else
+        {
+            AppendRow (line.substr ((std::min) (tab, kRowIndent), tab - (std::min) (tab, kRowIndent)), line.substr (tab + 1), width, laidOut);
+        }
+
+        sources.resize (laidOut.size(), i);
+    }
+
+    return laidOut;
 }
 
 

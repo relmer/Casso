@@ -283,7 +283,7 @@ namespace ReplayProgressStatusTests
             window.Build();
             host.progress.isReplaying = true;
 
-            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, pause));
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kRunOrPause, pause));
 
             ev.button      = DxuiMouseButton::Left;
             ev.positionDip = POINT { (pause.left + pause.right) / 2, (pause.top + pause.bottom) / 2 };

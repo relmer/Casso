@@ -26,8 +26,9 @@
 class ProfileTimeline : public IDxuiControl
 {
 public:
-    static constexpr int     kHeightDip       = 40;
-    static constexpr size_t  kColoredRoutines = 8;
+    static constexpr int     kHeightDip        = 40;
+    static constexpr size_t  kColoredRoutines  = 8;
+    static constexpr float   kSelectionEdgeDip = 2.0f;
 
     void  SetData (const std::optional<ProfileData> & profile);
 
@@ -59,6 +60,10 @@ public:
 
     //  The color of a routine's share of a bar.
     static uint32_t      GetShareColor (size_t routine, uint32_t otherArgb);
+
+    //  A routine on one line of a frame's tip: its name, with the address
+    //  and the description of a routine that has a symbol.
+    static std::string   GetTimelineName (const ProfileRoutineEntry & routine);
 
     bool  TryGetTipAt (POINT point, std::wstring & text, std::vector<uint32_t> & swatches) const;
 

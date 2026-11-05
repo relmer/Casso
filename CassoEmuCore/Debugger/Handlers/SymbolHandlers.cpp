@@ -2,10 +2,14 @@
 
 #include "Debugger/Handlers/SymbolHandlers.h"
 
+#include "ApplesoftTokenizer.h"
 #include "Config/IFileSystem.h"
 #include "Debugger/DebugFileReader.h"
 #include "Debugger/SymbolFileReader.h"
 #include "Debugger/DebugSession.h"
+#include "Debugger/DebugFileData.h"
+#include "Debugger/ProgramCheck.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/ReplyJson.h"
 #include "Sha1.h"
@@ -312,6 +316,12 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
         return;
     }
 
+    if (IsBasicListing (name, content))
+    {
+        reply.SetError (CommandStatus::Error, "not a symbol file", std::format ("{} is a BASIC program; BASICLOAD loads it into memory.", name));
+        return;
+    }
+
     if (DebugFileReader::IsDebugFile (content))
     {
         LoadDebugFile (session, table, name, content, offset, false, reply);
@@ -343,6 +353,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 
     session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
+    session.SetLabelCheck (table);
 
     lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")));
     AddRegisterNameNote (session, table, lines);
@@ -369,11 +380,12 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table, const std::string & name,
                                     const std::string & content, int offset, bool isListing, Reply & reply)
 {
-    DebugFile                 file;
-    std::string               error;
-    size_t                    loaded = 0;
-    size_t                    lines  = 0;
-    std::vector<std::string>  message;
+    DebugFile                                file;
+    std::string                              error;
+    size_t                                   loaded = 0;
+    size_t                                   lines  = 0;
+    std::vector<std::string>                 message;
+    std::map<int, std::vector<std::string>>  sources;
     size_t       slash  = name.find_last_of ("/\\");
     std::string  base   = (slash == std::string::npos) ? name : name.substr (slash + 1);
     HRESULT      hr     = isListing ? DebugFileReader::ReadMerlinListing (content, base, file, error)
@@ -424,12 +436,75 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 
+    //  A listing has the bytes of each of its lines; a debug file's source
+    //  has the mnemonic of each instruction line, and its data directives.
+    sources = isListing ? std::map<int, std::vector<std::string>>() : ReadSources (session, session.GetDebugFile(), session.ResolvePath (name));
+    session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetDebugFile(), sources));
+    session.SetDebugFileData  (DebugFileData::GetBlocks (session.GetDebugFile(), sources));
+
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
                                     loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));
     AddRegisterNameNote (session, table, message);
     BreakpointHandlers::FollowSymbols (session, message);
 
     reply.data = MessageData { message };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::ReadSources
+//
+//  Each source file beside the debug file, by its record's id, as lines. A
+//  file that can't be read is left out, so its lines aren't checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<int, std::vector<std::string>> SymbolHandlers::ReadSources (DebugSession & session, const DebugFile & file, const std::wstring & debugFilePath)
+{
+    std::map<int, std::vector<std::string>>  sources;
+    IFileSystem                            * files  = session.GetFileSystem();
+    fs::path                                 folder = fs::path (debugFilePath).parent_path();
+
+
+
+    if (files == nullptr)
+    {
+        return sources;
+    }
+
+    for (const DebugSourceFile & record : file.files)
+    {
+        std::string               text;
+        std::vector<std::string>  lines;
+        std::istringstream        stream;
+        std::string               line;
+        HRESULT                   hr     = files->ReadAllText ((folder / TextEncoding::Utf8ToWide (record.name)).wstring(), text);
+
+        if (FAILED (hr))
+        {
+            continue;
+        }
+
+        stream.str (text);
+
+        while (std::getline (stream, line))
+        {
+            if (!line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+
+            lines.push_back (std::move (line));
+        }
+
+        sources[record.id] = std::move (lines);
+    }
+
+    return sources;
 }
 
 
@@ -482,6 +557,76 @@ void SymbolHandlers::AddRegisterNameNote (DebugSession & session, SymbolTableId 
     lines.push_back (found.size() == 1
                          ? std::format ("The file defines {0}, a register's name. {0} is now the symbol; {1} is the register.", names, ats)
                          : std::format ("The file defines {0}, the names of registers. Each is now the symbol; {1} are the registers.", names, ats));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolHandlers::IsBasicListing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolHandlers::IsBasicListing (const std::string & path, const std::string & content)
+{
+    std::istringstream  in (content);
+    std::string         line;
+    size_t              digits = 0;
+    size_t              start  = 0;
+    long                number = -1;
+    long                last   = -1;
+    int                 count  = 0;
+
+
+
+    if (path.size() >= 4 && SymbolTable::ToUpper (path.substr (path.size() - 4)) == ".BAS")
+    {
+        return true;
+    }
+
+    while (std::getline (in, line))
+    {
+        bool  isKeyword = false;
+
+        if (line.find_first_not_of (" \t\r") == std::string::npos)
+        {
+            continue;
+        }
+
+        digits = line.find_first_not_of ("0123456789");
+        start  = (digits == std::string::npos) ? std::string::npos : line.find_first_not_of (' ', digits);
+
+        //  Applesoft lists a line's number with no leading zero, and each
+        //  number is above the one before.
+        number = (digits > 0 && digits <= 5) ? std::stol (line.substr (0, digits)) : -1;
+
+        if (digits == std::string::npos || number <= last || (line[0] == '0' && digits > 1) || start == std::string::npos)
+        {
+            return false;
+        }
+
+        last = number;
+
+        for (Byte token = ApplesoftTokenizer::kFirstToken; token <= ApplesoftTokenizer::kLastToken && !isKeyword; token++)
+        {
+            const char  * keyword = ApplesoftTokenizer::GetKeyword (token);
+
+            isKeyword = keyword != nullptr && SymbolTable::ToUpper (line.substr (start)).starts_with (keyword);
+        }
+
+        if (!isKeyword)
+        {
+            return false;
+        }
+
+        count++;
+    }
+
+    //  A few lines at least: a symbol file of one or two symbols that start
+    //  with keywords, such as PRINTIT, isn't taken for a program.
+    return count >= 3;
 }
 
 

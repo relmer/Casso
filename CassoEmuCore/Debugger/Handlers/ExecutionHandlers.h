@@ -118,6 +118,7 @@ private:
     void         RecordProfile     (DebugSession & session, Word pc);
     void         BillProfile       (DebugSession & session);
     void         BuildRoutines     (DebugSession & session, ProfileData & data) const;
+    void         BuildTopAddresses (DebugSession & session, ProfileData & data) const;
     void         SaveProfile       (DebugSession & session, const std::string & name, Reply & reply) const;
     void         RecordTrace       (DebugSession & session, Word pc);
     HRESULT      FlushTrace        (DebugSession & session);
@@ -135,8 +136,9 @@ private:
     HistoryProfiler                    m_historyProfiler;
     CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
-    std::optional<CycleRange>          m_historyRange;                    // the installed profile's, from history
-    uint64_t                           m_historyBuilds  = 0;              // the builds from history installed
+    std::optional<CycleRange>          m_historyRange;   // the installed profile's, from history
+    bool                               m_isFromHistoryStart = false;   // and whether its period begins where history does
+    uint64_t                           m_historyBuilds      = 0;   // the builds from history installed
     std::deque<Byte>                   m_keys;
-    uint64_t                           m_lastRunCycles  = 0;
+    uint64_t                           m_lastRunCycles      = 0;
 };

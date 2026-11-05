@@ -115,7 +115,7 @@ public:
                                   nullptr, nullptr, hInst, this);
         CWR (m_hwnd);
 
-        m_dpi = GetDpiForWindow (m_hwnd);
+        m_dpi = DxuiDisplay::Get().GetDpiForWindow (m_hwnd);
         if (m_dpi == 0)
         {
             m_dpi = 96;
@@ -128,7 +128,7 @@ public:
         {
             NONCLIENTMETRICSW  ncm = { sizeof (ncm) };
 
-            if (SystemParametersInfoForDpi (SPI_GETNONCLIENTMETRICS, sizeof (ncm), &ncm, 0, m_dpi))
+            if (DxuiDisplay::Get().SystemParametersInfoForDpi (SPI_GETNONCLIENTMETRICS, sizeof (ncm), &ncm, 0, m_dpi))
             {
                 m_font = CreateFontIndirectW (&ncm.lfMessageFont);
             }

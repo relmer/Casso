@@ -170,6 +170,47 @@ namespace DebuggerBasicFollowTests
 
 
 
+        //  An instruction step and a breakpoint on an address are machine-level
+        //  stops, so they don't open the program, though the PC is in the
+        //  interpreter. A BASIC line's breakpoint does.
+        TEST_METHOD (OnlyABasicStopInTheInterpreterBringsTheProgramForward)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            FollowWindow       window (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               step   = MakeSnapshot (true, 0xE911, 10);
+            auto               at     = MakeSnapshot (true, 0xE911, 10);
+            auto               basic  = MakeSnapshot (true, 0xD81D, 10);
+
+
+
+            step->stopReason     = StopReason::Step;
+            at->stopReason       = StopReason::Breakpoint;
+            at->stopBreakpoint   = 7;
+            basic->stopReason    = StopReason::Breakpoint;
+            basic->stopBreakpoint = 8;
+            basic->breakpoints   = { MakeBasicBreakpoint (8, 10) };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            window.TakeSnapshot (MakeSnapshot (false, 0xD81D, 10));
+            window.TakeSnapshot (step);
+            Assert::IsFalse (window.IsPaneShown (DebuggerLayout::kBasicProgram), L"an instruction step");
+
+            window.TakeSnapshot (MakeSnapshot (false, 0xD81D, 10));
+            window.TakeSnapshot (at);
+            Assert::IsFalse (window.IsPaneShown (DebuggerLayout::kBasicProgram), L"a breakpoint on an address");
+
+            window.TakeSnapshot (MakeSnapshot (false, 0xD81D, 10));
+            window.TakeSnapshot (basic);
+            Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kBasicProgram), L"a BASIC line's breakpoint");
+        }
+
+
+
         //  At a stop in the interpreter, the focus the console had moves to
         //  the program pane, where the steps are BASIC's, not the disassembly.
         TEST_METHOD (AStopInTheInterpreterFocusesTheProgram)

@@ -59,6 +59,13 @@ public:
     //  Whether the machine is stopped, so the stretch since the newest
     //  keyframe has an end; unset in a test.
     void  SetIsStopped (IsStoppedFn isStopped) { m_isStopped = std::move (isStopped); }
+
+    //  The calls open at a keyframe's position, from the call record copies,
+    //  outermost first; false where there is no copy. A block replayed from
+    //  that keyframe starts inside them.
+    using CallsAtFn = std::function<bool (uint64_t position, std::vector<CallStackFrame> & outFrames)>;
+
+    void  SetCallsAt   (CallsAtFn callsAt) { m_callsAt = std::move (callsAt); }
     void  SetWorkQueue (IWorkQueue * queue);
     void  WaitForWork  ();
 
@@ -111,6 +118,7 @@ private:
     void      CancelAll    ();
     HRESULT   SubmitBlocks (const std::vector<size_t> & pending, uint64_t fromCycle, uint64_t toCycle);
     static BlockKey  GetKey (const Block & block);
+    std::map<uint64_t, std::vector<CallStackFrame>>  GetStartCalls (const DebugEventJob & job) const;
 
     MachineHost                           & m_machine;
     DebugEventHistory                     & m_history;
@@ -126,6 +134,8 @@ private:
     uint64_t                                m_totalSpan      = 0;
     uint64_t                                m_doneSpan       = 0;
     CycleRange                              m_range;                     // the cycles of the build under way
+    bool                                    m_isFromStart    = false;     // the build's period begins at the oldest keyframe
     uint64_t                                m_blockPositions = kBlockPositions;
     IsStoppedFn                             m_isStopped;
+    CallsAtFn                               m_callsAt;
 };

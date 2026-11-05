@@ -2,6 +2,9 @@
 
 #include "DxuiContextMenu.h"
 #include "Window/DxuiHwndSource.h"
+#include "Core/DxuiCommand.h"
+#include "Core/DxuiStandardCommand.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -41,6 +44,7 @@ void DxuiContextMenu::Show (DxuiHwndSource & host, int x, int y, std::vector<Dxu
 
     //  The menu is shared, so a width floor a drop-down set is cleared.
     menu.SetMinWidthPx (0);
+    ClearListLook      (menu);
     menu.ShowAt        (x, y, std::move (items), *text, client);
 
 Error:
@@ -108,8 +112,148 @@ void DxuiContextMenu::ShowBelow (DxuiHwndSource & host, const RECT & anchor, std
     menu.SetDpi        (host.GetScaler().GetDpi());
     menu.SetOnClosed   (std::move (onClosed));
     menu.SetMinWidthPx (minWidthPx);
+    ClearListLook      (menu);
     menu.ShowUnder     (anchor, std::move (items), *text, client);
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiContextMenu::ShowAboveAtWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiContextMenu::ShowAboveAtWidth (DxuiHwndSource & host, const RECT & anchor, std::vector<DxuiPopupMenuItem> items, const ListLook & look)
+{
+    HRESULT              hr        = S_OK;
+    HWND                 hwnd      = host.GetHwnd();
+    IDxuiTextRenderer  * text      = host.GetTextRenderer();
+    DxuiPopupMenu      & menu      = host.GetContextMenu();
+    RECT                 client    = {};
+    BOOL                 gotClient = FALSE;
+    int                  width     = anchor.right - anchor.left;
+
+
+
+    BAIL_OUT_IF (hwnd == nullptr || text == nullptr, S_OK);
+
+    gotClient = GetClientRect (hwnd, &client);
+    CWRA (gotClient);
+
+    menu.SetPopupHost   (&host);
+    menu.SetTheme       (host.GetTheme());
+    menu.SetDpi         (host.GetScaler().GetDpi());
+    menu.SetOnClosed    (nullptr);
+    menu.SetMinWidthPx  (width);
+    menu.SetMaxWidthPx  (width);
+    menu.SetMaxHeightPx (look.maxHeightPx);
+    menu.SetCutTipShown (look.isCutTipShown);
+    menu.SetWrapping    (look.isWrapping);
+    menu.SetFace        (look.face);
+    menu.SetMetrics     (look.metrics);
+    menu.ShowAbove      (anchor, items, *text, client);
+
+    //  The label column is known once the menu is laid out, so a menu that
+    //  has to line its labels up is closed and opened again, moved along by
+    //  the gap. ShowAbove on a menu that is open doesn't move it.
+    if (look.labelLeftAtPx >= 0 && anchor.left + menu.GetLabelLeftPx() != look.labelLeftAtPx)
+    {
+        RECT  moved = anchor;
+
+        moved.left  = std::max<LONG> (client.left, look.labelLeftAtPx - menu.GetLabelLeftPx());
+        moved.right = std::max<LONG> (moved.left, anchor.right);
+
+        menu.Hide();
+        menu.SetMinWidthPx (moved.right - moved.left);
+        menu.SetMaxWidthPx (moved.right - moved.left);
+        menu.ShowAbove     (moved, std::move (items), *text, client);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiContextMenu::ClearListLook
+//
+//  The menu is shared, so the face, metrics and limits a list set are put
+//  back for the next menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiContextMenu::ClearListLook (DxuiPopupMenu & menu)
+{
+    menu.SetMaxWidthPx  (0);
+    menu.SetMaxHeightPx (0);
+    menu.SetCutTipShown (true);
+    menu.SetWrapping    (true);
+    menu.SetFace        (nullptr);
+    menu.ClearMetrics();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiContextMenu::MakeEditItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> DxuiContextMenu::MakeEditItems (IDxuiControl & control)
+{
+    struct Row
+    {
+        DxuiStandardCommand  command;
+        const wchar_t      * label;
+        const wchar_t      * keys;
+        bool                 isSeparatorAfter;
+    };
+
+    static constexpr Row  s_kRows[] =
+    {
+        { DxuiStandardCommand::Undo,      L"Undo",       L"Ctrl+Z", true  },
+        { DxuiStandardCommand::Cut,       L"Cut",        L"Ctrl+X", false },
+        { DxuiStandardCommand::Copy,      L"Copy",       L"Ctrl+C", false },
+        { DxuiStandardCommand::Paste,     L"Paste",      L"Ctrl+V", false },
+        { DxuiStandardCommand::Delete,    L"Delete",     L"Del",    true  },
+        { DxuiStandardCommand::SelectAll, L"Select all", L"Ctrl+A", false },
+    };
+
+    std::vector<DxuiPopupMenuItem>  items;
+    IDxuiControl                  * target = &control;
+
+
+
+    for (const Row & row : s_kRows)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        DxuiStandardCommand           which   = row.command;
+
+        command->label       = row.label;
+        command->accelerator = row.keys;
+        command->dispatch    = [target, which] { (void) DxuiCommandRouter::Invoke (target, which); };
+        command->isEnabled   = [target, which] { bool enabled = false; return DxuiCommandRouter::Query (target, which, enabled) && enabled; };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+
+        if (row.isSeparatorAfter)
+        {
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+    }
+
+    return items;
 }

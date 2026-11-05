@@ -33,6 +33,7 @@
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/SoundBoardView.h"
 #include "Core/TextEncoding.h"
 
 
@@ -1551,6 +1552,72 @@ namespace DebuggerViewStateTests
                             L"a PC off the lines brings the view to it");
         }
 
+        //  A data line is marked as data, and has no operand or result, since
+        //  it isn't an instruction.
+        TEST_METHOD (ADataLineHasNoAnnotation)
+        {
+            std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
+            MachineRig                  & rig      = *held;
+            DebuggerViewSnapshot          snapshot;
+            Cpu6502Registers              r        = rig.controller.GetSession().GetTarget().GetRegisters();
+
+
+
+            r.pc = 0x0300;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            (void) rig.Run ("DB 0302:0304");
+            rig.view.SetCodeLines (20);
+            snapshot = rig.view.Build (rig.controller.GetSession());
+
+            for (const DebuggerViewSnapshot::CodeLine & line : snapshot.code)
+            {
+                if (line.address == 0x0302)
+                {
+                    Assert::AreEqual ((int) DataOrigin::Marked, (int) line.dataOrigin);
+                    Assert::IsTrue   (line.annotation.empty() && line.effect.empty());
+                    return;
+                }
+            }
+
+            Assert::Fail (L"no line at $0302");
+        }
+
+        //  While the machine runs, a view the user scrolled isn't moved to the
+        //  PC until kScrollHoldMs pass with no more scrolling.
+        TEST_METHOD (AViewScrolledWhileRunningFollowsThePcOnlyAfterAPause)
+        {
+            static uint64_t               s_now    = 1000;
+            std::unique_ptr<MachineRig>   held     = std::make_unique<MachineRig>();
+            MachineRig                  & rig      = *held;
+            DebuggerViewSnapshot          scrolled;
+            DebuggerViewSnapshot          moved;
+            Cpu6502Registers              r        = rig.controller.GetSession().GetTarget().GetRegisters();
+            auto                          isAtPc   = [] (const DebuggerViewSnapshot & snapshot)
+            {
+                return std::any_of (snapshot.code.begin(), snapshot.code.end(), [] (const DebuggerViewSnapshot::CodeLine & line) { return line.isCurrent; });
+            };
+
+
+
+            s_now = 1000;
+            rig.view.SetClock ([] { return s_now; });
+            rig.view.SetCodeLines (20);
+            (void) rig.view.Build (rig.controller.GetSession(), false);
+            rig.view.ScrollCode (40);
+            scrolled = rig.view.Build (rig.controller.GetSession(), false);
+
+            r.pc = 0x0900;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            s_now += DebuggerViewState::kScrollHoldMs - 1;
+            moved  = rig.view.Build (rig.controller.GetSession(), false);
+            Assert::AreEqual (scrolled.code[0].address, moved.code[0].address, L"the view isn't moved while the scroll is recent");
+            Assert::IsFalse  (isAtPc (moved));
+
+            s_now += 1;
+            moved  = rig.view.Build (rig.controller.GetSession(), false);
+            Assert::IsTrue (isAtPc (moved), L"once the time passes, the view follows the PC");
+        }
+
         TEST_METHOD (TheBreakpointDialogWritesADefinitionBpeditTakes)
         {
             using Type = BreakpointDialog::Type;
@@ -1767,7 +1834,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((Word) 0x0310, snapshot.callStack.rows[0].frame->callSite);
             Assert::AreEqual ((Word) 0x0320, snapshot.callStack.rows[0].frame->target);
             Assert::AreEqual (std::wstring (L"$0310"),    rows[0].site);
-            Assert::AreEqual (std::wstring (L"recorded as it ran"), rows[0].foundBy);
+            Assert::AreEqual (std::wstring (L"found during execution"), rows[0].foundBy);
             Assert::AreEqual ((Word) 0x0310,              rows[0].address, L"activating the row shows the call site");
             Assert::IsTrue   (rows[1].isBreak,            L"where recording began is a separator row");
             Assert::AreEqual (std::string ("CALLS MODE RECORDED"), CallStackPane::GetNextModeLine (snapshot.callStack.mechanism));
@@ -3670,8 +3737,7 @@ namespace DebuggerViewStateTests
                                             lookup.text  = (record.id == 0) ? s_kMainText : "; macros\n\n\n\n        sta $0400\n";
                                             return lookup;
                                         },
-                                        [&] (const DebuggerActionBuilder & build) { ran = build (CommandMode::AppleWin).echo; },
-                                        [] (Word) {});
+                                        [&] (const DebuggerActionBuilder & build) { ran = build (CommandMode::AppleWin).echo; });
             DebuggerViewSnapshot  snapshot;
             std::vector<int>      lines;
 
@@ -3712,8 +3778,7 @@ namespace DebuggerViewStateTests
             SourceLookup          dropped;
             SourcePane            pane (&view, &banner,
                                         [] (const DebugSourceFile &, const std::wstring &, const std::string &) { return SourceLookup(); },
-                                        [] (const DebuggerActionBuilder &) {},
-                                        [] (Word) {});
+                                        [] (const DebuggerActionBuilder &) {});
 
 
 
@@ -4201,7 +4266,8 @@ namespace DebuggerViewStateTests
             MemoryMapBar         map;
             DiskHeadView         head;
             MeterBar             meters;
-            DiagnosticsPane      pane ("fake", L"Fake", &list, &map, &head, &meters);
+            SoundBoardView       board;
+            DiagnosticsPane      pane ("fake", L"Fake", &list, &map, &head, &meters, &board);
             DiagnosticsSnapshot  snapshot;
 
 

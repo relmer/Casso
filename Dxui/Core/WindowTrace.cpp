@@ -176,7 +176,7 @@ void WindowTrace::LogWindow (const char * event, const char * who, HWND hwnd, co
         return;
     }
 
-    text << "dpi=" << GetDpiForWindow (hwnd);
+    text << "dpi=" << DxuiDisplay::Get().GetDpiForWindow (hwnd);
 
     if (IsZoomed (hwnd))  { text << " maximized"; }
     if (IsIconic (hwnd))  { text << " minimized"; }

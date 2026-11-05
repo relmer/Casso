@@ -646,6 +646,30 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
                                     { "isAutomatic", JsonValue (v->isAutomatic) } });
     }
 
+    if (auto * v = std::get_if<TextScreenData> (&data))
+    {
+        std::vector<JsonValue>  rows;
+
+
+
+        for (const std::string & row : v->rows)
+        {
+            rows.push_back (MakeString (row));
+        }
+
+        return JsonValue (Members { { "kind",    MakeString ("textScreen") },
+                                    { "columns", MakeNumber (v->columns) },
+                                    { "rows",    JsonValue (std::move (rows)) } });
+    }
+
+    if (auto * v = std::get_if<ScreenshotData> (&data))
+    {
+        return JsonValue (Members { { "kind",   MakeString ("screenshot") },
+                                    { "path",   MakeString (v->path) },
+                                    { "width",  MakeNumber (v->width) },
+                                    { "height", MakeNumber (v->height) } });
+    }
+
     if (auto * v = std::get_if<VideoInfoData> (&data))
     {
         return JsonValue (Members { { "kind",        MakeString ("videoInfo") },

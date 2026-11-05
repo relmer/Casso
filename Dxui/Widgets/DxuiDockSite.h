@@ -213,8 +213,13 @@ public:
     //  A pane's control, or null for a pane the site does not have.
     IDxuiControl * GetPaneContent (const std::wstring & pane) const;
 
-    //  The pane shown at a point, or empty.
+    //  The pane on screen at a point, or the pane of the tab at the point;
+    //  empty off every pane.
     std::wstring  GetPaneAt (POINT pointDip) const;
+
+    //  The pane of the tab after pane's in its group, or the one before it
+    //  when it is the last; empty when it is alone or its group is hidden.
+    std::wstring  GetTabNeighbor (const std::wstring & pane) const;
 
     //  Keyboard docking (FR-042): the Dock To menu for a pane, and a move by
     //  an arrow key into the group in that direction or against the edge.
@@ -314,6 +319,8 @@ public:
     void                PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse            (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint  (POINT clientPx) const override;
+    bool                IsHitAt            (POINT pointPx) const override;
+    bool                TryGetTip          (POINT pointPx, DxuiTip & tip) const override;
     DxuiHitTestKind     ClassifyHit        (POINT clientDip) const override;
     DxuiAccessibleRole  GetAccessibleRole  () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName  () const override { return L"Dock site"; }

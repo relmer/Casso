@@ -110,6 +110,8 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::GetTextZoom;
         using DebuggerWindow::OnMouse;
+        using DebuggerWindow::EditPaneLayout;
+        using DebuggerWindow::GetDockSite;
     };
 
 
@@ -686,6 +688,73 @@ namespace HeatMapPaneWindowTests
             Assert::IsTrue   (window.GetTooltip().IsVisible(), L"no dwell once they are");
             Assert::AreEqual (view->GetTipText (target), window.GetTooltip().GetText());
             Assert::IsTrue   (window.GetTooltip().GetText().starts_with (std::format (L"${:04X}  untouched\n", target)), L"the whole tip");
+        }
+
+
+
+        //  A pane slid out from an edge lies over the heat map, and over it
+        //  the tip is the slid pane's, not the cell's under it.
+        TEST_METHOD (NoCellTipShowsOverAPaneSlidOutOverTheMap)
+        {
+            CassoTheme                      theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost                     host;
+            std::unique_ptr<HeatMapWindow>  window;
+            HeatMapView                   * view   = nullptr;
+            RECT                            slid   = {};
+            RECT                            cell   = {};
+            DxuiMouseEvent                  move;
+            HeatAccessHover                 hover;
+            bool                            found  = false;
+            Word                            target = 0;
+
+
+
+            //  The console slid out from each edge in turn, in a window of its
+            //  own each time, until it lies over a whole cell of the map.
+            for (DxuiDockSide side : { DxuiDockSide::Left, DxuiDockSide::Right, DxuiDockSide::Bottom, DxuiDockSide::Top })
+            {
+                if (found)
+                {
+                    break;
+                }
+
+                window = std::make_unique<HeatMapWindow> (theme, host);
+                BuildShown (*window);
+
+                Assert::IsTrue (window->EditPaneLayout().AutoHide (DebuggerLayout::kConsole, side));
+                window->GetDockSite()->Relayout();
+                Relayout (*window);
+                window->GetDockSite()->SlideOut (DebuggerLayout::kConsole);
+
+                view = window->GetHeatMapPane().GetView();
+                slid = window->GetDockSite()->GetSlidRect();
+
+                for (int address = 0; address < 0x10000 && !found; address += 0x11)
+                {
+                    RECT  both = {};
+
+                    cell  = view->GetCellRect ((Word) address);
+                    found = IntersectRect (&both, &cell, &slid) != FALSE && EqualRect (&both, &cell) != FALSE;
+
+                    if (found)
+                    {
+                        target = (Word) address;
+                    }
+                }
+            }
+
+            Assert::IsTrue (found, L"a cell of the map lies under the slid-out console");
+
+            hover.address = target;
+            view->SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+
+            move.kind        = DxuiMouseEventKind::Move;
+            move.positionDip = { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+            (void) window->OnMouse (move);
+            (void) window->OnMouse (move);
+
+            Assert::IsFalse (window->GetTooltip().IsVisible() && window->GetTooltip().GetText() == view->GetTipText (target),
+                             L"the cell's tip is drawn over the slid-out console");
         }
     };
 }

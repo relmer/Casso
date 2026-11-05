@@ -12,6 +12,7 @@
 #include "Core/DxuiThread.h"
 #include "Core/DxuiWindowFrame.h"
 #include "Core/DxuiEvents.h"
+#include "Core/WindowTrace.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -76,8 +77,8 @@ void  DxuiHwndSource::FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit)
     fOk = GetWindowRect (hwnd, &rect);
     CWR (fOk);
 
-    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-    if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
+    monitor = DxuiDisplay::Get().MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    if (monitor != nullptr && DxuiDisplay::Get().GetMonitorInfoW (monitor, &info) != FALSE)
     {
         //  Fullscreen: exactly the monitor, taskbar included, on purpose.
         BAIL_OUT_IF (EqualRect (&rect, &info.rcMonitor), S_OK);
@@ -105,6 +106,176 @@ void  DxuiHwndSource::FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetWindowRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiHwndSource::GetWindowRectPx() const
+{
+    RECT  rect = m_syntheticRectPx;
+
+
+
+    if (m_hwnd != nullptr)
+    {
+        rect = {};
+        (void) GetWindowRect (m_hwnd, &rect);
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::SetWindowRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetWindowRectPx (const RECT & rectPx)
+{
+    bool  isResized = rectPx.right - rectPx.left != m_syntheticRectPx.right - m_syntheticRectPx.left ||
+                      rectPx.bottom - rectPx.top != m_syntheticRectPx.bottom - m_syntheticRectPx.top;
+
+
+
+    if (m_hwnd == nullptr)
+    {
+        m_syntheticRectPx = rectPx;
+
+        if (isResized)
+        {
+            LayoutSyntheticRoot();
+        }
+
+        return;
+    }
+
+    (void) SetWindowPos (m_hwnd, nullptr, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::FitToWorkArea
+//
+//  A host with no window has no invisible border, so its rect is the visible
+//  frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::FitToWorkArea (DxuiWorkAreaFit fit)
+{
+    RECT  work = { 0, 0, 1920, 1080 };
+
+
+
+    if (m_hwnd != nullptr)
+    {
+        FitWindowToWorkArea (m_hwnd, fit);
+        return;
+    }
+
+    if (m_readWorkArea)
+    {
+        work = m_readWorkArea (m_syntheticRectPx);
+    }
+
+    SetWindowRectPx (FitVisibleRectToWorkArea (m_syntheticRectPx, work, fit));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::LayoutSyntheticRoot
+//
+//  The content root of a host with no window, at the size of its rect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::LayoutSyntheticRoot()
+{
+    RECT  boundsPx = { 0, 0, m_syntheticRectPx.right - m_syntheticRectPx.left, m_syntheticRectPx.bottom - m_syntheticRectPx.top };
+
+
+
+    if (m_rootRef != nullptr && m_synthetic && m_hwnd == nullptr)
+    {
+        m_rootRef->Layout (boundsPx, m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::CaptureMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::CaptureMouse()
+{
+    m_hasSyntheticCapture = m_hwnd == nullptr;
+
+    if (m_hwnd != nullptr)
+    {
+        (void) SetCapture (m_hwnd);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::ReleaseMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ReleaseMouse()
+{
+    m_hasSyntheticCapture = false;
+
+    if (m_hwnd != nullptr && GetCapture() == m_hwnd)
+    {
+        (void) ReleaseCapture();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::HasMouseCapture
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasMouseCapture() const
+{
+    return (m_hwnd != nullptr) ? GetCapture() == m_hwnd : m_hasSyntheticCapture;
 }
 
 
@@ -558,7 +729,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
 
     // Initial DPI seed. WM_DPICHANGED will rescale later if the
     // window straddles or moves between monitors.
-    dpiAtCreate = GetDpiForSystem();
+    dpiAtCreate = DxuiDisplay::Get().GetDpiForSystem();
     if (dpiAtCreate == 0)
     {
         dpiAtCreate = s_kDefaultDpi;
@@ -577,7 +748,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     // the two run at different scales.
     if (params.placement != DxuiWindowPlacement::Default && anchorHwnd != nullptr)
     {
-        ownerDpi = GetDpiForWindow (anchorHwnd);
+        ownerDpi = DxuiDisplay::Get().GetDpiForWindow (anchorHwnd);
         if (ownerDpi != 0)
         {
             dpiAtCreate = ownerDpi;
@@ -669,7 +840,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
 
     // Re-seed scaler from the per-window DPI now that the HWND knows
     // which monitor it landed on.
-    m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+    m_scaler.SetDpi (DxuiDisplay::Get().GetDpiForWindow (m_hwnd));
 
     // A CW_USEDEFAULT dialog can cascade with its lower edge -- and button
     // row -- beneath the taskbar, and a saved RECT can be larger than the
@@ -878,10 +1049,10 @@ void DxuiHwndSource::ClampMinTrackToMonitor (MINMAXINFO & info) const
 
 
 
-    monitor = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+    monitor = DxuiDisplay::Get().MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
     CWRA (monitor);
 
-    fOk = GetMonitorInfoW (monitor, &mi);
+    fOk = DxuiDisplay::Get().GetMonitorInfoW (monitor, &mi);
     CWR (fOk);
 
     ClampMinTrackToWorkArea (info, mi.rcWork, DxuiWindowFrame::GetBorder (m_hwnd));
@@ -931,16 +1102,16 @@ bool DxuiHwndSource::TryGetAnchorWorkArea (HWND anchorHwnd, RECT & outWork)
 
         CWR (gotAnchor);
 
-        monitor = MonitorFromRect (&anchorRect, MONITOR_DEFAULTTONEAREST);
+        monitor = DxuiDisplay::Get().MonitorFromRect (&anchorRect, MONITOR_DEFAULTTONEAREST);
     }
     else
     {
-        monitor = MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+        monitor = DxuiDisplay::Get().MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     }
 
     CWRA (monitor);
 
-    gotInfo = GetMonitorInfoW (monitor, &info);
+    gotInfo = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info);
     CWR (gotInfo);
 
     outWork = info.rcWork;
@@ -1162,7 +1333,7 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
         // window itself is parked off-screen, so MonitorFromWindow would
         // answer for that parking spot rather than for the monitor the
         // restored window sits on. The two agree for a normal window.
-        monitor = MonitorFromRect (&ownerRect, MONITOR_DEFAULTTONEAREST);
+        monitor = DxuiDisplay::Get().MonitorFromRect (&ownerRect, MONITOR_DEFAULTTONEAREST);
     }
     else
     {
@@ -1173,7 +1344,7 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
         // near, the middle of the monitor beats the cascade's corner, and
         // at that point the dialog is the only thing on screen anyway.
         mode    = DxuiWindowPlacement::CenteredOnScreen;
-        monitor = MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+        monitor = DxuiDisplay::Get().MonitorFromPoint (POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
     }
 
     // An anchor rect is a control inside the owner, and it is the anchor's
@@ -1181,12 +1352,12 @@ bool DxuiHwndSource::TryGetWindowPlacement (HWND ownerHwnd, const SIZE & windowS
     // monitors can have the control on either.
     if (mode == DxuiWindowPlacement::BelowAnchorRect)
     {
-        monitor = MonitorFromRect (&anchorRectPx, MONITOR_DEFAULTTONEAREST);
+        monitor = DxuiDisplay::Get().MonitorFromRect (&anchorRectPx, MONITOR_DEFAULTTONEAREST);
     }
 
     CWRA (monitor);
 
-    gotInfo = GetMonitorInfoW (monitor, &info);
+    gotInfo = DxuiDisplay::Get().GetMonitorInfoW (monitor, &info);
     CWR (gotInfo);
 
     switch (mode)
@@ -1351,7 +1522,7 @@ HRESULT DxuiHwndSource::CreateInAdoptMode (
     // pixel-to-DIP math is coherent before the first WM_DPICHANGED.
     if (existingHwnd != nullptr)
     {
-        dpi = GetDpiForWindow (existingHwnd);
+        dpi = DxuiDisplay::Get().GetDpiForWindow (existingHwnd);
     }
 
     if (dpi == 0)
@@ -1821,6 +1992,14 @@ void DxuiHwndSource::SetContentRootRef (DxuiPanel * root)
     m_rootRef = root;
     m_focusManager.Attach (GetRootPanel());
 
+    //  The root of a host with no window is laid out at the host's rect, as a
+    //  window's root is at its client area.
+    if (m_rootRef != nullptr && m_hwnd == nullptr && m_synthetic)
+    {
+        LayoutSyntheticRoot();
+        return;
+    }
+
     if (m_rootRef != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &clientRectPx))
     {
         RECT  rootBounds = clientRectPx;
@@ -1925,14 +2104,33 @@ void DxuiHwndSource::BeginModalKeepAlive()
 {
     DXUI_ASSERT_UI_THREAD();
 
-    if (m_hwnd != nullptr)
-    {
-        ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
-    }
+    ArmModalKeepAlive();
 
     if (m_client != nullptr)
     {
         m_client->OnModalLoopTick();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArmModalKeepAlive
+//
+//  Arms the timer alone, its first tick a timer period away.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ArmModalKeepAlive()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_hwnd != nullptr)
+    {
+        ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
     }
 }
 
@@ -2615,6 +2813,79 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  NoteFrameStats
+//
+//  With the window trace on, every two seconds a line with the frames
+//  presented, the time between them, and the time from an input to the
+//  present after it, each as an average and the most.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::NoteFrameStats (long long nowQpc, long long frequency)
+{
+    constexpr double  kReportSeconds = 2.0;
+    double            toMs           = (frequency > 0) ? 1000.0 / (double) frequency : 0.0;
+    double            frameMs        = (m_lastPresentQpc != 0) ? (double) (nowQpc - m_lastPresentQpc) * toMs : 0.0;
+    double            inputMs        = (m_inputQpc != 0) ? (double) (nowQpc - m_inputQpc) * toMs : 0.0;
+    wchar_t           title[64]      = {};
+    char              name[192]      = {};
+
+
+
+    if (!WindowTrace::IsOn() || frequency <= 0)
+    {
+        return;
+    }
+
+    m_statsFromQpc = (m_statsFromQpc == 0) ? nowQpc : m_statsFromQpc;
+
+    if (frameMs > 0.0)
+    {
+        m_statsFrames++;
+        m_statsFrameSumMs += frameMs;
+        m_statsFrameMaxMs  = std::max (m_statsFrameMaxMs, frameMs);
+    }
+
+    if (m_inputQpc != 0)
+    {
+        m_statsInputs++;
+        m_statsInputSumMs += inputMs;
+        m_statsInputMaxMs  = std::max (m_statsInputMaxMs, inputMs);
+        m_inputQpc         = 0;
+    }
+
+    if ((double) (nowQpc - m_statsFromQpc) * toMs / 1000.0 < kReportSeconds || m_statsFrames == 0)
+    {
+        return;
+    }
+
+    if (m_hwnd != nullptr)
+    {
+        GetWindowTextW (m_hwnd, title, (int) std::size (title));
+        (void) WideCharToMultiByte (CP_UTF8, 0, title, -1, name, (int) std::size (name), nullptr, nullptr);
+    }
+
+    WindowTrace::Log ("frame.stats", "window",
+                      std::format ("{} frames, between {:.1f} ms avg {:.1f} max, input to present {:.1f} ms avg {:.1f} max over {}, {}",
+                                   m_statsFrames, m_statsFrameSumMs / (double) m_statsFrames, m_statsFrameMaxMs,
+                                   (m_statsInputs > 0) ? m_statsInputSumMs / (double) m_statsInputs : 0.0, m_statsInputMaxMs, m_statsInputs,
+                                   name));
+
+    m_statsFromQpc    = nowQpc;
+    m_statsFrames     = 0;
+    m_statsFrameSumMs = 0.0;
+    m_statsFrameMaxMs = 0.0;
+    m_statsInputs     = 0;
+    m_statsInputSumMs = 0.0;
+    m_statsInputMaxMs = 0.0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PresentFrame
 //
 //  DxuiRenderTarget surface contract: present the swap chain, then commit the
@@ -2652,6 +2923,7 @@ void DxuiHwndSource::PresentFrame()
                                        / (double) freq.QuadPart));
         }
 
+        NoteFrameStats (now.QuadPart, freq.QuadPart);
         m_lastPresentQpc = now.QuadPart;
     }
 
@@ -2795,6 +3067,15 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
     DXUI_ASSERT_UI_THREAD();
 
+    //  The first input since the last present starts a latency measure.
+    if (m_inputQpc == 0 && (msg == WM_KEYDOWN || msg == WM_CHAR || msg == WM_LBUTTONDOWN || msg == WM_MOUSEMOVE || msg == WM_MOUSEWHEEL) && WindowTrace::IsOn())
+    {
+        LARGE_INTEGER  now = {};
+
+        QueryPerformanceCounter (&now);
+        m_inputQpc = now.QuadPart;
+    }
+
     isHandled = DispatchHostMessage (msg, wp, lp, result);
 
     if (!isHandled && m_client != nullptr)
@@ -2917,12 +3198,34 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             break;
 
         case WM_NCLBUTTONDOWN:
-            result = IsClaimed (m_client != nullptr
-                                  ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
-                                  : DxuiMessageResult::NotHandled,
-                                RepaintOnClaim::No)
-                         ? 0
-                         : HandleNcMouse (msg, wp, lp);
+            WindowTrace::Log ("caption.press", "window", std::format ("hit {}", (int) wp));
+
+            if (IsClaimed (m_client != nullptr
+                             ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                             : DxuiMessageResult::NotHandled,
+                           RepaintOnClaim::No))
+            {
+                result = 0;
+                break;
+            }
+
+            //  A press on the caption runs the system's wait for a drag, then
+            //  its move loop, inside DefWindowProc, before WM_ENTERSIZEMOVE
+            //  arms the modal loop's tick. The tick is armed at the press, so
+            //  the window's frames go on through the wait, and disarmed when
+            //  the press returns.
+            if (wp == HTCAPTION)
+            {
+                ArmModalKeepAlive();
+            }
+
+            result = HandleNcMouse (msg, wp, lp);
+
+            if (wp == HTCAPTION)
+            {
+                EndModalKeepAlive();
+            }
+
             break;
 
         case WM_NCLBUTTONUP:
@@ -2975,6 +3278,18 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
                 if (m_client != nullptr) { m_client->OnUserWindowStateCommand(); }
             }
 
+            //  A move started by command, as a torn-off pane's is, waits for
+            //  the drag the same way a caption press does, so the modal loop's
+            //  tick is armed for the whole command.
+            if ((wp & 0xFFF0) == SC_MOVE)
+            {
+                WindowTrace::Log ("move.command", "window", "");
+                ArmModalKeepAlive();
+                result = DefWindowProcW (m_hwnd, msg, wp, lp);
+                EndModalKeepAlive();
+                break;
+            }
+
             isHandled = false;
             break;
 
@@ -2983,7 +3298,10 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             // which our outer pump stops. Arm the keep-alive tick so the
             // client can keep painting; report not-handled so the OS loop
             // still starts normally.
-            BeginModalKeepAlive();
+            //  Only the timer: a tick run here, before the loop, delayed the
+            //  start of a drag by a whole frame, 430 ms in Debug.
+            WindowTrace::Log ("move.enter", "window", "");
+            ArmModalKeepAlive();
 
             if (m_client != nullptr) { m_client->OnEnterSizeMove(); }
 
@@ -3756,8 +4074,8 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
         //  A fullscreen window covers the monitor it arrives on, which the
         //  scaled suggested rect does not.
         if (GetWindowRect (m_hwnd, &window) != FALSE &&
-            GetMonitorInfoW (MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST), &oldInfo) != FALSE &&
-            GetMonitorInfoW (MonitorFromRect (suggested, MONITOR_DEFAULTTONEAREST), &newInfo) != FALSE)
+            DxuiDisplay::Get().GetMonitorInfoW (DxuiDisplay::Get().MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST), &oldInfo) != FALSE &&
+            DxuiDisplay::Get().GetMonitorInfoW (DxuiDisplay::Get().MonitorFromRect (suggested, MONITOR_DEFAULTTONEAREST), &newInfo) != FALSE)
         {
             rect = GetDpiChangeRect (window, oldInfo.rcMonitor, *suggested, newInfo.rcMonitor);
         }
@@ -3794,13 +4112,52 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetBufferExtent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiHwndSource::GetBufferExtent (UINT clientPx)
+{
+    UINT  spare = (std::max) (clientPx / 4, kBufferSparePx);
+
+
+
+    return (clientPx + spare + 63u) & ~63u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBufferResizeDue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::IsBufferResizeDue (SIZE buffersPx, UINT widthPx, UINT heightPx)
+{
+    bool  isOutgrown = (LONG) widthPx > buffersPx.cx || (LONG) heightPx > buffersPx.cy;
+    bool  isTooLarge = buffersPx.cx > (LONG) GetBufferExtent (widthPx) * 2 || buffersPx.cy > (LONG) GetBufferExtent (heightPx) * 2;
+
+
+
+    return isOutgrown || isTooLarge;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleSize
 //
 //  Resizes the swap chain, relayouts the panel tree, and re-renders -- the
 //  host-side counterpart to a client's own OnSize.
 //
-//  The explicit width and height from WM_SIZE are passed to ResizeBuffers
-//  rather than the usual (0, 0) "inherit from the window". A COMPOSITION swap
+//  Explicit widths and heights are passed to ResizeBuffers rather than the
+//  usual (0, 0) "inherit from the window". A COMPOSITION swap
 //  chain has no window to inherit from and fails outright with "a non-zero
 //  Width and Height must be specified for Composition SwapChains" -- and since
 //  passing the real size also works for an HWND swap chain, one call serves
@@ -3848,13 +4205,27 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     // pass the explicit WM_SIZE client size instead -- which also works for the
     // hwnd swap chain. A zero extent (e.g. SIZE_MINIMIZED) is skipped so the
     // buffers keep their last valid size.
+    //
+    //  THE BUFFERS GROW WITH ROOM TO SPARE, and shrink only once the window
+    //  is well inside them. The compositor composes a window at its new size
+    //  before the frame drawn for that size arrives, and the edge a drag
+    //  exposes was black, or the desktop, until the frame arrived. In
+    //  a buffer larger than the window, that edge has the last frame's
+    //  background, which the clear filled to the buffer's edges, and most
+    //  steps of a drag skip ResizeBuffers and its stall.
+    //
     if (m_swapChain && widthPx > 0 && heightPx > 0)
     {
-        ReleaseBackBufferRtv();
-        (void) m_swapChain->ResizeBuffers (0, widthPx, heightPx, DXGI_FORMAT_UNKNOWN, 0);
+        SIZE  have = GetBackBufferSizePx();
 
-        hr = CreateBackBufferRtv();
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        if (IsBufferResizeDue (have, widthPx, heightPx))
+        {
+            ReleaseBackBufferRtv();
+            (void) m_swapChain->ResizeBuffers (0, GetBufferExtent (widthPx), GetBufferExtent (heightPx), DXGI_FORMAT_UNKNOWN, 0);
+
+            hr = CreateBackBufferRtv();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
     }
 
     if (m_root != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
@@ -3870,6 +4241,16 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     if (m_ownsPaintPump)
     {
         RenderFrame (m_theme);
+    }
+
+    //  A composited window's frame is on screen once the compositor completes
+    //  the commit after the present. With the move loop resumed before that,
+    //  the window grew ahead of its content, and the desktop behind it was
+    //  visible in the gap along the dragged edge.
+    if (m_compDevice != nullptr)
+    {
+        hr = m_compDevice->WaitForCommitCompletion();
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -4634,11 +5015,12 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
         result  = claimed ? kind : result;
     }
 
-    //  A scrollbar at the window's edge keeps the pointer over a straight
-    //  resize edge, whose band would otherwise cover most of it. The corners
-    //  still resize.
-    if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
-                 || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
+    //  Over a scrollbar at the window's edge, the inner half of a straight
+    //  resize edge's band is the scrollbar's, since the band would otherwise
+    //  cover most of it. The outer half and the corners resize: with the whole
+    //  band given to the scrollbar, a floating console's right edge could be
+    //  grabbed at its last pixel only.
+    if (claimed && GetDistanceToEdge (kind, clientDip, clientBoundsDip) >= borderPx / 2)
     {
         n =(GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
 
@@ -4702,6 +5084,31 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDistanceToEdge
+//
+//  How far a point is inside the window's edge that a straight resize edge
+//  `kind` is on, in DIPs; -1 for any other kind, which no scrollbar takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetDistanceToEdge (DxuiHitTestKind kind, POINT clientDip, const RECT & clientBoundsDip)
+{
+    switch (kind)
+    {
+    case DxuiHitTestKind::ResizeEdgeLeft:   return clientDip.x - clientBoundsDip.left;
+    case DxuiHitTestKind::ResizeEdgeRight:  return clientBoundsDip.right - 1 - clientDip.x;
+    case DxuiHitTestKind::ResizeEdgeTop:    return clientDip.y - clientBoundsDip.top;
+    case DxuiHitTestKind::ResizeEdgeBottom: return clientBoundsDip.bottom - 1 - clientDip.y;
+    default:                                return -1;
+    }
 }
 
 

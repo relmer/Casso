@@ -229,6 +229,101 @@ namespace DebuggerTests
         }
 
 
+        //  One long syntax doesn't push every description right: a syntax
+        //  wider than the column is a row by itself, with its description on
+        //  the next row in the description column.
+        TEST_METHOD (ALongSyntaxIsARowByItself)
+        {
+            constexpr size_t           kDescriptionColumn = 4 + 24 + 2;
+            std::vector<std::string>   lines              = CommandModeHelp::BuildHelp (CommandMode::Casso);
+            size_t                     longOnes           = 0;
+
+
+
+            for (size_t i = 0; i + 1 < lines.size(); i++)
+            {
+                const std::string  & line = lines[i];
+                const std::string  & next = lines[i + 1];
+
+
+
+                if (!line.starts_with ("    ") || line[4] == ' ' || line.find ("  ", 4) != std::string::npos)
+                {
+                    continue;
+                }
+
+                longOnes++;
+                Assert::IsTrue (next.size() > kDescriptionColumn && next.find_first_not_of (' ') == kDescriptionColumn,
+                                TextEncoding::NarrowToWide (line + " | " + next).c_str());
+            }
+
+            Assert::IsTrue (longOnes > 0, L"PROFILE's syntax is longer than the column");
+        }
+
+
+        //  Where the console fits every row unwrapped, the syntax column is
+        //  the widest syntax; where it doesn't, or the width is unknown, the
+        //  column is capped.
+        TEST_METHOD (TheSyntaxColumnIsUncappedOnlyWhereEveryRowFits)
+        {
+            Assert::AreEqual ((size_t) 30, CommandModeHelp::GetSyntaxColumn (30, 60, 4 + 30 + 2 + 60), L"every row fits");
+            Assert::AreEqual (CommandModeHelp::kMaxSyntaxColumn, CommandModeHelp::GetSyntaxColumn (30, 60, 4 + 30 + 2 + 59), L"one column short");
+            Assert::AreEqual (CommandModeHelp::kMaxSyntaxColumn, CommandModeHelp::GetSyntaxColumn (30, 60, 0), L"no console width");
+            Assert::AreEqual ((size_t) 10, CommandModeHelp::GetSyntaxColumn (10, 60, 0), L"a column narrower than the cap");
+        }
+
+
+        //  The console lays a listing's tabbed rows out again at each width:
+        //  wide enough, every syntax in one column; narrower, the column is
+        //  capped and a longer syntax is a row by itself.
+        TEST_METHOD (TabbedRowsAreLaidOutAtTheConsolesWidth)
+        {
+            std::string               longSyntax (30, 'S');
+            std::vector<std::string>  lines = { "Commands:", "    BP addr\tSet a breakpoint", "    " + longSyntax + "\tA long one" };
+            std::vector<std::string>  wide;
+            std::vector<std::string>  narrow;
+
+
+
+            {
+                CommandModeHelp::TabbedRows  tabbed (true);
+
+                Assert::IsTrue (CommandModeHelp::BuildHelp (CommandMode::Casso)[2].find ('\t') != std::string::npos, L"rows are tabbed in scope");
+            }
+
+            Assert::IsTrue (CommandModeHelp::BuildHelp (CommandMode::Casso)[2].find ('\t') == std::string::npos, L"and laid out out of it");
+
+            wide   = CommandModeHelp::LayOutTabbedRows (lines, 200);
+            narrow = CommandModeHelp::LayOutTabbedRows (lines, 50);
+
+            Assert::AreEqual ((size_t) 3, wide.size());
+            Assert::AreEqual (std::string ("Commands:"), wide[0], L"a line without a tab is as it was");
+            Assert::AreEqual ("    " + std::string ("BP addr") + std::string (30 - 7, ' ') + "  Set a breakpoint", wide[1]);
+
+            Assert::AreEqual ((size_t) 4, narrow.size(), L"the long syntax is a row by itself");
+            Assert::AreEqual ("    BP addr" + std::string (CommandModeHelp::kMaxSyntaxColumn - 7, ' ') + "  Set a breakpoint", narrow[1]);
+            Assert::AreEqual ("    " + longSyntax, narrow[2]);
+            Assert::AreEqual (std::string (4 + CommandModeHelp::kMaxSyntaxColumn + 2, ' ') + "A long one", narrow[3]);
+        }
+
+
+        //  Each line laid out has the index of the line it came from, so the
+        //  two lines of a long syntax's row have one index.
+        TEST_METHOD (EachLaidOutLineHasTheIndexOfItsSource)
+        {
+            std::vector<std::string>  lines = { "Commands:", "    BP addr\tSet a breakpoint", "    " + std::string (30, 'S') + "\tA long one" };
+            std::vector<size_t>       sources;
+            std::vector<std::string>  narrow;
+
+
+
+            narrow = CommandModeHelp::LayOutTabbedRows (lines, 50, sources);
+
+            Assert::AreEqual ((size_t) 4, narrow.size());
+            Assert::IsTrue   ((std::vector<size_t> { 0, 1, 2, 2 }) == sources, L"the long syntax's two lines are from the third");
+        }
+
+
         TEST_METHOD (HelpIsByCategory_AndAlphabeticalWithinEach)
         {
             std::vector<std::string>  lines    = CommandModeHelp::BuildHelp (CommandMode::Casso);
@@ -249,7 +344,9 @@ namespace DebuggerTests
                     continue;
                 }
 
-                if (line.compare (0, 4, "    ") == 0)
+                //  A description on a row of its own, deeper in, follows a
+                //  syntax too wide for the column.
+                if (line.compare (0, 4, "    ") == 0 && line[4] != ' ')
                 {
                     std::string  syntax = line.substr (4);
 

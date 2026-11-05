@@ -6,6 +6,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace fs = std::filesystem;
 
+//  The module this code is linked into, the test assembly. See DemoAssets.cpp.
+extern "C" IMAGE_DOS_HEADER  __ImageBase;
+
 
 
 
@@ -18,72 +21,23 @@ namespace fs = std::filesystem;
 
 std::string EmbeddedMachineJson::Load (int resourceId)
 {
-    HMODULE       hExe    = nullptr;
-    HRSRC         hRes    = nullptr;
-    HGLOBAL       hMem    = nullptr;
-    DWORD         size    = 0;
-    const void *  data    = nullptr;
-    std::string   jsonText;
-    fs::path      exePath = LocateCassoExe();
+    HMODULE       module = reinterpret_cast<HMODULE> (&__ImageBase);
+    HRSRC         found  = FindResourceW (module, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+    HGLOBAL       loaded = nullptr;
+    DWORD         size   = 0;
+    const void *  data   = nullptr;
 
 
 
-    // Every guard below ends in Assert::Fail, which THROWS -- so nothing after
-    // it runs and no early return is needed. The FreeLibrary calls must still
-    // come BEFORE the Fail: the throw unwinds straight past this frame, so
-    // anything after it would leak the module.
-    if (exePath.empty())
-    {
-        Assert::Fail (L"Casso.exe not found next to the test DLL");
-    }
+    Assert::IsNotNull (found, L"a machine configuration is missing from the test assembly; MachineConfigs.rc did not compile it in");
 
-    hExe = LoadLibraryExW (exePath.wstring().c_str(),
-                           nullptr,
-                           LOAD_LIBRARY_AS_IMAGE_RESOURCE | LOAD_LIBRARY_AS_DATAFILE_EXCLUSIVE);
+    size   = SizeofResource (module, found);
+    loaded = LoadResource (module, found);
+    data   = (loaded != nullptr) ? LockResource (loaded) : nullptr;
 
-    if (hExe == nullptr)
-    {
-        Assert::Fail (std::format (L"LoadLibraryExW failed for {}",
-                                   exePath.wstring()).c_str());
-    }
+    Assert::IsTrue (size > 0 && data != nullptr, L"a machine configuration is embedded but empty");
 
-    hRes = FindResourceW (hExe, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-
-    if (hRes == nullptr)
-    {
-        FreeLibrary (hExe);
-        Assert::Fail (L"Embedded RCDATA resource not found in Casso.exe");
-    }
-
-    size = SizeofResource (hExe, hRes);
-
-    if (size == 0)
-    {
-        FreeLibrary (hExe);
-        Assert::Fail (L"Embedded resource is empty");
-    }
-
-    hMem = LoadResource (hExe, hRes);
-
-    if (hMem == nullptr)
-    {
-        FreeLibrary (hExe);
-        Assert::Fail (L"LoadResource failed");
-    }
-
-    data = LockResource (hMem);
-
-    if (data == nullptr)
-    {
-        FreeLibrary (hExe);
-        Assert::Fail (L"LockResource failed");
-    }
-
-    jsonText.assign (static_cast<const char *> (data), size);
-
-    FreeLibrary (hExe);
-
-    return (jsonText);
+    return std::string (static_cast<const char *> (data), size);
 }
 
 

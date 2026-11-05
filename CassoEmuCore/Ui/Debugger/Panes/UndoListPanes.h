@@ -31,7 +31,7 @@ public:
     DxuiListView                   * GetList        () const { return m_list; }
     DxuiToolbar                    * GetBar         () const { return m_bar.GetBar(); }
 
-    std::wstring                     GetId          () const override { return m_id; }
+    const std::wstring             & GetId          () const override { return m_id; }
     std::wstring                     GetTitle       () const override { return m_title; }
     void                             CreateControls () override;
     void                             Configure      () override;
@@ -42,7 +42,6 @@ public:
     std::optional<PaneColorKeySpec>  GetColorKey    () const override;
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    const wchar_t                  * GetBarTip      (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
 
     //  The pane's undo and redo: whether each can act, what it would act on,
     //  and the step.
@@ -164,7 +163,7 @@ public:
     void                           Apply           (const DebuggerViewSnapshot & snapshot) override;
     bool                           RouteBarMouse   (const DxuiMouseEvent & ev) override;
     void                           OnListReleased  (DxuiListView * list, POINT clientPx) override;
-    bool                           TryGetTip       (POINT clientPx, PaneTip & tip) override;
+    bool                           TryGetTipAt     (POINT clientPx, DxuiTip & tip);
     bool                           AddMenuItems    (DxuiListView * list, int row, PaneMenuItems & items) override;
     bool                           CanUndo         (bool redo) const override;
     std::wstring                   GetUndoText     (bool redo) const override;

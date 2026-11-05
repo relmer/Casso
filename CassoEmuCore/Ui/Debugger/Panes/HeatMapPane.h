@@ -74,7 +74,7 @@ public:
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetBankCommands   () const { return m_bankCommands; }
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetIgnoreCommands () const { return m_ignoreCommands; }
 
-    std::wstring                     GetId               () const override;
+    const std::wstring             & GetId               () const override;
     std::wstring                     GetTitle            () const override { return L"Heat map"; }
     void                             CreateControls      () override;
     void                             Configure           () override;
@@ -91,8 +91,7 @@ public:
     bool                             RouteEarlyMouse     (const DxuiMouseEvent & ev) override;
     bool                             RouteBarMouse       (const DxuiMouseEvent & ev) override;
     bool                             RouteContentMouse   (const DxuiMouseEvent & ev) override;
-    const wchar_t                  * GetBarTip           (POINT clientPx, RECT & anchor) const override;
-    bool                             TryGetTip           (POINT clientPx, PaneTip & tip) override;
+    bool                             TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
@@ -119,4 +118,10 @@ private:
     //  a snapshot brings the cell's last writer and reader.
     std::optional<POINT>                         m_tipAt;
     bool                                         m_isTipPending  = false;
+
+    //  When the wheel last zoomed the map. TryGetTip returns false for
+    //  kZoomQuietMs after, since each notch moves every cell under the pointer and a tip
+    //  following them jumped from cell to cell.
+    static constexpr int64_t                     kZoomQuietMs    = 400;
+    int64_t                                      m_zoomedAtMs    = 0;
 };

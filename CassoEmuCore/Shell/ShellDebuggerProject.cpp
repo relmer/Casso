@@ -317,7 +317,7 @@ void ShellDebugger::ApplyProject (const DebugProject & project)
     m_projectSaved = project.ToJson (fs::path (project.filePath).parent_path().native());
     PublishProject();
 
-    lines.push_back (std::format ("Debug project for {}: {}", project.scope.label, TextEncoding::WideToNarrow (project.filePath)));
+    lines.push_back (std::format ("Loaded the debug project for {} from {}", project.scope.label, TextEncoding::WideToNarrow (project.filePath)));
 
     for (const std::string & failure : failures)
     {

@@ -43,9 +43,10 @@ public:
         Opcodes,
     };
 
-    static constexpr int  kViewCount        = 5;
-    static constexpr int  kTotalsHeightDip  = 22;
-    static constexpr int  kProgressWidthDip = 280;
+    static constexpr int       kViewCount        = 5;
+    static constexpr int       kTotalsHeightDip  = 22;
+    static constexpr int       kProgressWidthDip = 280;
+    static constexpr uint64_t  kRebuildCycles    = 17030;   // a frame: a stop nearer than this to the last build doesn't rebuild the profile
 
     //  The periods in the Show profile drop-down: the words PROFILE HISTORY
     //  takes, and the drop-down's.
@@ -56,6 +57,10 @@ public:
     };
 
     static const std::vector<Period> &  GetPeriods ();
+
+    //  The period whose HISTORY argument is `argument`; the first, the last
+    //  5 seconds, for an empty or unknown one.
+    static size_t                       GetPeriodIndex (const std::string & argument);
 
     explicit ProfilerPane (IDebuggerPaneHost & host);
     ~ProfilerPane() override;
@@ -69,6 +74,9 @@ public:
     //  which runs PROFILE HISTORY for it; and whether a profile is building,
     //  with the progress bar up.
     void                                ShowPeriod (size_t period);
+
+    //  Builds the profile of the period the user chose, and saves the choice for the next session.
+    void                                ChoosePeriod (size_t period);
     bool                                IsBuilding () const { return m_isBuilding; }
 
     //  The bar's commands, as last built.
@@ -91,15 +99,26 @@ public:
     bool                         RouteBarMouse       (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                         RouteContentMouse   (const DxuiMouseEvent & ev) override;
     bool                         RouteEditKey        (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
-    const wchar_t              * GetBarTip           (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
-    bool                         TryGetTip           (POINT clientPx, PaneTip & tip) override;
+    bool                         TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     bool                         AddMenuItems        (DxuiListView * list, int row, PaneMenuItems & items) override;
     void                         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
-    //  The drop-down's words for a view.
-    static const wchar_t *  GetViewLabel (View view);
+    //  The drop-down's words for a view, and the heading tips the routines
+    //  and the call tree share.
+    static const wchar_t *  GetViewLabel  (View view);
+    static const wchar_t *  GetRoutineTip ();
+    static const wchar_t *  GetSelfTip    ();
+    static const wchar_t *  GetTotalTip   ();
+    static const wchar_t *  GetCallsTip   ();
 
-    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn);
+    //  A routine's tip head: GetTipHead, or the window's, which adds the
+    //  source comment of the routine's label.
+    using TipHeadFn = std::function<std::string (const ProfileRoutineEntry & routine)>;
+
+    static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn, const TipHeadFn & tipHead = {});
+
+    //  GetTipHead with the source comment of the routine's label after it.
+    std::string  GetTipHeadWithComment (const ProfileRoutineEntry & routine) const;
 
     //  The line above the list: the profile's totals and the time its cycles
     //  span; empty with no profile.
@@ -119,7 +138,7 @@ public:
     };
 
     //  The sort a view opens with: the opcodes and the addresses by cycles,
-    //  the routines and the call tree by total, most first.
+    //  the routines by self and the call tree by total, most first.
     static Sort                 GetDefaultSort (View view);
 
     //  The order of a view's rows as indexes in the profile's entries, by a
@@ -175,7 +194,8 @@ private:
     ProfileProgress                            * m_progress        = nullptr;
     DxuiLabel                                  * m_totals          = nullptr;
     std::unique_ptr<ToolbarLabelEntry>           m_showLabel;
-    size_t                                       m_period          = 1;
+    size_t                                       m_period          = 0;
+    bool                                         m_isPeriodRead    = false;
     bool                                         m_isBuilding      = false;
     bool                                         m_isPaused        = false;
     std::optional<uint64_t>                      m_stopCycle;        // where the machine is stopped, with history

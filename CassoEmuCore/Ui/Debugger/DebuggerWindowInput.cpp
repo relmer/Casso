@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "resource.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -105,6 +106,62 @@ std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
     }
 
     return lists;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ScrollCodeAtEdge
+//
+//  A disassembly view's rows are only the lines in view, so an arrow at its first
+//  or last visible line, or Page Up or Page Down there, scrolls the view
+//  through memory rather than stopping; the selected row stays at the edge,
+//  on the line scrolled into view. True when the key scrolled a view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ScrollCodeAtEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code  = m_code->GetCodeList (view);
+        int             row   = 0;
+        int             last  = 0;
+        int             page  = 0;
+        int             lines = 0;
+
+
+
+        if (code == nullptr || code != focused || m_host == nullptr)
+        {
+            continue;
+        }
+
+        row   = code->GetSelectedRow();
+        page  = std::max (1, code->GetVisibleRowCapacity());
+        last  = std::min (code->GetRowCount(), page) - 1;
+        lines = (vk == VK_UP    && row <= 0)    ? -1
+              : (vk == VK_DOWN  && row >= last) ?  1
+              : (vk == VK_PRIOR && row <= 0)    ? -page
+              : (vk == VK_NEXT  && row >= last) ?  page
+              :                                    0;
+
+        if (lines == 0 || row < 0)
+        {
+            return false;
+        }
+
+        m_code->SelectEdgeAfterScroll (view, lines < 0);
+        m_host->ScrollDebuggerCode (lines, view);
+        return true;
+    }
+
+    return false;
 }
 
 
@@ -300,6 +357,12 @@ bool DebuggerWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
             continue;
         }
 
+        if (kind == DroppedFiles::Kind::Basic)
+        {
+            LoadBasicProgram (path);
+            continue;
+        }
+
         if (kind == DroppedFiles::Kind::Other)
         {
             lookup  = m_host->MatchDroppedDebuggerSource ({}, path, std::string(), index);
@@ -409,6 +472,22 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         return true;
     }
 
+    if (action == DebuggerKeySchemes::Action::RunOrPause)
+    {
+        RunCommandBarEntry (DebuggerCommands::kRunOrPause);
+        return true;
+    }
+
+    if (action == DebuggerKeySchemes::Action::Reset || action == DebuggerKeySchemes::Action::PowerCycle)
+    {
+        if (m_host != nullptr)
+        {
+            m_host->RunEmulatorCommand (action == DebuggerKeySchemes::Action::Reset ? IDM_MACHINE_RESET : IDM_MACHINE_POWERCYCLE);
+        }
+
+        return true;
+    }
+
     //  A pane's key opens it, or brings it forward, and focuses it.
     if (!DebuggerKeySchemes::GetPaneOfAction (action).empty())
     {
@@ -441,7 +520,10 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         return true;
     }
 
-    if (action == DebuggerKeySchemes::Action::Pause)
+    //  A key that starts the machine running stops it while it runs, so a
+    //  second press of F5 is Pause, as the bar's Run button becomes.
+    if (action == DebuggerKeySchemes::Action::Pause ||
+        (DebuggerActions::IsRunAction (action) && IsCommandBarEntryEnabled (DebuggerCommands::kPause)))
     {
         if (m_host != nullptr)
         {
@@ -687,7 +769,7 @@ bool DebuggerWindow::RouteCommandBarMouse (const DxuiMouseEvent & ev)
         return m_commandBar->OnToolbarMouseMove (x, y);
 
     case DxuiMouseEventKind::Down:
-        GetRoutedTooltip().HideImmediate();
+        GetRoutedTips().OnPress();
         return m_commandBar->OnToolbarLButtonDown (x, y);
 
     case DxuiMouseEventKind::Up:
@@ -735,17 +817,23 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 {
     int           x       = ev.positionDip.x;
     int           y       = ev.positionDip.y;
-    bool          lbDown  = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool          lbDown  = DxuiInputState::IsKeyDown (VK_LBUTTON);
     bool          handled = false;
     std::wstring  pane;
 
 
 
+    //  The pointer left the window: its tip closes.
+    if (ev.kind == DxuiMouseEventKind::Leave)
+    {
+        GetRoutedTips().OnLeave ((int64_t) GetTickCount64());
+    }
+
     //  A press hides any tip at once: a button it lands on may open a dialog
     //  or a menu, and the tip would stay up over it.
     if (ev.kind == DxuiMouseEventKind::Down)
     {
-        GetRoutedTooltip().HideImmediate();
+        GetRoutedTips().OnPress();
         m_openingFocus.OnUserInput();
         m_stopFocus.OnInput (IsCommandPane (m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane()));
         m_lastPressPx = POINT { x, y };
@@ -796,6 +884,15 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     {
         StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
         return true;
+    }
+
+    //  The status bar and the menu bar take the events over them ahead of the
+    //  timeline, so the pointer leaving the timeline for either is handled
+    //  here, which closes the timeline's preview.
+    if (m_floating->GetRoutingPane().empty() && !m_timelineHost.IsFloating() && m_timelineBar != nullptr &&
+        !DxuiDockSite::Contains (m_timelineBar->GetBounds(), ev.positionDip))
+    {
+        m_timelineBar->OnToolbarMouseLeave();
     }
 
     //  The status bar's zoom popup lies over everything while it is open, and
@@ -872,6 +969,13 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
     {
+        //  Over a text box, the box's edit menu rather than its pane's.
+        if (DxuiTextInput * box = GetTextBoxAt (ev.positionDip); box != nullptr)
+        {
+            ShowTextBoxMenu (*box, ev.positionDip);
+            return true;
+        }
+
         pane = m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane();
 
         //  Over a pane's content, the content's own menu (FR-084); over its
@@ -926,9 +1030,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         m_gutter->Hover (ev.positionDip);
         m_gutter->Drag  (ev.positionDip);
 
+        //  Each box is given the move: a hover, or a drag begun in the box,
+        //  which selects text.
         if (IsRoutable (m_consolePane->GetCommandLine().GetBox()))
         {
-            m_consolePane->GetCommandLine().GetBox()->SetMouseHover (x, y);
+            (void) m_consolePane->GetCommandLine().GetBox()->OnMouse (ev);
         }
 
         for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
@@ -937,7 +1043,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             {
                 if (IsRoutable (box))
                 {
-                    box->SetMouseHover (x, y);
+                    (void) box->OnMouse (ev);
                 }
             }
         }
@@ -1020,17 +1126,29 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Wheel:
-        //  The code pane holds only the lines it shows, so the wheel scrolls
-        //  the disassembly itself, through all of memory (FR-073).
+        //  The code pane has only the lines in view, so the vertical wheel
+        //  scrolls the disassembly itself, through all of memory. The
+        //  horizontal wheel, or Shift with the wheel, scrolls the list's
+        //  columns sideways, as it does every list's.
         for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
         {
             DxuiListView  * code = m_code->GetCodeList (view);
 
-            if (IsRoutable (code) && code->IsVisible() && DxuiDockSite::Contains (code->GetBounds(), ev.positionDip) && m_host != nullptr)
+            if (!IsRoutable (code) || !code->IsVisible() || !DxuiDockSite::Contains (code->GetBounds(), ev.positionDip) || m_host == nullptr)
+            {
+                continue;
+            }
+
+            if (ev.wheelHorizontal || ev.shift)
+            {
+                ForwardToList (code, ev);
+            }
+            else
             {
                 m_host->ScrollDebuggerCode ((int) std::lround (-ev.wheelDelta * (float) code->GetWheelLinesPerNotch()), view);
-                return true;
             }
+
+            return true;
         }
 
         for (DxuiListView * list : GetLists())
@@ -1407,6 +1525,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         }
     }
 
+    if (ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && ScrollCodeAtEdge (ev.vk, focused))
+    {
+        return true;
+    }
+
     if (ev.kind == DxuiKeyEventKind::Down)
     {
         handled = (focused != nullptr) && focused->OnKey (ev);
@@ -1429,6 +1552,92 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTextBoxAt
+//
+//  The text box under a point in the window the event came from: the command
+//  line, a pane's box, a find widget's box, or the box of a list cell being
+//  edited, as a new watch's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetTextBoxAt (POINT clientPx) const
+{
+    std::vector<DxuiTextInput *>  boxes = { m_consolePane->GetCommandLine().GetBox() };
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetTextBoxes(), std::back_inserter (boxes));
+    }
+
+    for (IDxuiControl * control : m_finds->GetPressTargets())
+    {
+        if (DxuiTextInput * box = dynamic_cast<DxuiTextInput *> (control); box != nullptr)
+        {
+            boxes.push_back (box);
+        }
+    }
+
+    for (DxuiTextInput * box : boxes)
+    {
+        if (box != nullptr && IsRoutable (box) && box->IsVisible() && box->HitTest (clientPx.x, clientPx.y))
+        {
+            return box;
+        }
+    }
+
+    for (DxuiListView * list : GetLists())
+    {
+        DxuiEditableGrid  * grid = dynamic_cast<DxuiEditableGrid *> (list);
+
+        if (grid != nullptr && grid->IsEditing() && IsRoutable (grid) && grid->IsVisible() && grid->GetEditor().HitTest (clientPx.x, clientPx.y))
+        {
+            return &grid->GetEditor();
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowTextBoxMenu
+//
+//  A box takes the focus on a right-click, as an edit control does, with its
+//  selection left as it is for the menu to act on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowTextBoxMenu (DxuiTextInput & box, POINT clientPx)
+{
+    DxuiHwndSource  * host = GetMenuHost();
+
+
+
+    GetRoutedTooltip().HideImmediate();
+
+    if (!box.IsFocused())
+    {
+        SetFocusedControl (&box);
+    }
+
+    if (host != nullptr)
+    {
+        DxuiContextMenu::Show (*host, clientPx.x, clientPx.y, DxuiContextMenu::MakeEditItems (box));
+    }
 }
 
 
@@ -1477,5 +1686,70 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
         }
     }
 
-    return DxuiWindow::GetCursorForPoint (clientPx);
+    return GetCursorOutsideLists (*this, clientPx, GetLists());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCursorOutsideLists
+//
+//  The cursor of the controls under `node` other than the lists. A list takes
+//  a point relative to itself, which the walk of the controls does not
+//  translate, so with the window's point every list with text selection had
+//  the I-beam over the whole window. GetCursorForPoint calls the lists first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DebuggerWindow::GetCursorOutsideLists (
+    const IDxuiControl                 & node,
+    POINT                                clientPx,
+    const std::vector<DxuiListView *>  & lists)
+{
+    LPCWSTR  cursor = nullptr;
+
+
+
+    for (size_t i = node.GetChildCount(); i > 0 && cursor == nullptr; i--)
+    {
+        const IDxuiControl  * child  = node.GetChild (i - 1);
+        bool                  isList = std::ranges::find (lists, child) != lists.end();
+
+        if (child == nullptr || isList || !child->IsVisible())
+        {
+            continue;
+        }
+
+        cursor = HasListWithin (*child, lists) ? GetCursorOutsideLists (*child, clientPx, lists) : child->GetCursorForPoint (clientPx);
+    }
+
+    return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::HasListWithin
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::HasListWithin (const IDxuiControl & node, const std::vector<DxuiListView *> & lists)
+{
+    for (size_t i = 0; i < node.GetChildCount(); i++)
+    {
+        const IDxuiControl  * child = node.GetChild (i);
+
+        if (child != nullptr && (std::ranges::find (lists, child) != lists.end() || HasListWithin (*child, lists)))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }

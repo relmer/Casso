@@ -45,6 +45,7 @@ public:
     static constexpr const wchar_t * kNetworkLog  = L"networklog";
     static constexpr const wchar_t * kBasicProgram   = L"basicprogram";
     static constexpr const wchar_t * kSymbols        = L"symbols";
+    static constexpr const wchar_t * kMachineSymbols = L"machinesymbols";
     static constexpr const wchar_t * kBookmarks      = L"bookmarks";
     static constexpr const wchar_t * kProfiler       = L"profiler";
     static constexpr const wchar_t * kDataBlocks     = L"datablocks";
@@ -55,8 +56,9 @@ public:
     //  Where a pane's row is on the View menu, lower first, none for a pane
     //  the menu has no row for: the Disassembly views and the source
     //  documents, then the tool windows, then the device panels. And the
-    //  cascade a row goes in, the views, the memory windows and the device
-    //  panels each one of their own; empty for a row of View itself.
+    //  cascade a row goes in: the views, the source files with the BASIC
+    //  program, the memory windows, the logs and the device panels each have
+    //  one; empty for a row of View itself.
     static std::optional<int>         GetViewMenuRank  (const std::wstring & pane);
     static std::wstring               GetViewMenuGroup (const std::wstring & pane);
     static constexpr int              kDevicePanelRank = 200;

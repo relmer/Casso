@@ -651,6 +651,69 @@ namespace DebuggerTests
         }
 
 
+        //  A routine that called in and pushed a byte, stopped, and the PC moved
+        //  to an RTS of code that has no caller. That RTS pulls the pushed byte
+        //  and half the return address, so the stack pointer ends below the
+        //  routine's frame, and the frame never ends. The step out ends at the
+        //  RTS that raised the stack instead, with a notice.
+        static void LoadMovedPc (Rig & rig)
+        {
+            static constexpr Word  kCaller  = 0x0900;
+            static constexpr Word  kMoved   = 0x0300;
+            static constexpr Word  kLanding = 0x0250;
+
+
+
+            rig.Load (kCaller, { 0x20, 0x10, 0x09, 0x00 }, kCaller);                        // JSR $0910; BRK
+            rig.Load (0x0910,  { 0xA9, (Byte) (kLanding - 1), 0x48, 0xEA, 0x68, 0x60 }, kCaller); // LDA; PHA; NOP; PLA; RTS
+            rig.Load (kMoved,  { 0x60 }, kCaller);                                           // RTS
+            rig.Load (kLanding, { 0x4C, (Byte) (kLanding & 0xFF), (Byte) (kLanding >> 8) }, kCaller);   // JMP to itself
+            rig.session.SetCallRecording (true);
+            rig.session.SetBudget (100'000);
+        }
+
+
+        TEST_METHOD (StepOutAfterThePcMovedEndsAtTheReturnThatRaisesTheStack)
+        {
+            Rig               rig;
+            Reply             reply;
+            Cpu6502Registers  registers;
+
+
+
+            LoadMovedPc (rig);
+            RunTo (rig, 0x0913);
+
+            registers    = rig.target.GetRegisters();
+            registers.pc = 0x0300;
+            rig.target.SetRegisters (registers);
+
+            reply = rig.RunOk ("RTS");
+
+            Assert::AreEqual ((Word) 0x0250, rig.LastStop().pc, L"the step ends after the RTS, not at the budget");
+            Assert::IsTrue   (reply.hasNotice);
+            Assert::IsTrue   (rig.session.GetRunNotice().starts_with ("No call on record was made by the code at $0300"));
+        }
+
+
+        TEST_METHOD (StepOutWithItsCallOnRecordHasNoNotice)
+        {
+            Rig    rig;
+            Reply  reply;
+
+
+
+            LoadMovedPc (rig);
+            RunTo (rig, 0x0913);
+
+            reply = rig.RunOk ("RTS");
+
+            Assert::AreEqual ((Word) 0x0903, rig.LastStop().pc);
+            Assert::IsFalse  (reply.hasNotice);
+            Assert::IsTrue   (rig.session.GetRunNotice().empty());
+        }
+
+
         TEST_METHOD (AResetDiscardsTheRecord)
         {
             Rig            rig;

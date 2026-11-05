@@ -669,6 +669,36 @@ bool CpuCommandDispatcher::TryGetCodeView (const std::string & view, const std::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetSoundMute
+//
+//  A channel's number, a space, and "on" or "off".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::TryGetSoundMute (const std::string & where, int & channel, bool & isMuted)
+{
+    constexpr int  kDecimal = 10;
+    size_t         space    = where.find (' ');
+    int            value    = 0;
+    auto           parsed   = std::from_chars (where.data(), where.data() + std::min (space, where.size()), value, kDecimal);
+
+
+
+    if (space == std::string::npos || parsed.ec != std::errc() || parsed.ptr != where.data() + space || !TryGetHeatMapShown (where.substr (space + 1), isMuted))
+    {
+        return false;
+    }
+
+    channel = value;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryGetHeatMapShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -815,7 +845,8 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCo
 //  "code <hex>", "code pc", "memory <hex>" for the first memory window, and
 //  "memory2" to "memory4" with a hex address or "close" for the others, which
 //  is passed on as no address. "lines <hex>" is how many lines the code pane
-//  has room for. "trace <decimal>" and "trace end" place the trace pane.
+//  has room for. "trace <decimal>" and "trace end" place the trace pane, and
+//  "trace on" and "trace off" indicate whether it is on screen.
 //  "goto <window> <text>" is a memory window's Go to, as typed. "heatmap on"
 //  and "heatmap off" say whether the heat map pane is shown, "heatmap options
 //  <text>" sets its options and "heatmap reset" zeroes its counts; "heatmap
@@ -824,6 +855,7 @@ void CpuCommandDispatcher::SetHeatMapIgnore (const std::string & where, IDebugCo
 //  reads before written are left out. "basic on" and "basic off" turn the
 //  reading of the Applesoft program for the BASIC panes on and off. "beam"
 //  is a request for the stopped picture to be drawn again with the beam mark turned on or off.
+//  "soundmute 3 on" and "soundmute 3 off" set a sound channel's mute on the host.
 //  Anything else asks for nothing: a pane moved to an address nobody meant is
 //  worse than a pane left where it was.
 //
@@ -851,6 +883,10 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
     if (view == "basic" && TryGetHeatMapShown (where, isShown))
     {
         target.SetDebugBasicShown (isShown);
+    }
+    else if (view == "soundmute" && TryGetSoundMute (where, index, isShown))
+    {
+        target.SetDebugSoundMuted (index, isShown);
     }
     else if (view == "heatcolumns" && TryGetHeatMapShown (where, isShown))
     {
@@ -900,7 +936,11 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
 
     if (view == "trace")
     {
-        if (where == "end")
+        if (TryGetHeatMapShown (where, isShown))
+        {
+            target.SetDebugTraceShown (isShown);
+        }
+        else if (where == "end")
         {
             target.SetDebugTraceView (std::nullopt);
         }

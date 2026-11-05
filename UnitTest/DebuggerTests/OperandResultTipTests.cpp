@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/ColorKeyButton.h"
 #include "Core/TextEncoding.h"
@@ -60,6 +61,10 @@ namespace OperandResultTipTests
         using DebuggerWindow::IsZoomPopupOpen;
         using DebuggerWindow::GetZoomPopupRect;
         using DebuggerWindow::kStatusZoom;
+        using DebuggerWindow::ShowPane;
+        using DebuggerWindow::GetTipList;
+        using DebuggerWindow::kBasicTipView;
+        using DebuggerWindow::FindPaneForTest;
     };
 
 
@@ -616,6 +621,34 @@ namespace OperandResultTipTests
         }
 
 
+        //  A point on another row's operand that the tip up now doesn't
+        //  cover, or just below the tip when it covers every row below: a
+        //  tip that wraps below its row is the pointer's to move into.
+        static POINT  GetPointOffTip (TipWindow & window)
+        {
+            RECT   tip   = window.GetOperandTips().GetLayout().rect;
+            POINT  first = GetOperandPoint (window, 0);
+            int    row   = 0;
+            RECT   cell  = {};
+
+
+
+            for (row = 1; window.GetCodeList (0)->GetCellTextRectPx (row, DisassemblyCells::kOperandColumn, cell); row++)
+            {
+                POINT  at = GetOperandPoint (window, row);
+
+
+
+                if (PtInRect (&tip, at) == FALSE)
+                {
+                    return at;
+                }
+            }
+
+            return POINT { first.x, tip.bottom + 1 };
+        }
+
+
         static void  Send (TipWindow & window, DxuiMouseEventKind kind, POINT at)
         {
             DxuiMouseEvent  ev;
@@ -731,6 +764,78 @@ namespace OperandResultTipTests
         }
 
 
+        //  A BASIC line's values that the pane cuts off are laid over their
+        //  cell the same way.
+        TEST_METHOD (TheWindowLaysTheTipOverACutOffBasicValuesCell)
+        {
+            CassoTheme                                    theme   = CassoTheme::MakeSkeuomorphic();
+            TipHost                                       host;
+            TipWindow                                     window (theme, host);
+            DxuiDpiScaler                                 scaler;
+            MockDxuiTextRenderer                          text;
+            MockDxuiPainter                               painter;
+            DxuiListView                                * list    = nullptr;
+            RECT                                          bounds  = {};
+            RECT                                          cell    = {};
+            OperandResultTip::Layout                      layout;
+            TipWindow::OperandTipCell                     tipCell;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+            scaler.SetDpi (96);
+            Build (window, theme, text);
+            window.ShowPane (DebuggerLayout::kBasicProgram);
+            window.Layout   (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+
+            list = window.GetTipList (TipWindow::kBasicTipView);
+            Assert::IsNotNull (list, L"the BASIC program pane's list");
+
+            rows.push_back ({ DxuiListView::Cell {}, DxuiListView::Cell {}, DxuiListView::Cell { L"10 PRINT A$" },
+                              DxuiListView::Cell { L"A$=\"" + std::wstring (300, L'X') + L"\"" } });
+            list->SetRows (std::move (rows));
+            list->Paint   (painter, text, theme);
+
+            bounds = list->GetBounds();
+            Assert::IsTrue (list->GetCellTextRectPx (0, BasicProgramPane::kValuesColumn, cell), L"the values are in view");
+            Assert::IsTrue (window.GetOperandTips().TryGet (POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 },
+                                                            scaler, text, MakeScreen(), layout, tipCell),
+                            L"the pane cuts the long values off");
+            Assert::AreEqual (TipWindow::kBasicTipView, tipCell.view);
+            Assert::AreEqual (bounds.left + cell.left, layout.textOrigin.x, L"the tip's text starts at the cell's");
+        }
+
+
+        //  The BASIC listing's menu copies, has the line's breakpoint, and
+        //  loads and saves the program.
+        TEST_METHOD (TheBasicListingsMenuCopiesAndLoadsAndSaves)
+        {
+            CassoTheme                                    theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost                                       host;
+            TipWindow                                     window (theme, host);
+            MockDxuiTextRenderer                          text;
+            PaneMenuItems                                 items;
+            std::vector<std::wstring>                     labels;
+            IDebuggerPane                               * pane   = nullptr;
+            DxuiListView                                * list   = nullptr;
+
+
+
+            Build (window, theme, text);
+            pane = window.FindPaneForTest (DebuggerLayout::kBasicProgram);
+            list = window.GetTipList (TipWindow::kBasicTipView);
+
+            Assert::IsTrue (pane->AddMenuItems (list, -1, items), L"the listing has a menu of its own, not its pane's Dock menu");
+
+            for (const auto & [label, action] : items)
+            {
+                labels.push_back (label);
+            }
+
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Copy", L"", L"Load BASIC program...", L"Save BASIC program..." });
+        }
+
+
         TEST_METHOD (AMoveShowsTheTipAndAnythingElseTakesItDown)
         {
             CassoTheme            theme = CassoTheme::MakeSkeuomorphic();
@@ -769,7 +874,7 @@ namespace OperandResultTipTests
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsTrue  (window.GetOperandTips().HasTip());
 
-            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
+            Send (window, DxuiMouseEventKind::Move, GetPointOffTip (window));
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"a move onto an operand that fits leaves the tip up");
         }
 
@@ -859,8 +964,14 @@ namespace OperandResultTipTests
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"a pointer off the window leaves the tip up");
 
             Send (window, DxuiMouseEventKind::Move, at);
-            window.GetOperandTips().CheckPointer (GetOperandPoint (window, 2));
+            window.GetOperandTips().CheckPointer (GetPointOffTip (window));
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"a pointer on another row leaves the tip up");
+
+            //  The tip stays up for a pointer moved from the row down into a tip
+            //  that wraps below it.
+            Send (window, DxuiMouseEventKind::Move, at);
+            window.GetOperandTips().CheckPointer (POINT { at.x, window.GetOperandTips().GetLayout().rect.bottom - 1 });
+            Assert::IsTrue  (window.GetOperandTips().HasTip(), L"a pointer on the tip takes it down");
         }
 
 
@@ -1055,7 +1166,7 @@ namespace OperandResultTipTests
 
             //  A plain row's operand has neither tip: the operand's colors are
             //  on the column's heading.
-            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 1));
+            Send (window, DxuiMouseEventKind::Move, GetPointOffTip (window));
 
             Assert::IsFalse (window.GetOperandTips().HasTip());
             Assert::IsFalse (window.GetTooltip().WantsTick(), L"a color tip over a plain row's operand");
@@ -1486,5 +1597,109 @@ namespace OperandResultTipTests
         static constexpr int  kOverSizePx       = 200;
         static constexpr int  kSplitIntoTextPx  = 60;
         static constexpr int  kGapPx            = 20;
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BranchArrowTipTests
+    //
+    //  The tip over the PC's branch arrow has whether the branch will be
+    //  taken; the tip over the dotted arrow has the branch the last step
+    //  took to the PC.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (BranchArrowTipTests)
+    {
+    public:
+
+        static constexpr int  kWindowWidth  = 1400;
+        static constexpr int  kWindowHeight = 900;
+
+        //  $0300 DEY, $0302 BNE $0300 at the PC, which won't branch, $0304
+        //  DEX, $0306 JMP $0302, the step that led to the PC.
+        static std::shared_ptr<const DebuggerViewSnapshot>  MakeSnapshot()
+        {
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  dey;
+            DebuggerViewSnapshot::CodeLine  bne;
+            DebuggerViewSnapshot::CodeLine  dex;
+            DebuggerViewSnapshot::CodeLine  jmp;
+
+
+
+            dey.address       = 0x0300;
+            dey.bytes         = "88";
+            dey.instruction   = "DEY";
+            bne.address       = 0x0302;
+            bne.bytes         = "D0 FC";
+            bne.instruction   = "BNE $0300";
+            bne.isCurrent     = true;
+            bne.target        = 0x0300;
+            bne.isTargetTaken = false;
+            dex.address       = 0x0304;
+            dex.bytes         = "CA";
+            dex.instruction   = "DEX";
+            jmp.address       = 0x0306;
+            jmp.bytes         = "4C 02 03";
+            jmp.instruction   = "JMP $0302";
+            jmp.target        = 0x0302;
+
+            snapshot->pc           = 0x0302;
+            snapshot->isPaused     = true;
+            snapshot->branchedFrom = 0x0306;
+            snapshot->codeViews[0] = { dey, bne, dex, jmp };
+            snapshot->codeOpen[0]  = true;
+            snapshot->code         = snapshot->codeViews[0];
+            return snapshot;
+        }
+
+        //  A point on the arrows' upright, left of the mnemonics, halfway
+        //  down from one row to the next.
+        static POINT  GetUprightPoint (TipWindow & window, int fromRow)
+        {
+            DxuiListView  * list   = window.GetCodeList (0);
+            RECT            bounds = list->GetBounds();
+            RECT            from   = {};
+            RECT            to     = {};
+
+
+
+            Assert::IsTrue (list->GetCellTextRectPx (fromRow,     DisassemblyCells::kInstructionColumn, from));
+            Assert::IsTrue (list->GetCellTextRectPx (fromRow + 1, DisassemblyCells::kInstructionColumn, to));
+
+            return POINT { bounds.left + from.left - (LONG) (BranchArrow::Input().marginPx + BranchArrow::Input().stubPx),
+                           bounds.top + (from.top + from.bottom + to.top + to.bottom) / 4 };
+        }
+
+
+        TEST_METHOD (EachArrowsTipHasWhatItsBranchDoes)
+        {
+            CassoTheme            theme;
+            TipHost               host;
+            TipWindow             window (theme, host);
+            MockDxuiTextRenderer  text;
+            MockDxuiPainter       painter;
+            DxuiDpiScaler         scaler;
+            DxuiTip               tip;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+            window.GetCodeList (0)->Paint (painter, text, theme);
+
+            Assert::IsTrue (static_cast<const DxuiPanel &> (window).TryGetTip (GetUprightPoint (window, 0), tip), L"the PC's arrow, from its row up to the target's");
+            Assert::IsTrue (tip.text.starts_with (L"Won't branch: BNE branches while Z is clear"), tip.text.c_str());
+
+            Assert::IsTrue   (static_cast<const DxuiPanel &> (window).TryGetTip (GetUprightPoint (window, 2), tip), L"the dotted arrow, from the step's row up to the PC's");
+            Assert::AreEqual (std::wstring (L"Taken by the last step: JMP $0302 at $0306"), tip.text);
+        }
     };
 }

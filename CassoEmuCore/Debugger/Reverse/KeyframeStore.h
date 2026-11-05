@@ -239,6 +239,16 @@ private:
     //  the arena (one part in kArenaSpareParts) is still free.
     static constexpr size_t  kArenaSpareParts = 4;
 
+    //  The arena's pages come straight from the system, which zeroes each one
+    //  the first time it is touched. From the heap, a debug build filled the
+    //  whole arena, 64 MB by default, at every start of recording.
+    struct ArenaFree
+    {
+        void  operator() (Byte * arena) const noexcept { VirtualFree (arena, 0, MEM_RELEASE); }
+    };
+
+    using ArenaPtr = std::unique_ptr<Byte[], ArenaFree>;
+
     struct Entry
     {
         KeyframeInfo  info;
@@ -291,12 +301,13 @@ private:
 
     static uint64_t  ReadWallClock ();
     static void      RunJob        (void * context);
+    static ArenaPtr  AllocateArena (size_t bytes);
 
     KeyframeSettings               m_settings;
     std::vector<Entry>             m_entries;              // the table, used as a ring; sized once by Reserve
     size_t                         m_first        = 0;     // slot of the oldest keyframe
     size_t                         m_count        = 0;
-    std::unique_ptr<Byte[]>        m_arena;                // packed snapshots, end to end, wrapping around
+    ArenaPtr                       m_arena;                // packed snapshots, end to end, wrapping around
     size_t                         m_arenaBytes   = 0;
     size_t                         m_arenaEnd     = 0;     // just past the newest packed snapshot
     size_t                         m_storedBytes  = 0;

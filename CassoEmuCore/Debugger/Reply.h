@@ -126,11 +126,21 @@ struct MemoryData
 //  block it starts); `operandSymbol` is the name of the address its operand
 //  names. They are kept apart because a listing shows them in different
 //  places: the label in its own column, the operand symbol in the operand.
+//  Why a disassembly line is data: a data directive marked its bytes, or
+//  the loaded debug file maps them to a data directive in the source.
+enum class DataOrigin
+{
+    None,
+    Marked,
+    DebugFile,
+};
+
 struct DisassemblyLine
 {
     DisassembledInstruction  instruction;
     std::string              label;
     std::string              operandSymbol;
+    DataOrigin               dataOrigin = DataOrigin::None;
 
     //  The operand as a listing shows it, with the symbol in place of the
     //  address it names when one is loaded.
@@ -365,9 +375,16 @@ struct ProfileRoutineEntry
     uint64_t     total   = 0;
     uint64_t     calls   = 0;
 
+    //  The symbol's line from SymbolDescriptions, empty for none.
+    std::string  description;
+
     //  Top level, the symbol or the address, with BRK or Interrupt ahead of
     //  a routine entered that way.
     std::string  GetName () const;
+
+    //  The first lines of a tip on the routine: its name and, for a routine
+    //  with a symbol, its address, then its description when it has one.
+    std::string  GetTipHead () const;
 };
 
 // One node of the call tree: its routine, an index in ProfileData::routines,
@@ -421,6 +438,17 @@ struct ProfileData
     std::vector<ProfileRoutineEntry>  routines;
     std::vector<ProfileTreeEntry>     tree;
     std::vector<ProfileFrameEntry>    frames;
+
+    //  Top level's hottest addresses, most first, each with the nearest
+    //  symbol at or before it.
+    std::vector<ProfileAddressEntry>  topAddresses;
+
+    //  A profile from history whose period begins where history does, so the
+    //  calls open before then are unknown and their cycles are Top level's.
+    bool                              isFromHistoryStart = false;
+
+    //  Top level's definition and its hottest addresses, for its tip.
+    std::string                       GetTopLevelTip () const;
 
     //  The first and last cycles requested of the build from history that
     //  made the profile; none for a profile counted as the machine ran.
@@ -592,6 +620,21 @@ struct ProjectData
     bool          isAutomatic = true;
 };
 
+// SCREEN: the text screen as displayed, 40 or 80 columns, a string a row.
+struct TextScreenData
+{
+    int                       columns = 40;
+    std::vector<std::string>  rows;
+};
+
+// SCREENSHOT: the PNG file the machine's picture was saved to, and its size.
+struct ScreenshotData
+{
+    std::string  path;
+    int          width  = 0;
+    int          height = 0;
+};
+
 // BASICVARS: the Applesoft program's simple variables and arrays.
 struct BasicVariablesData
 {
@@ -631,7 +674,9 @@ using ReplyData = std::variant<MessageData,
                                TraceData,
                                BasicVariablesData,
                                BasicStackData,
-                               ProjectData>;
+                               ProjectData,
+                               TextScreenData,
+                               ScreenshotData>;
 
 
 
@@ -673,6 +718,10 @@ struct Reply
     //  The text is final, as a line of several commands has it: each was
     //  formatted as it ran, errors included, so none is formatted again.
     bool                      isFormatted = false;
+
+    //  The text has a line about how the command ran that is listed in the
+    //  console even for an action that isn't echoed.
+    bool                      hasNotice   = false;
 
     void SetError (CommandStatus errorStatus, const std::string & label, const std::string & detail)
     {

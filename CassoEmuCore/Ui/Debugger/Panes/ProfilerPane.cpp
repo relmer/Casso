@@ -73,6 +73,9 @@ void ProfilerPane::CreateControls()
     m_timeline   = m_host.GetControlParent().CreateChild<ProfileTimeline>();
     m_totals     = m_host.GetControlParent().CreateChild<DxuiLabel>();
     m_flameGraph = m_host.GetControlParent().CreateChild<FlameGraphView>();
+    m_timeline  ->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
+    m_flameGraph->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
+    m_flameGraph->SetTipHead ([this] (const ProfileRoutineEntry & routine) { return GetTipHeadWithComment (routine); });
     m_progress   = m_host.GetControlParent().CreateChild<ProfileProgress>();
     m_bar.Create();
 
@@ -210,37 +213,37 @@ void ProfilerPane::SetView (View view)
     switch (view)
     {
     case View::Addresses:
-        m_list->SetColumns ({ { L"Address", 0, false, DxuiTextHAlign::Left },
-                              { L"Symbol",  0, false, DxuiTextHAlign::Left },
-                              { L"Cycles",  0, false, DxuiTextHAlign::Right } });
+        m_list->SetColumns ({ { L"Address", 0, false, DxuiTextHAlign::Left,  true, L"The address of an instruction that ran" },
+                              { L"Symbol",  0, false, DxuiTextHAlign::Left,  true, L"The symbol at the address, or the nearest one before it" },
+                              { L"Cycles",  0, false, DxuiTextHAlign::Right, true, L"The cycles the instructions at the address took during the period" } });
         break;
 
     case View::Routines:
-        m_list->SetColumns ({ { L"Routine",  0, false, DxuiTextHAlign::Left },
-                              { L"Self",     0, false, DxuiTextHAlign::Right },
-                              { L"Percent",  0, false, DxuiTextHAlign::Right },
-                              { L"Total",    0, false, DxuiTextHAlign::Right },
-                              { L"Percent",  0, false, DxuiTextHAlign::Right },
-                              { L"Calls",    0, false, DxuiTextHAlign::Right },
-                              { L"Per call", 0, false, DxuiTextHAlign::Right } });
+        m_list->SetColumns ({ { L"Routine",  0, false, DxuiTextHAlign::Left,  true, GetRoutineTip() },
+                              { L"Self",     0, false, DxuiTextHAlign::Right, true, GetSelfTip() },
+                              { L"Self %",   0, false, DxuiTextHAlign::Right, true, L"Self as a share of the profile's cycles" },
+                              { L"Total",    0, false, DxuiTextHAlign::Right, true, GetTotalTip() },
+                              { L"Total %",  0, false, DxuiTextHAlign::Right, true, L"Total as a share of the profile's cycles" },
+                              { L"Calls",    0, false, DxuiTextHAlign::Right, true, GetCallsTip() },
+                              { L"Per call", 0, false, DxuiTextHAlign::Right, true, L"Total divided by calls: the cycles one call takes on average" } });
         break;
 
     case View::Tree:
-        m_list->SetColumns ({ { L"Routine", 0, false, DxuiTextHAlign::Left },
-                              { L"Self",    0, false, DxuiTextHAlign::Right },
-                              { L"Total",   0, false, DxuiTextHAlign::Right },
-                              { L"Percent", 0, false, DxuiTextHAlign::Right },
-                              { L"Calls",   0, false, DxuiTextHAlign::Right } });
+        m_list->SetColumns ({ { L"Routine", 0, false, DxuiTextHAlign::Left,  true, L"Each routine under the routine that called it" },
+                              { L"Self",    0, false, DxuiTextHAlign::Right, true, GetSelfTip() },
+                              { L"Total",   0, false, DxuiTextHAlign::Right, true, GetTotalTip() },
+                              { L"Total %", 0, false, DxuiTextHAlign::Right, true, L"Total as a share of the profile's cycles" },
+                              { L"Calls",   0, false, DxuiTextHAlign::Right, true, GetCallsTip() } });
         break;
 
     case View::Flame:
         break;
 
     default:
-        m_list->SetColumns ({ { L"Opcode", 0, false, DxuiTextHAlign::Left },
-                              { L"Mode",   0, false, DxuiTextHAlign::Left },
-                              { L"Count",  0, false, DxuiTextHAlign::Right },
-                              { L"Cycles", 0, false, DxuiTextHAlign::Right } });
+        m_list->SetColumns ({ { L"Opcode", 0, false, DxuiTextHAlign::Left,  true, L"The instruction's mnemonic" },
+                              { L"Mode",   0, false, DxuiTextHAlign::Left,  true, L"The instruction's addressing mode" },
+                              { L"Count",  0, false, DxuiTextHAlign::Right, true, L"The times the instruction ran during the period" },
+                              { L"Cycles", 0, false, DxuiTextHAlign::Right, true, L"The cycles the instruction took during the period" } });
         break;
     }
 
@@ -267,6 +270,68 @@ const wchar_t * ProfilerPane::GetViewLabel (View view)
     case View::Flame:     return L"Flame graph";
     default:              return L"Opcodes";
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetRoutineTip
+//
+//  The heading tips the routines and the call tree share.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ProfilerPane::GetRoutineTip()
+{
+    return L"The routine, by its symbol or address. Top level is the cycles in code outside any call seen during the period";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetSelfTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ProfilerPane::GetSelfTip()
+{
+    return L"The cycles in the routine's instructions, without the routines it calls";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetTotalTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ProfilerPane::GetTotalTip()
+{
+    return L"The cycles in the routine and every routine it calls";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetCallsTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ProfilerPane::GetCallsTip()
+{
+    return L"The times the routine was called during the period";
 }
 
 
@@ -323,13 +388,16 @@ std::optional<Word> ProfilerPane::GetRowAddress (const std::optional<ProfileData
 //
 //  ProfilerPane::GetDefaultSort
 //
+//  Most first: the routines by self cycles, which the timeline's colors
+//  follow, and the call tree by total, which follows the tree.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ProfilerPane::Sort ProfilerPane::GetDefaultSort (View view)
 {
     switch (view)
     {
-    case View::Routines:  return { 3, true };
+    case View::Routines:  return { 1, true };
     case View::Tree:      return { 2, true };
     case View::Addresses: return { 2, true };
     case View::Opcodes:   return { 3, true };
@@ -613,21 +681,43 @@ void ProfilerPane::Apply (const DebuggerViewSnapshot & snapshot)
 //
 //  ProfilerPane::BuildIfDue
 //
-//  The chosen period's profile, built once for each stop while the pane is
-//  open on a stopped machine with history, so the profile appears without the
-//  period being chosen again.
+//  The chosen period's profile, built at a stop while the pane is open on a
+//  stopped machine with history, so the profile appears without the period
+//  being chosen again. A stop less than kRebuildCycles from the last build,
+//  as a step is, doesn't rebuild the profile.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProfilerPane::BuildIfDue()
 {
-    bool  isOpen = m_frame != nullptr && m_frame->IsVisible();
+    bool      isOpen   = m_frame != nullptr && m_frame->IsVisible();
+    uint64_t  distance = 0;
 
 
 
-    if (!isOpen || !m_isPaused || m_isBuilding || !m_stopCycle.has_value() || m_builtCycle == m_stopCycle)
+    if (!isOpen || !m_isPaused || m_isBuilding || !m_stopCycle.has_value())
     {
         return;
+    }
+
+    if (m_builtCycle.has_value())
+    {
+        distance = (*m_stopCycle > *m_builtCycle) ? *m_stopCycle - *m_builtCycle : *m_builtCycle - *m_stopCycle;
+
+        if (distance < kRebuildCycles)
+        {
+            return;
+        }
+    }
+
+    if (!m_isPeriodRead)
+    {
+        IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+        m_period       = GetPeriodIndex ((host != nullptr) ? host->GetDebuggerProfilerPeriod() : std::string());
+        m_isPeriodRead = true;
     }
 
     ShowPeriod (m_period);
@@ -648,7 +738,7 @@ void ProfilerPane::Refresh()
     const std::optional<ProfileData>              & profile  = (m_view == View::Addresses) ? m_byAddress : m_byOpcode;
     const Sort                                    & sort     = m_sorts[(size_t) m_view];
     bool                                            wasShown = !m_totals->GetText().empty();
-    std::vector<std::vector<DxuiListView::Cell>>    cells    = GetCells (profile, m_view, m_isOn);
+    std::vector<std::vector<DxuiListView::Cell>>    cells    = GetCells (profile, m_view, m_isOn, [this] (const ProfileRoutineEntry & routine) { return GetTipHeadWithComment (routine); });
     std::vector<std::vector<DxuiListView::Cell>>    sorted;
 
 
@@ -793,11 +883,11 @@ void ProfilerPane::SetBarEntries()
         entries.push_back (std::move (label));
     }
 
-    command            = add (s_kProfilePeriod, L"Last 60 s", L"Build the profile of a period of history", DxuiToolbar::Kind::DropDown, 0, [] {});
+    command            = add (s_kProfilePeriod, L"Last 5 s", L"Build the profile of a period of history", DxuiToolbar::Kind::DropDown, 0, [] {});
     command->labelText = [this] { return std::wstring (GetPeriods()[m_period].label); };
 
-    add (s_kProfileReset, L"Reset",   L"Reset: start the counts over",           DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); }, s_kpszMdl2Refresh);
-    add (s_kProfileSave,  L"Save...", L"Save...: save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { Save(); },            s_kpszMdl2Save);
+    add (s_kProfileReset, L"Reset",   L"Start the counts over",           DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); }, s_kpszMdl2Refresh);
+    add (s_kProfileSave,  L"Save...", L"Save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { Save(); },            s_kpszMdl2Save);
 
     command            = add (s_kProfileView, L"Routines", L"Choose the profile's view: routines, the call tree, a flame graph, addresses or opcodes", DxuiToolbar::Kind::DropDown, 1, [] {});
     command->labelText = [this] { return std::wstring (GetViewLabel (m_view)); };
@@ -837,7 +927,7 @@ void ProfilerPane::SetViewMenu()
     for (size_t period = 0; period < GetPeriods().size(); period++)
     {
         views.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (GetPeriods()[period].label, m_period == period,
-                                                                                  [this, period] { ShowPeriod (period); })));
+                                                                                  [this, period] { ChoosePeriod (period); })));
     }
 
     m_bar.GetBar()->SetDropDownItems (s_kProfilePeriod, std::move (views));
@@ -857,6 +947,7 @@ const std::vector<ProfilerPane::Period> & ProfilerPane::GetPeriods()
 {
     static const std::vector<Period>  periods =
     {
+        { "HISTORY 5",   L"Last 5 s"            },
         { "HISTORY 10",  L"Last 10 s"           },
         { "HISTORY 60",  L"Last 60 s"           },
         { "HISTORY 300", L"Last 5 min"          },
@@ -866,6 +957,63 @@ const std::vector<ProfilerPane::Period> & ProfilerPane::GetPeriods()
 
 
     return periods;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetPeriodIndex
+//
+//  The period whose HISTORY argument is `argument`, or the first, the last
+//  5 seconds, for an empty or unknown one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ProfilerPane::GetPeriodIndex (const std::string & argument)
+{
+    const std::vector<Period>  & periods = GetPeriods();
+    std::string                  words   = "HISTORY " + argument;
+
+
+
+    for (size_t period = 0; period < periods.size(); period++)
+    {
+        if (words == periods[period].words)
+        {
+            return period;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::ChoosePeriod
+//
+//  The user's choice from the period menu, saved for the next session.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::ChoosePeriod (size_t period)
+{
+    IDebuggerWindowHost  * host = m_host.GetWindowHost();
+
+
+
+    ShowPeriod (period);
+
+    if (host != nullptr)
+    {
+        host->SetDebuggerProfilerPeriod (std::string (GetPeriods()[m_period].words).substr (std::size ("HISTORY ") - 1));
+    }
 }
 
 
@@ -1232,15 +1380,20 @@ bool ProfilerPane::GoForward()
 //
 //  ProfilerPane::Tick
 //
-//  The profile of a zoomed view is built once the wheel has stopped.
+//  The profile of a zoomed view is built once the wheel has stopped, and the
+//  flame graph's clicked bar marches.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ProfilerPane::Tick (int64_t nowMs)
 {
+    bool  isMarching = m_flameGraph != nullptr && m_host.IsRoutable (m_flameGraph) && m_flameGraph->Animate (nowMs);
+
+
+
     if (!m_zoomDueMs.has_value())
     {
-        return false;
+        return isMarching;
     }
 
     if (nowMs < *m_zoomDueMs)
@@ -1250,7 +1403,7 @@ bool ProfilerPane::Tick (int64_t nowMs)
 
     m_zoomDueMs.reset();
     ApplyState (false);
-    return false;
+    return isMarching;
 }
 
 
@@ -1472,16 +1625,16 @@ bool ProfilerPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focused
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProfilerPane::TryGetTip
+//  ProfilerPane::TryGetTipAt
 //
 //  Over the timeline, the frame there; over the flame graph, the routine;
 //  each at once and following the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProfilerPane::TryGetTip (POINT clientPx, PaneTip & tip)
+bool ProfilerPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
-    tip.kind = PaneTip::Kind::Pointer;
+    tip.placement = DxuiTip::Placement::FollowPointer;
 
     if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, tip.text, tip.lineSwatches))
     {
@@ -1565,6 +1718,26 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProfilerPane::GetTipHeadWithComment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfilerPane::GetTipHeadWithComment (const ProfileRoutineEntry & routine) const
+{
+    std::string  head    = routine.GetTipHead();
+    std::string  comment = (routine.kind != RoutineKind::Top && !routine.symbol.empty()) ? m_host.GetSymbolComment (routine.address, routine.symbol) : std::string();
+
+
+
+    return comment.empty() ? head : head + "\n" + comment;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProfilerPane::GetCells
 //
 //  A row an opcode, an address, a routine or a node of the call tree; an
@@ -1574,7 +1747,7 @@ void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, View view, bool isOn)
+std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::optional<ProfileData> & profile, View view, bool isOn, const TipHeadFn & tipHead)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
     auto                                          share = [&profile] (uint64_t cycles)
@@ -1582,6 +1755,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
         return std::format (L"{:.1f}%", 100.0 * (double) cycles / (double) std::max<uint64_t> (profile->cycles, 1));
     };
     auto                                          count = [] (uint64_t value) { return DebuggerStatusText::FormatCount (value); };
+    auto                                          head  = [&tipHead] (const ProfileRoutineEntry & routine) { return tipHead ? tipHead (routine) : routine.GetTipHead(); };
 
 
 
@@ -1611,6 +1785,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
                                { count (entry.total) }, { share (entry.total) }, { count (entry.calls) },
                                { (entry.calls != 0) ? count (entry.total / entry.calls) : std::wstring (L"-") } });
             cells.back()[0].swatch = ProfileTimeline::GetShareColor (i, 0);
+            cells.back()[0].tip    = TextEncoding::NarrowToWide ((entry.kind == RoutineKind::Top) ? profile->GetTopLevelTip() : head (entry));
         }
     }
     else if (view == View::Tree)
@@ -1620,6 +1795,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
             cells.push_back ({ { std::wstring ((size_t) entry.depth * 2, L' ') + TextEncoding::NarrowToWide (profile->routines[entry.routine].GetName()) },
                                { count (entry.self) }, { count (entry.total) }, { share (entry.total) }, { count (entry.calls) } });
             cells.back()[0].swatch = ProfileTimeline::GetShareColor (entry.routine, 0);
+            cells.back()[0].tip    = TextEncoding::NarrowToWide ((profile->routines[entry.routine].kind == RoutineKind::Top) ? profile->GetTopLevelTip() : head (profile->routines[entry.routine]));
         }
     }
     else if (view == View::Opcodes)

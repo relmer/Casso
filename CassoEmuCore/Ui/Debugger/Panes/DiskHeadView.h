@@ -11,9 +11,11 @@
 //
 //  DiskHeadView
 //
-//  The head over the disk's tracks, at quarter-track resolution: a ruler with
-//  a tick for every track, a marker where the head is, and below it the four
-//  stepper phase magnets and the motor, each lit while on.
+//  The head over the disk's tracks, at quarter-track resolution: the drive's
+//  name, then a ruler with a tick for every track and a marker where the head
+//  is. Under the ruler, the head's track, the word Motor, lit while the motor
+//  is on, and the four stepper phase magnets in the order 3 2 1 0, each lit
+//  while on, ending at the ruler's right edge.
 //
 //  The marker sweeps toward the head's track at the drive's stepping speed
 //  rather than jumping a frame at a time. It arrives bright and settles to
@@ -30,6 +32,8 @@ public:
     static constexpr int      kLampDip      = 12;
     static constexpr int      kLampStepDip  = 34;
     static constexpr int      kCaptionDip   = 56;
+    static constexpr int      kLabelGapDip  = 12;
+    static constexpr int      kDriveDip     = 60;       // the drive's name, ahead of the ruler
     static constexpr int      kQuarters     = 4;
     static constexpr int      kMajorTrack   = 5;
 
@@ -38,14 +42,39 @@ public:
     static constexpr int64_t  kSettleMs     = 500;      // arrival flash down to the accent
     static constexpr int64_t  kFadeMs       = 1500;     // a track left behind, to gone
 
-    void                         SetHead (const DiagnosticsDiskHead & head);
-    const DiagnosticsDiskHead &  GetHead () const                           { return m_head; }
+    static constexpr int      kSideBySideDip = 300;    // the narrowest a drive is drawn beside the other
 
-    //  A row more where the drive and track do not fit beside the lamps, and
-    //  another where they do not fit on one row.
+    //  Which drive the view draws: the selected one, drive 1, drive 2, or
+    //  both, side by side where each has kSideBySideDip and one over the
+    //  other where not.
+    enum class DriveChoice
+    {
+        Selected,
+        Drive1,
+        Drive2,
+        Both,
+    };
+
+    void                         SetHead   (const DiagnosticsDiskHead & head);
+    const DiagnosticsDiskHead &  GetHead   () const                         { return m_head; }
+    void                         SetChoice (DriveChoice choice);
+    DriveChoice                  GetChoice () const                         { return m_choice; }
+    const DiskHeadView         * GetOther  () const                         { return m_other.get(); }
+
+    //  One drive's head from the payload: the selected drive's as it is, the
+    //  other's at its quarter track with its phases and motor off.
+    static DiagnosticsDiskHead   MakeDriveHead (const DiagnosticsDiskHead & payload, int drive);
+
+    //  Whether two drives go side by side in a width.
+    static bool                  IsSideBySide  (int widthPx, const DxuiDpiScaler & scaler);
+
+    //  The ruler and the row under it; two drives one over the other where
+    //  they don't fit side by side.
     int                          GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
-    //  The head marker's left edge and width, in pixels.
+    //  The ruler's left edge, past the drive's name, and the head marker's
+    //  left edge and width, in pixels.
+    float                        GetRulerLeft () const;
     float                        GetHeadX     () const;
     float                        GetHeadWidth () const;
 
@@ -72,21 +101,22 @@ private:
 
     int   GetQuarterCount () const { return std::max (1, m_head.maxQuarterTrack + 1); }
 
-    //  "Drive 1  track 17.25" and its two halves, whether it goes on a row of
-    //  its own below the lamps at this width, and whether its halves need a
-    //  row each.
-    std::wstring  GetLabel      () const;
+    //  "Drive 1" and "Track 17.25".
     std::wstring  GetDriveText  () const;
     std::wstring  GetTrackText  () const;
-    bool          IsLabelBelow  (float widthPx, const DxuiDpiScaler & scaler) const;
-    bool          IsLabelSplit  (float widthPx, const DxuiDpiScaler & scaler) const;
 
-    //  1 where the lamp row fits the width, less where it has to shrink.
+    //  1 where the row under the ruler fits the ruler's width, less where it
+    //  has to shrink.
     float         GetLampScale  (float widthPx) const;
 
-    DiagnosticsDiskHead  m_head;
-    DxuiDpiScaler        m_scaler;
-    float                m_fontDip = 12.0f;     // the label's font, as last painted
+    void  SetDriveHead (const DiagnosticsDiskHead & head);
+
+    DiagnosticsDiskHead            m_head;
+    DiagnosticsDiskHead            m_payload;
+    DriveChoice                    m_choice  = DriveChoice::Selected;
+    std::unique_ptr<DiskHeadView>  m_other;
+    DxuiDpiScaler                  m_scaler;
+    float                          m_fontDip = 12.0f;   // the label's font, as last painted
 
     bool                         m_placed    = false;               // the marker has a position yet
     double                       m_shown     = 0.0;                 // the marker's quarter track, on its way to the head's

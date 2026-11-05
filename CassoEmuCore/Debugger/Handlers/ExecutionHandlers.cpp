@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/SymbolDescriptions.h"
 #include "Debugger/Reverse/HistoryStatus.h"
 
 #include "Config/IFileSystem.h"
@@ -629,6 +630,7 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, ProfileList list, 
     data.isOn         = m_profile.IsOn();
     data.list         = list;
     data.historyRange = m_historyRange;
+    data.isFromHistoryStart = m_isFromHistoryStart;
     data.historyBuild = m_historyBuilds;
     data.instructions = m_profile.GetInstructionCount();
     data.cycles       = m_profile.GetTotalCycles();
@@ -698,6 +700,49 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, ProfileList list, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExecutionHandlers::BuildTopAddresses
+//
+//  The symbol is the nearest up to kMaxBack bytes before, so an address in the
+//  middle of a loop is read as the routine it is in, as NEWSTT's loop is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BuildTopAddresses (DebugSession & session, ProfileData & data) const
+{
+    static constexpr size_t  kTopAddresses = 5;
+    static constexpr Word    kMaxBack      = 64;
+
+
+
+    data.topAddresses.clear();
+
+    for (const auto & [address, cycles] : m_routines.GetTopCycles())
+    {
+        data.topAddresses.push_back ({ address, std::string(), cycles });
+    }
+
+    std::sort (data.topAddresses.begin(), data.topAddresses.end(), [] (const ProfileAddressEntry & a, const ProfileAddressEntry & b)
+    {
+        return a.cycles != b.cycles ? a.cycles > b.cycles : a.address < b.address;
+    });
+
+    if (data.topAddresses.size() > kTopAddresses)
+    {
+        data.topAddresses.resize (kTopAddresses);
+    }
+
+    for (ProfileAddressEntry & entry : data.topAddresses)
+    {
+        (void) session.GetSymbols().TryFindNearestName (entry.address, kMaxBack, entry.symbol);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExecutionHandlers::BuildRoutines
 //
 //  The routines by their own cycles, each with its symbol; the call tree
@@ -732,11 +777,15 @@ void ExecutionHandlers::BuildRoutines (DebugSession & session, ProfileData & dat
         entry.kind    = routines[i].kind;
         entry.total   = routineTotal[i];
 
-        if (entry.kind != RoutineKind::Top)
+        if (entry.kind != RoutineKind::Top && session.GetSymbols().TryFindName (entry.address, entry.symbol, table))
         {
-            session.GetSymbols().TryFindName (entry.address, entry.symbol, table);
+            const char *  description = SymbolDescriptions::Find (entry.symbol);
+
+            entry.description = (description != nullptr) ? description : "";
         }
     }
+
+    BuildTopAddresses (session, data);
 
     for (size_t i = 0; i < nodes.size(); i++)
     {
@@ -1070,6 +1119,7 @@ void ExecutionHandlers::InstallProfile (const ProfileCounts & counts)
     m_profile      = counts.table;
     m_routines     = counts.routines;
     m_historyRange = counts.historyRange;
+    m_isFromHistoryStart = counts.isFromHistoryStart;
     m_historyBuilds++;
     m_profile.SetOn (isOn);
     m_profilePending.reset();

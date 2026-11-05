@@ -120,9 +120,8 @@ HRESULT KeyframeStore::Relayout (
     HRESULT                  hr         = S_OK;
     bool                     isDropped  = true;
     size_t                   end        = 0;
-    Byte                   * buffer     = nullptr;
     std::vector<Entry>       entries;
-    std::unique_ptr<Byte[]>  arena;
+    ArenaPtr                 arena;
 
 
 
@@ -136,10 +135,8 @@ HRESULT KeyframeStore::Relayout (
     arenaBytes = (std::max) (arenaBytes, m_storedBytes);
     slotCount  = (std::max) (slotCount, m_count);
 
-    buffer = new (std::nothrow) Byte[arenaBytes];
-    CPRA (buffer);
-
-    arena.reset (buffer);
+    arena = AllocateArena (arenaBytes);
+    CPRA (arena);
 
     entries.resize (slotCount);
 
@@ -455,7 +452,6 @@ HRESULT KeyframeStore::Reserve (size_t stateBytes)
     size_t    stateRoom   = 0;
     size_t    packedBound = 0;
     size_t    arenaBytes  = 0;
-    Byte    * arena       = nullptr;
 
 
 
@@ -466,10 +462,8 @@ HRESULT KeyframeStore::Reserve (size_t stateBytes)
 
     ComputeLayout (stateBytes, slotCount, arenaBytes);
 
-    arena = new (std::nothrow) Byte[arenaBytes];
-    CPRA (arena);
-
-    m_arena.reset (arena);
+    m_arena = AllocateArena (arenaBytes);
+    CPRA (m_arena);
 
     m_arenaBytes = arenaBytes;
     m_entries.resize (slotCount);
@@ -1946,6 +1940,23 @@ void KeyframeStore::ScheduleAfter (uint64_t cycle)
 
 
     m_nextDueCycle = (cycle / interval + 1) * interval;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KeyframeStore::AllocateArena
+//
+//  Committed pages from the system, or null when there are none to commit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+KeyframeStore::ArenaPtr KeyframeStore::AllocateArena (size_t bytes)
+{
+    return ArenaPtr (static_cast<Byte *> (VirtualAlloc (nullptr, (std::max) (bytes, (size_t) 1), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE)));
 }
 
 

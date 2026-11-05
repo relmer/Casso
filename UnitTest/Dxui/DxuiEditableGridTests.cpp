@@ -276,6 +276,25 @@ public:
 
 
 
+    //  The I-beam is over the row a new entry is typed into, and over the box
+    //  of a cell being edited.
+    TEST_METHOD (TheIBeamIsOverTheHintRowAndTheEditBox)
+    {
+        Host  host;
+        RECT  box  = {};
+
+
+
+        Assert::IsTrue (host.grid.GetCursorForPoint (host.GetCellCenter (3, 0)) == IDC_IBEAM, L"over the hint row");
+
+        host.Click (1, 1);
+        box = host.grid.GetEditor().GetBounds();
+
+        Assert::IsTrue (host.grid.GetCursorForPoint (POINT { box.left + 4, (box.top + box.bottom) / 2 }) == IDC_IBEAM, L"over the edit box");
+    }
+
+
+
     TEST_METHOD (AnUnchangedCellIsNotCommitted)
     {
         Host  host;
@@ -338,6 +357,40 @@ public:
         Assert::IsFalse  (host.grid.IsEditing(), L"the edit ends");
         Assert::AreEqual (5, host.grid.GetRowCount(), L"and a new hint row follows it");
         Assert::AreEqual (std::wstring (L"Add new range"), host.grid.GetCellsOfRow (4)[1].text);
+    }
+
+
+
+    //  A row added past the visible rows is scrolled into view, whether the
+    //  host lists it during the add or in a later refresh.
+    TEST_METHOD (AnAddedRowIsScrolledIntoView)
+    {
+        Host           host;
+        DxuiDpiScaler  scaler;
+        int            rows  = 0;
+        RECT           cell  = {};
+
+
+
+        scaler.SetDpi (96);
+
+        for (int i = 0; i < 40; i++)
+        {
+            host.rows.push_back ({ L"Row", L"$0", L"$1" });
+            host.readOnly.push_back (false);
+        }
+
+        host.Refresh();
+        host.grid.Layout (RECT { 0, 0, 400, 200 }, scaler);
+        host.grid.EnsureVisible (host.grid.GetDataRowCount());
+
+        host.Click (host.grid.GetDataRowCount(), 1);
+        host.grid.GetEditor().SetText (L"$6000");
+        host.Key (VK_RETURN);
+
+        rows = host.grid.GetRowCount();
+        Assert::AreEqual ((size_t) 1, host.adds.size());
+        Assert::IsTrue (host.grid.GetCellTextRectPx (rows - 1, 1, cell) && cell.bottom <= 200, L"the hint row, under the new row, is in view");
     }
 
 

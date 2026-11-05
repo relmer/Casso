@@ -5,6 +5,7 @@
 #include "Window/DxuiDialogWindow.h"
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiPanel.h"
+#include "Widgets/DxuiCheckbox.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
@@ -34,6 +35,7 @@ static constexpr int  s_kLineHeightDip   =  20;
 static constexpr int  s_kChromeHeightDip = 104;   // caption + button row + content vpad
 static constexpr int  s_kMinHeightDip    = 128;
 static constexpr int  s_kMaxHeightDip    = 560;
+static constexpr int  s_kCheckRowDip     =  32;   // a check box under the text, with room above it
 
 
 
@@ -57,11 +59,32 @@ public:
         m_glyphArgb = glyphArgb;
     }
 
+    //  A check box under the text, such as a notice's box that turns it off.
+    void  SetCheck (const std::wstring & label, bool isChecked, DxuiCheckbox::ChangeFn onChange)
+    {
+        m_check = CreateChild<DxuiCheckbox>();
+        m_check->SetLabel    (label);
+        m_check->SetChecked  (isChecked);
+        m_check->SetOnChange (std::move (onChange));
+    }
+
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
     {
+        RECT  check = boundsPx;
+
+
+
         m_bounds = boundsPx;
         m_scaler = scaler;
         SetBounds (boundsPx);
+
+        if (m_check != nullptr)
+        {
+            m_bounds.bottom -= scaler.ToPx (s_kCheckRowDip);
+            check.top        = m_bounds.bottom;
+            m_check->SetDpi (scaler.GetDpi());
+            m_check->Layout (check, scaler);
+        }
     }
 
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
@@ -112,11 +135,17 @@ bf.weight,
 true);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
+
+        if (m_check != nullptr)
+        {
+            m_check->Paint (painter, text, theme);
+        }
     }
 
     bool  TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) override;
 
 private:
+    DxuiCheckbox * m_check     = nullptr;
     std::wstring   m_text;
     wchar_t        m_glyph     = 0;
     uint32_t       m_glyphArgb = 0;
@@ -164,6 +193,11 @@ bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDx
         heightPx = std::max (heightPx, m_scaler.ToPx (s_kGlyphRowDip));
     }
 
+    if (m_check != nullptr)
+    {
+        heightPx += m_scaler.ToPx (s_kCheckRowDip);
+    }
+
 Error:
     return SUCCEEDED (hr);
 }
@@ -204,12 +238,34 @@ public:
         m_buttons   = std::move (buttons);
     }
 
+    void  SetCheck  (const std::wstring & label, bool isChecked) { m_checkLabel = label; m_isChecked = isChecked; }
+    bool  IsChecked() const                                      { return m_isChecked; }
+
+    //  The box with its buttons, and the check box under the text when
+    //  checkLabel is given, ioChecked its state before and after.
+    static int  Run (HWND                                      owner,
+                     const IDxuiTheme                        * theme,
+                     const wchar_t                           * text,
+                     const wchar_t                           * caption,
+                     UINT                                      uType,
+                     const std::vector<DxuiMessageBoxButton>  & buttons,
+                     int                                       defaultId,
+                     const std::wstring                      * checkLabel,
+                     bool                                    * ioChecked);
+
 protected:
     void  OnCreate() override
     {
-        DxuiMessageBoxBody *  body = CreateDialogContent<DxuiMessageBoxBody> ();
+        m_body = CreateDialogContent<DxuiMessageBoxBody>();
 
-        body->Set (m_text, m_glyph, m_glyphArgb);
+        m_body->Set (m_text, m_glyph, m_glyphArgb);
+
+        //  The state is copied here as it changes, since the box's controls
+        //  are destroyed with its window when it closes.
+        if (!m_checkLabel.empty())
+        {
+            m_body->SetCheck (m_checkLabel, m_isChecked, [this] (bool isChecked) { m_isChecked = isChecked; });
+        }
 
         for (const ButtonSpec & b : m_buttons)
         {
@@ -218,6 +274,9 @@ protected:
     }
 
 private:
+    DxuiMessageBoxBody      * m_body      = nullptr;
+    std::wstring              m_checkLabel;
+    bool                      m_isChecked = false;
     std::wstring              m_text;
     wchar_t                   m_glyph     = 0;
     uint32_t                  m_glyphArgb = 0;
@@ -363,10 +422,6 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
 //
 //  DxuiMessageBox (buttons)
 //
-//  The icon mask picks a glyph and its color; the rest of uType is unused.
-//  Without a Dxui backend the system box is used instead, its OK as the
-//  first button.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMessageBox (HWND                                      owner,
@@ -376,6 +431,62 @@ int DxuiMessageBox (HWND                                      owner,
                     UINT                                      uType,
                     const std::vector<DxuiMessageBoxButton>  & buttons,
                     int                                       defaultId)
+{
+    return DxuiMessageBoxWindow::Run (owner, theme, text, caption, uType, buttons, defaultId, nullptr, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBox (check box)
+//
+//  The box with uType's buttons, as the first form has them, and a check box
+//  under the text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiMessageBox (HWND                 owner,
+                    const IDxuiTheme   * theme,
+                    const wchar_t      * text,
+                    const wchar_t      * caption,
+                    UINT                 uType,
+                    const std::wstring & checkLabel,
+                    bool               & ioChecked)
+{
+    std::vector<DxuiMessageBoxButton>  buttons = (uType & MB_TYPEMASK) == MB_OKCANCEL ? std::vector<DxuiMessageBoxButton> { { L"OK", IDOK }, { L"Cancel", IDCANCEL } }
+                                                                                      : std::vector<DxuiMessageBoxButton> { { L"OK", IDOK } };
+
+
+
+    return DxuiMessageBoxWindow::Run (owner, theme, text, caption, uType, buttons, IDOK, &checkLabel, &ioChecked);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBoxWindow::Run
+//
+//  The icon mask picks a glyph and its color; the rest of uType is unused.
+//  Without a Dxui backend the system box is used instead, its OK as the
+//  first button, and ioChecked is left as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiMessageBoxWindow::Run (HWND                                      owner,
+                               const IDxuiTheme                        * theme,
+                               const wchar_t                           * text,
+                               const wchar_t                           * caption,
+                               UINT                                      uType,
+                               const std::vector<DxuiMessageBoxButton>  & buttons,
+                               int                                       defaultId,
+                               const std::wstring                      * checkLabel,
+                               bool                                    * ioChecked)
 {
     using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
     wchar_t                   glyph      = 0;
@@ -419,6 +530,12 @@ int DxuiMessageBox (HWND                                      owner,
 
     dlg.Configure (body, glyph, glyphArgb, specs);
 
+    if (checkLabel != nullptr && ioChecked != nullptr)
+    {
+        dlg.SetCheck (*checkLabel, *ioChecked);
+        heightDip = std::min (heightDip + s_kCheckRowDip, s_kMaxHeightDip);
+    }
+
     params           = DxuiMakeMessageBoxParams (owner, caption, heightDip);
     params.hInstance = hInst;
 
@@ -444,6 +561,11 @@ int DxuiMessageBox (HWND                                      owner,
         dlg.SetTheme (theme);
 
         choice = dlg.ShowModalDialog (defaultId);
+
+        if (ioChecked != nullptr)
+        {
+            *ioChecked = dlg.IsChecked();
+        }
     }
 
     return choice;

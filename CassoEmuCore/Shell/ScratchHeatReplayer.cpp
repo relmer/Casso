@@ -208,8 +208,11 @@ Error:
 //
 //  ScratchHeatReplayer::FindAccess
 //
-//  The job's one part replayed on the calling thread, the access it found
-//  taken from the result, and the map's tables let go.
+//  The job's one part replayed on the calling thread, and the access it
+//  found taken from the result. The map's tables stay allocated for the next
+//  lookup, as they do after a rebuild: a seek looks up an access at each
+//  position it lands on, and in a debug build, allocating the tables again
+//  for each lookup took about a third of the time of a run of seeks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,8 +240,6 @@ HRESULT ScratchHeatReplayer::FindAccess (
     outResult = std::move (results.front());
 
 Error:
-    m_map.Stop();
-
     return hr;
 }
 
@@ -478,12 +479,11 @@ HRESULT ScratchHeatReplayer::Replay (
     hr = replayer->LoadFrom (m_state, part.startPosition, part.journalIndex);
     CHR (hr);
 
-    m_map.Stop();
     m_map.SetPositionSource (machine->GetPositionPtr());
     m_map.SetFadeSeconds    (job.fadeSeconds);
-    m_map.Start             (cpu->GetCpu6502()->GetInstructionSet(), cpu->GetHistoryCycles());
+    m_map.Restart           (cpu->GetCpu6502()->GetInstructionSet(), cpu->GetHistoryCycles());
     m_map.SetCountFrom      (job.countFrom);
-    m_map.SetKeptBits    (part.kept);
+    m_map.SetKeptBits       (part.kept);
 
     isConnected = MachineDebugTarget::TryConnectHeatMap (*machine, &m_map);
     CBRA (isConnected);

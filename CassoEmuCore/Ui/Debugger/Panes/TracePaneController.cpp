@@ -46,9 +46,13 @@ TracePaneController::~TracePaneController() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring TracePaneController::GetId() const
+const std::wstring & TracePaneController::GetId() const
 {
-    return DebuggerLayout::kTrace;
+    static const std::wstring  s_kId = DebuggerLayout::kTrace;
+
+
+
+    return s_kId;
 }
 
 

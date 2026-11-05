@@ -3,6 +3,7 @@
 #include "Debugger/IoEventLog.h"
 #include "Debugger/Reply.h"
 #include "Devices/Acia6551.h"
+#include "Devices/Ssi263.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -159,6 +160,47 @@ namespace DebuggerTests
             entry.chip  = 2;
             entry.value = 0x41;
             Assert::AreEqual (std::string ("Slot 2 sent $41"), IoEventLog::FormatEvent (entry));
+        }
+
+
+        static std::string FormatSpeech (Byte reg, Byte value)
+        {
+            IoEvent  entry;
+
+
+
+            entry.kind  = IoEventKind::SpeechWrite;
+            entry.reg   = reg;
+            entry.value = value;
+
+            return IoEventLog::FormatEvent (entry);
+        }
+
+
+        TEST_METHOD (ASpeechWriteIsDecodedByRegister)
+        {
+            Assert::AreEqual (std::string ("SSI-263 phoneme $14 IU (you), duration $3"), FormatSpeech (Ssi263::kRegDurationPhoneme, 0xD4));
+            Assert::AreEqual (std::string ("SSI-263 inflection = $99"),                  FormatSpeech (Ssi263::kRegInflection,      0x99));
+            Assert::AreEqual (std::string ("SSI-263 rate $A, inflection bits $9"),       FormatSpeech (Ssi263::kRegRateInflection,  0xA9));
+            Assert::AreEqual (std::string ("SSI-263 power on, articulation $5, amplitude $C"),   FormatSpeech (Ssi263::kRegCtlArtAmp, 0x5C));
+            Assert::AreEqual (std::string ("SSI-263 power down, articulation $0, amplitude $0"), FormatSpeech (Ssi263::kRegCtlArtAmp, 0x80));
+            Assert::AreEqual (std::string ("SSI-263 filter = $E6"),                      FormatSpeech (Ssi263::kRegFilterFreq,      0xE6));
+        }
+
+
+        TEST_METHOD (FormatEntries_ListsASpeechWriteWithItsAddress)
+        {
+            std::vector<DebugEventEntry<IoEvent>>  entries;
+            std::vector<std::string>               lines;
+
+
+
+            entries.push_back (MakeSound (IoEventKind::ViaWrite,    100, 0xC444, 0, 4, 0xE6));
+            entries.push_back (MakeSound (IoEventKind::SpeechWrite, 100, 0xC444, 0, Ssi263::kRegFilterFreq, 0xE6));
+
+            IoEventLog::FormatEntries (entries, lines);
+
+            Assert::AreEqual (std::string ("cycle          100        +0  $C444  SSI-263 filter = $E6"), lines[1]);
         }
     };
 }

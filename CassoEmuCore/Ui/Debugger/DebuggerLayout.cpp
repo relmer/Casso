@@ -144,7 +144,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
     std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
-                                       kVideoLog, kSoundLog, kSerialLog, kNetworkLog, kBasicProgram, kSymbols, kBookmarks, kProfiler, kDataBlocks };
+                                       kVideoLog, kSoundLog, kSerialLog, kNetworkLog, kBasicProgram, kSymbols, kMachineSymbols, kBookmarks, kProfiler, kDataBlocks };
 
 
 
@@ -370,7 +370,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kConsole;
     }
 
-    if ((pane == kSymbols || pane == kBookmarks || pane == kDataBlocks) && layout.Contains (kBreakpoints))
+    if ((pane == kSymbols || pane == kMachineSymbols || pane == kBookmarks || pane == kDataBlocks) && layout.Contains (kBreakpoints))
     {
         return kBreakpoints;
     }
@@ -405,7 +405,7 @@ bool DebuggerLayout::IsBasicPane (const std::wstring & pane)
 
 std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
 {
-    return { kSymbols, kBookmarks, kProfiler, kDataBlocks };
+    return { kSymbols, kMachineSymbols, kBookmarks, kProfiler, kDataBlocks };
 }
 
 
@@ -521,6 +521,27 @@ std::wstring DebuggerLayout::GetViewMenuGroup (const std::wstring & pane)
         if (pane == GetMemoryPaneId (window))
         {
             return L"Memory";
+        }
+    }
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        if (pane == GetSourcePaneId (slot))
+        {
+            return L"Source files";
+        }
+    }
+
+    if (pane == kBasicProgram)
+    {
+        return L"Source files";
+    }
+
+    for (const wchar_t * log : { kDiskLog, kInputLog, kVideoLog, kSoundLog, kSerialLog, kNetworkLog })
+    {
+        if (pane == log)
+        {
+            return L"Logs";
         }
     }
 
@@ -676,13 +697,14 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add (kNetworkLog, kConsole);
 
     //  The BASIC program is a tab of the disassembly, the profiler of the
-    //  console, and the symbols, bookmarks and data ranges of the
-    //  breakpoints.
-    layout.Add (kBasicProgram, kCode);
-    layout.Add (kProfiler,     kConsole);
-    layout.Add (kSymbols,      kBreakpoints);
-    layout.Add (kBookmarks,    kBreakpoints);
-    layout.Add (kDataBlocks,   kBreakpoints);
+    //  console, and both symbols panes, the bookmarks and the data ranges
+    //  of the breakpoints.
+    layout.Add (kBasicProgram,   kCode);
+    layout.Add (kProfiler,       kConsole);
+    layout.Add (kSymbols,        kBreakpoints);
+    layout.Add (kMachineSymbols, kBreakpoints);
+    layout.Add (kBookmarks,      kBreakpoints);
+    layout.Add (kDataBlocks,     kBreakpoints);
 
     for (const DiagnosticsPanel & panel : s_kDiagnosticsPanels)
     {

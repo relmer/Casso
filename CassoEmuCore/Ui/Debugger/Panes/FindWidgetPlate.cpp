@@ -47,6 +47,10 @@ void FindWidgetPlate::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         return;
     }
 
+    //  A shadow under the plate and the tooltip's stronger edge set it apart
+    //  from the text it floats over, which can be the same color as its fill.
+    DxuiShadow::Paint (painter, x, y, width, height, radius, m_scaler.ToPxf (1.0f), theme.LiftShadow());
+
     painter.FillRoundedRect    (x, y, width, height, radius, theme.BackgroundElevated());
-    painter.OutlineRoundedRect (x, y, width, height, radius, edge, theme.Border());
+    painter.OutlineRoundedRect (x, y, width, height, radius, edge, theme.TooltipBorder());
 }

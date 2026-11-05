@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -149,6 +149,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
+    <ResourceCompile Include="EmuTests\MachineConfigs.rc" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
@@ -214,6 +215,7 @@
     <ClCompile Include="DebuggerTests\MemoryPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\Sha1Tests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileReaderTests.cpp" />
+    <ClCompile Include="DebuggerTests\DataMarkingTests.cpp" />
     <ClCompile Include="DebuggerTests\LineTableTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileWriterTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugFileRoundTripTests.cpp" />
@@ -289,6 +291,7 @@
     <ClCompile Include="DebuggerTests\TraceHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ConfigHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\ProgramCheckTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolFileReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\RomSymbolsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolHandlersTests.cpp" />
@@ -383,6 +386,8 @@
     <ClCompile Include="DebuggerTests\InstructionSemanticsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolDescriptionsTests.cpp" />
     <ClCompile Include="DebuggerTests\DiagnosticsProviderTests.cpp" />
+    <ClCompile Include="DebuggerTests\SoundBoardLayoutTests.cpp" />
+    <ClCompile Include="DebuggerTests\SoundBoardViewTests.cpp" />
     <ClCompile Include="DebuggerTests\ViaTimerMeterTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryPaneColumnsTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerColumnWidthTests.cpp" />
@@ -419,6 +424,7 @@
     <ClCompile Include="DebuggerTests\MonitorSlotNoteTests.cpp" />
     <ClCompile Include="DebuggerTests\StepSoundTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceBannerNoFileTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceDocumentTabMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceMacroLevelTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceLineMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceSyntaxAssemblerTests.cpp" />
@@ -475,6 +481,7 @@
     <ClCompile Include="HarteTestRunner.cpp" />
     <ClCompile Include="TestCpu65C02Tests.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
+    <ClCompile Include="TestSystemState.cpp" />
     <ClCompile Include="RegressionTests.cpp" />
     <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
     <ClCompile Include="EmuTests\JsonParserTests.cpp" />
@@ -757,6 +764,7 @@
     <ClCompile Include="Dxui\DxuiTextInputCaretTests.cpp" />
     <ClCompile Include="Dxui\DxuiShimmerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputDegenerateTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTextInputEditMenuTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputWordSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiOrbitControlTests.cpp" />
     <ClCompile Include="Dxui\DxuiSliderTests.cpp" />
@@ -764,6 +772,7 @@
     <ClCompile Include="Dxui\DxuiModalScrimTests.cpp" />
     <ClCompile Include="Dxui\DxuiTooltipFrameTests.cpp" />
     <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTipServiceTests.cpp" />
     <ClCompile Include="Dxui\DxuiAddressBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextViewFindOptionsTests.cpp" />
@@ -925,6 +934,7 @@
     <ClCompile Include="Dxui\DxuiListViewMultiSelectTests.cpp" />
     <ClCompile Include="Dxui\DxuiEditableGridTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewCheckTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewFindTests.cpp" />
     <ClCompile Include="Dxui\DxuiHexViewSelectionContrastTests.cpp" />
     <ClCompile Include="DebuggerTests\ByteChangesTests.cpp" />
     <ClCompile Include="DebuggerTests\FocusAccentOwnerTests.cpp" />
@@ -935,6 +945,7 @@
     <ClCompile Include="Dxui\DxuiListViewTextSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrolledHitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewBackgroundRangeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
@@ -974,7 +985,6 @@
     <ClCompile Include="Dxui\MockDxuiTheme.cpp" />
     <ClCompile Include="Dxui\MockDxuiThemeTests.cpp" />
     <ClCompile Include="DiskMruTests.cpp" />
-    <ClCompile Include="ExeManifestTests.cpp" />
     <ClCompile Include="RepoCheckoutTests.cpp" />
     <ClCompile Include="KeyboardMapTextTests.cpp" />
     <ClCompile Include="StartupDownloadSetTests.cpp" />
@@ -995,6 +1005,7 @@
     <ClCompile Include="EmuTests\JoyportHostSettingStateTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeBudgetChangeTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
+    <ClCompile Include="EmuTests\KeyframeStretchesTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeSideTests.cpp" />
     <ClCompile Include="EmuTests\HeatHistoryTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
@@ -1029,6 +1040,8 @@
     <ClCompile Include="EmuTests\ReverseSessionStopTestTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseConsoleVerbTests.cpp" />
     <ClCompile Include="DebuggerTests\StepWhileRunningTests.cpp" />
+    <ClCompile Include="DebuggerTests\MachineCommandTests.cpp" />
+    <ClCompile Include="DebuggerTests\McpServerTests.cpp" />
     <ClCompile Include="DebuggerTests\StateFileCommandTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseStepKeyTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandLayoutTests.cpp" /><ClCompile Include="DebuggerTests\HistoryBandGoLiveTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusTextTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerWindowStatusBarTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerHistoryItemTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerStatusBarBeamZoomTests.cpp" /><ClCompile Include="DebuggerTests\ReplayProgressStatusTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseBudgetRangeTests.cpp" /><ClCompile Include="DebuggerTests\DebuggerOptionsSheetTests.cpp" />
@@ -1097,6 +1110,7 @@
     <ClInclude Include="MerlinCorpus\MerlinFixture.h" />
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
+    <ClInclude Include="TestSystemState.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="HResultAssert.h" />
     <ClInclude Include="UiTests\InMemoryFileSystem.h" />

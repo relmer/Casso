@@ -1,0 +1,919 @@
+; ============================================================================
+;  mockingboard-music.a65 -- an original tune for the Mockingboard's two
+;  AY-3-8910 chips, about 46 seconds long, looping
+;
+;  Direct-boot disk (scripts/BuildDirectBootDisk.ps1): this code loads at $6000
+;  and is entered at its first byte. The slot 4 card is driven through its two
+;  6522 VIAs as in mockingboard-test.a65. Port A is the AY data bus. Port B has
+;  BC1, BDIR and /RESET. VIA #1 at $C400 drives AY #1, VIA #2 at $C480 drives
+;  AY #2.
+;
+;  Voices
+;    AY #1  A melody (with vibrato), B arpeggiated chord, C bass. Each note
+;           starts loud and decays in software (decayTab), so the notes are
+;           plucked rather than flat.
+;    AY #2  A and B are the two notes of a chord pad, both on the hardware
+;           envelope (amplitude bit 4, R11-R13). C is the drum voice: kick,
+;           snare and hats built from the noise generator (R6, mixer R7), with
+;           a falling tone added for the kick. drumTab sets its level, noise
+;           period, tone period and mixer for each tick of a hit.
+;    A chip has one envelope generator, so both pad notes swell together. Each
+;    bar writes R13 again, which restarts the envelope.
+;
+;  Timing
+;    VIA #1 Timer 1 runs continuously at 50 Hz (latch $4FEA, 20460 cycles).
+;    The main loop polls IFR bit 6 and runs one tick per flag. No interrupts
+;    are used. 6 ticks make a row (a sixteenth note), 16 rows make a bar, and
+;    BAR_COUNT bars make the song, which then repeats.
+;
+;  Song data
+;    Notes are one byte: 1 + semitones above C2, so C2 = 1 and C7 = 61. The
+;    equates below name them (E5, Gs4). perLo and perHi contain each note's
+;    tone period, 1023000 / (16 * Hz).
+;    A pattern is 16 bytes, one per row, and all patterns are in one table
+;    (patterns), so a pattern number is also its position. Pattern numbers are
+;    0-15 melody, 16-19 bass, 20-23 drums, 24-26 arpeggio.
+;      melody  0 = continue the sounding note, REST = silence, else a note
+;      bass    0 = continue, 1 = chord root, 2 = fifth above, 3 = octave above
+;      drums   0 = nothing, 1 = kick, 2 = snare, 3 = closed hat, 4 = open hat
+;      arp     0-3 = which of the chord's four arpeggio notes, REST = silence
+;    A chord (chordBass, chordArp, chordPadA, chordPadB) is a bass root, four
+;    arpeggio notes and two pad notes. Chord numbers: 0 Am, 1 Dm, 2 F, 3 G,
+;    4 C, 5 E.
+;    barData has 8 bytes per bar: chord, melody pattern, transposition in
+;    semitones, bass pattern, drum pattern, arpeggio pattern, envelope type
+;    (the value for R13) and envelope period (the value for R12; R11 is 0).
+;
+;  Form (bars): verse 1-8, chorus 9-16, verse again an octave higher 17-24.
+; ============================================================================
+
+    .org $6000
+
+; -- Slot 4 Mockingboard, VIA #1. VIA #2 is the same plus $80 ----------------
+PORTB    = $C400            ; port B: BC1, BDIR and /RESET to the AY
+PORTA    = $C401            ; port A: AY register number or data
+DDRB     = $C402
+DDRA     = $C403
+T1CL     = $C404            ; Timer 1 counter low (a read clears the flag)
+T1CH     = $C405            ; Timer 1 counter high (a write loads and starts)
+ACR      = $C40B
+IFR      = $C40D
+
+; -- AY control lines on port B ----------------------------------------------
+LATCH    = $07              ; BDIR, BC1, /RESET: latch a register number
+WRITE    = $06              ; BDIR, /RESET: write a data byte
+IDLE     = $04              ; /RESET only: bus idle
+HOLDOFF  = $00              ; /RESET low: reset the AY
+
+; -- Timer and song constants -------------------------------------------------
+T1_CONT  = $40              ; ACR: Timer 1 continuous
+T1_FLAG  = $40              ; IFR: Timer 1 expired
+T1_LOW   = $EA              ; 20458 + 2 = 20460 cycles = 50 Hz
+T1_HIGH  = $4F
+TICKS_PER_ROW = 6
+ROWS_PER_BAR  = 16
+BAR_COUNT     = 24
+REST     = $FF
+AGE_REST = 48               ; note age at which every decay table is 0
+AGE_MAX  = 47               ; a sounding note stops aging here
+VIB_START = 9               ; melody vibrato starts at this age (ticks)
+
+; -- Apple II soft switches --------------------------------------------------
+MOTOROFF = $C0E8
+CLR80VID = $C00C
+TXTSET   = $C051
+LOWSCR   = $C054
+
+; -- Text screen rows --------------------------------------------------------
+R_TITLE  = $0400
+R_SUB    = $0480
+R_AY1    = $0580
+R_MEL    = $0600
+R_ARP    = $0680
+R_BASS   = $0700
+R_AY2    = $0428
+R_PADA   = $04A8
+R_PADB   = $0528
+R_DRUM   = $05A8
+R_NOTE   = $06A8
+R_BAR    = $07A8
+METER_COL = 15
+METER_LEN = 16
+
+; -- Zero page ---------------------------------------------------------------
+tick     = $60              ; 0 to TICKS_PER_ROW-1 within a row
+row      = $61              ; 0 to 15 within a bar
+bar      = $62              ; 0 to BAR_COUNT-1 within the song
+frame    = $63              ; free-running tick count, drives the vibrato
+chip     = $64              ; 0 = AY #1, $80 = AY #2
+chan     = $65              ; AY channel 0-2 being written
+rr       = $66              ; AY register number scratch
+pLo      = $67              ; tone period being written
+pHi      = $68
+tmp      = $69
+rec      = $6A              ; offset of the current bar in barData
+chord    = $6B
+trans    = $6C              ; melody transposition for this bar
+bassRoot = $6D
+drum     = $6E              ; drum hit of this row, 0 for none
+dix      = $6F              ; offset into drumTab
+dcnt     = $70              ; register being written for a drum tick
+mptr     = $72              ; melody pattern for this bar (2 bytes)
+bptr     = $74              ; bass pattern
+dptr     = $76              ; drum pattern
+aptr     = $78              ; arpeggio pattern
+pptr     = $7A              ; result of pat_ptr
+vnote    = $80              ; note of AY #1 channels A, B, C
+vage     = $83              ; ticks since each of those notes started
+mvol     = $86              ; level meters: melody, arpeggio, bass, drums
+SRCPTR   = $FA              ; string being printed
+DSTPTR   = $FC              ; screen address being written
+
+
+            sei                     ; entry point
+            cld
+            lda MOTOROFF            ; drive motor off
+            jsr init_screen
+            jsr init_chips
+            jsr init_song
+            jsr init_timer
+
+main_loop   jsr wait_tick           ; one pass per 50 Hz tick
+            jsr step_song
+            jsr update_ay1
+            jsr update_ay2
+            jsr update_meters
+            jsr advance
+            jmp main_loop
+
+
+; ----------------------------------------------------------------------------
+; init_song -- start at bar 0 with every note silent
+; ----------------------------------------------------------------------------
+init_song
+            lda #0
+            sta tick
+            sta row
+            sta bar
+            sta frame
+            sta drum
+            ldx #2
+is_loop     lda #1
+            sta vnote,x
+            lda #AGE_REST
+            sta vage,x
+            dex
+            bpl is_loop
+            rts
+
+
+; ----------------------------------------------------------------------------
+; init_timer -- VIA #1 Timer 1 continuous at 50 Hz
+; ----------------------------------------------------------------------------
+init_timer
+            lda #T1_CONT
+            sta ACR
+            lda #T1_LOW
+            sta T1CL                ; latch low
+            lda #T1_HIGH
+            sta T1CH                ; load, arm and start
+            lda T1CL                ; clear the flag
+            rts
+
+
+; ----------------------------------------------------------------------------
+; wait_tick -- poll until Timer 1 expires, then clear its flag
+; ----------------------------------------------------------------------------
+wait_tick
+            lda IFR
+            and #T1_FLAG
+            beq wait_tick
+            lda T1CL
+            rts
+
+
+; ----------------------------------------------------------------------------
+; init_chips -- reset both AY chips, silence every register and set the mixer
+;               AY #1: three tones, no noise.
+;               AY #2: tones on A and B (pads), drum channel C off.
+; ----------------------------------------------------------------------------
+init_chips
+            ldy #0
+            jsr init_chip
+            ldy #$80
+init_chip   sty chip
+            lda #$FF
+            sta DDRB,y
+            sta DDRA,y
+            lda #HOLDOFF
+            sta PORTB,y             ; /RESET low
+            ldx #50
+ic_reset    dex
+            bne ic_reset
+            lda #IDLE
+            sta PORTB,y             ; /RESET released
+            lda #13
+            sta tmp
+ic_clear    lda tmp                 ; R13 down to R0 = 0
+            ldx #0
+            jsr aywrite
+            dec tmp
+            bpl ic_clear
+            ldx #$38
+            lda chip
+            beq ic_mixer
+            ldx #$3C
+ic_mixer    lda #7
+            jsr aywrite
+            lda chip
+            beq ic_done
+            ldx #$10                ; AY #2 A and B follow the envelope
+            lda #8
+            jsr aywrite
+            ldx #$10
+            lda #9
+            jsr aywrite
+ic_done     rts
+
+
+; ----------------------------------------------------------------------------
+; aywrite -- write X to AY register A on the chip selected by chip
+;            Preserves X. Clobbers A and Y.
+; ----------------------------------------------------------------------------
+aywrite
+            ldy chip
+            sta PORTA,y
+            lda #LATCH
+            sta PORTB,y
+            lda #IDLE
+            sta PORTB,y
+            txa
+            sta PORTA,y
+            lda #WRITE
+            sta PORTB,y
+            lda #IDLE
+            sta PORTB,y
+            rts
+
+
+; ----------------------------------------------------------------------------
+; note_period -- A = note number, returns its tone period in pLo and pHi
+; ----------------------------------------------------------------------------
+note_period
+            tay
+            lda perLo-1,y
+            sta pLo
+            lda perHi-1,y
+            sta pHi
+            rts
+
+
+; ----------------------------------------------------------------------------
+; tone_out -- write pLo and pHi to the tone registers of channel chan
+; ----------------------------------------------------------------------------
+tone_out
+            lda chan
+            asl a
+            sta rr
+            ldx pLo
+            lda rr
+            jsr aywrite
+            ldx pHi
+            lda rr
+            clc
+            adc #1
+            jsr aywrite
+            rts
+
+
+; ----------------------------------------------------------------------------
+; pat_ptr -- A = pattern number, returns pptr = patterns + 16 * A
+; ----------------------------------------------------------------------------
+pat_ptr
+            sta pptr
+            lda #0
+            sta pptr+1
+            asl pptr
+            rol pptr+1
+            asl pptr
+            rol pptr+1
+            asl pptr
+            rol pptr+1
+            asl pptr
+            rol pptr+1
+            clc
+            lda pptr
+            adc #<patterns
+            sta pptr
+            lda pptr+1
+            adc #>patterns
+            sta pptr+1
+            rts
+
+
+; ----------------------------------------------------------------------------
+; step_song -- at the first tick of a row, start the row's notes and drum hit;
+;              at the first row of a bar, start the bar first
+; ----------------------------------------------------------------------------
+step_song
+            lda tick
+            bne ss_done
+            lda row
+            bne ss_row
+            jsr new_bar
+ss_row      jsr new_row
+ss_done     rts
+
+
+; ----------------------------------------------------------------------------
+; advance -- count the tick, then the row, the bar and the song
+; ----------------------------------------------------------------------------
+advance
+            inc frame
+            inc tick
+            lda tick
+            cmp #TICKS_PER_ROW
+            bcc ad_done
+            lda #0
+            sta tick
+            inc row
+            lda row
+            cmp #ROWS_PER_BAR
+            bcc ad_done
+            lda #0
+            sta row
+            inc bar
+            lda bar
+            cmp #BAR_COUNT
+            bcc ad_done
+            lda #0
+            sta bar
+ad_done     rts
+
+
+; ----------------------------------------------------------------------------
+; new_bar -- load this bar's chord and patterns from barData, start the pads
+; ----------------------------------------------------------------------------
+new_bar
+            lda bar
+            asl a
+            asl a
+            asl a
+            sta rec
+            tax
+            lda barData,x
+            sta chord
+            tay
+            lda chordBass,y
+            sta bassRoot
+            ldx rec
+            lda barData+1,x         ; melody pattern
+            jsr pat_ptr
+            lda pptr
+            sta mptr
+            lda pptr+1
+            sta mptr+1
+            ldx rec
+            lda barData+2,x         ; transposition
+            sta trans
+            ldx rec
+            lda barData+3,x         ; bass pattern
+            jsr pat_ptr
+            lda pptr
+            sta bptr
+            lda pptr+1
+            sta bptr+1
+            ldx rec
+            lda barData+4,x         ; drum pattern
+            jsr pat_ptr
+            lda pptr
+            sta dptr
+            lda pptr+1
+            sta dptr+1
+            ldx rec
+            lda barData+5,x         ; arpeggio pattern
+            jsr pat_ptr
+            lda pptr
+            sta aptr
+            lda pptr+1
+            sta aptr+1
+            jsr start_pad
+            jsr show_bar
+            rts
+
+
+; ----------------------------------------------------------------------------
+; start_pad -- set AY #2 channels A and B to the chord's pad notes and restart
+;              the envelope with this bar's type and period
+; ----------------------------------------------------------------------------
+start_pad
+            lda #$80
+            sta chip
+            ldy chord
+            lda chordPadA,y
+            jsr note_period
+            lda #0
+            sta chan
+            jsr tone_out
+            ldy chord
+            lda chordPadB,y
+            jsr note_period
+            lda #1
+            sta chan
+            jsr tone_out
+            ldx rec
+            lda barData+7,x
+            tax
+            lda #12
+            jsr aywrite             ; envelope period, high byte
+            ldx #0
+            lda #11
+            jsr aywrite             ; envelope period, low byte
+            ldx rec
+            lda barData+6,x
+            tax
+            lda #13
+            jsr aywrite             ; writing R13 restarts the envelope
+            rts
+
+
+; ----------------------------------------------------------------------------
+; new_row -- start the row's melody, bass and arpeggio notes and its drum hit
+; ----------------------------------------------------------------------------
+new_row
+            ldy row
+            lda (mptr),y
+            beq nr_bass             ; 0 = continue the note
+            cmp #REST
+            bne nr_mel
+            lda #AGE_REST
+            sta vage
+            bne nr_bass
+nr_mel      clc
+            adc trans
+            sta vnote
+            lda #0
+            sta vage
+nr_bass     ldy row
+            lda (bptr),y
+            beq nr_arp
+            tax
+            lda bassStep,x
+            clc
+            adc bassRoot
+            sta vnote+2
+            lda #0
+            sta vage+2
+nr_arp      ldy row
+            lda (aptr),y
+            cmp #REST
+            bne nr_arpnote
+            lda #AGE_REST
+            sta vage+1
+            bne nr_drum
+nr_arpnote  sta tmp
+            lda chord
+            asl a
+            asl a
+            clc
+            adc tmp
+            tay
+            lda chordArp,y
+            sta vnote+1
+            lda #0
+            sta vage+1
+nr_drum     ldy row
+            lda (dptr),y
+            sta drum
+            rts
+
+
+; ----------------------------------------------------------------------------
+; update_ay1 -- write the period and level of AY #1's three voices, then age
+;               their notes. The melody (channel A) has vibrato.
+; ----------------------------------------------------------------------------
+update_ay1
+            lda #0
+            sta chip
+            ldx #0
+u1_loop     stx chan
+            lda vnote,x
+            jsr note_period
+            ldx chan
+            bne u1_tone             ; vibrato on the melody only
+            lda vage
+            cmp #VIB_START
+            bcc u1_tone
+            lda frame
+            and #7
+            tay
+            lda vibTab,y
+            clc
+            adc pLo                 ; melody periods stay below 256
+            sta pLo
+u1_tone     jsr tone_out
+            ldx chan
+            txa                     ; decay table row = channel * 64
+            lsr a
+            ror a
+            ror a
+            clc
+            adc vage,x
+            tay
+            lda decayTab,y
+            sta mvol,x
+            tax
+            lda chan
+            clc
+            adc #8
+            jsr aywrite             ; level
+            ldx chan
+            lda vage,x
+            cmp #AGE_MAX
+            bcs u1_aged
+            inc vage,x
+u1_aged     inx
+            cpx #3
+            bne u1_loop
+            rts
+
+
+; ----------------------------------------------------------------------------
+; update_ay2 -- write the current tick of the row's drum hit to AY #2
+;               channel C: level (R10), noise period (R6), tone period (R4-5)
+;               and mixer (R7). Each hit ends on level 0.
+; ----------------------------------------------------------------------------
+update_ay2
+            lda #$80
+            sta chip
+            lda #0
+            sta mvol+3
+            lda drum
+            beq u2_done
+            tax
+            lda drumBase-1,x
+            sta dix
+            lda tick                ; tick * 5 + base
+            asl a
+            asl a
+            clc
+            adc tick
+            clc
+            adc dix
+            sta dix
+            lda #0
+            sta dcnt
+u2_loop     ldx dix
+            lda drumTab,x
+            ldx dcnt
+            bne u2_regs
+            sta mvol+3              ; the first value is the level
+u2_regs     tax                     ; X = value
+            ldy dcnt
+            lda drumRegs,y
+            jsr aywrite
+            inc dix
+            inc dcnt
+            lda dcnt
+            cmp #5
+            bne u2_loop
+u2_done     rts
+
+
+; ----------------------------------------------------------------------------
+; update_meters -- draw the four level meters, one * per level step
+; ----------------------------------------------------------------------------
+update_meters
+            ldx #0
+um_loop     lda meterLo,x
+            sta DSTPTR
+            lda meterHi,x
+            sta DSTPTR+1
+            lda mvol,x
+            sta tmp
+            ldy #0
+um_cell     lda #$A0                ; space
+            cpy tmp
+            bcs um_put
+            lda #$AA                ; *
+um_put      sta (DSTPTR),y
+            iny
+            cpy #METER_LEN
+            bne um_cell
+            inx
+            cpx #4
+            bne um_loop
+            rts
+
+
+; ----------------------------------------------------------------------------
+; show_bar -- put the bar number in decimal in "BAR nn OF 24"
+; ----------------------------------------------------------------------------
+show_bar
+            lda bar
+            clc
+            adc #1
+            ldx #0
+sb_tens     cmp #10
+            bcc sb_done
+            sec
+            sbc #10
+            inx
+            bne sb_tens
+sb_done     ora #$B0
+            sta R_BAR+5
+            txa
+            ora #$B0
+            sta R_BAR+4
+            rts
+
+
+; ----------------------------------------------------------------------------
+; init_screen -- text page 1, cleared, with the labels from text_table
+; ----------------------------------------------------------------------------
+init_screen
+            sta CLR80VID            ; 40 columns
+            lda TXTSET
+            lda LOWSCR
+            ldx #0
+            lda #$A0                ; space
+is_clear    sta $0400,x
+            sta $0500,x
+            sta $0600,x
+            sta $0700,x
+            inx
+            bne is_clear
+            ldx #0
+dt_loop     lda text_table+1,x
+            beq dt_done             ; a zero high byte ends the table
+            sta DSTPTR+1
+            lda text_table,x
+            sta DSTPTR
+            lda text_table+2,x
+            sta SRCPTR
+            lda text_table+3,x
+            sta SRCPTR+1
+            jsr print_text
+            inx
+            inx
+            inx
+            inx
+            bne dt_loop
+dt_done     rts
+
+
+; ----------------------------------------------------------------------------
+; print_text -- copy a zero-terminated string at SRCPTR to the screen at DSTPTR
+;               Preserves X.
+; ----------------------------------------------------------------------------
+print_text
+            ldy #0
+pt_loop     lda (SRCPTR),y
+            beq pt_done
+            ora #$80                ; normal video
+            sta (DSTPTR),y
+            iny
+            bne pt_loop
+pt_done     rts
+
+
+; -- Screen text ------------------------------------------------------------
+text_table
+            .byte <R_TITLE,>R_TITLE,<str_title,>str_title
+            .byte <R_SUB,>R_SUB,<str_sub,>str_sub
+            .byte <R_AY1,>R_AY1,<str_ay1,>str_ay1
+            .byte <R_MEL,>R_MEL,<str_mel,>str_mel
+            .byte <R_ARP,>R_ARP,<str_arp,>str_arp
+            .byte <R_BASS,>R_BASS,<str_bass,>str_bass
+            .byte <R_AY2,>R_AY2,<str_ay2,>str_ay2
+            .byte <R_PADA,>R_PADA,<str_pada,>str_pada
+            .byte <R_PADB,>R_PADB,<str_padb,>str_padb
+            .byte <R_DRUM,>R_DRUM,<str_drum,>str_drum
+            .byte <R_NOTE,>R_NOTE,<str_note,>str_note
+            .byte <R_BAR,>R_BAR,<str_bar,>str_bar
+            .byte 0,0,0,0
+
+str_title   .byte "MOCKINGBOARD MUSIC",0
+str_sub     .byte "AN ORIGINAL TUNE FOR TWO AY-3-8910",0
+str_ay1     .byte "AY #1  VIA $C400",0
+str_mel     .byte "  A  MELODY",0
+str_arp     .byte "  B  ARPEGGIO",0
+str_bass    .byte "  C  BASS",0
+str_ay2     .byte "AY #2  VIA $C480",0
+str_pada    .byte "  A  PAD   ENVELOPE R11-R13",0
+str_padb    .byte "  B  PAD   ENVELOPE R11-R13",0
+str_drum    .byte "  C  DRUMS",0
+str_note    .byte "KICK SNARE HATS: NOISE R6 + MIXER R7",0
+str_bar     .byte "BAR    OF 24",0
+
+meterLo     .byte <(R_MEL+METER_COL),<(R_ARP+METER_COL),<(R_BASS+METER_COL),<(R_DRUM+METER_COL)
+meterHi     .byte >(R_MEL+METER_COL),>(R_ARP+METER_COL),>(R_BASS+METER_COL),>(R_DRUM+METER_COL)
+
+
+; -- Player tables ----------------------------------------------------------
+vibTab      .byte 0,1,1,1,0,$FF,$FF,$FF   ; melody vibrato, periods +/-1
+bassStep    .byte 0,0,7,12              ; bass pattern code to semitones
+drumBase    .byte 0,30,60,90            ; offset of each hit in drumTab
+drumRegs    .byte 10,6,4,5,7            ; level, noise, tone low, tone high, mixer
+
+; drumTab: 6 ticks per hit, 5 bytes per tick (level, R6 noise period, tone
+; period low, tone period high, mixer). Mixer: $18 tone and noise on channel C,
+; $38 tone only, $1C noise only, $3C silent.
+drumTab
+            ; kick: tone falling from 300 to 1300 with a noise click
+            .byte 15,24,$2C,$01,$18
+            .byte 14,24,$F4,$01,$38
+            .byte 11,24,$EE,$02,$38
+            .byte  7,24,$E8,$03,$38
+            .byte  3,24,$14,$05,$38
+            .byte  0,24,$14,$05,$3C
+            ; snare: noise with a 400 period tone under it
+            .byte 15,10,$90,$01,$18
+            .byte 13,11,$90,$01,$18
+            .byte 10,12,$90,$01,$18
+            .byte  7,13,$90,$01,$1C
+            .byte  4,14,$90,$01,$1C
+            .byte  0,16,$90,$01,$3C
+            ; closed hat: short high noise
+            .byte  9, 2,$00,$00,$1C
+            .byte  5, 2,$00,$00,$1C
+            .byte  2, 2,$00,$00,$1C
+            .byte  0, 2,$00,$00,$3C
+            .byte  0, 2,$00,$00,$3C
+            .byte  0, 2,$00,$00,$3C
+            ; open hat: longer noise tail
+            .byte 10, 3,$00,$00,$1C
+            .byte  9, 3,$00,$00,$1C
+            .byte  8, 3,$00,$00,$1C
+            .byte  6, 3,$00,$00,$1C
+            .byte  3, 3,$00,$00,$1C
+            .byte  0, 3,$00,$00,$3C
+
+; -- Note numbers: 1 + semitones above C2 ---------------------------------
+C2   = 1
+Cs2  = 2
+D2   = 3
+Ds2  = 4
+E2   = 5
+F2   = 6
+Fs2  = 7
+G2   = 8
+Gs2  = 9
+A2   = 10
+As2  = 11
+B2   = 12
+C3   = 13
+Cs3  = 14
+D3   = 15
+Ds3  = 16
+E3   = 17
+F3   = 18
+Fs3  = 19
+G3   = 20
+Gs3  = 21
+A3   = 22
+As3  = 23
+B3   = 24
+C4   = 25
+Cs4  = 26
+D4   = 27
+Ds4  = 28
+E4   = 29
+F4   = 30
+Fs4  = 31
+G4   = 32
+Gs4  = 33
+A4   = 34
+As4  = 35
+B4   = 36
+C5   = 37
+Cs5  = 38
+D5   = 39
+Ds5  = 40
+E5   = 41
+F5   = 42
+Fs5  = 43
+G5   = 44
+Gs5  = 45
+A5   = 46
+As5  = 47
+B5   = 48
+C6   = 49
+Cs6  = 50
+D6   = 51
+Ds6  = 52
+E6   = 53
+F6   = 54
+Fs6  = 55
+G6   = 56
+Gs6  = 57
+A6   = 58
+As6  = 59
+B6   = 60
+C7   = 61
+
+; -- Tone periods, 1023000 / (16 * Hz), one per note from C2 -----------------
+perLo
+            .byte $D2,$9B,$67,$36,$08,$DC,$B3,$8C,$68,$45,$25,$06
+            .byte $E9,$CD,$B3,$9B,$84,$6E,$5A,$46,$34,$23,$12,$03
+            .byte $F4,$E7,$DA,$CE,$C2,$B7,$AD,$A3,$9A,$91,$89,$81
+            .byte $7A,$73,$6D,$67,$61,$5C,$56,$52,$4D,$49,$45,$41
+            .byte $3D,$3A,$36,$33,$30,$2E,$2B,$29,$26,$24,$22,$20
+            .byte $1F
+perHi
+            .byte $03,$03,$03,$03,$03,$02,$02,$02,$02,$02,$02,$02
+            .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01
+            .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+            .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+            .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+            .byte $00
+
+; -- Note levels by age in ticks: melody 15 * exp(-age/55), arpeggio
+; 12 * exp(-age/6.5), bass 15 * exp(-age/22) down to 6. 64 entries per
+; voice, 0 from age 48 (AGE_REST).
+decayTab
+            ; melody
+            .byte 15,15,14,14,14,14,13,13,13,13,13,12,12,12,12,11
+            .byte 11,11,11,11,10,10,10,10,10,10,9,9,9,9,9,9
+            .byte 8,8,8,8,8,8,8,7,7,7,7,7,7,7,6,6
+            .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+            ; arpeggio
+            .byte 12,10,9,8,6,6,5,4,4,3,3,2,2,2,1,1
+            .byte 1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0
+            .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+            .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+            ; bass
+            .byte 15,14,14,13,13,12,11,11,10,10,10,9,9,8,8,8
+            .byte 7,7,7,6,6,6,6,6,6,6,6,6,6,6,6,6
+            .byte 6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6
+            .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+; -- Chords: 0 Am, 1 Dm, 2 F, 3 G, 4 C, 5 E ---------------------------------
+chordBass   .byte A2,D3,F2,G2,C3,E2
+chordPadA   .byte E3,A3,A3,D4,G3,B3
+chordPadB   .byte C4,F4,C4,B3,E4,Gs4
+chordArp
+            .byte A3,C4,E4,A4       ; Am
+            .byte D4,F4,A4,D5       ; Dm
+            .byte F3,A3,C4,F4       ; F
+            .byte G3,B3,D4,G4       ; G
+            .byte C4,E4,G4,C5       ; C
+            .byte E4,Gs4,B4,E5       ; E
+
+; -- Patterns, 16 rows each (see the header for the numbering) ---------------
+patterns
+            .byte E5,0,0,0,C5,0,D5,E5,A4,0,0,0,B4,0,C5,0       ; 0 melody
+            .byte A4,0,B4,C5,E5,0,0,0,D5,0,C5,B4,C5,0,0,0       ; 1 melody
+            .byte F5,0,0,0,D5,0,E5,F5,A5,0,0,0,F5,0,E5,0       ; 2 melody
+            .byte D5,0,E5,F5,A5,0,0,0,G5,0,F5,E5,D5,0,0,0       ; 3 melody
+            .byte C5,0,0,0,A4,0,C5,F5,A5,0,0,0,G5,0,F5,0       ; 4 melody
+            .byte B4,0,D5,0,G5,0,0,0,F5,0,E5,D5,B4,0,0,0       ; 5 melody
+            .byte C5,0,E5,0,A5,0,0,0,G5,0,E5,0,C5,0,A4,0       ; 6 melody
+            .byte B4,0,0,0,Gs4,0,B4,0,E5,0,D5,0,B4,0,Gs4,0       ; 7 melody
+            .byte A5,0,0,0,0,0,G5,0,F5,0,0,0,A5,0,C6,0       ; 8 melody
+            .byte G5,0,0,0,E5,0,G5,0,C6,0,0,0,B5,0,G5,0       ; 9 melody
+            .byte D6,0,0,0,B5,0,G5,0,D6,0,B5,0,G5,0,0,0       ; 10 melody
+            .byte C6,0,0,0,E6,0,0,0,A5,0,0,0,C6,0,B5,0       ; 11 melody
+            .byte A5,0,0,0,C6,0,A5,0,F5,0,A5,0,C6,0,0,0       ; 12 melody
+            .byte E6,0,0,0,D6,0,C6,0,G5,0,E5,0,G5,0,C6,0       ; 13 melody
+            .byte D6,0,0,0,F6,0,E6,D6,C6,0,0,0,A5,0,D6,0       ; 14 melody
+            .byte E6,0,D6,0,B5,0,Gs5,0,B5,0,0,0,Gs5,0,0,0       ; 15 melody
+            .byte 1,0,1,0,3,0,1,0,1,0,1,0,2,0,3,0       ; 16 bass
+            .byte 1,0,0,1,0,0,3,0,1,0,0,2,0,0,3,0       ; 17 bass
+            .byte 1,0,0,0,2,0,3,0,2,0,0,0,3,0,2,0       ; 18 bass
+            .byte 1,0,0,0,0,0,0,0,1,0,0,0,2,0,0,0       ; 19 bass
+            .byte 1,0,3,0,2,0,3,0,1,0,3,1,2,0,3,0       ; 20 drums
+            .byte 1,3,3,3,2,3,3,3,1,3,1,3,2,3,3,4       ; 21 drums
+            .byte 1,0,3,0,2,0,3,0,1,0,3,0,2,2,2,2       ; 22 drums
+            .byte 1,0,0,0,3,0,0,0,1,0,0,0,3,0,4,0       ; 23 drums
+            .byte 0,1,2,3,2,1,2,1,0,1,2,3,2,3,2,1       ; 24 arpeggio
+            .byte 0,2,1,3,0,2,1,3,0,2,1,3,0,2,1,3       ; 25 arpeggio
+            .byte 3,2,1,0,3,2,1,0,3,2,1,0,3,2,3,2       ; 26 arpeggio
+
+; -- Bars: chord, melody, transposition, bass, drums, arpeggio, R13, R12 ---
+barData
+            .byte  0, 0, 0,19,23,24,$0D,$0C    ; bar  1 Am
+            .byte  0, 1, 0,19,23,24,$0D,$0C    ; bar  2 Am
+            .byte  1, 2, 0,16,20,24,$0D,$0C    ; bar  3 Dm
+            .byte  1, 3, 0,16,20,24,$0D,$0C    ; bar  4 Dm
+            .byte  2, 4, 0,16,20,24,$0D,$0C    ; bar  5 F
+            .byte  3, 5, 0,16,20,24,$0D,$0C    ; bar  6 G
+            .byte  0, 6, 0,16,20,24,$0D,$0C    ; bar  7 Am
+            .byte  5, 7, 0,18,22,24,$0D,$0C    ; bar  8 E
+            .byte  2, 8, 0,17,21,25,$0E,$06    ; bar  9 F
+            .byte  4, 9, 0,17,21,25,$0E,$06    ; bar 10 C
+            .byte  3,10, 0,17,21,25,$0E,$06    ; bar 11 G
+            .byte  0,11, 0,17,21,25,$0E,$06    ; bar 12 Am
+            .byte  2,12, 0,17,21,25,$0E,$06    ; bar 13 F
+            .byte  4,13, 0,17,21,25,$0E,$06    ; bar 14 C
+            .byte  1,14, 0,17,21,25,$0E,$06    ; bar 15 Dm
+            .byte  5,15, 0,18,22,25,$0E,$06    ; bar 16 E
+            .byte  0, 0,12,17,21,26,$0A,$08    ; bar 17 Am
+            .byte  0, 1,12,17,21,26,$0A,$08    ; bar 18 Am
+            .byte  1, 2,12,17,21,26,$0A,$08    ; bar 19 Dm
+            .byte  1, 3,12,17,21,26,$0A,$08    ; bar 20 Dm
+            .byte  2, 4,12,17,21,26,$0A,$08    ; bar 21 F
+            .byte  3, 5,12,17,21,26,$0A,$08    ; bar 22 G
+            .byte  0, 6,12,17,21,26,$0A,$08    ; bar 23 Am
+            .byte  5, 7,12,18,22,26,$0A,$08    ; bar 24 E
+

@@ -70,6 +70,26 @@ public:
     }
 
 
+    //  A row with a wrap indent continues its last cell that many characters
+    //  in, so a help row's description wraps under itself.
+    TEST_METHOD (WrapIndent_StartsEachWrappedLineThatFarIn)
+    {
+        DxuiTextView        view;
+        DxuiTextView::Row   row  = MakeRow ({ L"SYN   AAAA BBBB CCCC" });
+
+
+
+        row.wrapIndent = 6;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetRows ({ row });
+
+        Assert::AreEqual (2, view.GetLineCount(), L"sixteen columns, so the row wraps once");
+        Assert::AreEqual (16, view.HitTest (POINT { 6 + 6 * 8, 6 + 16 + 4 }).offset,
+            L"the wrapped line starts six columns in, with CCCC under AAAA");
+    }
+
+
     TEST_METHOD (SelectionText_SpansCellsAndRows)
     {
         DxuiTextView  view;
@@ -81,6 +101,118 @@ public:
 
         Assert::AreEqual (std::wstring (L"one\r\nB\tt"), view.GetSelectionText(),
             L"A tab separates cells and a line break separates rows");
+    }
+
+
+    //  With the same rows set again, as a source view rebuilds them for a new
+    //  mark, the selection and a drag in progress are unaffected; new text
+    //  clears them.
+    TEST_METHOD (UpdateRows_KeepsTheSelectionAndTheDrag)
+    {
+        DxuiTextView  view;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"A", L"one" }), MakeRow ({ L"B", L"two" }) });
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 3 * 8, 6 + 4);
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 4 * 8, 6 + 4);
+
+        view.UpdateRows ({ MakeRow ({ L"A", L"one" }), MakeRow ({ L"B", L"two" }) });
+
+        Assert::IsTrue   (view.IsInteracting(), L"the drag goes on");
+
+        Mouse (view, DxuiMouseEventKind::Move, 6 + 5 * 8, 6 + 16 + 4);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 5 * 8, 6 + 16 + 4);
+
+        Assert::AreEqual (std::wstring (L"one\r\nB\ttw"), view.GetSelectionText());
+
+        view.UpdateRows ({ MakeRow ({ L"A", L"o" }) });
+        Assert::AreEqual (std::wstring (L"o"), view.GetSelectionText(), L"each end is cut back to the rows");
+
+        view.SetRows ({ MakeRow ({ L"A", L"one" }) });
+        Assert::IsFalse  (view.HasSelection());
+    }
+
+
+    //  A capped column lines its cells up at the cap; a longer cell pushes
+    //  only the next cell of that row along.
+    TEST_METHOD (ColumnCap_ALongCellPushesOnlyItsRowsNextCell)
+    {
+        DxuiTextView  view;
+        float         shortX = 0.0f;
+        float         longX  = 0.0f;
+        float         y      = 0.0f;
+
+        LayOut (view, 800, 400);
+        view.SetColumnCap (0, 6);
+        view.SetRows ({ MakeRow ({ L"ab", L"one" }), MakeRow ({ L"abcdefghijkl", L"two" }) });
+
+        Assert::IsTrue   (view.GetCellAnchorPx (0, 1, shortX, y));
+        Assert::IsTrue   (view.GetCellAnchorPx (1, 1, longX,  y));
+        Assert::AreEqual (6.0f + 8.0f * 8.0f,  shortX, 0.5f, L"the cap and the gap");
+        Assert::AreEqual (6.0f + 14.0f * 8.0f, longX,  0.5f, L"its own cell and the gap");
+    }
+
+
+    //  Without wrapping, a long last cell is one line, a bar along the bottom
+    //  scrolls it, and a point maps to the column scrolled to.
+    TEST_METHOD (NoWrap_ALongLineIsOneLineScrolledSideways)
+    {
+        DxuiTextView  view;
+        std::wstring  text (200, L'x');
+        int           unscrolled = 0;
+
+        LayOut (view, 200, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"A", text }) });
+
+        Assert::AreEqual (1, view.GetLineCount(), L"not wrapped");
+        Assert::IsTrue   (view.IsHorzScrollbarVisible());
+
+        unscrolled = view.HitTest (POINT { 100, 6 + 4 }).offset;
+
+        view.SetLeftColumn (10);
+        Assert::AreEqual (10, view.GetLeftColumn());
+        Assert::AreEqual (unscrolled + 10, view.HitTest (POINT { 100, 6 + 4 }).offset, L"ten columns along");
+
+        view.SetLeftColumn (100000);
+        Assert::IsTrue   (view.GetLeftColumn() < 202, L"no further than the end");
+
+        view.SetNoWrap (false);
+        Assert::AreEqual (0, view.GetLeftColumn());
+        Assert::IsTrue   (view.GetLineCount() > 1, L"wrapped again");
+    }
+
+
+    //  The horizontal wheel scrolls sideways, a turn to the right toward the
+    //  line's end, and the top line stays the same.
+    TEST_METHOD (TheHorizontalWheelScrollsSideways)
+    {
+        DxuiTextView                    view;
+        std::vector<DxuiTextView::Row>  rows;
+        DxuiMouseEvent                  ev;
+
+
+
+        LayOut (view, 200, 100);
+        view.SetNoWrap (true);
+
+        for (int i = 0; i < 40; i++)
+        {
+            rows.push_back (MakeRow ({ L"A", std::wstring (200, L'x') }));
+        }
+
+        view.SetRows (std::move (rows));
+        view.SetTopLine (5);
+
+        ev.kind            = DxuiMouseEventKind::Wheel;
+        ev.positionDip     = POINT { 100, 20 };
+        ev.wheelDelta      = 1.0f;
+        ev.wheelHorizontal = true;
+        (void) view.OnMouse (ev);
+
+        Assert::IsTrue   (view.GetLeftColumn() > 0, L"along the line");
+        Assert::AreEqual (5, view.GetTopLine(), L"not down the lines");
     }
 
 

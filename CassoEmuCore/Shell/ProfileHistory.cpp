@@ -425,6 +425,10 @@ HRESULT ProfileHistory::Build (
     m_isBuilding = true;
     m_range      = { fromCycle, endCycle };
 
+    //  A period from the oldest keyframe has no record of the calls open
+    //  before history began.
+    m_isFromStart = m_controller == nullptr || m_controller->GetKeyframes().GetCount() == 0 || m_controller->GetKeyframes().GetInfo (0).cycle >= fromCycle;
+
     for (size_t i = 0; i < m_blocks.size(); i++)
     {
         auto      cached = m_blocks[i].isCacheable ? m_cached.find (GetKey (m_blocks[i])) : m_cached.end();
@@ -524,6 +528,7 @@ HRESULT ProfileHistory::SubmitBlocks (const std::vector<size_t> & pending, uint6
         }
 
         m_workers[run].probe->Begin (fromCycle, toCycle);
+        m_workers[run].probe->SetStartCalls (GetStartCalls (job));
         m_workers[run].generation = job.generation;
 
         hr = m_workers[run].runner->Submit (std::make_shared<const DebugEventJob> (std::move (job)));
@@ -532,6 +537,46 @@ HRESULT ProfileHistory::SubmitBlocks (const std::vector<size_t> & pending, uint6
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileHistory::GetStartCalls
+//
+//  Each stretch's open calls by the history cycle of its keyframe, the one
+//  the probe reads as the stretch is attached. Read here, on the thread the
+//  copies are updated on, so the workers only read the result.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::map<uint64_t, std::vector<CallStackFrame>> ProfileHistory::GetStartCalls (const DebugEventJob & job) const
+{
+    std::map<uint64_t, std::vector<CallStackFrame>>  calls;
+    const KeyframeStore                            * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
+    size_t                                           index     = 0;
+
+
+
+    if (keyframes == nullptr || !m_callsAt)
+    {
+        return calls;
+    }
+
+    for (const DebugEventStretch & stretch : job.stretches)
+    {
+        std::vector<CallStackFrame>  frames;
+
+        if (keyframes->TryFindByPosition (stretch.startPosition, index) && m_callsAt (stretch.startPosition, frames))
+        {
+            calls[keyframes->GetInfo (index).cycle] = std::move (frames);
+        }
+    }
+
+    return calls;
 }
 
 
@@ -603,6 +648,7 @@ bool ProfileHistory::Pump (ProfileCountsPtr & outCounts)
     sum = std::make_shared<ProfileCounts>();
     sum->routines.SetFramesCoverAll (true);
     sum->historyRange = m_range;
+    sum->isFromHistoryStart = m_isFromStart;
 
     for (const ProfileCountsPtr & counts : m_blockCounts)
     {

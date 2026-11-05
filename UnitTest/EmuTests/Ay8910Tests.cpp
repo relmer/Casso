@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Debugger/DiagnosticsSnapshot.h"
 #include "Devices/Ay8910.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -380,6 +381,55 @@ namespace Ay8910TestNs
             Assert::AreEqual (Ay8910::kMaxEnvLevel, ay.GetEnvLevel(),
                               L"Attack-hold envelope must hold at full level");
             Assert::IsTrue (ay.IsEnvHolding());
+        }
+
+
+        //  The debugger's picture places a level stopped at its end by the
+        //  time since it stopped, so its steps are counted on while the level
+        //  stays, up to the picture's four ramps, and a write of R13 starts
+        //  them over.
+        TEST_METHOD (AHeldEnvelopeCountsItsStepsForThePicture)
+        {
+            Ay8910               ay (kClockHz);
+            DiagnosticsSoundPsg  before;
+            DiagnosticsSoundPsg  after;
+
+
+
+            ay.SetSampleRate (kSampleRate);
+
+            ay.WriteRegister (Ay8910::kRegEnvFine, 0x01);
+            ay.WriteRegister (Ay8910::kRegEnvCoarse, 0x00);
+            ay.WriteRegister (Ay8910::kRegAmpA, Ay8910::kAmpUseEnvelope);
+            ay.WriteRegister (Ay8910::kRegEnvShape, 0x0D);   // attack, then stays at 15
+
+            for (int i = 0; i < 4000 && !ay.IsEnvHolding(); i++)
+            {
+                ay.GenerateSample();
+            }
+
+            ay.AppendSoundBoard (before);
+            ay.GenerateSample();
+            ay.GenerateSample();
+            ay.AppendSoundBoard (after);
+
+            Assert::IsTrue   (before.isEnvelopeHeld);
+            Assert::AreEqual (1, before.envelopeRamps, L"the one ramp before the level stopped");
+            Assert::IsTrue   (after.envelopeHeldSteps > before.envelopeHeldSteps, L"the steps are counted on while the level stays");
+
+            for (int i = 0; i < 4000; i++)
+            {
+                ay.GenerateSample();
+            }
+
+            after = {};
+            ay.AppendSoundBoard (after);
+            Assert::AreEqual (Ay8910::kEnvHeldStepCap, after.envelopeHeldSteps, L"up to the picture's span");
+
+            ay.WriteRegister (Ay8910::kRegEnvShape, 0x0D);
+            after = {};
+            ay.AppendSoundBoard (after);
+            Assert::AreEqual (0, after.envelopeHeldSteps, L"a write of R13 starts them over");
         }
 
 

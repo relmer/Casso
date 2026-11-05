@@ -298,6 +298,10 @@ public:
     void     ApplyReveal    (float t);
     bool     IsRevealing   () const { return m_revealing; }
 
+    //  A reveal in progress for a test, whose popup has no window to reveal;
+    //  the next AdvanceReveal ends it.
+    void     SetRevealingForTest (bool isRevealing) { m_revealing = isRevealing; m_revealDurationMs = 1; }
+
     //
     //  Measure the natural extent of `text` (in DIPs) through the
     //  popup's own text renderer. Available any time after Initialize()
@@ -389,6 +393,21 @@ public:
     static RECT               GetEdgeWorkArea     (const RECT               & edge,
                                                    const std::vector<RECT>  & workAreas);
     static std::vector<RECT>  GetMonitorWorkAreas ();
+
+    //
+    //  A right press outside the popup that closed it is posted on to the
+    //  window under it, when that window is this thread's, so a right-click
+    //  on another heading opens that heading's menu at once. True when it
+    //  was posted.
+    //
+    static bool  RepostPress (HWND target, POINT screenPx, UINT msg, WPARAM wp);
+
+    //
+    //  The message RepostPress posts, from what it reads about the target:
+    //  the press at the client point. False for no window, or a window of
+    //  another thread or process.
+    //
+    static bool  TryMakeRepost (HWND target, bool isThisThread, POINT clientPx, UINT msg, WPARAM wp, MSG & outPost);
 
 private:
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);

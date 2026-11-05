@@ -11,6 +11,7 @@ behind three ways in, and every command works the same in each.
 | Batch | `CassoCli debug --machine Apple2e --script steps.txt` | repeatable scripts, tests, CI |
 | Debugger window | **Debug > Debugger...**, or start Casso with `--debugger` | debugging by hand beside the emulator |
 | Debug channel | `CassoCli debug --attach <pid>`, or your own client on the named pipe | tools, editors, attaching to a running program |
+| MCP server | `CassoCli mcp`, added to an MCP client's servers | AI assistants, with or without a shell |
 
 The window and the channel share one session: a breakpoint set in either shows
 up in the other. The channel is documented in [DebugChannel.md](DebugChannel.md).
@@ -160,7 +161,9 @@ from the current mode's commands, and pressing it again steps through the
 other matches; Shift+Tab steps back. The newest earlier line that starts with
 what is typed shows in gray, and Right arrow at the end of the line takes it.
 F8 steps back through the earlier lines that start with what is typed, and F7
-lists the earlier lines to pick from.
+lists the earlier lines to pick from, above the command line with the newest
+at the bottom. A line too long for the list ends in an ellipsis and is drawn
+whole while it is highlighted.
 
 Every command that changes breakpoints, watches, memory, registers, flags,
 symbols, disks or settings prints one line saying what changed, such as
@@ -221,6 +224,24 @@ Breakpoints (`BP`, `BPM`, `BPMR`, `BPMW`, `BPR`, `BPL`, `BPC`, `BPD`, `BPE`),
 watches (`W`, `WL`, `WC`) and the rest of AppleWin's commands are listed by
 `HELP`.
 
+## Controlling the machine
+
+These do what the menu command of the same purpose does, so a reset or a disk
+change is in history as the menu's is. They require the emulator, so a
+batch run replies that they are not available.
+
+| Command | Effect |
+|---|---|
+| `RESET`, `RESET POWER` | resets the machine as its reset key does, or power cycles it |
+| `PASTE "text"` | types the text as Edit > Paste does; `\n` is a return, and `\t`, `\"` and `\\` are a tab, a quote and a backslash |
+| `DISK INSERT [D1\|D2] file`, `DISK EJECT [D1\|D2]` | inserts or ejects a disk, drive 1 by default |
+| `SCREEN` | lists the text screen as displayed, 40 or 80 columns |
+| `SCREENSHOT [file]` | saves the machine's picture as a PNG file, by default `casso-screenshot-` and the date and time in the current directory |
+| `EXIT` | closes Casso, as File > Exit does |
+
+A paused machine doesn't read the keyboard, so the text `PASTE` types is in
+the paste buffer until the machine runs again.
+
 ## The video beam
 
 `VIDEOINFO` shows where the beam is: the scanline (0 to 261) and the cycle within it (0 to 64), in hex. The status bar shows the same, in decimal and then in hex. A scanline draws in its last 40 cycles; the 25 before them are horizontal blank, and scanlines 192 to 261 are vertical blank.
@@ -249,6 +270,20 @@ The registers of the Super Serial Card, the Uthernet II and the //c's serial
 ports have no symbols. Hover over an operand at one of them in the
 disassembly for a tip with the register's description, under the card's name
 and slot: "Super Serial Card, slot 2: 6551 status register".
+
+The tip over a symbol in the disassembly, and the Profiler's tips on a
+routine, have the symbol's description and, for a label in a loaded program's
+source, the comment on the line that defines it: the first line whose code
+starts at the label, or the label alone on the line above it.
+
+The tip over a word of a source line, in a source document or on a source row
+of the disassembly, has the symbol it is and its value, and after `<` or `>`
+the byte that operator takes. Over `lda #>count_text` the tip is
+`count_text = $60F2` and `#>count_text = #$60, its high byte`, which is why
+the instruction under the line is `LDA #$60`.
+
+The User symbols pane lists each table under the name of the file loaded into
+it; the tip over the name has the file's full path.
 
 ```
 SYM LOAD "game.dbg"       load into the User table
@@ -283,6 +318,32 @@ debug file marks its equates (`type=equ`), and `SYM SAVE` writes constants
 under a `; constants` heading so they load back as constants. AppleWin,
 VICE and Merlin symbol tables do not tell an equate from a label, so
 everything in them loads as a label.
+
+### Symbols for a program that isn't in memory
+
+After a reboot with another disk, the program a symbol or debug file was made
+for may be gone from memory. At each stop, the debugger checks each loaded
+file against memory:
+
+- A debug file is checked against its source. On each instruction line, the
+  opcode in memory must be the line's mnemonic, and its length the line's.
+  A Merlin listing is checked against the bytes on its lines.
+- A symbol file without lines (Casso's, AppleWin's, VICE's) is checked
+  against the bytes at its labels in RAM, from $0200 to $BFFF. Those bytes
+  are taken at the first stop with the PC among its labels, so a file loaded
+  before its program is matched to the program once it runs. Loading the
+  file again takes them again.
+
+A file matches while at least a quarter of its lines or labels do, so a
+variable or a patched instruction doesn't count against it. While a file
+doesn't match, its labels are hidden in the disassembly. A debug file's
+source lines are hidden between the instructions too, its data is
+disassembled as instructions, its open source documents aren't mapped to the
+code, and steps go by instruction. A banner
+over each disassembly view, and over each of the file's source documents,
+has the file's name. All of it comes back at the first stop where the
+program is in memory again. Symbols resolve by name in expressions
+throughout, and equates are never checked.
 
 ## Loading and saving binaries
 
@@ -671,6 +732,16 @@ source view.
 
 - `SYM LOAD file.dbg` loads the symbols and the line table. The window opens a
   source pane beside the disassembly and follows the PC.
+- The bytes a debug file maps to a data directive (`.byte`, `.word`, `.addr`,
+  `.asciiz`, `.res`, Merlin's `ASC`, `DA` and `HEX`, and the like) are
+  disassembled as data while the file matches memory: text for a string,
+  words for a word directive and bytes for the rest, each line under the
+  label of its symbol. After **Clear data marking** on a row's menu, or `X`,
+  they are disassembled as code until the file loads again.
+- The source pane has an instruction line's operand and `Result: ` on the
+  same row after the code, starting 40 columns in, or after a longer line's
+  end. Lines don't wrap: a bar along the bottom, or Shift with the wheel,
+  scrolls the text sideways.
 - Dropping a debug or symbol file (`.dbg`, `.sym`, `.lbl`, `.vs`) on the
   debugger window, or on one of its floating panes, loads it as `SYM LOAD`
   would. A dropped source (`.a65`, `.s`, `.asm`, `.inc` and the like, Merlin's
@@ -685,12 +756,19 @@ source view.
 - Each disassembly view's toolbar has check boxes for its viewing options,
   as Visual Studio's: Show address, Show code bytes, Show source code, Show
   symbol names and Show line numbers. With source shown, each source line sits
-  on a row above the code it produced. Source and line numbers are offered once
+  on a row above the code it produced, and the row represents the first
+  instruction under it: its breakpoint, the PC's arrow and the branch arrow
+  are on the source line, and a click in its breakpoint column sets or clears
+  the instruction's breakpoint. A line that produced one instruction has the
+  instruction's operand and result in their column, before the line's
+  comment. A macro or a C line has them on its instructions' rows. Source and
+  line numbers are offered once
   a debug file maps the code. All start checked; the choices hold for every
   view and are saved. Show source code's tip says how to get source while
   there is none, and Show symbol names' tip lists where the symbols came from.
 - Hovering a disassembly view's breakpoint column shows a gray breakpoint on
-  an instruction's row, where a click sets one.
+  an instruction's row or the source line representing it, where a click sets
+  one.
 - While paused, dragging the PC's yellow arrow to another instruction sets the
   PC there without running anything, as Set next statement on a row's context
   menu does.
@@ -720,6 +798,57 @@ source view.
   theme's result color: cyan, amber in Retro terminal, and maroon on a light
   theme such as System light.
 
+### Trying the symbol tips and the source pane
+
+`Apple2/Demos/symbols-demo.dsk` is a small program for trying both. It clears
+the text screen, draws a title, then counts from 0 to 39 over and over,
+drawing the count in hex and one `*` per count in a bar across the screen. The
+source is `Apple2/Demos/SymbolsDemo/symbols-demo.a65`. The debug file
+`symbols-demo.dbg`, written by `CassoCli as65 -g`, is beside it, and
+`Apple2/Demos/SymbolsDemo/Build.ps1` rebuilds the disk and the debug file
+together. The subroutines `clear_screen`, `print_text`, `draw_counter`,
+`hex_digit`, `draw_bar` and `wait` are called with `JSR`, and every label has a
+comment on its defining line.
+
+1. Boot the disk with `Casso.exe --disk1 Apple2\Demos\symbols-demo.dsk`. The
+   title appears and the bar starts to fill.
+2. Open the debugger with **Debug > Debugger...** and break.
+3. Choose **File > Open symbol or debug file...** and pick
+   `Apple2\Demos\SymbolsDemo\symbols-demo.dbg`. Typing
+   `SYM LOAD "Apple2\Demos\SymbolsDemo\symbols-demo.dbg"` in the console, or
+   dropping the file on the debugger, does the same. The source pane opens
+   beside the disassembly. The source is found because the debug file has the
+   path of `symbols-demo.a65` relative to itself. When the pane reports that the
+   source is not found, drag `symbols-demo.a65` onto the debugger.
+4. To start from the source instead, choose **File > Open source file...** and
+   pick `symbols-demo.a65`. With no debug file loaded, Casso loads
+   `symbols-demo.dbg` beside it first.
+5. Go to `$6000` in the disassembly, where the program starts. With source
+   displayed in the disassembly, each source line is on a row above the code
+   it produced.
+
+To see a symbol's comment tip, hover an operand in the disassembly:
+
+- The operand of `JSR clear_screen` at `$6001`. The tip has the symbol's
+  description and its comment, "fill the text page with spaces". The `JSR`
+  operands `print_text`, `draw_counter`, `draw_bar` and `wait` have theirs.
+- The operand of `LDA count` or `INC count` in the loop at `$6042`. The tip has
+  the data label's comment, "loop counter, 0 to BAR_LENGTH-1".
+- `BAR_LENGTH` is an equate, so `SYM BAR_LENGTH` marks it `constant` and
+  `CMP #$28` stays a number in the disassembly.
+
+To see the source pane's annotations while stepping:
+
+1. Set a breakpoint on the top of the loop with `BP symbols-demo.a65:71` and
+   run. The program stops at `main_loop`, `$6042`, once per count.
+2. Click in the source pane and step. With the source pane focused, a step
+   runs one source line; in the disassembly it runs one instruction. `SRC ON`
+   makes every step command step by source line.
+3. The PC's row is marked in the source pane, and a stepped instruction's row
+   has its operand, in the comment color, and `Result: `, in the result color,
+   after the code. Step over `JSR draw_counter` with `P`, or into it with `T`
+   and out again with `RTS`, and watch the row of `inc count` and of
+   `sta ROW_BAR,x` in `draw_bar`.
 ## The call stack
 
 `CALLS` shows the chain of calls to the PC, innermost first. Each frame has
@@ -793,6 +922,12 @@ in: `P` on a `JSR` with an interrupt pending runs the handler, then the call,
 and stops after it. A breakpoint in the handler still stops there. A step
 into stops on the handler's first instruction.
 
+A step out ends when the innermost call on record returns. With call
+recording on but no call on record, or with the PC moved since the stop, the
+calls on record were made by other code, so the step out ends at the first
+`RTS` or `RTI` that raises the stack above where it began. The console and
+the status bar have a line about it.
+
 ## The instruction trace
 
 `HISTORY ON` records every instruction the machine runs, keeping the newest
@@ -824,7 +959,7 @@ The trace costs nothing while it is off.
 
 The window's trace pane lists its keys above its rows, and a click on a key
 there does what the key does. With the pane focused, `Space`, `O` and `R` step
-into, over and out, `Return` runs, `T` turns the trace off and on, `B` turns
+into, over and out, `Enter` runs, `T` turns the trace off and on, `B` turns
 the bytes column off and on, and `S` saves the trace to a file you pick, as
 `HISTORY SAVE` does. While the machine is
 stopped, the next few instructions from the PC follow the last entry, taking
@@ -840,7 +975,8 @@ down, and the finished counts become the profile the lists below read. The
 Profiler pane's **Show** drop-down runs it for the last 10 seconds,
 60 seconds, 5 minutes or since history began, with "Loading profile... (n%)"
 over the list while the profile builds, and while the pane is open the
-chosen period's profile is built again at each stop. The history is cut into
+chosen period's profile is built again at a stop a frame or more from the
+last build, so a step doesn't rebuild it. The history is cut into
 blocks at keyframes and the blocks are replayed on several scratch machines
 at once; each block's counts are cached, so a longer period, or the same one
 built again, replays only the blocks not counted before.
@@ -878,6 +1014,15 @@ stops timing and keeps them.
 To time between two breakpoints instead, stop at the first, run `RCC`, run to
 the second, and `CYCLES PART` gives the cycles in between.
 
+## Disk II log
+
+The Disk II log has an entry for each thing the controller does: the motor,
+a head step or bump, an address field, a sector read or written, the door
+and the drive selected, with a Severity of Info, Warning or Error. Its Track,
+Sector and Volume columns have the event's place: the quarter track a step or
+a bump is at, an address or data field's numbers, and `?` for a number not
+read yet.
+
 ## Video and sound logs
 
 The video log has an entry for each change of video mode -- `TEXT`, `MIXED`,
@@ -888,6 +1033,9 @@ mode makes no entry. The sound log has an entry for each speaker toggle and each
 write to the Mockingboard's 6522s, with its cycle count and the cycles since
 the last entry of its kind; a port B write that clocks a value into an AY
 register also makes an entry for that write, with the register and the value.
+A write to a Mockingboard C's speech chip makes an entry too, decoded
+by register: the phoneme by name and its duration, the rate, the inflection, the
+power state, the articulation and amplitude, or the filter.
 Entries are added to both logs all the time, from the start of the session,
 whether or not the debugger started the run.
 
@@ -904,10 +1052,11 @@ are those at the access.
 The debugger window shows each log in a pane of its own, **Video log** and
 **Sound log**, opened from the View menu or from the Video and Mockingboard
 panels' menus. A row is an entry, with the same text the command lists, in
-columns that can be sorted, shown or hidden: the video log has the frame, line
-and position in the line; the sound log has the cycles since the last entry of
+columns that can be sorted, shown or hidden: the video log has the frame, the
+scanline and the line cycle (the CPU cycle within the scanline); the sound log
+has the cycles since the last entry of
 its kind and its source, which the Source column's Filter narrows to the
-speaker, the 6522s or the AY-3-8910s. Scrolling to the top rebuilds older
+speaker, the 6522s, the AY-3-8910s or the SSI-263. Scrolling to the top rebuilds older
 entries from history. Clear and Save on the pane's bar do what `CLEAR` and
 `SAVE` do, so the pane and the command always show the same log.
 
@@ -980,9 +1129,10 @@ views (`TEXT`, `HGR` and their forms) and the appearance commands (`BW`,
 
 Closing the window closes the debug channel. Reopening it keeps the breakpoints.
 
-Ctrl+F opens a find bar over the pane with the keys -- the console or a source
-document -- as Visual Studio Code's does, and over the console from any other
-pane. One pane has the bar at a time. The bar holds the
+Ctrl+F opens a find bar over the pane with the keys -- the console, a source
+document or an event log -- as Visual Studio Code's does, and over the console
+from any other pane. In a log it searches the text of the visible columns of
+the rows that pass the filters, and selects the match's row. One pane has the bar at a time. The bar holds the
 text to find, then toggles for match case (Aa), match whole word (ab) and
 regular expression (.*), the match's place among all of them ("2 of 5"), up
 and down arrows for the previous and next match, and a close button. With no
@@ -994,7 +1144,9 @@ closes the bar.
 
 The menu bar holds **File** (open a source file, open a symbol or debug file,
 load and save breakpoints, save the trace), **Edit** (copy, select all, find,
-find next and find previous), **View** (every pane, the device panels, and
+find next and find previous), **View** (every pane, with the disassembly views,
+the source files and the BASIC program, the memory windows, the logs and the
+device panels each in a submenu, and
 **Reset window layout**), **Debug** (run, break,
 detach, the steps, run to cursor, run one frame, show beam on screen, show next statement, step by source
 line and trace, then reset, power cycle and restart under debugger) and **Tools**
@@ -1145,7 +1297,7 @@ menu also opens these, which stay closed until first opened:
   the Save glyph, and chooses **Routines**, the view it opens on, **Call
   tree**, **Flame graph**, **Addresses** or **Opcodes**. A click on a
   column's heading sorts the list by it, and a second click turns the order
-  around; each view opens sorted by cycles, or by total for the routines and
+  around; each view opens sorted by cycles, by self for the routines, or by total for
   the call tree, most first, and the call tree sorts each routine's callees
   under it. The routines and the call tree have a square of each routine's
   timeline color before its name. A line above the list has the totals and the time
@@ -1189,7 +1341,13 @@ rows when it is among them:
 
 - **Mark as bytes**, **words**, **addresses**, **text** or **floats** and
   **Clear data marking**, which run `DB`, `DW`, `DA`, `ASC`, `DF` and `X`
-  over the rows' bytes.
+  over the rows' bytes. A drag across rows selects them for these. A range
+  marked without a name is called after the symbol at its start, or after
+  its kind and address without a symbol there, and a symbol labels its line.
+- While the heat columns are on, on a row whose bytes were read or written and
+  never run, **Mark $60C1-$60FF as data (read or written, never run)** marks
+  the run of such bytes around the row as bytes, up to the first byte that ran
+  or that nothing touched.
 - **Add symbol here...**, which runs `SYM name = addr`.
 - **Never step into this routine**, which runs `SKIP` on the routine a `JSR`
   row calls, or on the row's own address; the call stack's menu has it for a
@@ -1207,6 +1365,14 @@ rows when it is among them:
 
 A drag selects text across the columns; a Ctrl+drag selects only in the
 column it began in.
+
+A data line's directive is in italics, and the tip over it has why the bytes
+are data: marked by a data directive, or mapped to one by the debug file.
+
+While the machine runs, the view following the PC isn't moved to the PC for
+five seconds after the wheel, the arrow keys or the scroll bar last scrolled
+it, so the code around can be read; it then follows the PC again. **Follow
+PC** brings it back at once.
 
 The Breakpoints pane's **New** drop-down lists Execution's types (Address,
 Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
@@ -1243,8 +1409,14 @@ zero-page pointer. What is typed in the add row is watched as what it is,
 resolved once: a register's value, the word at an address or a symbol
 (followed to wherever the symbol moves), or an expression's value, each read
 again at every stop. A `.b` or `.w` after an address, a symbol or an
-expression reads a byte or a word there, as `FB+205.w`; a `$` marks a number
-as hex and sets no width. An entry
+expression reads a byte or a word there, as `FB+205.w`, and `.s` reads the text
+there, to a zero byte; a `$` before a number makes it hex and doesn't set a
+width. A symbol
+at the start of a text data block, such as a debug file's `.byte "COUNT:"`,
+reads as its text without `.s`. A symbol's Type cell has its address, as
+`Symbol at $60F2`, and `&count_text` watches the address itself. When an entry
+can't be watched, the reason runs across the add row, and its tip has all of
+it. An entry
 that is none of these stays in the edit box with the reason above the list.
 The console's `W` remains AppleWin's address watch, and `W EXPR text` is the
 typed form. Under **Zero-page pointers** the pane lists the zero-page
@@ -1570,13 +1742,23 @@ the keyframes where any of them changed, it packs to about 64 bytes each.
 ### Heat columns
 
 **Show heat** on a disassembly view's bar adds a column after the margin,
-filled with the heat map's color for the line's hottest byte: the code color
-for a byte run, the read or write color for one read or written as data more
-than it is run. With **Show heat** on, the source view fills a space for each
+filled from a scale for what touched the line's hottest byte most: red to
+yellow for a byte run, blue to pale cyan for one read and purple to pink for
+one written as data more than it is run, brighter the hotter. A byte nothing
+touched is gray. The tip over a heat cell lists the run, read and write
+counts of the line's bytes and draws the cell's scale with an arrow at its
+level. A source line shown between the instructions has the heat of the
+instructions it assembled to. The heading's tip has the scales' definitions.
+With the option on, the
+source view fills a space for each
 byte, up to four, ahead of each line's number, over the first range of bytes
-the line assembled to, and the BASIC program pane has a **Heat** column over
-each line's tokens, where the interpreter's reads of them count as the line
-running. **Heat** on a memory window's bar tints each byte
+the line assembled to, and the BASIC program pane has a **Heat** column that
+colors each line by how often BASIC began it: hotter for more often, with no
+color for a line that hasn't run. A line of several statements, split by
+colons, has its busiest statement's color there, and where its statements
+differ in heat, each is also tinted in place by how often it ran. Point at such a line and its
+tints fade to the usual syntax colors; they come back when the pointer
+moves off. The tip over a line or a statement has the count. **Heat** on a memory window's bar tints each byte
 by its heat. The columns follow the heat map's fade or cumulative choice and
 read the CPU's address space, and the heat is counted while any of them is
 on, as it is while the heat map is shown.
@@ -1638,6 +1820,32 @@ device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same
 from the command box.
 
+The Disk II panel's bar chooses the drives it draws: **D1**, **D2** or
+**Both**, the default, which is saved with the debugger's settings. With both,
+each drive is drawn side by side where the pane is wide enough and one over
+the other where it isn't. Each drive's name is ahead of its head's ruler.
+Under the ruler are the head's track, the word Motor, lit while the motor is
+on, and the stepper's phases in the order 3 2 1 0, each digit before its lamp,
+the last ending at the ruler's right edge. Only the selected drive's phases
+and motor are lit. In the rows under the drawing, the Head group lists the
+track, then the quarter track, then the phases in the same order.
+
+The Mockingboard panel is a graphical view of the card's chips, in as many
+columns as fit the pane. On a Mockingboard C, the SSI-263's card is across the
+top: the phoneme by name, its waveform, its three formants over the pitch's
+harmonics, a strip of the recent phonemes with widths by duration under a
+Recent phonemes heading, a row under the strip with the same phonemes' labels
+in order and an arrow under the one playing, its timing values and its lamps.
+To go back through the strip, tilt the wheel over it or turn the wheel while
+pressing Shift. Each AY-3-8910's card has a row per channel: a mute, the
+note and frequency, tone and noise indicators, a level meter and a scope. Below
+them are a picture of the envelope, the noise frequency, and its 6522's bus
+state, AY write count, last AY write, registers, T1 rate and lamps. A tip on
+each part has the raw register values. A mute changes the host's audio only, so
+it isn't part of machine state or history, and the muted channel's scope is
+unaffected. `PANEL` in the console and a saved state have the chips' values as
+rows and fields.
+
 ### Colors
 
 Every pane whose colors mean something has an info button (an i in a circle)
@@ -1659,8 +1867,10 @@ The debugger has no Help menu.
   brought into view by Go to, the call stack or a branch arrow; a row in the
   accent color, where the branch at the PC goes; the branch arrow in the PC's
   yellow when the flags as they stand take the branch, and gray when they do
-  not, with a tip that gives the flag the branch tests and how it stands; a
-  red dot for a breakpoint, a red ring for a disabled one, and a gray dot
+  not, its tip `Will branch` or `Won't branch`, then the flag the branch
+  tests and its state; the dotted arrow of the branch, jump or call the last
+  step took, its tip that instruction and its address; a red dot for a
+  breakpoint, a red ring for a disabled one, and a gray dot
   where a click sets one; bytes in the changed color, changed since the last
   stop; the operand in the comment green, what the instruction reads; and
   `Result: `, what it leaves behind, in the result color.

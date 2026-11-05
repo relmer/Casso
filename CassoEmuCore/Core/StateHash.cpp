@@ -17,6 +17,10 @@
 //  hashed together in order, then the tail a byte at a time. Continuing
 //  from a previous result as the seed chains runs together.
 //
+//  The words are read through an unaligned pointer, and the lanes are
+//  locals, not an array: a debug build compiles a memcpy of a word to a
+//  call, once for every eight bytes of each keyframe's state.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 uint64_t StateHash::Hash (
@@ -24,36 +28,36 @@ uint64_t StateHash::Hash (
     size_t        size,
     uint64_t      seed)
 {
-    constexpr uint64_t  kPrime  = 0x00000100000001B3ULL;
-    constexpr int       kFold   = 32;
-    constexpr size_t    kLanes  = 4;
-    constexpr size_t    kStride = kLanes * sizeof (uint64_t);
-    uint64_t            lanes[kLanes];
-    uint64_t            hash    = seed;
-    uint64_t            word    = 0;
-    size_t              i       = 0;
-    size_t              lane    = 0;
+    constexpr uint64_t                 kPrime  = 0x00000100000001B3ULL;
+    constexpr int                      kFold   = 32;
+    constexpr size_t                   kLanes  = 4;
+    constexpr size_t                   kStride = kLanes * sizeof (uint64_t);
+    const uint64_t UNALIGNED         * words   = reinterpret_cast<const uint64_t UNALIGNED *> (data);
+    const uint64_t UNALIGNED * const   end     = words + (size / kStride) * kLanes;
+    uint64_t                           lane0   = seed;
+    uint64_t                           lane1   = seed + 1;
+    uint64_t                           lane2   = seed + 2;
+    uint64_t                           lane3   = seed + 3;
+    uint64_t                           hash    = seed;
+    size_t                             i       = (size / kStride) * kStride;
 
 
 
-    for (lane = 0; lane < kLanes; lane++)
+    for (; words != end; words += kLanes)
     {
-        lanes[lane] = seed + lane;
+        lane0  = (lane0 ^ words[0]) * kPrime;
+        lane1  = (lane1 ^ words[1]) * kPrime;
+        lane2  = (lane2 ^ words[2]) * kPrime;
+        lane3  = (lane3 ^ words[3]) * kPrime;
+        lane0 ^= lane0 >> kFold;
+        lane1 ^= lane1 >> kFold;
+        lane2 ^= lane2 >> kFold;
+        lane3 ^= lane3 >> kFold;
     }
 
-    for (i = 0; i + kStride <= size; i += kStride)
+    for (uint64_t lane : { lane0, lane1, lane2, lane3 })
     {
-        for (lane = 0; lane < kLanes; lane++)
-        {
-            memcpy (&word, data + i + lane * sizeof (word), sizeof (word));
-            lanes[lane]  = (lanes[lane] ^ word) * kPrime;
-            lanes[lane] ^= lanes[lane] >> kFold;
-        }
-    }
-
-    for (lane = 0; lane < kLanes; lane++)
-    {
-        hash  = (hash ^ lanes[lane]) * kPrime;
+        hash  = (hash ^ lane) * kPrime;
         hash ^= hash >> kFold;
     }
 

@@ -39,7 +39,7 @@ namespace DebuggerCodeMenuTests
         void  SetDebuggerMemoryWindow (int, std::optional<Word>)                 override {}
         void  SetDebuggerTraceTop     (std::optional<uint64_t>)                  override {}
         void  GoToDebuggerMemory      (int, const std::string & text)            override { goTos.push_back (text); }
-        void  ScrollDebuggerCode      (int, int)                                 override {}
+        void  ScrollDebuggerCode      (int lines, int)                           override { scrolls.push_back (lines); }
         void  OnDebuggerWindowClosed  ()                                         override {}
         void  SetDebuggerKeyScheme    (const std::string &)                      override {}
         void  SetDebuggerLayout       (const std::string &)                      override {}
@@ -48,6 +48,12 @@ namespace DebuggerCodeMenuTests
 
         void  RunDebuggerCommandInMode (const std::string &, CommandMode) override {}
         void  RunDebuggerAction       (const DebuggerAction & action)   override { commands.push_back (action.echo); }
+
+        bool  IsDebuggerSkipNoticeShown()          override { return isNoticeOn; }
+        void  SetDebuggerSkipNoticeShown (bool on) override { isNoticeOn = on; }
+
+        std::vector<int>  scrolls;
+        bool              isNoticeOn = false;
 
         bool  TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> &, std::vector<std::string> &) override { return false; }
         bool  TryGetDebuggerPlacement (RECT &)                                   override { return false; }
@@ -96,6 +102,8 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetCodeEdits;
         using DebuggerWindow::GetCodeGroup;
+        using DebuggerWindow::ScrollCodeAtEdge;
+        using DebuggerWindow::OnMouse;
 
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
         {
@@ -113,10 +121,19 @@ namespace DebuggerCodeMenuTests
             return answer;
         }
 
+        int ShowCheckMessageBox (HWND, const std::wstring & text, const wchar_t *, UINT, const std::wstring &, bool & ioChecked) override
+        {
+            notices.push_back (text);
+            ioChecked = isNoticeTurnedOff;
+            return IDOK;
+        }
+
         std::wstring               typed;
         std::wstring               shownPlaceholder;
         std::vector<std::wstring>  messages;
-        int                        answer   = IDYES;
+        std::vector<std::wstring>  notices;
+        bool                       isNoticeTurnedOff = false;
+        int                        answer            = IDYES;
     };
 
 
@@ -188,6 +205,133 @@ namespace DebuggerCodeMenuTests
 
 
 
+        //  The view's rows are only the lines in view, so an arrow at the first or
+        //  last of them scrolls the view through memory, as do Page Up and
+        //  Page Down there; elsewhere the list moves its selection.
+        TEST_METHOD (AnArrowAtTheEdgeScrollsTheView)
+        {
+            CassoTheme         theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window  (theme, host);
+            DxuiDpiScaler      scaler;
+            DxuiListView     * code    = nullptr;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (MakeSnapshot());
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            code = window.GetCodeList (0);
+            Assert::IsTrue (code->GetRowCount() > 1, L"the view has its lines");
+            code->SetSelectedRow (0);
+
+            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_UP, code),    L"Up on the first line");
+            Assert::IsFalse (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the first line moves the selection");
+            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_PRIOR, code), L"Page Up on the first line");
+            Assert::IsFalse (window.ScrollCodeAtEdge (VK_UP, nullptr), L"only for the focused view");
+
+            code->SetSelectedRow (code->GetRowCount() - 1);
+            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the last line");
+
+            Assert::AreEqual ((size_t) 3, host.scrolls.size());
+            Assert::AreEqual (-1, host.scrolls[0]);
+            Assert::IsTrue   (host.scrolls[1] < -1, L"a page up");
+            Assert::AreEqual (1, host.scrolls[2]);
+        }
+
+
+        //  The vertical wheel over a view scrolls the disassembly through
+        //  memory; the horizontal wheel and Shift with the wheel do not, since
+        //  they scroll the list's columns sideways.
+        TEST_METHOD (OnlyTheVerticalWheelScrollsTheDisassemblyThroughMemory)
+        {
+            CassoTheme         theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window  (theme, host);
+            DxuiDpiScaler      scaler;
+            DxuiListView     * code    = nullptr;
+            DxuiMouseEvent     wheel;
+            RECT               bounds  = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (MakeSnapshot());
+            window.ApplyCodeSnapshot (MakeSnapshot(), 0);
+
+            code   = window.GetCodeList (0);
+            bounds = code->GetBounds();
+
+            wheel.kind            = DxuiMouseEventKind::Wheel;
+            wheel.positionDip     = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+            wheel.wheelDelta      = 1.0f;
+            wheel.wheelHorizontal = true;
+            (void) window.OnMouse (wheel);
+            Assert::IsTrue (host.scrolls.empty(), L"the horizontal wheel scrolled through memory");
+
+            wheel.wheelHorizontal = false;
+            wheel.shift           = true;
+            (void) window.OnMouse (wheel);
+            Assert::IsTrue (host.scrolls.empty(), L"Shift with the wheel scrolled through memory");
+
+            wheel.shift = false;
+            (void) window.OnMouse (wheel);
+            Assert::AreEqual ((size_t) 1, host.scrolls.size(), L"the vertical wheel did not scroll");
+            Assert::IsTrue   (host.scrolls[0] < 0, L"the wheel up went down through memory");
+        }
+
+
+
+        //  A routine the step filter has is a checked row whose click takes
+        //  it out; adding one opens a notice of how to take it out again, until the
+        //  notice's check box turns the notice off.
+        TEST_METHOD (NeverStepIntoIsCheckedWhileTheFilterHasTheRoutine)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               filtered = MakeSnapshot();
+            auto               plain    = MakeSnapshot();
+            Items              items;
+
+
+
+            filtered->stepFilters = { { "COUT", 0xFDED, 0xFDED } };
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (filtered);
+
+            window.GetCodeEdits().AddItems (0, filtered->code[1], 1, items);
+            Run (items, PaneMenu::MakeChecked (L"Never step into this routine"));
+            Assert::AreEqual (std::string ("SKIP -COUT"), host.commands.back(), L"a click on the checked row takes it out");
+
+            window.TakeSnapshot (plain);
+            items.clear();
+            host.isNoticeOn          = true;
+            window.isNoticeTurnedOff = true;
+
+            window.GetCodeEdits().AddItems (0, plain->code[1], 1, items);
+            Run (items, L"Never step into this routine");
+
+            Assert::AreEqual (std::string ("SKIP COUT"), host.commands.back(), L"a click on the plain row adds it");
+            Assert::AreEqual ((size_t) 1, window.notices.size(), L"with the notice");
+            Assert::IsTrue   (window.notices.front().find (L"SKIP - COUT") != std::wstring::npos, L"with the command that takes it out");
+            Assert::IsFalse  (host.isNoticeOn, L"its check box turned it off");
+
+            Run (items, L"Never step into this routine");
+            Assert::AreEqual ((size_t) 1, window.notices.size(), L"no notice once it is off");
+        }
+
+
+
         TEST_METHOD (TheMenuRunsEachEntryAsATypedAction)
         {
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
@@ -206,7 +350,7 @@ namespace DebuggerCodeMenuTests
 
             window.GetCodeEdits().AddItems (0, snapshot->code[1], 1, items);
 
-            Run (items, L"Mark as words");
+            Run (items, PaneMenu::MakeInSubmenu (L"Mark as data", L"Words"));
             Run (items, L"Clear data marking");
             Run (items, L"Never step into this routine");
             Run (items, L"Add bookmark");
@@ -292,6 +436,7 @@ namespace DebuggerCodeMenuTests
 
             snapshot->codeViews[1]                  = snapshot->codeViews[0];
             snapshot->codeViews[1][2].hasBreakpoint = true;
+            snapshot->breakpoints.push_back ({ 1, snapshot->codeViews[1][2].address, "BP", true });
             snapshot->codeViews[0].resize (1);
             snapshot->code                          = snapshot->codeViews[0];
             snapshot->codeOpen[1]                   = true;
@@ -305,7 +450,8 @@ namespace DebuggerCodeMenuTests
             Assert::IsTrue (second->AddMenuItems (second->GetList(), 2, items));
 
             Assert::IsTrue  (Has (items, L"Remove breakpoint"), L"the RTS in the second view has a breakpoint");
-            Assert::IsFalse (Has (items, L"Insert breakpoint"));
+            Assert::IsFalse (Has (items, L"Set breakpoint"));
+            Assert::IsTrue  (Has (items, L"Disable breakpoint"), L"and can turn it off");
         }
 
 
@@ -361,6 +507,43 @@ namespace DebuggerCodeMenuTests
             window.ApplyCodeSnapshot (MakeSnapshot(), 0);
 
             Assert::IsTrue (window.GetCodeEdits().GetSelection (0, 0) == std::pair<Word, Word> (0x0300, 0x0301), L"the clicked row alone");
+        }
+
+
+        //  With Show heat on, a line's heat cell has its color, on the PC's row
+        //  as on the others; the row's other cells have the row's fill.
+        TEST_METHOD (TheHeatCellKeepsItsColorOnEveryRow)
+        {
+            CassoTheme          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            MenuWindow          window   (theme, host);
+            DxuiDpiScaler       scaler;
+            auto                snapshot = MakeSnapshot();
+            auto                levels   = std::make_shared<DebuggerViewSnapshot::HeatColumnLevels>();
+            DisassemblyOptions  options;
+            DxuiListView      * list     = nullptr;
+
+
+
+            levels->execute.assign (0x10000, 200);
+            levels->read.assign    (0x10000, 0);
+            levels->write.assign   (0x10000, 0);
+            snapshot->heatColumns = levels;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            options.Set (DisassemblyOptions::Option::Heat, true);
+            window.GetCodeGroup().SetOptions (options);
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            list = window.GetCodeList (0);
+
+            for (int row = 0; row < 3; row++)
+            {
+                Assert::AreNotEqual (0u, list->GetCellsOfRow (row)[DisassemblyCells::kHeatColumn].background, L"the heat color");
+            }
         }
     };
 }

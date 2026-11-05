@@ -194,6 +194,37 @@ public:
         Assert::IsTrue (sawTip && sawNoTip, L"both tooltip and no-tooltip regions exist");
     }
 
+    //  The strip is under the pointer over all of its band, so in a window's
+    //  hit test it covers what lies behind it, and a part's tip is the
+    //  strip's tip, anchored on the strip. Hidden, it covers nothing.
+    TEST_METHOD (TheStripsTipIsItsPartsAndItCoversItsBand)
+    {
+        MockDxuiTextRenderer  text;
+        Apple2cSwitchBar      bar    = MakeLaidOutBar (text);
+        int                   midY   = (s_kBand.top + s_kBand.bottom) / 2;
+        DxuiTip               tip;
+        bool                  sawTip = false;
+
+        for (int x = s_kBand.left; x < s_kBand.right; ++x)
+        {
+            POINT  at = { x, midY };
+
+            Assert::IsTrue (bar.IsHitAt (at), L"a point of the band isn't under the pointer");
+
+            if (bar.TryGetTip (at, tip))
+            {
+                Assert::AreEqual (std::wstring (bar.GetTooltipTextAt (x, midY)), tip.text);
+                Assert::IsTrue   (EqualRect (&tip.anchor, &s_kBand) != FALSE, L"anchored on the strip");
+                sawTip = true;
+            }
+        }
+
+        Assert::IsTrue (sawTip, L"no part had a tip");
+
+        bar.Hide();
+        Assert::IsFalse (bar.IsHitAt (POINT { s_kBand.left + 5, midY }), L"a hidden strip covers its band");
+    }
+
     TEST_METHOD (Paint_FillsCaseBody)
     {
         MockDxuiTextRenderer  text;

@@ -179,21 +179,45 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  The user's tables are in one pane and the machine's in the other,
+        //  each a heading over its symbols while it is open.
         TEST_METHOD (EachTableIsAHeadingOverItsSymbols)
         {
             auto                                          symbols = MakeSymbols();
-            std::vector<SymbolsPane::Row>                 rows    = SymbolsPane::GetRows (*symbols);
-            std::vector<std::vector<DxuiListView::Cell>>  cells   = SymbolsPane::GetCells (*symbols, rows);
+            std::set<std::string>                         open    = { "main", "user" };
+            std::vector<SymbolsPane::Row>                 user    = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User,    open);
+            std::vector<SymbolsPane::Row>                 machine = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::Machine, open);
+            std::vector<std::vector<DxuiListView::Cell>>  cells   = SymbolsPane::GetCells (*symbols, user, open);
 
 
 
-            Assert::AreEqual ((size_t) 5, rows.size());
-            Assert::IsTrue   (rows[0].isHeading && rows[2].isHeading);
-            Assert::AreEqual (std::wstring (L"main (1)"), cells[0][0].text);
-            Assert::IsTrue   (cells[0][0].check.value_or (false), L"main is on");
-            Assert::IsFalse  (cells[2][0].check.value_or (true), L"user is off");
-            Assert::AreEqual (std::wstring (L"$0300"), cells[3][1].text);
-            Assert::AreEqual (std::wstring (L"0028 (constant)"), cells[4][1].text, L"a constant is not an address");
+            Assert::AreEqual ((size_t) 3, user.size(), L"the user table's heading and symbols");
+            Assert::AreEqual ((size_t) 2, machine.size(), L"main's heading and its symbol");
+            Assert::AreEqual (std::string ("main"), machine[0].table);
+            Assert::IsTrue   (user[0].isHeading);
+            Assert::AreEqual (std::format (L"{} user (2)", s_kpszTriangleDown), cells[0][0].text);
+            Assert::IsFalse  (cells[0][0].check.value_or (true), L"user is off");
+            Assert::AreEqual (std::wstring (L"$0300"), cells[1][1].text);
+            Assert::AreEqual (std::wstring (L"0028 (constant)"), cells[2][1].text, L"a constant is not an address");
+        }
+
+
+        //  A heading starts closed, with no symbols under it; a table loaded
+        //  from a file has the file's name.
+        TEST_METHOD (AHeadingStartsClosedAndHasItsFilesName)
+        {
+            auto                                          symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());
+            std::vector<SymbolsPane::Row>                 rows;
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+
+
+
+            symbols->tables[1].origins = { "demo.dbg" };
+            rows  = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, {});
+            cells = SymbolsPane::GetCells (*symbols, rows, {});
+
+            Assert::AreEqual ((size_t) 1, rows.size(), L"only the heading");
+            Assert::AreEqual (std::format (L"{} demo.dbg (2)", s_kpszTriangleRight), cells[0][0].text);
         }
 
 
@@ -283,7 +307,8 @@ namespace DebuggerToolPanesTests
         //  the snapshot has the build under way. The view drop-down's label
         //  follows the view.
         //  Open on a stopped machine with history, the pane builds the chosen
-        //  period's profile once for each stop, with no period chosen again.
+        //  period's profile at a stop, with no period chosen again. A step, or
+        //  steps that add up to less than a frame, don't build it again.
         TEST_METHOD (TheOpenPaneBuildsTheProfileAtEachStop)
         {
             CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
@@ -304,7 +329,7 @@ namespace DebuggerToolPanesTests
             snapshot->history.hasHistory = true;
             snapshot->history.cycle      = 100;
             window.TakeSnapshot (snapshot);
-            Assert::IsTrue (host.commands == std::vector<std::string> { "PROFILE HISTORY 60" }, L"the chosen period, built at the stop");
+            Assert::IsTrue (host.commands == std::vector<std::string> { "PROFILE HISTORY 5" }, L"the default period, the last 5 seconds, built at the stop");
 
             window.TakeSnapshot (snapshot);
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"once for the stop");
@@ -312,7 +337,28 @@ namespace DebuggerToolPanesTests
             snapshot                = std::make_shared<DebuggerViewSnapshot> (*snapshot);
             snapshot->history.cycle = 200;
             window.TakeSnapshot (snapshot);
-            Assert::AreEqual ((size_t) 2, host.commands.size(), L"and again at the next");
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"not again after a step");
+
+            snapshot                = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            snapshot->history.cycle = 100 + ProfilerPane::kRebuildCycles;
+            window.TakeSnapshot (snapshot);
+            Assert::AreEqual ((size_t) 2, host.commands.size(), L"and again after a frame's run");
+
+            snapshot                = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            snapshot->history.cycle = 100;
+            window.TakeSnapshot (snapshot);
+            Assert::AreEqual ((size_t) 3, host.commands.size(), L"and after a frame's step back");
+        }
+
+
+
+        TEST_METHOD (TheProfilerPeriodDefaultsToFiveSecondsAndReadsTheSetting)
+        {
+            Assert::AreEqual ((size_t) 0, ProfilerPane::GetPeriodIndex (""),    L"no setting is the last 5 seconds");
+            Assert::AreEqual ((size_t) 0, ProfilerPane::GetPeriodIndex ("7"),   L"an unknown setting is the last 5 seconds");
+            Assert::AreEqual ("HISTORY 5", ProfilerPane::GetPeriods()[0].words);
+            Assert::AreEqual ((size_t) 2, ProfilerPane::GetPeriodIndex ("60"));
+            Assert::AreEqual ("HISTORY ALL", ProfilerPane::GetPeriods()[ProfilerPane::GetPeriodIndex ("ALL")].words);
         }
 
 
@@ -336,7 +382,7 @@ namespace DebuggerToolPanesTests
 
             for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerPane().GetCommands())
             {
-                if (command->label == L"Last 60 s") { period = command; }
+                if (command->label == L"Last 5 s")  { period = command; }
                 if (command->label == L"Routines")  { view   = command; }
                 Assert::AreNotEqual (std::wstring (L"Profile"), command->label, L"a Profile switch");
             }
@@ -345,7 +391,7 @@ namespace DebuggerToolPanesTests
             Assert::IsNotNull (view.get(), L"the pane opens on Routines");
             Assert::IsTrue    (window.GetProfilerPane().GetView() == ProfilerPane::View::Routines);
 
-            window.GetProfilerPane().ShowPeriod (0);
+            window.GetProfilerPane().ShowPeriod (1);
             Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE HISTORY 10" });
             Assert::AreEqual (std::wstring (L"Last 10 s"), period->labelText());
 
@@ -540,9 +586,9 @@ namespace DebuggerToolPanesTests
 
         //  Each bar is as wide as its total's share of its caller's; zoomed,
         //  the routine spans the width under its callers.
-        //  Each view opens sorted the way it is most read: routines and the
-        //  call tree by total, most first; any column sorts both ways, by
-        //  number or by name.
+        //  Each view opens sorted the way it is most read: the routines by
+        //  self, the call tree by total, most first; any column sorts both
+        //  ways, by number or by name.
         TEST_METHOD (TheProfilerListSortsByAnyColumn)
         {
             using View = ProfilerPane::View;
@@ -552,8 +598,9 @@ namespace DebuggerToolPanesTests
 
 
 
-            Assert::AreEqual (3, sort.column, L"Total");
+            Assert::AreEqual (1, sort.column, L"Self");
             Assert::IsTrue   (sort.descending);
+            Assert::AreEqual (2, ProfilerPane::GetDefaultSort (View::Tree).column, L"the call tree by Total");
             Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 3, true)  == std::vector<size_t> { 2, 3, 0, 1 }, L"Top level, DRAW, PLOT, FILL");
             Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, true)  == std::vector<size_t> { 0, 2, 1, 3 }, L"by self");
             Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, false) == std::vector<size_t> { 3, 1, 2, 0 }, L"by self, least first");
@@ -590,7 +637,7 @@ namespace DebuggerToolPanesTests
             DxuiDpiScaler                  scaler;
             auto                           snapshot = std::make_shared<DebuggerViewSnapshot>();
             PaneMenuItems                  top;
-            PaneMenuItems                  draw;
+            PaneMenuItems                  plot;
             const std::function<void()>  * add      = nullptr;
 
 
@@ -602,23 +649,23 @@ namespace DebuggerToolPanesTests
             snapshot->profile = MakeRoutineProfile();
             window.TakeSnapshot (snapshot);
 
-            //  Sorted by total: Top level, then DRAW.
-            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 0, top);
-            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 1, draw);
+            //  Sorted by self: PLOT, then Top level.
+            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 1, top);
+            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 0, plot);
 
-            for (const auto & [label, run] : draw)
+            for (const auto & [label, run] : plot)
             {
                 add = (label == L"Add symbol here...") ? &run : add;
             }
 
             Assert::IsTrue    (std::ranges::none_of (top, [] (const auto & item) { return item.first == L"Add symbol here..."; }), L"Top level has no address");
-            Assert::IsNotNull (add, L"DRAW's row has it");
+            Assert::IsNotNull (add, L"PLOT's row has it");
 
             window.typed = L"DRAWLINE";
             (*add)();
 
             Assert::IsFalse (host.commands.empty());
-            Assert::AreEqual (std::string ("SYM DRAWLINE = 6200"), host.commands.back());
+            Assert::AreEqual (std::string ("SYM DRAWLINE = 6000"), host.commands.back());
         }
 
 
@@ -801,6 +848,133 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  The clicked bar is drawn in marching dashes, light and dark so one
+        //  of them reads on any bar, and the clicked routine's other bars in a
+        //  ring of the focus accent; the dashes march with time.
+        TEST_METHOD (TheClickedBarMarchesAndItsRoutinesOtherBarsAreOutlined)
+        {
+            ProfileData                  profile  = MakeRoutineProfile();
+            FlameGraphView               flame;
+            DxuiDpiScaler                scaler;
+            DxuiMouseEvent               click;
+            MockDxuiPainter              painter;
+            MockDxuiTextRenderer         text;
+            MockDxuiTheme                theme;
+            const FlameGraphView::Bar  * first    = nullptr;
+            const FlameGraphView::Bar  * second   = nullptr;
+            int                          light    = 0;
+            int                          dark     = 0;
+            int                          outlined = 0;
+
+
+
+            //  PLOT is called from DRAW and from FILL.
+            profile.tree = { { 2, 0, 30, 100, 0 }, { 3, 1, 10, 50, 1 }, { 0, 2, 40, 40, 4 }, { 1, 1, 10, 20, 2 }, { 0, 2, 10, 10, 4 } };
+
+            scaler.SetDpi (96);
+            flame.SetData (profile);
+            flame.Layout  (RECT { 0, 0, 1000, 200 }, scaler);
+
+            for (const FlameGraphView::Bar & bar : flame.GetBars())
+            {
+                first  = (bar.node == 2) ? &bar : first;
+                second = (bar.node == 4) ? &bar : second;
+            }
+
+            Assert::IsNotNull (first);
+            Assert::IsNotNull (second);
+
+            click.kind        = DxuiMouseEventKind::Up;
+            click.button      = DxuiMouseButton::Left;
+            click.positionDip = POINT { (LONG) (first->x + first->width / 2.0f), (LONG) (first->row * FlameGraphView::kRowDip + FlameGraphView::kRowDip / 2) };
+
+            Assert::IsTrue (flame.OnMouse (click));
+            Assert::IsTrue (flame.Animate (1000), L"the dashes march while a bar is clicked");
+
+            flame.Paint (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                light    += (call.kind == RecordedPaintKind::DrawLine && call.argb == DxuiMarquee::kLightArgb) ? 1 : 0;
+                dark     += (call.kind == RecordedPaintKind::DrawLine && call.argb == DxuiMarquee::kDarkArgb)  ? 1 : 0;
+                outlined += (call.kind == RecordedPaintKind::OutlineRect && std::abs (call.x - second->x) < 6.0f) ? 1 : 0;
+            }
+
+            Assert::IsTrue   (light > 0 && dark > 0, L"dashes in both colors");
+            Assert::AreEqual (2, outlined, L"PLOT's other bar has a ring and a line inside it");
+            Assert::IsTrue   (std::ranges::any_of (painter.Calls(), [] (const RecordedPaintCall & call) { return call.kind == RecordedPaintKind::OutlineRect && call.argb == FlameGraphView::kOtherRingArgb; }),
+                              L"the ring is white");
+            Assert::AreNotEqual (DxuiMarquee::GetPhasePx (4.0f, 0), DxuiMarquee::GetPhasePx (4.0f, DxuiMarquee::kStepMs), L"a step later the dashes have moved");
+        }
+
+
+        //  A routine's tip starts with its name, its address and its symbol's
+        //  description, on a flame bar, a list row and a timeline line alike.
+        TEST_METHOD (ARoutinesTipHasItsAddressAndDescription)
+        {
+            ProfileRoutineEntry  named;
+            ProfileRoutineEntry  bare;
+            ProfileRoutineEntry  top;
+
+
+
+            named.kind        = RoutineKind::Call;
+            named.address     = 0xDB5C;
+            named.symbol      = "OUTDO";
+            named.description = "Applesoft: print the character in A";
+            bare.kind         = RoutineKind::Call;
+            bare.address      = 0x0300;
+
+            Assert::AreEqual (std::string ("OUTDO at $DB5C\nApplesoft: print the character in A"), named.GetTipHead());
+            Assert::AreEqual (std::string ("$0300"), bare.GetTipHead(), L"an address alone is the name");
+            Assert::AreEqual (std::string ("Top level"), top.GetTipHead());
+            Assert::AreEqual (std::string ("OUTDO ($DB5C, Applesoft: print the character in A)"), ProfileTimeline::GetTimelineName (named));
+            Assert::AreEqual (std::string ("$0300"), ProfileTimeline::GetTimelineName (bare));
+        }
+
+
+        //  A selected range is framed in the theme's text color, unlike every
+        //  routine color, and the bars on either side of it are dimmed.
+        TEST_METHOD (TheSelectionIsFramedInTheTextColorAndTheRestDimmed)
+        {
+            constexpr int64_t     kFrame   = (int64_t) RoutineProfile::kCyclesPerFrame;
+            ProfileTimeline       timeline;
+            ProfileData           profile  = MakeRoutineProfile();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            float                 from     = 0.0f;
+            int                   edges    = 0;
+            int                   dimmed   = 0;
+
+
+
+            scaler.SetDpi (96);
+            timeline.SetData (profile);
+            timeline.Layout  (RECT { 0, 0, 600, 40 }, scaler);
+            timeline.SetView (0, 10 * kFrame);
+            timeline.SetSelection (ProfileTimeline::Range { 4 * kFrame, 6 * kFrame });
+            timeline.Paint   (painter, text, theme);
+
+            from = 240.0f;
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                edges  += (call.argb == theme.Foreground() && std::abs (call.x - from) < 0.5f) ? 1 : 0;
+                dimmed += ((call.argb & 0x00FFFFFF) == (theme.Background() & 0x00FFFFFF) && call.argb != theme.Background()) ? 1 : 0;
+            }
+
+            for (size_t i = 0; i < ProfileTimeline::kColoredRoutines; i++)
+            {
+                Assert::AreNotEqual (theme.Foreground(), FlameGraphView::GetRoutineColor (i));
+            }
+
+            Assert::IsTrue   (edges >= 3, L"the left edge, top and bottom start at the selection");
+            Assert::AreEqual (2, dimmed, L"a scrim on each side");
+        }
+
+
         //  A bar that covers several frames, once the frames are joined into
         //  wider bars, is as tall as its cycles are a share of those frames'.
         TEST_METHOD (ABarOfSeveralFramesIsScaledByThem)
@@ -842,7 +1016,7 @@ namespace DebuggerToolPanesTests
             ProfileData            profile  = MakeRoutineProfile();
             std::vector<uint32_t>  swatches;
             std::wstring           tip      = ProfileTimeline::GetFrameTip (profile.frames[0], profile.routines, 0xFF808080, swatches);
-            std::wstring  head    = std::format (L"Frame 9: {} cycles\nPLOT: {} cycles (74.4%)\nTop level: {} cycles", DebuggerStatusText::FormatCount (4030),
+            std::wstring  head    = std::format (L"Frame 9: {} cycles\nPLOT ($6000): {} cycles (74.4%)\nTop level: {} cycles", DebuggerStatusText::FormatCount (4030),
                                                  DebuggerStatusText::FormatCount (3000), DebuggerStatusText::FormatCount (1000));
 
 
@@ -978,7 +1152,7 @@ namespace DebuggerToolPanesTests
             video.Clear();
             Assert::AreEqual (std::string ("VIDEOLOG CLEAR"), host.commands.back());
 
-            Assert::AreEqual ((size_t) 3, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522 and AY");
+            Assert::AreEqual ((size_t) 4, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522, AY and SSI-263");
             Assert::IsTrue   (video.GetColumnFilterItems (video.GetLists().front(), IoLogPane::kSource, commands).empty());
         }
 
@@ -1156,7 +1330,7 @@ namespace DebuggerToolPanesTests
             CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost     host;
             ToolWindow            window  (theme, host);
-            SymbolsPane           symbols (window.GetPaneHostForTest());
+            SymbolsPane           symbols (window.GetPaneHostForTest(), SymbolsPane::Kind::Machine);
             BookmarksPane         other   (window.GetPaneHostForTest());
             DebuggerViewSnapshot  snapshot;
             PaneMenuItems         items;
@@ -1170,6 +1344,7 @@ namespace DebuggerToolPanesTests
 
             snapshot.symbols = MakeSymbols();
             symbols.Apply (snapshot);
+            symbols.ToggleTable ("main");
 
             Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 1) == std::vector<std::wstring> { L"Go to", L"Remove", L"Clear table", L"Save table...", L"Copy" });
             Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 0) == std::vector<std::wstring> { L"Clear table", L"Save table...", L"Copy" });
@@ -1180,6 +1355,38 @@ namespace DebuggerToolPanesTests
 
             Assert::AreEqual ((size_t) 1, host.commands.size());
             Assert::IsTrue   (host.commands[0].find ("COUT") != std::string::npos, TextEncoding::NarrowToWide (host.commands[0]).c_str());
+        }
+
+
+        //  A user table loaded from a file unloads it, which clears the
+        //  table.
+        TEST_METHOD (AUserTableLoadedFromAFileUnloadsIt)
+        {
+            CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost     host;
+            ToolWindow            window  (theme, host);
+            SymbolsPane           symbols (window.GetPaneHostForTest(), SymbolsPane::Kind::User);
+            DebuggerViewSnapshot  snapshot;
+            PaneMenuItems         items;
+            auto                  state   = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());
+
+
+
+            window.OnCreate();
+            symbols.CreateControls();
+            symbols.Configure();
+
+            state->tables[1].origins = { "demo.dbg" };
+            snapshot.symbols         = state;
+            symbols.Apply (snapshot);
+
+            Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 0) == std::vector<std::wstring> { L"Unload demo.dbg", L"Save table...", L"Copy" });
+
+            (void) symbols.AddMenuItems (symbols.GetList(), 0, items);
+            items[0].second();
+
+            Assert::AreEqual ((size_t) 1, host.commands.size());
+            Assert::IsTrue   (host.commands[0].find ("CLEAR") != std::string::npos, TextEncoding::NarrowToWide (host.commands[0]).c_str());
         }
     };
 }

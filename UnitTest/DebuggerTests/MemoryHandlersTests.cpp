@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "ApplesoftTokenizer.h"
 #include "Debugger/Handlers/MemoryHandlers.h"
 #include "Debugger/Handlers/SymbolHandlers.h"
 #include "HandlerTestRig.h"
@@ -272,6 +273,54 @@ namespace DebuggerTests
 
             rig.session.SetFileSystem (nullptr);
             rig.RunFails ("BLOAD prog.bin 300", "no file access");
+        }
+
+
+
+        //  A listing loads at $0801 as the program, with Applesoft's pointers
+        //  set as its LOAD sets them, and saves back as the same listing.
+        TEST_METHOD (BASICLOAD_BASICSAVE_RoundTrip)
+        {
+            Rig                    rig;
+            Reply                  reply;
+            std::string            listing = "10 PRINT \"HI\"\n20 GOTO 10\n";
+            std::vector<Byte>      bytes;
+            ApplesoftListingError  error;
+            Word                   end     = 0;
+            HRESULT                hr      = S_OK;
+
+
+
+            hr = ApplesoftTokenizer::Tokenize (listing, bytes, error);
+            Assert::IsTrue (SUCCEEDED (hr));
+            end = (Word) (0x0801 + bytes.size());
+
+            rig.target.memory[0x73] = 0x00;
+            rig.target.memory[0x74] = 0x96;
+            rig.files.WriteAllText (L"C:\\Work\\prog.bas", listing);
+
+            reply = rig.RunOk ("BASICLOAD prog.bas");
+            Assert::IsTrue (reply.text.at (0).starts_with ("Loaded 2 lines"), std::wstring (reply.text.at (0).begin(), reply.text.at (0).end()).c_str());
+
+            for (size_t i = 0; i < bytes.size(); i++)
+            {
+                Assert::AreEqual (bytes[i], rig.target.memory[0x0801 + i], L"the program's bytes at $0801");
+            }
+
+            Assert::AreEqual ((Byte) 0x01,         rig.target.memory[0x67], L"TXTTAB");
+            Assert::AreEqual ((Byte) 0x08,         rig.target.memory[0x68]);
+            Assert::AreEqual ((Byte) (end & 0xFF), rig.target.memory[0x69], L"VARTAB at the program's end");
+            Assert::AreEqual ((Byte) (end >> 8),   rig.target.memory[0x6A]);
+            Assert::AreEqual ((Byte) (end & 0xFF), rig.target.memory[0x6D], L"STREND");
+            Assert::AreEqual ((Byte) 0x96,         rig.target.memory[0x70], L"FRETOP at MEMSIZ");
+
+            rig.RunOk ("BASICSAVE out.bas");
+            Assert::IsTrue (rig.files.PeekContent (L"C:\\Work\\out.bas").find ("20  GOTO 10") != std::string::npos, L"the listing saved");
+
+            rig.RunFails ("BASICLOAD missing.bas", "file not found");
+
+            rig.files.WriteAllText (L"C:\\Work\\bad.bas", "70000 PRINT\n");
+            rig.RunFails ("BASICLOAD bad.bas", "file not loadable");
         }
 
 

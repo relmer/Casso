@@ -99,6 +99,31 @@ void ShellDebugger::StartReverseRecording()
     m_heatFinder.SetMachine      (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_callReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 
+    //  A profile from history starts each block inside the calls open at its
+    //  keyframe, from the copies of the call record taken there.
+    m_eventLogs.GetProfileHistory().SetCallsAt ([this] (uint64_t position, std::vector<CallStackFrame> & outFrames)
+    {
+        CallRecord             record;
+        std::span<const Byte>  packed;
+        HRESULT                hr     = S_OK;
+
+        if (m_debugController == nullptr)
+        {
+            return false;
+        }
+
+        packed = m_debugController->GetCallHistory().GetCopies().GetPacked (position);
+        hr     = packed.empty() ? E_FAIL : CallRecordCopies::Unpack (packed, record);
+
+        if (FAILED (hr))
+        {
+            return false;
+        }
+
+        outFrames = std::move (record.frames);
+        return true;
+    });
+
     //  The event logs begin again with history, or without it when it did
     //  not start.
     m_eventLogs.Start (m_reverseHost->IsRecording() ? &m_reverseHost->GetController() : nullptr);
@@ -840,7 +865,7 @@ void ShellDebugger::PressGuestMouseHeldBehindLive()
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
-    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool                                 isHostDown = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 
@@ -881,7 +906,7 @@ void ShellDebugger::ReleaseGuestMouseAfterClick()
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
     HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
-    bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    bool                                 isHostDown = DxuiInputState::IsKeyDown (VK_LBUTTON);
 
 
 

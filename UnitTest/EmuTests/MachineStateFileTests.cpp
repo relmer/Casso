@@ -565,6 +565,51 @@ public:
     }
 
 
+    //  A device's section newer than this build reads is a newer format too,
+    //  and the machine is left as it was. A build that raised a device's state
+    //  version saves a state that an older build reads only to that section.
+    TEST_METHOD (ANewerDeviceSectionIsANewerFormat)
+    {
+        constexpr size_t             kVersionOffset = sizeof (uint32_t);
+        constexpr Byte               kTag[]         = { 'D', 'S', 'K', '2' };
+        TestMachine                  source ("Apple2e");
+        TestMachine                  target ("Apple2e");
+        FileLog                      sourceLog;
+        FileLog                      targetLog;
+        std::vector<Byte>            bytes;
+        std::vector<Byte>            before;
+        MachineStateContents         contents;
+        MachineStateError            error;
+        std::vector<Byte>::iterator  section;
+        HRESULT                      hr             = S_OK;
+
+
+
+        Prepare (source, sourceLog, true);
+        source.RunCycles (s_kStateWarmupCycles);
+
+        bytes = Build (source);
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        section = std::search (contents.machineState.begin(), contents.machineState.end(), std::begin (kTag), std::end (kTag));
+
+        Assert::IsTrue (section != contents.machineState.end(), L"the state has the Disk II controller's section");
+
+        section[kVersionOffset]     = 0xFF;
+        section[kVersionOffset + 1] = 0xFF;
+
+        Prepare (target, targetLog, true);
+        before = ReverseSessionRig::Save (target);
+
+        hr = MachineStateFile::Apply (target, contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH), hr, L"a newer device section must not load");
+        Assert::AreEqual (std::string ("newer state format"), error.label);
+        Assert::IsTrue   (before == ReverseSessionRig::Save (target), L"the failed load put the machine back as it was");
+    }
+
+
     //  A file as Casso wrote it before states were compressed: format
     //  version 2, section version 2, the payload stored as is.
     TEST_METHOD (AVersionTwoStateLoadsWithItsTimeAndThumbnail)

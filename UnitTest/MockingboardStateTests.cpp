@@ -2,6 +2,7 @@
 
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 #include "Devices/Ay8910.h"
 #include "Devices/Ssi263.h"
 #include "Devices/Via6522.h"
@@ -466,6 +467,61 @@ namespace MockingboardState
             Assert::AreEqual (S_OK, hr);
 
             source.AssertSameState (target);
+        }
+
+
+        TEST_METHOD (AyWriteCountAndLastWriteRoundTrip)
+        {
+            Ay8910               source;
+            Ay8910               target;
+            DiagnosticsSoundPsg  psg;
+
+
+
+            source.LatchAddress (9);
+            source.WriteData    (0x05);
+
+            Assert::AreEqual (S_OK, LoadFrom (target, Save (source)));
+            target.AppendSoundBoard (psg);
+
+            Assert::AreEqual ((uint32_t) 1, psg.writeCount);
+            Assert::IsTrue   (psg.hasLastWrite);
+            Assert::AreEqual ((int) 9,    (int) psg.lastWriteReg);
+            Assert::AreEqual ((int) 0x05, (int) psg.lastWriteValue);
+        }
+
+
+        //  A mute is the host's, not the machine's.
+        TEST_METHOD (AyMuteIsNotSaved)
+        {
+            Ay8910  source;
+            Ay8910  target;
+
+
+
+            source.SetChannelMuted (2, true);
+
+            Assert::AreEqual (S_OK, LoadFrom (target, Save (source)));
+            Assert::IsFalse  (target.IsChannelMuted (2));
+        }
+
+
+        TEST_METHOD (SsiRecentPhonemesRoundTrip)
+        {
+            Ssi263                 source;
+            Ssi263                 target;
+            DiagnosticsSoundVoice  voice;
+
+
+
+            source.WriteRegister (Ssi263::kRegCtlArtAmp,       0x5C);
+            source.WriteRegister (Ssi263::kRegDurationPhoneme, 0x14);
+
+            Assert::AreEqual (S_OK, LoadFrom (target, Save (source)));
+            target.AppendSoundBoard (voice);
+
+            Assert::AreEqual ((size_t) 1, voice.recent.size());
+            Assert::AreEqual (std::string ("IU (you)"), voice.recent[0].name);
         }
 
 

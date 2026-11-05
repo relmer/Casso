@@ -210,7 +210,7 @@ std::wstring ProfileTimeline::GetFrameTip (
             continue;
         }
 
-        text += std::format (L"\n{}: {} cycles ({:.1f}%)", TextEncoding::NarrowToWide (routines[shares[i].first].GetName()),
+        text += std::format (L"\n{}: {} cycles ({:.1f}%)", TextEncoding::NarrowToWide (GetTimelineName (routines[shares[i].first])),
                              DebuggerStatusText::FormatCount (shares[i].second), 100.0 * (double) shares[i].second / (double) std::max<uint64_t> (total, 1));
         swatches.push_back (GetShareColor (shares[i].first, otherArgb));
     }
@@ -222,6 +222,31 @@ std::wstring ProfileTimeline::GetFrameTip (
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::GetTimelineName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ProfileTimeline::GetTimelineName (const ProfileRoutineEntry & routine)
+{
+    if (routine.kind == RoutineKind::Top || routine.symbol.empty())
+    {
+        return routine.GetName();
+    }
+
+    if (routine.description.empty())
+    {
+        return std::format ("{} (${:04X})", routine.GetName(), routine.address);
+    }
+
+    return std::format ("{} (${:04X}, {})", routine.GetName(), routine.address, routine.description);
 }
 
 
@@ -380,18 +405,34 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         }
     }
 
-    //  The selection, in the theme's focus color, see-through over the bars,
-    //  with its edges solid.
+    //  The selection: the bars outside it dimmed under the background, and a
+    //  frame around it in the theme's text color, which is far from every
+    //  routine color in every theme.
     if (m_selection.has_value())
     {
-        constexpr uint32_t  kSeeThrough = 0x50000000;
-        uint32_t            accent      = theme.FocusAccent();
-        float               from        = std::clamp (GetCycleX (m_selection->first),  left, right);
-        float               to          = std::clamp (GetCycleX (m_selection->second), left, right);
+        constexpr uint32_t  kScrim = 0xB0000000;
+        uint32_t            dim    = (theme.Background() & 0x00FFFFFF) | kScrim;
+        uint32_t            edge   = theme.Foreground();
+        float               line   = std::max (2.0f, (float) std::lround (m_scaler.ToPxf (kSelectionEdgeDip)));
+        float               top    = (float) m_boundsDip.top;
+        float               from   = std::clamp (GetCycleX (m_selection->first),  left, right);
+        float               to     = std::clamp (GetCycleX (m_selection->second), left, right);
+        float               wide   = std::max (line, to - from);
 
-        painter.FillRect (from, (float) m_boundsDip.top, std::max (1.0f, to - from), height, (accent & 0x00FFFFFF) | kSeeThrough);
-        painter.FillRect (from, (float) m_boundsDip.top, 1.0f, height, accent);
-        painter.FillRect (std::max (from, to - 1.0f), (float) m_boundsDip.top, 1.0f, height, accent);
+        if (from > left)
+        {
+            painter.FillRect (left, top, from - left, height, dim);
+        }
+
+        if (from + wide < right)
+        {
+            painter.FillRect (from + wide, top, right - from - wide, height, dim);
+        }
+
+        painter.FillRect (from,               top,           line, height, edge);
+        painter.FillRect (from + wide - line, top,           line, height, edge);
+        painter.FillRect (from,               top,           wide, line,   edge);
+        painter.FillRect (from,               bottom - line, wide, line,   edge);
     }
 
     if (m_pointerX.has_value())

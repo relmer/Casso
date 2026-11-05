@@ -2,6 +2,7 @@
 
 #include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
+#include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Shell/CpuManager.h"
 
 #include "Config/WindowPlacementProfile.h"
@@ -605,6 +606,36 @@ void ShellDebugger::SetDebuggerHeatColumnsShown (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerTraceShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerTraceShown (bool shown)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, shown ? std::string ("trace on") : std::string ("trace off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerSoundMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerSoundMuted (int channel, bool isMuted)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("soundmute {} {}", channel, isMuted ? "on" : "off"));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebuggerBasicShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1005,6 +1036,31 @@ void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebugSoundMuted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugSoundMuted (int channel, bool isMuted)
+{
+    MockingboardCard             * card = m_machine.GetRefs().mockingboard;
+    std::lock_guard<std::mutex>    viewHeld (m_debugViewStateLock);
+
+
+
+    if (card != nullptr)
+    {
+        card->SetSoundMuted (channel, isMuted);
+    }
+
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetDebugHeatColumnsShown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1016,6 +1072,26 @@ void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 
 
     m_debugViewState.SetHeatColumnsShown (shown);
+    m_isDebugViewDirty = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebugTraceShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebugTraceShown (bool shown)
+{
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
+    m_debugViewState.SetTraceShown (shown);
     m_isDebugViewDirty = true;
 }
 
@@ -1253,7 +1329,7 @@ void ShellDebugger::RedrawDebugFrame()
 void ShellDebugger::PublishDebuggerView()
 {
     HRESULT               hr         = S_OK;
-    ULONGLONG             now        = GetTickCount64();
+    ULONGLONG             now        = m_clock();
     bool                  isDue      = false;
     bool                  isBreaking = false;
     bool                  isTaken    = true;
@@ -1355,6 +1431,7 @@ void ShellDebugger::PublishDebuggerView()
 
     GatherDebugView (input, live);
     m_debugViewPublisher.Submit (std::move (input), std::move (live));
+    m_buildsSubmitted++;
 
     m_debugViewBuiltAt      = now;
     m_wasPausedAtDebugBuild = m_cpuManager.IsPaused();
@@ -1410,7 +1487,7 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
 
     first = DebuggerViewState::GetTraceWindowFirst (target.GetTraceSize(), m_debugViewState.GetTraceTop(), DebuggerViewState::kTraceRows);
 
-    DebugViewCapture::Take (target, CallRecord(), (size_t) first, DebuggerViewState::kTraceRows, *capture);
+    DebugViewCapture::Take (target, CallRecord(), (size_t) first, m_debugViewState.IsTraceShown() ? DebuggerViewState::kTraceRows : 0, *capture);
     session.TakeView (m_debugSessionView);
 
     input.capture  = std::move (capture);
@@ -1732,6 +1809,7 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     });
     m_debugController->GetTarget().GetTrace().SetHistory (&m_eventLogs.GetTraceHistory());
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
+    m_debugController->GetSession().SetMachineControl (&m_host.GetMachineControl());
 
     m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
     {

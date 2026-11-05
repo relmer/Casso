@@ -43,7 +43,8 @@ bool DataDirectiveHandlers::TryExecute (DebugSession & session, const DebugComma
 //  DataDirectiveHandlers::Disassemble
 //
 //  Each address is an instruction, or, inside a data block, one line of
-//  that block's items. The block's name rides on its first line.
+//  that block's items: a block marked by a data directive, or one the debug
+//  file maps to a data directive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,9 +66,9 @@ Word DataDirectiveHandlers::Disassemble (DebugSession & session, Word first, std
 
 
 
-        if (session.GetDataBlocks().TryFindAt ((Word) address, block))
+        if (session.TryFindData ((Word) address, block, line.dataOrigin))
         {
-            MakeDataLine (target, block, (Word) address, line);
+            MakeDataLine (session, block, (Word) address, line);
         }
         else
         {
@@ -144,7 +145,8 @@ void DataDirectiveHandlers::ChooseOperandSymbol (DebugSession & session, Disasse
 //  DataDirectiveHandlers::Define
 //
 //  [name] [addr | range] or name = addr. A lone address covers one item of
-//  the directive's width; no address at all lists the blocks.
+//  the directive's width; no address at all lists the blocks. A block with
+//  no name given is called after the symbol at its start, where there is one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,6 +157,8 @@ void DataDirectiveHandlers::Define (DebugSession & session, const DebugCommand &
     int                        perLine      = kBytesPerLine;
     int                        itemBytes    = 1;
     Word                       last         = 0;
+    std::string                name;
+    SymbolTableId              table        = SymbolTableId::Main;
     DataBlockListData          list;
     DataBlockEntry             entry;
 
@@ -181,7 +185,14 @@ void DataDirectiveHandlers::Define (DebugSession & session, const DebugCommand &
     }
 
     last = command.hasA2 ? command.a2 : (Word) (command.a1 + itemBytes - 1);
-    session.GetDataBlocks().Add (command.text, command.a1, last, kind, perLine);
+    name = command.text;
+
+    if (name.empty())
+    {
+        session.GetSymbols().TryFindName (command.a1, name, table);
+    }
+
+    session.GetDataBlocks().Add (name, command.a1, last, kind, perLine);
     session.GetDataBlocks().TryFindAt (command.a1, entry);
 
     list.blocks.push_back ({ entry.name, entry.first, entry.last, entry.kind });
@@ -210,7 +221,7 @@ void DataDirectiveHandlers::Remove (DebugSession & session, const DebugCommand &
         return;
     }
 
-    session.GetDataBlocks().Remove (command.a1, last);
+    session.RemoveData (command.a1, last);
     ListBlocks (session, reply);
 }
 
@@ -363,13 +374,16 @@ bool DataDirectiveHandlers::TryGetShape (const std::string & name, DataBlockKind
 //  DataDirectiveHandlers::MakeDataLine
 //
 //  One line of the block from address: as many whole items as fit on a line
-//  and remain in the block, at least one byte.
+//  and remain in the block, at least one byte. Its label is the symbol at
+//  its address, or on the block's first line the block's name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DataDirectiveHandlers::MakeDataLine (IDebugTarget & target, const DataBlockEntry & block, Word address, DisassemblyLine & line)
+void DataDirectiveHandlers::MakeDataLine (DebugSession & session, const DataBlockEntry & block, Word address, DisassemblyLine & line)
 {
     static constexpr const char * kMnemonics[] = { "DB", "DW", "DA", "ASC", "DF" };
+    IDebugTarget                & target       = session.GetTarget();
+    SymbolTableId                 table        = SymbolTableId::Main;
     int                           itemBytes    = 1;
     int                           remaining    = block.last - address + 1;
     int                           count        = 0;
@@ -397,7 +411,7 @@ void DataDirectiveHandlers::MakeDataLine (IDebugTarget & target, const DataBlock
 
     line.instruction.operand = FormatItems (block, line.instruction.bytes);
 
-    if (address == block.first)
+    if (!session.GetSymbols().TryFindName (address, line.label, table) && address == block.first)
     {
         line.label = block.name;
     }

@@ -3,6 +3,7 @@
 #include "HResultAssert.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/ReverseHost.h"
+#include "Debugger/Reverse/ReplayControl.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 
 #include "CppUnitTest.h"
@@ -147,6 +148,17 @@ public:
     {
         Assert::AreEqual (std::wstring(), DebuggerStatusText::GetReplayText (false));
         Assert::IsTrue (DebuggerStatusText::GetReplayText (true).starts_with (L"Replaying history"));
+    }
+
+    TEST_METHOD (ReplayText_ShowsTheRunNoticeWhileNothingIsReplaying)
+    {
+        ReplayProgress  idle;
+        ReplayProgress  replaying;
+
+        replaying.isReplaying = true;
+
+        Assert::AreEqual (std::wstring (L"No call"), DebuggerStatusText::GetReplayText (idle, "No call"));
+        Assert::IsTrue   (DebuggerStatusText::GetReplayText (replaying, "No call").starts_with (L"Replaying history"));
     }
 
 

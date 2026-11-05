@@ -681,8 +681,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     std::wstring                           title;
     std::wstring                           intro;
     std::wstring                           prevGroup;
-    UINT                                   sysDpi       = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
-                                                                                 : GetDpiForSystem();
+    UINT                                   sysDpi       = (hwndOwner != nullptr) ? DxuiDisplay::Get().GetDpiForWindow (hwndOwner)
+                                                                                 : DxuiDisplay::Get().GetDpiForSystem();
     introLines = 1;
 
 

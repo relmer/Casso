@@ -82,6 +82,7 @@ namespace DebuggerFindWidgetInputTests
 
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetCursorForPoint;
+        using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::AppendConsole;
 
@@ -231,7 +232,6 @@ namespace DebuggerFindWidgetInputTests
             CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
             InputHost              host;
             InputWindow            window (theme, host);
-            RECT                   anchor = {};
             std::set<std::wstring> seen;
 
 
@@ -241,10 +241,12 @@ namespace DebuggerFindWidgetInputTests
 
             for (size_t i = 0; i < window.GetFindWidgets().GetActiveControls().size(); i++)
             {
-                const wchar_t * tip = window.GetFindWidgets().GetTip (InputWindow::GetCenter (window.GetFindControl (i)), anchor);
+                DxuiTip  tip;
 
-                Assert::IsNotNull (tip);
-                Assert::IsTrue    (seen.insert (tip).second, (std::wstring (L"a tip of its own: ") + tip).c_str());
+                //  The window's hit test finds the control at its center, and
+                //  that control's tip is the one returned.
+                Assert::IsTrue (static_cast<const IDxuiControl &> (window).TryGetTip (InputWindow::GetCenter (window.GetFindControl (i)), tip));
+                Assert::IsTrue (seen.insert (tip.text).second, (L"a repeated tip: " + tip.text).c_str());
             }
         }
 
@@ -268,6 +270,40 @@ namespace DebuggerFindWidgetInputTests
             }
 
             Assert::IsTrue (window.GetCursorForPoint (POINT { box.left + 6, (box.top + box.bottom) / 2 }) == IDC_IBEAM, L"the I-beam over the text");
+        }
+
+
+        //  A list takes a point relative to itself. Given the window's point,
+        //  each list with text selection had the I-beam over the menu bar and
+        //  the toolbar, where the list's rows would lie at the window's top left.
+        TEST_METHOD (TheMenuBarAndToolbarShowTheArrow)
+        {
+            CassoTheme                                    theme  = CassoTheme::MakeSkeuomorphic();
+            InputHost                                     host;
+            InputWindow                                   window (theme, host);
+            DxuiListView                                * list   = nullptr;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+            DxuiDpiScaler                                 scaler;
+
+
+
+            window.Build();
+
+            list = window.GetCodeList (0);
+            rows.assign (4, std::vector<DxuiListView::Cell> (list->GetColumnCount(), DxuiListView::Cell { L"LDA $0400" }));
+            list->SetRows (std::move (rows));
+            scaler.SetDpi (96);
+            list->Layout  (list->GetBounds(), scaler);
+
+            //  Every 6 pixels: any part with the I-beam, a box or a text cell,
+            //  is wider and taller than that.
+            for (int y = 0; y < 70; y += 6)
+            {
+                for (int x = 0; x < 1100; x += 6)
+                {
+                    Assert::IsTrue (window.GetCursorForPoint (POINT { x, y }) != IDC_IBEAM, std::format (L"no I-beam at {}, {}", x, y).c_str());
+                }
+            }
         }
 
 

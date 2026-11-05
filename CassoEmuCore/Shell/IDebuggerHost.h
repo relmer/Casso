@@ -6,6 +6,7 @@ class DeploySave;
 class HeldHostInputs;
 class IFileSystem;
 class IHostDialogs;
+class IMachineControl;
 class ITapeControl;
 class WindowPlacementProfile;
 struct CassoTheme;
@@ -89,4 +90,8 @@ public:
     //  The update installer's save, through which the CPU thread reports a
     //  return to live.
     virtual DeploySave            & GetDeploySave       ()                       = 0;
+
+    //  Reset, the disks, typed text, the screen and Exit, for the machine
+    //  commands. CPU thread.
+    virtual IMachineControl       & GetMachineControl   ()                       = 0;
 };

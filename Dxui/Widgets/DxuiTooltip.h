@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
 #include "Render/DxuiShadow.h"
+#include "Window/DxuiPopupHost.h"
 #include "Theme/DxuiTheme.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiTheme.h"
@@ -33,9 +34,8 @@ class DxuiTooltip : public IDxuiControl
 public:
     ~DxuiTooltip() override = default;
 
-    // How long a hover tip stays up before dismissing itself. Matches the
-    // OS default: long enough to read two lines, short enough that a parked
-    // pointer does not leave a panel sitting over the control it describes.
+    // How long a tip with a lifetime stays up before dismissing itself.
+    // Matches the OS default: long enough to read two lines.
     static constexpr int  kMaxVisibleMs = 5000;
 
     // A long tip stays up long enough to read: the system's tip lifetime, or
@@ -75,6 +75,19 @@ public:
     //  Replaces LocatePointer, so a test can put the pointer anywhere.
     void  SetPointerLocator  (PointerLocator locator)   { m_pfnLocatePointer = locator; }
 
+    //  Whether the pointer is over a window of this process. A window under
+    //  the pointer receives its moves whether or not its app is in front.
+    using ActiveTest = bool (*) ();
+
+    static bool  IsPointerOverApp ();
+
+    //  Replaces IsPointerOverApp for a test: for this tip, or as the default
+    //  for every tip made after it, since a test's pointer is never over a
+    //  window of the test's process.
+    static void  SetDefaultActiveTest (ActiveTest test)  { s_pfnDefaultIsActive = test; }
+
+    void  SetActiveTest      (ActiveTest test)          { m_pfnIsActive = test; }
+
     //  The rect the tip is placed against: the anchor, or for a tip that
     //  follows the pointer, the anchor grown to clear the pointer's image.
     RECT  GetPlacementAnchor () const;
@@ -91,6 +104,11 @@ public:
     //  A fixed-width face, for a tip of code or bytes. A tip whose columns
     //  are separated by tabs lines them up in either face (TableLayout).
     void  SetMonospace    (bool mono) { m_monospace = mono; }
+
+    //  Whether a hover tip is hidden after a set time. Off by default, so a tip
+    //  is up until the pointer is out of its area or another app is in the
+    //  foreground.
+    void  SetHasLifetime  (bool hasLifetime) { m_hasLifetime = hasLifetime; }
 
     //  A tip with a tab in its text is a table: the tab-separated parts of
     //  each line start at the same columns, one em apart at the widest, so
@@ -119,6 +137,22 @@ public:
     //  is indented by the squares' width, and the tip is laid out as a
     //  table. Set before the request it goes with, as the line colors are.
     void  SetLineSwatches (std::vector<uint32_t> argbs) { m_lineSwatches = std::move (argbs); }
+
+    //  A color scale before each of the given lines, from its first color on
+    //  the left to its last, for a key to scales drawn elsewhere: one for each
+    //  line from the top, none for a line without one. A line with a scale is
+    //  indented by the scale's width, and the tip is laid out as a table. Set
+    //  before the request it goes with, as the line colors are.
+    void  SetLineScales   (std::vector<std::vector<uint32_t>> scales) { m_lineScales = std::move (scales); }
+
+    //  A color scale drawn under the text, its stops spread evenly from left
+    //  to right, with an arrow under it at `mark`, from 0 at the left to 1 at
+    //  the right; a mark outside that range has no arrow. No stops, no scale.
+    //  Set before the request it goes with, as the line colors are.
+    void  SetGradient     (std::vector<uint32_t> stops, float mark) { m_gradient = std::move (stops); m_gradientMark = mark; }
+
+    //  The scale's color at a fraction of its width, 0 to 1.
+    static uint32_t  GetGradientColor (const std::vector<uint32_t> & stops, float at);
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -153,6 +187,14 @@ public:
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
     void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
+
+    //  Which side of its anchor a balloon opens on; below unless set.
+    void  SetPlacement    (DxuiPopupPlacement placement) { m_placement = placement; }
+
+    //  Opens at once against the anchor, not the pointer, with no hide time, as
+    //  a label that follows a mark. A repeat with new text or a new anchor
+    //  moves the balloon that is up rather than opening another.
+    void  ShowAt          (const RECT & anchor, const std::wstring & text);
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
@@ -197,11 +239,14 @@ public:
     //  the pointer raises one and then moves it.
     int                  GetShowCount () const { return m_showCount; }
 
-    // True while a dwell timer (deferred open or timed close) is still
-    // pending, so a host that idle-blocks knows to keep calling Tick on a
-    // timeout rather than sleeping until the next input/frame.
+    // True while a dwell timer (deferred open or timed close) is pending or
+    // the balloon is fading in. While it is true, a host that idle-blocks
+    // calls Tick on a timeout rather than sleeping until the next input or
+    // frame. Unticked, a fade-in stops at transparent, and a hover tip with no
+    // lifetime is invisible until the pointer moves off it.
     bool                 WantsTick () const { return m_pending || m_fadingOut
-                                                   || (m_visible && m_hideAtMs != 0); }
+                                                   || (m_visible && m_hideAtMs != 0)
+                                                   || (m_activePopup != nullptr && m_activePopup->IsRevealing()); }
 
     //  The anchor a tip waiting out its open dwell is to be placed against.
     const RECT         & GetPendingAnchor() const { return m_pendingAnchor; }
@@ -225,7 +270,19 @@ public:
 
 private:
     //  The room between a tip that follows the pointer and the pointer.
-    static constexpr int  kPointerGapDip = 4;
+    static constexpr int    kPointerGapDip     = 4;
+    static constexpr float  kGradientGapDip    = 6.0f;
+    static constexpr float  kGradientHeightDip = 10.0f;
+    static constexpr float  kLineScaleWidthDip = 64.0f;
+
+    static constexpr float  kGradientArrowDip = 6.0f;
+    static constexpr float  kGradientWidthDip = 200.0f;
+    static constexpr int    kGradientSlices   = 64;
+
+    static inline ActiveTest  s_pfnDefaultIsActive = IsPointerOverApp;
+
+    float  GetGradientExtraPx () const;
+    void   DrawGradient       (IDxuiPainter & painter, float left, float width, float bottom) const;
 
     //  The system's tip lifetime: ten double-click times, as Windows sets
     //  a tooltip control's auto-pop delay.
@@ -240,6 +297,9 @@ private:
 
     //  The pointer's image, read once as a tip comes up.
     void  MeasurePointerForPlacement ();
+
+    //  A hover tip's hide time: zero, for none, unless it has a lifetime.
+    int64_t  GetHoverHideAtMs (int64_t nowMs) const;
 
     //  The balloon's size for the current text, the anchor in screen
     //  pixels, and the balloon that is up moved to the anchor in place.
@@ -268,47 +328,58 @@ private:
 
     //  The table's parts drawn from its top-left, in pixels.
     void  DrawTable          (IDxuiPainter & painter, IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
-    bool  IsTableTip         () const { return IsTable (m_text) || !m_lineSwatches.empty(); }
+    bool  IsTableTip         () const { return IsTable (m_text) || !m_lineSwatches.empty() || !m_lineScales.empty(); }
     float GetSwatchIndentPx  (float lineHeight) const;
+    float GetLineIndentPx    (float lineHeight) const;
+    void  DrawLineScale      (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const;
 
     //  The table laid out with `text` measuring the parts at the tip's font.
     HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
 
-    DxuiDpiScaler            m_scaler;
-    RECT                     m_anchor            = {};
-    std::wstring             m_text;
-    std::wstring             m_pendingText;
-    RECT                     m_pendingAnchor     = {};
-    bool                     m_isPointerTip      = true;
-    bool                     m_isNextPointerTip  = true;
-    int64_t                  m_showAtMs          = 0;
-    int64_t                  m_hideAtMs          = 0;
-    int                      m_dwellOpenMs       = 500;
-    int                      m_dwellCloseMs      = 100;
-    float                    m_fontDip           = 12.0f;
-    bool                     m_monospace         = false;
-    uint32_t                 m_bgArgb            = 0xFF2D2D2D;
-    uint32_t                 m_borderArgb        = 0xFF606060;
-    uint32_t                 m_textArgb          = 0xFFE8EEF4;
-    float                    m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
-    bool                     m_isWholePixelFrame = false;
-    DxuiShadow::Style        m_shadowOnDark;
-    DxuiShadow::Style        m_shadowOnLight;
-    int                      m_viewportWPx       = 0;
-    int                      m_viewportHPx       = 0;
-    bool                     m_visible           = false;
-    bool                     m_pending           = false;
-    bool                     m_fadingOut         = false;
-    bool                     m_isInstant         = false;
-    DxuiHwndSource         * m_popupHost         = nullptr;
-    DxuiPopupHost          * m_activePopup       = nullptr;
-    PointerMeasurer          m_pfnMeasurePointer = MeasurePointerExtent;
-    PointerLocator           m_pfnLocatePointer  = LocatePointer;
-    PointerExtent            m_pointerExtent     = {};
-    bool                     m_hasPointerExtent  = false;
-    int                      m_showCount         = 0;
-    std::vector<uint32_t>    m_lineArgbs;
-    std::vector<uint32_t>    m_shownLineArgbs;
-    std::vector<uint32_t>    m_lineSwatches;
-    std::vector<uint32_t>    m_shownLineSwatches;
+    DxuiDpiScaler                         m_scaler;
+    RECT                                  m_anchor            = {};
+    std::wstring                          m_text;
+    std::wstring                          m_pendingText;
+    RECT                                  m_pendingAnchor     = {};
+    bool                                  m_isPointerTip      = true;
+    bool                                  m_isNextPointerTip  = true;
+    int64_t                               m_showAtMs          = 0;
+    int64_t                               m_hideAtMs          = 0;
+    int                                   m_dwellOpenMs       = 500;
+    int                                   m_dwellCloseMs      = 100;
+    float                                 m_fontDip           = 12.0f;
+    bool                                  m_monospace         = false;
+    uint32_t                              m_bgArgb            = 0xFF2D2D2D;
+    uint32_t                              m_borderArgb        = 0xFF606060;
+    uint32_t                              m_textArgb          = 0xFFE8EEF4;
+    float                                 m_cornerDip         = DxuiTheme::kOverlayCornerRadiusDip;
+    bool                                  m_isWholePixelFrame = false;
+    DxuiShadow::Style                     m_shadowOnDark;
+    DxuiShadow::Style                     m_shadowOnLight;
+    int                                   m_viewportWPx       = 0;
+    int                                   m_viewportHPx       = 0;
+    bool                                  m_visible           = false;
+    bool                                  m_pending           = false;
+    bool                                  m_fadingOut         = false;
+    bool                                  m_isInstant         = false;
+    DxuiHwndSource                      * m_popupHost         = nullptr;
+    DxuiPopupHost                       * m_activePopup       = nullptr;
+    PointerMeasurer                       m_pfnMeasurePointer = MeasurePointerExtent;
+    PointerLocator                        m_pfnLocatePointer  = LocatePointer;
+    ActiveTest                            m_pfnIsActive       = s_pfnDefaultIsActive;
+    DxuiPopupPlacement                    m_placement         = DxuiPopupPlacement::Below;
+    bool                                  m_hasLifetime       = false;
+    PointerExtent                         m_pointerExtent     = {};
+    bool                                  m_hasPointerExtent  = false;
+    int                                   m_showCount         = 0;
+    std::vector<uint32_t>                 m_lineArgbs;
+    std::vector<uint32_t>                 m_shownLineArgbs;
+    std::vector<uint32_t>                 m_lineSwatches;
+    std::vector<uint32_t>                 m_shownLineSwatches;
+    std::vector<std::vector<uint32_t>>    m_lineScales;
+    std::vector<std::vector<uint32_t>>    m_shownLineScales;
+    std::vector<uint32_t>                 m_gradient;
+    std::vector<uint32_t>                 m_shownGradient;
+    float                                 m_gradientMark      = -1.0f;
+    float                                 m_shownGradientMark = -1.0f;
 };

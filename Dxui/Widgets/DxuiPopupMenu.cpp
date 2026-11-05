@@ -11,6 +11,7 @@
 #include "Core/WindowTrace.h"
 #include "Render/DxuiStroke.h"
 #include "Core/DxuiCommand.h"
+#include "Core/DxuiTextElide.h"
 
 
 
@@ -277,6 +278,28 @@ void DxuiPopupMenu::ShowUnder (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPopupMenu::ShowAbove
+//
+//  Raises the menu from an anchor rect's top edge, left edges aligned, as a
+//  command line's history list does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::ShowAbove (
+    const RECT                     & anchor,
+    std::vector<DxuiPopupMenuItem>   items,
+    IDxuiTextRenderer              & text,
+    const RECT                     & hostClient)
+{
+    ShowCore (anchor.left, anchor.top, anchor, Anchoring::Above, std::move (items), text, hostClient);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPopupMenu::ShowAt
 //
 //  Raises the menu with its top-left at a point, as a right-click does.
@@ -414,6 +437,16 @@ void DxuiPopupMenu::ShowCore (
     DropStraySeparators();
 
     width        = (std::max) (MeasureWidthPx (text), m_minWidthPx);
+
+    //  Too wide: the menu is cut to the cap, and its labels are cut to fit.
+    if (m_maxWidthPx > 0 && width > m_maxWidthPx)
+    {
+        width         = m_maxWidthPx;
+        m_accelLeftPx = width - m_metrics.rightPadPx - m_accelWidthPx;
+    }
+
+    FindCutRows (text);
+
     height       = GetContentHeightPx();
     limit        = GetHeightLimitPx (anchor, anchoring);
     m_viewportPx = 0;
@@ -431,6 +464,14 @@ void DxuiPopupMenu::ShowCore (
 
         height       = GetRowTopPx (visible);
         m_viewportPx = height;
+    }
+
+    //  A menu over its anchor rises from it, and starts at its end, the row
+    //  nearest the anchor.
+    if (anchoring == Anchoring::Above)
+    {
+        top         = originY - height;
+        m_scrollRow = GetMaxScrollRow();
     }
 
     //  An empty client rect is no client rect: a host that has not been told
@@ -524,6 +565,7 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     switch (anchoring)
     {
     case Anchoring::Below:   params.placement = DxuiPopupPlacement::Below;    break;
+    case Anchoring::Above:   params.placement = DxuiPopupPlacement::Above;    break;
     case Anchoring::Beside:  params.placement = DxuiPopupPlacement::Right;    break;
     case Anchoring::AtPoint: params.placement = DxuiPopupPlacement::AtCursor; break;
     }
@@ -611,6 +653,7 @@ void DxuiPopupMenu::Hide()
 
 
     CloseChild();
+    m_cutTip.Hide();
 
     m_visible     = false;
     m_hover       = -1;
@@ -935,9 +978,9 @@ bool DxuiPopupMenu::OpensUpward (int originX, int originY, int heightPx, Anchori
     }
 
     ClientToScreen (owner, &origin);
-    monitor = MonitorFromPoint (origin, MONITOR_DEFAULTTONEAREST);
+    monitor = DxuiDisplay::Get().MonitorFromPoint (origin, MONITOR_DEFAULTTONEAREST);
 
-    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    if (monitor == nullptr || !DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
     {
         return false;
     }
@@ -1152,11 +1195,16 @@ int DxuiPopupMenu::GetHeightLimitPx (const RECT & anchor, Anchoring anchoring) c
 
     ClientToScreen (owner, &top);
     ClientToScreen (owner, &bottom);
-    monitor = MonitorFromPoint (bottom, MONITOR_DEFAULTTONEAREST);
+    monitor = DxuiDisplay::Get().MonitorFromPoint (bottom, MONITOR_DEFAULTTONEAREST);
 
-    if (monitor == nullptr || !GetMonitorInfoW (monitor, &info))
+    if (monitor == nullptr || !DxuiDisplay::Get().GetMonitorInfoW (monitor, &info))
     {
         return 0;
+    }
+
+    if (anchoring == Anchoring::Above)
+    {
+        return (int) (top.y - info.rcWork.top);
     }
 
     if (anchoring != Anchoring::Below)
@@ -1191,8 +1239,9 @@ void DxuiPopupMenu::ScrollByRows (int rows)
         return;
     }
 
-    //  A submenu hangs from its row, which has just moved.
+    //  A submenu hangs from its row, which has just moved, as does a tip.
     CloseChild();
+    m_cutTip.Hide();
 
     m_scrollRow = row;
 
@@ -1266,7 +1315,7 @@ int DxuiPopupMenu::MeasureRunPx (const std::wstring & run, float fontDip, IDxuiT
 
 
 
-    hr = text.MeasureString (run.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+    hr = text.MeasureString (run.c_str(), fontDip, GetFace(), w, h);
 
     if (FAILED (hr) || w <= 0.0f)
     {
@@ -1395,6 +1444,146 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPopupMenu::GetFace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * DxuiPopupMenu::GetFace() const
+{
+    return (m_face != nullptr) ? m_face : DxuiTheme::kBodyFace;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::IsRowCut
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupMenu::IsRowCut (int index) const
+{
+    return index >= 0 && index < (int) m_cutRows.size() && m_cutRows[(size_t) index];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::FindCutRows
+//
+//  Which command rows have a label wider than the label column. Only a menu
+//  given a width cap measures them, since only its labels can be cut.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::FindCutRows (IDxuiTextRenderer & text)
+{
+    int  column = m_accelLeftPx - m_labelLeftPx - ((m_accelWidthPx > 0) ? m_metrics.accelGapPx : 0);
+
+
+
+    m_cutRows.assign (m_rows.size(), false);
+
+    if (m_maxWidthPx <= 0)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_rows.size(); i++)
+    {
+        const DxuiPopupMenuItem  & row     = m_rows[i];
+        std::wstring               stripped;
+        int                        mnIdx   = -1;
+        wchar_t                    mnCh    = 0;
+
+        if (row.kind != DxuiPopupMenuItem::Kind::Command || row.command == nullptr)
+        {
+            continue;
+        }
+
+        ParseMnemonic (row.command->GetLabelText(), stripped, mnIdx, mnCh);
+
+        m_cutRows[i] = MeasureRunPx (stripped, m_metrics.fontPx, text) > column;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPopupMenu::ShowCutTip
+//
+//  The whole label of a cut row, laid over the row in the highlight's fill
+//  and extending past the menu's right edge to the end of the label.
+//  Highlighting any other row hides the tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPopupMenu::ShowCutTip (int index)
+{
+    constexpr float  kTextContrast = 4.5f;
+    HWND             owner         = nullptr;
+    POINT            origin        = {};
+    RECT             rc            = {};
+    std::wstring     label;
+    int              mnIdx         = -1;
+    wchar_t          mnCh          = 0;
+    int              rowH          = 0;
+    int              padTop        = 0;
+    int              labelLeft     = m_labelLeftPx;
+    float            fontPx        = m_metrics.fontPx;
+    const wchar_t  * face          = GetFace();
+    Palette          pal;
+    uint32_t         fill          = 0;
+    uint32_t         ink           = 0;
+
+
+
+    if (!IsRowCut (index) || m_popupHost == nullptr || m_activePopup == nullptr || m_text == nullptr)
+    {
+        m_cutTip.Hide();
+        return;
+    }
+
+    owner  = m_popupHost->GetHwnd();
+    origin = { m_activePopup->GetPlacedRectScreenPx().left, m_activePopup->GetPlacedRectScreenPx().top };
+    ScreenToClient (owner, &origin);
+
+    ParseMnemonic (m_rows[(size_t) index].command->GetLabelText(), label, mnIdx, mnCh);
+
+    rowH   = GetRowHeightPx (index);
+    padTop = (rowH - m_metrics.lineHeightPx) / 2;
+    pal    = ResolvePalette();
+    fill   = DxuiColor::Composite (pal.hover, pal.bg);
+    ink    = DxuiColor::ComputeInkForContrast (pal.text, fill, kTextContrast);
+
+    rc.left   = origin.x;
+    rc.top    = origin.y + GetRowTopPx (index) - GetScrollPx();
+    rc.right  = rc.left + labelLeft + MeasureRunPx (label, fontPx, *m_text) + m_metrics.rightPadPx;
+    rc.bottom = rc.top + rowH;
+
+    m_cutTip.SetPopupHost (m_popupHost);
+    m_cutTip.Show (rc, fill, [label, labelLeft, padTop, rowH, fontPx, face, ink, rc] (IDxuiPainter &, IDxuiTextRenderer & text)
+    {
+        HRESULT  hr = text.DrawString (label.c_str(), (float) labelLeft, (float) padTop, (float) (rc.right - rc.left), (float) rowH, ink, fontPx, face);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPopupMenu::IsSelectable
 //
 //  A row the highlight can rest on and Enter can act on: not a separator or a
@@ -1429,9 +1618,10 @@ bool DxuiPopupMenu::IsSelectable (int index) const
 //
 //  DxuiPopupMenu::FindNextSelectable
 //
-//  The next selectable row in a direction, wrapping, skipping separators and
-//  disabled rows. From no highlight, Down starts at the first row and Up at
-//  the last, so each key lands where a user expects on a fresh menu.
+//  The next selectable row in a direction, wrapping unless turned off,
+//  skipping separators and disabled rows. From no highlight, Down starts at
+//  the first row and Up at the last. With no row past an end, the row is
+//  the same.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1447,6 +1637,10 @@ int DxuiPopupMenu::FindNextSelectable (int from, int direction) const
         if (i < 0)
         {
             i = (direction > 0) ? 0 : n - 1;
+        }
+        else if (!m_isWrapping && (i + direction < 0 || i + direction >= n))
+        {
+            return from;
         }
         else
         {
@@ -1534,6 +1728,11 @@ void DxuiPopupMenu::SetHover (int index)
     //  A highlight moved past the menu's edge by a key brings its row into
     //  view; the pointer can only rest on a row already in view.
     EnsureRowVisible (index);
+
+    if (m_isCutTipShown)
+    {
+        ShowCutTip (index);
+    }
 
     if (index >= 0 && m_onHighlight)
     {
@@ -2090,6 +2289,14 @@ bool DxuiPopupMenu::OnKey (WPARAM vk)
         SetHover (FindNextSelectable (m_hover, -1));
         break;
 
+    case VK_HOME:
+        SetHover (FindNextSelectable (-1, 1));
+        break;
+
+    case VK_END:
+        SetHover (FindNextSelectable (-1, -1));
+        break;
+
     case VK_RIGHT:
         if (isSubmenuRow)
         {
@@ -2364,6 +2571,11 @@ void DxuiPopupMenu::PaintRow (
         accelArgb = DxuiColor::ComputeInkForContrast (accelArgb, under, kTextContrast);
     }
 
+    if (IsRowCut (index))
+    {
+        stripped = DxuiTextElide::ToWidth (text, stripped, fontDip, GetFace(), labelW, DxuiElide::Tail);
+    }
+
     hr = text.DrawString (stripped.c_str(),
                           left + (float) labelLeft,
                           y + (float) padTop,
@@ -2371,7 +2583,7 @@ void DxuiPopupMenu::PaintRow (
                           (float) rowH,
                           labelArgb,
                           fontDip,
-                          DxuiTheme::kBodyFace);
+                          GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (row.command->IsChecked())
@@ -2514,19 +2726,19 @@ void DxuiPopupMenu::PaintUnderline (
 
     if (!prefix.empty())
     {
-        hr = text.MeasureString (prefix.c_str(), fontDip, DxuiTheme::kBodyFace, prefixW, fullH);
+        hr = text.MeasureString (prefix.c_str(), fontDip, GetFace(), prefixW, fullH);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
     else
     {
         std::wstring  oneCh (1, stripped[(size_t) mnIdx]);
 
-        hr = text.MeasureString (oneCh.c_str(), fontDip, DxuiTheme::kBodyFace, prefixW, fullH);
+        hr = text.MeasureString (oneCh.c_str(), fontDip, GetFace(), prefixW, fullH);
         IGNORE_RETURN_VALUE (hr, S_OK);
         prefixW = 0.0f;
     }
 
-    hr = text.MeasureString (prefixCh.c_str(), fontDip, DxuiTheme::kBodyFace, withChW, ignoredH);
+    hr = text.MeasureString (prefixCh.c_str(), fontDip, GetFace(), withChW, ignoredH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     painter.FillRect (labelX + prefixW,

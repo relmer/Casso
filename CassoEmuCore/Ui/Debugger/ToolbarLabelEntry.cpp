@@ -25,6 +25,24 @@ ToolbarLabelEntry::ToolbarLabelEntry (std::wstring label) :
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ToolbarLabelEntry::SetLabel
+//
+//  The strip measures the entry again when its entries are set again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ToolbarLabelEntry::SetLabel (const std::wstring & label)
+{
+    m_label          = label;
+    m_command->label = label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ToolbarLabelEntry::GetWidthPx
 //
 //  The label with room to either side, each side the whole pixels Paint
@@ -134,11 +152,17 @@ void ToolbarLabelEntry::Paint (
 
 const wchar_t * ToolbarLabelEntry::GetTooltipAt (int x, int y, RECT & anchor) const
 {
-    (void) x;
-    (void) y;
-    (void) anchor;
+    POINT  at = { x, y };
 
-    return nullptr;
+
+
+    if (m_tip.empty() || PtInRect (&m_rc, at) == FALSE)
+    {
+        return nullptr;
+    }
+
+    anchor = m_rc;
+    return m_tip.c_str();
 }
 
 

@@ -199,8 +199,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SymbolsPane::SymbolsPane (IDebuggerPaneHost & host) :
-    ToolListPane (host, DebuggerLayout::kSymbols, L"Symbols")
+SymbolsPane::SymbolsPane (IDebuggerPaneHost & host, Kind kind) :
+    ToolListPane (host, (kind == Kind::User) ? DebuggerLayout::kSymbols : DebuggerLayout::kMachineSymbols,
+                        (kind == Kind::User) ? L"User symbols" : L"Machine symbols"),
+    m_kind       (kind)
 {
 }
 
@@ -225,11 +227,18 @@ void SymbolsPane::Configure()
     {
         const Row  * each = GetRow (row);
 
+        //  A double-click's press has opened or closed the heading already.
+        bool  isMouse = DxuiInputState::IsKeyDown (VK_LBUTTON);
+
 
 
         if (each != nullptr && !each->isHeading)
         {
             m_host.GoToCode (each->address);
+        }
+        else if (each != nullptr && !isMouse)
+        {
+            ToggleTable (each->table);
         }
     });
 
@@ -252,6 +261,34 @@ void SymbolsPane::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ToolListPane::ShowNewListRow
+//
+//  A row's key is the text of its first two cells.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ToolListPane::ShowNewListRow()
+{
+    std::vector<std::wstring>  keys;
+
+
+
+    for (int row = 0; row < m_list->GetRowCount(); row++)
+    {
+        const std::vector<DxuiListView::Cell>  & cells = m_list->GetCellsOfRow (row);
+
+        keys.push_back (std::format (L"{}\t{}", cells.empty() ? L"" : cells[0].text, cells.size() < 2 ? L"" : cells[1].text));
+    }
+
+    m_list->ShowNewRow (keys);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolsPane::Apply
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,8 +301,92 @@ void SymbolsPane::Apply (const DebuggerViewSnapshot & snapshot)
     }
 
     m_symbols = snapshot.symbols;
-    m_rows    = GetRows (*m_symbols);
-    m_list->SetRows (GetCells (*m_symbols, m_rows));
+    RebuildRows();
+    ShowNewListRow();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::RebuildRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolsPane::RebuildRows()
+{
+    if (m_symbols == nullptr)
+    {
+        return;
+    }
+
+    m_rows = GetRows (*m_symbols, m_kind, m_open);
+    m_list->SetRows (GetCells (*m_symbols, m_rows, m_open));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::ToggleTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolsPane::ToggleTable (const std::string & table)
+{
+    if (!m_open.erase (table))
+    {
+        m_open.insert (table);
+    }
+
+    RebuildRows();
+    m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::RouteContentMouse
+//
+//  A press on a heading opens or closes it at once, except on its check,
+//  which turns the table on or off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolsPane::RouteContentMouse (const DxuiMouseEvent & ev)
+{
+    RECT          bounds = m_list->GetBounds();
+    RECT          check  = {};
+    POINT         local  = { ev.positionDip.x - bounds.left, ev.positionDip.y - bounds.top };
+    int           row    = -1;
+    const Row   * each   = nullptr;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left ||
+        !m_list->IsVisible() || !m_host.IsRoutable (m_list) || !DxuiDockSite::Contains (bounds, ev.positionDip))
+    {
+        return false;
+    }
+
+    row  = m_list->HitTestRow (local.x, local.y);
+    each = GetRow (row);
+
+    if (each == nullptr || !each->isHeading || (m_list->GetCheckRectPx (row, 0, check) && PtInRect (&check, local)))
+    {
+        return false;
+    }
+
+    m_list->SetSelectedRow (row);
+    ToggleTable (each->table);
+    return true;
 }
 
 
@@ -313,9 +434,13 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         } });
     }
 
+    //  A table loaded from a file unloads it; any other is cleared.
     if (each != nullptr)
     {
-        items.push_back ({ L"Clear table",   [this, table = each->table] { m_host.RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
+        std::string  file  = (m_symbols != nullptr) ? GetFileOf (*m_symbols, each->table) : std::string();
+        std::wstring label = file.empty() ? std::wstring (L"Clear table") : L"Unload " + TextEncoding::NarrowToWide (file);
+
+        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
         items.push_back ({ L"Save table...", [this, table = each->table] { SaveTable (table); } });
     }
 
@@ -353,11 +478,12 @@ void SymbolsPane::SaveTable (const std::string & table)
 //
 //  SymbolsPane::GetRows
 //
-//  Each table's heading, then its symbols in the order the table has them.
+//  The heading of each table the pane lists, then, under an open heading,
+//  its symbols in the order the table has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::SymbolsState & symbols)
+std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::SymbolsState & symbols, Kind kind, const std::set<std::string> & open)
 {
     std::vector<Row>  rows;
 
@@ -365,11 +491,16 @@ std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::
 
     for (const DebuggerViewSnapshot::SymbolTableRow & table : symbols.tables)
     {
+        if (IsUserTable (table.id) != (kind == Kind::User))
+        {
+            continue;
+        }
+
         rows.push_back ({ table.name, std::string(), 0, true });
 
         for (const SymbolInfo & symbol : symbols.symbols)
         {
-            if (symbol.table == table.id)
+            if (symbol.table == table.id && open.contains (table.name))
             {
                 rows.push_back ({ table.name, symbol.name, symbol.address, false });
             }
@@ -385,14 +516,57 @@ std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SymbolsPane::GetCells
+//  SymbolsPane::IsUserTable
 //
-//  A heading has the table's check, its name and its count; a constant's
-//  value is marked as one, since it is not an address.
+//  The tables SYM LOAD and SYM add to: USER, USER2, SRC and SRC2. A BASIC
+//  program in memory doesn't have symbols in any table; the BASIC table is
+//  Applesoft's, so it is the machine's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows)
+bool SymbolsPane::IsUserTable (SymbolTableId table)
+{
+    return table == SymbolTableId::User || table == SymbolTableId::User2 || table == SymbolTableId::Src || table == SymbolTableId::Src2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::GetFileOf
+//
+//  A load replaces its table, so the table's last origin is the file whose
+//  symbols it has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SymbolsPane::GetFileOf (const DebuggerViewSnapshot::SymbolsState & symbols, const std::string & table)
+{
+    auto  found = std::ranges::find_if (symbols.tables, [&table] (const DebuggerViewSnapshot::SymbolTableRow & each) { return each.name == table; });
+
+
+
+    return (found == symbols.tables.end() || found->origins.empty()) ? std::string() : found->origins.back();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::GetCells
+//
+//  A heading has the table's check, a triangle that points down while it is
+//  open, the name of the file the table was loaded from, or the table's
+//  name for one filled any other way, and its count. A constant's value is
+//  marked as one, since it is not an address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows, const std::set<std::string> & open)
 {
     std::vector<std::vector<DxuiListView::Cell>>  cells;
     size_t                                        index = 0;
@@ -403,12 +577,17 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
     {
         if (row.isHeading)
         {
-            auto  table = std::ranges::find_if (symbols.tables, [&row] (const DebuggerViewSnapshot::SymbolTableRow & each) { return each.name == row.table; });
-            DxuiListView::Cell  name  = { TextEncoding::NarrowToWide (std::format ("{} ({})", row.table, table->count)) };
+            auto                table = std::ranges::find_if (symbols.tables, [&row] (const DebuggerViewSnapshot::SymbolTableRow & each) { return each.name == row.table; });
+            std::string         file  = GetFileOf (symbols, row.table);
+            DxuiListView::Cell  name  = { std::format (L"{} {} ({})", open.contains (row.table) ? s_kpszTriangleDown : s_kpszTriangleRight,
+                                                       TextEncoding::NarrowToWide (file.empty() ? row.table : file), table->count) };
 
 
 
             name.check = table->enabled;
+            name.tip   = file.empty()          ? std::wstring()
+                       : table->path.empty()   ? std::format (L"In the {} table", TextEncoding::NarrowToWide (row.table))
+                       :                         std::format (L"{}\nIn the {} table", table->path, TextEncoding::NarrowToWide (row.table));
             cells.push_back ({ name, { L"" } });
             continue;
         }
@@ -489,6 +668,7 @@ void BookmarksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     m_bookmarks = snapshot.bookmarks;
     m_list->SetRows (GetCells (m_bookmarks, snapshot.symbols.get()));
+    ShowNewListRow();
 }
 
 
@@ -677,6 +857,7 @@ void DataBlocksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     m_blocks = snapshot.dataBlocks;
     m_list->SetRows (GetCells (m_blocks));
+    ShowNewListRow();
 }
 
 

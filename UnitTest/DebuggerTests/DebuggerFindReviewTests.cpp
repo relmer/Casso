@@ -216,14 +216,17 @@ namespace DebuggerFindReviewTests
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
             FindWidgetHost    host;
             FindWidgetWindow  window (theme, host);
+            int               lead   = 0;
 
 
 
             window.Build();
             window.AppendConsole ({ "LDA $C000", "LDA $01" });
 
-            //  The rows after the first: STA, LDA, LDA.
-            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, 0 }, { 3, 7 });
+            //  The rows after the first: STA, LDA, LDA. Each row's text is
+            //  after its time stamp and a tab.
+            lead = (int) window.GetConsolePane().GetOutput().GetView()->GetRows()[3].cells[0].size() + 1;
+            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, 0 }, { 3, lead + 7 });
             window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             window.Type (L"lda");
             Assert::AreEqual (std::wstring (L"1 of 3"), window.GetFindWidgets().GetStatus(), L"the whole text has three");

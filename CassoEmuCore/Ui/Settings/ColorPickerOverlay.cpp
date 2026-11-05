@@ -632,7 +632,7 @@ void ColorPickerOverlay::OnMouseHover (int x, int y)
 
 bool ColorPickerOverlay::OnKey (WPARAM vk)
 {
-    bool  ctrlDown = (GetKeyState (VK_CONTROL) & s_kKeyDownMask) != 0;
+    bool  ctrlDown = (DxuiInputState::GetKeyState (VK_CONTROL) & s_kKeyDownMask) != 0;
 
 
 
@@ -646,7 +646,7 @@ bool ColorPickerOverlay::OnKey (WPARAM vk)
     }
     else if (vk == VK_TAB)
     {
-        MoveFocus ((GetKeyState (VK_SHIFT) & s_kKeyDownMask) ? -1 : 1);
+        MoveFocus ((DxuiInputState::GetKeyState (VK_SHIFT) & s_kKeyDownMask) ? -1 : 1);
     }
     else
     {

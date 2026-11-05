@@ -1,0 +1,182 @@
+; ============================================================================
+;  symbols-demo.a65 -- a small program for trying the debugger's symbol tips
+;                      and its source pane
+;
+;  Direct-boot demo: BuildDirectBootDisk-style loader at track 0, this code
+;  loaded at $6000 and entered at its first byte. The build (Build.ps1 in this
+;  folder) assembles it with -g, so symbols-demo.dbg is written beside this
+;  file. The debugger finds this source from the .dbg, so the two stay
+;  in one folder.
+;
+;  What it does: draws a title, then counts 0 to 39 forever. Each pass draws
+;  the count in hex and adds one * to a bar across the screen, and a delay
+;  loop slows it down so the steps can be watched.
+;
+;  Every label has its comment on the line that defines it, so hovering a
+;  label in the disassembly has the comment in its tip:
+;      clear_screen   fill the text page with spaces
+;      print_text     copy a zero-terminated string to the screen
+;      draw_counter   draw the count in hex
+;      draw_bar       add one * to the bar
+;      wait           delay about a tenth of a second
+;      count          loop counter (data)
+; ============================================================================
+
+    .org $6000
+
+; -- Zero page --------------------------------------------------------------
+SRCPTR      = $FA           ; string being printed (low byte, high byte at +1)
+DSTPTR      = $FC           ; screen address being written (low, high at +1)
+
+; -- Text screen ------------------------------------------------------------
+ROW_TITLE   = $0400         ; row 0
+ROW_HINT    = $0500         ; row 2
+ROW_COUNT   = $0528         ; row 10
+ROW_BAR     = $0628         ; row 12
+BAR_LENGTH  = 40            ; columns in the bar, and the count's limit
+
+
+start       cld                     ; entry point: clear the decimal flag
+            jsr clear_screen
+            lda #<title_text
+            sta SRCPTR
+            lda #>title_text
+            sta SRCPTR+1
+            lda #<ROW_TITLE
+            sta DSTPTR
+            lda #>ROW_TITLE
+            sta DSTPTR+1
+            jsr print_text
+            lda #<hint_text
+            sta SRCPTR
+            lda #>hint_text
+            sta SRCPTR+1
+            lda #<ROW_HINT
+            sta DSTPTR
+            lda #>ROW_HINT
+            sta DSTPTR+1
+            jsr print_text
+            lda #<count_text
+            sta SRCPTR
+            lda #>count_text
+            sta SRCPTR+1
+            lda #<ROW_COUNT
+            sta DSTPTR
+            lda #>ROW_COUNT
+            sta DSTPTR+1
+            jsr print_text
+            lda #0
+            sta count
+
+main_loop   jsr draw_counter        ; the loop: draw the count, grow the bar
+            jsr draw_bar
+            jsr wait
+            inc count
+            lda count
+            cmp #BAR_LENGTH
+            bcc main_loop
+            lda #0                  ; the bar is full, start over
+            sta count
+            jsr clear_bar
+            jmp main_loop
+
+
+; ----------------------------------------------------------------------------
+; clear_screen -- fill the text page with spaces
+; ----------------------------------------------------------------------------
+clear_screen    ; fill the text page with spaces
+            ldx #0
+            lda #$A0                ; space with the high bit set
+cs_loop     sta $0400,x
+            sta $0500,x
+            sta $0600,x
+            sta $0700,x
+            inx
+            bne cs_loop
+            rts
+
+
+; ----------------------------------------------------------------------------
+; clear_bar -- blank the bar row
+; ----------------------------------------------------------------------------
+clear_bar       ; blank the bar row
+            ldx #BAR_LENGTH-1
+            lda #$A0
+cb_loop     sta ROW_BAR,x
+            dex
+            bpl cb_loop
+            rts
+
+
+; ----------------------------------------------------------------------------
+; print_text -- copy a zero-terminated string to the screen
+;               SRCPTR = the string, DSTPTR = the first screen cell
+; ----------------------------------------------------------------------------
+print_text      ; copy a zero-terminated string to the screen
+            ldy #0
+pt_loop     lda (SRCPTR),y
+            beq pt_done
+            ora #$80                ; normal video
+            sta (DSTPTR),y
+            iny
+            bne pt_loop
+pt_done     rts
+
+
+; ----------------------------------------------------------------------------
+; draw_counter -- draw the count in hex
+; ----------------------------------------------------------------------------
+draw_counter    ; draw the count in hex
+            lda count
+            lsr a
+            lsr a
+            lsr a
+            lsr a
+            jsr hex_digit
+            sta ROW_COUNT+7
+            lda count
+            and #$0F
+            jsr hex_digit
+            sta ROW_COUNT+8
+            rts
+
+
+; ----------------------------------------------------------------------------
+; hex_digit -- A = 0-15 in, the screen code of its hex digit out
+; ----------------------------------------------------------------------------
+hex_digit       ; A = 0-15 in, the screen code of its hex digit out
+            tax
+            lda hex_chars,x
+            ora #$80
+            rts
+
+
+; ----------------------------------------------------------------------------
+; draw_bar -- add one * to the bar, at the column the count indicates
+; ----------------------------------------------------------------------------
+draw_bar        ; add one * to the bar, at the column the count indicates
+            ldx count
+            lda #$AA                ; the * character
+            sta ROW_BAR,x
+            rts
+
+
+; ----------------------------------------------------------------------------
+; wait -- delay about a tenth of a second
+; ----------------------------------------------------------------------------
+wait            ; delay about a tenth of a second
+            ldx #$80
+w_outer     ldy #$00
+w_inner     dey
+            bne w_inner
+            dex
+            bne w_outer
+            rts
+
+
+; -- Data -------------------------------------------------------------------
+count       .byte 0                 ; loop counter, 0 to BAR_LENGTH-1
+hex_chars   .byte "0123456789ABCDEF"   ; digits for draw_counter
+title_text  .byte "SYMBOLS DEMO",0  ; on row 0
+hint_text   .byte "WATCH THE BAR FILL",0 ; on row 2
+count_text  .byte "COUNT:    HEX",0 ; on row 10

@@ -1371,15 +1371,14 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 
     drive.rows.push_back (MakeTextRow ("Active drive",   std::format ("{}", m_activeDrive + 1)));
     drive.rows.push_back (MakeTextRow ("Activity",       activity));
-    drive.rows.push_back (MakeFlagRow ("Motor",          m_motorOn));
+
     drive.rows.push_back (MakeFlagRow ("At speed",       IsMotorAtSpeed()));
     drive.rows.push_back (MakeTextRow ("Spin-up left",   std::format ("{} cycles", m_motorSpinupRemaining)));
     drive.rows.push_back (MakeTextRow ("Spin-down left", std::format ("{} cycles", m_motorSpindownCycles)));
     drive.rows.push_back (MakeFlagRow ("Disk in drive",  m_activeDisk[m_activeDrive] != nullptr && m_activeDisk[m_activeDrive]->IsLoaded()));
 
-    head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", GetQuarterTrack())));
     head.rows.push_back (MakeTextRow ("Track",         std::format ("{}.{:02}", GetQuarterTrack() / kQuarters, (GetQuarterTrack() % kQuarters) * kHundredth)));
-    head.rows.push_back (MakeTextRow ("Other drive",   std::format ("quarter track {}", m_quarterTrack[m_activeDrive ^ 1])));
+    head.rows.push_back (MakeTextRow ("Quarter track", std::format ("{}", GetQuarterTrack())));
     head.rows.push_back (MakeByteRow ("Phases",        m_phases, { "", "", "", "", "PH3", "PH2", "PH1", "PH0" }));
     head.rows.push_back (MakeTextRow ("Last address field", std::format ("{} {} {}", field ('T', m_addrMarkWatcher.GetCachedTrack()),
                                                                                     field ('S', m_addrMarkWatcher.GetCachedSector()),
@@ -1396,7 +1395,7 @@ void Disk2Controller::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     snapshot.groups.push_back (std::move (drive));
     snapshot.groups.push_back (std::move (head));
     snapshot.groups.push_back (std::move (sequencer));
-    snapshot.visual = DiagnosticsDiskHead { GetQuarterTrack(), kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive };
+    snapshot.visual = DiagnosticsDiskHead { GetQuarterTrack(), kMaxQuarterTrack, m_phases, m_motorOn, m_activeDrive, { GetQuarterTrack (0), GetQuarterTrack (1) } };
 }
 
 

@@ -27,8 +27,8 @@ class EventCacheRebuild
 public:
     //  Field by field where the event type has an equality operator: an
     //  IoEvent has padding bytes, which no field sets, so two equal events can
-    //  differ there. The Disk II and input events contain unions, and are
-    //  compared byte for byte.
+    //  differ there, as they do under AddressSanitizer. The Disk II and input
+    //  events contain unions, and are compared byte for byte.
     template <typename T>
     static bool  IsSameEvent (const T & a, const T & b)
     {

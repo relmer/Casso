@@ -6,6 +6,7 @@
 #include "As65Mode.h"
 #include "DebugMode.h"
 #include "DiskCommand.h"
+#include "Cli/McpMode.h"
 #include "MerlinMode.h"
 #include "RunMode.h"
 #include "CliMain.h"
@@ -215,6 +216,12 @@ int CliMain (int argc, char * argv[])
     else if (options.subcommand == CommandLineOptions::Subcommand::Debug)
     {
         hr = DebugMode::Run (options, exitCode);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Mcp)
+    {
+        //  Standard output is the protocol's, so the blank line below, and
+        //  anything else, is never written to it.
+        return McpMode::Run();
     }
     else
     {

@@ -38,6 +38,10 @@ public:
     bool  consumeMouse       = false;
     bool  consumeKey         = false;
 
+    // Mouse, cursor and tip points relative to the control's top-left, as a
+    // list view's are.
+    bool  usesLocalPoints    = false;
+
     // The painter's clip when last painted, and whether one was set.
     RECT  paintClip          = {};
     bool  wasPaintClipped    = false;
@@ -105,4 +109,5 @@ public:
 
     void  OnThemeChanged() override                              { themeChangedCount++; }
     void  Tick           (int64_t /*nowMs*/) override             { tickCount++; }
+    bool  UsesLocalPoints() const override                       { return usesLocalPoints; }
 };

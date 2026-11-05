@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Debugger/WatchTable.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -42,14 +43,53 @@ WatchesPane::~WatchesPane() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchesPane::RouteContentMouse
+//
+//  A press on the BASIC variables heading expands or collapses it at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchesPane::RouteContentMouse (const DxuiMouseEvent & ev)
+{
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    RECT                          bounds   = m_list->GetBounds();
+    int                           row      = -1;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left || snapshot == nullptr ||
+        !m_list->IsVisible() || !m_host.IsRoutable (m_list) || !DxuiDockSite::Contains (bounds, ev.positionDip))
+    {
+        return false;
+    }
+
+    row = m_list->HitTestRow (ev.positionDip.x - bounds.left, ev.positionDip.y - bounds.top);
+
+    if (row < 0 || row >= (int) m_rows.size() || m_rows[(size_t) row].kind != RowKind::BasicHeading)
+    {
+        return false;
+    }
+
+    m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
+    ApplyRows (*snapshot);
+    m_host.Repaint();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchesPane::Configure
 //
 //  The ID column has "Auto" for what the instruction touches, a watch's
 //  number, or ZPn for a zero-page pointer, with the check that enables or
 //  disables a watch or pointer. A click on a watch's cell edits it in place:
 //  the expression, then the value, which runs to the pane's edge, as Visual
-//  Studio's does. A double-click on the BASIC variables heading expands or
-//  collapses it.
+//  Studio's does. A click on the BASIC variables heading, or Enter on it,
+//  expands or collapses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,19 +101,28 @@ void WatchesPane::Configure()
     {
         const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
 
-        if (snapshot != nullptr && row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::BasicHeading)
+        //  A double-click's press has toggled the heading already.
+        bool  isMouse = DxuiInputState::IsKeyDown (VK_LBUTTON);
+
+
+
+        if (!isMouse && snapshot != nullptr && row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::BasicHeading)
         {
             m_isBasicVariablesExpanded = !m_isBasicVariablesExpanded;
             ApplyRows (*snapshot);
         }
     });
 
+    //  Every column fits its text and the last takes the room left, so Type
+    //  is beside the values rather than at the pane's far edge.
     m_grid->SetGridColumns ({ { { L"ID",    0, false, DxuiTextHAlign::Left }, false, false },
                               { { L"Watch", 0, false, DxuiTextHAlign::Left }, true,  true  },
-                              { { L"Value", 0, true,  DxuiTextHAlign::Left }, true,  false } });
+                              { { L"Value", 0, false, DxuiTextHAlign::Left }, true,  false },
+                              { { L"Type",  0, true,  DxuiTextHAlign::Left }, false, false } });
 
     m_grid->SetAddRowText      (L"Add new watch");
     m_grid->SetAddsOnFirstField (true);
+    m_grid->SetReopensAddRow    (true);
     m_grid->SetEditorHwnd      (m_host.GetOwnerHwnd());
     m_grid->SetEditorMaxLength (kEditMaxChars);
     m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring & outError) { return CommitCell (row, column - kFirstFieldColumn, text, outError); });
@@ -137,7 +186,55 @@ void WatchesPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     ApplyRows (snapshot);
     m_history.OnSnapshot (snapshot);
+    RecordAdded (snapshot);
     EditAddedValue (snapshot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::RecordAdded
+//
+//  An add from the add row is an undoable step once a snapshot lists its
+//  watch: the one whose id was not there before the add. Its undo removes
+//  that watch, and its redo adds it back under the same id. An add that
+//  failed in the engine doesn't list a watch, so past kAddedWaitMs the step
+//  is dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::RecordAdded (const DebuggerViewSnapshot & snapshot)
+{
+    DebuggerViewState::WatchUndo  undo;
+
+
+
+    if (m_addedText.empty())
+    {
+        return;
+    }
+
+    if (m_clock() > m_addedBy)
+    {
+        m_addedText.clear();
+        return;
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
+    {
+        if (std::ranges::find (m_idsBeforeAdd, watch.id) != m_idsBeforeAdd.end())
+        {
+            continue;
+        }
+
+        undo.actions = { DebuggerActions::GetClearWatch (watch.id, m_host.GetMode()) };
+        m_history.Record (std::move (undo), { DebuggerActions::GetAddWatchAt (watch.id, m_addedText, m_host.GetMode()) }, std::format (L"add watch {}", watch.id));
+        m_addedText.clear();
+        return;
+    }
 }
 
 
@@ -209,13 +306,30 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
     uint32_t                                        changed     = m_host.GetTextColors().changed;
     std::vector<DxuiEditableGrid::GridRow>          rows;
     bool                                            isInProgram = BasicWatches::IsStoppedInProgram (snapshot.basic);
-    std::vector<BasicAutoWatches::Row>              basicAutos  = isInProgram ? m_basicAutos.Update (*snapshot.basic, snapshot.cycles) : std::vector<BasicAutoWatches::Row>();
+    bool                                            isInBasic   = isInProgram && IsInRom (snapshot.pc);
+    std::vector<BasicAutoWatches::Row>              basicAutos  = isInBasic ? m_basicAutos.Update (*snapshot.basic, snapshot.cycles) : std::vector<BasicAutoWatches::Row>();
+    std::set<std::string>                           otherLabels = { "A", "X", "Y", "S", "P", "PC", "C", "Z", "I", "D", "B", "V", "N" };
 
 
 
     m_rows.clear();
 
-    if (!snapshot.autoWatches.empty() || !basicAutos.empty())
+    //  The labels a BASIC variable's name can be mistaken for: the registers
+    //  and flags, listed or not, and every other watch's.
+    for (const DebuggerViewSnapshot::AutoWatchLine & line : snapshot.autoWatches)
+    {
+        otherLabels.insert (line.label);
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
+    {
+        if (watch.basicName.empty())
+        {
+            otherLabels.insert (watch.expression);
+        }
+    }
+
+    if (!snapshot.autoWatches.empty())
     {
         for (size_t i = 0; i < snapshot.autoWatches.size(); i++)
         {
@@ -244,37 +358,15 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
             //  What the instruction touches is not the user's to change, so
             //  only the value edits.
-            rows.push_back ({ { MakeIdCell (L"Auto"), name, value }, {}, false, { true, true, false } });
+            rows.push_back ({ { MakeIdCell (L"Auto"), name, value, MakeTypeCell (GetAutoType (line.key)) }, {}, false, { true, true, false, true } });
             m_rows.push_back ({ RowKind::Automatic, (int) i });
-        }
-
-        //  The BASIC variables the statement being run uses, then those the
-        //  statement just run used, in italics as what the previous
-        //  instruction touched is.
-        for (const BasicAutoWatches::Row & basicAuto : basicAutos)
-        {
-            DxuiListView::Cell  name  = BasicWatches::MakeNameCell (basicAuto.item.name);
-            DxuiListView::Cell  value = { TextEncoding::NarrowToWide (basicAuto.item.value) };
-
-            name.weight  = basicAuto.isPrevious ? DxuiFontWeight::Italic : DxuiFontWeight::Normal;
-            value.weight = name.weight;
-            name.tip     = basicAuto.isPrevious ? ColorLegend::GetText (ColorLegend::Meaning::PreviousStatement) : L"";
-
-            if (basicAuto.isChanged)
-            {
-                value.argb = changed;
-                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
-            }
-
-            rows.push_back ({ { MakeIdCell (L"Auto"), name, value }, {}, true });
-            m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
     }
 
     for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
     {
         DxuiListView::Cell  id    = MakeIdCell (std::to_wstring (watch.id));
-        DxuiListView::Cell  name  = !watch.basicName.empty()  ? BasicWatches::MakeNameCell (watch.basicName)
+        DxuiListView::Cell  name  = !watch.basicName.empty()  ? BasicWatches::MakeNameCell (watch.basicName, otherLabels)
                                   : !watch.expression.empty() ? DxuiListView::Cell { TextEncoding::NarrowToWide (watch.expression) }
                                   :                             DxuiListView::Cell { std::format (L"${:04X}", watch.address) };
         DxuiListView::Cell  value = { TextEncoding::NarrowToWide (watch.value) };
@@ -311,13 +403,13 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         //  The expression edits as its address or BASIC name; a BASIC watch's
         //  value is the program's to change.
-        rows.push_back ({ { id, name, value },
+        rows.push_back ({ { id, name, value, MakeTypeCell (GetWatchType (watch)) },
                           { std::wstring(),
                             !watch.basicName.empty()  ? TextEncoding::NarrowToWide (watch.basicName)
                             : !watch.expression.empty() ? TextEncoding::NarrowToWide (watch.expression)
                             :                             std::format (L"{:04X}", watch.address),
                             TextEncoding::NarrowToWide (watch.value) },
-                          false, { true, false, !watch.basicName.empty() || !watch.isValueEditable || !watch.error.empty() } });
+                          false, { true, false, !watch.basicName.empty() || !watch.isValueEditable || !watch.error.empty(), true } });
         m_rows.push_back ({ RowKind::Manual, watch.id });
     }
 
@@ -337,7 +429,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
             id.dim    = !pointer.enabled;
             name.dim  = !pointer.enabled;
             value.dim = !pointer.enabled;
-            rows.push_back ({ { id, name, value }, {}, true });
+            rows.push_back ({ { id, name, value, MakeTypeCell (L"Pointer") }, {}, true });
             m_rows.push_back ({ RowKind::ZeroPage, pointer.id });
         }
     }
@@ -351,7 +443,26 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*snapshot.basic) : std::vector<BasicWatches::Item>())
         {
-            rows.push_back ({ { DxuiListView::Cell { L"" }, BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
+            DxuiListView::Cell  name  = BasicWatches::MakeNameCell (item.name, otherLabels);
+            DxuiListView::Cell  value = { TextEncoding::NarrowToWide (item.value) };
+            auto                used  = std::ranges::find_if (basicAutos, [&item] (const BasicAutoWatches::Row & each) { return each.item.name == item.name; });
+
+            //  A variable the statement just run used is in italics, as the
+            //  Auto rows mark what the previous instruction touched.
+            if (used != basicAutos.end() && used->isPrevious)
+            {
+                name.weight  = DxuiFontWeight::Italic;
+                value.weight = name.weight;
+                name.tip     = ColorLegend::GetText (ColorLegend::Meaning::PreviousStatement);
+            }
+
+            if (used != basicAutos.end() && used->isChanged)
+            {
+                value.argb = changed;
+                value.tip  = ColorLegend::GetText (ColorLegend::Meaning::Changed);
+            }
+
+            rows.push_back ({ { DxuiListView::Cell { L"" }, name, value, MakeTypeCell (L"BASIC") }, {}, true });
             m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
     }
@@ -392,7 +503,7 @@ std::vector<DxuiListView::Cell> WatchesPane::MakeHeading (const std::wstring & t
     label.spansRow   = true;
     blank.background = fill;
 
-    return { label, blank, blank };
+    return { label, blank, blank, blank };
 }
 
 
@@ -415,6 +526,108 @@ DxuiListView::Cell WatchesPane::MakeIdCell (const std::wstring & text) const
 
     cell.argb = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ForegroundMuted() : 0;
     return cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::MakeTypeCell
+//
+//  The Type column's text, muted as the ID column's is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Cell WatchesPane::MakeTypeCell (const std::wstring & text) const
+{
+    return MakeIdCell (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::GetAutoType
+//
+//  An automatic watch's kind, from its key in the snapshot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WatchesPane::GetAutoType (const std::string & key)
+{
+    return key.starts_with ("R:") ? L"Register"
+         : key.starts_with ("F:") ? L"Flag"
+         :                          L"Memory";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::GetWatchType
+//
+//  A watch's kind: a BASIC variable, a register, a symbol by name with its
+//  address, an address, or an expression evaluated at each read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring WatchesPane::GetWatchType (const DebuggerViewSnapshot::WatchLine & watch)
+{
+    std::string  base;
+    bool         isName = false;
+    bool         isHex  = false;
+
+
+
+    if (!watch.basicName.empty())
+    {
+        return L"BASIC";
+    }
+
+    if (DebuggerViewState::IsRegisterWatch (watch))
+    {
+        return L"Register";
+    }
+
+    (void) WatchItem::SplitWidth (watch.expression, base);
+    base   = base.starts_with ("$") ? base.substr (1) : base;
+    isHex  = !base.empty() && base.find_first_not_of ("0123456789ABCDEFabcdef") == std::string::npos;
+    isName = !base.empty() && !isHex && (isalpha ((unsigned char) base[0]) || base[0] == '_') &&
+             base.find_first_not_of ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.") == std::string::npos;
+
+    return (base.empty() || isHex)      ? std::wstring (L"Memory")
+         : isName && watch.error.empty() ? std::format (L"Symbol at ${:04X}", watch.address)
+         : isName                        ? std::wstring (L"Symbol")
+         :                                 std::wstring (L"Expression");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::IsInRom
+//
+//  Whether the PC is in the ROM, where Applesoft runs a statement and the
+//  Monitor routines it calls are; a PC moved to machine code in RAM is
+//  outside the program's statement.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchesPane::IsInRom (Word pc)
+{
+    constexpr Word  kRomFirst = 0xD000;
+
+
+
+    return pc >= kRomFirst;
 }
 
 
@@ -621,6 +834,7 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
 
     m_isValueEditAfterAdd = m_grid->IsTabCommit();
     m_addedBy             = m_clock() + kAddedWaitMs;
+    m_addedText           = expression;
     SetError ({});
     m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
     return true;
@@ -669,8 +883,93 @@ void WatchesPane::RemoveSelected()
 
     if (row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::Manual)
     {
-        m_host.RunAction (DebuggerActions::GetClearWatch (m_rows[(size_t) row].index, m_host.GetMode()));
+        RemoveWatch (m_rows[(size_t) row].index);
     }
+    else if (row >= 0 && row < (int) m_rows.size() && m_rows[(size_t) row].kind == RowKind::ZeroPage)
+    {
+        RemovePointer (m_rows[(size_t) row].index);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::RemoveWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::RemoveWatch (int id)
+{
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    DebuggerViewState::WatchUndo     undo;
+    DebuggerAction                   clear    = DebuggerActions::GetClearWatch (id, m_host.GetMode());
+
+
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : (snapshot != nullptr) ? snapshot->watches : std::vector<DebuggerViewSnapshot::WatchLine>())
+    {
+        if (watch.id == id)
+        {
+            undo.actions = { DebuggerActions::GetAddWatchAt (id, GetRestoreText (watch), m_host.GetMode()) };
+            m_history.Record (std::move (undo), { clear }, std::format (L"remove watch {}", id));
+            break;
+        }
+    }
+
+    m_host.RunAction (clear);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::RemovePointer
+//
+//  The undo puts the pointer back in the slot it had.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::RemovePointer (int slot)
+{
+    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
+    DebuggerViewState::WatchUndo     undo;
+    DebuggerAction                   clear    = DebuggerActions::GetClearZeroPagePointer (slot, m_host.GetMode());
+
+
+
+    for (const DebuggerViewSnapshot::WatchLine & pointer : (snapshot != nullptr) ? snapshot->zeroPagePointers : std::vector<DebuggerViewSnapshot::WatchLine>())
+    {
+        if (pointer.id == slot)
+        {
+            undo.actions = { DebuggerActions::GetAddZeroPagePointerAt (slot, (Byte) pointer.address, m_host.GetMode()) };
+            m_history.Record (std::move (undo), { clear }, std::format (L"remove zero-page pointer {}", slot));
+            break;
+        }
+    }
+
+    m_host.RunAction (clear);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::GetRestoreText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string WatchesPane::GetRestoreText (const DebuggerViewSnapshot::WatchLine & watch)
+{
+    return !watch.expression.empty() ? watch.expression
+         : watch.basicName.empty()   ? std::format ("{:04X}", watch.address)
+         :                             "BASIC " + watch.basicName;
 }
 
 
@@ -771,12 +1070,12 @@ bool WatchesPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
             const DebuggerViewSnapshot::WatchLine  watch = *found;
 
             m_host.AddShowInMemoryItems (std::format (L"${:04X}", watch.address), std::format ("{:04X}", watch.address), items);
-            items.push_back ({ L"Remove", [this, watch] { m_host.RunAction (DebuggerActions::GetClearWatch (watch.id, m_host.GetMode())); } });
+            items.push_back ({ L"Remove", [this, id = watch.id] { RemoveWatch (id); } });
         }
     }
     else if (what.kind == RowKind::ZeroPage)
     {
-        items.push_back ({ L"Remove", [this, slot = what.index] { m_host.RunAction (DebuggerActions::GetClearZeroPagePointer (slot, m_host.GetMode())); } });
+        items.push_back ({ L"Remove", [this, slot = what.index] { RemovePointer (slot); } });
     }
     else if (what.kind == RowKind::Automatic && what.index < (int) snapshot->autoWatches.size() &&
              snapshot->autoWatches[(size_t) what.index].key.starts_with ("M:"))

@@ -12,7 +12,8 @@
 //
 //  The box a pane's find widget floats in, at the top right of the pane's
 //  text, as Visual Studio Code draws its find widget: a raised fill with a
-//  thin edge. The widget's controls are the window's children and paint over it.
+//  shadow and an edge. The widget's controls are the window's children and
+//  paint over it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -441,6 +441,30 @@ TEST_CLASS (DxuiPopupHostDismissPolicyTests)
 {
 public:
 
+    //  A right press that closes a menu is posted on to this thread's window
+    //  under it, in its client coordinates, so a right-click on another
+    //  heading opens that heading's menu; no window, and another thread's,
+    //  have nothing posted to them. The target is a value, never a window.
+    TEST_METHOD (ARightPressOutsideIsPostedToTheWindowUnderIt)
+    {
+        constexpr POINT  kClientPx = { 7, 5 };
+        const HWND       target    = reinterpret_cast<HWND> (static_cast<uintptr_t> (0x1000));
+        MSG              post      = {};
+
+
+
+        Assert::IsTrue   (DxuiPopupHost::TryMakeRepost (target, true, kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"posted");
+        Assert::IsTrue   (post.hwnd == target, L"to the window under the press");
+        Assert::AreEqual ((UINT) WM_RBUTTONDOWN, post.message);
+        Assert::AreEqual ((WPARAM) MK_RBUTTON, post.wParam);
+        Assert::AreEqual ((int) kClientPx.x, (int) (short) LOWORD (post.lParam), L"at the client x");
+        Assert::AreEqual ((int) kClientPx.y, (int) (short) HIWORD (post.lParam), L"and y");
+
+        Assert::IsFalse (DxuiPopupHost::TryMakeRepost (nullptr, true,  kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"no window");
+        Assert::IsFalse (DxuiPopupHost::TryMakeRepost (target,  false, kClientPx, WM_RBUTTONDOWN, MK_RBUTTON, post), L"another thread's window");
+    }
+
+
     TEST_METHOD (OnClickOutside_DismissesOnlyOnOutsideChainClick)
     {
         Assert::IsFalse (DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss::OnClickOutside,

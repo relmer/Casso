@@ -323,6 +323,21 @@ namespace DxuiPaneLayoutTests
             layout.TabWith   (L"regs", L"code");
             Assert::AreEqual (std::wstring (L"code"), FindRect (layout.Arrange (s_kArea, shown, nullptr), L"code").active);
         }
+
+
+        TEST_METHOD (AHiddenActiveTabInTheMiddleShowsTheOneAfterIt)
+        {
+            DxuiPaneLayout  layout = MakeSample();
+            auto            shown  = [] (const std::wstring & pane) { return pane != L"regs"; };
+
+
+
+            layout.TabWithAt (L"regs",    L"code", 1);
+            layout.TabWithAt (L"console", L"code", 2);
+            layout.Activate  (L"regs");
+            Assert::AreEqual (std::wstring (L"console"), FindRect (layout.Arrange (s_kArea, shown, nullptr), L"code").active,
+                              L"the tab after the hidden one, not the first in the group");
+        }
     };
 
 

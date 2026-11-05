@@ -7,7 +7,9 @@
     generators, and the 6522 timer interrupts that drive them. Both are single
     boot sectors -- the drive ROM reads track 0 sector 0 to $0800 and jumps to
     $0801, and neither program touches the disk again -- so there is no loader
-    and nothing to generate.
+    and nothing to generate. The third disk, mockingboard-music, is a tune for
+    both AY chips. It is too large for a boot sector, so it is built with
+    BuildDirectBootDisk.ps1, which adds the loader.
 
     The finished .dsk images go up to Apple2\Demos, which is where every
     machine profile and launch command names them.
@@ -35,8 +37,17 @@ $repoRoot = (Resolve-Path (Join-Path $here '..\..\..\..')).Path
 $demoDir  = Join-Path $repoRoot 'Apple2\Demos'
 $rel      = 'Mockingboard/Audio'
 
-foreach ($src in @('mockingboard-test.a65', 'mockingboard-irq-test.a65'))
+#  source and the script that builds it: a single boot sector, or a direct-boot
+#  payload loaded from track 1 on (the music disk is too large for one sector)
+$disks = @(
+    @{ Src = 'mockingboard-test.a65';     Script = 'BuildBootSectorDisk.ps1' },
+    @{ Src = 'mockingboard-irq-test.a65'; Script = 'BuildBootSectorDisk.ps1' },
+    @{ Src = 'mockingboard-music.a65';    Script = 'BuildDirectBootDisk.ps1' }
+)
+
+foreach ($d in $disks)
 {
+    $src    = $d.Src
     $stem   = [IO.Path]::GetFileNameWithoutExtension($src)
     $target = Join-Path $demoDir "$stem.dsk"
     $source = Join-Path $here $src
@@ -48,6 +59,6 @@ foreach ($src in @('mockingboard-test.a65', 'mockingboard-irq-test.a65'))
         continue
     }
 
-    & (Join-Path $repoRoot 'scripts\BuildBootSectorDisk.ps1') `
+    & (Join-Path $repoRoot "scripts\$($d.Script)") `
         -Source "$rel/$src" -Configuration $Configuration
 }

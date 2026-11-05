@@ -1310,9 +1310,18 @@ private:
         }
     }
 
+    //  The rig's budget rather than the default's 64 MB, which a Debug build
+    //  fills at each start of recording: one test starts recording again at
+    //  each of a run of instructions.
     static ReverseSettings MakeSettings()
     {
-        return ReverseSettings();
+        ReverseSettings  settings;
+
+
+
+        settings.keyframes.budgetBytes = ReverseSessionRig::kTestBudgetBytes;
+
+        return settings;
     }
 
 

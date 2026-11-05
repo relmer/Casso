@@ -117,7 +117,8 @@ void DebuggerWindow::CreatePanes()
         m_panes.push_back (std::move (window));
     }
 
-    m_panes.push_back (std::make_unique<SymbolsPane>    (host));
+    m_panes.push_back (std::make_unique<SymbolsPane>    (host, SymbolsPane::Kind::User));
+    m_panes.push_back (std::make_unique<SymbolsPane>    (host, SymbolsPane::Kind::Machine));
     m_panes.push_back (std::make_unique<BookmarksPane>  (host));
     m_panes.push_back (std::move (profiler));
     m_panes.push_back (std::make_unique<DataBlocksPane> (host));
@@ -615,6 +616,21 @@ int DebuggerWindow::GetCodeLineOfRow (int view, int row) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetGutterLineOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::GetGutterLineOfRow (int view, int row) const
+{
+    return m_code->GetGutterLineOfRow (view, row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyCodeView
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -645,6 +661,33 @@ bool DebuggerWindow::IsCodeHeatOn() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ShowNextStatement
+//
+//  Bring the view of the step mode forward, at the PC. The step mode follows
+//  the view last used: the PC's line in its source file while steps go by
+//  source line, and the PC in the disassembly while they go by instruction
+//  or when the PC has no source line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowNextStatement()
+{
+    bool  isBySource = m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->stepBySource;
+
+
+
+    if (!isBySource || !m_sources->ShowPc())
+    {
+        ShowCode (std::nullopt);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ShowCode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -662,26 +705,14 @@ void DebuggerWindow::ShowCode (std::optional<Word> address)
 //
 //  DebuggerWindow::TryGetBranchTip
 //
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
-{
-    return m_code->TryGetBranchTip (clientPx, anchor, text);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::TryGetSymbolTip
+//  Over the PC's branch arrow, whether the branch is taken and why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+bool DebuggerWindow::TryGetBranchTip (POINT clientPx, DxuiTip & tip) const
 {
-    return m_code->TryGetSymbolTip (clientPx, anchor, text);
+    tip = DxuiTip();
+    return m_code->TryGetBranchTip (clientPx, tip.anchor, tip.text);
 }
 
 
@@ -697,7 +728,7 @@ bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstrin
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTextView * DebuggerWindow::GetFindView (const std::wstring & pane) const
+IDxuiFindTarget * DebuggerWindow::GetFindView (const std::wstring & pane) const
 {
     return (FindPane (pane) != nullptr) ? FindPane (pane)->GetFindView() : nullptr;
 }
@@ -874,11 +905,64 @@ void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
     DxuiContextMenu::Show (*GetMenuHost(), clientPx.x, clientPx.y, std::move (menu));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowListAbove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & anchorPx, const DxuiContextMenu::ListLook & look)
+{
+    std::vector<DxuiPopupMenuItem>  menu;
+
+
+
+    m_menuCommands.clear();
+    SetWindowMenus();
+
+    for (const auto & [label, action] : items)
+    {
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
+    }
+
+    DxuiContextMenu::ShowAboveAtWidth (*GetMenuHost(), anchorPx, std::move (menu), look);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetSymbolComment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerWindow::GetSymbolComment (Word address, const std::string & name)
+{
+    if (m_snapshot == nullptr || !m_snapshot->source.has_value() || m_host == nullptr)
+    {
+        return {};
+    }
+
+    m_symbolComments.SetSource (*m_snapshot->source);
+
+    return m_symbolComments.GetComment (address, name, [this] (const DebugSourceFile & record, const std::wstring & path, const std::string & key)
+    {
+        return m_host->FindDebuggerSource (record, path, key);
+    });
 }
 
 

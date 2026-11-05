@@ -6,6 +6,7 @@
 #include "Core/IMachineState.h"
 
 struct DiagnosticsMeters;
+struct DiagnosticsSoundVia;
 struct DiagnosticsSnapshot;
 
 
@@ -157,6 +158,9 @@ public:
     // timer a once-a-frame sample cannot follow.
     void     AppendDiagnostics (const std::string & title, DiagnosticsSnapshot & snapshot) const;
     void     AppendTimerLevels (const std::string & title, DiagnosticsMeters & meters) const;
+
+    //  A sound board's view of this chip, whose T1 rate is at this clock.
+    void     AppendSoundBoard  (double clockHz, DiagnosticsSoundVia & out) const;
 
     // IMachineState: the register file, port input latches, control lines and
     // both timers. The IRQ source token and controller are wiring; the

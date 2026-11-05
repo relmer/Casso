@@ -71,6 +71,13 @@ HRESULT ProfileEventProbe::Attach (MachineHost & machine, std::vector<DebugEvent
     m_pending.reset();
     m_counts.table.Reset();
     m_counts.routines.Reset();
+
+    //  A stretch starting inside calls is billed to them, not to Top level.
+    if (m_startCalls.contains (cpu->GetHistoryCycles()))
+    {
+        m_counts.routines.Seed (m_startCalls.at (cpu->GetHistoryCycles()), cpu->GetSP());
+    }
+
     machine.SetOpcodeWatch (m_opcodes.data(), this);
 
 Error:

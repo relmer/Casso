@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/Reverse/ReplayControl.h"
 
 
@@ -272,6 +273,26 @@ std::wstring DebuggerStatusText::GetReplayText (const ReplayProgress & progress)
     }
 
     return std::format (L"{} {}%. Press Escape or Pause to stop.", text, std::lround (std::min (progress.fraction, 1.0f) * kPercent));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerStatusText::GetReplayText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerStatusText::GetReplayText (const ReplayProgress & progress, const std::string & runNotice)
+{
+    if (progress.isReplaying || runNotice.empty())
+    {
+        return GetReplayText (progress);
+    }
+
+    return TextEncoding::NarrowToWide (runNotice);
 }
 
 

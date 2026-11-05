@@ -37,7 +37,7 @@ void InputJournal::Record (
     record = &AppendSlot();
 
     record->position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
-    record->cycle      = cycle;
+    record->cycle      = cycle + ((m_cycleBase != nullptr) ? *m_cycleBase : 0);
     record->kind       = kind;
     record->value      = value;
     record->detail     = detail;
@@ -86,7 +86,7 @@ __declspec (noinline) void InputJournal::RecordObserved (
     record = &AppendSlot();
 
     record->position   = (m_positionSource != nullptr) ? *m_positionSource : 0;
-    record->cycle      = cycle;
+    record->cycle      = cycle + ((m_cycleBase != nullptr) ? *m_cycleBase : 0);
     record->kind       = kind;
     record->value      = value;
     record->detail     = detail;

@@ -242,18 +242,22 @@ namespace DebuggerFindWidgetTests
             CassoTheme        theme  = CassoTheme::MakeSkeuomorphic();
             FindWidgetHost    host;
             FindWidgetWindow  window (theme, host);
+            int               lead   = 0;
 
 
 
             window.Build();
-            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, 0 }, { 1, 9 });
+
+            //  The row's text is after its time stamp and a tab.
+            lead = (int) window.GetConsolePane().GetOutput().GetView()->GetRows()[1].cells[0].size() + 1;
+            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, lead }, { 1, lead + 9 });
             window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             window.GetFindWidgets().GetBox()->SetText (L"$");
 
             window.Press (VK_RETURN);
             Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindWidgets().GetStatus(), L"the whole text has two");
 
-            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, 0 }, { 1, 9 });
+            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, lead }, { 1, lead + 9 });
             window.GetFindWidgets().SetInSelection (true);
             window.Press (VK_RETURN);
             Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindWidgets().GetStatus(), L"the selected line has one");

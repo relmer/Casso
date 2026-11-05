@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/UnicodeSymbols.h"
 #include "DebuggerTests/HandlerTestRig.h"
 #include "Debugger/Handlers/BasicHandlers.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
@@ -9,6 +10,7 @@
 #include "EmuTests/KeystrokeInjector.h"
 #include "EmuTests/MachineIdle.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 
@@ -71,6 +73,58 @@ namespace DebuggerTests
             return state;
         }
 
+        static BasicProgramPane::Style MakeStyle()
+        {
+            BasicProgramPane::Style  style;
+
+
+
+            style.textArgb         = 0xFFD0D0D0u;
+            style.syntax.mnemonic  = 0xFF4080FFu;
+            style.syntax.address   = 0xFF80C080u;
+            style.syntax.string    = 0xFFC08040u;
+            style.syntax.comment   = 0xFF60A060u;
+            return style;
+        }
+
+        //  Where a piece starts in a row's text.
+        static int GetOffset (const BasicProgramPane::Row & row, int piece)
+        {
+            auto  found = std::ranges::find_if (row.pieces, [piece] (const std::pair<int, int> & p) { return p.first == piece; });
+
+
+
+            return (found != row.pieces.end()) ? found->second : -1;
+        }
+
+        //  A character's ink from a cell's color ranges, zero for none.
+        static uint32_t GetInk (const DxuiListView::Cell & cell, int at)
+        {
+            for (const auto & [first, last, argb] : cell.colorRanges)
+            {
+                if (at >= first && at < last)
+                {
+                    return argb;
+                }
+            }
+
+            return 0;
+        }
+
+        static DebuggerViewSnapshot::HeatColumnLevels MakeHeat()
+        {
+            DebuggerViewSnapshot::HeatColumnLevels  heat;
+
+
+
+            heat.execute.assign        (0x10000, 0);
+            heat.read.assign           (0x10000, 0);
+            heat.write.assign          (0x10000, 0);
+            heat.statement.assign      (0x10000, 0);
+            heat.statementCount.assign (0x10000, 0);
+            return heat;
+        }
+
         static DebuggerViewSnapshot::BreakpointLine MakeLineBreakpoint (int id, Word line, bool enabled)
         {
             DebuggerViewSnapshot::BreakpointLine  bp;
@@ -103,32 +157,175 @@ namespace DebuggerTests
             Assert::IsTrue (BasicProgramPane::GetStatement (line, 14) == std::pair<int, int> (11, 15));
         }
 
-        //  The heat column's strip is over each line's tokens, on its first
-        //  row: the interpreter's reads of them are the line running.
-        TEST_METHOD (TheHeatColumnIsOverEachLinesTokens)
+        //  With heat on, a compound line's Heat cell has its hottest
+        //  statement's heat, and each statement is tinted in place by how
+        //  often BASIC began it, from the count at its first token, its text
+        //  in the ink that reads on its tint in place of the syntax colors. A
+        //  statement that hasn't run is in its syntax colors, and each
+        //  statement's tip has its count.
+        TEST_METHOD (ACompoundLinesStatementsAreTintedByHowOftenEachRan)
         {
-            BasicLine                                  first  = MakeLine (0x0801, 10, { "A", "=", "1" });
-            BasicLine                                  second = MakeLine (0x0809, 20, { "B", "=", "2" });
-            DebuggerViewSnapshot::BasicState              state  = MakeState ({ first, second }, 0, 0);
-            std::vector<BasicProgramPane::Row>            rows   = BasicProgramPane::GetRows (state.lines);
-            DebuggerViewSnapshot::HeatColumnLevels        heat;
+            BasicLine                                     line    = MakeLine (0x0801, 10, { "A", "=", "1", ":", " PRINT ", "A" });
+            DebuggerViewSnapshot::BasicState              state   = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows    = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat    = MakeHeat();
             HeatMapView::Palette                          palette;
+            BasicProgramPane::Style                       style   = MakeStyle();
             std::vector<std::vector<DxuiListView::Cell>>  cells;
+            uint32_t                                      tint    = HeatStrip::GetScaleColor (HeatStrip::Kind::Run, 255, palette);
+            int                                           first   = GetOffset (rows[0], 0);
+            int                                           second  = GetOffset (rows[0], 4);
 
 
 
-            heat.execute.assign (0x10000, 0);
-            heat.read.assign    (0x10000, 0);
-            heat.write.assign   (0x10000, 0);
-            heat.read[0x0805]  = 255;
-            palette.execute    = 0xFF0000FF;
+            heat.statement[0x0805]      = 255;
+            heat.statementCount[0x0805] = 3;
 
-            cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
+            cells = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette);
 
-            Assert::AreEqual ((size_t) 4, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"four bytes of tokens, a fill each");
-            Assert::AreEqual (0xFF0000FFu, cells[0][BasicProgramPane::kHeatColumn].background, L"the token read is the line running");
-            Assert::AreEqual ((size_t) 4, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line: its first eight bytes in four fills");
-            Assert::IsTrue   (BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style())[0][BasicProgramPane::kHeatColumn].text.empty(), L"no levels, no strip");
+            const DxuiListView::Cell  & listing = cells[0][BasicProgramPane::kListingColumn];
+
+            Assert::AreEqual ((size_t) 1, listing.backgroundRanges.size(), L"the cold statement has no tint");
+            Assert::IsTrue   (listing.backgroundRanges[0] == std::tuple<int, int, uint32_t> (first, second, tint), L"the first statement, its colon included");
+            Assert::AreEqual (DxuiColor::ChooseInkFor (tint, 0xFF101010u, 0xFFF8F8F8u), GetInk (listing, first), L"the ink for the tint, not a syntax color");
+            Assert::AreEqual (style.syntax.mnemonic, GetInk (listing, second + 1), L"the cold statement's keyword is in its syntax color");
+            Assert::IsTrue   (std::get<2> (listing.rangeTips[0]).find (L"3 times") != std::wstring::npos, std::get<2> (listing.rangeTips[0]).c_str());
+            Assert::IsTrue   (std::get<2> (listing.rangeTips[1]).find (L"hasn't run") != std::wstring::npos, std::get<2> (listing.rangeTips[1]).c_str());
+            Assert::AreEqual (tint, cells[0][BasicProgramPane::kHeatColumn].background, L"the Heat cell has the hottest statement's heat");
+        }
+
+        //  A compound line whose statements all have the same heat would be
+        //  one color from end to end, so it is drawn as a plain line is: its
+        //  heat in the Heat column alone, its text in its syntax colors.
+        TEST_METHOD (ACompoundLineOfOneHeatIsNotSegmented)
+        {
+            BasicLine                                     line    = MakeLine (0x0801, 10, { "A", "=", "1", ":", " PRINT ", "A" });
+            DebuggerViewSnapshot::BasicState              state   = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows    = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat    = MakeHeat();
+            HeatMapView::Palette                          palette;
+            BasicProgramPane::Style                       style   = MakeStyle();
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+            std::vector<std::vector<DxuiListView::Cell>>  plain   = BasicProgramPane::GetCells (state, rows, {}, style);
+
+
+
+            heat.statement[0x0805]      = 200;
+            heat.statementCount[0x0805] = 4;
+            heat.statement[0x0809]      = 200;
+            heat.statementCount[0x0809] = 5;
+
+            cells = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette);
+
+            Assert::AreEqual (HeatStrip::GetScaleColor (HeatStrip::Kind::Run, 200, palette), cells[0][BasicProgramPane::kHeatColumn].background, L"the heat in the column");
+            Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].backgroundRanges.empty(), L"no segments");
+            Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].colorRanges == plain[0][BasicProgramPane::kListingColumn].colorRanges, L"the syntax colors");
+        }
+
+        //  A line of one statement has its heat in the Heat column alone:
+        //  its text is in its syntax colors.
+        TEST_METHOD (APlainLinesHeatIsInTheHeatColumnAlone)
+        {
+            BasicLine                                     line    = MakeLine (0x0801, 10, { " PRINT ", "A" });
+            DebuggerViewSnapshot::BasicState              state   = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows    = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat    = MakeHeat();
+            HeatMapView::Palette                          palette;
+            BasicProgramPane::Style                       style   = MakeStyle();
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+            std::vector<std::vector<DxuiListView::Cell>>  plain   = BasicProgramPane::GetCells (state, rows, {}, style);
+
+
+
+            heat.statement[0x0805]      = 255;
+            heat.statementCount[0x0805] = 7;
+
+            cells = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette);
+
+            Assert::AreEqual (HeatStrip::GetScaleColor (HeatStrip::Kind::Run, 255, palette), cells[0][BasicProgramPane::kHeatColumn].background);
+            Assert::IsTrue   (cells[0][BasicProgramPane::kHeatColumn].tip.find (L"7 times") != std::wstring::npos, cells[0][BasicProgramPane::kHeatColumn].tip.c_str());
+            Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].backgroundRanges.empty(), L"no tint in the listing");
+            Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].colorRanges == plain[0][BasicProgramPane::kListingColumn].colorRanges, L"the syntax colors");
+        }
+
+        //  A line the pointer is over fades from its tint to its syntax
+        //  colors: halfway, the tint is half as opaque and the ink between
+        //  the two; all the way, the line is as it is with heat off.
+        TEST_METHOD (AHoveredLineFadesToItsSyntaxColors)
+        {
+            BasicLine                                     line    = MakeLine (0x0801, 10, { " PRINT ", "A", ":", " END " });
+            DebuggerViewSnapshot::BasicState              state   = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows    = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat    = MakeHeat();
+            HeatMapView::Palette                          palette;
+            BasicProgramPane::Style                       style   = MakeStyle();
+            std::map<size_t, float>                       reveals;
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+            std::vector<std::vector<DxuiListView::Cell>>  plain   = BasicProgramPane::GetCells (state, rows, {}, style);
+            int                                           first   = GetOffset (rows[0], 0);
+
+
+
+            heat.statement[0x0805]      = 255;
+            heat.statementCount[0x0805] = 1;
+
+            reveals[0] = 0.5f;
+            cells      = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette, &reveals);
+
+            Assert::AreEqual (0x80u, std::get<2> (cells[0][BasicProgramPane::kListingColumn].backgroundRanges.at (0)) >> 24, L"half as opaque");
+            Assert::AreNotEqual (style.syntax.mnemonic, GetInk (cells[0][BasicProgramPane::kListingColumn], first), L"not yet the syntax color");
+
+            reveals[0] = 1.0f;
+            cells      = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette, &reveals);
+
+            Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].backgroundRanges.empty(), L"no tint");
+            Assert::AreEqual (GetInk (plain[0][BasicProgramPane::kListingColumn], first), GetInk (cells[0][BasicProgramPane::kListingColumn], first), L"the syntax color");
+        }
+
+
+
+        //  The pane fades the line under the pointer over its fade time, to
+        //  its syntax colors, and back once the pointer is elsewhere.
+        TEST_METHOD (TheLineUnderThePointerFadesAndFadesBack)
+        {
+            BasicLine                                                       line    = MakeLine (0x0801, 10, { " PRINT ", "A", ":", " END " });
+            DxuiListView                                                    list;
+            BasicProgramPane                                                pane    (&list, nullptr);
+            std::shared_ptr<DebuggerViewSnapshot::HeatColumnLevels>         heat    = std::make_shared<DebuggerViewSnapshot::HeatColumnLevels> (MakeHeat());
+            auto                                                            alpha   = [&list] ()
+            {
+                const DxuiListView::Cell  & cell = list.GetCellsOfRow (0)[BasicProgramPane::kListingColumn];
+
+
+
+                return cell.backgroundRanges.empty() ? 0u : std::get<2> (cell.backgroundRanges[0]) >> 24;
+            };
+
+
+
+            heat->statement[0x0805]      = 255;
+            heat->statementCount[0x0805] = 1;
+
+            pane.Configure (16);
+            pane.SetStyle  (MakeStyle());
+            pane.SetHeat   (heat, HeatMapView::Palette());
+            pane.Apply     (MakeState ({ line }, std::nullopt, 0), {});
+
+            Assert::AreEqual (0xFFu, alpha(), L"tinted while the pointer is elsewhere");
+
+            list.SetHoveredRow (0);
+            (void) pane.Tick (1000);
+            Assert::IsTrue   (pane.Tick (1075), L"fading");
+            Assert::AreEqual (0x80u, alpha(), L"halfway");
+            (void) pane.Tick (1200);
+            Assert::AreEqual (0u, alpha(), L"the syntax colors alone");
+            Assert::IsFalse  (pane.Tick (1300), L"done fading");
+
+            list.SetHoveredRow (-1);
+            (void) pane.Tick (1375);
+            Assert::AreEqual (0x80u, alpha(), L"back halfway");
+            (void) pane.Tick (1500);
+            Assert::AreEqual (0xFFu, alpha(), L"tinted again");
         }
 
 
@@ -282,6 +479,47 @@ namespace DebuggerTests
             return state;
         }
 
+        //  Wrapped at a width, a row is cut before the piece that would pass
+        //  it, the next row indented as LIST indents one, and a row has at
+        //  least one piece.
+        TEST_METHOD (TheListingWrapsAtTheWidthGiven)
+        {
+            auto                                     count = [] (const std::wstring & text) { return (float) text.size(); };
+            std::vector<BasicLine>                   lines = { MakeLine (0x0801, 10, { " PRINT ", "\"", "A", "B", "C", "D", "\"" }) };
+            std::vector<BasicProgramPane::Row>       rows  = BasicProgramPane::GetRows (lines, 12.0f, count);
+
+
+
+            Assert::AreEqual (std::wstring (L" 10  PRINT \""), rows[0].text, L"the row before the piece past the width");
+            Assert::IsTrue   (rows.size() > 1);
+            Assert::IsFalse  (rows[1].isFirst);
+            Assert::IsTrue   (rows[1].text.starts_with (std::wstring (ApplesoftProgram::kListIndent, L' ')));
+
+            rows = BasicProgramPane::GetRows (lines, 1000.0f, count);
+            Assert::AreEqual ((size_t) 1, rows.size(), L"a wide pane has the line on one row");
+
+            rows = BasicProgramPane::GetRows ({ MakeLine (0x0801, 10, { " PRINT " }) }, 1.0f, count);
+            Assert::AreEqual ((size_t) 1, rows.size(), L"a piece wider than the width is alone on a row");
+        }
+
+        //  A line's values are its variables' at this stop; on the line the
+        //  machine stopped at before, a changed one is before -> after.
+        TEST_METHOD (ALinesValuesShowWhatItChanged)
+        {
+            DebuggerViewSnapshot::BasicState  now    = MakeValues();
+            DebuggerViewSnapshot::BasicState  before = MakeValues();
+            BasicLine                         line   = MakeLine (0x0801, 10, { "A", " = ", "A", " + ", "1", ":", " PRINT ", "S", "$" });
+
+
+
+            before.variables[0].value = "0.5";
+
+            Assert::AreEqual (std::wstring (L"A=1.5  S$=\"HI\""), BasicProgramPane::GetValuesText (line, now, nullptr));
+            Assert::AreEqual (std::wstring (L"A=0.5 ") + s_kpszRightArrow + L" 1.5  S$=\"HI\"", BasicProgramPane::GetValuesText (line, now, &before));
+            Assert::AreEqual (std::wstring (L"A\t1.5\nS$\t\"HI\""), BasicProgramPane::GetValuesTip (line, now));
+        }
+
+
         //  Every variable, then every element, the first subscript varying
         //  fastest; a string in quotes.
         TEST_METHOD (EveryVariableAndElementIsListed)
@@ -433,6 +671,15 @@ namespace DebuggerTests
             Assert::IsTrue (BasicWatches::MakeNameCell ("HIGH$").dimRanges == std::vector<std::pair<int, int>> { { 2, 4 } });
             Assert::IsTrue (BasicWatches::MakeNameCell ("SCORE(3)").dimRanges == std::vector<std::pair<int, int>> { { 2, 5 } });
             Assert::IsTrue (BasicWatches::MakeNameCell ("HI").dimRanges.empty());
+        }
+
+        //  (BASIC) follows a variable's name only where another row has that
+        //  label, as the I flag and a variable I do.
+        TEST_METHOD (ANameIsMarkedBasicOnlyWhereItIsADuplicate)
+        {
+            Assert::AreEqual (std::wstring (L"I (BASIC)"), BasicWatches::MakeNameCell ("I", { "I", "Z" }).text);
+            Assert::AreEqual (std::wstring (L"J"),         BasicWatches::MakeNameCell ("J", { "I", "Z" }).text);
+            Assert::AreEqual (std::wstring (L"I"),         BasicWatches::MakeNameCell ("I").text);
         }
 
         //  The GOSUB and FOR frames come first in the call stack, each on its

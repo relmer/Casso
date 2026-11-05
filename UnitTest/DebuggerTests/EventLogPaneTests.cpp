@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Acia6551.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
@@ -129,7 +130,7 @@ namespace EventLogPaneTests
             Assert::AreEqual ((size_t) 4, pane.GetView().size());
             Assert::AreEqual (std::wstring (EventLogText::GetStartText()), GetColumn (pane, DiskLogPane::kDetail)[0]);
             Assert::AreEqual (std::wstring (L"Motor command on"),          GetColumn (pane, DiskLogPane::kEvent)[1]);
-            Assert::AreEqual (std::wstring (L"T17 S5 V254 (256 bytes)"),   GetColumn (pane, DiskLogPane::kDetail)[3]);
+            Assert::AreEqual (std::wstring (L"256 bytes"),                 GetColumn (pane, DiskLogPane::kDetail)[3], L"the place is in the Track, Sector and Volume columns");
             Assert::AreEqual (std::wstring (L"300"),                       GetColumn (pane, DiskLogPane::kCycle)[3]);
             Assert::AreEqual (4, list.GetRowCount());
         }
@@ -235,7 +236,7 @@ namespace EventLogPaneTests
 
             dump = cells[DiskLogPane::kDetail].tip;
 
-            Assert::AreEqual (std::wstring (L"T0 S0 V254 (256 bytes) 00 01 02 03 04 05 06 07 ..."), cells[DiskLogPane::kDetail].text);
+            Assert::AreEqual (std::wstring (L"256 bytes 00 01 02 03 04 05 06 07 ..."), cells[DiskLogPane::kDetail].text);
             Assert::IsTrue   (dump.starts_with (L"00: 00 01 02 03"), dump.c_str());
             Assert::IsTrue   (dump.find (L"\n10: C1 11 ") != std::wstring::npos, L"the second line starts at $10");
             Assert::IsTrue   (dump.find (L" A") != std::wstring::npos, L"$C1 is A with its high bit dropped");
@@ -461,8 +462,8 @@ namespace EventLogPaneTests
             details = GetColumn (pane, DiskLogPane::kDetail);
 
             Assert::AreEqual ((size_t) 4, details.size(), L"the start row, track 17's mark, the step to 17.25 and the unknown read");
-            Assert::AreEqual (std::wstring (L"T17 S1 V254"),            details[1]);
-            Assert::AreEqual (std::wstring (L"track 16.75 -> 17.25"), details[2]);
+            Assert::AreEqual (std::wstring (L"17"),                     GetColumn (pane, DiskLogPane::kTrack)[1]);
+            Assert::AreEqual (std::wstring (L"from track 16.75"),       details[2]);
 
             pane.SetTrackText (L"18.5");
             pane.Refresh();
@@ -598,10 +599,56 @@ namespace EventLogPaneTests
             pane.SetColumnShown (DiskLogPane::kTime,  false);
             pane.SetColumnShown (DiskLogPane::kCycle, true);
 
-            Assert::AreEqual (std::wstring (L"1,000\t1\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t1\t\t0\t\t\r\n"), pane.GetText (false));
 
-            pane.SetColumnShown (DiskLogPane::kDrive, false);
-            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\tat track 0\r\n"), pane.GetText (false));
+            pane.SetColumnShown (DiskLogPane::kDrive,  false);
+            pane.SetColumnShown (DiskLogPane::kSector, false);
+            pane.SetColumnShown (DiskLogPane::kVolume, false);
+            Assert::AreEqual (std::wstring (L"1,000\tInfo\tHead bump\t0\t\r\n"), pane.GetText (false));
+        }
+
+
+        //  The Track, Sector and Volume columns have an event's place: a
+        //  step's or a bump's quarter track, an address or data field's
+        //  numbers with "?" for one not read yet, and nothing for an event
+        //  without one. A layout saved before them is dropped.
+        TEST_METHOD (TheTrackSectorAndVolumeColumnsHaveTheEventsPlace)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+            Disk2Event     event;
+            std::wstring   track;
+            std::wstring   sector;
+            std::wstring   volume;
+
+
+
+            event.type                     = Disk2EventType::AddrMark;
+            event.payload.addrMark.track   = 17;
+            event.payload.addrMark.sector  = 5;
+            event.payload.addrMark.volume  = 254;
+            DiskLogPane::GetPlace (event, track, sector, volume);
+            Assert::AreEqual (std::wstring (L"17"),  track);
+            Assert::AreEqual (std::wstring (L"5"),   sector);
+            Assert::AreEqual (std::wstring (L"254"), volume);
+
+            event.type                     = Disk2EventType::DataRead;
+            event.payload.dataMark.track   = -1;
+            event.payload.dataMark.sector  = 3;
+            event.payload.dataMark.volume  = -1;
+            DiskLogPane::GetPlace (event, track, sector, volume);
+            Assert::AreEqual (std::wstring (L"?"), track, L"a data field read before any address field");
+            Assert::AreEqual (std::wstring (L"3"), sector);
+
+            event.type                    = Disk2EventType::HeadStep;
+            event.payload.step.newQt      = 69;
+            DiskLogPane::GetPlace (event, track, sector, volume);
+            Assert::AreEqual (std::wstring (L"17.25"), track);
+            Assert::IsTrue   (sector.empty() && volume.empty());
+
+            pane.Configure();
+            pane.SetOptionsText ("columnLayout=011111 0,0,0,0,0,0");
+            Assert::IsTrue   (pane.IsColumnShown (DiskLogPane::kTime), L"the old layout is dropped");
         }
 
 
@@ -663,44 +710,67 @@ namespace EventLogPaneTests
 
         TEST_METHOD (TheMouseButtonOnACIsPressedWhenBitSevenIsClear)
         {
-            DxuiListView   list;
-            InputLogPane   pane (&list, [] (const std::string &) {});
-            std::wstring   address;
-            std::wstring   value;
-            std::wstring   meaning;
-            InputEvent     event = MakeInputRow (10, InputEventType::ButtonRead, 0xC063, 0x00).event;
+            DxuiListView              list;
+            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane::EventText   text;
+            InputEvent                event = MakeInputRow (10, InputEventType::ButtonRead, 0xC063, 0x00).event;
 
 
 
-            pane.FormatEvent (event, address, value, meaning);
-            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=0  Shift / button 2"), meaning);
+            pane.FormatEvent (event, text);
+            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=0  Shift / button 2"), text.meaning);
 
             pane.SetMouseButtonAtC063 (true);
-            pane.FormatEvent (event, address, value, meaning);
-            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=1  mouse button"), meaning);
+            pane.FormatEvent (event, text);
+            Assert::AreEqual (std::wstring (L"Button read $C063 -> $00  pressed=1  mouse button"), text.meaning);
         }
 
 
         TEST_METHOD (ASerialByteShowsThePortAndTheByte)
         {
-            DxuiListView   list;
-            InputLogPane   pane (&list, [] (const std::string &) {});
-            std::wstring   address;
-            std::wstring   value;
-            std::wstring   meaning;
-            InputEvent     card    = MakeInputRow (10, InputEventType::HostSerialByte, 2, 'A').event;
-            InputEvent     builtIn = MakeInputRow (10, InputEventType::HostSerialByte, Acia6551::kCommPortBuiltIn | 2, 'A').event;
+            DxuiListView              list;
+            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane::EventText   text;
+            InputEvent                card    = MakeInputRow (10, InputEventType::HostSerialByte, 2, 'A').event;
+            InputEvent                builtIn = MakeInputRow (10, InputEventType::HostSerialByte, Acia6551::kCommPortBuiltIn | 2, 'A').event;
 
 
 
-            pane.FormatEvent (card, address, value, meaning);
+            pane.FormatEvent (card, text);
 
-            Assert::AreEqual (std::wstring (L"Slot 2"), address);
-            Assert::AreEqual (L"HOST serial byte " + value, meaning);
+            Assert::AreEqual (std::wstring (L"Slot 2"), text.input);
+            Assert::IsTrue   (text.address.empty(), L"a host row has no address");
+            Assert::AreEqual (L"HOST serial byte " + text.value, text.meaning);
 
-            pane.FormatEvent (builtIn, address, value, meaning);
+            pane.FormatEvent (builtIn, text);
 
-            Assert::AreEqual (std::wstring (L"Port 2"), address);
+            Assert::AreEqual (std::wstring (L"Port 2"), text.input);
+        }
+
+
+        //  The Address column has only hex soft switches; the Input column has
+        //  the key or line for host and guest rows alike, so Open Apple is the
+        //  same value for the press and for the program's read of it.
+        TEST_METHOD (TheInputColumnMatchesAHostPressToTheGuestsRead)
+        {
+            DxuiListView              list;
+            InputLogPane              pane (&list, [] (const std::string &) {});
+            InputLogPane::EventText   press;
+            InputLogPane::EventText   read;
+
+
+
+            pane.FormatEvent (MakeInputRow (10, InputEventType::HostButton, (Word) InputLine::OpenApple, 1).event, press);
+            pane.FormatEvent (MakeInputRow (11, InputEventType::ButtonRead, 0xC061, 0x80).event, read);
+
+            Assert::AreEqual (std::wstring (L"Open Apple"), press.input);
+            Assert::AreEqual (press.input, read.input,      L"the guest's read has the same input");
+            Assert::IsTrue   (press.address.empty(),        L"the host's press has no address");
+            Assert::AreEqual (std::wstring (L"$C061"), read.address);
+
+            Assert::AreEqual (std::wstring (L"Return"), InputLogPane::GetKeyName (0x8D));
+            Assert::AreEqual (std::wstring (L"A"),      InputLogPane::GetKeyName ('A'));
+            Assert::AreEqual (std::wstring (L"Ctrl+C"), InputLogPane::GetKeyName (0x03));
         }
 
 
@@ -1088,6 +1158,30 @@ namespace EventLogPaneTests
     {
     public:
 
+        //  Widths saved before the video log's Line and H became Scanline and
+        //  Line cycle are dropped for those two columns, which they were too
+        //  narrow for; the other widths stay, and options saved since have
+        //  every width applied.
+        TEST_METHOD (WidthsSavedForTheOldHeadingsAreDropped)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, true);
+
+
+
+            pane.Configure();
+            pane.SetOptionsText ("lanes=1111;columnLayout=110110101 -1,-1,-1,-1,72,-1,105,-1,866");
+
+            Assert::AreEqual (-1,  list.GetColumnOverrideWidthPx (IoLogPane::kHorizontal), L"the old H width");
+            Assert::AreEqual (105, list.GetColumnOverrideWidthPx (IoLogPane::kAddress),    L"another column's width");
+
+            pane.SetOptionsText ("lanes=1111;headings=2;columnLayout=110110101 -1,-1,-1,-1,72,-1,105,-1,866");
+
+            Assert::AreEqual (72, list.GetColumnOverrideWidthPx (IoLogPane::kHorizontal), L"a width set for Line cycle");
+            Assert::IsTrue   (pane.GetOptionsText().find ("headings=2;") != std::string::npos, L"saved with the version");
+        }
+
+
         TEST_METHOD (AVideoRowHasItsFrameBeamAndModes)
         {
             DxuiListView  list;
@@ -1216,6 +1310,60 @@ namespace EventLogPaneTests
         }
 
 
+        TEST_METHOD (TheSoundLogFiltersAndLabelsTheSpeechChip)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta    delta;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100, IoEventKind::ViaWrite,    0xC444),
+                                MakeIoRow (2, 100, IoEventKind::SpeechWrite, 0xC444) };
+
+            pane.Apply (delta);
+            pane.Refresh();
+
+            Assert::AreEqual ((size_t) 3, pane.GetView().size(), L"the start row and both writes");
+            Assert::AreEqual (std::wstring (L"SSI-263"), GetColumn (pane, IoLogPane::kSource)[2]);
+            Assert::AreEqual (std::wstring (L"$C444"),   GetColumn (pane, IoLogPane::kAddress)[2]);
+
+            pane.SetLaneShown (IoLogPane::kSpeech, false);
+            pane.Refresh();
+
+            Assert::AreEqual ((size_t) 2, pane.GetView().size(), L"the start row and the 6522's write");
+            Assert::AreEqual (std::wstring (L"Mockingboard 1"), GetColumn (pane, IoLogPane::kSource)[1]);
+        }
+
+
+        //  Options saved before the speech chip had a source lack its flag.
+        TEST_METHOD (SavedOptionsWithoutTheSpeechChipLeaveItShown)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogPane     read (&list, [] (const std::string &) {}, false);
+            std::string   text;
+            size_t        at = 0;
+
+
+
+            pane.Configure();
+            pane.SetLaneShown (IoLogPane::kSpeech, false);
+            text = pane.GetOptionsText();
+            at   = text.find ("1110");
+            Assert::IsTrue (at != std::string::npos, L"the flags in the saved text");
+            text.erase (at + 3, 1);
+
+            read.SetOptionsText (text);
+
+            Assert::IsTrue (read.IsLaneShown (IoLogPane::kSpeech));
+        }
+
+
         TEST_METHOD (TheSoundLogsOptionsRoundTrip)
         {
             DxuiListView  list;
@@ -1232,6 +1380,7 @@ namespace EventLogPaneTests
             Assert::IsTrue  (read.IsLaneShown (IoLogPane::kSpeaker));
             Assert::IsTrue  (read.IsLaneShown (IoLogPane::kVia));
             Assert::IsFalse (read.IsLaneShown (IoLogPane::kAy));
+            Assert::IsTrue  (read.IsLaneShown (IoLogPane::kSpeech));
         }
     };
 }

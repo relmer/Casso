@@ -98,6 +98,10 @@ public:
     //  Fixed text ahead of what is typed, as a command prompt shows: drawn in
     //  the field, never part of the text, and out of the caret's reach.
     void  SetPrompt      (const std::wstring & text)  { m_prompt = text; }
+
+    //  From the field's left to where the typed text starts, past the prompt,
+    //  as last painted, in pixels.
+    int   GetTypedTextLeftPx () const { return m_scaler.ToPx (kPadLeftDip) + (int) std::lround (m_promptPx); }
     void  SetGhostText   (const std::wstring & text)  { m_ghost = text; }
 
     //  Whether the placeholder is drawn in italics and the disabled color, as
@@ -117,6 +121,8 @@ public:
     const std::wstring & GetText           () const { return m_text;    }
     const std::wstring & GetGhostText      () const { return m_ghost;   }
     const RECT         & GetRect           () const { return m_boundsDip;    }
+    float                GetFontDip        () const { return m_fontDip; }
+    const wchar_t      * GetFace           () const;
     bool                 IsFocused         () const { return m_focused; }
     bool                 IsEnabled         () const { return m_enabled; }
     size_t               GetCaret          () const { return m_caret; }
@@ -157,7 +163,6 @@ private:
     size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
     float  MeasurePrompt (IDxuiTextRenderer & text, float fontPx) const;
     size_t GetWordBoundary (size_t from, bool forward) const;
-    const wchar_t *  GetFace () const;
 
     enum class CharClass
     {
@@ -186,9 +191,9 @@ private:
     bool   OnKeyWithModifiers (WPARAM vk, bool shift, bool ctrl, bool alt);
     void   ResetBlink () const { m_blinkAnchorMs = 0; }
 
-    static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
-    static bool IsControlKeyDown () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }
-    static bool IsAltKeyDown     () { return (GetKeyState (VK_MENU)    & 0x8000) != 0; }
+    static bool IsShiftKeyDown   () { return DxuiInputState::IsKeyDown (VK_SHIFT); }
+    static bool IsControlKeyDown () { return DxuiInputState::IsKeyDown (VK_CONTROL); }
+    static bool IsAltKeyDown     () { return DxuiInputState::IsKeyDown (VK_MENU); }
     std::wstring         m_text;
     std::wstring         m_placeholder;
     std::wstring         m_prompt;

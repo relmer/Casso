@@ -3,6 +3,8 @@
 #include "Debugger/CallStack.h"
 #include "Debugger/DataBlockTable.h"
 #include "Debugger/LineTable.h"
+#include "Debugger/ProgramCheck.h"
+#include "Debugger/Reply.h"
 #include "Debugger/WatchTable.h"
 
 class IFileSystem;
@@ -11,6 +13,47 @@ class BreakpointTable;
 class SymbolTable;
 struct Watchpoint;
 class WatchpointTable;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProgramChecks
+//
+//  What a session compares memory with at each stop: the debug file's
+//  entries, and for each table loaded from a symbol file without lines, its
+//  labels in RAM and the bytes there at the first stop in their range. Each
+//  has whether it matched at the last stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ProgramChecks
+{
+    //  The page after the last label is in the range too: the code that
+    //  follows a program's last routine.
+    static constexpr Word  kRangeSlack = 0x100;
+
+    struct Labels
+    {
+        std::vector<Word>                 labels;
+        Word                              first   = 0;
+        Word                              last    = 0;
+        std::vector<ProgramCheck::Entry>  entries;
+        bool                              isStale = false;
+
+        bool  IsInRange (Word pc) const { return pc >= first && (uint32_t) pc <= (uint32_t) last + kRangeSlack; }
+
+        bool operator== (const Labels & other) const = default;
+    };
+
+    std::vector<ProgramCheck::Entry>  debugFile;
+    bool                              isDebugFileStale = false;
+    std::map<SymbolTableId, Labels>   tables;
+
+    bool operator== (const ProgramChecks & other) const = default;
+};
 
 
 
@@ -32,6 +75,7 @@ struct DebugSessionFiles
     std::string                   key;
     std::optional<SymbolTableId>  table;
     LineTable                     lineTable;
+    DataBlockTable                data;
 };
 
 
@@ -60,6 +104,7 @@ struct DebugSessionView
     std::shared_ptr<const SymbolTable>        symbols;
     std::shared_ptr<const DebugSessionFiles>  files;
     uint64_t                                  filesRevision   = 0;
+    std::shared_ptr<const ProgramChecks>      programChecks;
     CommandMode                               mode            = CommandMode::AppleWin;
     std::optional<Word>                       assemblyAddress;
     bool                                      isStepBySource  = false;

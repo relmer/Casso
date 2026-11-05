@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -27,6 +28,7 @@ MemoryWindowPane::MemoryWindowPane (IDebuggerPaneHost & host, MemoryWindowGroup 
     IDebuggerPane (host),
     m_group       (group),
     m_windowId    (id),
+    m_id          (DebuggerLayout::GetMemoryPaneId (id)),
     m_slot        (std::make_unique<DebuggerPaneFrame> (L"Memory commands")),
     m_isOpen      (id == 1)
 {
@@ -54,9 +56,9 @@ MemoryWindowPane::~MemoryWindowPane() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring MemoryWindowPane::GetId() const
+const std::wstring & MemoryWindowPane::GetId() const
 {
-    return DebuggerLayout::GetMemoryPaneId (m_windowId);
+    return m_id;
 }
 
 
@@ -493,7 +495,9 @@ void MemoryWindowGroup::Configure()
     m_bar->SetPaneTextInset (true);
     m_bar->SetBottomEdge    (false);
     m_bar->EnableSeeMore    (s_kpszMdl2More, L"See more");
-    m_bar->SetEntries       (m_commands->BuildEntries (m_addressEntry.get()));
+    m_findCount    = std::make_unique<ToolbarLabelEntry> (std::wstring());
+    m_findCount->SetTip (L"The match selected and the number of matches, after Find and each F3 or Shift+F3");
+    SetBarEntries();
     m_bar->SetVisible       (false);
 
     m_box->SetHwnd        (m_host.GetOwnerHwnd());
@@ -501,6 +505,15 @@ void MemoryWindowGroup::Configure()
     m_box->SetPlaceholder (L"Address: 0300, PC, (3E),Y");
 
     SetBarMenus();
+
+    //  Over a byte, its address and value, and its heat while the heat is on.
+    for (MemoryWindowPane * window : m_windows)
+    {
+        if (window != nullptr && window->GetView() != nullptr)
+        {
+            window->GetView()->SetTipFn ([this] (POINT clientPx, DxuiTip & tip) { return TryGetTipAt (clientPx, tip); });
+        }
+    }
 }
 
 
@@ -1237,26 +1250,6 @@ bool MemoryWindowGroup::RouteBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::GetBarTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * MemoryWindowGroup::GetBarTip (POINT clientPx, RECT & anchor) const
-{
-    if (!m_host.IsBarRouted (m_barPane) || !m_bar->IsVisible())
-    {
-        return nullptr;
-    }
-
-    return m_bar->GetTooltipAt (clientPx.x, clientPx.y, anchor);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MemoryWindowGroup::RouteContentMouse
 //
 //  A drag in a window has its events until it ends; a press or the wheel
@@ -1420,14 +1413,15 @@ bool MemoryWindowGroup::SubmitTextBox (DxuiTextInput * box)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::TryGetTip
+//  MemoryWindowGroup::TryGetTipAt
 //
 //  Over a byte of an open window, in either column, its address, at once and
-//  following the pointer itself rather than snapping from byte to byte.
+//  following the pointer itself rather than snapping from byte to byte; and
+//  while heat is on, its counts and what its tint means.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MemoryWindowGroup::TryGetTip (POINT clientPx, PaneTip & tip)
+bool MemoryWindowGroup::TryGetTipAt (POINT clientPx, DxuiTip & tip)
 {
     for (MemoryWindowPane * window : GetOpenWindows())
     {
@@ -1436,7 +1430,16 @@ bool MemoryWindowGroup::TryGetTip (POINT clientPx, PaneTip & tip)
         if (m_host.IsRoutable (view) && view->IsVisible() && DxuiDockSite::Contains (view->GetBounds(), clientPx) &&
             view->TryGetByteTipAt (clientPx, tip.anchor, tip.text))
         {
-            tip.kind        = PaneTip::Kind::Pointer;
+            HeatStrip::Tip  heat = window->GetModel().GetHeatTip (view->HitTestPoint (clientPx).offset);
+
+            if (!heat.text.empty())
+            {
+                tip.text        += L"\n\n" + heat.text;
+                tip.gradient     = std::move (heat.gradient);
+                tip.gradientMark = heat.mark;
+            }
+
+            tip.placement   = DxuiTip::Placement::FollowPointer;
             tip.isMonospace = true;
             return true;
         }
@@ -1633,6 +1636,7 @@ void MemoryWindowGroup::StepFind (bool forward)
     if (count == 0 || GetWindow (m_find.window) == nullptr)
     {
         m_host.AppendConsole ({ "No matches in memory." });
+        ShowFindCount (L"No matches");
         return;
     }
 
@@ -1646,7 +1650,52 @@ void MemoryWindowGroup::StepFind (bool forward)
     }
 
     GetWindow (m_find.window)->GetModel().SelectRange (m_searchHits[(size_t) m_find.at], m_find.length);
+    ShowFindCount (std::format (L"{} of {}", m_find.at + 1, count));
     m_host.Repaint();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::SetBarEntries
+//
+//  The bar's commands, then the Find count at its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::SetBarEntries()
+{
+    std::vector<DxuiToolbar::Entry>  entries = m_commands->BuildEntries (m_addressEntry.get());
+    DxuiToolbar::Entry               count;
+
+
+
+    count.command       = m_findCount->GetCommand();
+    count.custom        = m_findCount.get();
+    count.trailing      = true;
+    count.neverOverflow = true;
+    entries.push_back (std::move (count));
+
+    m_bar->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryWindowGroup::ShowFindCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryWindowGroup::ShowFindCount (const std::wstring & text)
+{
+    m_findCount->SetLabel (text);
+    SetBarEntries();
 }
 
 

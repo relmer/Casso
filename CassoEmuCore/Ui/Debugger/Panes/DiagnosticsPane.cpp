@@ -3,9 +3,11 @@
 #include "Ui/Debugger/Panes/DiagnosticsPane.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/PaneBarSlot.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/MemoryMapBar.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
+#include "Ui/Debugger/Panes/SoundBoardView.h"
 
 
 
@@ -16,8 +18,9 @@
 //  DiagnosticsPane::DiagnosticsPane
 //
 //  Each graphic is a part of the frame shown only while the payload is of
-//  its kind, and the list takes the height that is left. The info button
-//  sits in the pane's title bar.
+//  its kind, and the list takes the height that is left. A sound board has
+//  all the pane's height and the list is hidden. The info button sits in the
+//  pane's title bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,15 +30,23 @@ DiagnosticsPane::DiagnosticsPane (
     DxuiListView   * list,
     MemoryMapBar   * map,
     DiskHeadView   * head,
-    MeterBar       * meters) :
+    MeterBar       * meters,
+    SoundBoardView * board,
+    IDxuiControl   * driveBar) :
     m_id      (std::move (id)),
     m_title   (std::move (title)),
     m_list    (list),
     m_map     (map),
     m_head    (head),
     m_meters  (meters),
+    m_board   (board),
     m_frame   (std::make_unique<DebuggerPaneFrame> (m_title))
 {
+    if (driveBar != nullptr)
+    {
+        m_frame->AddPart (driveBar, PaneBarSlot::GetHeightPx, [this] { return m_visual == Visual::DiskHead; });
+    }
+
     //  The memory map's strips run down the pane beside the list.
     m_frame->AddPart (m_map, nullptr, [this] { return m_visual == Visual::MemoryMap; });
     m_frame->AddPart (m_head,
@@ -44,7 +55,8 @@ DiagnosticsPane::DiagnosticsPane (
     m_frame->AddPart (m_meters,
                       [this] (int, const DxuiDpiScaler & scaler) { return m_meters->GetPreferredHeightPx (scaler); },
                       [this] { return m_visual == Visual::Meters; });
-    m_frame->AddPart (m_list);
+    m_frame->AddPart (m_board, nullptr, [this] { return m_visual == Visual::SoundBoard; });
+    m_frame->AddPart (m_list,  nullptr, [this] { return m_visual != Visual::SoundBoard; });
     m_frame->SetPartBeside (m_map, m_list, [] (int, const DxuiDpiScaler & scaler) { return MemoryMapBar::GetPreferredWidthPx (scaler); });
 
     m_frame->SetPartInsetDip (m_map,    kGraphicInsetDip);
@@ -60,6 +72,7 @@ DiagnosticsPane::DiagnosticsPane (
     m_map->SetVisible    (false);
     m_head->SetVisible   (false);
     m_meters->SetVisible (false);
+    m_board->SetVisible  (false);
 }
 
 
@@ -74,7 +87,7 @@ DiagnosticsPane::DiagnosticsPane (
 
 std::vector<IDxuiControl *> DiagnosticsPane::GetControls() const
 {
-    return { m_map, m_head, m_meters, m_list };
+    return { m_map, m_head, m_meters, m_board, m_list };
 }
 
 
@@ -156,6 +169,11 @@ bool DiagnosticsPane::Apply (const DiagnosticsSnapshot & snapshot)
         resized = m_meters->GetMeters().levels.size() != meters->levels.size();
         m_meters->SetMeters (*meters);
         visual  = Visual::Meters;
+    }
+    else if (const DiagnosticsSoundBoard * board = std::get_if<DiagnosticsSoundBoard> (&snapshot.visual))
+    {
+        m_board->SetBoard (*board);
+        visual = Visual::SoundBoard;
     }
 
     if (visual == m_visual && !resized)

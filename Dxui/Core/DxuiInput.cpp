@@ -14,9 +14,9 @@
 
 void DxuiInput::RefreshModifiers()
 {
-    m_mods.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    m_mods.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    m_mods.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+    m_mods.shift = DxuiInputState::IsKeyDown (VK_SHIFT);
+    m_mods.ctrl  = DxuiInputState::IsKeyDown (VK_CONTROL);
+    m_mods.alt   = DxuiInputState::IsKeyDown (VK_MENU);
 }
 
 

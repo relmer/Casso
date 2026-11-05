@@ -401,6 +401,39 @@ namespace DebuggerTests
         }
 
 
+        //  A tip that waited its dwell and is up moves to the next part's
+        //  anchor with the next part's text in the same window, rather than
+        //  being closed and raised again, which flickered over the
+        //  Mockingboard panel's parts.
+        TEST_METHOD (ATipThatIsUpMovesToTheNextPartInPlace)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            MemoryBarHost    host;
+            MemoryBarWindow  window (theme, host);
+            DxuiTooltip    & tip    = const_cast<DxuiTooltip &> (window.GetTooltip());   // the window has only a const accessor
+            int              shown  = 0;
+
+
+
+            window.Build();
+
+            tip.SetDwellOpenMs (100);
+            tip.RequestShow (RECT { 10, 10, 11, 11 }, L"Channel A", 0);
+            tip.Tick (100);
+            Assert::IsTrue (tip.IsVisible());
+
+            shown = tip.GetShowCount();
+
+            tip.RequestShow (RECT { 40, 10, 41, 11 }, L"Channel A", 150);
+            tip.RequestShow (RECT { 80, 30, 81, 31 }, L"Channel B", 200);
+
+            Assert::AreEqual (shown, tip.GetShowCount(), L"the same window, not a new one");
+            Assert::AreEqual (std::wstring (L"Channel B"), tip.GetText());
+            Assert::AreEqual ((LONG) 80, tip.GetAnchor().left);
+            Assert::IsTrue   (tip.IsVisible());
+        }
+
+
         TEST_METHOD (ColumnsAndGroupingSetTheActiveWindow)        {
             CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
             MemoryBarHost    host;
@@ -480,14 +513,11 @@ namespace DebuggerTests
 
             for (IDxuiControl * control : window.GetFindWidgets().GetActiveControls())
             {
-                RECT             anchor = {};
-                const wchar_t  * tip    = nullptr;
+                DxuiTip  tip;
 
                 Assert::IsNotNull (control);
-
-                tip = window.GetFindWidgets().GetTip (GetCenter (control->GetBounds()), anchor);
-
-                Assert::IsTrue (tip != nullptr && *tip != L'\0', (L"a tip for " + control->GetAccessibleName()).c_str());
+                Assert::IsTrue    (static_cast<const IDxuiControl &> (window).TryGetTip (GetCenter (control->GetBounds()), tip) && !tip.text.empty(),
+                                   (L"a tip for " + control->GetAccessibleName()).c_str());
             }
         }
     };

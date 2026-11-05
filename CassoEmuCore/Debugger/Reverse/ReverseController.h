@@ -167,6 +167,7 @@ public:
     uint64_t  GetRecordedEnd      () const;
     uint64_t  GetLiveEndCycle     () const { return m_liveEndCycle; }
     uint64_t  GetWallTimeAt       (uint64_t cycle) const;
+    uint64_t  GetWallTimeAtPosition (uint64_t position, uint64_t cycle) const;
     size_t    GetTableBuildCount  () const { return m_tableBuilds; }
     bool      HasStepTable        () const { return m_hasSteps; }
 

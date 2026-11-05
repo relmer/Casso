@@ -144,3 +144,54 @@ The `stopped` record has the reason `disk` and a `disk` object with the field's
 track, sector, volume and checksums and the instructions that read it;
 [DebugChannel.md](DebugChannel.md) lists its fields, and
 [Debugger.md](Debugger.md) the other disk events `BPDISK` takes.
+
+
+## Through an MCP client
+
+`CassoCli mcp` is a Model Context Protocol server for assistants whose client
+speaks MCP, whether or not it has a shell. It runs on standard input and
+output, so a client starts it as it starts any local server. In a client that
+takes the usual `mcpServers` setting:
+
+```json
+{
+  "mcpServers": {
+    "casso": {
+      "command": "C:\\Program Files\\Casso\\CassoCli.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+The server connects to Casso through the debug channel only. The tools are
+for one Casso at a time: the one `launch` started or `attach` selected, else
+the only one running.
+
+| Tool | What it does |
+|---|---|
+| `list_instances`, `attach` | lists the instances with a channel open; `attach` selects one by process id |
+| `launch`, `close` | starts the `Casso.exe` beside `CassoCli.exe` with its debugger open, optionally with a machine, disks and a title; `close` closes only an instance the server launched |
+| `command` | any debugger line, in a command mode, and its reply |
+| `run`, `resume`, `pause`, `step` | `run` runs to a stop, the address given, its cycle budget or its timeout, and pauses a run past the timeout; `resume` lets a paused machine run on and returns at once |
+| `registers`, `read_memory`, `write_memory`, `disassemble` | the CPU and memory |
+| `set_breakpoint`, `clear_breakpoint`, `list_breakpoints` | breakpoints, by address, symbol or `file:line` |
+| `reset`, `type_text`, `press_keys` | Ctrl+Reset or a power cycle, text typed as a paste, and keys by name, `Ctrl+Reset` among them |
+| `insert_disk`, `eject_disk` | the disk drives |
+| `read_screen`, `screenshot` | the text screen, and the picture as a PNG image |
+| `wait` | a number of seconds while the machine runs |
+
+Each result has the reply's text, and its typed data as structured content;
+a command that fails makes the result an error with the reply's label and
+detail. The results of `wait`, `reset`, `type_text` and `press_keys` have a
+line when the machine is paused, since a paused machine doesn't read what is
+typed: call `resume`.
+
+A session that types in and runs a program, as GSSquared's demo does:
+
+1. `launch`, then `wait` five seconds for the boot to fail.
+2. `press_keys` with `["Ctrl+Reset"]`.
+3. `type_text` with the program and `RUN`, one line each, such as
+   `10 GR`, `20 FOR I = 0 TO 15`, `30 COLOR= I`, `40 VLIN 0,39 AT I * 2 + 4`,
+   `50 NEXT`.
+4. `wait` a few seconds, then `screenshot`.
