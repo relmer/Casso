@@ -151,6 +151,7 @@ public:
     static constexpr Byte    kErrorVerify         = 0x40;
     static constexpr Byte    kErrorLink           = 0x50;
     static constexpr Byte    kErrorDrive          = 0x60;
+    static constexpr Byte    kErrorChanged        = 0x70;   // Krunch: the directory isn't the one checked
 
     //  One-byte replies to commands, ADTPro's values.
     static constexpr Byte    kReplyOk          = 0x00;
@@ -237,6 +238,18 @@ public:
     //  each pass of sector 0 on `track`, over `revolutions` passes. Zero, with
     //  the Status's error, when the track has no sector 0 to time.
     HRESULT  TimeDrive    (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+
+    //  The Apple Pascal volume in the drive krunched on the Apple, after it
+    //  checks that its directory's CRC is `directoryCrc`, the CRC of the
+    //  directory the host checked. `progress` is called with the percentage
+    //  in each Krunch progress packet. Once the program has the request it
+    //  reads nothing from the host but a Cancel, between files, so the request
+    //  is sent again only when the Apple didn't take it; a Status lost after
+    //  the Apple took it is ERROR_INVALID_DATA. A Cancel takes effect after
+    //  the file being moved.
+    using KrunchProgressFn = std::function<void (Byte percent)>;
+
+    HRESULT  Krunch       (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus);
 
     //  The gap after each sector for a drive with this revolution: as long as
     //  lets 16 sectors fit in a revolution with a margin, from 4 to 40.
@@ -325,6 +338,7 @@ private:
     HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+    HRESULT  KrunchOnce        (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus, bool & outTaken);
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);
 

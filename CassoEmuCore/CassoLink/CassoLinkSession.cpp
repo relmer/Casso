@@ -5,6 +5,7 @@
 #include "CassoLink/LinkFault.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Seams/IByteStreamFactory.h"
 
@@ -292,6 +293,21 @@ std::shared_ptr<LinkOperation> CassoLinkSession::CheckLinkDisk (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::Krunch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::Krunch (int drive)
+{
+    return Queue (LinkOperationKind::Krunch, drive, FilePath());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::ReadDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -440,6 +456,7 @@ HRESULT CassoLinkSession::FromStatusError (Byte error)
         case CassoLinkHost::kErrorVerify:         hr = HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT);        break;
         case CassoLinkHost::kErrorLink:           hr = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);       break;
         case CassoLinkHost::kErrorDrive:          hr = HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE);      break;
+        case CassoLinkHost::kErrorChanged:        hr = HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED);      break;
         default:                                  hr = HRESULT_FROM_WIN32 (ERROR_GEN_FAILURE);        break;
     }
 
@@ -901,6 +918,7 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
                                                           : std::format ("{} IMAGE {} TO D{}", finished ? "WROTE" : "WRITING", image, operation.drive); break;
         case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} THE DISK IN {}", finished ? "CHECKED" : "CHECKING", drive);        break;
         case LinkOperationKind::FullSend:        text = finished ? "FULL SEND DONE" : "FULL SEND TO PC";                                    break;
+        case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "KRUNCHED" : "KRUNCHING", drive);                 break;
         default:                                 text = "WORKING";                                                                          break;
     }
 
@@ -1071,6 +1089,10 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
             hr = m_fullSend.Run (operation);
             break;
 
+        case LinkOperationKind::Krunch:
+            hr = RunKrunch (operation);
+            break;
+
         default:
             hr = HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
             break;
@@ -1230,6 +1252,92 @@ HRESULT CassoLinkSession::RunWrite (LinkOperation & operation, const LinkedDisk:
     CHR (hr);
 
     hr = m_disks[index]->Run ([&] (const IVolume & volume) { return volume.Enumerate (listing); });
+    CHR (hr);
+
+    m_listings[index] = listing;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::RunKrunch
+//
+//  The directory is read and checked here, as a krunch of an image checks
+//  it, and its CRC is sent with the request, so the program on the Apple
+//  moves files only on the disk checked. The drive's sectors in memory are
+//  dropped once the request is sent, as any file may have moved, and the
+//  catalog is read again after a krunch that finished.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkSession::RunKrunch (LinkOperation & operation)
+{
+    HRESULT                        hr       = S_OK;
+    size_t                         index    = (size_t) operation.drive - 1;
+    LinkedDisk                   & disk     = *m_disks[index];
+    bool                           isPascal = false;
+    Word                           crc      = 0;
+    std::vector<PascalKrunchMove>  moves;
+    std::vector<Byte>              directory;
+    VolumeListing                  listing;
+    CassoLinkStatus                status;
+
+
+
+    hr = CheckCatalog (operation.drive);
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED))
+    {
+        operation.message = std::format ("The disk in drive {} changed since it was listed.", operation.drive);
+    }
+
+    CHR (hr);
+
+    hr = disk.Run ([&] (const IVolume & volume) { return volume.Enumerate (listing); });
+    CHR (hr);
+
+    isPascal = disk.GetKind() == VolumeKind::Pascal;
+    CBRFEx (isPascal, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), operation.message = "Krunch applies to Apple Pascal disks only.");
+
+    hr = PascalVolume (disk.GetSectors()).PlanKrunch (moves, directory);
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+    {
+        operation.message = std::format ("The directory on the disk in drive {} is damaged, so moving files could overwrite one.", operation.drive);
+    }
+
+    CHR (hr);
+
+    BAIL_OUT_IF (moves.empty(), S_OK);
+
+    crc = CassoLinkCodec::ComputeCrc (directory);
+    hr  = m_host->Krunch ((Byte) operation.drive, crc, [&] (Byte percent) { Report (operation, percent); }, status);
+
+    disk.Clear();
+
+    if (IsLineLost (hr))
+    {
+        operation.message = "The link to the Apple was lost during the krunch. The krunch runs on the Apple without the link, so it goes on there to its end.";
+    }
+
+    CHR (hr);
+
+    hr = FromStatusError (status.error);
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED))
+    {
+        operation.message = std::format ("The disk in drive {} changed after its directory was checked, so no file was moved.", operation.drive);
+    }
+
+    CHR (hr);
+
+    hr = disk.Run ([&] (const IVolume & volume) { return volume.Enumerate (listing); });
     CHR (hr);
 
     m_listings[index] = listing;

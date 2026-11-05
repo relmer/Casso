@@ -37,6 +37,12 @@
 ;                   zero: drawn with the motor off,
 ;                   Key with its code on Space, Q, 1 or 2, Key with 0 each
 ;                   second until then; any byte from the host is taken as Cancel
+;   Krunch          drive, and the CRC-16 of the Apple Pascal directory the host
+;                   checked, low byte first: the disk's files moved toward its
+;                   start, all here, so a dropped link doesn't stop it partway;
+;                   Krunch progress, with the percentage and the files moved,
+;                   once the directory is read and after each part of a file;
+;                   a Cancel is taken only between files
 ;
 ; F on the standard screen sends Key with its code ahead of the next Ready,
 ; and the host starts a Full Send. During a Full Send Q does the same, and the
@@ -164,6 +170,8 @@ CMDREADCRC = $E4                ; Read CRCs
 CMDCRCS   = $E5                 ; and the CRCs in reply
 CMDKEY    = $E2                 ; Wait for key, and the key in reply
 CMDFAULT  = $E6                 ; Debug builds: a fault for the next operation
+CMDKRUNCH = $E7                 ; Krunch
+CMDKPROG  = $E8                 ; and its progress in reply
 
 ; Fault's kinds, in Debug builds alone. The first three change a byte the
 ; Apple sends, counted from the operation's first: flipped, dropped, or sent
@@ -205,6 +213,7 @@ ERRDATA    = $30                ; the data field did not decode
 ERRVERIFY  = $40                ; the sector read back differently
 ERRLINK    = $50                ; the host's data did not arrive whole
 ERRDRIVE   = $60                ; no such drive
+ERRCHANGED = $70                ; Krunch: the directory differs from the host's
 
 ; Buffers, page-aligned so indexed loads never cross a page.
 INVTAB   = $4000                ; nibble -> 6-bit value
@@ -231,6 +240,10 @@ ENCBUF   = $7000                ; write track: each sector's 86 groups on one
 ENCT0    = $9000                ; encode: a byte's low two bits, swapped, for
 ENCT1    = $9100                ; the first third of a sector, shifted for the
 ENCT2    = $9200                ; second, and for the third
+KFLO     = $4400                ; Krunch: each directory entry's first block,
+KFHI     = $4480                ; by its slot, low and high bytes,
+KNLO     = $4500                ; and the block after its last
+KNHI     = $4580
 FPAGES   = 26                   ; the format stream, whatever its gaps
 WSTART   = 512 - 355            ; the sector stream and its end mark end at its second page's end
 NIBSTART = WSTART + 8           ; its 343 data field nibbles, after 5 syncs and the prologue
@@ -479,7 +492,10 @@ notcols: cmp #CMDREADCRC
 notcrc: cmp #CMDKEY
         bne notkey
         jmp dowaitkey
-notkey:
+notkey: cmp #CMDKRUNCH
+        bne notkrunch
+        jmp dokrunch
+notkrunch:
         ifdef FAULTS
         cmp #CMDFAULT
         bne tomain
@@ -3891,7 +3907,7 @@ sedone: rts
 ertext:  .text "ERROR"
          .byte $3A, $20, 0
 
-errtext: .word eother, eprotect, enotfnd, edata, everify, elink, edrive
+errtext: .word eother, eprotect, enotfnd, edata, everify, elink, edrive, echanged
 errtextend:
 
 eother:   .text "FAILED"
@@ -3907,6 +3923,8 @@ everify:  .text "VERIFY FAILED"
 elink:    .text "LINK DATA DAMAGED"
           .byte 0
 edrive:   .text "NO SUCH DRIVE"
+          .byte 0
+echanged: .text "DISK CHANGED"
           .byte 0
 
 ; dolabel: the host's text for the user's operation across the label row,
@@ -4304,6 +4322,630 @@ bpwait: nop
         dec tmp
         bne bpcycle
         rts
+
+
+; ---------------------------------------------------------------------------
+; Krunch
+; ---------------------------------------------------------------------------
+
+; Krunch: the Apple Pascal volume's files moved toward its start in directory
+; order, which combines its free space, as the Filer's K does. The directory
+; is read first, and its CRC compared with the host's, so the disk is the one
+; the host checked.
+;
+; A file is moved a part at a time, each part the blocks up to the end of a
+; track at both places: read into RAWBUF, written from streams in WSLOTS and
+; read back. Only then is its entry in the directory changed, read and
+; written back in the one or two sectors its first and next blocks are in.
+; Until then the entry indicates the old blocks, which the copy overwrites
+; only where the old and new places overlap, and the new place is free space
+; or blocks of the file being moved. So when a krunch stops at any point,
+; every other file is whole, and the file being moved is whole unless its
+; places overlap.
+;
+; After the request the program reads nothing from the host but a Cancel,
+; between files, so a link that drops doesn't stop it.
+dokrunch: lda PKTBUF+1
+        sta kcrc
+        lda PKTBUF+2
+        sta kcrc+1
+        lda #0
+        sta PKTBUF+1            ; track 0, no sectors, and 0 to 100%
+        sta PKTBUF+2
+        sta PKTBUF+3
+        sta kfiles
+        sta kmoved
+        sta kmoved+1
+        lda #100
+        sta PKTBUF+4
+        lda #OPREAD
+        jsr begin
+        bcs krend
+        jsr protected
+        bcs krend
+        jsr krdir
+        bcs krend
+        jsr krplan
+        bcs krend
+        jsr krprog              ; the request was taken
+        lda #1
+        sta kslot
+krfile: lda kcnt
+        cmp kslot
+        bcc krend
+        jsr krentry
+        bcs krend
+        inc kslot
+        jmp krfile
+krend:  lda kfiles              ; the status has the files moved
+        sta index
+        jmp opdone
+
+; krdir: the directory's eight sectors read from track 0 and decoded in
+; order, each entry's first and next blocks into the tables, and the file
+; count into kcnt. The carry is set, with err, when a sector doesn't read,
+; the CRC differs from the host's, or the count is past 77.
+krdir:  ldx #7
+krdlist: lda blkphys+4,x        ; blocks 2 to 5
+        sta PKTBUF+3,x
+        dex
+        bpl krdlist
+        lda #8
+        sta count
+        jsr readtrack
+        bcs krdfail
+        lda #0
+        sta crclo
+        sta crchi
+        sta kfield
+        sta kentry
+        sta kj
+krdsec: ldx kj
+        lda blkphys+4,x
+        sta sector
+        jsr rawslot
+        jsr decodesec
+        ldy #0
+krdbyte: lda SECBUF,y
+        jsr crcupd
+        jsr krdfield
+        iny
+        bne krdbyte
+        inc kj
+        lda kj
+        cmp #8
+        bne krdsec
+        lda crclo
+        cmp kcrc
+        bne krdchg
+        lda crchi
+        cmp kcrc+1
+        bne krdchg
+        lda kcnthi
+        bne krdbad
+        lda kcnt
+        cmp #78                 ; 77 entries at most
+        bcs krdbad
+        clc
+        rts
+krdchg: lda #ERRCHANGED
+        sta err
+        sec
+        rts
+krdbad: lda #ERRDATA
+        sta err
+krdfail: sec
+        rts
+
+; krdfield: the directory byte at SECBUF,Y, byte kfield of entry kentry: the
+; file count from the volume's entry, and each file's first and next blocks.
+; Y isn't modified.
+krdfield: lda SECBUF,y
+        ldx kentry
+        bne kfent
+        ldx kfield
+        cpx #16
+        bne kfcount
+        sta kcnt
+kfcount: cpx #17
+        bne kfstep
+        sta kcnthi
+        jmp kfstep
+kfent:  ldx kfield
+        beq kff0
+        dex
+        beq kff1
+        dex
+        beq kff2
+        dex
+        beq kff3
+        jmp kfstep
+kff0:   ldx kentry
+        sta KFLO,x
+        jmp kfstep
+kff1:   ldx kentry
+        sta KFHI,x
+        jmp kfstep
+kff2:   ldx kentry
+        sta KNLO,x
+        jmp kfstep
+kff3:   ldx kentry
+        sta KNHI,x
+kfstep: inc kfield
+        lda kfield
+        cmp #26                 ; an entry's bytes
+        bne kfdone
+        lda #0
+        sta kfield
+        inc kentry
+kfdone: rts
+
+; krplan: ktotal, the blocks the krunch moves, with each entry checked: its
+; next block past its first, and its first not before the end of the file
+; ahead of it. kat is then the first data block. The carry is set, with
+; ERRDATA, when an entry fails.
+krplan: lda #0
+        sta ktotal
+        sta ktotal+1
+        jsr krfirst
+        lda #1
+        sta kslot
+kpnext: lda kcnt
+        cmp kslot
+        bcc kpdone
+        jsr krlength
+        bcc kpbad
+        ora kblocks
+        beq kpbad
+        ldx kslot
+        lda KFLO,x
+        cmp kat
+        lda KFHI,x
+        sbc kat+1
+        bcc kpbad
+        jsr krstays
+        beq kpstay
+        clc
+        lda ktotal
+        adc kblocks
+        sta ktotal
+        lda ktotal+1
+        adc kblocks+1
+        sta ktotal+1
+kpstay: jsr krpast
+        inc kslot
+        jmp kpnext
+kpdone: jsr krfirst
+        clc
+        rts
+kpbad:  lda #ERRDATA
+        sta err
+        sec
+        rts
+
+; krfirst: kat at the first data block, 6.
+krfirst: lda #6
+        sta kat
+        lda #0
+        sta kat+1
+        rts
+
+; krlength: kblocks, entry kslot's length, with A its high byte. The carry is
+; clear when its next block is before its first.
+krlength: ldx kslot
+        sec
+        lda KNLO,x
+        sbc KFLO,x
+        sta kblocks
+        lda KNHI,x
+        sbc KFHI,x
+        sta kblocks+1
+        rts
+
+; krstays: Z set when entry kslot starts at kat.
+krstays: ldx kslot
+        lda KFLO,x
+        cmp kat
+        bne ksdone
+        lda KFHI,x
+        cmp kat+1
+ksdone: rts
+
+; krpast: kat past entry kslot's new place.
+krpast: clc
+        lda kat
+        adc kblocks
+        sta kat
+        lda kat+1
+        adc kblocks+1
+        sta kat+1
+        rts
+
+; krentry: entry kslot moved to kat, when it starts past it, then kat past
+; it. A Cancel is taken after a moved file's entry is written. The carry is
+; set, with err, when a read or write fails.
+krentry: jsr krlength
+        jsr krstays
+        beq kestay
+        ldx kslot
+        lda KFLO,x
+        sta ksrc
+        lda KFHI,x
+        sta ksrc+1
+        lda kat
+        sta kdst
+        lda kat+1
+        sta kdst+1
+        lda kblocks
+        sta kleft
+        lda kblocks+1
+        sta kleft+1
+kepart: lda kleft
+        ora kleft+1
+        beq keentry
+        jsr krpart
+        bcs kefail
+        jsr krprog
+        jmp kepart
+keentry: jsr krdirent
+        bcs kefail
+        inc kfiles
+        jsr pollcancel
+kestay: jsr krpast
+        clc
+kefail: rts
+
+; krpart: the next part of the move, up to the end of a track at ksrc and at
+; kdst, or kleft blocks: read from ksrc's track, then written at kdst's and
+; read back. ksrc, kdst and kmoved step on and kleft down by its blocks. The
+; carry is set, with err, when a read or write fails.
+krpart: lda ksrc
+        and #7
+        sta ksoff
+        lda kdst
+        and #7
+        sta kdoff
+        lda #8
+        sec
+        sbc ksoff
+        sta klen
+        lda #8
+        sec
+        sbc kdoff
+        cmp klen
+        bcs kpkeep
+        sta klen
+kpkeep: lda kleft+1
+        bne kpread
+        lda kleft
+        cmp klen
+        bcs kpread
+        sta klen
+kpread: lda ksoff
+        jsr kplist
+        lda ksrc
+        ldx ksrc+1
+        jsr ktrack
+        sta track
+        lda #OPREAD
+        sta op
+        jsr seek
+        jsr kshow
+        jsr readtrack
+        bcc kpframe
+        rts                     ; the carry set, with err
+kpframe: lda #0
+        sta kidx
+kpslot: lda ksoff              ; each destination sector's stream, from
+        asl a                   ; the source sector in its place
+        clc
+        adc kidx
+        tax
+        lda blkphys,x
+        asl a
+        clc
+        adc #>RAWBUF
+        sta kpage
+        lda kdoff
+        asl a
+        clc
+        adc kidx
+        tax
+        lda blkphys,x
+        sta sector
+        lda kpage
+        jsr mkslot
+        inc kidx
+        lda kidx
+        lsr a
+        cmp klen
+        bne kpslot
+        lda kdoff
+        jsr kplist
+        lda kdst
+        ldx kdst+1
+        jsr ktrack
+        sta track
+        jsr kwrite
+        bcs kpfail
+        clc
+        lda kmoved
+        adc klen
+        sta kmoved
+        bcc kpstep1
+        inc kmoved+1
+kpstep1: clc
+        lda ksrc
+        adc klen
+        sta ksrc
+        bcc kpstep2
+        inc ksrc+1
+kpstep2: clc
+        lda kdst
+        adc klen
+        sta kdst
+        bcc kpstep3
+        inc kdst+1
+kpstep3: sec
+        lda kleft
+        sbc klen
+        sta kleft
+        bcs kpdone2
+        dec kleft+1
+kpdone2: clc
+kpfail: rts
+
+; kplist: PKTBUF+3 on, the sectors of klen blocks from block A of a track,
+; two a block, and count.
+kplist: asl a
+        tax
+        ldy #0
+kplsec: lda blkphys,x
+        sta PKTBUF+3,y
+        inx
+        iny
+        tya
+        lsr a
+        cmp klen
+        bne kplsec
+        sty count
+        rts
+
+; ktrack: the track of the block in A, low byte, and X, high byte, in A.
+ktrack: stx tmp
+        lsr tmp
+        ror a
+        lsr a
+        lsr a
+        rts
+
+; kwrite: the sectors listed from PKTBUF+3, count of them, written on `track`
+; from their streams in WSLOTS and read back, up to three times. The carry is
+; set, with err and sector, when the last attempt fails.
+kwrite: lda #OPWRITE
+        sta op
+        jsr seek
+        lda #3
+        sta ktries
+kwtry:  lda #ERRNONE
+        sta err
+        jsr kshow
+        jsr writepass
+        bcs kwnext
+        lda #1                  ; VERIFYING, as startverify draws it
+        sta vflag
+        jsr kshow
+        jsr verifysecs
+        jsr endverify
+        bcc kwdone
+kwnext: dec ktries
+        bne kwtry
+        sec
+kwdone: rts
+
+; krdirent: entry kslot's first block set to kat and its next block to kat
+; plus kblocks, in the one or two directory sectors those four bytes are in:
+; read, changed, written back and read back. The carry is set, with err, when
+; that fails.
+krdirent: lda #0
+        sta kpos
+        sta kpos+1
+        ldx kslot
+kdpos:  clc                     ; kpos: the entry's offset, 26 bytes a slot
+        lda kpos
+        adc #26
+        sta kpos
+        bcc kdposnext
+        inc kpos+1
+kdposnext: dex
+        bne kdpos
+        lda kat
+        sta kpatch
+        lda kat+1
+        sta kpatch+1
+        clc
+        lda kat
+        adc kblocks
+        sta kpatch+2
+        lda kat+1
+        adc kblocks+1
+        sta kpatch+3
+        lda kpos+1              ; the directory sectors of kpos and kpos + 3
+        sta kdsec
+        clc
+        lda kpos
+        adc #3
+        lda kpos+1
+        adc #0
+        sta kdsec+1
+        ldx kdsec
+        lda blkphys+4,x
+        sta PKTBUF+3
+        lda #1
+        sta count
+        ldx kdsec+1
+        cpx kdsec
+        beq kdread
+        lda blkphys+4,x
+        sta PKTBUF+4
+        inc count
+kdread: lda #0
+        sta track
+        lda #OPREAD
+        sta op
+        jsr seek
+        jsr kshow
+        jsr readtrack
+        bcs kdfail
+        ldx kdsec
+        jsr kdpatch
+        ldx kdsec+1
+        cpx kdsec
+        beq kdwrite
+        jsr kdpatch
+kdwrite: jmp kwrite             ; the sectors as listed for the read
+kdfail: rts
+
+; kdpatch: directory sector X, as read into RAWBUF, decoded, with the bytes of
+; kpatch put in at kpos where they fall in it, and encoded into its stream.
+kdpatch: stx kj
+        lda blkphys+4,x
+        sta sector
+        jsr rawslot
+        jsr decodesec
+        ldy #0
+kdpbyte: tya
+        clc
+        adc kpos
+        tax
+        lda kpos+1
+        adc #0
+        cmp kj
+        bne kdpnext
+        lda kpatch,y
+        sta SECBUF,x
+kdpnext: iny
+        cpy #4
+        bne kdpbyte
+        jsr encode
+        lda #>WRAUX
+        jmp mkslot
+
+; decodesec: the raw sector at (dst) and (dstp) decoded into SECBUF, as
+; sendsector decodes it.
+decodesec: ldy #85
+dcaux:  lda (dst),y
+        tax
+        lda AUXT0,x
+        sta AUXA0,y
+        lda AUXT1,x
+        sta AUXA1,y
+        lda AUXT2,x
+        sta AUXA2,y
+        dey
+        bpl dcaux
+        ldy #0
+dcbyte: lda (dstp),y
+        asl a
+        asl a
+        ora AUXA0,y
+        sta SECBUF,y
+        iny
+        bne dcbyte
+        rts
+
+; mkslot: `sector`'s stream in WSLOTS, framed as for Write sectors, with the
+; data field from the 86 groups on page A and the 256 values on the next.
+mkslot: pha
+        jsr frameslot
+        dec ptr+1
+        lda #<SYNCEND
+        sta ptr
+        pla
+        jmp putdata
+
+; kshow: the drive's row, and its bar at the krunch's percentage, kmoved of
+; ktotal, each halved to fit a byte. count is saved and restored.
+kshow:  lda count
+        pha
+        clc
+        lda kmoved
+        adc #1
+        sta tmp2
+        lda kmoved+1
+        adc #0
+        lsr a
+        lda tmp2
+        ror a
+        sta index
+        clc
+        lda ktotal
+        adc #1
+        sta tmp2
+        lda ktotal+1
+        adc #0
+        lsr a
+        lda tmp2
+        ror a
+        sta count
+        jsr showstatus
+        pla
+        sta count
+        rts
+
+; krprog: the percentage drawn, and Krunch progress sent with it and the
+; files moved.
+krprog: jsr kshow
+        ldx #0
+kpghdr: lda kproghdr,x
+        jsr putb
+        inx
+        cpx #kprogend-kproghdr
+        bne kpghdr
+        lda #0
+        sta peor
+        lda pct
+        jsr putpe
+        lda kfiles
+        jsr putpe
+        lda peor
+        jsr putb
+        ifdef W5100
+        jsr flush               ; at once, as nothing is read until the krunch ends
+        endif
+        rts
+
+kproghdr: .byte $C1, $02, $00, CMDKPROG, $C1 ^ $02 ^ $00 ^ CMDKPROG
+kprogend:
+
+kcrc:    .byte 0, 0             ; the host's CRC of the directory
+kcnt:    .byte 0                ; the volume's file count
+kcnthi:  .byte 0
+kslot:   .byte 0                ; the entry being moved, from 1
+kfiles:  .byte 0                ; the files moved
+kat:     .byte 0, 0             ; where the next file starts once moved
+ktotal:  .byte 0, 0             ; the blocks to move
+kmoved:  .byte 0, 0             ; and moved so far
+kblocks: .byte 0, 0             ; the entry's length
+ksrc:    .byte 0, 0             ; the next block to move
+kdst:    .byte 0, 0             ; and where it goes
+kleft:   .byte 0, 0             ; the entry's blocks left to move
+klen:    .byte 0                ; krpart: its blocks
+ksoff:   .byte 0                ; its first block's place in the source track
+kdoff:   .byte 0                ; and in the destination track
+kidx:    .byte 0                ; the sector being framed
+kpage:   .byte 0                ; its source's first page in RAWBUF
+ktries:  .byte 0                ; kwrite: attempts left
+kpos:    .byte 0, 0             ; krdirent: the entry's offset in the directory
+kpatch:  .byte 0, 0, 0, 0       ; its new first and next blocks
+kdsec:   .byte 0, 0             ; the directory sectors they are in
+kj:      .byte 0                ; a directory sector, 0 to 7
+kfield:  .byte 0                ; krdfield: the byte in the entry
+kentry:  .byte 0                ; and the entry
+
+; Each block of a track's two sectors, as ProDOS and Apple Pascal map them;
+; blocks 2 to 5, the directory, are from the fifth.
+blkphys: .byte 0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15
 
         .byte 0
 

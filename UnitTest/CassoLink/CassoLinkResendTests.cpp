@@ -188,4 +188,85 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), reading.get());
     }
+
+
+
+    //  A krunch runs on the Apple once it has the request, so a damaged
+    //  progress packet is dropped and the next one read; the request is not
+    //  sent again.
+    TEST_METHOD (AKrunchsDamagedProgress_IsDropped_AndTheRequestNotSentAgain)
+    {
+        Apple              apple;
+        CassoLinkStatus    status;
+        CassoLinkPacket    request;
+        std::vector<Byte>  wire;
+        std::vector<int>   reported;
+        auto               krunching = std::async (std::launch::async, [&] () { return apple.host->Krunch (1, 0x1234, [&] (Byte percent) { reported.push_back (percent); }, status); });
+
+
+
+        apple.SendReady();
+        request = apple.ReceivePacket();
+        Assert::AreEqual<int> (CassoLinkCodec::kKrunch, request.command);
+        Assert::IsTrue (request.payload == std::vector<Byte> { 1, 0x34, 0x12 }, L"the drive and the CRC, low byte first");
+
+        Assert::AreEqual (S_OK, CassoLinkCodec::Encode (CassoLinkCodec::kKrunchProgress, std::vector<Byte> { 10, 0 }, wire));
+        wire.back() ^= 0xFF;
+        apple.Send (wire);
+        apple.SendPacket (CassoLinkCodec::kKrunchProgress, { 60, 1 });
+        apple.SendStatus (1);
+
+        Assert::AreEqual (S_OK, krunching.get());
+        Assert::IsTrue (reported == std::vector<int> { 60 });
+        Assert::AreEqual<int> (1, status.done);
+        Assert::IsTrue (apple.activity.empty(), L"not sent again");
+    }
+
+
+
+    //  Two Readies with no progress are a request the Apple didn't take, which
+    //  is sent again.
+    TEST_METHOD (AKrunchNotTaken_IsSentAgain)
+    {
+        Apple            apple;
+        CassoLinkStatus  status;
+        auto             krunching = std::async (std::launch::async, [&] () { return apple.host->Krunch (1, 0x1234, nullptr, status); });
+
+
+
+        apple.SendReady();
+        Assert::AreEqual<int> (CassoLinkCodec::kKrunch, apple.ReceivePacket().command);
+        apple.SendReady();
+        apple.SendReady();
+
+        Assert::AreEqual<int> (CassoLinkCodec::kKrunch, apple.ReceivePacket().command, L"sent again");
+        apple.SendPacket (CassoLinkCodec::kKrunchProgress, { 0, 0 });
+        apple.SendStatus (0);
+
+        Assert::AreEqual (S_OK, krunching.get());
+        Assert::AreEqual ((size_t) 1, apple.activity.size());
+    }
+
+
+
+    //  Two Readies after progress are a Status lost on the line: the Apple
+    //  took the request, and a second krunch would run against a directory
+    //  that has changed, so it is not sent again.
+    TEST_METHOD (AKrunchsLostStatus_IsDamage_AndTheRequestNotSentAgain)
+    {
+        Apple            apple;
+        CassoLinkStatus  status;
+        auto             krunching = std::async (std::launch::async, [&] () { return apple.host->Krunch (1, 0x1234, nullptr, status); });
+
+
+
+        apple.SendReady();
+        Assert::AreEqual<int> (CassoLinkCodec::kKrunch, apple.ReceivePacket().command);
+        apple.SendPacket (CassoLinkCodec::kKrunchProgress, { 0, 0 });
+        apple.SendReady();
+        apple.SendReady();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), krunching.get());
+        Assert::IsTrue (apple.activity.empty(), L"not sent again");
+    }
 };

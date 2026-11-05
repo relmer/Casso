@@ -1198,6 +1198,19 @@ public:
 
         operation.kind = LinkOperationKind::ReadDisk;
         Assert::AreEqual (std::string ("SENT D1 TO PC"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.kind = LinkOperationKind::Krunch;
+        Assert::AreEqual (std::string ("KRUNCHING D1"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("KRUNCHED D1"),  CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+    }
+
+
+
+    //  A krunch that the program stops because the directory isn't the one
+    //  the host checked is ERROR_MEDIA_CHANGED.
+    TEST_METHOD (FromStatusError_ADirectoryChanged_IsTheMediaChanged)
+    {
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED), CassoLinkSession::FromStatusError (CassoLinkHost::kErrorChanged));
     }
 
 

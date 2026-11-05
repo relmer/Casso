@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/CassoLinkLogFile.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/CassoLinkPacketText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -93,5 +94,20 @@ public:
         Assert::AreEqual (std::string ("Acknowledge: ACK, 3 bytes"),                                 CassoLinkPacketText::Describe (CassoLinkCodec::kAcknowledge,   ack));
         Assert::AreEqual (std::string ("Acknowledge: NAK, 3 bytes"),                                 CassoLinkPacketText::Describe (CassoLinkCodec::kAcknowledge,   nak));
         Assert::AreEqual (std::string ("Command 7F, 0 bytes"),                                       CassoLinkPacketText::Describe (0x7F, {}));
+    }
+
+
+
+
+    TEST_METHOD (KrunchPackets_ReadAsPlainEnglish)
+    {
+        const Byte  request[]  = { 1, 0x34, 0x12 };
+        const Byte  progress[] = { 45, 3 };
+        const Byte  changed[]  = { 2, 1, 0, 0, CassoLinkHost::kErrorChanged };
+
+        Assert::AreEqual (std::string ("Krunch: drive 1, directory CRC 1234"),       CassoLinkPacketText::Describe (CassoLinkCodec::kKrunch,         request));
+        Assert::AreEqual (std::string ("Krunch progress: 45%, 3 files moved"),       CassoLinkPacketText::Describe (CassoLinkCodec::kKrunchProgress, progress));
+        Assert::AreEqual (std::string ("Status: drive 1, track 0, 0 sectors done, the directory differs from the one checked"),
+                          CassoLinkPacketText::Describe (CassoLinkCodec::kStatus, changed));
     }
 };

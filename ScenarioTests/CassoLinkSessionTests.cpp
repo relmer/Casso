@@ -454,11 +454,15 @@ public:
 
     //  A drive with no disk has no address fields to find: the catalog read
     //  fails within a few revolutions of each read rather than waiting out
-    //  all of its tries, and the other drive is free again soon after.
+    //  all of its tries, and the other drive is free again soon after. The
+    //  link is connected first, so the time measured is the read's, and not
+    //  the program's load, which takes longer for a larger program.
     TEST_METHOD (AnEmptyDrive_FailsInSeconds)
     {
         Rig       rig (true, 115200);
         uint64_t  spent = 0;
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
 
         rig.machine.GetDiskStore().Eject (6, 1);
 

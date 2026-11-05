@@ -129,6 +129,12 @@ public:
     //  over it, the Apple has no disk to start the link from.
     std::shared_ptr<LinkOperation>  CheckLinkDisk (int drive);
 
+    //  The drive's Apple Pascal disk krunched, as the Filer's K does: the
+    //  directory is checked here, and the files are moved by the program on
+    //  the Apple, which finishes when the link drops partway. A Cancel takes
+    //  effect after the file being moved.
+    std::shared_ptr<LinkOperation>  Krunch        (int drive);
+
     //  The chip the Apple side talks through on a transport: the W5100 for
     //  an Uthernet II, a 6551 for the rest.
     static LinkChip  GetLinkChip (LinkTransport transport);
@@ -171,6 +177,7 @@ private:
     HRESULT  Revalidate    (int drive);
     HRESULT  CheckCatalog  (int drive);
     HRESULT  RunWrite      (LinkOperation & operation, const LinkedDisk::WriteOperation & write);
+    HRESULT  RunKrunch     (LinkOperation & operation);
     void     Report        (LinkOperation & operation, int progress);
 
     static bool  IsSameCatalog (const VolumeListing & a, const VolumeListing & b);

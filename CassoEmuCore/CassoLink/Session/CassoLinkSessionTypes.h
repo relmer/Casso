@@ -69,6 +69,7 @@ enum class LinkOperationKind
     Bootstrap,
     SaveLink,
     FullSend,
+    Krunch,
 };
 
 enum class LinkOperationState

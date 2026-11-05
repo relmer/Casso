@@ -122,6 +122,12 @@ public:
     static constexpr Byte  kWaitKeys      = 0x00;
     static constexpr Byte  kWaitTyped     = 0x01;
 
+    //  Krunch: the drive, then the CRC-16/XMODEM of the Apple Pascal directory
+    //  the host checked, low byte first. Krunch progress in reply has the
+    //  percentage done and the files moved.
+    static constexpr Byte  kKrunch         = 0xE7;
+    static constexpr Byte  kKrunchProgress = 0xE8;
+
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;
 

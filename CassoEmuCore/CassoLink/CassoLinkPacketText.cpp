@@ -60,6 +60,12 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
         case CassoLinkCodec::kFault:
             return (size >= 1) ? std::format ("Fault: kind {}", payload[0]) : std::string ("Fault");
 
+        case CassoLinkCodec::kKrunch:
+            return (size >= 3) ? std::format ("Krunch: drive {}, directory CRC {:04X}", payload[0], payload[1] | (payload[2] << 8)) : std::string ("Krunch");
+
+        case CassoLinkCodec::kKrunchProgress:
+            return (size >= 2) ? std::format ("Krunch progress: {}%, {} files moved", payload[0], payload[1]) : std::string ("Krunch progress");
+
         //  Casso's and ADTPro's have the kind first, and differ after it.
         case CassoLinkCodec::kAcknowledge:
             if (size >= 1 && (payload[0] == CassoLinkCodec::kAck || payload[0] == CassoLinkCodec::kNak))
@@ -172,6 +178,7 @@ std::string CassoLinkPacketText::GetErrorText (Byte error)
         case CassoLinkHost::kErrorVerify:         return "read back differently";
         case CassoLinkHost::kErrorLink:           return "link error";
         case CassoLinkHost::kErrorDrive:          return "no disk in the drive";
+        case CassoLinkHost::kErrorChanged:        return "the directory differs from the one checked";
         default:                                  return std::format ("error {:02X}", error);
     }
 }

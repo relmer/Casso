@@ -527,6 +527,111 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::Krunch
+//
+//  Two Readies in a row after Krunch progress are a Status lost on the line:
+//  the Apple took the request, and sending it again would run a second
+//  krunch against a directory that no longer matches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::Krunch (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus)
+{
+    HRESULT  hr    = S_OK;
+    bool     taken = false;
+    bool     lost  = true;
+
+
+
+    for (int sent = 0; sent <= kMaxResends && lost; sent++)
+    {
+        hr   = KrunchOnce (drive, directoryCrc, progress, outStatus, taken);
+        lost = hr == kLostRequest && !taken;
+
+        if (lost && m_adtProServer.m_activity)
+        {
+            m_adtProServer.m_activity ("The Apple did not take a request, so it was sent again");
+        }
+    }
+
+    hr = (hr == kLostRequest && taken) ? HRESULT_FROM_WIN32 (ERROR_INVALID_DATA) : hr;
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::KrunchOnce
+//
+//  A damaged packet is dropped and the next one read, as the Apple sends
+//  nothing again. outTaken is set by the first Krunch progress, which the
+//  Apple sends once it has read the directory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::KrunchOnce (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus, bool & outTaken)
+{
+    HRESULT          hr         = S_OK;
+    const Byte       request[]  = { drive, (Byte) (directoryCrc & 0xFF), (Byte) (directoryCrc >> 8) };
+    CassoLinkPacket  packet;
+    bool             isProgress = false;
+
+
+
+    outStatus = {};
+    outTaken  = false;
+
+    hr = AwaitRequest();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kKrunch, request);
+    CHR (hr);
+
+    for (;;)
+    {
+        hr = ReadReply (packet);
+
+        if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+        {
+            continue;
+        }
+
+        CHR (hr);
+
+        if (packet.command == CassoLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        isProgress = packet.command == CassoLinkCodec::kKrunchProgress && packet.payload.size() == 2;
+        CBREx (isProgress, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outTaken = true;
+
+        if (progress)
+        {
+            progress (packet.payload[0]);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::ComputeFormatGap
 //
 //  A sector without its gap is 14 address bytes and 349 data bytes, 32
