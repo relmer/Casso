@@ -2,8 +2,6 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/Model/RowGrouping.h"
-
 
 
 
@@ -17,9 +15,8 @@
 //  the tabs and the history treat its results as they treat any folder.
 //
 //  The index answers a query in File Explorer's full syntax. Where a folder
-//  is not indexed, its files are matched by name: every plain word of the
-//  query must appear in the name, in any case. A word naming a property, such
-//  as kind:document, needs the index, and is not matched by name.
+//  is walked, each file is tested against the query as SearchExpression
+//  parses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,24 +46,12 @@ public:
         bool  currentFolder = false;
         bool  systemFiles   = true;
         bool  zipped        = false;
-        bool  contents      = false;
+        bool  contents      = true;
     };
 
     static constexpr const wchar_t *  kDateToken = L"datemodified:";
     static constexpr const wchar_t *  kKindToken = L"kind:";
     static constexpr const wchar_t *  kSizeToken = L"size:";
-
-    //  What a filter word is tested against, where no index answers it.
-    struct ItemFacts
-    {
-        bool                       hasDate   = false;
-        int                        year      = 0;
-        int                        month     = 0;
-        int                        day       = 0;
-        bool                       isFolder  = false;
-        uint64_t                   sizeBytes = 0;
-        std::vector<std::wstring>  kinds;
-    };
 
     static std::wstring  MakeId     (const std::wstring & scope, const std::wstring & query, const Options & options);
     static Options       GetOptions (const std::wstring & id);
@@ -75,8 +60,6 @@ public:
     //  replaces it, and choosing the value again removes it.
     static std::wstring  ToggleToken    (const std::wstring & query, const wchar_t * prefix, const std::wstring & value);
     static bool          HasToken       (const std::wstring & query, const wchar_t * prefix, const std::wstring & value);
-    static bool          HasFilters     (const std::wstring & query);
-    static bool          MatchesFilters (const std::wstring & query, const ItemFacts & facts, const RowGrouping::Today & today);
 
     static std::wstring  MakeId     (const std::wstring & scope, const std::wstring & query);
     static bool          TryParseId (const std::wstring & id, std::wstring & outScope, std::wstring & outQuery);
@@ -103,5 +86,4 @@ private:
 
     static std::vector<std::wstring>  SplitWords     (const std::wstring & query);
     static std::wstring               GetUnquoted    (const std::wstring & word);
-    static bool                       MatchesDate    (const std::wstring & value, const ItemFacts & facts, const RowGrouping::Today & today);
 };

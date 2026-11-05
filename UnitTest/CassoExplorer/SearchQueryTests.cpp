@@ -32,9 +32,12 @@ public:
 
         Assert::AreEqual (SearchQuery::MakeId (L"C:\\Disks", L"x"), SearchQuery::MakeId (L"C:\\Disks", L"x", options), L"The defaults add nothing");
 
+        Assert::IsTrue   (options.contents, L"File contents is on by default");
+        Assert::IsTrue   (SearchQuery::GetOptions (SearchQuery::MakeId (L"C:\\Disks", L"x")).contents);
+
         options.currentFolder = true;
         options.systemFiles   = false;
-        options.contents      = true;
+        options.contents      = false;
 
         std::wstring  id = SearchQuery::MakeId (L"C:\\Disks", L"x", options);
 
@@ -43,7 +46,7 @@ public:
         Assert::IsTrue   (SearchQuery::GetOptions (id).currentFolder);
         Assert::IsFalse  (SearchQuery::GetOptions (id).systemFiles);
         Assert::IsFalse  (SearchQuery::GetOptions (id).zipped);
-        Assert::IsTrue   (SearchQuery::GetOptions (id).contents);
+        Assert::IsFalse  (SearchQuery::GetOptions (id).contents);
     }
 
     TEST_METHOD (Tokens_ReplaceTheirPropertyAndToggleOff)
@@ -63,30 +66,6 @@ public:
 
         query = SearchQuery::ToggleToken (query, SearchQuery::kSizeToken, L"huge");
         Assert::AreEqual (std::wstring (L"sixies datemodified:\"this week\""), query);
-    }
-
-    TEST_METHOD (Filters_TestDateSizeAndKind)
-    {
-        RowGrouping::Today      today;
-        SearchQuery::ItemFacts  facts;
-
-        today.year = 2026; today.month = 10; today.day = 31;    // a Saturday
-
-        facts.hasDate   = true;
-        facts.year      = 2026;
-        facts.month     = 10;
-        facts.day       = 26;
-        facts.sizeBytes = 2048;
-        facts.kinds     = { L"document" };
-
-        Assert::IsTrue  (SearchQuery::MatchesFilters (L"datemodified:\"this week\" size:tiny kind:document", facts, today));
-        Assert::IsFalse (SearchQuery::MatchesFilters (L"datemodified:today",      facts, today));
-        Assert::IsFalse (SearchQuery::MatchesFilters (L"datemodified:\"last week\"", facts, today));
-        Assert::IsTrue  (SearchQuery::MatchesFilters (L"datemodified:\"this month\"", facts, today));
-        Assert::IsFalse (SearchQuery::MatchesFilters (L"size:huge",               facts, today));
-        Assert::IsFalse (SearchQuery::MatchesFilters (L"kind:picture",            facts, today));
-        Assert::IsFalse (SearchQuery::MatchesFilters (L"kind:unknown",            facts, today));
-        Assert::IsTrue  (SearchQuery::MatchesFilters (L"author:someone",          facts, today), L"Another property is the index's");
     }
 
     TEST_METHOD (Id_CarriesTheFolderAndTheQuery)

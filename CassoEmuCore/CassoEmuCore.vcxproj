@@ -379,6 +379,7 @@
     <ClCompile Include="Seams\ShellVerbs\Win32RecycleBin.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellMenus.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellNamespace.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32SearchSources.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellSearch.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShareSheet.cpp" />
     <ClCompile Include="Seams\ShellVerbs\Win32ShellTransfers.cpp" />
@@ -896,6 +897,7 @@
     <ClInclude Include="Seams\ShellVerbs\Win32RecycleBin.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellMenus.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellNamespace.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32SearchSources.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellSearch.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShareSheet.h" />
     <ClInclude Include="Seams\ShellVerbs\Win32ShellTransfers.h" />

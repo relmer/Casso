@@ -43,6 +43,10 @@ public:
     static bool                                  IsBasicListingName   (const std::wstring & name);
     static std::shared_ptr<const DxuiIconImage>  GetLocationIcon      (const Location & at, IShellIcons & icons);
 
+    //  The words that must appear in the name of a search's result, from the
+    //  query in the search's id, for the list to mark.
+    static std::vector<std::wstring>  GetSearchHighlights (const std::wstring & id, const std::wstring & query);
+
     //  The color a row's name is drawn in, or zero for the theme's.
     static uint32_t  GetNameArgb (const CatalogRow & row, const FolderOptions & options, bool dark);
     static constexpr uint32_t  kEncryptedDarkArgb   = 0xFF4EB54Eu;

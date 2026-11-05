@@ -99,6 +99,8 @@ public:
     bool                       IsEmpty           () const;
     bool                       HasRegex          () const;
     bool                       HasWildcards      () const;
+    bool                       HasField          (Field field) const;
+    bool                       HasNameTerms      () const;
     bool                       IsPlainWords      () const { return m_plainWords; }
     const std::wstring       & GetError          () const { return m_error; }
     std::vector<std::wstring>  GetNameHighlights () const;

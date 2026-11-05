@@ -10,6 +10,7 @@
 #include "Seams/Win32ShellItemVerbs.h"
 #include "Seams/Win32ShellIcons.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
 
 
@@ -311,6 +312,17 @@ bool ExplorerAddressBar::HandleMouse (const DxuiMouseEvent & ev)
         {
             m_context.window.Invalidate();
         }
+
+        //  The syntax a walked search takes, over the box while it isn't being
+        //  typed in.
+        if (ExplorerLayout::Contains (m_findBox->GetBounds(), point) && !m_findBox->IsFocused() && !m_findBox->IsClearHovered())
+        {
+            m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Search, m_findBox->GetBounds(), kSearchSyntaxTip, kSearchSyntaxTipDip);
+        }
+        else
+        {
+            m_context.tips.HideHoverTip (ExplorerTips::TipOwner::Search);
+        }
     }
 
     if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting())
@@ -565,7 +577,17 @@ void ExplorerAddressBar::FillNavTips()
     m_context.commands.SetTip (CassoExplorerCommands::kBack,    back);
     m_context.commands.SetTip (CassoExplorerCommands::kForward, forward);
     m_context.commands.SetTip (CassoExplorerCommands::kUp,      upTip);
-    m_context.commands.SetTip (CassoExplorerCommands::kRefresh, L"Refresh \"" + GetNavLabel (m_context.browser.GetLocation()) + L"\" (F5)");
+
+    //  While a search runs, Refresh is Stop, as in File Explorer.
+    if (m_context.browser.IsSearchRunning())
+    {
+        m_context.commands.SetTip   (CassoExplorerCommands::kRefresh, L"Stop searching");
+        m_context.commands.SetGlyph (CassoExplorerCommands::kRefresh, s_kpszMdl2Cancel);
+        return;
+    }
+
+    m_context.commands.SetTip   (CassoExplorerCommands::kRefresh, L"Refresh \"" + GetNavLabel (m_context.browser.GetLocation()) + L"\" (F5)");
+    m_context.commands.SetGlyph (CassoExplorerCommands::kRefresh, s_kpszMdl2Refresh);
 }
 
 

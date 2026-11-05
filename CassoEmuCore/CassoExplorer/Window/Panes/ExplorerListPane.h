@@ -132,10 +132,17 @@ private:
         POINT  start   = {};
     };
 
+    //  The infobar above a search's results that reports a regular
+    //  expression that isn't valid, until it is closed for that search.
+    void  FillSearchBar ();
+
     ExplorerContext            & m_context;
     DxuiListView               * m_list            = nullptr;
     DxuiLabel                  * m_listMessage     = nullptr;
     bool                         m_listMessageTop  = false;   // a search's message, at the list's top
+    DxuiInfoBanner             * m_searchBar       = nullptr;
+    std::wstring                 m_searchBarClosed;   // the search whose infobar was closed
+    RECT                         m_paneRect        = {};
     Win32ShellIcons              m_listIcons;
     Win32ContentDetails          m_contentDetails;
     Win32PropertyColumns         m_propertyValues;

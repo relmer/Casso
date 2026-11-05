@@ -174,8 +174,10 @@ public:
     //  read on the caller's thread.
     using ShellLister = std::function<HRESULT (const std::wstring & id, std::vector<ShellFolderItem> & outItems)>;
 
-    //  On a reader's thread, what a slow listing calls with its items so far.
+    //  On a reader's thread, what a slow listing calls with its items so far,
+    //  and whether the listing was stopped, so it ends with what it has.
     static inline thread_local std::function<void (const std::vector<ShellFolderItem> & items)>  s_listingProgress;
+    static inline thread_local std::function<bool ()>                                            s_listingStopped;
 
     //  Whether Windows previews a host file: a preview handler for its type,
     //  or a thumbnail for a picture or a video.

@@ -187,6 +187,11 @@ public:
     void                              RemoveHomeRow   (const std::wstring & shellId);
     void                              RequestHomeRead ();
     void                              SetTabPreview   (bool open) { if (m_model.HasTabs()) { m_model.GetActiveTab().previewOpen = open; } }
+
+    //  Whether the list is on a search that is being read, and stopping that
+    //  read, so the list has the results found before the stop.
+    bool                              IsSearchRunning ();
+    void                              StopSearch      ();
     bool                              IsTabPreview    () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
     void                              SetTabTopRow    (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
     int                               GetTabTopRow    () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }

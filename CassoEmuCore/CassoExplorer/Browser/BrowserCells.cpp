@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 
@@ -280,6 +281,41 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCatalogPreviewCells (const Catal
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserCells::GetSearchHighlights
+//
+//  The list's rows are drawn on the window's thread alone, and every row of a
+//  search has the same query, so the words from the last query parsed are
+//  reused until the search changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> BrowserCells::GetSearchHighlights (const std::wstring & id, const std::wstring & query)
+{
+    static std::wstring               lastId;
+    static std::vector<std::wstring>  lastWords;
+
+
+
+    SearchExpression::MatchOptions  options;
+
+
+
+    if (id != lastId)
+    {
+        options.contents = SearchQuery::GetOptions (id).contents;
+        lastWords        = SearchExpression::Parse (query, options).GetNameHighlights();
+        lastId           = id;
+    }
+
+    return lastWords;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserCells::ToCells
 //
 //  A folder has no size to show, and an entry that records no date leaves the
@@ -299,11 +335,11 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
 
     name.text = CatalogModel::GetDisplayName (row.label.empty() ? row.name : row.label, name.dimRanges);
 
-    //  A search's result has the words it matched marked in its name, as File
+    //  A search's result has the words its name must have marked, as File
     //  Explorer marks them.
     if (SearchQuery::TryParseId (at.path, scope, query))
     {
-        name.matches = SearchQuery::FindNameMatches (name.text, SearchQuery::GetNameWords (query));
+        name.matches = SearchQuery::FindNameMatches (name.text, GetSearchHighlights (at.path, query));
     }
 
     cells.push_back (name);

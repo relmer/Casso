@@ -48,7 +48,7 @@ struct CassoExplorerPrefs
     //  File Explorer's Search options that apply to every search.
     bool                   searchSystemFiles = true;
     bool                   searchZipped      = false;
-    bool                   searchContents    = false;
+    bool                   searchContents    = true;
 
     //  The preview pane opens for a selected file of a type Casso Explorer can
     //  preview, and closes for any other, until the pane is turned on manually.

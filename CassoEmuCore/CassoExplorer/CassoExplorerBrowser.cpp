@@ -292,6 +292,7 @@ void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
     m_shellVerbs = verbs;
     m_shellListings.SetLister ((verbs != nullptr) ? verbs->GetShellLister() : IShellItemVerbs::ShellLister());
     m_shellListings.SetProgressSetter ([] (CassoExplorerShellListings::Progress progress) { IShellItemVerbs::s_listingProgress = std::move (progress); });
+    m_shellListings.SetStoppedSetter  ([] (CassoExplorerShellListings::Stopped stopped)   { IShellItemVerbs::s_listingStopped  = std::move (stopped); });
     m_tree.SetShellVerbs (verbs);
 
     m_tree.SetShellFetch ([this] (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems)
@@ -1372,6 +1373,40 @@ bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
     }
 
     return found && !outPath.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::IsSearchRunning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsSearchRunning()
+{
+    Location  location = GetLocation();
+
+
+
+    return location.kind == Location::Kind::ShellFolder && SearchQuery::IsId (location.path) && m_shellListings.IsReading (s_kListKey + location.path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::StopSearch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::StopSearch()
+{
+    m_shellListings.Stop (s_kListKey + GetLocation().path);
 }
 
 

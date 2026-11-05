@@ -6,6 +6,7 @@
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -69,6 +70,19 @@ void ExplorerListPane::Create()
 
     m_list        = list;
     m_listMessage = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_searchBar   = m_context.window.CreateChild<DxuiInfoBanner> (L"");
+
+    m_searchBar->SetSeverity    (DxuiInfoBanner::Severity::Warning);
+    m_searchBar->SetDismissible (true);
+    m_searchBar->SetVisible     (false);
+
+    m_searchBar->SetOnDismiss ([this]()
+    {
+        m_searchBarClosed = m_context.browser.GetLocation().path;
+        m_searchBar->SetVisible (false);
+        Layout (m_paneRect);
+        m_context.window.Invalidate();
+    });
 }
 
 
@@ -278,8 +292,67 @@ void ExplorerListPane::Configure()
 
 void ExplorerListPane::Layout (const RECT & rect)
 {
-    m_list->Layout        (rect, m_context.scaler);
+    RECT   listRect = rect;
+    RECT   barRect  = rect;
+    float  barPx    = 0;
+
+
+
+    m_paneRect = rect;
+
+    //  The infobar takes the top of the pane, and the list the rest.
+    if (m_searchBar->IsVisible())
+    {
+        barPx          = m_searchBar->GetPreferredHeightPx ((float) (rect.right - rect.left), m_context.scaler);
+        barRect.bottom = (std::min) (rect.bottom, rect.top + (LONG) std::ceil (barPx));
+        listRect.top   = barRect.bottom;
+
+        m_searchBar->Layout (barRect, m_context.scaler);
+    }
+
+    m_list->Layout        (listRect, m_context.scaler);
     m_listMessage->Layout (GetListMessageRect(), m_context.scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListPane::FillSearchBar
+//
+//  A search's query is parsed again here, on the window's thread, for its
+//  regular expressions alone; the search itself reads on another thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::FillSearchBar()
+{
+    std::wstring                    scope;
+    std::wstring                    query;
+    std::wstring                    error;
+    SearchExpression::MatchOptions  options;
+    std::wstring                    id      = m_context.browser.GetLocation().path;
+    bool                            visible = m_searchBar->IsVisible();
+    bool                            show    = false;
+
+
+
+    if (SearchQuery::TryParseId (id, scope, query))
+    {
+        error = SearchExpression::Parse (query, options).GetError();
+    }
+
+    show = !error.empty() && id != m_searchBarClosed;
+
+    m_searchBar->SetText    (error);
+    m_searchBar->SetVisible (show);
+
+    if (show != visible)
+    {
+        Layout (m_paneRect);
+    }
 }
 
 
@@ -1107,6 +1180,8 @@ void ExplorerListPane::FillList()
     {
         m_list->SetSortIndicator ((int) model.GetActiveTab().sortColumn, model.GetActiveTab().sortDescending);
     }
+
+    FillSearchBar();
 
     //  An empty search's message is File Explorer's, at the top of the list;
     //  any other empty location's is centered in the pane.

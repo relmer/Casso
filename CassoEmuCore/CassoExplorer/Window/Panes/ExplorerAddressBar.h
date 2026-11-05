@@ -37,6 +37,18 @@ public:
     static constexpr int    kFindBoxMaxDip        = 720;
     static constexpr float  kFindBoxShare         = 0.3f;
 
+    //  The search box's tip: the syntax of a search that walks a folder.
+    static constexpr float            kSearchSyntaxTipDip = 420.0f;
+    static constexpr const wchar_t *  kSearchSyntaxTip    =
+        L"In a folder the Windows index doesn't cover:\n"
+        L"Words, \"phrases\", * and ? patterns, and /regular expressions/\n"
+        L"AND between words, OR, NOT or a leading -, and parentheses\n"
+        L"name:, ext:, folder:, path:, content:, kind:, type: and attributes:\n"
+        L"size: as tiny to gigantic, or a number in KB, MB or GB\n"
+        L"datemodified:, datecreated: and dateaccessed: as today or this week, or a date\n"
+        L"After a property: = <> < > <= >= ~< ~= ~! and a..b for a range\n"
+        L"Any other property by its name, as author:";
+
     void         Create                  ();
     void         Configure               ();
     void         Layout                  (const RECT & free, const RECT & strip, int rightOfTreePx);

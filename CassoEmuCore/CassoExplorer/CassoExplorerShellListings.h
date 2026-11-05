@@ -50,12 +50,23 @@ public:
     using Progress       = std::function<void (const Items & items)>;
     using ProgressSetter = std::function<void (Progress progress)>;
 
+    //  The check a read calls for whether it was stopped, and the setter
+    //  that installs it on the reader's thread.
+    using Stopped        = std::function<bool ()>;
+    using StoppedSetter  = std::function<void (Stopped stopped)>;
+
     CassoExplorerListings () : m_state (std::make_shared<State>()) {}
 
     void  SetTarget         (HWND hwnd, UINT message)  { m_hwnd = hwnd; m_message = message; }
     void  SetLister         (Lister lister)            { m_lister = std::move (lister); }
     bool  HasLister         () const                   { return (bool) m_lister; }
-    void  SetProgressSetter (ProgressSetter setter) { m_progressSetter = std::move (setter); }
+    void  SetProgressSetter (ProgressSetter setter)    { m_progressSetter = std::move (setter); }
+    void  SetStoppedSetter  (StoppedSetter setter)     { m_stoppedSetter = std::move (setter); }
+
+    //  A read under way under the key ends with what it has; the listing
+    //  arrives as any other.
+    void  Stop              (const std::wstring & key);
+    bool  IsReading         (const std::wstring & key);
 
     //  The listing under the key when it has arrived, taken; false while it
     //  is being read, starting it when it is not yet asked for. A failed read
@@ -82,16 +93,18 @@ private:
 
     struct State
     {
-        std::mutex                     lock;
-        std::map<std::wstring, Result> done;
-        std::map<std::wstring, Items>  latest;
-        std::set<std::wstring>         pending;
-        std::vector<std::wstring>      arrived;
+        std::mutex                                                  lock;
+        std::map<std::wstring, Result>                              done;
+        std::map<std::wstring, Items>                               latest;
+        std::set<std::wstring>                                      pending;
+        std::vector<std::wstring>                                   arrived;
+        std::map<std::wstring, std::shared_ptr<std::atomic<bool>>>  stops;
     };
 
     std::shared_ptr<State>  m_state;
     Lister                  m_lister;
     ProgressSetter          m_progressSetter;
+    StoppedSetter           m_stoppedSetter;
     HWND                    m_hwnd    = nullptr;
     UINT                    m_message = 0;
 
@@ -115,11 +128,13 @@ using CassoExplorerHostListings  = CassoExplorerListings<FileSystemEntry>;
 template <typename Item>
 bool CassoExplorerListings<Item>::TryTake (const std::wstring & key, const std::wstring & id, Items & outItems, HRESULT & outResult)
 {
-    std::shared_ptr<State>  state   = m_state;
-    Lister                  lister  = m_lister;
-    HWND                    hwnd    = m_hwnd;
-    UINT                    message = m_message;
-    ProgressSetter          setter  = m_progressSetter;
+    std::shared_ptr<State>              state    = m_state;
+    Lister                              lister   = m_lister;
+    HWND                                hwnd     = m_hwnd;
+    UINT                                message  = m_message;
+    ProgressSetter                      setter   = m_progressSetter;
+    StoppedSetter                       stopper  = m_stoppedSetter;
+    std::shared_ptr<std::atomic<bool>>  stopped  = std::make_shared<std::atomic<bool>> (false);
 
 
 
@@ -157,9 +172,10 @@ bool CassoExplorerListings<Item>::TryTake (const std::wstring & key, const std::
         }
 
         state->pending.insert (key);
+        state->stops[key] = stopped;
     }
 
-    std::thread ([state, lister, setter, key, id, hwnd, message]()
+    std::thread ([state, lister, setter, stopper, stopped, key, id, hwnd, message]()
     {
         HRESULT  hrCom  = CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED);
         HRESULT  hrName = ThreadName::SetForCurrentThread (L"Folder reader");
@@ -184,6 +200,11 @@ bool CassoExplorerListings<Item>::TryTake (const std::wstring & key, const std::
             });
         }
 
+        if (stopper)
+        {
+            stopper ([stopped]() { return stopped->load(); });
+        }
+
         result.hr = lister (id, result.items);
 
         if (setter)
@@ -191,8 +212,15 @@ bool CassoExplorerListings<Item>::TryTake (const std::wstring & key, const std::
             setter (nullptr);
         }
 
+        if (stopper)
+        {
+            stopper (nullptr);
+        }
+
         {
             std::lock_guard<std::mutex>  guard (state->lock);
+
+            state->stops.erase (key);
 
             if (SUCCEEDED (result.hr) && result.items.size() <= s_kMaxLatestItems)
             {
@@ -265,6 +293,50 @@ bool CassoExplorerListings<Item>::TryGetLatest (const std::wstring & key, Items 
     outItems = found->second;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerListings::Stop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename Item>
+void CassoExplorerListings<Item>::Stop (const std::wstring & key)
+{
+    std::lock_guard<std::mutex>  guard (m_state->lock);
+    auto                         found = m_state->stops.find (key);
+
+
+
+    if (found != m_state->stops.end())
+    {
+        found->second->store (true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerListings::IsReading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename Item>
+bool CassoExplorerListings<Item>::IsReading (const std::wstring & key)
+{
+    std::lock_guard<std::mutex>  guard (m_state->lock);
+
+
+
+    return m_state->pending.contains (key);
 }
 
 

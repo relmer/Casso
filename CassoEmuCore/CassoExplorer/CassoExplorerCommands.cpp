@@ -286,6 +286,30 @@ void CassoExplorerCommands::SetTip (int id, const std::wstring & tip)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerCommands::SetGlyph
+//
+//  The glyph a command's button draws, as Refresh draws Stop while a search
+//  runs. The glyph must outlive the command.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerCommands::SetGlyph (int id, const wchar_t * glyph)
+{
+    for (const std::shared_ptr<DxuiCommand> & command : m_commands)
+    {
+        if (command->id == id)
+        {
+            command->glyph = glyph;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerCommands::BuildMenuItems
 //
 ////////////////////////////////////////////////////////////////////////////////

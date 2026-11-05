@@ -22,7 +22,7 @@ class ExplorerTips
 {
 public:
     //  Which part of the window the hover tooltip belongs to.
-    enum class TipOwner { None, Toolbar, Tree, List, Status, Menu, Caption };
+    enum class TipOwner { None, Toolbar, Tree, List, Status, Menu, Caption, Search };
 
     explicit ExplorerTips (ExplorerContext & context);
 

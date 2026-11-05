@@ -62,13 +62,58 @@ public:
 
     TEST_METHOD (Search_AllSubfolders_FindsNamesBelowTheFolder)
     {
-        Items  items = Search (L"needle", SearchQuery::Options());
+        SearchQuery::Options  options;
+
+        options.contents = false;
+
+        Items  items = Search (L"needle", options);
 
         Assert::IsTrue  (Has (items, L"needle_plain.txt"));
         Assert::IsTrue  (Has (items, L"needle_sys.txt"));
         Assert::IsTrue  (Has (items, L"deep_needle.txt"));
-        Assert::IsFalse (Has (items, L"content_only.txt"), L"Contents aren't searched by default");
-        Assert::IsFalse (Has (items, L"inner_needle.txt"), L"nor zips");
+        Assert::IsFalse (Has (items, L"content_only.txt"), L"With File contents off, a word matches the name alone");
+        Assert::IsFalse (Has (items, L"inner_needle.txt"), L"Zips aren't searched by default");
+    }
+
+    TEST_METHOD (Search_ContentsAreOnByDefault)
+    {
+        Items  items = Search (L"needleword", SearchQuery::Options());
+
+        Assert::IsTrue  (Has (items, L"content_only.txt"));
+        Assert::IsFalse (Has (items, L"other.txt"));
+    }
+
+    //  A word in the name and another in the text match the file together.
+    TEST_METHOD (Search_Contents_MatchesWordByWord)
+    {
+        Items  items = Search (L"content needleword", SearchQuery::Options());
+
+        Assert::IsTrue  (Has (items, L"content_only.txt"));
+        Assert::IsFalse (Has (Search (L"name:needleword", SearchQuery::Options()), L"content_only.txt"), L"name: tests the name alone");
+        Assert::IsTrue  (Has (Search (L"content:needleword", SearchQuery::Options()), L"content_only.txt"));
+    }
+
+    //  A property the walk doesn't test itself is looked up in the property
+    //  system by its display name or its canonical name.
+    TEST_METHOD (Search_OtherProperty_IsLookedUpByItsDisplayName)
+    {
+        Assert::IsTrue  (Has (Search (L"fileextension:.txt needle_plain", SearchQuery::Options()), L"needle_plain.txt"));
+        Assert::IsFalse (Has (Search (L"fileextension:.zip needle_plain", SearchQuery::Options()), L"needle_plain.txt"));
+        Assert::IsTrue  (Has (Search (L"System.FileExtension:.txt needle_plain", SearchQuery::Options()), L"needle_plain.txt"));
+    }
+
+    TEST_METHOD (Search_Syntax_CombinesTermsWithOrNotAndRegularExpressions)
+    {
+        SearchQuery::Options  options;
+
+        options.contents = false;
+
+        Assert::IsTrue  (Has (Search (L"plain OR deep", options), L"deep_needle.txt"));
+        Assert::IsFalse (Has (Search (L"needle -deep", options), L"deep_needle.txt"));
+        Assert::IsTrue  (Has (Search (L"/^needle_(plain|sys)\\.txt$/", options), L"needle_sys.txt"));
+        Assert::IsFalse (Has (Search (L"/^needle_(plain|sys)\\.txt$/", options), L"deep_needle.txt"));
+        Assert::IsTrue  (Has (Search (L"ext:txt attributes:system", options), L"needle_sys.txt"));
+        Assert::IsFalse (Has (Search (L"ext:txt attributes:system", options), L"needle_plain.txt"));
     }
 
     TEST_METHOD (Search_CurrentFolder_LeavesSubfoldersOut)
@@ -131,20 +176,20 @@ public:
         Assert::IsFalse (Has (items, L"other.txt"));
     }
 
-    //  A large file is read in pieces, and a word across a join is found.
-    TEST_METHOD (Search_Contents_FindsAWordAcrossAChunkInALargeFile)
+    //  A word near the end of a large text file is found.
+    TEST_METHOD (Search_Contents_FindsAWordNearTheEndOfALargeFile)
     {
-        static constexpr size_t  s_kChunk = Win32ShellSearch::s_kContentChunkBytes;
+        constexpr size_t  kBytes = 8 * 1024 * 1024;
 
         SearchQuery::Options  options;
-        std::string           bytes (s_kChunk * 18, 'x');
+        std::string           bytes (kBytes, 'x');
 
         options.contents = true;
 
-        bytes.replace (s_kChunk * 17 - 3, 6, "needle");
-        WriteFile (m_dir / L"large.bin", bytes);
+        bytes.replace (kBytes - 10, 6, "needle");
+        WriteFile (m_dir / L"large.log", bytes);
 
-        Assert::IsTrue (Has (Search (L"needle", options), L"large.bin"));
+        Assert::IsTrue (Has (Search (L"needle", options), L"large.log"));
     }
 
     TEST_METHOD (Search_Filters_TestSizeKindAndDate)

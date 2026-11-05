@@ -38,7 +38,7 @@ std::wstring SearchQuery::MakeId (const std::wstring & scope, const std::wstring
     flags += options.currentFolder ? L"c" : L"";
     flags += options.systemFiles   ? L""  : L"x";
     flags += options.zipped        ? L"z" : L"";
-    flags += options.contents      ? L"t" : L"";
+    flags += options.contents      ? L""  : L"n";
 
     return MakeId (scope, query) + (flags.empty() ? std::wstring() : s_kOptionsSeparator + flags);
 }
@@ -64,7 +64,7 @@ SearchQuery::Options SearchQuery::GetOptions (const std::wstring & id)
     options.currentFolder = flags.find (L'c') != std::wstring::npos;
     options.systemFiles   = flags.find (L'x') == std::wstring::npos;
     options.zipped        = flags.find (L'z') != std::wstring::npos;
-    options.contents      = flags.find (L't') != std::wstring::npos;
+    options.contents      = flags.find (L'n') == std::wstring::npos;
 
     return options;
 }
@@ -209,128 +209,6 @@ std::wstring SearchQuery::ToggleToken (const std::wstring & query, const wchar_t
     }
 
     return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SearchQuery::HasFilters
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SearchQuery::HasFilters (const std::wstring & query)
-{
-    for (const std::wstring & word : SplitWords (query))
-    {
-        std::wstring  plain = GetUnquoted (word);
-
-        if (plain.starts_with (kDateToken) || plain.starts_with (kKindToken) || plain.starts_with (kSizeToken))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SearchQuery::MatchesDate
-//
-//  Weeks start on the locale's first day, as the date groups' do.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SearchQuery::MatchesDate (const std::wstring & value, const ItemFacts & facts, const RowGrouping::Today & today)
-{
-    int64_t  d         = 0;
-    int64_t  t         = RowGrouping::ToDayNumber (today.year, today.month, today.day);
-    int64_t  dow       = ((t % 7) + 7 + 4) % 7;       // 1970-01-01 was a Thursday
-    int64_t  weekStart = t - ((dow - today.firstDayOfWeek + 7) % 7);
-    int      lastYear  = (today.month == 1) ? today.year - 1 : today.year;
-    int      lastMonth = (today.month == 1) ? 12 : today.month - 1;
-
-
-
-    if (!facts.hasDate)
-    {
-        return false;
-    }
-
-    d = RowGrouping::ToDayNumber (facts.year, facts.month, facts.day);
-
-    if (value == L"today")      { return d == t; }
-    if (value == L"yesterday")  { return d == t - 1; }
-    if (value == L"this week")  { return d >= weekStart && d < weekStart + 7; }
-    if (value == L"last week")  { return d >= weekStart - 7 && d < weekStart; }
-    if (value == L"this month") { return facts.year == today.year && facts.month == today.month; }
-    if (value == L"last month") { return facts.year == lastYear && facts.month == lastMonth; }
-    if (value == L"this year")  { return facts.year == today.year; }
-    if (value == L"last year")  { return facts.year == today.year - 1; }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SearchQuery::MatchesFilters
-//
-//  Every filter word must hold. Another property's word is left to the index.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SearchQuery::MatchesFilters (const std::wstring & query, const ItemFacts & facts, const RowGrouping::Today & today)
-{
-    static constexpr const wchar_t *  s_kSizes[] = { L"empty", L"tiny", L"small", L"medium", L"large", L"huge", L"gigantic" };
-
-
-
-    for (const std::wstring & word : SplitWords (query))
-    {
-        std::wstring  plain = GetUnquoted (word);
-
-        if (plain.starts_with (kDateToken) && !MatchesDate (plain.substr (wcslen (kDateToken)), facts, today))
-        {
-            return false;
-        }
-
-        if (plain.starts_with (kSizeToken))
-        {
-            int  rank = RowGrouping::GetSizeGroup (facts.isFolder, facts.sizeBytes).rank;
-
-            for (size_t at = 0; at < std::size (s_kSizes); at++)
-            {
-                if (plain.substr (wcslen (kSizeToken)) == s_kSizes[at] && rank != (int) at)
-                {
-                    return false;
-                }
-            }
-        }
-
-        if (plain.starts_with (kKindToken))
-        {
-            std::wstring  kind = plain.substr (wcslen (kKindToken));
-            bool          any  = std::find (facts.kinds.begin(), facts.kinds.end(), kind) != facts.kinds.end();
-
-            if (kind == L"unknown" ? !facts.kinds.empty() : !any)
-            {
-                return false;
-            }
-        }
-    }
-
-    return true;
 }
 
 

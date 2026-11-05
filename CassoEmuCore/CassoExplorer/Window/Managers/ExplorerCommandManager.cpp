@@ -480,6 +480,12 @@ void ExplorerCommandManager::Dispatch (int id)
 
 
         case CassoExplorerCommands::kRefresh:
+            if (m_context.browser.IsSearchRunning())
+            {
+                m_context.browser.StopSearch();
+                break;
+            }
+
             m_context.listPane.GetColumns().ReadFolderOptions();
             m_context.folderSync.ReloadKnownFolders();
             m_context.browser.GetBrowserModel().InvalidateAllCatalogs();

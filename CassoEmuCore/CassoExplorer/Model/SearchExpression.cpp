@@ -1069,6 +1069,39 @@ bool SearchExpression::HasWildcards() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SearchExpression::HasField
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchExpression::HasField (Field field) const
+{
+    return !IsEmpty() && HasTermWhere (m_tree->root, [field] (const Node & node) { return node.field == field; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchExpression::HasNameTerms
+//
+//  Whether any term tests a name: a bare word, phrase, pattern or regular
+//  expression, or name:. A query of other properties alone doesn't have one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchExpression::HasNameTerms() const
+{
+    return HasField (Field::Text) || HasField (Field::Name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SearchExpression::GetNameHighlights
 //
 //  The words a result's name has whichever way it matched: name: terms, and
