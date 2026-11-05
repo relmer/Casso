@@ -49,6 +49,7 @@ public:
     std::vector<IDxuiControl *>      GetControls    () const override { return { m_list }; }
     int                              GetStopFocusRank () const override { return m_isStop ? 2 : 0; }
     std::vector<DxuiListView *>      GetLists       () const override { return { m_list }; }
+    bool                             HasTextLists   () const override { return false; }   // monospace, as LIST prints
     std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
     void                             PlaceBar       () override { m_bar.Place(); }
     bool                             RouteBarMouse  (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
