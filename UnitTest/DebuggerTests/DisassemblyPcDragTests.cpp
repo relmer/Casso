@@ -341,23 +341,22 @@ namespace DisassemblyPcDragTests
 
             for (const RecordedTextCall & icon : text.IconCalls())
             {
-                Assert::AreEqual ((float) bounds.left + 10.5f, icon.x + icon.width * 0.5f, 0.001f, L"each centered 10.5 pixels in at 125%");
-                Assert::AreEqual (20.0f, icon.width, L"in a 20-pixel icon, so the dot is 14 pixels across");
+                Assert::AreEqual ((float) bounds.left + 10.5f, icon.x + icon.height * 0.5f, 0.001f, L"each one's first square centered 10.5 pixels in at 125%");
+                Assert::AreEqual (20.0f, icon.height, L"in a 20-pixel square, so the dot is 14 pixels across");
             }
 
             Assert::IsTrue   (list->GetCellTextRectPx (0, DisassemblyCells::kAddressColumn, address), L"the address has a cell, the column after the margin");
-            Assert::AreEqual ((LONG) (scaler120.ToPx (17) + scaler120.ToPx (4)), address.left,
-                              L"the address after the 17-DIP glyph column and its padding");
+            Assert::AreEqual ((LONG) (scaler120.ToPx (DisassemblyCells::kGutterColumnDip) + scaler120.ToPx (4)), address.left,
+                              L"the address after the glyph column, which has room for the dot and the arrow, and its padding");
         }
 
 
 
-        //  The PC's arrow sits in the glyph margin with the breakpoints, as
-        //  Visual Studio's does: drawn in the same icon at the same place,
-        //  its left edge on the dot's, 2.8 DIP inside the list, and as tall as
-        //  the dot. No column of its own lies between the margin and the
-        //  address.
-        TEST_METHOD (ThePcsArrowSitsInTheGlyphMarginWhereTheDotDoes)
+        //  The PC's arrow sits in the glyph margin with the breakpoints, in a
+        //  square to the right of the dot's: its left edge a square past the
+        //  dot's, and as tall as the dot. No column of its own lies between
+        //  the margin and the address.
+        TEST_METHOD (ThePcsArrowSitsInTheGlyphMarginBesideTheDot)
         {
             constexpr uint32_t                     kAnyArgb = 0xFFFFFFFF;   // the dot's place, not its color, is compared
             CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
@@ -387,26 +386,25 @@ namespace DisassemblyPcDragTests
             Assert::IsTrue   (arrow != nullptr, L"the PC's line shows its arrow in the margin");
             Assert::IsTrue   (list->GetCellsOfRow (0)[0].text.empty(), L"as an image, not text");
             Assert::IsTrue   (list->GetCellsOfRow (1)[0].icon == nullptr, L"and no other line does");
-            Assert::AreEqual (dot->width, arrow->width, L"an image the size of the dot's, drawn in the same icon");
+            Assert::AreEqual (dot->width * 2, arrow->width, L"two of the dot's squares across");
 
             ink    = GetInkBounds (*arrow);
             dotInk = GetInkBounds (*dot);
 
-            Assert::AreEqual (dotInk.left,   ink.left,   L"its left edge on the dot's");
+            Assert::AreEqual (dotInk.left + dot->width, ink.left, L"its left edge a square past the dot's");
             Assert::AreEqual (dotInk.top,    ink.top,    L"as tall as the dot");
             Assert::AreEqual (dotInk.bottom, ink.bottom, L"as tall as the dot");
-            Assert::IsTrue   (ink.right < dotInk.right,  L"pointing right, its tip inside the dot's right edge");
+            Assert::IsTrue   (ink.right < dotInk.right + dot->width, L"pointing right, its tip inside its square");
         }
 
 
 
-        //  A breakpoint on the PC's line shows the arrow over the dot, as
-        //  Visual Studio does: the arrow's color inside the arrow, and the
-        //  dot's color where the dot shows past its tip.
-        TEST_METHOD (OnThePcsLineTheArrowIsDrawnOverTheBreakpoint)
+        //  A breakpoint on the PC's line shows the dot and the arrow side by
+        //  side: the dot whole in the left square, the arrow in the right.
+        TEST_METHOD (OnThePcsLineTheArrowIsBesideTheBreakpoint)
         {
-            constexpr int                          kInArrowX = 14;   // inside both, left of the tip
-            constexpr int                          kPastTipX = 39;   // inside the dot, past the arrow's tip
+            constexpr int                          kInArrowX = 14;   // inside the dot, and inside the arrow in its square
+            constexpr int                          kPastTipX = 39;   // inside the dot, past where the arrow's tip is in its square
             CassoTheme                             theme     = CassoTheme::MakeSkeuomorphic();
             ViewingHost                            host;
             DxuiDpiScaler                          scaler;
@@ -447,10 +445,10 @@ namespace DisassemblyPcDragTests
             Assert::IsTrue (list->GetCellsOfRow (0)[0].tip.find (ColorLegend::GetText (ColorLegend::Meaning::PcMarker))          != std::wstring::npos, L"the tip says what the arrow means");
             Assert::IsTrue (list->GetCellsOfRow (0)[0].tip.find (ColorLegend::GetText (ColorLegend::Meaning::BreakpointEnabled)) != std::wstring::npos, L"and what the dot means");
 
-            Assert::AreEqual    (GetPixel (*arrow, kInArrowX, middle), GetPixel (*marked, kInArrowX, middle), L"inside the arrow, the arrow's color");
-            Assert::AreNotEqual (GetPixel (*dot,   kInArrowX, middle), GetPixel (*marked, kInArrowX, middle), L"over the dot");
-            Assert::AreEqual    (GetPixel (*dot,   kPastTipX, middle), GetPixel (*marked, kPastTipX, middle), L"past its tip, the dot's color");
-            Assert::AreEqual    (0u, GetPixel (*arrow, kPastTipX, middle), L"where the arrow alone leaves nothing");
+            Assert::AreEqual (GetPixel (*dot, kInArrowX, middle), GetPixel (*marked, kInArrowX, middle), L"the dot whole in the left square");
+            Assert::AreEqual (GetPixel (*dot, kPastTipX, middle), GetPixel (*marked, kPastTipX, middle));
+            Assert::AreEqual (GetPixel (*arrow, GutterGlyph::kSizePx + kInArrowX, middle), GetPixel (*marked, GutterGlyph::kSizePx + kInArrowX, middle),
+                              L"and the arrow in the right");
         }
     };
 }

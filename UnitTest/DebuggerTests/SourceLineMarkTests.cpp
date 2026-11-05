@@ -55,10 +55,10 @@ namespace DebuggerTests
 
 
         //  With the disassembly's PC arrow in the style, the marked line's
-        //  arrow is in the view's glyph margin, where the breakpoints are, and
-        //  drawn over the line's breakpoint when it has one; the marker cell
-        //  holds nothing on any line, so the line numbers follow the margin.
-        TEST_METHOD (ThePcsArrowIsInTheGlyphMarginOverTheBreakpoint)
+        //  arrow is in the view's glyph margin, where the breakpoints are, in a
+        //  square right of the line's breakpoint; the marker cell has nothing
+        //  on any line, so the line numbers follow the margin.
+        TEST_METHOD (ThePcsArrowIsInTheGlyphMarginBesideTheBreakpoint)
         {
             constexpr int                   kInArrowX = 14;   // inside the arrow, left of its tip
             constexpr int                   kPastTipX = 39;   // inside the dot, past the arrow's tip
@@ -78,7 +78,7 @@ namespace DebuggerTests
 
             rows = SourcePane::BuildRows (lines, 2, { 4 }, {}, style);
 
-            Assert::IsTrue   (rows[1].icon == style.pcIcon,      L"the arrow itself on a line with no breakpoint");
+            Assert::AreEqual (style.pcIcon->width * 2, rows[1].icon->width, L"the arrow in the right square on a line with no breakpoint");
             Assert::IsTrue   (rows[3].icon == style.enabledIcon, L"a breakpoint's dot on its own line");
             Assert::AreEqual (style.pcRowArgb, rows[1].background, L"the PC's row fill");
             Assert::IsTrue   (rows[1].spans.empty(), L"no triangle to color in the text");
@@ -92,8 +92,9 @@ namespace DebuggerTests
             marked = rows[3].icon.get();
 
             Assert::IsNotNull (marked, L"the marked line with a breakpoint shows both");
-            Assert::AreEqual  (style.pcIcon->bgraPremul[(size_t) (kMiddle * marked->width + kInArrowX)],      marked->bgraPremul[(size_t) (kMiddle * marked->width + kInArrowX)], L"the arrow over the dot");
-            Assert::AreEqual  (style.enabledIcon->bgraPremul[(size_t) (kMiddle * marked->width + kPastTipX)], marked->bgraPremul[(size_t) (kMiddle * marked->width + kPastTipX)], L"the dot past the arrow's tip");
+            Assert::AreEqual  (style.enabledIcon->bgraPremul[(size_t) (kMiddle * style.enabledIcon->width + kInArrowX)], marked->bgraPremul[(size_t) (kMiddle * marked->width + kInArrowX)], L"the dot in the left square");
+            Assert::AreEqual  (style.pcIcon->bgraPremul[(size_t) (kMiddle * style.pcIcon->width + kInArrowX)],           marked->bgraPremul[(size_t) (kMiddle * marked->width + GutterGlyph::kSizePx + kInArrowX)], L"the arrow in the right");
+            Assert::AreEqual  (style.enabledIcon->bgraPremul[(size_t) (kMiddle * style.enabledIcon->width + kPastTipX)], marked->bgraPremul[(size_t) (kMiddle * marked->width + kPastTipX)], L"the dot whole");
         }
     };
 }
