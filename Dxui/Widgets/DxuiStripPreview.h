@@ -52,9 +52,10 @@ public:
     const Image & GetImage  () const { return m_image; }
 
 private:
-    void  Open    ();
-    void  Move    ();
-    void  Render  (IDxuiPainter & painter, IDxuiTextRenderer & text);
+    void  Open          ();
+    void  Move          ();
+    void  ReleasePopup  ();
+    void  Render        (IDxuiPainter & painter, IDxuiTextRenderer & text);
 
     DxuiHwndSource  * m_popupHost  = nullptr;
     DxuiPopupHost   * m_popup      = nullptr;

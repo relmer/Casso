@@ -203,7 +203,7 @@ void DxuiStripFlyout::Open()
     params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text) { Render (painter, text); };
     params.onMoveInside     = [this] (POINT localPx) { HoverAt (localPx); };
     params.onClickInside    = [this] (POINT localPx) { ClickAt (localPx); };
-    params.onClosed         = [this] () { m_popup = nullptr; Close(); };
+    params.onClosed         = [this] () { Close(); };
 
     hr = m_popup->Show (std::move (params));
 
@@ -233,9 +233,9 @@ void DxuiStripFlyout::Close()
 
     m_popup = nullptr;
 
-    if (popup != nullptr)
+    if (popup != nullptr && m_popupHost != nullptr)
     {
-        popup->Close();
+        m_popupHost->ReleasePopup (popup);
     }
 
     if (m_isOpen && m_hoveredRow >= 0 && m_source != nullptr)

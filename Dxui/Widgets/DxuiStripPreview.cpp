@@ -122,14 +122,33 @@ void DxuiStripPreview::Choose (
 
 void DxuiStripPreview::Hide()
 {
+    m_image = nullptr;
+    m_thumb = nullptr;
+
+    ReleasePopup();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiStripPreview::ReleasePopup
+//
+//  Returns the popup to the host's pool, from Hide or from the popup's close
+//  callback when the host closes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiStripPreview::ReleasePopup()
+{
     DxuiPopupHost  * popup = m_popup;
 
 
 
-    // Cleared first, so the popup's close callback finds nothing to clear.
+    // Cleared first, so the popup's close callback has nothing to release.
     m_popup = nullptr;
-    m_image = nullptr;
-    m_thumb = nullptr;
 
     if (popup != nullptr && m_popupHost != nullptr)
     {
@@ -180,7 +199,7 @@ void DxuiStripPreview::Open()
     params.sizeDip          = m_sizeDip;
     params.backgroundArgb   = DxuiPopupHost::kDefaultMenuBackgroundArgb;
     params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text) { Render (painter, text); };
-    params.onClosed         = [this] () { m_popup = nullptr; };
+    params.onClosed         = [this] () { ReleasePopup(); };
 
     hr = m_popup->Show (std::move (params));
 

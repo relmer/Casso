@@ -337,6 +337,40 @@ namespace DxuiImageStripMarkTests
         }
 
 
+#ifdef _DEBUG
+        //  Each open takes a popup from the host's pool, and each close
+        //  returns it, so opening the flyout again and again does not grow
+        //  the pool.
+        TEST_METHOD (AClosedFlyoutReturnsItsPopupToThePool)
+        {
+            MarkingSource    source;
+            DxuiStripFlyout  flyout;
+            DxuiHwndSource   host (RECT { 0, 0, 1024, 768 }, 6.0f, std::make_unique<DxuiPanel>());
+            int64_t          nowMs = 0;
+
+
+
+            DxuiResetUiThreadIdForTest();
+            AddForkRows (source);
+
+            flyout.SetPopupHost (&host);
+
+            for (int i = 0; i < 4; i++)
+            {
+                flyout.Track (&source, true, kForkMark, RECT {}, nowMs);
+                flyout.Sync  (nowMs + DxuiStripFlyout::kOpenDelayMs);
+                flyout.Track (&source, false, 0, RECT {}, nowMs + DxuiStripFlyout::kOpenDelayMs);
+
+                nowMs += 2 * DxuiStripFlyout::kOpenDelayMs;
+
+                Assert::AreEqual<size_t> (0, host.GetPopupActiveCount(), L"no popup still checked out");
+            }
+
+            Assert::IsTrue (host.GetPopupMisses() == 0, L"the pool never grew");
+        }
+#endif
+
+
         TEST_METHOD (AHoverGoesToTheSourceAndAClickSwitchesAndCloses)
         {
             MarkingSource    source;
