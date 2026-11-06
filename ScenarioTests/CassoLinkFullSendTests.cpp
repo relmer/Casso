@@ -206,7 +206,14 @@ public:
             return text.substr (0, text.find_last_not_of (' ') + 1);
         }
 
-        bool  IsPrompting() { return Row (kRowPrompt).starts_with ("PUT IN A NEW DISK"); }
+        //  The pause's prompt is on the history's rows, after the notes on a
+        //  repeat.
+        bool  IsPrompting()
+        {
+            constexpr std::array<Word, 8>  kRows = { 0x07A8, 0x0450, 0x04D0, 0x0550, 0x05D0, 0x0650, 0x06D0, 0x0750 };
+
+            return std::any_of (kRows.begin(), kRows.end(), [&] (Word row) { return Row (row).starts_with ("PUT IN A NEW DISK"); });
+        }
 
         //  Space on the entry screen, which begins the session.
         void  Begin()
@@ -257,7 +264,8 @@ public:
             std::string  line = Row (kRowPrompt);
 
             Logger::WriteMessage (line.c_str());
-            Assert::IsTrue (line.find ("OK") != std::string::npos && line.find ("ERR") == std::string::npos, TextEncoding::NarrowToWide (line).c_str());
+            //  A session's summary fills the line, so it has no OK.
+            Assert::IsTrue ((line.find ("OK") != std::string::npos || line.find ("FULL SEND: ") != std::string::npos) && line.find ("ERR") == std::string::npos, TextEncoding::NarrowToWide (line).c_str());
         }
 
         std::vector<FullSendRow>  Rows()
@@ -543,16 +551,16 @@ public:
         //  Space reads neither disk and lists both. Drive 2's number sends its
         //  disk anyway.
         rig.Press (' ');
-        rig.RunUntil ([&] () { return rig.Row (kRowPrompt2).find ("MAY ALREADY HAVE BEEN SENT") != std::string::npos; }, L"the already-sent prompt");
+        rig.RunUntil ([&] () { return rig.Row (kRowPrompt).find ("MAY ALREADY HAVE BEEN SENT") != std::string::npos; }, L"the already-sent prompt");
 
-        Assert::IsTrue (rig.Row (kRowCounts).find ("DUP 0") != std::string::npos, L"checking a disk doesn't count it");
+        Assert::IsTrue (rig.Row (kRowCounts).find ("DUP 1") != std::string::npos, L"drive 2's repeat counts once, and drive 1's disk just sent not at all");
 
         rig.Press ('2');
         rig.RunUntil ([&] () { return !rig.IsPrompting(); }, L"2 ends the pause");
         rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the next pause");
         pauses++;
 
-        Assert::IsTrue (rig.Row (kRowCounts).find ("SENT 2   DUP 0") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
+        Assert::IsTrue (rig.Row (kRowCounts).find ("SENT 2   DUP 1") != std::string::npos, TextEncoding::NarrowToWide (rig.Row (kRowCounts)).c_str());
 
         //  The next disk has an unreadable sector.
         rig.Mount (1, DiskFormat::Nib, WithUnreadableSector (bad));

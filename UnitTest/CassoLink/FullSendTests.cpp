@@ -808,7 +808,7 @@ public:
         auto  session = rig.Run();
 
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1 }));
-        Assert::AreEqual (1, session->GetScreen().duplicates);
+        Assert::AreEqual (0, session->GetScreen().duplicates);
         Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines.back()[0]);
         Assert::AreEqual (std::string ("OR PRESS 1 TO SEND D1 ANYWAY."), rig.link.pauseLines.back()[4]);
     }
@@ -825,7 +825,7 @@ public:
 
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
-        Assert::AreEqual (1, session->GetScreen().duplicates);
+        Assert::AreEqual (0, session->GetScreen().duplicates);
         Assert::AreEqual (std::string ("D1: SENT 2"), session->GetScreen().GetRows()[3]);
     }
 

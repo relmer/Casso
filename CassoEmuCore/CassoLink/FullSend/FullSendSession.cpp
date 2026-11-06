@@ -985,6 +985,9 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     hr = WriteImage (title, image, unreadable, report.marks, row.file);
     CHRF (hr, m_fileFailed = true);
 
+    //  The disk just sent isn't a duplicate while it stays in its drive.
+    m_counted[(size_t) drive - 1] = fingerprint;
+
     if (earlier != nullptr)
     {
         row.status      = FullSendManifest::kStatusDuplicate;
