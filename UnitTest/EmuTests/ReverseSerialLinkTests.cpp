@@ -730,6 +730,106 @@ namespace ReverseSerialLinkTestNs
         }
 
 
+        //  A replay that diverges cuts history at the last good keyframe, and
+        //  the bytes the port took after that keyframe are received again,
+        //  since the port stays open.
+        TEST_METHOD (AHistoryCutReceivesTheBytesAfterTheCutAgain)
+        {
+            FakeHostSerialPorts                   ports;
+            std::shared_ptr<FakeSerialPortState>  com3       = ports.AddPort ("COM3");
+            TestMachine                           machine    ("Apple2c", TestMachine::Slots::AsShipped, [&ports] (MachineConfig & config, MachineBuildServices & services)
+            {
+                AttachPort1 (config, MakeAttachment (kpszSerialComPort));
+                services.hostSerialPorts = &ports;
+            });
+            ReverseController                     controller (machine);
+            KeyframeStore                       & store      = controller.GetKeyframes();
+            CommEventRecorder                     recorder;
+            std::vector<KeyframeInfo>             infos;
+            std::vector<std::vector<Byte>>        states;
+            ReverseResult                         result;
+            const InputJournal                  & journal    = machine.GetInputJournal();
+            size_t                                bad        = 0;
+            size_t                                expected   = 0;
+            size_t                                received   = 0;
+            size_t                                i          = 0;
+            HRESULT                               hr         = S_OK;
+
+
+
+            PrepareEcho (machine);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            Record (machine, [&com3] (size_t slice)
+            {
+                constexpr size_t  kFeedEvery = 4;
+
+                if (slice % kFeedEvery == 0)
+                {
+                    com3->inbound.insert (com3->inbound.end(), { (Byte) slice, (Byte) (slice + 1) });
+                }
+            });
+
+            Assert::IsTrue (store.GetCount() >= 6, L"the session spans several keyframes");
+
+            bad = store.GetCount() - 3;
+
+            for (i = bad; i < store.GetCount(); i++)
+            {
+                infos.push_back (store.GetInfo (i));
+                states.emplace_back();
+
+                hr = store.Restore (i, states.back());
+                AssertSucceeded (hr, L"Restore");
+            }
+
+            states[0][states[0].size() / 4] ^= 0x5A;
+
+            hr = store.TruncateAfter (store.GetInfo (bad - 1).cycle);
+            AssertSucceeded (hr, L"TruncateAfter");
+
+            for (i = 0; i < infos.size(); i++)
+            {
+                hr = store.Add (infos[i].position, infos[i].cycle, infos[i].journalIndex, states[i]);
+                AssertSucceeded (hr, L"Add");
+            }
+
+            for (i = store.GetInfo (bad - 1).journalIndex; i < journal.GetEndIndex(); i++)
+            {
+                expected += journal.GetRecord (i).kind == InputKind::AciaByte ? 1 : 0;
+            }
+
+            Assert::IsTrue (expected > 0, L"bytes arrived after the last good keyframe");
+
+            hr = controller.SeekToPosition (store.GetInfo (bad).position - 1, result);
+            AssertSucceeded (hr, L"SeekToPosition before the bad keyframe");
+
+            machine.AttachCommEventSink (&recorder);
+
+            hr = controller.StepBack (result);
+            AssertSucceeded (hr, L"StepBack into the stretch before the bad keyframe");
+            Assert::IsTrue (result.outcome == ReverseOutcome::HistoryCut, L"the replay catches the bad keyframe");
+
+            recorder.events.clear();
+
+            for (i = 0; i < kSlices; i++)
+            {
+                machine.RunCycles (kSliceCycles);
+            }
+
+            for (const LoggedEvent & each : recorder.events)
+            {
+                received += each.kind == IoEventKind::SerialReceived ? 1 : 0;
+            }
+
+            Assert::AreEqual (expected, received, L"each byte after the cut received again");
+
+            machine.AttachCommEventSink (nullptr);
+        }
+
+
         //  A state file saved with the line up has no connection behind it once
         //  loaded, so DCD is off, and the connection open before the load is
         //  closed.
