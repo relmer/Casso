@@ -1977,6 +1977,12 @@ bool HeatMapView::IsTipComplete (POINT point) const
 
 void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
+    if (m_cellPx > 0 && scaler.GetDpi() != m_scaler.GetDpi())
+    {
+        RescaleForDpi (boundsPx, scaler);
+        return;
+    }
+
     m_boundsDip = boundsPx;
     m_scaler    = scaler;
 
@@ -2013,6 +2019,58 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     }
 
     PlaceMap();
+    m_isFrameStale = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::RescaleForDpi
+//
+//  The zoom's percentage is the user's zoom rather than a size in pixels,
+//  so it is the same after a move to a monitor of another scale: the cell
+//  becomes the same multiple of the size that fits the pane at the new
+//  scale. The cells then scale with the monitor as the text does. The map
+//  is scrolled the same fraction of the way down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::RescaleForDpi (const RECT & boundsPx, const DxuiDpiScaler & scaler)
+{
+    double  zoom  = (double) m_cellPx / (double) GetStartCellPx();
+    double  down  = (double) m_scrollTop / (double) std::max (1L, m_contentH);
+    double  scale = (double) scaler.GetDpi() / (double) m_scaler.GetDpi();
+
+
+
+    m_boundsDip   = boundsPx;
+    m_scaler      = scaler;
+    m_gutterPx    = (int) std::lround ((double) m_gutterPx * scale);
+    m_labelLinePx = (long) std::lround ((double) m_labelLinePx * scale);
+
+    if (m_gutterPx <= 0)
+    {
+        m_gutterPx = m_scaler.ToPx (kGutterDip);
+    }
+
+    if (m_isFitted)
+    {
+        FitRanges();
+        return;
+    }
+
+    m_fitCellPx = ComputeFitCellPx();
+    m_fittedFor = m_boundsDip;
+    m_cellPx    = std::clamp ((int) std::lround (zoom * (double) m_fitCellPx), 1, kMaxCellPx);
+
+    PlaceMap();
+
+    m_scrollTop = (long) std::lround (down * (double) m_contentH);
+
+    ClampScroll();
     m_isFrameStale = true;
 }
 
