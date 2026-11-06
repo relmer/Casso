@@ -1639,3 +1639,5 @@ Session 2026-11-04. T079 and T082 follow.
 - [ ] T441 Sort a Full Send image's unreadable list by track and sector
 - [ ] T442 Restore the Apple's history after a Full Send, with a line totaling the disks sent, duplicated and bad
 - [ ] T443 Correct quickstart 7c: the manifest is `manifest.fullsend`, not `full-send.csv`, and a protected disk's status is `likely-copy-protected`
+- [ ] T444 Word a firewall block for the profile that is active and blocked: on a PC whose networks are all private, with a block rule for private and public, the page's text was "this public network" and offered Make this network private, which can't help there. Offer only Allow then. Found 2026-11-05 on the owner's desktop
+- [ ] T445 Make the firewall badge on a connection's tree row easier to see: the small amber triangle over the gray Apple icon is easy to miss at the tree's size
