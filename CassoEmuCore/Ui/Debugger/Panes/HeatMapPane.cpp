@@ -821,25 +821,70 @@ void HeatMapPane::RunBarEntry (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HeatMapPane::RouteEarlyMouse
+//  HeatMapPane::ZoomContent
 //
-//  Ctrl+wheel over the map zooms the map rather than the panes' text.
+//  The map zooms rather than the panes' text, wherever over the pane the
+//  wheel turns: over the map about the pointer, framing the cell then under
+//  it, and over the bar or the empty space under a map zoomed out about the
+//  map's middle.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
+bool HeatMapPane::ZoomContent (float notches, std::optional<POINT> clientPx)
 {
-    bool  isZoom = ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && m_host.IsRoutable (m_view) && m_view->IsVisible() &&
-                   m_view->IsOverMap (ev.positionDip);
+    RECT            map   = {};
+    DxuiMouseEvent  wheel;
 
 
 
-    if (isZoom)
+    if (!m_host.IsRoutable (m_view) || !m_view->IsVisible())
     {
-        m_zoomedAtMs = (int64_t) GetTickCount64();
+        return false;
     }
 
-    return isZoom && RouteContentMouse (ev);
+    m_zoomedAtMs = (int64_t) GetTickCount64();
+
+    if (clientPx.has_value() && m_view->IsOverMap (*clientPx))
+    {
+        wheel.kind        = DxuiMouseEventKind::Wheel;
+        wheel.ctrl        = true;
+        wheel.wheelDelta  = notches;
+        wheel.positionDip = *clientPx;
+
+        (void) RouteContentMouse (wheel);
+        return true;
+    }
+
+    map = m_view->GetMapRect();
+    m_view->ZoomAt ({ (map.left + map.right) / 2, (map.top + map.bottom) / 2 }, notches);
+    m_host.RepaintLater();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapPane::ResetContentZoom
+//
+//  The map fitted to the pane again, as the zoom widget's Reset does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HeatMapPane::ResetContentZoom()
+{
+    if (!m_host.IsRoutable (m_view) || !m_view->IsVisible())
+    {
+        return false;
+    }
+
+    m_zoomedAtMs = (int64_t) GetTickCount64();
+
+    m_view->ResetZoom();
+    m_host.RepaintLater();
+    return true;
 }
 
 
@@ -1119,10 +1164,11 @@ void HeatMapPane::Apply (const DebuggerViewSnapshot & snapshot)
     m_view->SetHoverAccess (state.hover);
 
     //  The tip over the map lists the last writer and reader as soon as they
-    //  come in, without waiting for the mouse to move, and a tip held back
-    //  for them shows now.
-    if (isNewHover && m_tipAt.has_value() && (m_host.IsTooltipVisible() || m_isTipPending))
+    //  come in, without waiting for the mouse to move, and a tip pending
+    //  until they came in opens now. It opens in the window the pane is in,
+    //  so a floating pane's tip is drawn in its floating window.
+    if (isNewHover && m_tipAt.has_value() && (m_host.IsPaneTooltipVisible (GetId()) || m_isTipPending))
     {
-        m_host.UpdateTooltip (*m_tipAt);
+        m_host.UpdatePaneTooltip (GetId(), *m_tipAt);
     }
 }

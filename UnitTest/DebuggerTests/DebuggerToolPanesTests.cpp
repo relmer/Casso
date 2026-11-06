@@ -117,6 +117,12 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::GetProfilerPane;
         using DebuggerWindow::GetPaneHostForTest;
         using DebuggerWindow::ShowPane;
+        using DebuggerWindow::OnMouse;
+        using DebuggerWindow::OnKey;
+        using DebuggerWindow::FocusControl;
+        using DebuggerWindow::GetTextZoom;
+        using DebuggerWindow::FindPaneForTest;
+        using DebuggerWindow::GetPaneContentForTest;
 
         //  The name typed in a text dialog, Add symbol's among them.
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring &, TextDialog::CheckFn check) override
@@ -534,6 +540,111 @@ namespace DebuggerToolPanesTests
             snapshot = std::make_shared<DebuggerViewSnapshot> (*snapshot);
             window.TakeSnapshot (snapshot);
             Assert::IsTrue (pane.GetZoom().CanGoBack(), L"the stack is the same after the same build again");
+        }
+
+
+        //  Ctrl+wheel anywhere in the profiler zooms its timeline rather than
+        //  the panes' text, not only over the timeline, and Ctrl+Plus and
+        //  Ctrl+0 zoom it while the pane has the focus.
+        TEST_METHOD (CtrlWheelAnywhereInTheProfilerZoomsItsTimeline)
+        {
+            constexpr int64_t   kFrame   = (int64_t) RoutineProfile::kCyclesPerFrame;
+            CassoTheme          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            ToolWindow          window   (theme, host);
+            DxuiDpiScaler       scaler;
+            auto                snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DxuiListView      * list     = nullptr;
+            DxuiMouseEvent      wheel;
+            DxuiKeyEvent        plus     = { DxuiKeyEventKind::Down, VK_OEM_PLUS, false, false, true, false };
+            DxuiKeyEvent        zero     = { DxuiKeyEventKind::Down, '0',         false, false, true, false };
+            RECT                bounds   = {};
+            float               zoom     = 0.0f;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ShowPane (DebuggerLayout::kProfiler);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            ProfilerPane & pane = window.GetProfilerPane();
+
+            snapshot->isPaused              = true;
+            snapshot->history.hasHistory    = true;
+            snapshot->history.cycle         = 600 * kFrame;
+            snapshot->profile               = ProfileData();
+            snapshot->profile->historyRange = CycleRange (0, 600 * kFrame);
+            snapshot->profile->historyBuild = 1;
+            window.TakeSnapshot (snapshot);
+
+            list   = pane.GetLists().front();
+            bounds = list->GetBounds();
+            zoom   = window.GetTextZoom();
+
+            Assert::IsTrue  (list->IsVisible() && bounds.bottom > bounds.top, L"the routines are listed under the timeline");
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = 1.0f;
+            wheel.positionDip = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+
+            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::IsTrue   (pane.GetZoom().GetState().view.has_value(), L"over the list, the timeline zoomed in");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
+
+            window.FocusControl (list);
+            Assert::IsTrue   (window.OnKey (zero));
+            Assert::IsFalse  (pane.GetZoom().GetState().view.has_value(), L"Ctrl+0 zooms back out to the whole profile");
+
+            Assert::IsTrue   (window.OnKey (plus));
+            Assert::IsTrue   (pane.GetZoom().GetState().view.has_value(), L"Ctrl+Plus zoomed the timeline in");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and not the text");
+        }
+
+
+        //  Ctrl+wheel anywhere in the serial log zooms its graph, as its Zoom
+        //  in and Zoom out do, rather than sizing the panes' text.
+        TEST_METHOD (CtrlWheelAnywhereInTheSerialLogZoomsItsGraph)
+        {
+            CassoTheme           theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost    host;
+            ToolWindow           window (theme, host);
+            DxuiDpiScaler        scaler;
+            CommLogController  * serial = nullptr;
+            DxuiMouseEvent       wheel;
+            RECT                 bounds = {};
+            float                zoom   = 0.0f;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ShowPane (DebuggerLayout::kSerialLog);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            serial = dynamic_cast<CommLogController *> (window.FindPaneForTest (DebuggerLayout::kSerialLog));
+            Assert::IsNotNull (serial, L"the window has a serial log");
+
+            bounds = serial->GetLists().front()->GetBounds();
+            zoom   = window.GetTextZoom();
+
+            Assert::IsTrue (serial->GetLists().front()->IsVisible() && bounds.bottom > bounds.top, L"the serial log is open and laid out");
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = 1.0f;
+            wheel.positionDip = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+
+            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::AreEqual (CommLogController::kDefaultSpan / 2, serial->GetSpan(), L"over the list, the graph zoomed in");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
+
+            wheel.wheelDelta = -1.0f;
+            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::AreEqual (CommLogController::kDefaultSpan, serial->GetSpan(), L"and back out");
         }
 
 

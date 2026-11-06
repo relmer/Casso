@@ -23,8 +23,9 @@ class ToolbarLabelEntry;
 //  is drawn in place of the list. It is read while the machine is paused, so
 //  a running machine's snapshots change only whether profiling is on.
 //
-//  The wheel over the timeline zooms it around the pointer, and a drag on it
-//  selects frames, whose profile the list and the flame graph are drawn from;
+//  The wheel over the timeline zooms it around the pointer, as Ctrl+wheel
+//  anywhere over the pane does, and a drag on it selects frames, whose
+//  profile the list and the flame graph are drawn from;
 //  each zoom, selection and flame graph zoom is a state that the mouse's
 //  back and forward buttons and Alt+Left and Alt+Right move through.
 //
@@ -98,6 +99,8 @@ public:
     bool                         RouteEarlyMouse     (const DxuiMouseEvent & ev) override;
     bool                         RouteBarMouse       (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                         RouteContentMouse   (const DxuiMouseEvent & ev) override;
+    bool                         ZoomContent         (float notches, std::optional<POINT> clientPx) override;
+    bool                         ResetContentZoom    () override;
     bool                         RouteEditKey        (const DxuiKeyEvent & ev, IDxuiControl * focused) override;
     bool                         TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     bool                         AddMenuItems        (DxuiListView * list, int row, PaneMenuItems & items) override;

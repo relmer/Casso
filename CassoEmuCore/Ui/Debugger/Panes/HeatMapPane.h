@@ -92,9 +92,10 @@ public:
     bool                             Tick                (int64_t nowMs) override;
     void                             OnProjectSwitched   () override;
     void                             PlaceBar            () override;
-    bool                             RouteEarlyMouse     (const DxuiMouseEvent & ev) override;
     bool                             RouteBarMouse       (const DxuiMouseEvent & ev) override;
     bool                             RouteContentMouse   (const DxuiMouseEvent & ev) override;
+    bool                             ZoomContent         (float notches, std::optional<POINT> clientPx) override;
+    bool                             ResetContentZoom    () override;
     bool                             TryGetTipAt         (POINT clientPx, DxuiTip & tip);
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 

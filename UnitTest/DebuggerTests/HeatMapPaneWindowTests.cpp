@@ -110,8 +110,19 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::GetTextZoom;
         using DebuggerWindow::OnMouse;
+        using DebuggerWindow::OnKey;
+        using DebuggerWindow::FocusControl;
         using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::GetDockSite;
+        using DebuggerWindow::GetFloatingPanes;
+        using DebuggerWindow::GetPaneContentForTest;
+        using DebuggerWindow::FindPaneForTest;
+
+        //  A floating window with none of the system's behind it.
+        HRESULT CreateFloatWindow (DxuiDockedWindow & window, const DxuiWindow::CreateParams & params) override
+        {
+            return window.CreateHeadless (params);
+        }
     };
 
 
@@ -612,18 +623,39 @@ namespace HeatMapPaneWindowTests
 
 
 
-        TEST_METHOD (CtrlWheelOverTheMapZoomsTheMapAndElsewhereTheText)
+        static DxuiMouseEvent MakeCtrlWheel (POINT point, float notches)
         {
-            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
-            HeatMapHost     host;
-            HeatMapWindow   window (theme, host);
-            HeatMapView   * view   = nullptr;
             DxuiMouseEvent  wheel;
-            float           zoom   = 0.0f;
-            RECT            cell   = {};
-            RECT            bounds = {};
-            Word            target = 0;
-            int             before = 0;
+
+
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = notches;
+            wheel.positionDip = point;
+            return wheel;
+        }
+
+
+        //  Ctrl+wheel anywhere in the pane zooms the map: over a cell about
+        //  the pointer, and over the bar or the empty area under a map
+        //  zoomed out about the map's middle. Over another pane it sizes the
+        //  panes' text.
+        TEST_METHOD (CtrlWheelAnywhereInThePaneZoomsTheMapAndElsewhereTheText)
+        {
+            CassoTheme      theme   = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost     host;
+            HeatMapWindow   window  (theme, host);
+            HeatMapView   * view    = nullptr;
+            DxuiDpiScaler   scaler;
+            float           zoom    = 0.0f;
+            RECT            cell    = {};
+            RECT            bounds  = {};
+            RECT            map     = {};
+            RECT            console = {};
+            POINT           at      = {};
+            Word            target  = 0;
+            int             before  = 0;
 
 
 
@@ -633,21 +665,220 @@ namespace HeatMapPaneWindowTests
             cell   = view->GetCellRect (target);
             zoom   = window.GetTextZoom();
             before = view->GetCellPx();
+            at     = { cell.left + 1, cell.top + 1 };
 
-            wheel.kind        = DxuiMouseEventKind::Wheel;
-            wheel.ctrl        = true;
-            wheel.wheelDelta  = 1.0f;
-            wheel.positionDip = { cell.left + 1, cell.top + 1 };
-
-            Assert::IsTrue   (window.OnMouse (wheel));
+            Assert::IsTrue   (window.OnMouse (MakeCtrlWheel (at, 1.0f)));
             Assert::IsTrue   (view->GetCellPx() > before, L"the map zoomed");
             Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
-            Assert::IsTrue   (view->GetCellRect (target).top <= wheel.positionDip.y && wheel.positionDip.y <= view->GetCellRect (target).bottom, L"about the pointer");
+            Assert::IsTrue   (view->GetCellRect (target).top <= at.y && at.y <= view->GetCellRect (target).bottom, L"about the pointer");
 
-            bounds            = view->GetBounds();
-            wheel.positionDip = { bounds.left + 2, bounds.top + 2 };
-            (void) window.OnMouse (wheel);
-            Assert::IsTrue   (window.GetTextZoom() > zoom, L"off the map, Ctrl+wheel still sizes the text");
+            before = view->GetCellPx();
+            Assert::IsTrue   (window.OnMouse (MakeCtrlWheel (GetCenter (window.GetHeatMapPane().GetBar()->GetBounds()), 1.0f)));
+            Assert::IsTrue   (view->GetCellPx() > before, L"over the bar, the map zoomed");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"over the bar, the text did not");
+
+            //  Tall enough for the smallest map to end above the pane's bottom.
+            scaler.SetDpi (96);
+            window.Layout (RECT { 0, 0, 1400, 3000 }, scaler);
+            view->ZoomTo (1);
+
+            bounds = view->GetBounds();
+            map    = view->GetMapRect();
+            at     = { (map.left + map.right) / 2, (map.bottom + bounds.bottom) / 2 };
+
+            Assert::IsTrue   (map.bottom < bounds.bottom, L"the smallest map ends above the pane's bottom");
+            Assert::IsFalse  (view->IsOverMap (at), L"the point is under the map");
+
+            Assert::IsTrue   (window.OnMouse (MakeCtrlWheel (at, 1.0f)));
+            Assert::AreEqual (2, view->GetCellPx(), L"under the map, the map zoomed");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"under the map, the text did not");
+
+            console = window.GetPaneContentForTest (DebuggerLayout::kConsole)->GetBounds();
+            Assert::IsTrue   (window.OnMouse (MakeCtrlWheel (GetCenter (console), 1.0f)));
+            Assert::IsTrue   (window.GetTextZoom() > zoom, L"over the console, Ctrl+wheel sizes the text");
+            Assert::AreEqual (2, view->GetCellPx(), L"and the map stays at its zoom");
+        }
+
+
+
+        //  Ctrl+Plus and Ctrl+Minus zoom the map while it has the focus, as
+        //  Ctrl+wheel over it does, and Ctrl+0 fits it again. With the focus
+        //  in another pane they size the panes' text.
+        TEST_METHOD (CtrlPlusAndMinusZoomTheMapWhileItHasTheFocus)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost     host;
+            HeatMapWindow   window (theme, host);
+            HeatMapView   * view   = nullptr;
+            DxuiKeyEvent    plus   = { DxuiKeyEventKind::Down, VK_OEM_PLUS,  false, false, true, false };
+            DxuiKeyEvent    minus  = { DxuiKeyEventKind::Down, VK_OEM_MINUS, false, false, true, false };
+            DxuiKeyEvent    zero   = { DxuiKeyEventKind::Down, '0',          false, false, true, false };
+            float           zoom   = 0.0f;
+            int             start  = 0;
+            int             zoomed = 0;
+
+
+
+            BuildShown (window);
+            view  = window.GetHeatMapPane().GetView();
+            zoom  = window.GetTextZoom();
+            start = view->GetCellPx();
+
+            window.FocusControl (view);
+
+            Assert::IsTrue   (window.OnKey (plus));
+            Assert::IsTrue   (window.OnKey (plus));
+            Assert::IsTrue   (view->GetCellPx() > start, L"Ctrl+Plus zoomed the map in");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and not the text");
+
+            zoomed = view->GetCellPx();
+            Assert::IsTrue   (window.OnKey (minus));
+            Assert::IsTrue   (view->GetCellPx() < zoomed, L"Ctrl+Minus zoomed it out");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and not the text");
+
+            Assert::IsTrue   (window.OnKey (zero));
+            Assert::AreEqual (view->GetStartCellPx(), view->GetCellPx(), L"Ctrl+0 fits the map again");
+
+            window.FocusControl (window.FindPaneForTest (DebuggerLayout::kRegisters)->GetLists().front());
+
+            Assert::IsTrue   (window.OnKey (plus));
+            Assert::IsTrue   (window.GetTextZoom() > zoom, L"with the focus on the registers, Ctrl+Plus sizes the text");
+            Assert::AreEqual (view->GetStartCellPx(), view->GetCellPx(), L"and the map stays at its zoom");
+        }
+
+
+
+        //  The heat map floated into a separate window and laid out there;
+        //  returns the floating window.
+        static DxuiDockedWindow * FloatHeatMap (HeatMapWindow & window)
+        {
+            DxuiDockedWindow  * floating = nullptr;
+
+
+
+            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kHeatMap, L"", RECT { 0, 0, 700, 600 }), L"the heat map is in the layout");
+
+            window.GetFloatingPanes().MarkSyncNeeded();
+            window.GetFloatingPanes().Sync();
+
+            floating = window.GetFloatingPanes().Find (DebuggerLayout::kHeatMap);
+            Assert::IsNotNull (floating, L"the heat map floats in a window");
+
+            (void) floating->Deliver (WM_SIZE, SIZE_RESTORED, MAKELPARAM (700, 600));
+            Assert::IsTrue (window.GetHeatMapPane().GetView()->GetBounds().bottom > window.GetHeatMapPane().GetView()->GetBounds().top,
+                            L"the map is laid out in its window");
+            return floating;
+        }
+
+
+
+        //  Ctrl+wheel over a floating heat map's bar zooms the map, as it does
+        //  docked.
+        TEST_METHOD (CtrlWheelOverAFloatingHeatMapsBarZoomsTheMap)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost     host;
+            HeatMapWindow   window (theme, host);
+            HeatMapView   * view   = nullptr;
+            float           zoom   = 0.0f;
+            int             before = 0;
+
+
+
+            BuildShown (window);
+            (void) FloatHeatMap (window);
+
+            view   = window.GetHeatMapPane().GetView();
+            zoom   = window.GetTextZoom();
+            before = view->GetCellPx();
+
+            Assert::IsTrue   (window.GetFloatingPanes().RouteMouse (DebuggerLayout::kHeatMap, MakeCtrlWheel (GetCenter (window.GetHeatMapPane().GetBar()->GetBounds()), 1.0f)));
+            Assert::IsTrue   (view->GetCellPx() > before, L"over the floating bar, the map zoomed");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and the text did not");
+        }
+
+
+
+        //  A floating map's cell tip is drawn in the floating window's
+        //  tooltip, as the docked map's is in the debugger window's.
+        TEST_METHOD (AFloatingMapsCellTipIsDrawnInItsWindow)
+        {
+            CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost            host;
+            HeatMapWindow          window (theme, host);
+            HeatMapView          * view   = nullptr;
+            const DxuiTooltip    * tip    = nullptr;
+            RECT                   cell   = {};
+            DxuiMouseEvent         move;
+            HeatAccessHover        hover;
+            Word                   target = 0;
+
+
+
+            BuildShown (window);
+            (void) FloatHeatMap (window);
+
+            view   = window.GetHeatMapPane().GetView();
+            target = (Word) (view->GetColumns() * 2 + 3);
+            cell   = view->GetCellRect (target);
+
+            hover.address = target;
+            view->SetHoverAccess (std::make_shared<const HeatAccessHover> (hover));
+
+            move.kind        = DxuiMouseEventKind::Move;
+            move.positionDip = { cell.left + 1, cell.top + 1 };
+            (void) window.GetFloatingPanes().RouteMouse (DebuggerLayout::kHeatMap, move);
+            (void) window.GetFloatingPanes().RouteMouse (DebuggerLayout::kHeatMap, move);
+
+            tip = window.GetFloatingPanes().FindTip (DebuggerLayout::kHeatMap);
+            Assert::IsNotNull (tip, L"the floating window has a tooltip");
+            Assert::IsTrue    (tip->IsVisible(), L"the cell's tip is up in the floating window");
+            Assert::AreEqual  (view->GetTipText (target), tip->GetText());
+            Assert::IsFalse   (window.GetTooltip().IsVisible(), L"and not in the debugger window");
+        }
+
+
+
+        //  A floating map's tip is pending until the cell's last writer and
+        //  reader are known, and is drawn in the floating window once a
+        //  snapshot contains them.
+        TEST_METHOD (AFloatingMapsPendingTipIsDrawnOnceItsWriterAndReaderArrive)
+        {
+            CassoTheme             theme    = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost            host;
+            HeatMapWindow          window   (theme, host);
+            HeatMapView          * view     = nullptr;
+            const DxuiTooltip    * tip      = nullptr;
+            RECT                   cell     = {};
+            DxuiMouseEvent         move;
+            HeatAccessHover        hover;
+            DebuggerViewSnapshot   snapshot;
+            Word                   target   = 0;
+
+
+
+            BuildShown (window);
+            (void) FloatHeatMap (window);
+
+            view   = window.GetHeatMapPane().GetView();
+            target = (Word) (view->GetColumns() * 2 + 3);
+            cell   = view->GetCellRect (target);
+
+            move.kind        = DxuiMouseEventKind::Move;
+            move.positionDip = { cell.left + 1, cell.top + 1 };
+            (void) window.GetFloatingPanes().RouteMouse (DebuggerLayout::kHeatMap, move);
+
+            tip = window.GetFloatingPanes().FindTip (DebuggerLayout::kHeatMap);
+            Assert::IsNotNull (tip, L"the floating window has a tooltip");
+            Assert::IsFalse   (tip->IsVisible(), L"not before its writer and reader are in");
+
+            hover.address           = target;
+            snapshot.heatMap.hover  = std::make_shared<const HeatAccessHover> (hover);
+            snapshot.heatMap.banks  = window.GetHeatMapPane().GetBanks();
+            window.GetHeatMapPane().Apply (snapshot);
+
+            Assert::IsTrue    (tip->IsVisible(), L"the tip is up in the floating window once they are");
+            Assert::AreEqual  (view->GetTipText (target), tip->GetText());
         }
 
 

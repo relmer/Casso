@@ -616,6 +616,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ApplyCodeView    (int view);
     void     UpdateTooltip    (POINT clientPx) override;
 
+    //  The pane under a point in the window the event being routed came
+    //  from; and the zoom of a pane whose content zooms apart from the text,
+    //  false for a pane with none. The keys' zoom is the focused pane's.
+    std::wstring GetRoutedPaneAt  (POINT clientPx) const;
+    bool         ZoomPaneContent  (const std::wstring & pane, float notches, std::optional<POINT> clientPx);
+    void         StepFocusedZoom  (int steps);
+    void         ResetFocusedZoom ();
+
     //  The operand tip's window facts (IOperandTipHost): the view and row under
     //  a point, and what may lie over the tip.
     DxuiHwndSource       * GetTipPopupHost      () override { return GetRoutedTooltip().GetPopupHost(); }
@@ -878,6 +886,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                 ShowMemoryAddress      (Word address) override;
     IHostDialogs       * GetHostDialogs         () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
     bool                 IsTooltipVisible       () const override { return m_tooltip.IsVisible(); }
+    void                 UpdatePaneTooltip      (const std::wstring & pane, POINT clientPx) override;
+    bool                 IsPaneTooltipVisible   (const std::wstring & pane) const override;
     void                 RepaintLater           () override { RequestPaint(); }
     HWND                 GetOwnerHwnd           () const override { return GetRoutingHwnd(); }
     IDxuiTextRenderer  * GetPaneTextRenderer    () override { return GetTextRenderer(); }
