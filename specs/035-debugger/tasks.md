@@ -2284,3 +2284,11 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1401 Load file icon as a two-by-two grid of 1s and 0s (FR-381): `DebuggerCommands::PaintLoadFile`. With a three-by-three grid, the 1s ran together at toolbar size.
 - [X] T1402 View menu in sections (FR-385): ranks by hundreds in `DebuggerLayout::GetViewMenuRank`, separators in `ViewMenuRows::Build`. Test: `DebuggerWindowViewCascadeTests::TheViewMenuIsInSections`.
 - [X] T1403 A click on a console file link opens a new File Explorer window (FR-386): `Win32ShellItemVerbs::ShowInFolder`. Casso Explorer's version is 033's T429.
+
+## Phase 67: Debug channel host file access (FR-387 to FR-391)
+
+- [ ] T1404 Tests first: a channel command at a UNC or network path failing; paths under and outside the allowed folders after `..` and link resolution; a script command failing without `--allow-scripts`; no overwrite without the request's overwrite flag; the blocked extensions and the Startup folder; the console line for an access and for a failure; console commands unaffected.
+- [ ] T1405 A host file access policy for channel commands: the allowed folders (mounted disks' and loaded debug and symbol files' folders, `Documents\Casso`, `--allow-path`), UNC paths, scripts, the overwrite rule and the blocked extensions, applied wherever a channel command resolves a host path.
+- [ ] T1406 `CassoCli mcp --allow-path <folder>` (repeatable) and `--allow-scripts`, passed to the instance with the channel's hello so its commands take the client's policy; an overwrite option on the MCP tools that write files.
+- [ ] T1407 Console lines for every channel host file access and failure.
+- [ ] T1408 `docs/DebuggerForAgents.md` and the usage text: the allowed folders, the flags and the failures.

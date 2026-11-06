@@ -3860,6 +3860,30 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-386**: A click on a file's link in the console MUST open a new File
   Explorer window at the file's folder with the file selected, until Casso
   Explorer can bring forward a tab already open on the folder (T1388).
+- **FR-387**: A debugger command from the debug channel, MCP included, that
+  reads or writes a host file at a UNC or other network path MUST fail, with
+  the reason in its reply.
+- **FR-388**: A host file path in a command from the debug channel MUST lie,
+  once relative parts, `..` and links are resolved, under an allowed folder:
+  the folder of a mounted disk image, of a loaded debug or symbol file, the
+  Casso work folder (`Documents\Casso`), or a folder given with
+  `CassoCli mcp --allow-path <folder>`, which may be given more than once. A
+  command at a path outside every allowed folder MUST fail, for reads (such as
+  `BLOAD`, a symbol or debug file load, `DISK INSERT`) and writes (such as
+  `W`, `BSAVE`, `SCREENSHOT`, a symbol table save) alike.
+- **FR-389**: Commands from the debug channel MUST fall into these classes:
+  inspecting state and controlling the machine, which are allowed; host file
+  access, which FR-387 and FR-388 limit; and running a file of commands,
+  which MUST fail unless the channel's client was started with
+  `CassoCli mcp --allow-scripts`. Commands typed in the console, and those in
+  a script the user ran there, MUST NOT be limited by FR-387 to FR-389.
+- **FR-390**: A write from the debug channel MUST NOT replace an existing file
+  unless the request has the overwrite option set, and MUST NOT write a file with the
+  extension `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.js`, `.lnk` or
+  `.scr`, or into a Startup folder, at all.
+- **FR-391**: Every host file read or write a debug channel client makes MUST
+  add a console line with the client's name and the full path, and one that fails
+  a line with the reason.
 
 ### Key Entities
 
