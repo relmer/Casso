@@ -170,10 +170,13 @@ protected:
     bool     HasDragLayer    () const override;
     void     OnWindowFocusChanged (bool focused) override;
 
-    //  Protected so a test can apply one as the keys do.
-    void     ApplyTextZoom   (float zoom);
-    void     StepTextZoom    (int steps);
-    float    GetTextZoom     () const { return m_textZoom; }
+    //  Protected so a test can apply one as the status bar's slider does, and
+    //  step one pane's as the keys and Ctrl+wheel do.
+    void     ApplyTextZoom    (float zoom);
+    void     StepTextZoom     (int steps);
+    float    GetTextZoom      () const { return m_textZoom; }
+    void     StepPaneTextZoom (const std::wstring & pane, int steps);
+    float    GetPaneTextZoom  (const std::wstring & pane) const;
 
     //  Protected so a test can focus a control as a click does.
     void             FocusControl    (IDxuiControl * control) override { SetFocusedControl (control); }
@@ -618,11 +621,13 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     //  The pane under a point in the window the event being routed came
     //  from; and the zoom of a pane whose content zooms apart from the text,
-    //  false for a pane with none. The keys' zoom is the focused pane's.
+    //  false for a pane with none. The keys' zoom is the focused pane's. Then
+    //  every pane's text set to the window's size times the pane's.
     std::wstring GetRoutedPaneAt  (POINT clientPx) const;
     bool         ZoomPaneContent  (const std::wstring & pane, float notches, std::optional<POINT> clientPx);
     void         StepFocusedZoom  (int steps);
     void         ResetFocusedZoom ();
+    void         ApplyTextSizes   ();
 
     //  The operand tip's window facts (IOperandTipHost): the view and row under
     //  a point, and what may lie over the tip.
@@ -741,6 +746,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                  m_openViewsRestored   = false;
     int                                   m_openViewsSettling   = 0;
     float                                 m_textZoom            = 1.0f;
+    std::map<std::wstring, float>         m_paneTextZooms;      // each pane's text size by pane id, over m_textZoom
     DxuiTooltip                           m_tooltip;
     DxuiTipService                        m_tipService          { m_tooltip };
 

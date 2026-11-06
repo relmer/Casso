@@ -459,7 +459,7 @@ public:
 
     virtual void                         Apply          (const DebuggerViewSnapshot & snapshot) { (void) snapshot; }
 
-    //  The panes' text size, as a fraction of the usual.
+    //  The pane's text size, as a fraction of the usual.
     virtual void                         SetTextZoom    (float zoom) { (void) zoom; }
 
     //  Moves what moves between snapshots; true while something does.
@@ -495,7 +495,7 @@ public:
     //  content starts at. Ctrl+wheel anywhere over the pane, and Ctrl+Plus,
     //  Ctrl+Minus and Ctrl+0 while it has the focus, are routed here first.
     //  False for a pane with no zoom apart from the text, whose Ctrl+wheel
-    //  and keys then size the text.
+    //  and keys then size that pane's text alone.
     virtual bool                         ZoomContent       (float notches, std::optional<POINT> clientPx) { (void) notches; (void) clientPx; return false; }
     virtual bool                         ResetContentZoom  () { return false; }
 

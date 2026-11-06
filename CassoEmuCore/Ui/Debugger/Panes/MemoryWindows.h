@@ -47,6 +47,7 @@ public:
     bool                             RequestOpen         () override;
     bool                             RequestClose        () override;
     bool                             IsFixed             () const override { return m_windowId == 1; }
+    void                             SetTextZoom         (float zoom) override;
     void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
 private:
@@ -125,7 +126,6 @@ public:
     bool                             TakesTyping            (const IDxuiControl * control) const override;
     void                             Apply                  (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick                   (int64_t nowMs) override;
-    void                             SetTextZoom            (float zoom) override;
     void                             OnFloatClosed          (DxuiWindow * window) override;
     void                             PlaceBar               () override;
     bool                             RouteBarMouse          (const DxuiMouseEvent & ev) override;
