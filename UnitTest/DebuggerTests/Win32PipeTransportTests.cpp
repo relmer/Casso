@@ -71,7 +71,7 @@ namespace Win32PipeTransportTests
 
 
 
-            hr = descriptor.BuildForUser ((PSID) sid.data());
+            hr = descriptor.BuildForUser ((PSID) sid.data(), SECURITY_MANDATORY_MEDIUM_RID);
             Assert::IsTrue (SUCCEEDED (hr));
             Assert::IsNotNull (descriptor.GetDacl(), L"a DACL is present, not NULL");
 
@@ -97,12 +97,49 @@ namespace Win32PipeTransportTests
 
 
 
-            hr = descriptor.BuildForUser ((PSID) sid.data());
+            hr = descriptor.BuildForUser ((PSID) sid.data(), SECURITY_MANDATORY_MEDIUM_RID);
             Assert::IsTrue (SUCCEEDED (hr));
 
             Assert::AreEqual ((DWORD) sizeof (SECURITY_ATTRIBUTES), descriptor.GetAttributes()->nLength);
             Assert::IsNotNull (descriptor.GetAttributes()->lpSecurityDescriptor);
             Assert::IsFalse   (descriptor.GetAttributes()->bInheritHandle != FALSE, L"no child process inherits it");
+        }
+
+
+
+        //  Without a label the pipe is at Medium, which an unelevated process
+        //  of the same user passes when Casso runs elevated.
+        TEST_METHOD (TheSaclLabelsThePipeAtTheGivenLevel)
+        {
+            std::vector<BYTE>       sid        = WellKnownSid();
+            PipeSecurityDescriptor  descriptor;
+            HRESULT                 hr         = S_OK;
+            DWORD                   rid        = 0;
+            ACCESS_MASK             policy     = 0;
+            bool                    isLabeled  = false;
+
+
+
+            hr = descriptor.BuildForUser ((PSID) sid.data(), SECURITY_MANDATORY_HIGH_RID);
+            Assert::IsTrue (SUCCEEDED (hr));
+
+            isLabeled = MockNamedPipeApi::TryGetLabel (descriptor.GetAttributes()->lpSecurityDescriptor, rid, policy);
+            Assert::IsTrue   (isLabeled, L"one mandatory label entry");
+            Assert::AreEqual ((DWORD) SECURITY_MANDATORY_HIGH_RID, rid, L"at the given level");
+            Assert::AreEqual ((ACCESS_MASK) (SYSTEM_MANDATORY_LABEL_NO_WRITE_UP | SYSTEM_MANDATORY_LABEL_NO_READ_UP), policy, L"no write up and no read up");
+        }
+
+
+
+        TEST_METHOD (TheCurrentIntegrityLevelCanBeRead)
+        {
+            DWORD    rid = 0;
+            HRESULT  hr  = PipeSecurityDescriptor::GetCurrentIntegrityLevel (rid);
+
+
+
+            Assert::IsTrue (SUCCEEDED (hr));
+            Assert::IsTrue (rid >= SECURITY_MANDATORY_LOW_RID && rid <= SECURITY_MANDATORY_SYSTEM_RID, L"a level a process token can have");
         }
 
 
@@ -146,7 +183,7 @@ namespace Win32PipeTransportTests
 
 
             Rig() :
-                transport (api, 1234, WellKnownSid())
+                transport (api, 1234, WellKnownSid(), SECURITY_MANDATORY_HIGH_RID)
             {
                 api.expectedSid = WellKnownSid();
             }
@@ -213,6 +250,20 @@ namespace Win32PipeTransportTests
             Assert::IsTrue   ((rig.api.created[0].pipeMode & PIPE_REJECT_REMOTE_CLIENTS) != 0, L"remote clients refused");
             Assert::IsTrue   ((rig.api.created[0].openMode & FILE_FLAG_FIRST_PIPE_INSTANCE) != 0, L"the name cannot be squatted");
             Assert::AreEqual ((DWORD) PIPE_UNLIMITED_INSTANCES, rig.api.created[0].maxInstances);
+        }
+
+
+
+        TEST_METHOD (ThePipeIsLabeledAtTheTransportsIntegrityLevel)
+        {
+            Rig  rig;
+
+
+
+            rig.ListenOk();
+
+            Assert::IsTrue   (rig.api.created[0].isLabeled, L"the descriptor passed to the pipe has a mandatory label");
+            Assert::AreEqual ((DWORD) SECURITY_MANDATORY_HIGH_RID, rig.api.created[0].labelRid);
         }
 
 
