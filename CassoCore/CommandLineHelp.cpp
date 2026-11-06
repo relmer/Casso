@@ -264,7 +264,6 @@ std::string CommandLineHelp::BuildGeneralHelp (const std::string & banner, char 
         { "run "    + lp + "help", "Run options: load address, where execution starts, limits" },
         { "disk "   + lp + "help", "Disk commands, their options, and a worked example" },
         { "debug "  + lp + "help", "Debug options: the machine, its disks, the script, the budget" },
-        { "mcp "    + lp + "help", "MCP options: the folders and scripts its client's commands may use" },
         { lp + "version",          "Version information" },
     };
 

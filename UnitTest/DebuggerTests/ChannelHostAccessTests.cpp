@@ -328,6 +328,10 @@ namespace DebuggerControllerTests
             hr = rig.files.WriteAllText (L"C:\\Elsewhere\\x.bin", "old");
             Assert::AreEqual (S_OK, hr);
 
+            //  A channel line first, so the console's lines run after one.
+            (void) rig.Send ("R");
+            rig.console.clear();
+
             reply = rig.controller.GetSession().ExecuteLine ("BSAVE C:\\Elsewhere\\x.bin 300,10");
             Assert::IsTrue (reply.status == CommandStatus::Ok, Widen (reply.error.detail).c_str());
 
