@@ -47,6 +47,7 @@ bool DxuiListRows::OnPress (const DxuiMouseEvent & ev, int row)
     }
 
     m_list.m_focusGroup = -1;
+    m_rowPressed        = true;
 
     if (!ev.ctrl && !ev.shift && m_list.m_selectedRows.size() > 1 && m_list.IsRowSelected (row))
     {
@@ -270,16 +271,23 @@ bool DxuiListRows::EndPress()
 //  activation, activates it on the second click on the same row inside the
 //  system double-click time. Returns whether the release was over a row.
 //
+//  A release with no press on a row in the list before it is ignored. When a
+//  popup menu closes on its press, the release goes to the list under it,
+//  over the row under the menu's item, and selected that row.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListRows::OnRelease (int row)
 {
     bool  activate  = true;
     bool  collapsed = m_list.m_selectedRows.size() > 1;
+    bool  pressed   = m_rowPressed;
 
 
 
-    if (row < 0)
+    m_rowPressed = false;
+
+    if (row < 0 || !pressed)
     {
         return false;
     }

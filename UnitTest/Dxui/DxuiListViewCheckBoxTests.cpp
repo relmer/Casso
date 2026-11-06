@@ -116,4 +116,30 @@ public:
         Assert::IsTrue (f.toggled == std::vector<int> ({ 2 }));
         Assert::IsTrue (f.list.GetSelectedRows() == std::vector<int> ({ 0 }), L"Only the host's toggle changes the selection");
     }
+
+
+
+    //  A popup menu over the list closes on its press, and the release goes to
+    //  the list: it selects nothing, as the press was not the list's.
+    TEST_METHOD (AReleaseWithNoPressInTheList_SelectsNothing)
+    {
+        constexpr int  kRowHeightPx = 30;
+        constexpr int  kTextPx      = 100;
+
+        Fixture         f;
+        DxuiMouseEvent  release;
+
+
+
+        f.list.SetShowHeader   (false);
+        f.list.SetSelectedRows ({ 0 }, 0);
+
+        release.kind        = DxuiMouseEventKind::Up;
+        release.button      = DxuiMouseButton::Left;
+        release.positionDip = POINT { kTextPx, kRowHeightPx * 2 + kRowHeightPx / 2 };
+
+        f.list.OnMouse (release);
+
+        Assert::IsTrue (f.list.GetSelectedRows() == std::vector<int> ({ 0 }));
+    }
 };

@@ -44,6 +44,7 @@ public:
     //  Ends a drag that is extending the selection, keeping what it selected.
     void  EndDragSelect            () { m_dragSelecting = false; }
     bool  IsDragSelecting          () const { return m_dragSelecting; }
+    void  ClearRowPress            () { m_rowPressed = false; }
     void  SetActivateOnDoubleClick (bool enabled) { m_activateOnDoubleClick = enabled; }
 
     void  Paint (IDxuiPainter                     & painter,
@@ -79,6 +80,7 @@ private:
     bool     m_activateOnDoubleClick = false;
     bool     m_dragSelecting         = false;
     bool     m_pressModified         = false;   // Ctrl or Shift was down for the row press
+    bool     m_rowPressed            = false;   // set by a press on a row in the list; a release without one is ignored
     int      m_lastClickRow          = -1;
     int64_t  m_lastClickMs           = 0;
 };

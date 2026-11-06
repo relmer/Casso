@@ -742,8 +742,9 @@ void DxuiListItemPainter::PaintHomeItem (IDxuiTextRenderer & text, const DxuiLis
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    //  The hovered row's buttons, which its text ends short of.
-    if (!tile && item == m_list.m_hovered)
+    //  The buttons of a hovered or selected row, as File Explorer's Home has
+    //  them, which the row's text ends short of.
+    if (!tile && (item == m_list.m_hovered || m_list.IsRowSelected (item)))
     {
         static constexpr const wchar_t *  s_kActionGlyphs[] = { L"\xE838", L"\xE99A", L"\xE712" };
 

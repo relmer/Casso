@@ -1344,8 +1344,9 @@ bool DxuiListView::OnDrag (int lx, int ly, bool inside)
 
 bool DxuiListView::OnRelease (int lx, int ly, bool inside)
 {
-    int   row    = inside ? HitTestRow (lx, ly) : -1;
-    bool  ranged = m_rows.EndPress();
+    int   row     = inside ? HitTestRow (lx, ly) : -1;
+    bool  ranged  = m_rows.EndPress();
+    bool  handled = false;
 
 
 
@@ -1371,7 +1372,12 @@ bool DxuiListView::OnRelease (int lx, int ly, bool inside)
         return true;
     }
 
-    return m_band.OnRelease() || ranged || m_scrollbars.OnRelease() || m_header.OnRelease (lx, ly) || m_rows.OnRelease (row);
+    handled = m_band.OnRelease() || ranged || m_scrollbars.OnRelease() || m_header.OnRelease (lx, ly) || m_rows.OnRelease (row);
+
+    //  A release that something else took ends the row's press as well.
+    m_rows.ClearRowPress();
+
+    return handled;
 }
 
 
