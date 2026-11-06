@@ -1041,6 +1041,7 @@ bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & moni
 {
     Floating      entry;
     std::wstring  window = GetFloatingWindow (pane);
+    Node *        group  = FindGroup (m_root.get(), pane);
     bool          shared = false;
 
 
@@ -1078,9 +1079,15 @@ bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & moni
     entry.isActive   = true;
     entry.homePane   = IsDocked (pane) ? GetNeighbor (pane) : std::wstring();
 
+    if (group != nullptr && group->panes.size() > 1)
+    {
+        entry.homeIndex = (int) (std::find (group->panes.begin(), group->panes.end(), pane) - group->panes.begin());
+    }
+
     for (const AutoHidden & hidden : m_autoHidden)
     {
-        entry.homePane = (hidden.pane == pane) ? hidden.homePane : entry.homePane;
+        entry.homePane  = (hidden.pane == pane) ? hidden.homePane  : entry.homePane;
+        entry.homeIndex = (hidden.pane == pane) ? hidden.homeIndex : entry.homeIndex;
     }
 
     Detach (pane);
@@ -1302,8 +1309,9 @@ bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
 //
 //  A floating or auto-hidden pane returns to the pane it sat beside, tabbed
 //  with it; when that pane is not docked any more, against the right edge.
-//  An auto-hidden pane that shared its group is inserted at its index among
-//  the group's tabs, or at the end when the group now has fewer tabs.
+//  A floating or auto-hidden pane that shared its group is inserted at its
+//  index among the group's tabs, or at the end when the group now has fewer
+//  tabs, and is the group's active tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1324,7 +1332,8 @@ bool DxuiPaneLayout::DockBack (const std::wstring & pane)
 
     for (const Floating & floating : m_floating)
     {
-        home = (floating.pane == pane) ? floating.homePane : home;
+        home            = (floating.pane == pane) ? floating.homePane  : home;
+        place.homeIndex = (floating.pane == pane) ? floating.homeIndex : place.homeIndex;
     }
 
     for (const AutoHidden & hidden : m_autoHidden)
@@ -2100,6 +2109,12 @@ std::wstring DxuiPaneLayout::ToText() const
             out += L" " + quote (f.window) + (f.isActive ? L" active" : L"");
         }
 
+        //  The index among its group's tabs, for a pane that shared a group.
+        if (f.homeIndex >= 0)
+        {
+            out += std::format (L" index {}", f.homeIndex);
+        }
+
         out += L"\n";
     }
 
@@ -2412,6 +2427,23 @@ bool DxuiPaneLayout::TryParse (const std::wstring & text, DxuiPaneLayout & out)
                 floating.window   = tokens[at].substr (1);
                 floating.isActive = at + 1 < tokens.size() && tokens[at + 1] == L"active";
                 at += floating.isActive ? 2 : 1;
+            }
+
+            //  Absent from a layout saved by an older build.
+            if (at + 1 < tokens.size() && tokens[at] == L"index")
+            {
+                wchar_t  * indexEnd = nullptr;
+
+
+
+                floating.homeIndex = (int) wcstol (tokens[at + 1].c_str(), &indexEnd, 10);
+
+                if (tokens[at + 1].empty() || *indexEnd != L'\0' || floating.homeIndex < 0)
+                {
+                    return false;
+                }
+
+                at += 2;
             }
 
             layout.m_floating.push_back (floating);

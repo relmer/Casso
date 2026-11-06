@@ -82,14 +82,18 @@ public:
     //  window, in the order of their entries, with one of them `isActive`;
     //  every entry of a window has the window's monitor and rect. A pane
     //  floating alone is a window of its own, keyed by its name.
+    //  `homeIndex` is the pane's index among its group's tabs when it
+    //  floated, or -1 when it was alone in its group; DockBack inserts it
+    //  there rather than last.
     struct Floating
     {
         std::wstring  pane;
         std::wstring  monitorKey;
-        RECT          rectDip  = {};
+        RECT          rectDip   = {};
         std::wstring  homePane;
         std::wstring  window;
-        bool          isActive = true;
+        bool          isActive  = true;
+        int           homeIndex = -1;
     };
 
     //  A pane that was alone in its group also keeps the panes on the other

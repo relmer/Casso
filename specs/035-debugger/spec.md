@@ -3886,6 +3886,26 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-391**: Every host file read or write a debug channel client makes MUST
   add a console line with the client's name and the full path, and one that fails
   a line with the reason.
+- **FR-392**: The heat map's fills for run, read, written, self-modifying, read
+  before written and value changed MUST each be clearly distinct from the
+  others in every theme, by a measured color distance, so that the self-modifying,
+  value changed and written fills are never taken for one another.
+- **FR-393**: The heat map's color key MUST list only the colors the view and
+  options can draw. The All view MUST list run, operand, read, written and
+  read before written, and self-modifying only with Blend on; Code MUST list
+  run and operand; Data MUST list read, written and read before written;
+  Changed MUST list value changed alone. Every view MUST also list the
+  symbol tint and the outlines for the PC, the stack pointer, breakpoints
+  and read and write data breakpoints.
+- **FR-394**: The tip over a heat map cell MUST start with a small square in
+  the cell's color beside the meaning of that color, as the color key words it
+  ("Value changed", "Written", "Untouched"), ahead of the cell's address and
+  counts.
+- **FR-395**: A pane docked back from a floating window, from its Dock menu or
+  its window's pin, MUST return to the tab index it had in its group, clamped to
+  the group's size when the group has shrunk, and MUST be the group's active
+  tab. The index MUST be saved with the layout, and a layout saved without it
+  MUST load and dock the pane last.
 
 ### Key Entities
 
