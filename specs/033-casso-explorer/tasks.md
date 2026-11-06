@@ -1095,6 +1095,8 @@ are allowed.
   UAC prompt, the package install and upgrade, the Network page's blocked
   wording, and a PC with private and public both active.
 
+  Walked 2026-11-05 on the owner's desktop, whose networks are all private, with a block rule for Casso Explorer's Debug build on private and public, and the laptop's Casso announcing an emulated Uthernet II over the LAN: the badge is on Uthernet II (any address) alone, the page has the port, the rule and both actions, the laptop's Apple isn't listed while blocked, Allow in Windows Firewall through UAC adds "Casso Explorer, UDP 6510" and turns off the UDP block, the Apple is listed within seconds with neither program restarted, and the serial connection has no warning throughout. Found: T444, T445, T447. Left: the package install and upgrade, and a PC with private and public both active.
+
 **Dependencies**: T248 and T249 and T250 stand alone and can go in any order.
 T251 before T252, T253, T254 and T255. T256 last. T254 and T255 can run
 alongside each other once T251 is in.
@@ -1641,3 +1643,5 @@ Session 2026-11-04. T079 and T082 follow.
 - [ ] T443 Correct quickstart 7c: the manifest is `manifest.fullsend`, not `full-send.csv`, and a protected disk's status is `likely-copy-protected`
 - [ ] T444 Word a firewall block for the profile that is active and blocked: on a PC whose networks are all private, with a block rule for private and public, the page's text was "this public network" and offered Make this network private, which can't help there. Offer only Allow then. Found 2026-11-05 on the owner's desktop
 - [ ] T445 Make the firewall badge on a connection's tree row easier to see: the small amber triangle over the gray Apple icon is easy to miss at the tree's size
+- [ ] T446 Draw a list row's item checkbox as File Explorer does when item checkboxes are on: an empty box on the row under the pointer, a checked box on a checked row, and a checked box on the row with keyboard focus. Found on the owner's laptop, where every row of a details view had one
+- [ ] T447 Connect to an Apple whose announcement has an address with no route from the PC, such as an emulated Uthernet II's private address (10.0.65.15) behind another PC's Casso: use the announcement's source address, with the port that PC's Casso forwards, or put the host's LAN address and forwarded port in the announcement Casso relays. Found 2026-11-05: the desktop listed the laptop's //e and then stayed on Connecting
