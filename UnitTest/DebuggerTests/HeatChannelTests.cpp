@@ -168,6 +168,82 @@ namespace DebuggerTests
 
 
 
+        //  A cell's tip starts with the color the cell is drawn in and the
+        //  label of what drew it, as the legend words it.
+        TEST_METHOD (TheTipLeadsWithTheCellsColorAndItsMeaning)
+        {
+            HeatMapView        view;
+            DxuiDpiScaler      scaler;
+            HeatMapOptions     options;
+            std::vector<Byte>  execute   (0x10000, 0);
+            std::vector<Byte>  read      (0x10000, 0);
+            std::vector<Byte>  write     (0x10000, 0);
+            std::vector<Byte>  unwritten (0x10000, 0);
+            std::vector<Byte>  changed   (0x10000, 0);
+            std::vector<Byte>  none;
+
+
+
+            view.SetPalette (MakePalette());
+            view.Layout (RECT { 0, 0, 600, 400 }, scaler);
+            view.SetTop (50000.0);
+
+            write[0x2001]     = 255;
+            changed[0x2001]   = 255;
+            read[0x2000]      = 255;
+            unwritten[0x2000] = 255;
+            execute[0x3000]   = 255;
+            write[0x3000]     = 255;
+
+            view.SetChannelLevels (unwritten, changed);
+            view.SetLevels        (execute, read, write);
+
+            Assert::AreEqual (std::wstring (L"Written"),             view.GetTipLead (0x2001).meaning);
+            Assert::AreEqual (kWrite,                                view.GetTipLead (0x2001).argb);
+            Assert::AreEqual (std::wstring (L"Read before written"), view.GetTipLead (0x2000).meaning);
+            Assert::AreEqual (kUnwritten,                            view.GetTipLead (0x2000).argb);
+            Assert::AreEqual (std::wstring (L"Untouched"),           view.GetTipLead (0x4000).meaning);
+            Assert::AreEqual (kCold,                                 view.GetTipLead (0x4000).argb);
+
+            options.view = Mode::Changed;
+            view.SetOptions (options);
+
+            Assert::AreEqual (std::wstring (L"Value changed"), view.GetTipLead (0x2001).meaning);
+            Assert::AreEqual (kChanged,                        view.GetTipLead (0x2001).argb);
+            Assert::AreEqual (std::wstring (L"Untouched"),     view.GetTipLead (0x2000).meaning);
+
+            options.view  = Mode::All;
+            options.blend = true;
+            view.SetOptions (options);
+
+            Assert::AreEqual (std::wstring (L"Self-modifying"), view.GetTipLead (0x3000).meaning);
+        }
+
+
+
+        //  Which kind drew a cell, for each view and Blend.
+        TEST_METHOD (TheKindOfACellFollowsTheViewAndBlend)
+        {
+            using Kind = HeatMapView::CellKind;
+
+
+
+            Assert::IsTrue (Kind::Code          == HeatMapView::GetCellKind (Mode::All,     9, 0, 0, 0, 0, false, false));
+            Assert::IsTrue (Kind::Operand       == HeatMapView::GetCellKind (Mode::All,     9, 0, 0, 0, 0, true,  false));
+            Assert::IsTrue (Kind::Written       == HeatMapView::GetCellKind (Mode::All,     1, 0, 9, 0, 0, false, false), L"the hotter kind is drawn");
+            Assert::IsTrue (Kind::Read          == HeatMapView::GetCellKind (Mode::Data,    9, 5, 2, 0, 0, false, false), L"Data omits code");
+            Assert::IsTrue (Kind::Untouched     == HeatMapView::GetCellKind (Mode::Code,    0, 9, 9, 0, 0, false, false));
+            Assert::IsTrue (Kind::Unwritten     == HeatMapView::GetCellKind (Mode::All,     0, 9, 0, 3, 0, false, false));
+            Assert::IsTrue (Kind::Untouched     == HeatMapView::GetCellKind (Mode::Code,    0, 9, 0, 3, 0, false, false), L"Code omits it");
+            Assert::IsTrue (Kind::Changed       == HeatMapView::GetCellKind (Mode::Changed, 9, 9, 9, 3, 2, false, false));
+            Assert::IsTrue (Kind::Untouched     == HeatMapView::GetCellKind (Mode::Changed, 9, 9, 9, 3, 0, false, false), L"a write of the same value");
+            Assert::IsTrue (Kind::SelfModifying == HeatMapView::GetCellKind (Mode::All,     9, 0, 9, 0, 0, false, true));
+            Assert::IsTrue (Kind::Code          == HeatMapView::GetCellKind (Mode::All,     9, 0, 9, 0, 0, false, false), L"Blend is off");
+            Assert::IsTrue (Kind::Blended       == HeatMapView::GetCellKind (Mode::All,     9, 4, 0, 0, 0, false, true));
+        }
+
+
+
         //  The snapshot carries both channels at every level; with writes
         //  that change nothing left out, the writes are the changes.
         TEST_METHOD (TheSnapshotCarriesTheChannelsAndCanLeaveOutWritesThatChangeNothing)
@@ -334,14 +410,20 @@ namespace DebuggerTests
 
             for (const ColorLegend::Entry & entry : ColorLegend::GetEntries())
             {
-                if (entry.meaning == ColorLegend::Meaning::HeatUnwritten || entry.meaning == ColorLegend::Meaning::HeatChanged)
+                if (entry.meaning == ColorLegend::Meaning::HeatUnwritten)
                 {
-                    Assert::IsTrue   (entry.pane == ColorLegend::Pane::HeatMap);
+                    Assert::IsTrue (entry.pane == ColorLegend::Pane::HeatMap || entry.pane == ColorLegend::Pane::HeatMapBlend || entry.pane == ColorLegend::Pane::HeatMapData);
+                    listed++;
+                }
+
+                if (entry.meaning == ColorLegend::Meaning::HeatChanged)
+                {
+                    Assert::IsTrue (entry.pane == ColorLegend::Pane::HeatMapChanged);
                     listed++;
                 }
             }
 
-            Assert::AreEqual (2, listed);
+            Assert::AreEqual (4, listed);
             Assert::IsTrue   (std::wstring (ColorLegend::GetText (ColorLegend::Meaning::HeatUnwritten)).starts_with (L"Read before written"));
             Assert::IsTrue   (std::wstring (ColorLegend::GetText (ColorLegend::Meaning::HeatChanged)).starts_with (L"Value changed"));
         }

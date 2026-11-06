@@ -376,8 +376,40 @@ public:
 
     //  The tip for a point on the map: the cell it picks, framed, and its
     //  address and what touched it, "$C65E  executed 120/s, read 3/s"; false
-    //  off the map and while a button is down.
-    bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text) const;
+    //  off the map and while a button is down. The tip's first line is the
+    //  meaning of the cell's color (GetTipLead) and `swatches` has the cell's
+    //  color for that line, zero for the rest.
+    bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches) const;
+
+    //  What drew a cell: nothing touched it; or run as code, as an operand
+    //  only, read, written, run as code and written, read before written, a
+    //  write that changed its byte, or a Blend mix of kinds, which has no
+    //  single color.
+    enum class CellKind
+    {
+        Untouched,
+        Code,
+        Operand,
+        Read,
+        Written,
+        SelfModifying,
+        Unwritten,
+        Changed,
+        Blended,
+    };
+
+    static CellKind  GetCellKind (Mode mode, Byte execute, Byte read, Byte write, Byte unwritten, Byte changed, bool isOperand, bool isBlend);
+    CellKind         GetCellKind (Word address) const;
+
+    //  The first line of a cell's tip: the label of what drew the cell, and
+    //  the color the cell is drawn in, for the swatch beside the label.
+    struct TipLead
+    {
+        std::wstring  meaning;
+        uint32_t      argb = 0;
+    };
+
+    TipLead              GetTipLead   (Word address) const;
 
     //  Whether the tip for a point is whole: the last writer and reader of
     //  the cell it picks are in, or nothing looks them up. A tip shown before

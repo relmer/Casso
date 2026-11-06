@@ -50,9 +50,9 @@ DebuggerTextColors::Set DebuggerTextColors::Make (
     set.heatStack         = dark ? 0xFF35D0E0 : 0xFF00838F;
     set.heatReadWatch     = dark ? 0xFF7CDB6E : 0xFF1B7F2A;
     set.heatWriteWatch    = dark ? 0xFFFFA238 : 0xFFC05800;
-    set.heatSelfModifying = dark ? 0xFFE060E0 : 0xFFA0179F;
-    set.heatUnwritten     = dark ? 0xFFB080FF : 0xFF6A2BC0;
-    set.heatChanged       = dark ? 0xFFFF80C0 : 0xFFB0206A;
+    set.heatSelfModifying = dark ? 0xFFFF3DD0 : 0xFFE0009A;
+    set.heatUnwritten     = dark ? 0xFF7A5CFF : 0xFF6A2BC0;
+    set.heatChanged       = dark ? 0xFFFFD23C : 0xFFB07800;
 
     against = { page, set.pcRow, set.targetRow, set.navigatedRow };
 

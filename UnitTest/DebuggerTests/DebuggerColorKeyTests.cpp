@@ -244,7 +244,7 @@ namespace DebuggerColorKeyTests
 
             Assert::IsTrue   (window.GetColorKeys().GetPopup().IsShown(), L"no key over the button");
             Assert::IsFalse  (window.GetColorKeys().GetPopup().IsHeld(), L"a resting pointer holds nothing");
-            Assert::IsTrue   (window.GetColorKeys().GetPopup().GetPane() == ColorLegend::Pane::HeatMap);
+            Assert::IsTrue   (window.GetColorKeys().GetPopup().GetPane() == ColorLegend::Pane::HeatMap, L"the All view without Blend");
             Assert::AreEqual (ColorLegend::GetEntriesFor (ColorLegend::Pane::HeatMap).size(), window.GetColorKeys().GetPopup().GetRows().size(), L"another pane's lines in the key");
 
             Send (window, DxuiMouseEventKind::Move, POINT { 5, kHeight / 2 });

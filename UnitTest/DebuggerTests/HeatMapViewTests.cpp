@@ -474,10 +474,11 @@ namespace DebuggerTests
 
                 for (int offset = 0; offset < view.GetColumns() * 3; offset++)
                 {
-                    Word          address = (Word) (view.GetColumns() + offset);
-                    RECT          rect    = view.GetCellRect (address);
-                    RECT          anchor  = {};
-                    std::wstring  tip;
+                    Word                   address  = (Word) (view.GetColumns() + offset);
+                    RECT                   rect     = view.GetCellRect (address);
+                    RECT                   anchor   = {};
+                    std::wstring           tip;
+                    std::vector<uint32_t>  swatches;
                     std::wstring  label   = std::format (L"${:04X}", address);
                     POINT         nearEnd = { rect.left,      rect.top + 1 };
                     POINT         farEnd  = { rect.right - 1, rect.bottom - 1 };
@@ -494,8 +495,9 @@ namespace DebuggerTests
                         Assert::AreEqual (address, view.GetAddressAt (street).value_or (0), (L"its street " + label).c_str());
                     }
 
-                    Assert::IsTrue (view.TryGetTipAt (farEnd, anchor, tip), label.c_str());
-                    Assert::IsTrue (tip.starts_with (label), tip.c_str());
+                    Assert::IsTrue (view.TryGetTipAt (farEnd, anchor, tip, swatches), label.c_str());
+                    Assert::IsTrue (tip.starts_with (L"Untouched\n" + label), tip.c_str());
+                    Assert::AreEqual ((size_t) 1, swatches.size(), L"a swatch for the first line");
 
                     view.OnMouse (MakeEvent (DxuiMouseEventKind::Down, farEnd));
                     view.OnMouse (MakeEvent (DxuiMouseEventKind::Up,   farEnd));
@@ -1080,11 +1082,12 @@ namespace DebuggerTests
         {
             HeatMapView        view;
             std::vector<Byte>  read (0x10000, 0);
-            std::vector<Byte>  none;
-            RECT               anchor   = {};
-            RECT               expected = {};
-            std::wstring       text;
-            POINT              beside   = {};
+            std::vector<Byte>      none;
+            RECT                   anchor   = {};
+            RECT                   expected = {};
+            std::wstring           text;
+            std::vector<uint32_t>  swatches;
+            POINT                  beside   = {};
 
 
 
@@ -1096,14 +1099,16 @@ namespace DebuggerTests
             expected = view.GetCellRect (0x2001);
             InflateRect (&expected, HeatMapView::kStreetPx, HeatMapView::kStreetPx);
 
-            Assert::IsTrue   (view.TryGetTipAt (beside, anchor, text));
-            Assert::IsTrue   (text.starts_with (L"$2001  read "), text.c_str());
+            Assert::IsTrue   (view.TryGetTipAt (beside, anchor, text, swatches));
+            Assert::IsTrue   (text.starts_with (L"Read\n$2001  read "), text.c_str());
+            Assert::AreEqual ((size_t) 1, swatches.size(), L"the color of the cell, beside the first line");
+            Assert::AreEqual (view.GetCellColor (0x2001), swatches.front());
             Assert::IsTrue   (EqualRect (&anchor, &expected) != FALSE, L"anchored on the busier cell the pick snapped to");
 
-            Assert::IsFalse  (view.TryGetTipAt ({ 2, 100 }, anchor, text), L"none over the row labels");
+            Assert::IsFalse  (view.TryGetTipAt ({ 2, 100 }, anchor, text, swatches), L"none over the row labels");
 
             view.OnMouse (MakeEvent (DxuiMouseEventKind::Down, beside));
-            Assert::IsFalse  (view.TryGetTipAt (beside, anchor, text), L"none while the button is down");
+            Assert::IsFalse  (view.TryGetTipAt (beside, anchor, text, swatches), L"none while the button is down");
         }
 
 

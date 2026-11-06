@@ -4,6 +4,7 @@
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/Reply.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 
 
@@ -1839,6 +1840,150 @@ std::wstring HeatMapView::GetTipText (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapView::GetCellKind
+//
+//  What GetColor and GetChannelColor draw for the levels, in the order they
+//  draw it: Changed draws the changed writes alone; a read before written
+//  covers the rest in All and Data; then Blend gives a mix of kinds, or the
+//  self-modifying color, and else the hotter of code and data is drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapView::CellKind HeatMapView::GetCellKind (
+    Mode   mode,
+    Byte   execute,
+    Byte   read,
+    Byte   write,
+    Byte   unwritten,
+    Byte   changed,
+    bool   isOperand,
+    bool   isBlend)
+{
+    Byte      ran       = (mode == Mode::Data) ? (Byte) 0 : execute;
+    Byte      got       = (mode == Mode::Code) ? (Byte) 0 : read;
+    Byte      put       = (mode == Mode::Code) ? (Byte) 0 : write;
+    Byte      data      = std::max (read, write);
+    int       kindCount = (ran > 0 ? 1 : 0) + (got > 0 ? 1 : 0) + (put > 0 ? 1 : 0);
+    CellKind  code      = isOperand ? CellKind::Operand : CellKind::Code;
+
+
+
+    if (mode == Mode::Changed)
+    {
+        return (changed > 0) ? CellKind::Changed : CellKind::Untouched;
+    }
+
+    if (mode != Mode::Code && unwritten > 0)
+    {
+        return CellKind::Unwritten;
+    }
+
+    if (isBlend)
+    {
+        if (kindCount == 0)
+        {
+            return CellKind::Untouched;
+        }
+
+        if (ran > 0 && put > 0)
+        {
+            return CellKind::SelfModifying;
+        }
+
+        if (kindCount > 1)
+        {
+            return CellKind::Blended;
+        }
+
+        return (ran > 0) ? code : (got > 0) ? CellKind::Read : CellKind::Written;
+    }
+
+    if (mode == Mode::Code || (mode == Mode::All && execute >= data))
+    {
+        return (execute > 0) ? code : CellKind::Untouched;
+    }
+
+    if (data == 0)
+    {
+        return CellKind::Untouched;
+    }
+
+    return (write >= read) ? CellKind::Written : CellKind::Read;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetCellKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapView::CellKind HeatMapView::GetCellKind (Word address) const
+{
+    constexpr size_t  kCount = (size_t) kAddressCount;
+    Byte              level[5] =
+    {
+        (m_execute.size()   == kCount) ? m_execute[address]   : (Byte) 0,
+        (m_read.size()      == kCount) ? m_read[address]      : (Byte) 0,
+        (m_write.size()     == kCount) ? m_write[address]     : (Byte) 0,
+        (m_unwritten.size() == kCount) ? m_unwritten[address] : (Byte) 0,
+        (m_changed.size()   == kCount) ? m_changed[address]   : (Byte) 0,
+    };
+
+
+
+    return GetCellKind (m_options.view, level[0], level[1], level[2], level[3], level[4], IsOperand (address), m_options.blend);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::GetTipLead
+//
+//  The label of the kind that drew the cell, which the legend lists as well
+//  ("Value changed"), and the cell's color as drawn, so the reader matches
+//  the swatch to the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HeatMapView::TipLead HeatMapView::GetTipLead (Word address) const
+{
+    constexpr const wchar_t  * kpszUntouched = L"Untouched";
+    constexpr const wchar_t  * kpszBlended   = L"Blend: mixed from the kinds that touched it";
+    TipLead                    lead;
+
+
+
+    lead.argb = (m_cells.size() == (size_t) kAddressCount) ? m_cells[address] : (m_palette.cold | 0xFF000000u);
+
+    switch (GetCellKind (address))
+    {
+    case CellKind::Code:          lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatCode);          break;
+    case CellKind::Operand:       lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatOperand);       break;
+    case CellKind::Read:          lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatRead);          break;
+    case CellKind::Written:       lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatWrite);         break;
+    case CellKind::SelfModifying: lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatSelfModifying); break;
+    case CellKind::Unwritten:     lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatUnwritten);     break;
+    case CellKind::Changed:       lead.meaning = ColorLegend::GetLabel (ColorLegend::Meaning::HeatChanged);       break;
+    case CellKind::Blended:       lead.meaning = kpszBlended;                                                     break;
+    case CellKind::Untouched:     lead.meaning = kpszUntouched;                                                   break;
+    }
+
+    return lead;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapView::DescribeMarks
 //
 //  A line each, every one starting a new line of the tip: "Self-modifying:
@@ -1911,9 +2056,10 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) const
+bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches) const
 {
     std::optional<Place>  pick;
+    TipLead               lead;
 
 
 
@@ -1931,7 +2077,9 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text) 
 
     anchor = GetPlaceRect (*pick);
     InflateRect (&anchor, kStreetPx, kStreetPx);
-    text   = GetTipText (GetAddressOf (*pick));
+    lead   = GetTipLead (GetAddressOf (*pick));
+    text   = lead.meaning + L"\n" + GetTipText (GetAddressOf (*pick));
+    swatches.assign (1, lead.argb | 0xFF000000u);
     return true;
 }
 

@@ -20,65 +20,99 @@ const std::vector<ColorLegend::Entry> & ColorLegend::GetEntries()
 {
     static const std::vector<Entry>  kEntries =
     {
-        { Pane::Disassembly, Meaning::PcMarker,           Swatch::Marker  },
-        { Pane::Disassembly, Meaning::PcRow,              Swatch::Row     },
-        { Pane::Disassembly, Meaning::NavigatedRow,       Swatch::Row     },
-        { Pane::Disassembly, Meaning::TargetRow,          Swatch::Row     },
-        { Pane::Disassembly, Meaning::BranchTaken,        Swatch::Line    },
-        { Pane::Disassembly, Meaning::BranchNotTaken,     Swatch::Line    },
-        { Pane::Disassembly, Meaning::BreakpointEnabled,  Swatch::Dot     },
-        { Pane::Disassembly, Meaning::BreakpointDisabled, Swatch::Ring    },
-        { Pane::Disassembly, Meaning::BreakpointHover,    Swatch::Dot     },
-        { Pane::Disassembly, Meaning::Changed,            Swatch::Text    },
-        { Pane::Disassembly, Meaning::Annotation,         Swatch::Text    },
-        { Pane::Disassembly, Meaning::Result,             Swatch::Text    },
-        { Pane::Source,      Meaning::PcRow,              Swatch::Row     },
-        { Pane::Source,      Meaning::BreakpointEnabled,  Swatch::Dot     },
-        { Pane::Source,      Meaning::BreakpointDisabled, Swatch::Ring    },
-        { Pane::Source,      Meaning::Result,             Swatch::Text    },
-        { Pane::Registers,   Meaning::Changed,            Swatch::Text    },
-        { Pane::Watch,       Meaning::Changed,            Swatch::Text    },
-        { Pane::Watch,       Meaning::PreviousAutoWatch,  Swatch::Italic  },
-        { Pane::Watch,       Meaning::PreviousStatement,  Swatch::Italic  },
-        { Pane::Watch,       Meaning::DisabledWatch,      Swatch::Text    },
-        { Pane::Stack,       Meaning::Changed,            Swatch::Text    },
-        { Pane::CallStack,   Meaning::UnverifiedFrame,    Swatch::Text    },
-        { Pane::CallStack,   Meaning::LastReturn,         Swatch::Text    },
-        { Pane::Memory,      Meaning::Changed,            Swatch::Text    },
-        { Pane::Memory,      Meaning::RomByte,            Swatch::Text    },
-        { Pane::Memory,      Meaning::IoByte,             Swatch::Text    },
-        { Pane::Memory,      Meaning::MemoryUnread,       Swatch::Text    },
-        { Pane::Memory,      Meaning::LcBank1Box,         Swatch::Outline },
-        { Pane::Memory,      Meaning::LcBank2Box,         Swatch::Outline },
-        { Pane::Memory,      Meaning::AuxBox,             Swatch::Outline },
-        { Pane::MemoryMap,   Meaning::MapMain,            Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapAux,             Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapLcBank1,         Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapLcBank2,         Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapRom,             Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapSlotRom,         Swatch::Fill    },
-        { Pane::MemoryMap,   Meaning::MapIo,              Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatCode,           Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatOperand,        Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatRead,           Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatWrite,          Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatSelfModifying,  Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatSymbol,         Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatPc,             Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatStack,          Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatBreakpoint,     Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatReadWatch,      Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatWriteWatch,     Swatch::Outline },
-        { Pane::HeatMap,     Meaning::HeatUnwritten,      Swatch::Fill    },
-        { Pane::HeatMap,     Meaning::HeatChanged,        Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::HeadMotorOff,       Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::HeadMoving,         Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::HeadSettled,        Swatch::Fill    },
-        { Pane::DiskHead,    Meaning::LampLit,            Swatch::Fill    },
-        { Pane::Breakpoints, Meaning::BreakpointEnabled,  Swatch::Dot     },
-        { Pane::Breakpoints, Meaning::BreakpointDisabled, Swatch::Ring    },
-        { Pane::StatusBar,   Meaning::HistoryEmpty,       Swatch::Fill    },
-        { Pane::StatusBar,   Meaning::HistoryFull,        Swatch::Fill    },
+        { Pane::Disassembly,    Meaning::PcMarker,          Swatch::Marker  },
+        { Pane::Disassembly,    Meaning::PcRow,             Swatch::Row     },
+        { Pane::Disassembly,    Meaning::NavigatedRow,      Swatch::Row     },
+        { Pane::Disassembly,    Meaning::TargetRow,         Swatch::Row     },
+        { Pane::Disassembly,    Meaning::BranchTaken,       Swatch::Line    },
+        { Pane::Disassembly,    Meaning::BranchNotTaken,    Swatch::Line    },
+        { Pane::Disassembly,    Meaning::BreakpointEnabled, Swatch::Dot     },
+        { Pane::Disassembly,    Meaning::BreakpointDisabled,Swatch::Ring    },
+        { Pane::Disassembly,    Meaning::BreakpointHover,   Swatch::Dot     },
+        { Pane::Disassembly,    Meaning::Changed,           Swatch::Text    },
+        { Pane::Disassembly,    Meaning::Annotation,        Swatch::Text    },
+        { Pane::Disassembly,    Meaning::Result,            Swatch::Text    },
+        { Pane::Source,         Meaning::PcRow,             Swatch::Row     },
+        { Pane::Source,         Meaning::BreakpointEnabled, Swatch::Dot     },
+        { Pane::Source,         Meaning::BreakpointDisabled,Swatch::Ring    },
+        { Pane::Source,         Meaning::Result,            Swatch::Text    },
+        { Pane::Registers,      Meaning::Changed,           Swatch::Text    },
+        { Pane::Watch,          Meaning::Changed,           Swatch::Text    },
+        { Pane::Watch,          Meaning::PreviousAutoWatch, Swatch::Italic  },
+        { Pane::Watch,          Meaning::PreviousStatement, Swatch::Italic  },
+        { Pane::Watch,          Meaning::DisabledWatch,     Swatch::Text    },
+        { Pane::Stack,          Meaning::Changed,           Swatch::Text    },
+        { Pane::CallStack,      Meaning::UnverifiedFrame,   Swatch::Text    },
+        { Pane::CallStack,      Meaning::LastReturn,        Swatch::Text    },
+        { Pane::Memory,         Meaning::Changed,           Swatch::Text    },
+        { Pane::Memory,         Meaning::RomByte,           Swatch::Text    },
+        { Pane::Memory,         Meaning::IoByte,            Swatch::Text    },
+        { Pane::Memory,         Meaning::MemoryUnread,      Swatch::Text    },
+        { Pane::Memory,         Meaning::LcBank1Box,        Swatch::Outline },
+        { Pane::Memory,         Meaning::LcBank2Box,        Swatch::Outline },
+        { Pane::Memory,         Meaning::AuxBox,            Swatch::Outline },
+        { Pane::MemoryMap,      Meaning::MapMain,           Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapAux,            Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapLcBank1,        Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapLcBank2,        Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapRom,            Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapSlotRom,        Swatch::Fill    },
+        { Pane::MemoryMap,      Meaning::MapIo,             Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatCode,          Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatOperand,       Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatRead,          Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatWrite,         Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatUnwritten,     Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMap,        Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMap,        Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatCode,          Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatOperand,       Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatRead,          Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatWrite,         Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatSelfModifying, Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatUnwritten,     Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapBlend,   Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapBlend,   Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatCode,          Swatch::Fill    },
+        { Pane::HeatMapCode,    Meaning::HeatOperand,       Swatch::Fill    },
+        { Pane::HeatMapCode,    Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapCode,    Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapCode,    Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatRead,          Swatch::Fill    },
+        { Pane::HeatMapData,    Meaning::HeatWrite,         Swatch::Fill    },
+        { Pane::HeatMapData,    Meaning::HeatUnwritten,     Swatch::Fill    },
+        { Pane::HeatMapData,    Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapData,    Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapData,    Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatChanged,       Swatch::Fill    },
+        { Pane::HeatMapChanged,Meaning::HeatSymbol,        Swatch::Fill    },
+        { Pane::HeatMapChanged,Meaning::HeatPc,            Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatStack,         Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatBreakpoint,    Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatReadWatch,     Swatch::Outline },
+        { Pane::HeatMapChanged,Meaning::HeatWriteWatch,    Swatch::Outline },
+        { Pane::DiskHead,       Meaning::HeadMotorOff,      Swatch::Fill    },
+        { Pane::DiskHead,       Meaning::HeadMoving,        Swatch::Fill    },
+        { Pane::DiskHead,       Meaning::HeadSettled,       Swatch::Fill    },
+        { Pane::DiskHead,       Meaning::LampLit,           Swatch::Fill    },
+        { Pane::Breakpoints,    Meaning::BreakpointEnabled, Swatch::Dot     },
+        { Pane::Breakpoints,    Meaning::BreakpointDisabled,Swatch::Ring    },
+        { Pane::StatusBar,      Meaning::HistoryEmpty,      Swatch::Fill    },
+        { Pane::StatusBar,      Meaning::HistoryFull,       Swatch::Fill    },
     };
 
 
@@ -135,7 +169,11 @@ const wchar_t * ColorLegend::GetPaneTitle (Pane pane)
     case Pane::CallStack:   return L"Call stack";
     case Pane::Memory:      return L"Memory";
     case Pane::MemoryMap:   return L"Memory map";
-    case Pane::HeatMap:     return L"Heat map";
+    case Pane::HeatMap:
+    case Pane::HeatMapBlend:
+    case Pane::HeatMapCode:
+    case Pane::HeatMapData:
+    case Pane::HeatMapChanged: return L"Heat map";
     case Pane::DiskHead:    return L"Disk head";
     case Pane::Breakpoints: return L"Breakpoints";
     case Pane::StatusBar:   return L"Status bar";
@@ -143,6 +181,34 @@ const wchar_t * ColorLegend::GetPaneTitle (Pane pane)
     }
 
     return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetHeatMapPane
+//
+//  Blend changes the colors only in the All view, where an address both run
+//  as code and written takes the self-modifying color. The Code view draws
+//  executes alone, Data reads and writes, and Changed the writes that stored
+//  a different value.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ColorLegend::Pane ColorLegend::GetHeatMapPane (HeatMapOptions::View view, bool isBlend)
+{
+    switch (view)
+    {
+    case HeatMapOptions::View::Code:    return Pane::HeatMapCode;
+    case HeatMapOptions::View::Data:    return Pane::HeatMapData;
+    case HeatMapOptions::View::Changed: return Pane::HeatMapChanged;
+    case HeatMapOptions::View::All:     break;
+    }
+
+    return isBlend ? Pane::HeatMapBlend : Pane::HeatMap;
 }
 
 
@@ -212,6 +278,26 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     }
 
     return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorLegend::GetLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ColorLegend::GetLabel (Meaning meaning)
+{
+    std::wstring  text  = GetText (meaning);
+    size_t        colon = text.find (L':');
+
+
+
+    return (colon == std::wstring::npos) ? text : text.substr (0, colon);
 }
 
 
