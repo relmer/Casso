@@ -40,6 +40,7 @@ public:
     static constexpr uint32_t  kReopenSeconds     = 2;
     static constexpr size_t    kReceiveQueueLimit = 64;
     static constexpr double    kRateTolerance     = 0.02;
+    static constexpr size_t    kOutgoingLimit     = 4096;
 
     AciaComPortEndpoint (Acia6551           & acia,
                          IHostSerialPorts   * ports,
@@ -68,20 +69,21 @@ private:
     void     Report        (const std::string & text);
 
     Acia6551                          & m_acia;
-    IHostSerialPorts                  * m_ports          = nullptr;
+    IHostSerialPorts                  * m_ports              = nullptr;
     SerialLinkReports                 & m_reports;
     std::string                         m_portTitle;
     std::string                         m_portName;
     std::unique_ptr<IHostSerialPort>    m_port;
     std::vector<uint32_t>               m_rates;
-    bool                                m_isAnyRate      = false;
+    bool                                m_isAnyRate          = false;
     std::vector<Byte>                   m_outgoing;
-    uint64_t                            m_reopenAt       = 0;      // the elapsed cycle count to open the port again; 0 for none
-    bool                                m_isSet          = false;  // the port has the format and controls below
+    bool                                m_isOverflowReported = false;
+    uint64_t                            m_reopenAt           = 0;      // the elapsed cycle count to open the port again; 0 for none
+    bool                                m_isSet              = false;  // the port has the format and controls below
     SerialLineFormat                    m_format;
-    bool                                m_dtr            = false;
-    bool                                m_rts            = false;
-    bool                                m_isBreak        = false;
-    Byte                                m_pendingErrors  = 0;      // errors latched with no byte, for the next one
-    std::set<uint32_t>                  m_reportedRates;           // 6551 rates already reported as replaced
+    bool                                m_dtr                = false;
+    bool                                m_rts                = false;
+    bool                                m_isBreak            = false;
+    Byte                                m_pendingErrors      = 0;      // errors latched with no byte, for the next one
+    std::set<uint32_t>                  m_reportedRates;               // 6551 rates already reported as replaced
 };

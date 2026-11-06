@@ -72,16 +72,31 @@ Error:
 //
 //  AciaComPortEndpoint::OnByteTransmitted
 //
-//  Written on the next poll; dropped while the port is closed.
+//  Written on the next poll; dropped while the port is closed, and once
+//  kOutgoingLimit bytes are waiting, which happens only when the guest sends
+//  faster than the port, as at more than normal speed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void AciaComPortEndpoint::OnByteTransmitted (Byte value)
 {
-    if (m_port != nullptr)
+    if (m_port == nullptr)
     {
-        m_outgoing.push_back (value);
+        return;
     }
+
+    if (m_outgoing.size() >= kOutgoingLimit)
+    {
+        if (!m_isOverflowReported)
+        {
+            m_isOverflowReported = true;
+            Report (std::format ("{} is slower than the Apple's output, so some of the output was dropped.", m_portName));
+        }
+
+        return;
+    }
+
+    m_outgoing.push_back (value);
 }
 
 
@@ -153,8 +168,9 @@ void AciaComPortEndpoint::Open()
     hr = port->GetBaudRates (m_rates, m_isAnyRate);
     CHRF (hr, Report (std::format ("Cannot open {}.", m_portName)));
 
-    m_port  = std::move (port);
-    m_isSet = false;
+    m_port               = std::move (port);
+    m_isSet              = false;
+    m_isOverflowReported = false;
     Report ("");
 
 Error:
@@ -342,8 +358,9 @@ Error:
 //
 //  The driver does not report the position of a byte in error, so its errors
 //  go with the last byte read, the one arriving when they were latched. A
-//  break arrives as $00 with a framing error, as the 6551 receives one.
-//  Errors latched with no byte wait for the next.
+//  break arrives as $00 with a framing error, as the 6551 receives one,
+//  after the bytes read with it. Errors latched with no byte wait for the
+//  next.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -357,19 +374,13 @@ void AciaComPortEndpoint::PassReceived (
 
 
 
-    errorBits |= (errors.isFraming || errors.isBreak) ? Acia6551::kRxErrorFraming : 0;
-    errorBits |= errors.isParity                      ? Acia6551::kRxErrorParity  : 0;
-    errorBits |= errors.isOverrun                     ? Acia6551::kRxErrorOverrun : 0;
+    errorBits |= errors.isFraming ? Acia6551::kRxErrorFraming : 0;
+    errorBits |= errors.isParity  ? Acia6551::kRxErrorParity  : 0;
+    errorBits |= errors.isOverrun ? Acia6551::kRxErrorOverrun : 0;
 
     m_pendingErrors = 0;
 
-    if (count == 0 && errors.isBreak)
-    {
-        m_acia.ReceiveFromHost (0, errorBits);
-        return;
-    }
-
-    if (count == 0)
+    if (count == 0 && !errors.isBreak)
     {
         m_pendingErrors = errorBits;
         return;
@@ -378,6 +389,11 @@ void AciaComPortEndpoint::PassReceived (
     for (i = 0; i < count; i++)
     {
         m_acia.ReceiveFromHost (bytes[i], (i + 1 == count) ? errorBits : 0);
+    }
+
+    if (errors.isBreak)
+    {
+        m_acia.ReceiveFromHost (0, ((count == 0) ? errorBits : 0) | Acia6551::kRxErrorFraming);
     }
 }
 
@@ -409,7 +425,10 @@ uint32_t AciaComPortEndpoint::ChooseRate (
 
     for (uint32_t rate : rates)
     {
-        if (std::abs (rate - baud) < std::abs (chosen - baud))
+        double  distance = std::abs (rate - baud);
+        double  best     = std::abs (chosen - baud);
+
+        if (distance < best || (distance == best && rate > chosen))
         {
             chosen = rate;
         }

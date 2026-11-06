@@ -17,6 +17,9 @@
 //  ClearCommError measures, along with the errors latched since the last
 //  call. Hardware and software flow control in the driver are off; DTR and
 //  RTS are set through EscapeCommFunction and set again in SetCommState.
+//  A write takes only what fits in the driver's output buffer, as the last
+//  ClearCommError measured it, so a port slower than the guest does not
+//  stall the emulation thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,8 +45,10 @@ public:
     HRESULT  GetLines     (SerialPortLines & outLines)                                             override;
 
 private:
+    static constexpr DWORD  kBufferBytes = 4096;
 
-    HANDLE  m_handle = INVALID_HANDLE_VALUE;
-    bool    m_dtr    = false;
-    bool    m_rts    = false;
+    HANDLE  m_handle   = INVALID_HANDLE_VALUE;
+    bool    m_dtr      = false;
+    bool    m_rts      = false;
+    DWORD   m_outQueue = 0;
 };

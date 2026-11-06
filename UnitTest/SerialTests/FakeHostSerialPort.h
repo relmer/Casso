@@ -36,6 +36,7 @@ struct FakeSerialPortState
     bool                           rts         = false;
     bool                           isBreak     = false;
     std::vector<Byte>              written;
+    size_t                         writeLimit  = SIZE_MAX; // the bytes each Write takes, as a port slower than the guest
 
     std::deque<Byte>               inbound;
     SerialPortErrors               errors;                // returned by the next Read, then cleared

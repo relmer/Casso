@@ -67,14 +67,13 @@ Win32HostSerialPort::~Win32HostSerialPort()
 //  Win32HostSerialPort::Prepare
 //
 //  A read interval of MAXDWORD with no total timeout makes ReadFile return
-//  at once with what has arrived. A write waits at most kWriteTimeoutMs; at
-//  the 6551's pace the driver's buffer does not fill.
+//  at once with what has arrived. A write waits at most kWriteTimeoutMs, for
+//  a driver that does not report its output queue.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32HostSerialPort::Prepare (HANDLE handle)
 {
-    constexpr DWORD  kBufferBytes    = 4096;
     constexpr DWORD  kWriteTimeoutMs = 50;
     HRESULT          hr              = S_OK;
     BOOL             isDone          = FALSE;
@@ -145,15 +144,20 @@ Error:
 //
 //  Win32HostSerialPort::Configure
 //
+//  Windows does not accept two stop bits with a 5-bit word, which the 6551
+//  sends with parity on, so the port sends one and a half. A receiver
+//  checks only the first stop bit, so either end reads the other.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32HostSerialPort::Configure (const SerialLineFormat & format)
 {
-    static constexpr BYTE  kParities[] = { NOPARITY, ODDPARITY, EVENPARITY, MARKPARITY, SPACEPARITY };
-    static constexpr BYTE  kStopBits[] = { ONESTOPBIT, ONE5STOPBITS, TWOSTOPBITS };
-    HRESULT                hr          = S_OK;
-    DCB                    dcb         = {};
-    BOOL                   isDone      = FALSE;
+    static constexpr BYTE  kParities[]  = { NOPARITY, ODDPARITY, EVENPARITY, MARKPARITY, SPACEPARITY };
+    static constexpr BYTE  kStopBits[]  = { ONESTOPBIT, ONE5STOPBITS, TWOSTOPBITS };
+    constexpr int          kMinWordBits = 5;
+    HRESULT                hr           = S_OK;
+    DCB                    dcb          = {};
+    BOOL                   isDone       = FALSE;
 
 
 
@@ -166,6 +170,12 @@ HRESULT Win32HostSerialPort::Configure (const SerialLineFormat & format)
     dcb.ByteSize        = (BYTE) format.wordBits;
     dcb.Parity          = kParities[(size_t) format.parity];
     dcb.StopBits        = kStopBits[(size_t) format.stopBits];
+
+    if (format.wordBits == kMinWordBits && format.stopBits == SerialStopBits::Two)
+    {
+        dcb.StopBits = ONE5STOPBITS;
+    }
+
     dcb.fBinary         = TRUE;
     dcb.fParity         = format.parity != SerialParity::None;
     dcb.fOutxCtsFlow    = FALSE;
@@ -259,15 +269,20 @@ HRESULT Win32HostSerialPort::Write (
     HRESULT  hr      = S_OK;
     DWORD    written = 0;
     BOOL     isDone  = FALSE;
+    DWORD    room    = (m_outQueue < kBufferBytes) ? kBufferBytes - m_outQueue : 0;
+    DWORD    wanted  = std::min ((DWORD) bytes.size(), room);
 
 
 
     outWritten = 0;
 
-    isDone = WriteFile (m_handle, bytes.data(), (DWORD) bytes.size(), &written, nullptr);
+    BAIL_OUT_IF (wanted == 0, S_OK);
+
+    isDone = WriteFile (m_handle, bytes.data(), wanted, &written, nullptr);
     CWR (isDone);
 
-    outWritten = written;
+    m_outQueue += written;
+    outWritten  = written;
 
 Error:
     return hr;
@@ -306,6 +321,8 @@ HRESULT Win32HostSerialPort::Read (
 
     isDone = ClearCommError (m_handle, &errors, &status);
     CWR (isDone);
+
+    m_outQueue = status.cbOutQue;
 
     outErrors.isFraming = (errors & CE_FRAME)                   != 0;
     outErrors.isParity  = (errors & CE_RXPARITY)                != 0;

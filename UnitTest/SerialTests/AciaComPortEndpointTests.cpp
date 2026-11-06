@@ -243,6 +243,59 @@ namespace AciaComPortEndpointTestNs
             Assert::IsTrue ((status & Acia6551::kStatusFramingError) != 0);
         }
 
+
+        TEST_METHOD (ABreakReadWithBytesArrivesAsZeroAfterThem)
+        {
+            ComRig  rig;
+            Byte    status = 0;
+
+
+
+            rig.port->inbound        = { 'a' };
+            rig.port->errors.isBreak = true;
+
+            Assert::AreEqual<Byte> ('a', rig.ReadNextByte (status));
+            Assert::IsTrue ((status & Acia6551::kStatusFramingError) == 0, L"the byte before the break is clean");
+
+            Assert::AreEqual<Byte> (0, rig.ReadNextByte (status));
+            Assert::IsTrue ((status & Acia6551::kStatusFramingError) != 0);
+        }
+
+
+        //  A port that takes nothing never blocks the guest; the bytes past
+        //  the limit are dropped and reported once.
+        TEST_METHOD (APortSlowerThanTheGuestDropsTheExcessAndReportsIt)
+        {
+            ComRig  rig;
+            size_t  i   = 0;
+
+
+
+            rig.port->writeLimit = 0;
+
+            for (i = 0; i <= AciaComPortEndpoint::kOutgoingLimit; i++)
+            {
+                rig.endpoint.OnByteTransmitted ('x');
+            }
+
+            rig.Run (Acia6551::kIdlePollCycles * 2);
+
+            Assert::AreEqual (std::string ("COM3 is slower than the Apple's output, so some of the output was dropped."), rig.GetReport());
+
+            rig.port->writeLimit = SIZE_MAX;
+            rig.Run (Acia6551::kIdlePollCycles * 2);
+
+            Assert::AreEqual (AciaComPortEndpoint::kOutgoingLimit, rig.port->written.size(), L"the bytes up to the limit are sent");
+        }
+
+
+        //  Halfway between two rates the port runs at the faster, so the
+        //  guest's output does not back up.
+        TEST_METHOD (ARateHalfwayBetweenTwoUsesTheFaster)
+        {
+            Assert::AreEqual (4800u, AciaComPortEndpoint::ChooseRate (3600.0, { 1200, 2400, 4800, 9600 }, false));
+        }
+
         TEST_METHOD (AnOverrunOnThePcIsAnOverrunInTheChip)
         {
             ComRig  rig;

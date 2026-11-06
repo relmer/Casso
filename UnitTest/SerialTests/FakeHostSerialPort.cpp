@@ -160,15 +160,16 @@ HRESULT FakeHostSerialPort::Write (
     std::span<const Byte>   bytes,
     size_t                & outWritten)
 {
-    HRESULT  hr = CheckPlugged();
+    HRESULT  hr    = CheckPlugged();
+    size_t   count = std::min (bytes.size(), m_state->writeLimit);
 
 
 
     outWritten = 0;
     CHR (hr);
 
-    m_state->written.insert (m_state->written.end(), bytes.begin(), bytes.end());
-    outWritten = bytes.size();
+    m_state->written.insert (m_state->written.end(), bytes.begin(), bytes.begin() + count);
+    outWritten = count;
 
 Error:
     return hr;
