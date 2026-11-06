@@ -287,7 +287,7 @@ public:
 
 
 
-    TEST_METHOD (Sort_EveryColumnBothDirections_FoldersFirst)
+    TEST_METHOD (Sort_EveryColumnBothDirections_FoldersWhereExplorerPutsThem)
     {
         std::vector<CatalogRow>  rows;
         size_t                   i    = 0;
@@ -300,9 +300,9 @@ public:
         Assert::AreEqual (std::wstring (L"PICTURE"), rows[6].name);
 
         CatalogModel::Sort (rows, Column::Name, true);
-        Assert::AreEqual (std::wstring (L"SUBDIR"), rows[0].name, L"the directory still leads");
-        Assert::AreEqual (std::wstring (L"PICTURE"), rows[1].name);
-        Assert::AreEqual (std::wstring (L"DHIRES"), rows[6].name);
+        Assert::AreEqual (std::wstring (L"PICTURE"), rows[0].name);
+        Assert::AreEqual (std::wstring (L"DHIRES"), rows[5].name);
+        Assert::AreEqual (std::wstring (L"SUBDIR"), rows[6].name, L"descending, the directory goes last");
 
         CatalogModel::Sort (rows, Column::Size, false);
         for (i = 2; i < rows.size(); i++)
@@ -311,7 +311,8 @@ public:
         }
 
         CatalogModel::Sort (rows, Column::Size, true);
-        Assert::AreEqual (std::wstring (L"DHIRES"), rows[1].name, L"the largest file follows the directory");
+        Assert::AreEqual (std::wstring (L"DHIRES"), rows[0].name, L"the largest file first");
+        Assert::AreEqual (std::wstring (L"SUBDIR"), rows[6].name, L"and the directory last");
 
         CatalogModel::Sort (rows, Column::Type, false);
         Assert::AreEqual (std::wstring (L"HELLO"), rows[1].name, L"BAS sorts before BIN");
@@ -322,6 +323,49 @@ public:
         CatalogModel::Sort (rows, Column::Locked, false);
         CatalogModel::Sort (rows, Column::Modified, false);
         Assert::AreEqual ((size_t) 7, rows.size());
+    }
+
+
+
+    //  File Explorer's orders, read from a folder with two folders and two files
+    //  in it, dated and sized apart: descending puts the folders last, except
+    //  by type, and rows equal on the column go by name from A to Z.
+    TEST_METHOD (Sort_Descending_MatchesExplorersOrder)
+    {
+        std::vector<CatalogRow>  rows (4);
+
+        auto  order = [&] (Column column, bool descending)
+        {
+            std::wstring  names;
+
+            CatalogModel::Sort (rows, column, descending);
+
+            for (const CatalogRow & row : rows)
+            {
+                names += (names.empty() ? L"" : L",") + row.name;
+            }
+
+            return names;
+        };
+
+        for (int i = 0; i < 4; i++)
+        {
+            rows[(size_t) i].name         = std::wstring (i % 2 == 0 ? L"Folder" : L"File") + (wchar_t) (L'A' + i);
+            rows[(size_t) i].isDirectory  = i % 2 == 0;
+            rows[(size_t) i].typeText     = rows[(size_t) i].isDirectory ? L"File folder" : L"Text Document";
+            rows[(size_t) i].hasModified  = true;
+            rows[(size_t) i].modifiedUnix = 1000 * (i + 1);
+            rows[(size_t) i].sizeBytes    = rows[(size_t) i].isDirectory ? 0 : (uint64_t) (100 * i);
+        }
+
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Modified, false));
+        Assert::AreEqual (std::wstring (L"FileD,FileB,FolderC,FolderA"), order (Column::Modified, true));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Size,     false));
+        Assert::AreEqual (std::wstring (L"FileD,FileB,FolderA,FolderC"), order (Column::Size,     true));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Type,     false));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Type,     true));
+        Assert::AreEqual (std::wstring (L"FolderA,FolderC,FileB,FileD"), order (Column::Name,     false));
+        Assert::AreEqual (std::wstring (L"FileD,FileB,FolderC,FolderA"), order (Column::Name,     true));
     }
 
 

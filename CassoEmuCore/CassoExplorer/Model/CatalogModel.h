@@ -249,6 +249,6 @@ private:
         { 0xFF, L"SYS" },
     };
 
-    static bool  IsBefore         (const CatalogRow & a, const CatalogRow & b, Column column);
+    static bool  IsBefore         (const CatalogRow & a, const CatalogRow & b, Column column, bool tiesReversed = false);
     static bool  IsPropertyBefore (const CatalogRow & a, const PropertyKey & keyA, const CatalogRow & b, const PropertyKey & keyB);
 };
