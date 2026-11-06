@@ -1550,8 +1550,8 @@ Error:
 //  location of some window. One that has not connected by the time every
 //  window has gone elsewhere is stopped, closing its port; one that has
 //  connected, or is bootstrapping or loading the program, stays. So does one
-//  started at launch, which tries again for its Apple whether or not a window
-//  is on it: stopping it before its first Ready left the Apple's requests,
+//  started at launch, which connects whenever a Ready from its Apple arrives,
+//  whether or not a window is on it: stopping it before its first Ready left the Apple's requests,
 //  such as F for a Full Send, with nothing to read them.
 //
 ////////////////////////////////////////////////////////////////////////////////
