@@ -2260,3 +2260,6 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1383 The notice's margin and height (FR-372): `DxuiActionBanner::SetMarginDip` and `SetVerticalPaddingDip`.
 - [X] T1384 The Load file into memory icon: Segoe MDL2's OpenFile, `s_kpszMdl2OpenFile`.
 - [X] T1385 Docs: `docs/Debugger-Reference.md`.
+- [X] T1386 Console links (FR-373): `ConsoleLinks`, `Reply::files`, link spans in `DxuiTextView`, `IDebuggerWindowHost::OpenDebuggerFile`, `IShellItemVerbs::ShowInFolder`. Tests: `ConsoleLinksTests`, `ConsoleLinkTests`, `ProjectShellTests`; the line and the hover underline checked on screen.
+- [X] T1387 Docking (FR-374, FR-375): the sideways drag in `DxuiTabStrip`, `DxuiRectMorph`, the tab index on the layout's `hide` line. Tests: `DxuiTabStripTests`, `DxuiDockSiteDragTests`, `DxuiPaneLayoutDockBackTests`, `DxuiRectMorphTests`, `DxuiDockSiteAutoHideTests`; pin, unpin and the sideways drag checked on screen.
+- [ ] T1388 Open console links in Casso Explorer, with an option for File Explorer, once 033 is on master (FR-373).

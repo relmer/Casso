@@ -348,6 +348,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: Why did the debugger spin after loading `symbols-demo.dbg` over `cdemo.dbg`? -> A: Each debug file's project had saved the other's file as a symbol file: loading a debug file switches to its project, and the project switched from was saved after the load. Applying either loaded the other without end (FR-365).
 - Q: Should the Label column be fitted automatically? -> A: Yes, at each symbol or debug file load. The owner: "Can we auto-size the disasm/src cols to solve the main_loop -> main_lo issue? Maybe do it by default when we open a new src file, load symbols... or maybe just always?" (FR-366).
+- Q: Should the console link files rather than list their paths? -> A: Yes. The owner: "Could we hyperlink 'project' in 'Debug project for <dbg filename>...' to have it open Explorer to that directory with that cassoproj selected? ... Links should show tooltips with the file's full path name." Opening links in Casso Explorer, with a choice between it and File Explorer, is put off until 033 is on master (FR-373).
 - Q: Which window stays in front after a step? -> A: The owner: "I should stay in whichever window I hit step from, unless I'm stepping from source in the source window to an instruction that doesn't have a source line mapped--then it should move me to disasm" (FR-368).
 
 ## User Scenarios & Testing *(mandatory)*
@@ -3800,6 +3801,15 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   move over them.
 - **FR-372**: A source document's notice MUST lie inside the pane with a margin on
   every side, and MUST be no taller than its text when it has no button.
+- **FR-373**: A file in a console line MUST be a link in the console pane,
+  with its full path as its tip, that opens File Explorer with the file
+  selected; the line MUST NOT write out the full path, while the reply's text
+  for the debug channel and batch mode MUST still have it.
+- **FR-374**: A tab dragged past either end of its tab strip MUST be dragged off
+  its group, as one dragged up or down is.
+- **FR-375**: Pinning a pane and unpinning it MUST animate its rectangle between
+  its group and its edge button, unless the system's animations are off, and
+  unpinning MUST put the tab back at the index it had in its group.
 
 ### Key Entities
 
