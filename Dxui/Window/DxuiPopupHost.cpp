@@ -999,6 +999,29 @@ bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsHitTransparent
+//
+//  WS_EX_TRANSPARENT takes a window out of hit testing only together with
+//  WS_EX_LAYERED, which these popups do not have, so WndProc returns
+//  HTTRANSPARENT from WM_NCHITTEST for a pass-through popup. Before this, an
+//  in-place tip under the pointer was hit instead of the window beneath.
+//  That window received WM_MOUSELEAVE and hid the tip, the next move over it
+//  brought the tip back up, and the cycle repeated without end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPopupHost::IsHitTransparent (DxuiPopupInput  input,
+                                      bool            isInCard)
+{
+    return input == DxuiPopupInput::PassThrough || !isInCard;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  s_WndProcThunk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1288,19 +1311,16 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_NCHITTEST:
             // The shadow margin is drawn, not hit: a press there belongs to
             // whatever is underneath, the same as a press anywhere else
-            // outside the card. `pt` is in SCREEN coordinates for this message.
-            if (m_shadowMarginPx > 0)
+            // outside the card. A pass-through popup is not hit anywhere.
+            // `pt` is in SCREEN coordinates for this message.
+            ScreenToClient (m_hwnd, &pt);
+            rc     = GetContentClientRect();
+            inside = m_shadowMarginPx <= 0 || PtInRect (&rc, pt) != FALSE;
+
+            if (IsHitTransparent (m_params.input, inside))
             {
-                POINT  client = pt;
-
-                ScreenToClient (m_hwnd, &client);
-                rc = GetContentClientRect();
-
-                if (!PtInRect (&rc, client))
-                {
-                    result  = HTTRANSPARENT;
-                    claimed = true;
-                }
+                result  = HTTRANSPARENT;
+                claimed = true;
             }
 
             break;
@@ -1422,14 +1442,12 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
 
 
 
-    // WS_EX_TRANSPARENT alone is what makes the pointer pass through: it
-    // takes the window out of hit testing, which is the whole requirement
-    // for a tooltip. WS_EX_LAYERED used to ride along with it and bought
-    // nothing -- the content is composited by DirectComposition over an
-    // opaque clear, so there is no per-pixel alpha for layering to carry --
-    // while costing the drop shadow, because a layered window does not get
-    // CS_DROPSHADOW. Tooltips were the only popups that took it, and the
-    // only ones without a shadow.
+    // A window with WS_EX_TRANSPARENT and without WS_EX_LAYERED is hit
+    // tested, so the pointer passes through because WndProc returns
+    // HTTRANSPARENT from WM_NCHITTEST (IsHitTransparent). WS_EX_LAYERED used
+    // to be set with it and cost the drop shadow, because a layered window
+    // does not get CS_DROPSHADOW. Tooltips were the only popups that took
+    // it, and the only ones without a shadow.
     if (m_params.input == DxuiPopupInput::PassThrough)
     {
         exStyle |= WS_EX_TRANSPARENT;

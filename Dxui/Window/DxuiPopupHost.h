@@ -385,6 +385,13 @@ public:
                                           DxuiPopupDismissReason  reason);
 
     //
+    //  Whether a point the pointer is over passes to the window beneath:
+    //  anywhere on a pass-through popup, and on any popup's shadow margin.
+    //
+    static bool  IsHitTransparent        (DxuiPopupInput  input,
+                                          bool            isInCard);
+
+    //
     //  The work area a popup hung from `edge`, a rect with no height, is
     //  kept in, given each monitor's work area: the one the edge starts in,
     //  joined by each next one it runs on into. Empty where it starts in
