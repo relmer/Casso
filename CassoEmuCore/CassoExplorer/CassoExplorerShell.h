@@ -34,7 +34,9 @@
 //  <label>`; a launch from a shortcut has neither. A path, given once without
 //  a switch, opens in a tab: a folder, a disk image, or a file's folder.
 //  `--new-window` opens a window of its own on the path alone, rather than
-//  the windows of the last session.
+//  the windows of the last session. File Explorer's `/select,<file>` opens
+//  the file's folder with the file selected, in a tab already on that folder
+//  when there is one; its `/n` and `/separate` are `--new-window`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +49,7 @@ struct CassoExplorerLaunchOptions
     DWORD                   cleanupOldPid = 0;       // --cleanup-old <pid>: the process that ran the old files
     std::wstring            titlePrefix;
     std::wstring            openPath;
+    std::wstring            selectPath;              // /select,<file>: the file to select in its folder
     std::wstring            refusal;
     std::vector<LinkFault>  linkFaults;              // --link-faults: a Debug build's alone
 };

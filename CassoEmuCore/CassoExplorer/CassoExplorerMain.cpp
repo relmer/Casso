@@ -121,7 +121,8 @@ extern "C" int WINAPI wCassoExplorerMain (
 
     CassoExplorerShell::WaitForUpdatedProcess (options.cleanupOldPid);
 
-    existing = options.newWindow ? nullptr : CassoExplorerShell::FindWindowForOwner (options.owner);
+    //  A /select goes through the running app, which picks the tab.
+    existing = (options.newWindow || !options.selectPath.empty()) ? nullptr : CassoExplorerShell::FindWindowForOwner (options.owner);
 
     if (existing != nullptr)
     {
@@ -152,7 +153,8 @@ extern "C" int WINAPI wCassoExplorerMain (
             IGNORE_RETURN_VALUE (allowed, TRUE);
         }
 
-        options.openPath = CassoExplorerShell::GetFullPath (options.openPath);
+        options.openPath   = CassoExplorerShell::GetFullPath (options.openPath);
+        options.selectPath = CassoExplorerShell::GetFullPath (options.selectPath);
         CassoExplorerShell::ForwardToWindow (existing, CassoExplorerWindow::kLaunchCopyId, CassoExplorerShell::MakeForwardedArguments (options));
     }
 

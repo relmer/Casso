@@ -38,6 +38,7 @@ public:
     bool                   IsDragging         () const { return m_tabs->IsDragging(); }
     bool                   IsSliding          () const { return m_tabs->IsSliding(); }
     void                   OpenPathInNewTab   (const std::wstring & path);
+    void                   SelectInFolder     (const std::wstring & path);
     bool                   IsOverTabStrip     (POINT screen) const;
     void                   AcceptTab          (BrowserModel::Tab tab);
     void                   FillTabs           ();

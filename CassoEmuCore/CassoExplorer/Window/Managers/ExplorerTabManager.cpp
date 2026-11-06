@@ -9,6 +9,7 @@
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "Seams/Win32ShellIcons.h"
@@ -311,6 +312,41 @@ void ExplorerTabManager::OpenInNewWindow (const std::wstring & path)
     {
         m_context.window.ShowMessage (L"A new window could not be opened.", MB_ICONERROR);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabManager::SelectInFolder
+//
+//  The file's folder in the tab already on it, switched to, or in a new tab,
+//  with the file selected once it is listed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTabManager::SelectInFolder (const std::wstring & path)
+{
+    std::wstring  folder = CassoExplorerBrowser::GetParentFolder (path);
+    std::wstring  name   = std::filesystem::path (path).filename().wstring();
+
+
+
+    for (size_t tab = 0; tab < m_context.browser.GetBrowserModel().GetTabCount(); tab++)
+    {
+        const Location &  location = m_context.browser.GetBrowserModel().GetTab (tab).location;
+
+        if (location.kind == Location::Kind::HostFolder && ExplorerFolderSync::IsSameFolder (location.path, folder))
+        {
+            SwitchToTab (tab);
+            m_context.listPane.SelectWhenListed (folder, { name });
+            return;
+        }
+    }
+
+    OpenPathInNewTab (path);
 }
 
 

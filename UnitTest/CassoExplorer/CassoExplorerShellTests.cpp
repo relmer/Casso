@@ -66,6 +66,7 @@ public:
         sent.titlePrefix = L"033 \"explorer\"";
         sent.newWindow   = true;
         sent.openPath    = L"C:\\My Disks\\";
+        sent.selectPath  = L"C:\\My Disks\\Lode Runner.dsk";
 
         Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (CassoExplorerShell::SplitArguments (CassoExplorerShell::MakeForwardedArguments (sent)), received));
         Assert::IsTrue   (received.hasOwner);
@@ -73,10 +74,29 @@ public:
         Assert::AreEqual (sent.titlePrefix, received.titlePrefix);
         Assert::IsTrue   (received.newWindow);
         Assert::AreEqual (sent.openPath, received.openPath);
+        Assert::AreEqual (sent.selectPath, received.selectPath);
 
         Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (CassoExplorerShell::SplitArguments (CassoExplorerShell::MakeForwardedArguments (CassoExplorerLaunchOptions())), received));
         Assert::IsFalse  (received.hasOwner, L"A plain launch forwards as one");
         Assert::IsTrue   (received.openPath.empty());
+    }
+
+
+    //  File Explorer's switches, as a script or the debugger passes them.
+    TEST_METHOD (FileExplorersSwitches_Parse)
+    {
+        CassoExplorerLaunchOptions  options;
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"/n", L"/select,C:\\Disks\\Karateka.dsk" }, options));
+        Assert::IsTrue   (options.newWindow);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\Karateka.dsk"), options.selectPath);
+        Assert::IsTrue   (options.openPath.empty());
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"/separate", L"/select", L"C:\\Disks" }, options));
+        Assert::IsTrue   (options.newWindow);
+        Assert::AreEqual (std::wstring (L"C:\\Disks"), options.selectPath);
+
+        Assert::AreEqual (E_INVALIDARG, CassoExplorerShell::ParseArguments ({ L"/e" }, options));
     }
 
 

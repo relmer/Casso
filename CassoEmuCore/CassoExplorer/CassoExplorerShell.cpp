@@ -133,6 +133,7 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
     {
         const std::wstring &  argument = arguments[i];
         bool                  hasValue = i + 1 < arguments.size();
+        bool                  isSwitch = argument.rfind (L"--", 0) == 0 || (argument.size() > 1 && argument[0] == L'/' && argument.find_first_of (L"\\:") == std::wstring::npos);
 
         if (argument == L"--owner" && hasValue && !outOptions.hasOwner)
         {
@@ -170,9 +171,17 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         {
             outOptions.cleanupOldPid = (DWORD) wcstoul (arguments[++i].c_str(), nullptr, 10);
         }
-        else if (argument == L"--new-window" && !outOptions.newWindow)
+        else if ((argument == L"--new-window" || argument == L"/n" || argument == L"/separate") && !outOptions.newWindow)
         {
             outOptions.newWindow = true;
+        }
+        else if (argument.starts_with (L"/select,") && argument.size() > 8 && outOptions.selectPath.empty())
+        {
+            outOptions.selectPath = argument.substr (8);
+        }
+        else if (argument == L"/select" && hasValue && outOptions.selectPath.empty())
+        {
+            outOptions.selectPath = arguments[++i];
         }
 #if defined (_DEBUG)
         else if (argument == L"--link-faults" && hasValue && outOptions.linkFaults.empty())
@@ -188,14 +197,14 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
             }
         }
 #endif
-        else if (!argument.empty() && argument.rfind (L"--", 0) != 0 && outOptions.openPath.empty())
+        else if (!argument.empty() && !isSwitch && outOptions.openPath.empty())
         {
             outOptions.openPath = argument;
         }
         else
         {
             valid              = false;
-            outOptions.refusal = L"Casso Explorer does not take \"" + argument + L"\" here. It takes a path to open, --owner <handle>, --title <label> and --new-window.";
+            outOptions.refusal = L"Casso Explorer does not take \"" + argument + L"\" here. It takes a path to open, /select,<file>, --owner <handle>, --title <label> and --new-window.";
         }
     }
 
@@ -270,6 +279,11 @@ std::wstring CassoExplorerShell::MakeForwardedArguments (const CassoExplorerLaun
     if (options.newWindow)
     {
         arguments.push_back (L"--new-window");
+    }
+
+    if (!options.selectPath.empty())
+    {
+        arguments.push_back (L"/select," + options.selectPath);
     }
 
     if (!options.openPath.empty())
@@ -396,7 +410,7 @@ std::vector<CassoExplorerWindowRequest> CassoExplorerShell::PlanFirstLaunch (
         requests.push_back (std::move (request));
     }
 
-    requests.front().openPath = options.openPath;
+    requests.front().openPath = options.openPath.empty() ? options.selectPath : options.openPath;
     requests.front().owner    = options.owner;
 
     return requests;
@@ -1256,16 +1270,29 @@ void CassoExplorerShell::RunLaunch (const std::wstring & arguments)
     }
 
     //  A path alone, as File Explorer's Open in Casso Explorer passes, opens
-    //  in a tab of the window in front, as File Explorer opens a folder.
-    tabbed = front != nullptr && !options.openPath.empty() && !options.newWindow && !options.hasOwner;
+    //  in a tab of the window in front, as File Explorer opens a folder. A
+    //  /select picks the tab of that window already on the file's folder.
+    tabbed = front != nullptr && (!options.openPath.empty() || !options.selectPath.empty()) && !options.newWindow && !options.hasOwner;
 
-    if (tabbed)
+    if (tabbed && !options.selectPath.empty())
+    {
+        front->SelectInFolder (options.selectPath);
+        FrontWindow (front->GetHwnd());
+    }
+    else if (tabbed)
     {
         front->OpenPathInNewTab (options.openPath);
         FrontWindow (front->GetHwnd());
     }
 
     BAIL_OUT_IF (tabbed, S_OK);
+
+    //  A new window on a /select opens the file's folder with the file
+    //  selected, as it opens a file's path.
+    if (options.openPath.empty())
+    {
+        options.openPath = options.selectPath;
+    }
 
     opened = OpenWindow (PlanForwardedLaunch (options, from));
     CBR (opened != nullptr);

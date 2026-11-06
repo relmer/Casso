@@ -91,6 +91,7 @@ public:
     ExplorerTabManager             & GetTabManager         ();
     CassoLinkManager               & GetCassoLinkManager   ();
     void                             OpenPathInNewTab      (const std::wstring & path);
+    void                             SelectInFolder        (const std::wstring & path);
     static int64_t                   GetNowMs              ();
     void                             TakeLinkNotifications ();
     void                             CloseForApp           ();
