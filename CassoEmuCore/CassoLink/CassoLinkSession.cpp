@@ -693,6 +693,14 @@ void CassoLinkSession::Run (std::stop_token stop)
                 StartFullSendFromApple();
             }
 
+            //  Q with no Full Send running comes from an Apple left on a Full
+            //  Send's screen by a PC that closed and connected again before the
+            //  Apple counted it gone. The standard screen is drawn again.
+            if (SUCCEEDED (hr) && m_host->TakeQuit())
+            {
+                hr = m_host->SendSessionScreen (false, (Byte) FullSendTone::None, {});
+            }
+
             m_connector.m_lostReason = FAILED (hr)                          ? DescribeLineFailure (hr)
                          : (m_host->GetSilenceMs() > kSilenceMs) ? std::format ("no packet in {} seconds", kSilenceMs / 1000)
                          : m_connector.IsPeerGone()                          ? std::string ("DSR went off, the Apple's DTR on most cables")
