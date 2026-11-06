@@ -62,7 +62,8 @@
 ; or how long since its last reply; the last Label; each drive's state and its
 ; bar, one cell a track, with the track and sector over it; the last error,
 ; until an operation succeeds; and the history, the host's Log lines with the
-; newest at the top.
+; newest at the top. During a krunch a map of the disk's blocks is drawn over
+; the history, which is drawn again when the krunch ends.
 ; Ready is sent again after each second with no reply.
 ;
 ; The disk routines are Casso's own, from Apple's published description of
@@ -244,6 +245,11 @@ KFLO     = $4400                ; Krunch: each directory entry's first block,
 KFHI     = $4480                ; by its slot, low and high bytes,
 KNLO     = $4500                ; and the block after its last
 KNHI     = $4580
+KHIST    = $9300                ; Krunch: the history's rows while the block map
+                                ; is drawn over them, main memory's 320 bytes and
+                                ; then auxiliary memory's, to $957F
+KCHAR    = $4E10                ; Krunch: each block's character in the block map,
+                                ; a letter of its file's name or a space, to $4F27
 FPAGES   = 26                   ; the format stream, whatever its gaps
 WSTART   = 512 - 355            ; the sector stream and its end mark end at its second page's end
 NIBSTART = WSTART + 8           ; its 343 data field nibbles, after 5 syncs and the prologue
@@ -674,6 +680,7 @@ dlnone: jmp SHIM
         endif
 ; cancel: the operation stops where it is, and the loop starts again.
 cancel: jsr motoroff
+        jsr kmapoff             ; the history again, after a krunch's block map
         ldx #$FF
         txs
         jmp main
@@ -4345,6 +4352,30 @@ bpwait: nop
 ;
 ; After the request the program reads nothing from the host but a Cancel,
 ; between files, so a link that drops doesn't stop it.
+;
+; While it runs, the history's rows have a map of the volume's blocks, as at
+; kmapshow, with each part's blocks drawn as they are read and
+; written, and a moved file's old blocks drawn as free once its entry is
+; written.
+KMAPROWS = 7                    ; the block map's rows, the history's first seven
+KMAPCOLS = 40                   ; and its cells in a row, two columns each in 80 columns
+KMAPEND  = KMAPROWS * KMAPCOLS  ; its cells, a 140 KB disk's blocks
+KMAPPAST = KMAPEND + 1          ; the first block a part can't end at in the map
+KSDONE   = 0                    ; a block in its final place: its character in inverse
+KSMOVE   = 1                    ; a file's block to move: its character, or # for a space
+KCFILL   = $A3                  ; that #
+KCFREE   = $AE                  ; a free block: .
+KCREAD   = $52                  ; a block being read: a flashing R
+KCWRITE  = $57                  ; a block being written: a flashing W
+KCOFF    = $A0                  ; a block past the volume's end: a space
+KCINVSP  = $20                  ; an inverse space
+KLEGCOL80 = 15                 ; the legend's column in 80 columns, centered
+KNAMEAT  = 6                    ; a directory entry's name length, then its name
+KNAMEMAX = 15                   ; the characters a name has at most
+RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 7
+ALTCHAROFF = $C00E              ; the primary characters, which flash
+ALTCHARON = $C00F
+
 dokrunch: lda PKTBUF+1
         sta kcrc
         lda PKTBUF+2
@@ -4363,11 +4394,13 @@ dokrunch: lda PKTBUF+1
         bcs krend
         jsr protected
         bcs krend
+        jsr kchclear
         jsr krdir
         bcs krend
         jsr krplan
         bcs krend
         jsr krprog              ; the request was taken
+        jsr kmapshow
         lda #1
         sta kslot
 krfile: lda kcnt
@@ -4377,13 +4410,14 @@ krfile: lda kcnt
         bcs krend
         inc kslot
         jmp krfile
-krend:  lda kfiles              ; the status has the files moved
+krend:  jsr kmapoff
+        lda kfiles              ; the status has the files moved
         sta index
         jmp opdone
 
 ; krdir: the directory's eight sectors read from track 0 and decoded in
-; order, each entry's first and next blocks into the tables, and the file
-; count into kcnt. The carry is set, with err, when a sector doesn't read,
+; order, each entry's first and next blocks into the tables, the file count
+; into kcnt and the volume's blocks into keov. The carry is set, with err, when a sector doesn't read,
 ; the CRC differs from the host's, or the count is past 77.
 krdir:  ldx #7
 krdlist: lda blkphys+4,x        ; blocks 2 to 5
@@ -4438,13 +4472,19 @@ krdfail: sec
         rts
 
 ; krdfield: the directory byte at SECBUF,Y, byte kfield of entry kentry: the
-; file count from the volume's entry, and each file's first and next blocks.
-; Y isn't modified.
+; volume's blocks and file count from the volume's entry, and each file's
+; first and next blocks and, by krname, its name. Y isn't modified.
 krdfield: lda SECBUF,y
         ldx kentry
         bne kfent
         ldx kfield
-        cpx #16
+        cpx #14
+        bne kfeovhi
+        sta keov
+kfeovhi: cpx #15
+        bne kfcntlo
+        sta keov+1
+kfcntlo: cpx #16
         bne kfcount
         sta kcnt
 kfcount: cpx #17
@@ -4459,6 +4499,7 @@ kfent:  ldx kfield
         beq kff2
         dex
         beq kff3
+        jsr krname
         jmp kfstep
 kff0:   ldx kentry
         sta KFLO,x
@@ -4479,6 +4520,61 @@ kfstep: inc kfield
         sta kfield
         inc kentry
 kfdone: rts
+
+; krname: the directory byte in A, byte kfield of entry kentry, of a file the
+; volume counts: its name's length, or a character of its name, put in KCHAR
+; at the block of its place in the name when the file has that block and the
+; map has its cell. Y isn't modified.
+krname: sty kny
+        ldx kcnthi
+        bne krndone
+        ldx kentry
+        cpx kcnt
+        beq krnfile
+        bcs krndone
+krnfile: ldy kfield
+        cpy #KNAMEAT
+        bne krnchar
+        sta knlen
+        jmp krndone
+krnchar: pha
+        tya
+        sec
+        sbc #KNAMEAT+1          ; the character's place in the name
+        bcc krnpop
+        cmp #KNAMEMAX
+        bcs krnpop
+        cmp knlen
+        bcs krnpop
+        clc
+        adc KFLO,x
+        sta kcb
+        lda KFHI,x
+        adc #0
+        sta kcb+1
+        lda kcb                 ; a block of the file's
+        cmp KNLO,x
+        lda kcb+1
+        sbc KNHI,x
+        bcs krnpop
+        lda kcb                 ; and of the map's
+        cmp #<KMAPEND
+        lda kcb+1
+        sbc #>KMAPEND
+        bcs krnpop
+        pla
+        and #$7F                ; in capitals, and ? for a control character
+        cmp #$60
+        bcc krnupper
+        and #$5F
+krnupper: cmp #' '
+        bcs krnput
+        lda #'?'
+krnput: jsr kchput
+        jmp krndone
+krnpop: pla
+krndone: ldy kny
+        rts
 
 ; krplan: ktotal, the blocks the krunch moves, with each entry checked: its
 ; next block past its first, and its first not before the end of the file
@@ -4590,6 +4686,7 @@ kepart: lda kleft
 keentry: jsr krdirent
         bcs kefail
         inc kfiles
+        jsr kmapfree
         jsr pollcancel
 kestay: jsr krpast
         clc
@@ -4631,10 +4728,14 @@ kpread: lda ksoff
         sta op
         jsr seek
         jsr kshow
+        lda #KCREAD
+        jsr kmarksrc
         jsr readtrack
         bcc kpframe
         rts                     ; the carry set, with err
-kpframe: lda #0
+kpframe: lda #KSMOVE
+        jsr kmarksrc
+        lda #0
         sta kidx
 kpslot: lda ksoff              ; each destination sector's stream, from
         asl a                   ; the source sector in its place
@@ -4666,8 +4767,13 @@ kpslot: lda ksoff              ; each destination sector's stream, from
         ldx kdst+1
         jsr ktrack
         sta track
+        lda #KCWRITE
+        jsr kmarkdst
         jsr kwrite
         bcs kpfail
+        jsr kmovechars
+        lda #KSDONE
+        jsr kmarkdst
         clc
         lda kmoved
         adc klen
@@ -4918,6 +5024,442 @@ kpghdr: lda kproghdr,x
 kproghdr: .byte $C1, $02, $00, CMDKPROG, $C1 ^ $02 ^ $00 ^ CMDKPROG
 kprogend:
 
+; kmapshow: the block map drawn over the history, which is saved in KHIST
+; first, with BLOCKS for its heading and a legend on its last row. Each block
+; is a cell, 40 to a row from block 0 at the top left, and two characters
+; wide in 80 columns. A file's name is across its blocks, a character a cell
+; from its first, as far as its blocks go. The boot blocks, the directory and
+; each file that stays where it is are drawn as done, in inverse; each file to
+; move as to move, its name in normal characters and # past it; and the rest
+; as free, or blank past the volume's end. Blocks being read and written are
+; a flashing R and W, so on a //e or //c the primary characters are selected
+; while the map is drawn. The map has 280 cells, a 140 KB disk's blocks; a
+; block past them isn't drawn. During a Full Send, whose screen is on the
+; history's rows, no map is drawn.
+kmapshow: lda fsmode
+        beq kmsgo
+        rts
+kmsgo:  lda #0
+        jsr khcopy
+        lda #1
+        sta kmapon
+        lda $FBB3
+        cmp #$06
+        bne kmsprim
+        lda RDALTCHAR
+        sta kalt
+        sta ALTCHAROFF
+kmsprim:
+        ldx #<ROWHIST
+        lda #>ROWHIST
+        jsr fullrow
+        lda #<kmaptxt
+        sta ptr
+        lda #>kmaptxt
+        sta ptr+1
+        jsr puttext
+        jsr fsclear
+        lda #0                  ; free up to the volume's end, and blank past it
+        sta kcfrom
+        sta kcfrom+1
+        lda keov
+        sta kcto
+        lda keov+1
+        sta kcto+1
+        lda #KCFREE
+        jsr kcells
+        lda #<KMAPEND
+        sta kcto
+        lda #>KMAPEND
+        sta kcto+1
+        lda #KCOFF
+        jsr kcells
+        lda #0                  ; the boot blocks and the directory
+        sta kcfrom
+        sta kcfrom+1
+        sta kcto+1
+        lda #6
+        sta kcto
+        lda #KSDONE
+        jsr kcells
+        lda #1
+        sta kslot
+kmsfile: lda kcnt
+        cmp kslot
+        bcc kmslegend
+        jsr krlength
+        ldx kslot
+        lda KFLO,x
+        sta kcfrom
+        lda KFHI,x
+        sta kcfrom+1
+        lda KNLO,x
+        sta kcto
+        lda KNHI,x
+        sta kcto+1
+        jsr krstays
+        beq kmsstay
+        lda #KSMOVE
+        bne kmsdraw
+kmsstay: lda #KSDONE
+kmsdraw: jsr kcells
+        jsr krpast
+        inc kslot
+        jmp kmsfile
+kmslegend: jsr krfirst
+        ldx #LOGROWS-1
+        jsr fsrow
+        lda #<klegend
+        sta ptr
+        lda #>klegend
+        sta ptr+1
+        bit wide
+        bpl kmsleg
+        lda #<klegend80
+        sta ptr
+        lda #>klegend80
+        sta ptr+1
+        ldy #KLEGCOL80
+kmsleg: jmp putinv
+
+; kmapoff: the history drawn again over the block map, with its heading and
+; the keys, and the alternate characters selected again if they were, when the
+; map is drawn.
+kmapoff: lda kmapon
+        beq kmodone
+        lda #0
+        sta kmapon
+        bit kalt
+        bpl kmoprim
+        sta ALTCHARON
+kmoprim: jsr fschrome
+        lda #1
+        jmp khcopy
+kmodone: rts
+
+; khcopy: the history's rows copied to KHIST when A is 0, or from it back onto
+; the screen when A is 1: main memory's 40 bytes of each row and then, in 80
+; columns, auxiliary memory's.
+khcopy: sta khdir
+        lda #<KHIST
+        sta khbuf
+        lda #>KHIST
+        sta khbuf+1
+        lda #0
+        sta khaux
+khpass: ldx #0
+khrow:  lda khdir
+        bne khback
+        lda logrowlo,x          ; from the screen
+        sta ptr
+        lda logrowhi,x
+        sta ptr+1
+        lda khbuf
+        sta scr
+        lda khbuf+1
+        sta scr+1
+        jmp khbytes
+khback: lda khbuf               ; onto the screen
+        sta ptr
+        lda khbuf+1
+        sta ptr+1
+        lda logrowlo,x
+        sta scr
+        lda logrowhi,x
+        sta scr+1
+khbytes: ldy #39
+        bit khaux
+        bpl khbyte
+        sta PAGE2ON
+khbyte: lda (ptr),y
+        sta (scr),y
+        dey
+        bpl khbyte
+        sta PAGE2OFF
+        clc
+        lda khbuf
+        adc #40
+        sta khbuf
+        bcc khnext
+        inc khbuf+1
+khnext: inx
+        cpx #LOGROWS
+        bne khrow
+        bit khaux
+        bmi khdone
+        bit wide
+        bpl khdone
+        lda #$80
+        sta khaux
+        bne khpass
+khdone: rts
+
+; kmarksrc: the cells of the part's source blocks, klen of them from ksrc,
+; drawn in the style or as the screen code in A, as kcells draws them;
+; kmarkdst: those of its destination blocks, from kdst.
+kmarkdst: ldx #kdst-ksrc
+        bne kmark
+kmarksrc: ldx #0
+kmark:  pha
+        lda ksrc,x
+        sta kcfrom
+        clc
+        adc klen
+        sta kcto
+        lda ksrc+1,x
+        sta kcfrom+1
+        adc #0
+        sta kcto+1
+        pla
+        jmp kcells
+
+; kmapfree: the cells of entry kslot's old blocks drawn as free once its entry
+; indicates its new place, apart from those the new place covers.
+kmapfree: clc
+        lda kat
+        adc kblocks
+        sta kcfrom
+        lda kat+1
+        adc kblocks+1
+        sta kcfrom+1
+        ldx kslot
+        lda KFLO,x
+        cmp kcfrom
+        lda KFHI,x
+        sbc kcfrom+1
+        bcc kmfnew
+        lda KFLO,x
+        sta kcfrom
+        lda KFHI,x
+        sta kcfrom+1
+kmfnew: lda KNLO,x
+        sta kcto
+        lda KNHI,x
+        sta kcto+1
+        lda #KCFREE
+        jmp kcells
+
+; kcells: the cells of blocks kcfrom up to kcto, and not past the map's last,
+; drawn when the map is drawn: in the style in A, KSDONE or KSMOVE, with each
+; block's character in KCHAR, or as the screen code in A. kcfrom is left at
+; the first block not drawn.
+kcells: sta kcch
+        lda kmapon
+        beq kcdone
+        lda kcto
+        cmp #<KMAPEND
+        lda kcto+1
+        sbc #>KMAPEND
+        bcc kcnext
+        lda #<KMAPEND
+        sta kcto
+        lda #>KMAPEND
+        sta kcto+1
+kcnext: lda kcfrom
+        cmp kcto
+        lda kcfrom+1
+        sbc kcto+1
+        bcs kcdone
+        jsr kcell
+        inc kcfrom
+        bne kcnext
+        inc kcfrom+1
+        jmp kcnext
+kcdone: rts
+
+; kcell: the cell of block kcfrom drawn in the style or as the screen code in
+; kcch: on row kcfrom / 40 of the history's rows at kcfrom mod 40, which in 80
+; columns is the same offset in both memories and so two columns. There a
+; name's character is in the left column, auxiliary memory's, and a space of
+; its kind in the right; any other cell is the same code twice. A block past
+; the map isn't drawn.
+kcell:  lda kcfrom
+        sta kcv
+        lda kcfrom+1
+        sta kcv+1
+        ldx #0
+kcdiv:  lda kcv+1
+        bne kcsub
+        lda kcv
+        cmp #KMAPCOLS
+        bcc kcput
+kcsub:  sec
+        lda kcv
+        sbc #KMAPCOLS
+        sta kcv
+        lda kcv+1
+        sbc #0
+        sta kcv+1
+        inx
+        cpx #KMAPROWS
+        bne kcdiv
+        rts
+kcput:  lda logrowlo,x
+        sta scr
+        lda logrowhi,x
+        sta scr+1
+        lda kcch
+        sta kcode
+        sta kcright
+        cmp #KSMOVE+1
+        bcs kcdraw
+        lda kcfrom              ; a style, with the block's character
+        sta kcb
+        lda kcfrom+1
+        sta kcb+1
+        jsr kchget
+        ldx kcch
+        bne kcmove
+        and #$3F                ; done: in inverse
+        sta kcode
+        lda #KCINVSP
+        bne kcpair
+kcmove: cmp #' '
+        bne kcname
+        lda #KCFILL             ; to move, with no character: # in both columns
+        sta kcode
+        sta kcright
+        bne kcdraw
+kcname: ora #$80
+        sta kcode
+        lda #KCOFF
+kcpair: sta kcright
+kcdraw: ldy kcv
+        bit wide
+        bmi kcwide
+        lda kcode
+        sta (scr),y
+        rts
+kcwide: lda kcright
+        sta (scr),y
+        lda kcode
+        sta PAGE2ON
+        sta (scr),y
+        sta PAGE2OFF
+        rts
+
+; kchclear: each block's character in KCHAR a space.
+kchclear: lda #' '
+        ldy #0
+kcclear: sta KCHAR,y
+        sta KCHAR+KMAPEND-256,y
+        iny
+        bne kcclear
+        rts
+
+; kchget: A, the character in KCHAR of block kcb, which is in the map. Y is
+; overwritten.
+kchget: ldy kcb
+        lda kcb+1
+        bne kcghigh
+        lda KCHAR,y
+        rts
+kcghigh: lda KCHAR+256,y
+        rts
+
+; kchput: A put in KCHAR as the character of block kcb, which is in the map.
+; Y is overwritten.
+kchput: ldy kcb
+        pha
+        lda kcb+1
+        bne kcphigh
+        pla
+        sta KCHAR,y
+        rts
+kcphigh: pla
+        sta KCHAR+256,y
+        rts
+
+; kmovechars: the characters of the part's source blocks, klen of them from
+; ksrc, copied to its destination blocks from kdst, first to last, which is
+; safe as the destination is before the source. Nothing is copied for a source
+; past the map.
+kmovechars: clc
+        lda ksrc
+        adc klen
+        sta kcb
+        lda ksrc+1
+        adc #0
+        sta kcb+1
+        lda kcb
+        cmp #<KMAPPAST
+        lda kcb+1
+        sbc #>KMAPPAST
+        bcs kmcdone
+        lda #0
+        sta kmi
+kmcnext: lda kmi
+        cmp klen
+        beq kmcdone
+        clc
+        adc ksrc
+        sta kcb
+        lda ksrc+1
+        adc #0
+        sta kcb+1
+        jsr kchget
+        pha
+        clc
+        lda kmi
+        adc kdst
+        sta kcb
+        lda kdst+1
+        adc #0
+        sta kcb+1
+        pla
+        jsr kchput
+        inc kmi
+        jmp kmcnext
+kmcdone: rts
+
+; putinv: the 0-terminated text at (ptr) into the field from Y, as puttext
+; draws it, with each character whose high bit is set in inverse, and each
+; byte below $20 as the flashing character $40 above it.
+putinv: sty tmp
+        ldy #0
+pitext: lda (ptr),y
+        beq pidone
+        sty tmp2
+        ldy tmp
+        cmp #' '
+        bcs pinorm
+        ora #$40
+        jsr pcput               ; the screen code as it is
+        jmp pinext
+pinorm: ldx #0
+        cmp #$80
+        bcc piput
+        and #$7F
+        ldx rowwidth
+piput:  stx barcells
+        jsr putch
+pinext: sty tmp
+        ldy tmp2
+        iny
+        bne pitext
+pidone: ldx #0
+        stx barcells
+        ldy tmp
+        rts
+
+kmaptxt: .text "BLOCKS"
+        .byte $3A, 0
+; The legend, a high bit for inverse, and in 80 columns with its cells doubled.
+klegend: .byte $A0
+        .text " DONE  # TO GO  . FREE  "
+        .byte KCREAD-$40
+        .text " READ  "
+        .byte KCWRITE-$40
+        .text " WRITE"
+        .byte 0
+klegend80: .byte $A0, $A0
+        .text " DONE   ## TO GO   .. FREE   "
+        .byte KCREAD-$40, KCREAD-$40
+        .text " READ   "
+        .byte KCWRITE-$40, KCWRITE-$40
+        .text " WRITE"
+        .byte 0
+
 kcrc:    .byte 0, 0             ; the host's CRC of the directory
 kcnt:    .byte 0                ; the volume's file count
 kcnthi:  .byte 0
@@ -4942,6 +5484,22 @@ kdsec:   .byte 0, 0             ; the directory sectors they are in
 kj:      .byte 0                ; a directory sector, 0 to 7
 kfield:  .byte 0                ; krdfield: the byte in the entry
 kentry:  .byte 0                ; and the entry
+keov:    .byte 0, 0             ; the volume's blocks
+kmapon:  .byte 0                ; nonzero while the block map is drawn
+kcfrom:  .byte 0, 0             ; kcells: the next block to draw
+kcto:    .byte 0, 0             ; and the block after the last
+kcch:    .byte 0                ; their screen code
+kcv:     .byte 0, 0             ; kcell: the block, less 40 for each row above it
+khdir:   .byte 0                ; khcopy: 1 back onto the screen
+khaux:   .byte 0                ; its high bit set for auxiliary memory's columns
+khbuf:   .byte 0, 0             ; where the row goes in KHIST, or comes from
+kalt:    .byte 0                ; kmapshow: bit 7 set when the alternate characters were selected
+kcode:   .byte 0                ; kcell: the cell's screen code
+kcright: .byte 0                ; and in 80 columns its right column's
+kcb:     .byte 0, 0             ; kchget and kchput: the block
+kmi:     .byte 0                ; kmovechars: the block being copied
+kny:     .byte 0                ; krname: Y as it came
+knlen:   .byte 0                ; the name's length
 
 ; Each block of a track's two sectors, as ProDOS and Apple Pascal map them;
 ; blocks 2 to 5, the directory, are from the fifth.
