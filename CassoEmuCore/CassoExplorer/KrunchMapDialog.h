@@ -54,8 +54,8 @@ public:
     static constexpr uint32_t         s_kLabelColor = 0xFFFFFFFF;
     static constexpr uint32_t         s_kBusyColor  = 0xFFFFFF40;   // R and W, yellow beside the white file labels
 
-    //  The colors of the Windows 95 Disk Defragmenter's map, which don't
-    //  change with the theme, so the map reads as that one does.
+    //  The map's colors, which don't change with the theme: files done and
+    //  waiting are muted, and the file being moved is bright.
     static uint32_t      GetColor (KrunchMap::Cell cell);
     static std::wstring  GetLabel (KrunchMap::Cell cell);
 

@@ -17,11 +17,11 @@ uint32_t KrunchMapPanel::GetColor (KrunchMap::Cell cell)
 {
     switch (cell)
     {
-        case KrunchMap::Cell::System:  return 0xFF808080;
-        case KrunchMap::Cell::InPlace: return 0xFF0000A8;
-        case KrunchMap::Cell::ToMove:  return 0xFF00A8A8;
-        case KrunchMap::Cell::Reading: return 0xFF00C000;
-        case KrunchMap::Cell::Writing: return 0xFFE00000;
+        case KrunchMap::Cell::System:  return 0xFF6E6E6E;
+        case KrunchMap::Cell::InPlace: return 0xFF34406E;
+        case KrunchMap::Cell::ToMove:  return 0xFF3E6E6E;
+        case KrunchMap::Cell::Reading: return 0xFF1EE61E;
+        case KrunchMap::Cell::Writing: return 0xFFFF2828;
         default:                       return 0xFFFFFFFF;
     }
 }
