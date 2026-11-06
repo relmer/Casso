@@ -217,6 +217,9 @@ protected:
     DxuiListView        * GetTipList       (int view) const override;
     bool            ScrollCodeAtEdge  (WPARAM vk, IDxuiControl * focused);
 
+    //  Protected so a test can press Ctrl+Page Up or Ctrl+Page Down in a view.
+    bool            SelectCodeViewEdge (WPARAM vk, IDxuiControl * focused);
+
     //  Protected so a test can read the rows a view shows.
     int                          GetCodeLineOfRow    (int view, int row) const override;
     int                          GetGutterLineOfRow  (int view, int row) const override;

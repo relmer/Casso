@@ -1982,6 +1982,72 @@ bool DisassemblyGroup::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyGroup::IsOverArrowsOrGutter
+//
+//  In a view, the lanes span the arrow's distance left of the mnemonics,
+//  with a second arrow a lane further out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::IsOverArrowsOrGutter (POINT clientPx) const
+{
+    const float      kLanesDip = BranchArrow::Input().marginPx + BranchArrow::Input().stubPx + DisassemblyCells::kArrowLaneDip;
+    int              view      = -1;
+    DxuiListView   * list      = FindCodeListAt (clientPx, view);
+    RECT             bounds    = {};
+    RECT             cell      = {};
+    int              row       = -1;
+    int              x         = 0;
+    float            scale     = 1.0f;
+
+
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources.GetDocument (slot);
+
+        if (document.IsShown() && document.GetView()->IsVisible() && m_host.IsRoutable (document.GetView()) &&
+            (document.GetView()->IsInGutter (clientPx) || document.GetModel().IsOverArrowLanes (clientPx)))
+        {
+            return true;
+        }
+    }
+
+    if (list == nullptr)
+    {
+        return false;
+    }
+
+    bounds = list->GetBounds();
+    x      = clientPx.x - bounds.left;
+    row    = list->HitTestRow (x, clientPx.y - bounds.top);
+
+    if (row < 0)
+    {
+        return false;
+    }
+
+    if (x + list->GetLeftPx() < list->GetPaneLeadPx() + list->GetColumnEffectiveWidthPx (DisassemblyCells::kGutterColumn))
+    {
+        return true;
+    }
+
+    if (!list->GetCellTextRectPx (row, DisassemblyCells::kInstructionColumn, cell))
+    {
+        return false;
+    }
+
+    scale = (float) (cell.bottom - cell.top) / (float) (std::max) (1, list->GetRowHeightDip());
+
+    return (float) x >= (float) cell.left - kLanesDip * scale && x < cell.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyGroup::FindCodeListAt
 //
 //  The code view under a point, and its number; null for none.

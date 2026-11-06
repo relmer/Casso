@@ -219,6 +219,10 @@ public:
     //  when the PC is not on a marked line here or holds no branch.
     bool  GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool & isTaken) const;
 
+    //  Whether a point is on a line, in the lanes left of the source text
+    //  where the branch arrow runs.
+    bool  IsOverArrowLanes (POINT atDip) const;
+
     //  Over a word of the source text, the symbol it is.
     bool  TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
     const SymbolInfo *  FindSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;

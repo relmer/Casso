@@ -1,9 +1,12 @@
 #include "Pch.h"
 
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
@@ -89,6 +92,7 @@ namespace SourceDocumentInputTests
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::GetFocused;
         using DebuggerWindow::GetCursorForPoint;
+        using DebuggerWindow::GetCodeList;
     };
 
 
@@ -359,6 +363,159 @@ namespace SourceDocumentInputTests
             items.clear();
             document->AddContentMenuItems (POINT { bounds.left + kMenuX, bounds.top + GetRowY (0) }, items);
             Assert::IsTrue (GetLabels (items).empty(), L"the comment has no code");
+        }
+
+
+        //  The window with main.a65's document in front, its rows a cell
+        //  high, and the document's view.
+        static DxuiTextView *  OpenDocument (SourceWindow & window, const std::shared_ptr<DebuggerViewSnapshot> & snapshot)
+        {
+            DxuiDpiScaler          scaler;
+            SourceDocumentPane   * document = nullptr;
+
+
+
+            scaler.SetDpi (96);
+            window.TakeSnapshot (snapshot);
+            window.GetSourceGroup().Activate (0);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            document = &window.GetSourceGroup().GetDocument (0);
+            Assert::IsTrue (document->GetView()->IsVisible(), L"the document is in front of its group");
+
+            document->GetView()->SetCellSize (8, kCellPx);
+            return document->GetView();
+        }
+
+
+        static void  Press (SourceWindow & window, POINT at)
+        {
+            DxuiMouseEvent  ev;
+
+
+
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = at;
+
+            for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+            {
+                ev.kind = kind;
+                (void) window.OnMouse (ev);
+            }
+        }
+
+
+        static void  Key (SourceWindow & window, WPARAM vk, bool ctrl)
+        {
+            (void) window.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Down, vk, false, false, ctrl, false });
+        }
+
+
+        //  A click on a document's line focuses it, as a click selects a
+        //  disassembly row, and the keys move it, Ctrl with Home and End
+        //  included.
+        TEST_METHOD (AClickFocusesALineTheKeysThenMove)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            SourceHost       host;
+            SourceWindow     window (theme, host);
+            DxuiTextView   * view   = OpenDocument (window, MakeSnapshot());
+            RECT             bounds = view->GetBounds();
+
+
+
+            Press (window, POINT { bounds.left + kMenuX, bounds.top + GetRowY (1) });
+            Assert::IsTrue   (window.GetFocused() == view, L"the document has the focus");
+            Assert::AreEqual (1, view->GetFocusRow(), L"LDA's line");
+
+            Key (window, VK_DOWN, false);
+            Assert::AreEqual (2, view->GetFocusRow());
+
+            Key (window, VK_HOME, true);
+            Assert::AreEqual (0, view->GetFocusRow(), L"Ctrl+Home");
+
+            Key (window, VK_END, true);
+            Assert::AreEqual (2, view->GetFocusRow(), L"Ctrl+End");
+        }
+
+
+        //  The pointer is an arrow over a document's glyph margin and over the
+        //  lanes left of its text where the branch arrow runs, and the I-beam
+        //  over the text.
+        TEST_METHOD (TheDocumentsPointerIsAnArrowOffItsText)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            SourceHost       host;
+            SourceWindow     window (theme, host);
+            DxuiTextView   * view   = OpenDocument (window, MakeSnapshot());
+            RECT             bounds = view->GetBounds();
+            float            text   = 0.0f;
+            int              y      = bounds.top + GetRowY (1);
+
+
+
+            Assert::IsTrue (view->GetCellLeftPx (1, SourcePane::kTextCell, text));
+
+            Assert::IsTrue (window.GetCursorForPoint (POINT { bounds.left + GetGutterX(), y }) == IDC_ARROW, L"the glyph margin");
+            Assert::IsTrue (window.GetCursorForPoint (POINT { (LONG) text - 2, y }) == IDC_ARROW, L"the lanes left of the text");
+            Assert::IsTrue (window.GetCursorForPoint (POINT { (LONG) text + 20, y }) == IDC_IBEAM, L"the text");
+        }
+
+
+        //  The same in a disassembly view: an arrow over the glyph margin and
+        //  over the lanes left of the mnemonics, which overlap the label
+        //  column's cells; and Ctrl+Page Down and Ctrl+Page Up select the
+        //  bottom and top row in view, as in a document.
+        TEST_METHOD (TheDisassemblysPointerAndPageKeysMatchADocuments)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost                      host;
+            SourceWindow                    window   (theme, host);
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  line;
+            DxuiListView                  * list     = nullptr;
+            MockDxuiPainter                 painter;
+            MockDxuiTextRenderer            text;
+            RECT                            bounds   = {};
+            RECT                            cell     = {};
+            int                             y        = 0;
+
+
+
+            for (Word address = 0x0300; address < 0x0306; address += 2)
+            {
+                line.address     = address;
+                line.bytes       = "A9 41";
+                line.label       = "START";
+                line.instruction = "LDA #$41";
+                snapshot->codeViews[0].push_back (line);
+            }
+
+            snapshot->isPaused    = true;
+            snapshot->codeOpen[0] = true;
+            snapshot->code        = snapshot->codeViews[0];
+
+            window.TakeSnapshot (snapshot);
+
+            list   = window.GetCodeList (0);
+            bounds = list->GetBounds();
+            list->Paint (painter, text, theme);
+            Assert::IsTrue (list->IsVisible() && list->GetCellTextRectPx (1, DisassemblyCells::kInstructionColumn, cell), L"the view is in front");
+
+            y = bounds.top + (cell.top + cell.bottom) / 2;
+
+            Assert::IsTrue (window.GetCursorForPoint (POINT { bounds.left + GetGutterX(), y }) == IDC_ARROW, L"the glyph margin");
+            Assert::IsTrue (window.GetCursorForPoint (POINT { bounds.left + cell.left - 6, y }) == IDC_ARROW, L"the lanes, over the label's cell");
+            Assert::IsTrue (window.GetCursorForPoint (POINT { bounds.left + cell.left + 2, y }) == IDC_IBEAM, L"the mnemonic");
+
+            window.FocusControl (list);
+            list->SetSelectedRow (1);
+
+            Key (window, VK_NEXT, true);
+            Assert::AreEqual (2, list->GetSelectedRow(), L"Ctrl+Page Down: the bottom row");
+
+            Key (window, VK_PRIOR, true);
+            Assert::AreEqual (0, list->GetSelectedRow(), L"Ctrl+Page Up: the top row");
         }
     };
 }

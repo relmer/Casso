@@ -142,6 +142,24 @@ public:
     bool  IsInGutterBand   (POINT point) const;
     bool  IsInGutter       (POINT point) const;
 
+    //  With row focus on, a press focuses the row under it, drawn as a list
+    //  draws its selected row while the view has the focus and no text is
+    //  selected, and the keys move that row: Up and Down a row, Page Up and
+    //  Page Down a page, Home and End, or Ctrl+Page Up and Ctrl+Page Down, to
+    //  the top and bottom row in view, and Ctrl+Home and Ctrl+End to the
+    //  first and last row. The view scrolls as little as it can with the
+    //  row in view. Off by default; -1 is no row.
+    void  SetRowFocus      (bool on)              { m_rowFocus = on; }
+    int   GetFocusRow      () const               { return m_focusRow; }
+    void  SetFocusRow      (int row);
+
+    //  The left and right of the text area, past the gutter and short of the
+    //  scroll bar; and a cell's rect from its left to the text area's right,
+    //  on the first line of its row, false when that line is not drawn.
+    int   GetTextAreaLeftPx  () const;
+    int   GetTextAreaRightPx () const;
+    bool  GetCellRectPx      (int row, int cell, RECT & outRect) const;
+
     //  A view that fills a pane: its text starts where the pane's title
     //  does, rather than a pad in from its left. Off by default.
     void  SetPaneTextInset (bool on)              { m_paneTextInset = on; }
@@ -333,6 +351,7 @@ public:
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { m_isFocused = focused; }
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand     (DxuiStandardCommand command) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -394,7 +413,8 @@ private:
     int           GetGutterLeftPx   () const;
     int           GetTextBaseLeft   () const;
     int           GetHorzBarPx      () const;
-    void          PaintLineGutter   (IDxuiPainter & painter, IDxuiTextRenderer & text, int lineIndex);
+    void          PaintLineGutter   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex);
+    bool          TryMoveFocusRow   (WPARAM vk, bool ctrl);
 
     //  A drawn line's height, a line's top counted from the first line shown,
     //  and the first line to show for a given line to be the last that fits.
@@ -475,4 +495,7 @@ private:
     int                m_leftColumn    = 0;
     int                m_widestColumns = 0;
     int                m_firstClipped  = -1;
+    bool               m_rowFocus      = false;
+    int                m_focusRow      = -1;
+    bool               m_isFocused     = false;
 };

@@ -34,6 +34,7 @@ void DxuiTextView::SetRows (std::vector<Row> rows)
     m_userCaret  = Position();
     m_hoverRow   = -1;
     m_pressRow   = -1;
+    m_focusRow   = -1;
     m_highlights.clear();
 
     Rebuild();
@@ -73,6 +74,8 @@ void DxuiTextView::UpdateRows (std::vector<Row> rows)
     clamp (m_userCaret);
 
     std::erase_if (m_highlights, [this] (const FindMatch & match) { return match.start.row >= (int) m_rows.size(); });
+
+    m_focusRow = (std::min) (m_focusRow, (int) m_rows.size() - 1);
 
     Rebuild();
 }
@@ -1876,7 +1879,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     //  then the text, clipped to the text area once it has scrolled.
     for (int lineIndex = m_topLine; lineIndex < last; lineIndex++)
     {
-        PaintLineGutter (painter, text, lineIndex);
+        PaintLineGutter (painter, text, theme, lineIndex);
     }
 
     clipLeft = (m_leftColumn > 0) ? (float) GetTextBaseLeft() : (float) m_boundsDip.left;
@@ -1921,7 +1924,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & text, int lineIndex)
+void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex)
 {
     HRESULT       hr     = S_OK;
     const Line  & line   = m_lines[(size_t) lineIndex];
@@ -1931,8 +1934,23 @@ void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & 
     int           gutter = GetGutterPx();
     float         iconPx = m_scaler.ToPxf ((float) m_gutterIconDip);
     float         iconX  = (float) (left - gutter) + ((float) gutter - iconPx) * 0.5f;
+    float         width  = (float) (GetTextAreaRightPx() - m_boundsDip.left);
+    float         radius = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
 
 
+
+    //  The focused row, under the row's fill, as a list draws its selected
+    //  row.
+    if (m_rowFocus && m_isFocused && line.row == m_focusRow && !HasSelection())
+    {
+        painter.FillRoundedRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), radius, theme.ContentSelection());
+
+        if (theme.ContentSelectionEdge() != 0)
+        {
+            painter.OutlineRoundedRect ((float) m_boundsDip.left, (float) y, width, (float) GetLineHeightPx (lineIndex), radius,
+                                        (std::max) (1.0f, m_scaler.ToPxf (1.0f)), theme.ContentSelectionEdge());
+        }
+    }
 
     if (row.background != 0)
     {
@@ -2550,6 +2568,148 @@ bool DxuiTextView::IsInGutter (POINT point) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::GetTextAreaLeftPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetTextAreaLeftPx() const
+{
+    return GetTextBaseLeft();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetTextAreaRightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetTextAreaRightPx() const
+{
+    return (int) m_boundsDip.right - (IsScrollbarVisible() ? m_scaler.ToPx (s_kScrollbarWidthDip) : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetCellRectPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::GetCellRectPx (int row, int cell, RECT & outRect) const
+{
+    int    first = GetFirstLineOfRow (row);
+    float  x     = 0.0f;
+
+
+
+    if (first < m_topLine || first >= m_topLine + GetLineCap() || !GetCellLeftPx (row, cell, x))
+    {
+        return false;
+    }
+
+    outRect.left   = (LONG) std::lround (x);
+    outRect.top    = (LONG) (m_boundsDip.top + m_scaler.ToPx (s_kPadDip) + GetLineOffsetPx (first));
+    outRect.right  = GetTextAreaRightPx();
+    outRect.bottom = outRect.top + GetLineHeightPx (first);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetFocusRow
+//
+//  The focused row replaces any selection, so it is drawn, and is scrolled
+//  into view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetFocusRow (int row)
+{
+    if (row < 0 || row >= (int) m_rows.size())
+    {
+        m_focusRow = -1;
+        return;
+    }
+
+    m_focusRow = row;
+    m_anchor   = Position { row, 0 };
+    m_caret    = m_anchor;
+
+    ScrollToPosition (m_anchor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::TryMoveFocusRow
+//
+//  With no row focused, the moves count from the top row in view. False
+//  for a key that moves nothing, such as Ctrl+Up, which is the host's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::TryMoveFocusRow (WPARAM vk, bool ctrl)
+{
+    int   rows   = (int) m_rows.size();
+    int   page   = (std::max) (1, GetLineCap());
+    int   last   = (int) m_lines.size() - 1;
+    int   top    = 0;
+    int   bottom = 0;
+    int   from   = 0;
+    int   next   = 0;
+    bool  isMove = true;
+
+
+
+    if (rows == 0 || last < 0)
+    {
+        return false;
+    }
+
+    top    = m_lines[(size_t) std::clamp (m_topLine, 0, last)].row;
+    bottom = m_lines[(size_t) std::clamp (m_topLine + page - 1, 0, last)].row;
+    from   = (m_focusRow >= 0 && m_focusRow < rows) ? m_focusRow : top;
+
+    switch (vk)
+    {
+    case VK_UP:    next = from - 1;   isMove = !ctrl; break;
+    case VK_DOWN:  next = from + 1;   isMove = !ctrl; break;
+    case VK_PRIOR: next = ctrl ? top    : from - page; break;
+    case VK_NEXT:  next = ctrl ? bottom : from + page; break;
+    case VK_HOME:  next = ctrl ? 0        : top;       break;
+    case VK_END:   next = ctrl ? rows - 1 : bottom;    break;
+    default:       isMove = false;                     break;
+    }
+
+    if (isMove)
+    {
+        SetFocusRow (std::clamp (next, 0, rows - 1));
+    }
+
+    return isMove;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::GetHorzBarPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2903,6 +3063,7 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
             m_lastClick   = pos;
 
             m_wordDrag = twice;
+            m_focusRow = m_rowFocus ? pos.row : m_focusRow;
             isOnLink   = !twice && !ev.shift && TryGetLinkAt (point, linkRow, linkSpan, linkRect);
             m_pressRow  = isOnLink ? linkRow  : -1;
             m_pressSpan = isOnLink ? linkSpan : -1;
@@ -3027,16 +3188,23 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiTextView::OnKey
 //
-//  The arrow and page keys scroll; there is no caret to move in read-only text.
+//  The arrow and page keys scroll; there is no caret to move in read-only
+//  text. With row focus on, they move the focused row instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextView::OnKey (const DxuiKeyEvent & ev)
 {
-    //  With Ctrl or Alt down the key is a shortcut, left to the host.
+    //  With Ctrl or Alt down the key is a shortcut, left to the host, but for
+    //  the keys that move the focused row.
     bool  handled = ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt;
 
 
+
+    if (m_rowFocus && ev.kind == DxuiKeyEventKind::Down && !ev.alt && TryMoveFocusRow (ev.vk, ev.ctrl))
+    {
+        return true;
+    }
 
     if (!handled)
     {

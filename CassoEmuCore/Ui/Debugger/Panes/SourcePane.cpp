@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/CodeMargins.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Core/TextEncoding.h"
@@ -50,6 +51,7 @@ void SourcePane::Configure (HWND hwnd)
     m_view->SetGutter             (CodeMargins::kGlyphDip, CodeMargins::kIconDip);
     m_view->SetGlyphCenterDip     (CodeMargins::kGlyphCenterDip);
     m_view->SetGutterBand         (CodeMargins::kGlyphDip, CodeMargins::kHeatDip);
+    m_view->SetRowFocus           (true);
     m_banner->SetSeverity         (DxuiInfoBanner::Severity::Info);
     m_banner->SetOnAction         ([this] (size_t)
     {
@@ -1340,6 +1342,37 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
     }
 
     return input.mnemonicX - input.marginPx - input.stubPx >= (float) bounds.left;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::IsOverArrowLanes
+//
+//  The lanes span the arrow's distance left of the text, with a second
+//  arrow a lane further out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::IsOverArrowLanes (POINT atDip) const
+{
+    const float              kLanesDip = kArrowMarginDip + BranchArrow::Input().stubPx + DisassemblyCells::kArrowLaneDip;
+    DxuiTextView::Position   at        = m_view->HitTest (atDip);
+    int                      side      = 0;
+    float                    x         = 0.0f;
+
+
+
+    if (!DxuiDockSite::Contains (m_view->GetBounds(), atDip) || at.row < 0 || at.row >= (int) m_view->GetRows().size() ||
+        !m_view->GetRowSide (at.row, side) || side != 0 || !m_view->GetCellLeftPx (at.row, kTextCell, x))
+    {
+        return false;
+    }
+
+    return (float) atDip.x >= x - kLanesDip * m_view->GetPxPerDip() && (float) atDip.x < x;
 }
 
 

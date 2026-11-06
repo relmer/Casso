@@ -170,6 +170,54 @@ bool DebuggerWindow::ScrollCodeAtEdge (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::SelectCodeViewEdge
+//
+//  Ctrl+Page Up and Ctrl+Page Down select a disassembly view's top and
+//  bottom row in view, as they move to the top and bottom line in view in a
+//  source document and in Visual Studio's editor. True when a key moved a
+//  view's selection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::SelectCodeViewEdge (
+    WPARAM           vk,
+    IDxuiControl   * focused)
+{
+    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
+    {
+        DxuiListView  * code = m_code->GetCodeList (view);
+        int             top  = 0;
+        int             row  = 0;
+
+
+
+        if (code == nullptr || code != focused || (vk != VK_PRIOR && vk != VK_NEXT))
+        {
+            continue;
+        }
+
+        top = code->GetTopRow();
+        row = (vk == VK_PRIOR) ? top : (std::min) (code->GetRowCount(), top + (std::max) (1, code->GetVisibleRowCapacity())) - 1;
+
+        if (row < 0)
+        {
+            return false;
+        }
+
+        code->SetSelectedRow (row);
+        m_code->OnRowSelected (view, row);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetPressTargets
 //
 //  Every control a mouse press is offered to before the lists.
@@ -1531,6 +1579,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && SelectCodeViewEdge (ev.vk, focused))
+    {
+        return true;
+    }
+
     if (ev.kind == DxuiKeyEventKind::Down)
     {
         handled = (focused != nullptr) && focused->OnKey (ev);
@@ -1691,6 +1744,13 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
     if (LPCWSTR cursor = m_finds->GetCursor (clientPx); cursor != nullptr)
     {
         return cursor;
+    }
+
+    //  A code view's glyph margin and the lanes of its branch arrows are not
+    //  text, though they lie among the code's cells.
+    if (m_code->IsOverArrowsOrGutter (clientPx))
+    {
+        return IDC_ARROW;
     }
 
     for (DxuiListView * list : GetLists())
