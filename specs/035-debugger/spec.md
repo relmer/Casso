@@ -2115,7 +2115,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-026a**: Every pane MUST use a monospace font; rows MUST be no taller
   than the font's line height plus minor padding; columns MUST be sized to
   their contents with minor padding, and MUST NOT stretch to fill unused
-  width; a pane MUST be tall enough by default to show at least eight entries.
+  width, except a code view's Operand and result column, which MUST run to the
+  pane's edge with its text cut off there, so the view has no horizontal scroll
+  bar; a pane MUST be tall enough by default to show at least eight entries.
 - **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
   name MUST open a file picker and run the command with the chosen file.
 - **FR-026c**: The window's step, step over, step out, run, pause and toggle-
@@ -3668,7 +3670,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-340**: The AY write count, the last AY write and the recent phonemes
   MUST be saved in machine state, so a rewind restores them, and states saved without them MUST load.
 
-- **FR-341**: A tip on each of the view's parts MUST contain the raw register values behind it.
+- **FR-341**: A tip on each of the view's parts MUST contain the part's meaning,
+  and the register and raw value behind it wherever the view doesn't draw
+  that value beside the part.
 
 - **FR-342**: At each stop, and never while the machine runs, each loaded
   debug or symbol file MUST be checked against memory: a debug file by the
@@ -3708,7 +3712,7 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   optional machine, disks and title, and returns the process id once the
   channel is open; `attach`, which chooses the instance the other tools act
   on; `close`, for an instance this server launched only; `command`, any
-  debugger line in a command mode; `run`, `pause` and `step` (into, over or
+  debugger line in a command mode; `run`, `pause`, `resume` and `step` (into, over or
   out, with a count); `registers`; `read_memory` and `write_memory`;
   `disassemble`; `set_breakpoint`, `clear_breakpoint` and `list_breakpoints`;
   `reset` (soft or power); `type_text`; `press_keys`, by key name, Ctrl+Reset
@@ -3780,8 +3784,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   `ASC "HI",$00`.
 - **FR-363**: A menu whose rows can't be checked MUST NOT have a check gutter.
 - **FR-364**: The console line after a debug project loads MUST read "Loaded the
-  debug project for symbols-demo.dbg from <path>", by the debug file's or
-  binary's file name.
+  debug project for symbols-demo.dbg", by the debug file's or binary's file
+  name, with "project" a link to the project file and the file name a link to
+  the debug file or binary (FR-373).
 - **FR-365**: A debug file's project MUST NOT save or load another debug file as
   one of its symbol files.
 - **FR-366**: A disassembly view's Label column MUST be fitted to its labels each
@@ -3798,7 +3803,7 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   the heat map and the tabs' PC marks at once, with the marks at least 3:1
   against the tab band.
 - **FR-371**: The tips over a disassembly view's heat cells MUST open on the first
-  move over them.
+  move over them; FR-361 covers this with the other code-view tips.
 - **FR-372**: A source document's notice MUST lie inside the pane with a margin on
   every side, and MUST be no taller than its text when it has no button.
 - **FR-373**: A file in a console line MUST be a link in the console pane,
@@ -3845,14 +3850,16 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-384**: A floating pane dragged from a monitor at one scale MUST bring up the
   drop targets over a window on a monitor at another scale, in one drag.
 - **FR-385**: The View menu MUST list the panes in sections divided by
-  separators: the code (disassembly views, source files, call stack,
-  breakpoints, bookmarks, symbol tables), then the machine's state and memory
+  separators: the code (disassembly views, source files and the BASIC
+  program, call stack, breakpoints, bookmarks, symbol tables), then the machine's state and memory
   (registers, stack, watches, memory windows, data ranges, heat map, heat map
   ranges), then the output (console, trace, profiler, logs), then the device
   panels. Of those, only the panes in several instances, the logs and the
-  device panels MUST be submenus.
+  device panels MUST be submenus, with the BASIC program in the source files'
+  submenu.
 - **FR-386**: A click on a file's link in the console MUST open a new File
-  Explorer window at the file's folder with the file selected.
+  Explorer window at the file's folder with the file selected, until Casso
+  Explorer can bring forward a tab already open on the folder (T1388).
 
 ### Key Entities
 
