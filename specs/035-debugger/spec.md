@@ -355,6 +355,11 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: Is a flag required for a channel client to run a script? -> A: No. Each line of a script is checked as a channel line is, so the --allow-scripts gate was removed.
 
+### Session 2026-11-06 (owner decisions: the in-place operand tip)
+
+- Q: When does the in-place tip for a cut-off operand and result appear? -> A: On the first pointer move over the cell. The owner: "the in-place tip should not have a delay, it should be instant" (FR-026a).
+- Q: What does the tip do when the Operand and result cell is wholly out of view, as when the columns left of it are widened past the pane's edge? -> A: It comes up with the pointer anywhere on the row, with every line below the row from the pane's left edge, in the same font, colors and fill (FR-026a).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -2123,7 +2128,18 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   pane's edge with its text cut off there, so the view has no horizontal scroll
   bar. A width the user drags for that column MUST last only until Casso exits
   and MUST NOT be saved in the layout or the debug project. A pane MUST be tall
-  enough by default to show at least eight entries.
+  enough by default to show at least eight entries. Where the column's text is
+  cut off, it MUST be drawn whole in an in-place tip from the first pointer
+  move over the cell, with no delay: the operand on the first lines, starting
+  at the cell's text, and the result on lines below the row that span the
+  pane from its left edge, in the cell's font and colors on the hovered row's
+  fill, with no outline. Where the cell lies wholly outside the pane's
+  visible area, past its right edge or scrolled out of view to the left, the
+  tip MUST come up with the pointer anywhere on the row, with all of its
+  lines, the operand's and then the result's, below the row from the pane's
+  left edge. The same applies to a source document's operand and result. The
+  tip MUST stay up while the pointer moves from the row down into it
+  (amended 2026-11-06).
 - **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
   name MUST open a file picker and run the command with the chosen file.
 - **FR-026c**: The window's step, step over, step out, run, pause and toggle-
