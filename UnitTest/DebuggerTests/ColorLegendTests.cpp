@@ -222,6 +222,54 @@ namespace ColorLegendTests
         }
 
 
+        //  The heat map's key lists the fills its view can draw and the options
+        //  on: Self-modifying only with Blend on in All, Value changed only in
+        //  Changed, Read before written only in All and Data, and the outlines
+        //  in every view.
+        TEST_METHOD (TheHeatMapsKeyListsOnlyWhatItsViewDraws)
+        {
+            using View = HeatMapOptions::View;
+
+            auto  has = [] (View view, bool isBlend, Meaning meaning)
+            {
+                std::vector<ColorLegend::Entry>  entries = ColorLegend::GetEntriesFor (ColorLegend::GetHeatMapPane (view, isBlend));
+
+                return std::ranges::any_of (entries, [meaning] (const ColorLegend::Entry & entry) { return entry.meaning == meaning; });
+            };
+
+
+
+            Assert::IsFalse (has (View::All,     false, Meaning::HeatSelfModifying), L"Blend is off");
+            Assert::IsTrue  (has (View::All,     true,  Meaning::HeatSelfModifying));
+            Assert::IsFalse (has (View::Code,    true,  Meaning::HeatSelfModifying), L"Code has no writes");
+            Assert::IsFalse (has (View::Data,    true,  Meaning::HeatSelfModifying), L"Data has no code");
+            Assert::IsFalse (has (View::Changed, true,  Meaning::HeatSelfModifying));
+
+            Assert::IsFalse (has (View::All,     false, Meaning::HeatChanged));
+            Assert::IsFalse (has (View::Data,    false, Meaning::HeatChanged));
+            Assert::IsTrue  (has (View::Changed, false, Meaning::HeatChanged));
+            Assert::IsFalse (has (View::Changed, false, Meaning::HeatWrite),     L"Changed draws one color");
+            Assert::IsFalse (has (View::Changed, false, Meaning::HeatCode));
+
+            Assert::IsTrue  (has (View::All,     false, Meaning::HeatUnwritten));
+            Assert::IsTrue  (has (View::Data,    false, Meaning::HeatUnwritten));
+            Assert::IsFalse (has (View::Code,    false, Meaning::HeatUnwritten));
+            Assert::IsFalse (has (View::Changed, false, Meaning::HeatUnwritten));
+
+            Assert::IsFalse (has (View::Code,    false, Meaning::HeatRead));
+            Assert::IsFalse (has (View::Data,    false, Meaning::HeatCode));
+
+            for (View view : { View::All, View::Code, View::Data, View::Changed })
+            {
+                for (Meaning outline : { Meaning::HeatPc, Meaning::HeatStack, Meaning::HeatBreakpoint, Meaning::HeatReadWatch, Meaning::HeatWriteWatch })
+                {
+                    Assert::IsTrue (has (view, false, outline));
+                    Assert::IsTrue (has (view, true,  outline));
+                }
+            }
+        }
+
+
         TEST_METHOD (EveryLineHasAColorInEveryTheme)
         {
             ColorLegend::Palette  palette = MakeDistinctPalette();

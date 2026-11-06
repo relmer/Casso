@@ -239,7 +239,16 @@ std::vector<IDxuiControl *> HeatMapPane::GetControls() const
 
 std::optional<PaneColorKeySpec> HeatMapPane::GetColorKey() const
 {
-    return PaneColorKeySpec { m_bar.GetSlot(), ColorLegend::Pane::HeatMap, nullptr };
+    auto  legend = [this]() -> std::optional<ColorLegend::Pane>
+    {
+        HeatMapOptions  options = (m_view != nullptr) ? m_view->GetOptions() : HeatMapOptions();
+
+        return ColorLegend::GetHeatMapPane (options.view, options.blend);
+    };
+
+
+
+    return PaneColorKeySpec { m_bar.GetSlot(), ColorLegend::GetHeatMapPane (HeatMapOptions::View::All, false), legend };
 }
 
 
@@ -980,7 +989,7 @@ bool HeatMapPane::TryGetTipAt (POINT clientPx, DxuiTip & tip)
         return false;
     }
 
-    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text))
+    if (!isShown || !DxuiDockSite::Contains (m_view->GetBounds(), clientPx) || !m_view->TryGetTipAt (clientPx, tip.anchor, tip.text, tip.lineSwatches))
     {
         return false;
     }

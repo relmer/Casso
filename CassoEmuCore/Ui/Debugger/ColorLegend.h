@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Debugger/HeatMapOptions.h"
 #include "Ui/Debugger/DebuggerTextColors.h"
 
 
@@ -121,6 +122,10 @@ public:
         Memory,
         MemoryMap,
         HeatMap,
+        HeatMapBlend,
+        HeatMapCode,
+        HeatMapData,
+        HeatMapChanged,
         DiskHead,
         Breakpoints,
         StatusBar,
@@ -140,8 +145,19 @@ public:
     static std::vector<Entry>          GetEntriesFor (Pane pane);
     static const wchar_t *             GetPaneTitle  (Pane pane);
 
+    //  The heat map's legend for a view and Blend: only the colors that view
+    //  can draw. HeatMap is the All view without Blend; HeatMapBlend adds the
+    //  self-modifying color, and Code, Data and Changed list the colors they
+    //  draw.
+    static Pane  GetHeatMapPane (HeatMapOptions::View view, bool isBlend);
+
     //  The one-line meaning, which is also the tip over what it colors.
     static const wchar_t *  GetText (Meaning meaning);
+
+    //  The sentence up to its colon, for a place with room for a few words:
+    //  "Value changed" for "Value changed: a write that stored a different
+    //  value". A sentence without a colon is whole.
+    static std::wstring  GetLabel (Meaning meaning);
 
     //  The meaning's color in a palette.
     static uint32_t  GetArgb (Meaning meaning, const Palette & palette);

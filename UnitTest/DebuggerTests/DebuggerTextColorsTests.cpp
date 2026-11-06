@@ -79,6 +79,95 @@ public:
 
 
 
+    //  CIELAB (D65) of an sRGB color, to measure how far apart two fills look.
+    static std::array<double, 3>  GetLab (uint32_t argb)
+    {
+        constexpr double  kWhiteX    = 0.95047;
+        constexpr double  kWhiteZ    = 1.08883;
+        constexpr double  kEpsilon   = 0.008856;
+        constexpr double  kSlope     = 7.787;
+        constexpr double  kOffset    = 16.0 / 116.0;
+        double            channel[3] = {};
+        double            xyz[3]     = {};
+        double            f[3]       = {};
+        int               shift      = 16;
+
+
+
+        for (double & each : channel)
+        {
+            double  v = ((argb >> shift) & 0xFF) / 255.0;
+
+            each   = (v <= 0.04045) ? v / 12.92 : std::pow ((v + 0.055) / 1.055, 2.4);
+            shift -= 8;
+        }
+
+        xyz[0] = (0.4124 * channel[0] + 0.3576 * channel[1] + 0.1805 * channel[2]) / kWhiteX;
+        xyz[1] =  0.2126 * channel[0] + 0.7152 * channel[1] + 0.0722 * channel[2];
+        xyz[2] = (0.0193 * channel[0] + 0.1192 * channel[1] + 0.9505 * channel[2]) / kWhiteZ;
+
+        for (int i = 0; i < 3; i++)
+        {
+            f[i] = (xyz[i] > kEpsilon) ? std::cbrt (xyz[i]) : kSlope * xyz[i] + kOffset;
+        }
+
+        return { 116.0 * f[1] - 16.0, 500.0 * (f[0] - f[1]), 200.0 * (f[1] - f[2]) };
+    }
+
+
+
+    //  The heat map's fills for code, reads, writes, self-modifying, read before
+    //  written and value changed look clearly different from one another on
+    //  every theme's page, including the changed red each theme supplies.
+    TEST_METHOD (EveryHeatFillIsDistinctInEveryTheme)
+    {
+        constexpr double  kMinSeparation = 40.0;
+        CassoTheme        emulator       = CassoTheme::MakeSkeuomorphic();
+        CassoTheme        own;
+        DxuiLightTheme    light;
+        DxuiDarkTheme     dark;
+        std::wstring      failures;
+        size_t            checked        = 0;
+
+
+
+        DebuggerThemes::ApplyOwnColors (light, dark);
+
+        for (const DebuggerThemes::Choice & choice : DebuggerThemes::GetChoices())
+        {
+            const DxuiTheme &        theme = DebuggerThemes::Choose (choice.name, emulator, light, dark, own);
+            DebuggerTextColors::Set  c     = DebuggerTextColors::MakeFor (theme);
+            const std::pair<const wchar_t *, uint32_t>  fills[] =
+            {
+                { L"code", c.syntax.mnemonic }, { L"read", c.annotation }, { L"written", c.changed },
+                { L"self-modifying", c.heatSelfModifying }, { L"read before written", c.heatUnwritten }, { L"value changed", c.heatChanged },
+            };
+
+            for (size_t a = 0; a < std::size (fills); a++)
+            {
+                for (size_t b = a + 1; b < std::size (fills); b++)
+                {
+                    std::array<double, 3>  la       = GetLab (fills[a].second);
+                    std::array<double, 3>  lb       = GetLab (fills[b].second);
+                    double                 distance = std::hypot (la[0] - lb[0], la[1] - lb[1], la[2] - lb[2]);
+
+                    checked++;
+
+                    if (distance < kMinSeparation)
+                    {
+                        failures += std::format (L"{} {} and {} are {:.1f} apart\n", TextEncoding::NarrowToWide (choice.name), fills[a].first, fills[b].first, distance);
+                    }
+                }
+            }
+        }
+
+        Assert::IsTrue (checked > 0, L"no theme was checked");
+        Logger::WriteMessage (failures.c_str());
+        Assert::IsTrue (failures.empty(), failures.c_str());
+    }
+
+
+
     //  Every theme's own text colors reach the WCAG AA ratio on each surface
     //  they are drawn on: body, muted, error and heading text on the panels
     //  and lists, and each control's text on its own fill. Disabled text is

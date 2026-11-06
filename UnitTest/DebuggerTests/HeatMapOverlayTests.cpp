@@ -516,9 +516,9 @@ namespace DebuggerTests
                 }
             }
 
-            Assert::IsTrue (std::vector<Meaning> { Meaning::HeatCode, Meaning::HeatOperand, Meaning::HeatRead, Meaning::HeatWrite, Meaning::HeatSelfModifying,
+            Assert::IsTrue (std::vector<Meaning> { Meaning::HeatCode, Meaning::HeatOperand, Meaning::HeatRead, Meaning::HeatWrite, Meaning::HeatUnwritten,
                                                    Meaning::HeatSymbol, Meaning::HeatPc, Meaning::HeatStack, Meaning::HeatBreakpoint,
-                                                   Meaning::HeatReadWatch, Meaning::HeatWriteWatch, Meaning::HeatUnwritten, Meaning::HeatChanged } == listed);
+                                                   Meaning::HeatReadWatch, Meaning::HeatWriteWatch } == listed);
 
             Assert::AreEqual (kPc,                             ColorLegend::GetArgb (Meaning::HeatPc,            palette), L"the disassembly's PC yellow");
             Assert::AreEqual (kBreakpoint,                     ColorLegend::GetArgb (Meaning::HeatBreakpoint,    palette), L"the disassembly's breakpoint red");
