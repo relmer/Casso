@@ -2461,11 +2461,11 @@ std::wstring CassoLinkManager::FormatActivity (size_t lines) const
 
 void CassoLinkManager::ShowActivityLog()
 {
-    std::vector<CassoLinkConnections::Activity>  log = (m_context.app.links != nullptr) ? m_context.app.links->GetActivity() : std::vector<CassoLinkConnections::Activity>();
-    HRESULT                                      hr  = S_OK;
+    CassoLinkConnections  * links = m_context.app.links;
+    HRESULT                 hr    = S_OK;
 
 
 
-    hr = CassoLinkActivityDialog::Show (m_context.window.GetHwnd(), m_context.theme, log);
+    hr = CassoLinkActivityDialog::Show (m_context.window.GetHwnd(), m_context.theme, [links] () { return (links != nullptr) ? links->GetActivity() : std::vector<CassoLinkConnections::Activity>(); });
     IGNORE_RETURN_VALUE (hr, S_OK);
 }

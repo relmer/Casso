@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "CassoLinkActivityDialog.h"
-#include "Ui/PickerDialog.h"
 
 
 
@@ -135,14 +134,15 @@ std::vector<std::vector<DxuiListView::Cell>> CassoLinkActivityDialog::BuildRows 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkActivityDialog::Show (HWND owner, const IDxuiTheme * theme, const std::vector<CassoLinkConnections::Activity> & log)
+HRESULT CassoLinkActivityDialog::Show (HWND owner, const IDxuiTheme * theme, CassoLinkActivityFn getLog)
 {
-    HRESULT                                 hr      = S_OK;
-    DxuiListView                            list;
-    std::unique_ptr<CassoLinkActivityList>  content = std::make_unique<CassoLinkActivityList>();
-    PickerDialog                            dialog;
-    DxuiWindow::CreateParams                params;
-    UINT                                    dpi     = (owner != nullptr) ? GetDpiForWindow (owner) : GetDpiForSystem();
+    HRESULT                                      hr      = S_OK;
+    std::vector<CassoLinkConnections::Activity>  log     = getLog();
+    DxuiListView                                 list;
+    std::unique_ptr<CassoLinkActivityList>       content = std::make_unique<CassoLinkActivityList>();
+    CassoLinkActivityPicker                      dialog;
+    DxuiWindow::CreateParams                     params;
+    UINT                                         dpi     = (owner != nullptr) ? GetDpiForWindow (owner) : GetDpiForSystem();
 
 
 
@@ -159,6 +159,7 @@ HRESULT CassoLinkActivityDialog::Show (HWND owner, const IDxuiTheme * theme, con
     list.SetRows                    (BuildRows (log));
 
     content->Init (&list);
+    dialog.Watch  (&list, std::move (getLog), log);
     dialog.ConfigurePicker (std::move (content), &list, { DialogButton { L"Close", 0, true, true } }, 0);
 
     params.title                    = L"CassoLink activity";
@@ -181,4 +182,106 @@ HRESULT CassoLinkActivityDialog::Show (HWND owner, const IDxuiTheme * theme, con
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkActivityPicker::Watch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkActivityPicker::Watch (DxuiListView * list, CassoLinkActivityFn getLog, const std::vector<CassoLinkConnections::Activity> & listed)
+{
+    m_list   = list;
+    m_getLog = std::move (getLog);
+    m_newest = listed.empty() ? std::wstring() : GetKey (listed.back());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkActivityPicker::GetKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkActivityPicker::GetKey (const CassoLinkConnections::Activity & entry)
+{
+    return CassoLinkActivityDialog::FormatTime (entry.time) + L"\t" + entry.connection + L"\t" + entry.text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkActivityPicker::OnCreate
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkActivityPicker::OnCreate()
+{
+    PickerDialog::OnCreate();
+
+    SetDialogTickIntervalMs (kTickMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkActivityPicker::OnDialogTick
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkActivityPicker::OnDialogTick()
+{
+    std::vector<CassoLinkConnections::Activity>  log;
+    std::vector<int>                             selected;
+    int                                          added  = 0;
+    int                                          top    = 0;
+    int                                          anchor = 0;
+
+
+
+    log = (m_list != nullptr && m_getLog) ? m_getLog() : std::vector<CassoLinkConnections::Activity>();
+
+    if (!log.empty() && GetKey (log.back()) != m_newest)
+    {
+        while (added < (int) log.size() && GetKey (log[log.size() - 1 - (size_t) added]) != m_newest)
+        {
+            added++;
+        }
+
+        top      = m_list->GetTopRow();
+        anchor   = m_list->GetSelectedRow();
+        selected = m_list->GetSelectedRows();
+        m_newest = GetKey (log.back());
+
+        for (int & row : selected)
+        {
+            row += added;
+        }
+
+        std::erase_if (selected, [&] (int row) { return row >= (int) log.size(); });
+
+        m_list->SetRows         (CassoLinkActivityDialog::BuildRows (log));
+        m_list->SetSelectedRows (std::move (selected), (anchor < 0 || anchor + added >= (int) log.size()) ? -1 : anchor + added);
+
+        if (top > 0)
+        {
+            m_list->SetTopRow (top + added);
+        }
+
+        Invalidate();
+    }
 }
