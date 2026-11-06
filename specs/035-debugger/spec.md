@@ -2117,7 +2117,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   their contents with minor padding, and MUST NOT stretch to fill unused
   width, except a code view's Operand and result column, which MUST run to the
   pane's edge with its text cut off there, so the view has no horizontal scroll
-  bar; a pane MUST be tall enough by default to show at least eight entries.
+  bar. A width the user drags for that column MUST last only until Casso exits
+  and MUST NOT be saved in the layout or the debug project. A pane MUST be tall
+  enough by default to show at least eight entries.
 - **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
   name MUST open a file picker and run the command with the chosen file.
 - **FR-026c**: The window's step, step over, step out, run, pause and toggle-
