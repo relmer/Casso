@@ -424,15 +424,6 @@ private:
     static constexpr int    kPanePadDip            = 4;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
-    //  The breakpoint icon's size in a list cell, which the source view's
-    //  gutter draws it at too.
-    static constexpr int    kBreakpointIconDip     = 16;
-    //  The glyph margin a code view keeps for its breakpoints and the PC's
-    //  arrow, as Visual Studio's is: each glyph centered 8.4 DIP in from the
-    //  pane's body, 10.5 pixels at 125%, so its left edge is 2.8 DIP inside
-    //  it, in a column twice that wide; the address follows the column.
-    static constexpr float  kGlyphCenterDip        = DisassemblyCells::kGlyphCenterDip;
-    static constexpr int    kGutterColumnDip       = DisassemblyCells::kGutterColumnDip;
     static constexpr size_t kCodeGutterColumn      = DisassemblyCells::kGutterColumn;
 static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static constexpr size_t kCodeAddressColumn     = DisassemblyCells::kAddressColumn;

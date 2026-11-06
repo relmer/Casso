@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/BasicProgramController.h"
 
 #include "Core/UnicodeSymbols.h"
+#include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
@@ -85,7 +86,7 @@ void BasicProgramController::CreateControls()
 
 void BasicProgramController::Configure()
 {
-    m_model->Configure (DisassemblyCells::kGutterColumnDip);
+    m_model->Configure (CodeMargins::kGlyphDip);
     m_list->SetOwnerWindow (m_host.GetOwnerHwnd());
 
     m_bar.Configure();

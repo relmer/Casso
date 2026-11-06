@@ -184,6 +184,48 @@ public:
     }
 
 
+    //  An empty last cell adds nothing to how far the text scrolls sideways,
+    //  not even the gap ahead of it: a view wide enough for every character
+    //  has no bar along the bottom. The ten characters end at column 14, and
+    //  the view has room for 14 beside its scroll bar.
+    TEST_METHOD (NoWrap_AnEmptyLastCellDoesNotScroll)
+    {
+        DxuiTextView  view;
+
+
+
+        LayOut (view, 12 + 10 + 14 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"ab", L"0123456789", L"" }) });
+
+        Assert::AreEqual (14, view.GetVisibleColumns());
+        Assert::IsFalse  (view.IsHorzScrollbarVisible(), L"the empty cell's gap is not text to scroll to");
+
+        view.SetRows ({ MakeRow ({ L"ab", L"0123456789", L"x" }) });
+        Assert::IsTrue   (view.IsHorzScrollbarVisible(), L"a character there is");
+    }
+
+
+    //  A clipped column's text is cut off at the right edge and adds nothing
+    //  to the sideways scroll. A long cell in a column ahead of it scrolls.
+    TEST_METHOD (NoWrap_AClippedColumnIsCutOffRatherThanScrolled)
+    {
+        DxuiTextView  view;
+
+
+
+        LayOut (view, 200, 400);
+        view.SetNoWrap             (true);
+        view.SetFirstClippedColumn (2);
+        view.SetRows ({ MakeRow ({ L"1", L"lda #$41", std::wstring (200, L'x') }) });
+
+        Assert::IsFalse (view.IsHorzScrollbarVisible(), L"the long annotation is cut off");
+
+        view.SetRows ({ MakeRow ({ L"1", std::wstring (200, L'y'), L"A=41" }) });
+        Assert::IsTrue  (view.IsHorzScrollbarVisible(), L"a long line of code scrolls");
+    }
+
+
     //  The horizontal wheel scrolls sideways, a turn to the right toward the
     //  line's end, and the top line stays the same.
     TEST_METHOD (TheHorizontalWheelScrollsSideways)

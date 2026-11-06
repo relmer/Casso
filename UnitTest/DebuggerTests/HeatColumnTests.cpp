@@ -110,31 +110,30 @@ namespace DebuggerTests
 
 
 
-        //  A source line's number has a fill of its bytes' hottest color ahead
-        //  of it, and a line with no code spaces, so the numbers stay in a
-        //  column.
-        TEST_METHOD (ASourceLinesNumberHasItsBytesStripAheadOfIt)
+        //  A source line has a fill of its bytes' hottest color in the
+        //  gutter's heat band, where the disassembly has its heat column. A
+        //  line with no code has no fill.
+        TEST_METHOD (ASourceLineHasItsBytesStripInTheGutter)
         {
-            DebuggerViewSnapshot::HeatColumnLevels                levels = MakeLevels();
-            std::vector<DxuiTextView::Row>                        rows   = SourcePane::BuildRows ({ L"  lda #1", L"; done" }, -1, {});
-            std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges = { { { 0, 1 }, { 0x0300, 0x0301 } } };
+            DebuggerViewSnapshot::HeatColumnLevels                levels  = MakeLevels();
+            std::vector<DxuiTextView::Row>                        rows    = SourcePane::BuildRows ({ L"  lda #1", L"; done" }, -1, {});
+            std::map<std::pair<int, int>, std::pair<Word, Word>>  ranges  = { { { 0, 1 }, { 0x0300, 0x0301 } } };
+            uint32_t                                              hottest = 0;
 
 
 
             levels.execute[0x0300] = 255;
             levels.read[0x0301]    = 255;
+            hottest                = HeatStrip::Get (levels, 0x0300, 2, MakePalette(), false).hottest;
 
             SourcePane::AddHeatStrips (rows, 0, ranges, levels, MakePalette());
 
-            Assert::AreEqual (std::wstring (L"     1"), rows[0].cells[1]);
-            Assert::AreEqual (std::wstring (L"     2"), rows[1].cells[1]);
-            uint32_t  hottest = HeatStrip::Get (levels, 0x0300, 2, MakePalette(), false).hottest;
-
-            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [hottest] (const DxuiTextView::Span & span)
-            {
-                return span.cell == 1 && span.start == 0 && span.length == (int) HeatStrip::kMaxBlocks && span.background == hottest;
-            }), L"one fill of the hottest byte's color, the same width on every line");
-            Assert::IsFalse  (std::ranges::any_of (rows[1].spans, [] (const DxuiTextView::Span & span) { return span.background != 0; }), L"a line with no code has no fill");
+            Assert::AreEqual (std::wstring (L"1"), rows[0].cells[1]);
+            Assert::AreEqual (std::wstring (L"2"), rows[1].cells[1]);
+            Assert::AreNotEqual (0u, hottest);
+            Assert::AreEqual (hottest, rows[0].gutterFill, L"one fill of the hottest byte's color in the gutter");
+            Assert::AreEqual (0u,      rows[1].gutterFill, L"a line with no code has no fill");
+            Assert::IsFalse  (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.background != 0; }), L"and none in the text");
         }
 
 

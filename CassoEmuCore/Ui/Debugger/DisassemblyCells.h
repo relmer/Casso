@@ -24,8 +24,6 @@
 class DisassemblyCells
 {
 public:
-    static constexpr float   kGlyphCenterDip    = 8.4f;
-    static constexpr int     kGutterColumnDip   = 34;     // a breakpoint's dot, then the PC's arrow
     static constexpr size_t  kGutterColumn      = 0;
     static constexpr size_t  kHeatColumn        = 1;
     static constexpr size_t  kAddressColumn     = 2;
@@ -37,6 +35,10 @@ public:
     static constexpr float   kDimMix            = 0.85f;
     static constexpr float   kArrowSplitDip     = 3.0f;
     static constexpr float   kArrowLaneDip      = 6.0f;
+
+    //  The narrowest the operand and result column gets in a narrow pane,
+    //  room for its heading.
+    static constexpr int     kOperandFloorDip   = 120;
 
     //  Clear room at the right of a label cell for the branch arrow's
     //  lanes, the outer one up to 21 DIPs left of the mnemonics, less the

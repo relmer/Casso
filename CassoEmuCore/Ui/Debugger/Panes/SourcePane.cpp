@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Core/TextEncoding.h"
@@ -34,16 +35,23 @@ SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn f
 //
 //  SourcePane::Configure
 //
+//  The glyph margin and the heat strip after it are the disassembly's
+//  (CodeMargins): the same widths, from the view's left edge.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourcePane::Configure (HWND hwnd)
 {
-    m_view->SetOwnerWindow (hwnd);
-    m_view->SetNoWrap      (true);
-    m_view->SetColumnCap   (kTextCell, kAnnotationColumn);
-    m_view->SetColumnGap   (kNumberCell, kArrowGapCells);
-    m_banner->SetSeverity  (DxuiInfoBanner::Severity::Info);
-    m_banner->SetOnAction  ([this] (size_t)
+    m_view->SetOwnerWindow        (hwnd);
+    m_view->SetNoWrap             (true);
+    m_view->SetColumnCap          (kTextCell, kAnnotationColumn);
+    m_view->SetColumnGap          (kNumberCell, kArrowGapCells);
+    m_view->SetFirstClippedColumn (kAnnotationCell);
+    m_view->SetGutter             (CodeMargins::kGlyphDip, CodeMargins::kIconDip);
+    m_view->SetGlyphCenterDip     (CodeMargins::kGlyphCenterDip);
+    m_view->SetGutterBand         (CodeMargins::kGlyphDip, CodeMargins::kHeatDip);
+    m_banner->SetSeverity         (DxuiInfoBanner::Severity::Info);
+    m_banner->SetOnAction         ([this] (size_t)
     {
         if (!m_isLoose)
         {
@@ -85,6 +93,8 @@ void SourcePane::SetStyle (const Style & style)
 //
 //  SourcePane::SetHeat
 //
+//  While heat is on, the gutter is wider by the heat strip.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
@@ -95,6 +105,7 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
     }
 
     m_heatPalette = palette;
+    m_view->SetGutter (CodeMargins::kGlyphDip + (palette.has_value() ? CodeMargins::kHeatDip : 0), CodeMargins::kIconDip);
 }
 
 
@@ -105,8 +116,9 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
 //
 //  SourcePane::AddHeatStrips
 //
-//  A line without code, or whose bytes nothing touched, gets spaces in the
-//  strip's place.
+//  One fill of the hottest byte's color in the gutter's heat band, as the
+//  disassembly fills its heat cell. A line without code, or whose bytes
+//  nothing touched, has no fill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,45 +126,14 @@ void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileI
                                 const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
                                 const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette)
 {
-    constexpr int  kNumberCell = 1;
-
-
-
     for (size_t i = 0; i < rows.size(); i++)
     {
-        DxuiTextView::Row  & row   = rows[i];
-        auto                 found = lineRanges.find ({ fileId, (int) i + 1 });
-        HeatStrip::Strip     strip;
-        std::wstring         prefix;
-
-        if (row.cells.size() <= (size_t) kNumberCell)
-        {
-            continue;
-        }
+        auto  found = lineRanges.find ({ fileId, (int) i + 1 });
 
         if (found != lineRanges.end())
         {
-            strip = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false);
+            rows[i].gutterFill = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false).hottest;
         }
-
-        prefix = std::wstring (HeatStrip::kMaxBlocks + 1, L' ');
-
-        for (DxuiTextView::Span & span : row.spans)
-        {
-            if (span.cell == kNumberCell)
-            {
-                span.start += (int) prefix.size();
-            }
-        }
-
-        //  One fill of the hottest byte's color, the same width on every
-        //  line, as the disassembly and the BASIC program draw a heat cell.
-        if (strip.hottest != 0)
-        {
-            row.spans.push_back ({ kNumberCell, 0, (int) HeatStrip::kMaxBlocks, 0, strip.hottest });
-        }
-
-        row.cells[kNumberCell] = prefix + row.cells[kNumberCell];
     }
 }
 
@@ -726,51 +707,30 @@ std::optional<int> SourcePane::GetLineAt (POINT atDip) const
 //
 //  SourcePane::TryGetHeatTip
 //
-//  A row's text is its cells joined by tabs, so the strip, at the start of
-//  the line number's cell, begins one past the end of the cell before it.
+//  Over the gutter's heat band, on a line whose bytes have heat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SourcePane::TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const
 {
-    DxuiTextView::Position           at          = m_view->HitTest (atDip);
-    const DxuiTextView::Row        * row         = nullptr;
-    const std::pair<Word, Word>    * range       = nullptr;
-    int                              start       = 0;
-    float                            x           = 0.0f;
-    float                            y           = 0.0f;
+    DxuiTextView::Position           at    = m_view->HitTest (atDip);
+    const std::pair<Word, Word>    * range = nullptr;
+    int                              side  = 0;
 
 
 
-    if (m_rowsHeatLevels == nullptr || !m_state.has_value() || m_state->lineRanges == nullptr || at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    if (m_rowsHeatLevels == nullptr || !m_state.has_value() || m_state->lineRanges == nullptr || !m_view->IsInGutterBand (atDip) ||
+        at.row < 0 || at.row >= (int) m_view->GetRows().size() || !m_view->GetRowSide (at.row, side) || side != 0 ||
+        !m_state->lineRanges->contains ({ m_fileId, at.row + 1 }))
     {
         return false;
     }
 
-    row = &m_view->GetRows()[(size_t) at.row];
+    range  = &m_state->lineRanges->at ({ m_fileId, at.row + 1 });
+    tip    = HeatStrip::GetTip (*m_rowsHeatLevels, range->first, (size_t) (range->second - range->first) + 1, false);
+    anchor = RECT { atDip.x, atDip.y, atDip.x + 1, atDip.y + 1 };
 
-    if (row->cells.size() <= (size_t) kNumberCell)
-    {
-        return false;
-    }
-
-    start = (int) row->cells[0].size() + 1;
-
-    if (!m_state->lineRanges->contains ({ m_fileId, at.row + 1 }) || at.offset < start || at.offset >= start + (int) HeatStrip::kMaxBlocks)
-    {
-        return false;
-    }
-
-    range = &m_state->lineRanges->at ({ m_fileId, at.row + 1 });
-    tip   = HeatStrip::GetTip (*m_rowsHeatLevels, range->first, (size_t) (range->second - range->first) + 1, false);
-
-    if (tip.text.empty() || !m_view->GetCellAnchorPx (at.row, kNumberCell, x, y))
-    {
-        return false;
-    }
-
-    anchor = RECT { (LONG) x, (LONG) y, (LONG) x + 1, (LONG) y + 1 };
-    return true;
+    return !tip.text.empty();
 }
 
 

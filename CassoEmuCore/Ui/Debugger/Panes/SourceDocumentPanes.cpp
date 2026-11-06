@@ -66,17 +66,16 @@ const std::wstring & SourceDocumentPane::GetId() const
 //
 //  SourceDocumentPane::CreateControls
 //
-//  The text with its glyph margin for the breakpoints and the PC's arrow,
-//  as a disassembly view has, and the banner over it.
+//  The text and the banner over it. The model configures the text's glyph
+//  margin for the breakpoints and the PC's arrow, as a disassembly view has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceDocumentPane::CreateControls()
 {
-    constexpr int   kBreakpointIconDip = 16;
-    constexpr float kBannerMarginDip   = 4.0f;
-    constexpr float kBannerPadDip      = 5.0f;
-    DxuiPanel     & parent             = m_host.GetControlParent();
+    constexpr float kBannerMarginDip = 4.0f;
+    constexpr float kBannerPadDip    = 5.0f;
+    DxuiPanel     & parent           = m_host.GetControlParent();
 
 
 
@@ -96,8 +95,6 @@ void SourceDocumentPane::CreateControls()
 
     m_model->SetOnToggleBody   ([this] { m_group.ToggleMacroBody(); });
     m_model->SetOnLoadSymbols  ([this] { m_group.LoadSymbolsFor (m_slot); });
-    m_view->SetGutter          (DisassemblyCells::kGutterColumnDip, kBreakpointIconDip);
-    m_view->SetGlyphCenterDip  (DisassemblyCells::kGlyphCenterDip);
     m_view->SetVisible         (false);
     m_banner->SetVisible       (false);
     m_banner->SetMarginDip     (kBannerMarginDip);

@@ -68,8 +68,10 @@ public:
     //  A row's cells: the marker, the line number, the source text, and the
     //  annotation. The text's column is no wider than kAnnotationColumn, so
     //  the annotations start near the code, and only a longer line pushes
-    //  that line's annotation along.
+    //  that line's annotation along. An annotation is cut off at the view's
+    //  right edge, with its tip over it, rather than scrolled to.
     static constexpr int    kTextCell         = 2;
+    static constexpr int    kAnnotationCell   = 3;
     static constexpr int    kAnnotationColumn = 40;
 
     //  The line numbers are followed by room for the branch arrow, which
@@ -110,12 +112,12 @@ public:
     void  SetStyle      (const Style & style);
 
     //  The heat map's colors while the heat option is on, none while it is
-    //  off: each line's number has the heat strip of the first range of
-    //  bytes the line produced ahead of it.
+    //  off: each line has the heat strip of the first range of bytes the
+    //  line produced in the gutter, after the glyph margin.
     void  SetHeat       (const std::optional<HeatMapView::Palette> & palette);
 
-    //  The heat strips ahead of the rows' numbers, the rows one a line from
-    //  line 1, padded so the numbers stay in a column.
+    //  The heat strips of the rows, one a line from line 1, as the gutter
+    //  band's fills.
     static void  AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileId,
                                 const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
                                 const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette);

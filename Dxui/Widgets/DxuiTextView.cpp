@@ -429,7 +429,7 @@ void DxuiTextView::SetTopLine (int line)
 
 int DxuiTextView::GetTextColumns (bool scrollbar) const
 {
-    int  width = (int) (m_boundsDip.right - m_boundsDip.left) - GetPadLeftPx() - m_scaler.ToPx (s_kPadDip) - GetGutterPx();
+    int  width = (int) (m_boundsDip.right - m_boundsDip.left) - GetGutterLeftPx() - m_scaler.ToPx (s_kPadDip) - GetGutterPx();
 
 
 
@@ -508,6 +508,39 @@ int DxuiTextView::GetCellBase (const Row & row, int cell) const
 int DxuiTextView::GetRowLength (const Row & row) const
 {
     return row.cells.empty() ? 0 : GetCellBase (row, (int) row.cells.size() - 1) + (int) row.cells.back().size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetRowExtent
+//
+//  The column just past a row's last character that counts toward the
+//  sideways scroll. An empty cell adds nothing, not even the gap ahead of
+//  it, and neither does a cell in a clipped column.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetRowExtent (const Row & row) const
+{
+    int  extent = row.warning ? kWarningCells : 0;
+
+
+
+    for (int c = 0; c < (int) row.cells.size(); c++)
+    {
+        if (row.cells[(size_t) c].empty() || (m_firstClipped >= 0 && c >= m_firstClipped))
+        {
+            continue;
+        }
+
+        extent = (std::max) (extent, GetCellStart (row, c) + (int) row.cells[(size_t) c].size());
+    }
+
+    return extent;
 }
 
 
@@ -637,7 +670,7 @@ void DxuiTextView::BuildLines (int columns)
         int             pos    = 0;
         bool            first  = true;
 
-        m_widestColumns = (std::max) (m_widestColumns, start + length);
+        m_widestColumns = (std::max) (m_widestColumns, GetRowExtent (row));
 
         do
         {
@@ -1883,7 +1916,8 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  DxuiTextView::PaintLineGutter
 //
 //  A row's fill, which runs across the view on each of its lines, gutter and
-//  all, and on its first line the gutter's icon.
+//  all, the gutter band's fill on each of them too, and on its first line
+//  the gutter's icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1904,6 +1938,12 @@ void DxuiTextView::PaintLineGutter (IDxuiPainter & painter, IDxuiTextRenderer & 
     {
         painter.FillRect ((float) m_boundsDip.left, (float) y, (float) (m_boundsDip.right - m_boundsDip.left), (float) GetLineHeightPx (lineIndex),
                           row.background);
+    }
+
+    if (row.gutterFill != 0 && m_bandWidthDip > 0)
+    {
+        painter.FillRect ((float) (m_boundsDip.left + m_scaler.ToPx (m_bandLeftDip)), (float) y, (float) m_scaler.ToPx (m_bandWidthDip),
+                          (float) GetLineHeightPx (lineIndex), row.gutterFill);
     }
 
     if (!line.first || row.icon == nullptr || row.icon->bgraPremul.empty() || gutter <= 0)
@@ -2445,7 +2485,63 @@ LPCWSTR DxuiTextView::GetCursorForPoint (POINT clientPx) const
 
 int DxuiTextView::GetTextBaseLeft() const
 {
-    return (int) m_boundsDip.left + GetPadLeftPx() + GetGutterPx();
+    return (int) m_boundsDip.left + GetGutterLeftPx() + GetGutterPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetGutterLeftPx
+//
+//  How far in from the view's left edge the gutter starts: at the edge for a
+//  glyph margin, and past the pad otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiTextView::GetGutterLeftPx() const
+{
+    return (m_glyphCenterDip > 0.0f) ? 0 : GetPadLeftPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::IsInGutterBand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::IsInGutterBand (POINT point) const
+{
+    int  left = (int) m_boundsDip.left + m_scaler.ToPx (m_bandLeftDip);
+
+
+
+    return m_bandWidthDip > 0 && point.y >= m_boundsDip.top && point.y < m_boundsDip.bottom &&
+           point.x >= left && point.x < left + m_scaler.ToPx (m_bandWidthDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::IsInGutter
+//
+//  Left of the text and off the gutter's band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::IsInGutter (POINT point) const
+{
+    return point.x >= m_boundsDip.left && point.x < GetTextBaseLeft() && point.y >= m_boundsDip.top && point.y < m_boundsDip.bottom &&
+           !IsInGutterBand (point);
 }
 
 
@@ -2563,6 +2659,23 @@ void DxuiTextView::SetNoWrap (bool noWrap)
 {
     m_noWrap     = noWrap;
     m_leftColumn = noWrap ? m_leftColumn : 0;
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetFirstClippedColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetFirstClippedColumn (int column)
+{
+    m_firstClipped = (column >= 0) ? column : -1;
 
     Rebuild();
 }
