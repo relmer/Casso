@@ -591,6 +591,23 @@ public:
         Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), CassoLinkConnections::DescribeJobs ({ first, second }));
     }
 
+    TEST_METHOD (DescribeJobs_ForAFullSend_IsWaitingCheckingOrSending)
+    {
+        auto  job = std::make_shared<LinkOperation>();
+
+        job->kind     = LinkOperationKind::FullSend;
+        job->drive    = 2;
+        job->progress = 20;
+
+        Assert::AreEqual (std::wstring (L"Full Send: sending the disk in drive 2: 20%"), CassoLinkConnections::DescribeJobs ({ job }));
+
+        job->fullSendChecking = true;
+        Assert::AreEqual (std::wstring (L"Full Send: checking the disk in drive 2"), CassoLinkConnections::DescribeJobs ({ job }));
+
+        job->fullSendWaiting = true;
+        Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk on the Apple"), CassoLinkConnections::DescribeJobs ({ job }));
+    }
+
 
 
     TEST_METHOD (SaveLinkToDisk_WritesTheBootDiskToTheDrive)

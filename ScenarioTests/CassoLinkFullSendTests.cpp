@@ -621,7 +621,10 @@ public:
     //  Q during a transfer: no partial image, and CassoLink goes on.
     TEST_METHOD (QDuringATransfer_LeavesNoImage_AndTheLinkRunning)
     {
-        Rig  rig;
+        Rig       rig;
+        uint64_t  quitAt = 0;
+
+
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.send = rig.session->FullSend ("C:\\Box", "", "");
@@ -630,7 +633,9 @@ public:
         rig.RunUntil ([&] () { return rig.Row (kRowDrive1).starts_with ("D1: SENDING"); }, L"the transfer starts");
         rig.machine.RunCycles (kCyclesPerS / 2);
         rig.Press ('Q');
+        quitAt = rig.spent;
         rig.Finish();
+        Assert::IsTrue (rig.spent - quitAt < kCyclesPerS * 2, L"Q ends the transfer within two seconds");
 
         rig.AssertSessionLoggedOk();
 
@@ -651,10 +656,17 @@ public:
     //  disk, and Q returns to the standard screen with the link working.
     TEST_METHOD (FOnTheApple_RunsASession_AndQReturnsToCassoLink)
     {
-        Rig  rig;
+        Rig          rig;
+        std::string  history;
+        uint64_t     quitAt  = 0;
+
+
 
         rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
         rig.machine.RunCycles (kCyclesPerS / 2);
+
+        history = rig.Row (kRowPrompt);
+        Assert::IsFalse (history.empty(), L"the history has a line before the session");
 
         Assert::AreEqual (std::string ("    F: FULL SEND   PRESS ESC TO EXIT"), rig.Row (kRowKeys));
         Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRowHeading));
@@ -670,6 +682,8 @@ public:
         Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF  PREFIX: NONE"), rig.Row (kRowTitle));
         Assert::AreEqual (std::string (40, '-'), rig.Row (kRowDivider));
         Assert::AreEqual (std::string(), rig.Row (kRowHeading));
+        Assert::AreNotEqual (history, rig.Row (kRowPrompt), L"the history is hidden during the session");
+        Assert::AreNotEqual (history, rig.Row (kRowPrompt2));
 
         //  The track over the bar: the cells passed are inverse, and the rest periods.
         Assert::AreEqual<int> ('T' & 0x3F, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 14)) & 0x3F);
@@ -690,10 +704,13 @@ public:
         Assert::IsTrue (rig.IsPrompting(), L"Esc is ignored during the pause");
 
         rig.Press ('Q');
+        quitAt = rig.spent;
 
         rig.RunUntil ([&] () { return rig.Row (kRowHeading) == "HISTORY:" && rig.Row (kRowKeys).find ("F: FULL SEND") != std::string::npos; }, L"the standard screen returns");
+        Assert::IsTrue (rig.spent - quitAt < kCyclesPerS * 2, L"Q returns to CassoLink within two seconds");
 
         rig.AssertSessionLoggedOk();
+        Assert::AreEqual (history, rig.Row (kRowPrompt2), L"the history is back, under the session's line");
         Assert::AreEqual ((size_t) 2, rig.Rows().size());
 
         std::shared_ptr<LinkOperation>  list = rig.session->Enumerate (1, FilePath());

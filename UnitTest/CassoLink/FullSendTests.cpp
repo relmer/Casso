@@ -813,6 +813,65 @@ public:
         Assert::AreEqual (std::string ("OR PRESS 1 TO SEND D1 ANYWAY."), rig.link.pauseLines.back()[4]);
     }
 
+    //  Two Apples sending to one folder at once: the second session runs from
+    //  start to end while the first is between reading its disk and writing it.
+    TEST_METHOD (Session_TwoAtOnceInOneFolder_KeepEveryRow_AndNumberEachDisk)
+    {
+        Rig                                 first;
+        Rig                                 second;
+        std::unique_ptr<FullSendSession>    other;
+        FullSendManifest                    manifest;
+
+
+
+        first.link.drives[0]    = Dos ("HELLO");
+        first.link.present[1]   = false;
+        second.link.drives[0]   = Dos ("WORLD", 2);
+        second.link.present[1]  = false;
+
+        first.link.afterDiskRead[1] = [&] (ScriptedLink &)
+        {
+            other = std::make_unique<FullSendSession> (second.link, first.io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, "", "");
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), other->Run());
+        };
+
+        first.Run();
+
+        AssertSucceeded (manifest.Parse (first.io.files["C:\\Box\\manifest.fullsend"]));
+        Assert::AreEqual ((size_t) 2, manifest.GetRows().size());
+        Assert::AreEqual (std::string ("0001 WORLD.dsk"), manifest.GetRows()[0].file);
+        Assert::AreEqual (std::string ("0002 HELLO.dsk"), manifest.GetRows()[1].file);
+    }
+
+    TEST_METHOD (Session_ADiskAnotherSessionSent_IsARepeat)
+    {
+        Rig  first;
+        Rig  second;
+
+
+
+        first.link.drives[0]    = Dos ("HELLO");
+        first.link.present[1]   = false;
+        second.link.drives[0]   = Image();
+        second.link.present[1]  = false;
+        second.link.keys        = { FullSendKey::Space };
+
+        //  The second session started first, and its drive gets the disk the
+        //  first sent.
+        second.link.beforeKey[1] = [&] (ScriptedLink & link)
+        {
+            FullSendSession  session (first.link, second.io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, "", "");
+
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), session.Run());
+            link.drives[0] = Dos ("HELLO");
+        };
+
+        second.Run();
+
+        Assert::IsTrue   (second.link.diskReads.empty(), L"The disk the first session sent isn't read again");
+        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), second.link.pauseLines.back()[0]);
+    }
+
     TEST_METHOD (Session_DriveKey_SendsTheListedDisk_EvenAsAnExactCopy)
     {
         Rig  rig;

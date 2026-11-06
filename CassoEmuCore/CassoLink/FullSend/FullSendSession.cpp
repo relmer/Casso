@@ -242,18 +242,19 @@ Error:
 //
 //  FullSendSession::LoadManifest
 //
-//  A folder's manifest is read once. One that cannot be parsed ends the session
-//  before any disk is read, and it is never overwritten.
+//  A manifest that cannot be parsed ends the session before any disk is read,
+//  and it is never overwritten.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::LoadManifest()
 {
-    HRESULT            hr     = S_OK;
-    std::string        path   = GetPath (FullSendManifest::kFileName);
-    std::string        legacy = GetPath (FullSendManifest::kLegacyFileName);
-    std::vector<Byte>  bytes;
-    bool               exists = m_fileIo.Exists (path);
+    HRESULT                      hr         = S_OK;
+    std::string                  path       = GetPath (FullSendManifest::kFileName);
+    std::string                  legacy     = GetPath (FullSendManifest::kLegacyFileName);
+    std::vector<Byte>            bytes;
+    std::lock_guard<std::mutex>  folderLock { GetFolderLock (m_folder) };
+    bool                         exists     = m_fileIo.Exists (path);
 
 
 
@@ -272,6 +273,45 @@ HRESULT FullSendSession::LoadManifest()
 
     hr = m_manifest.Parse (bytes);
     CHRF (hr, m_endReason = EndReason::ManifestDamaged);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::ReloadManifest
+//
+//  The manifest as it is in the folder now, read again under the folder's lock
+//  before a disk is checked or sent. Two Apples can send to one folder at once,
+//  and numbering a disk and recognizing a repeat both use the rows the other
+//  session added since.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::ReloadManifest()
+{
+    HRESULT            hr       = S_OK;
+    std::string        path     = GetPath (FullSendManifest::kFileName);
+    std::vector<Byte>  bytes;
+    FullSendManifest   manifest;
+    bool               exists   = m_fileIo.Exists (path);
+
+
+
+    BAIL_OUT_IF (!exists, S_OK);
+
+    hr = m_fileIo.ReadAllBytes (path, bytes);
+    CHRF (hr, m_endReason = EndReason::ManifestDamaged);
+
+    hr = manifest.Parse (bytes);
+    CHRF (hr, m_endReason = EndReason::ManifestDamaged);
+
+    m_manifest = std::move (manifest);
 
 Error:
     return hr;
@@ -688,11 +728,12 @@ Byte FullSendSession::PickQuip()
 
 HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
 {
-    HRESULT  hr      = S_OK;
-    bool     present = m_link.HasDrive (drive);
-    bool     stable  = false;
-    bool     swapped = false;
-    bool     known   = false;
+    HRESULT                       hr         = S_OK;
+    bool                          present    = m_link.HasDrive (drive);
+    bool                          stable     = false;
+    bool                          swapped    = false;
+    bool                          known      = false;
+    std::unique_lock<std::mutex>  folderLock = std::unique_lock<std::mutex> (GetFolderLock (m_folder), std::defer_lock);
 
 
 
@@ -712,9 +753,15 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     CHR (hr);
 
     //  A disk is a repeat when an image of it is still in the folder, under
-    //  the name it was saved as or a new one.
+    //  the name it was saved as or a new one. The folder is locked until the
+    //  repeat is reported, as another session may be writing to it.
     if (stable)
     {
+        folderLock.lock();
+
+        hr = ReloadManifest();
+        CHR (hr);
+
         hr = FindMovedImages ([&] (const FullSendRow & row) { return row.fingerprint == outDisk.fingerprint; });
         CHR (hr);
 
@@ -744,6 +791,11 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     {
         m_repeats[(size_t) drive - 1] = true;
         ReportRepeat (drive, outDisk);
+    }
+
+    if (folderLock.owns_lock())
+    {
+        folderLock.unlock();
     }
 
     SetDriveState (drive, outDisk.check == DiskCheck::None   ? FullSendDriveState::Empty
@@ -894,6 +946,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     bool                                hasDisk          = false;
     bool                                whole            = false;
     bool                                same             = false;
+    std::unique_lock<std::mutex>        folderLock       = std::unique_lock<std::mutex> (GetFolderLock (m_folder), std::defer_lock);
 
 
 
@@ -955,6 +1008,16 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         CHR (hr);
         BAIL_OUT_IF (true, S_OK);
     }
+
+    //  The disk is numbered, written and listed under the folder's lock, from
+    //  the manifest as it is now: another Apple may have sent to this folder
+    //  during the read.
+    folderLock.lock();
+
+    hr = ReloadManifest();
+    CHR (hr);
+
+    sequence = m_manifest.GetNextSequence();
 
     hr = FullSendDisk::ComputeHash (image, hash);
     CHR (hr);
@@ -1025,6 +1088,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     hr = WriteManifest();
     CHRF (hr, m_fileFailed = true);
+
+    folderLock.unlock();
 
     if (!unreadable.empty() || !report.marks.empty())
     {
@@ -1376,4 +1441,36 @@ void FullSendSession::End (HRESULT hr)
 std::string FullSendSession::GetPath (const std::string & file) const
 {
     return (std::filesystem::path (m_folder) / file).string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::GetFolderLock
+//
+//  The lock every session in the process takes around a change to a folder's
+//  manifest and images, one for each folder by its path in lowercase.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::mutex & FullSendSession::GetFolderLock (const std::string & folder)
+{
+    static std::mutex                                          tableLock;
+    static std::map<std::string, std::unique_ptr<std::mutex>>  locks;
+    std::lock_guard<std::mutex>                                guard (tableLock);
+    std::string                                                key   = folder;
+
+
+
+    std::transform (key.begin(), key.end(), key.begin(), [] (unsigned char ch) { return (char) std::tolower (ch); });
+
+    if (!locks[key])
+    {
+        locks[key] = std::make_unique<std::mutex>();
+    }
+
+    return *locks[key];
 }

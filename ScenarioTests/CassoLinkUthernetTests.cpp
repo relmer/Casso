@@ -8,6 +8,7 @@
 #include "EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -469,6 +470,173 @@ public:
         }
 
         Assert::IsTrue (macs[0] != macs[1], L"two Apples whose memory differs have two addresses");
+    }
+
+    //  Two Apples, each with an Uthernet II, linked to one PC at once. Each
+    //  session lists, writes and reads the disk of its Apple while the other
+    //  session does the same, and then both Apples run a Full Send to one
+    //  folder. Its manifest has a row for each of the four disks, each row with
+    //  a different number.
+    TEST_METHOD (TwoApples_LinkAtOnce_ForFiles_AndForFullSendsToOneFolder)
+    {
+        constexpr std::array<uint16_t, 2>  kPorts      = { kPort + 5, kPort + 6 };
+        constexpr Word                     kRowCounts  = 0x0680;
+        constexpr Word                     kRowPrompt  = 0x07A8;
+        constexpr DWORD                    kFullSendMs = 600'000;
+
+        Rig                                first;
+        Rig                                second;
+        std::array<Rig *, 2>               rigs        = { &first, &second };
+        FakeDiskFileIo                     shared;
+        FixtureProvider                    fixtures;
+        std::vector<uint8_t>               bytes;
+        std::vector<Byte>                  dos;
+        std::array<std::vector<Byte>, 4>   disks;
+        std::set<std::string>              images;
+        std::set<int>                      sequences;
+        FullSendManifest                   manifest;
+
+        std::array<std::unique_ptr<CassoLinkSession>, 2>  sessions;
+        std::array<std::shared_ptr<LinkOperation>, 2>     sends;
+        std::array<FilePayload, 2>                        payloads = { Binary (1500, 7), Binary (900, 9) };
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        dos.assign (bytes.begin(), bytes.end());
+
+        //  Both machines run at 1.023 MHz of wall time, a step of each in turn.
+        auto  runBoth = [&] (std::function<bool()> done, DWORD ms)
+        {
+            ULONGLONG                  start = GetTickCount64();
+            std::array<uint64_t, 2>    ran   = { 0, 0 };
+            uint64_t                   due   = 0;
+
+            while (!done() && GetTickCount64() - start < ms)
+            {
+                due = (GetTickCount64() - start) * kCyclesPerMs;
+
+                for (size_t apple = 0; apple < rigs.size(); apple++)
+                {
+                    if (ran[apple] < due)
+                    {
+                        ran[apple] += rigs[apple]->machine.RunCycles (due - ran[apple]);
+                    }
+                }
+
+                Sleep (1);
+            }
+
+            Assert::IsTrue (done());
+        };
+
+        auto  isPrompting = [] (Rig & rig)
+        {
+            constexpr std::array<Word, 8>  kRows = { 0x07A8, 0x0450, 0x04D0, 0x0550, 0x05D0, 0x0650, 0x06D0, 0x0750 };
+
+            return std::any_of (kRows.begin(), kRows.end(), [&] (Word row) { return rig.Row (row).starts_with ("PUT IN A NEW DISK"); });
+        };
+
+        for (size_t apple = 0; apple < rigs.size(); apple++)
+        {
+            LinkShimOptions    options;
+            CassoLinkSettings  settings;
+            std::vector<Byte>  boot;
+
+            options.chip            = LinkChip::W5100;
+            options.slot            = kSlot;
+            options.network.address = { 127, 0, 0, 1 };
+            options.network.port    = kPorts[apple];
+
+            AssertSucceeded (LinkProgram::BuildBootDisk (options, boot));
+
+            GuestSession::Mount (rigs[apple]->machine, boot);
+            AssertSucceeded (rigs[apple]->machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
+            rigs[apple]->machine.RunCycles (kBootCycles);
+
+            settings.name      = std::format ("Apple {}", apple + 1);
+            settings.transport = LinkTransport::Uthernet;
+            settings.address   = std::format ("127.0.0.1:{}", kPorts[apple]);
+            settings.use40     = true;
+
+            sessions[apple] = std::make_unique<CassoLinkSession> (rigs[apple]->factory, rigs[apple]->folder, shared, rigs[apple]->sink);
+            sessions[apple]->SetRetryInterval (kRetryMs);
+            AssertSucceeded (sessions[apple]->Start (settings));
+        }
+
+        //  Files, on both links at once.
+        {
+            std::array<std::shared_ptr<LinkOperation>, 2>  lists;
+            std::array<std::shared_ptr<LinkOperation>, 2>  writes;
+            std::array<std::shared_ptr<LinkOperation>, 2>  reads;
+
+            for (size_t apple = 0; apple < rigs.size(); apple++)
+            {
+                lists[apple]  = sessions[apple]->Enumerate (2, FilePath());
+                writes[apple] = sessions[apple]->WriteFile (2, FilePath::Parse (apple == 0 ? "FROMA" : "FROMB"), payloads[apple]);
+                reads[apple]  = sessions[apple]->ReadFile (2, FilePath::Parse (apple == 0 ? "FROMA" : "FROMB"));
+            }
+
+            runBoth ([&] () { return first.sink.IsDone (reads[0]) && second.sink.IsDone (reads[1]); }, kWaitMs);
+
+            for (size_t apple = 0; apple < rigs.size(); apple++)
+            {
+                AssertSucceeded (lists[apple]->result);
+                AssertSucceeded (writes[apple]->result);
+                AssertSucceeded (reads[apple]->result);
+                Assert::IsTrue (reads[apple]->file.bytes == payloads[apple].bytes, L"each Apple's file, read back from that Apple's disk");
+            }
+        }
+
+        //  Full Sends to one folder, at once. Drive 1's link disk is replaced
+        //  with another disk, and drive 2 has the file just written.
+        for (size_t apple = 0; apple < rigs.size(); apple++)
+        {
+            FilePayload  payload = Binary (300, (Byte) (apple + 1));
+
+            AssertSucceeded (Dos33Volume (dos).Write (FilePath::Parse (apple == 0 ? "ALPHA" : "BRAVO"), payload, disks[apple * 2]));
+            rigs[apple]->machine.GetDiskStore().Eject (6, 0);
+            AssertSucceeded (rigs[apple]->machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, disks[apple * 2]));
+            disks[apple * 2 + 1] = rigs[apple]->Sectors();
+
+            sends[apple] = sessions[apple]->FullSend ("C:\\Box", "", "");
+        }
+
+        runBoth ([&] () { return first.Row (kRowPrompt).starts_with ("V: VERIFY READS") && second.Row (kRowPrompt).starts_with ("V: VERIFY READS"); }, kWaitMs);
+
+        for (Rig * rig : rigs)
+        {
+            rig->machine.GetRefs().iieKeyboard->PressKey (' ');
+        }
+
+        runBoth ([&] () { return first.Row (kRowCounts).starts_with ("SENT 2") && second.Row (kRowCounts).starts_with ("SENT 2") && isPrompting (first) && isPrompting (second); }, kFullSendMs);
+
+        for (Rig * rig : rigs)
+        {
+            rig->machine.GetRefs().iieKeyboard->PressKey ('Q');
+        }
+
+        runBoth ([&] () { return first.sink.IsDone (sends[0]) && second.sink.IsDone (sends[1]); }, kWaitMs);
+
+        AssertSucceeded (manifest.Parse (shared.files["C:\\Box\\manifest.fullsend"]));
+        Assert::AreEqual ((size_t) 4, manifest.GetRows().size(), L"each Apple's two disks, with no row overwritten by the other session");
+
+        for (const FullSendRow & row : manifest.GetRows())
+        {
+            std::vector<Byte>   sectors;
+            SectorDecodeReport  report;
+
+            sequences.insert (row.sequence);
+            AssertSucceeded (VolumeImage::Load (shared.files["C:\\Box\\" + row.file], row.file, sectors, report));
+            images.insert (std::string (sectors.begin(), sectors.end()));
+        }
+
+        Assert::IsTrue (sequences == std::set<int> ({ 1, 2, 3, 4 }), L"a number for each disk");
+
+        for (const std::vector<Byte> & disk : disks)
+        {
+            Assert::IsTrue (images.contains (std::string (disk.begin(), disk.end())), L"every disk's image, as it was in its drive");
+        }
     }
 
     //  The program's Ready packet in memory: its envelope, with eleven bytes.

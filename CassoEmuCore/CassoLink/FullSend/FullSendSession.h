@@ -241,6 +241,7 @@ private:
     static constexpr size_t  kPrefixLength     = 16;
 
     HRESULT  LoadManifest    ();
+    HRESULT  ReloadManifest  ();
     HRESULT  AwaitBegin      ();
     HRESULT  EditPrefix      ();
     HRESULT  RunRound        ();
@@ -264,6 +265,7 @@ private:
     static std::string               GetScreenName (int sequence, const std::string & catalogTitle);
     void                             SetDriveState (int drive, FullSendDriveState state) { m_screen.drives[(size_t) drive - 1] = state; }
     std::string                      GetPath       (const std::string & file) const;
+    static std::mutex              & GetFolderLock (const std::string & folder);
 
     IFullSendLink             & m_link;
     IDiskFileIo               & m_fileIo;
