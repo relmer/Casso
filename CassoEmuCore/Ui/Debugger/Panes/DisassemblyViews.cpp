@@ -1851,7 +1851,9 @@ bool DisassemblyGroup::ClickBranchArrow (POINT pointPx)
 
 
 
-    for (bool isBranchedFrom : { false, true })
+    //  The dotted arrow is hit-tested first, so a click where it lies over
+    //  the PC's arrow moves the view to the branch taken.
+    for (bool isBranchedFrom : { true, false })
     {
         for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
         {
