@@ -1200,5 +1200,53 @@ namespace DisassemblyOptionsTests
             Assert::AreEqual ((int) 0x0300, (int) goesTo);
             Assert::IsTrue   (window.HasTopLayer(), L"and the layer it is drawn on is painted, though the PC's NOP has no arrow");
         }
+
+
+        //  The operand and result column fills the width after the columns
+        //  ahead of it. A long annotation, even one from rows replaced since,
+        //  is cut off at the pane's edge rather than widening the column past
+        //  it, so the pane doesn't scroll sideways.
+        TEST_METHOD (TheOperandColumnFitsThePaneWithoutScrolling)
+        {
+            constexpr LONG                                kPaneWidth = 700;
+            CassoTheme                                    theme      = CassoTheme::MakeSkeuomorphic();
+            DxuiDpiScaler                                 scaler;
+            DxuiListView                                  list;
+            MockDxuiPainter                               painter;
+            MockDxuiTextRenderer                          text;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+            int                                           right      = 0;
+
+
+
+            scaler.SetDpi (96);
+            DebuggerWindow::MakeDense   (&list);
+            DisassemblyCells::Configure (list);
+            list.Layout (RECT { 0, 0, kPaneWidth, 400 }, scaler);
+
+            for (const std::wstring & operand : { std::wstring (200, L'X'), std::wstring (L"A=41") })
+            {
+                rows.assign (1, std::vector<DxuiListView::Cell> (DisassemblyCells::kColumnCount));
+
+                rows[0][DisassemblyCells::kAddressColumn].text     = L"6000";
+                rows[0][DisassemblyCells::kInstructionColumn].text = L"LDA $C000";
+                rows[0][DisassemblyCells::kOperandColumn].text     = operand;
+
+                list.SetRows (std::move (rows));
+                list.Paint   (painter, text, theme);
+
+                Assert::IsFalse  (list.IsHorzScrollbarVisible(), operand.c_str());
+                Assert::AreEqual (0, list.GetMaxLeftPx(), operand.c_str());
+            }
+
+            right = list.GetPaneLeadPx();
+
+            for (size_t c = 0; c < DisassemblyCells::kColumnCount; c++)
+            {
+                right += list.GetColumnEffectiveWidthPx (c);
+            }
+
+            Assert::AreEqual ((int) kPaneWidth, right, L"the last column runs to the pane's edge");
+        }
     };
 }

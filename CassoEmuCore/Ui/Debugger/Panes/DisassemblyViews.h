@@ -182,6 +182,11 @@ public:
     bool                             ClickBranchArrow (POINT pointPx);
     bool                             TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
 
+    //  Whether a point is on a code view's glyph margin or the lanes its
+    //  branch arrows run in, left of the code, in a view or a source
+    //  document, where the pointer is an arrow rather than the I-beam.
+    bool                             IsOverArrowsOrGutter (POINT clientPx) const;
+
     //  Over a name in a view -- a line's label, or the symbol an operand is
     //  written with -- its address and what it is.
     bool                             TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;

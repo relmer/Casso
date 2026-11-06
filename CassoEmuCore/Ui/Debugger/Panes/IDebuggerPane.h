@@ -37,6 +37,24 @@ struct PaneMenu
     static std::wstring  MakeInSubmenu (const std::wstring & submenu, const std::wstring & label) { return submenu + kSubmenu + label; }
 
     static std::pair<std::wstring, std::function<void()>>  MakeSeparator () { return { std::wstring(), nullptr }; }
+
+    //  A code line's breakpoint rows, as both code views list them: Set
+    //  breakpoint on a line without one; otherwise Enable breakpoint or
+    //  Disable breakpoint for its state, then Remove breakpoint. A row with
+    //  no action is drawn disabled.
+    static void  AddBreakpointRows (PaneMenuItems & items, std::optional<bool> isEnabled,
+                                    std::function<void()> set, std::function<void (bool enable)> enable, std::function<void()> remove)
+    {
+        if (!isEnabled.has_value())
+        {
+            items.push_back ({ L"Set breakpoint", std::move (set) });
+            return;
+        }
+
+        items.push_back ({ *isEnabled ? L"Disable breakpoint" : L"Enable breakpoint",
+                           enable ? std::function<void()> ([enable, on = !*isEnabled] { enable (on); }) : std::function<void()>() });
+        items.push_back ({ L"Remove breakpoint", std::move (remove) });
+    }
 };
 
 

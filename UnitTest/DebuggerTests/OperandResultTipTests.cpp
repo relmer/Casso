@@ -764,6 +764,56 @@ namespace OperandResultTipTests
         }
 
 
+        //  A row whose text at the right edge runs on from a cell ahead of
+        //  the operand, as a data line's string does, has the tip over that
+        //  cell, from its column to the row's end.
+        TEST_METHOD (TheWindowLaysTheTipOverACutOffCellThatSpansTheRow)
+        {
+            CassoTheme                      theme    = CassoTheme::MakeSkeuomorphic();
+            TipHost                         host;
+            TipWindow                       window   (theme, host);
+            DxuiDpiScaler                   scaler;
+            MockDxuiTextRenderer            text;
+            MockDxuiPainter                 painter;
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  data;
+            DxuiListView                  * list     = nullptr;
+            RECT                            bounds   = {};
+            RECT                            cell     = {};
+            OperandResultTip::Layout        layout;
+            TipWindow::OperandTipCell       tipCell;
+
+
+
+            data.address     = 0x0300;
+            data.bytes       = "48 49";
+            data.instruction = "ASC \"" + std::string (300, 'X') + "\"";
+            data.dataOrigin  = DataOrigin::Marked;
+
+            snapshot->isPaused     = true;
+            snapshot->codeViews[0] = { data };
+            snapshot->codeOpen[0]  = true;
+            snapshot->code         = snapshot->codeViews[0];
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+            window.ApplyCodeSnapshot (snapshot, 0);
+            window.GetOperandTips().SetDeviceForTest (&text, MakeScreen());
+
+            list = window.GetCodeList (0);
+            list->Paint (painter, text, theme);
+            bounds = list->GetBounds();
+
+            Assert::IsTrue   (list->GetCellTextRectPx (0, DisassemblyCells::kInstructionColumn, cell), L"the data line's text is in view");
+            Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 },
+                                                              scaler, text, MakeScreen(), layout, tipCell),
+                              L"the pane cuts the string off");
+            Assert::AreEqual (list->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text, layout.text);
+            Assert::AreEqual (bounds.left + cell.left, layout.textOrigin.x, L"the tip's text starts at the cell's");
+        }
+
+
         //  A BASIC line's values that the pane cuts off are laid over their
         //  cell the same way.
         TEST_METHOD (TheWindowLaysTheTipOverACutOffBasicValuesCell)

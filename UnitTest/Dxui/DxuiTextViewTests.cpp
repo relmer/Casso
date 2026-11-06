@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
+#include "MockDxuiTextRenderer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -184,6 +186,48 @@ public:
     }
 
 
+    //  An empty last cell adds nothing to how far the text scrolls sideways,
+    //  not even the gap ahead of it: a view wide enough for every character
+    //  has no bar along the bottom. The ten characters end at column 14, and
+    //  the view has room for 14 beside its scroll bar.
+    TEST_METHOD (NoWrap_AnEmptyLastCellDoesNotScroll)
+    {
+        DxuiTextView  view;
+
+
+
+        LayOut (view, 12 + 10 + 14 * 8, 400);
+        view.SetNoWrap (true);
+        view.SetRows ({ MakeRow ({ L"ab", L"0123456789", L"" }) });
+
+        Assert::AreEqual (14, view.GetVisibleColumns());
+        Assert::IsFalse  (view.IsHorzScrollbarVisible(), L"the empty cell's gap is not text to scroll to");
+
+        view.SetRows ({ MakeRow ({ L"ab", L"0123456789", L"x" }) });
+        Assert::IsTrue   (view.IsHorzScrollbarVisible(), L"a character there is");
+    }
+
+
+    //  A clipped column's text is cut off at the right edge and adds nothing
+    //  to the sideways scroll. A long cell in a column ahead of it scrolls.
+    TEST_METHOD (NoWrap_AClippedColumnIsCutOffRatherThanScrolled)
+    {
+        DxuiTextView  view;
+
+
+
+        LayOut (view, 200, 400);
+        view.SetNoWrap             (true);
+        view.SetFirstClippedColumn (2);
+        view.SetRows ({ MakeRow ({ L"1", L"lda #$41", std::wstring (200, L'x') }) });
+
+        Assert::IsFalse (view.IsHorzScrollbarVisible(), L"the long annotation is cut off");
+
+        view.SetRows ({ MakeRow ({ L"1", std::wstring (200, L'y'), L"A=41" }) });
+        Assert::IsTrue  (view.IsHorzScrollbarVisible(), L"a long line of code scrolls");
+    }
+
+
     //  The horizontal wheel scrolls sideways, a turn to the right toward the
     //  line's end, and the top line stays the same.
     TEST_METHOD (TheHorizontalWheelScrollsSideways)
@@ -294,6 +338,99 @@ public:
 
         Assert::IsTrue   (view.OnKey (down));
         Assert::AreEqual (1, view.GetTopLine(),  L"Down alone scrolls a line");
+    }
+
+
+    //  With row focus on, a press focuses its row, and the keys move it: a
+    //  row, a page, the top and bottom row in view, and the first and last
+    //  row, scrolled into view. Ctrl+Up is left to the host.
+    TEST_METHOD (RowFocus_APressFocusesARowAndTheKeysMoveIt)
+    {
+        DxuiTextView                    view;
+        std::vector<DxuiTextView::Row>  rows;
+        auto                            key = [&view] (WPARAM vk, bool ctrl)
+        {
+            return view.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Down, vk, false, false, ctrl, false });
+        };
+
+
+
+        for (int i = 0; i < 100; i++)
+        {
+            rows.push_back (MakeRow ({ std::to_wstring (i) }));
+        }
+
+        LayOut (view, 400, 12 + 16 * 10);
+        view.SetRowFocus (true);
+        view.SetRows     (std::move (rows));
+
+        Mouse (view, DxuiMouseEventKind::Down, 6 + 4, 6 + 2 * 16 + 4);
+        Mouse (view, DxuiMouseEventKind::Up,   6 + 4, 6 + 2 * 16 + 4);
+        Assert::AreEqual (2, view.GetFocusRow(), L"the row pressed");
+
+        Assert::IsTrue   (key (VK_DOWN, false));
+        Assert::AreEqual (3, view.GetFocusRow());
+        Assert::IsTrue   (key (VK_UP, false));
+        Assert::AreEqual (2, view.GetFocusRow());
+        Assert::IsTrue   (key (VK_NEXT, false));
+        Assert::AreEqual (12, view.GetFocusRow(), L"a page of ten rows");
+        Assert::AreEqual (3, view.GetTopLine(), L"scrolled into view");
+
+        Assert::IsTrue   (key (VK_HOME, false));
+        Assert::AreEqual (3, view.GetFocusRow(), L"the top row in view");
+        Assert::IsTrue   (key (VK_END, false));
+        Assert::AreEqual (12, view.GetFocusRow(), L"the bottom row in view");
+        Assert::IsTrue   (key (VK_PRIOR, true));
+        Assert::AreEqual (3, view.GetFocusRow(), L"Ctrl+Page Up: the top row in view");
+        Assert::IsTrue   (key (VK_NEXT, true));
+        Assert::AreEqual (12, view.GetFocusRow(), L"Ctrl+Page Down: the bottom row in view");
+
+        Assert::IsTrue   (key (VK_END, true));
+        Assert::AreEqual (99, view.GetFocusRow(), L"Ctrl+End: the last row");
+        Assert::AreEqual (90, view.GetTopLine());
+        Assert::IsTrue   (key (VK_HOME, true));
+        Assert::AreEqual (0, view.GetFocusRow(), L"Ctrl+Home: the first row");
+        Assert::AreEqual (0, view.GetTopLine());
+
+        Assert::IsFalse  (key (VK_UP, true), L"Ctrl+Up is a shortcut");
+    }
+
+
+    //  The focused row is drawn as a list draws its selected row, while the
+    //  view has the focus and no text is selected.
+    TEST_METHOD (RowFocus_TheFocusedRowIsFilledWhileTheViewHasTheFocus)
+    {
+        DxuiTheme             theme = DxuiTheme::Light();
+        DxuiTextView          view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        auto                  isFilled = [&painter, &theme]
+        {
+            return std::ranges::any_of (painter.Calls(), [&theme] (const RecordedPaintCall & call)
+            {
+                return call.kind == RecordedPaintKind::FillRoundedRect && call.argb == theme.ContentSelection() && call.y == 6.0f + 16.0f;
+            });
+        };
+
+
+
+        LayOut (view, 400, 400);
+        view.SetRowFocus (true);
+        view.SetRows     ({ MakeRow ({ L"one" }), MakeRow ({ L"two" }) });
+        view.SetFocusRow (1);
+
+        view.Paint (painter, text, theme);
+        Assert::IsFalse (isFilled(), L"not while the view lacks the focus");
+
+        view.OnFocusChanged (true);
+        painter.Reset();
+        view.Paint (painter, text, theme);
+        Assert::IsTrue  (isFilled(), L"the second row");
+
+        view.SelectAll();
+        painter.Reset();
+        view.Paint (painter, text, theme);
+        Assert::IsFalse (isFilled(), L"not while text is selected");
     }
 
 

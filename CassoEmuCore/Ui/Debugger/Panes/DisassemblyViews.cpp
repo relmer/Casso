@@ -481,13 +481,18 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     items.push_back ({ L"Show next statement", [this] { m_host.ShowPcCode(); } });
     items.push_back (PaneMenu::MakeSeparator());
 
-    items.push_back ({ line.hasBreakpoint ? L"Remove breakpoint" : L"Set breakpoint",
-                       [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); } });
-
-    if (line.hasBreakpoint && breakpoint != snapshot->breakpoints.end())
+    if (line.hasBreakpoint)
     {
-        items.push_back ({ breakpoint->enabled ? L"Disable breakpoint" : L"Enable breakpoint",
-                           [this, id = breakpoint->id, enable = !breakpoint->enabled] { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); } });
+        PaneMenu::AddBreakpointRows (items, line.isEnabled, nullptr,
+                                     (breakpoint == snapshot->breakpoints.end()) ? std::function<void (bool)>()
+                                         : [this, id = breakpoint->id] (bool enable) { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
+                                     [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); });
+    }
+    else if (DisassemblyOptions::CanTakeBreakpoint (line))
+    {
+        PaneMenu::AddBreakpointRows (items, std::nullopt,
+                                     [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); },
+                                     nullptr, nullptr);
     }
 
     items.push_back (PaneMenu::MakeSeparator());
@@ -1969,6 +1974,72 @@ bool DisassemblyGroup::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstr
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::IsOverArrowsOrGutter
+//
+//  In a view, the lanes span the arrow's distance left of the mnemonics,
+//  with a second arrow a lane further out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::IsOverArrowsOrGutter (POINT clientPx) const
+{
+    const float      kLanesDip = BranchArrow::Input().marginPx + BranchArrow::Input().stubPx + DisassemblyCells::kArrowLaneDip;
+    int              view      = -1;
+    DxuiListView   * list      = FindCodeListAt (clientPx, view);
+    RECT             bounds    = {};
+    RECT             cell      = {};
+    int              row       = -1;
+    int              x         = 0;
+    float            scale     = 1.0f;
+
+
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources.GetDocument (slot);
+
+        if (document.IsShown() && document.GetView()->IsVisible() && m_host.IsRoutable (document.GetView()) &&
+            (document.GetView()->IsInGutter (clientPx) || document.GetModel().IsOverArrowLanes (clientPx)))
+        {
+            return true;
+        }
+    }
+
+    if (list == nullptr)
+    {
+        return false;
+    }
+
+    bounds = list->GetBounds();
+    x      = clientPx.x - bounds.left;
+    row    = list->HitTestRow (x, clientPx.y - bounds.top);
+
+    if (row < 0)
+    {
+        return false;
+    }
+
+    if (x + list->GetLeftPx() < list->GetPaneLeadPx() + list->GetColumnEffectiveWidthPx (DisassemblyCells::kGutterColumn))
+    {
+        return true;
+    }
+
+    if (!list->GetCellTextRectPx (row, DisassemblyCells::kInstructionColumn, cell))
+    {
+        return false;
+    }
+
+    scale = (float) (cell.bottom - cell.top) / (float) (std::max) (1, list->GetRowHeightDip());
+
+    return (float) x >= (float) cell.left - kLanesDip * scale && x < cell.left;
 }
 
 

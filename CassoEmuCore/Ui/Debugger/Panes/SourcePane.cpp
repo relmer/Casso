@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/CodeMargins.h"
+#include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Core/TextEncoding.h"
@@ -34,16 +36,24 @@ SourcePane::SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn f
 //
 //  SourcePane::Configure
 //
+//  The glyph margin and the heat strip after it are the disassembly's
+//  (CodeMargins): the same widths, from the view's left edge.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourcePane::Configure (HWND hwnd)
 {
-    m_view->SetOwnerWindow (hwnd);
-    m_view->SetNoWrap      (true);
-    m_view->SetColumnCap   (kTextCell, kAnnotationColumn);
-    m_view->SetColumnGap   (kNumberCell, kArrowGapCells);
-    m_banner->SetSeverity  (DxuiInfoBanner::Severity::Info);
-    m_banner->SetOnAction  ([this] (size_t)
+    m_view->SetOwnerWindow        (hwnd);
+    m_view->SetNoWrap             (true);
+    m_view->SetColumnCap          (kTextCell, kAnnotationColumn);
+    m_view->SetColumnGap          (kNumberCell, kArrowGapCells);
+    m_view->SetFirstClippedColumn (kAnnotationCell);
+    m_view->SetGutter             (CodeMargins::kGlyphDip, CodeMargins::kIconDip);
+    m_view->SetGlyphCenterDip     (CodeMargins::kGlyphCenterDip);
+    m_view->SetGutterBand         (CodeMargins::kGlyphDip, CodeMargins::kHeatDip);
+    m_view->SetRowFocus           (true);
+    m_banner->SetSeverity         (DxuiInfoBanner::Severity::Info);
+    m_banner->SetOnAction         ([this] (size_t)
     {
         if (!m_isLoose)
         {
@@ -85,6 +95,8 @@ void SourcePane::SetStyle (const Style & style)
 //
 //  SourcePane::SetHeat
 //
+//  While heat is on, the gutter is wider by the heat strip.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
@@ -95,6 +107,7 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
     }
 
     m_heatPalette = palette;
+    m_view->SetGutter (CodeMargins::kGlyphDip + (palette.has_value() ? CodeMargins::kHeatDip : 0), CodeMargins::kIconDip);
 }
 
 
@@ -105,8 +118,9 @@ void SourcePane::SetHeat (const std::optional<HeatMapView::Palette> & palette)
 //
 //  SourcePane::AddHeatStrips
 //
-//  A line without code, or whose bytes nothing touched, gets spaces in the
-//  strip's place.
+//  One fill of the hottest byte's color in the gutter's heat band, as the
+//  disassembly fills its heat cell. A line without code, or whose bytes
+//  nothing touched, has no fill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,45 +128,14 @@ void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileI
                                 const std::map<std::pair<int, int>, std::pair<Word, Word>> & lineRanges,
                                 const DebuggerViewSnapshot::HeatColumnLevels & levels, const HeatMapView::Palette & palette)
 {
-    constexpr int  kNumberCell = 1;
-
-
-
     for (size_t i = 0; i < rows.size(); i++)
     {
-        DxuiTextView::Row  & row   = rows[i];
-        auto                 found = lineRanges.find ({ fileId, (int) i + 1 });
-        HeatStrip::Strip     strip;
-        std::wstring         prefix;
-
-        if (row.cells.size() <= (size_t) kNumberCell)
-        {
-            continue;
-        }
+        auto  found = lineRanges.find ({ fileId, (int) i + 1 });
 
         if (found != lineRanges.end())
         {
-            strip = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false);
+            rows[i].gutterFill = HeatStrip::Get (levels, found->second.first, (size_t) (found->second.second - found->second.first) + 1, palette, false).hottest;
         }
-
-        prefix = std::wstring (HeatStrip::kMaxBlocks + 1, L' ');
-
-        for (DxuiTextView::Span & span : row.spans)
-        {
-            if (span.cell == kNumberCell)
-            {
-                span.start += (int) prefix.size();
-            }
-        }
-
-        //  One fill of the hottest byte's color, the same width on every
-        //  line, as the disassembly and the BASIC program draw a heat cell.
-        if (strip.hottest != 0)
-        {
-            row.spans.push_back ({ kNumberCell, 0, (int) HeatStrip::kMaxBlocks, 0, strip.hottest });
-        }
-
-        row.cells[kNumberCell] = prefix + row.cells[kNumberCell];
     }
 }
 
@@ -469,7 +452,8 @@ void SourcePane::Rebuild()
     }
 
     isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
-                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands || m_rowsHeatLevels != heat;
+                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands || m_rowsHeatLevels != heat ||
+                  m_rowsHover != m_hoverLine;
 
     if (isRowsStale)
     {
@@ -488,7 +472,7 @@ void SourcePane::Rebuild()
             }
         }
 
-        rows = BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC);
+        rows = BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC, m_hoverLine);
 
         if (heat != nullptr)
         {
@@ -510,6 +494,7 @@ void SourcePane::Rebuild()
         m_rowLines         = GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
         m_rowsLineOperands = m_state->lineOperands;
+        m_rowsHover        = m_hoverLine;
         m_isStyleStale = false;
         m_view->SetTopLine (top);
 
@@ -726,51 +711,30 @@ std::optional<int> SourcePane::GetLineAt (POINT atDip) const
 //
 //  SourcePane::TryGetHeatTip
 //
-//  A row's text is its cells joined by tabs, so the strip, at the start of
-//  the line number's cell, begins one past the end of the cell before it.
+//  Over the gutter's heat band, on a line whose bytes have heat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SourcePane::TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const
 {
-    DxuiTextView::Position           at          = m_view->HitTest (atDip);
-    const DxuiTextView::Row        * row         = nullptr;
-    const std::pair<Word, Word>    * range       = nullptr;
-    int                              start       = 0;
-    float                            x           = 0.0f;
-    float                            y           = 0.0f;
+    DxuiTextView::Position           at    = m_view->HitTest (atDip);
+    const std::pair<Word, Word>    * range = nullptr;
+    int                              side  = 0;
 
 
 
-    if (m_rowsHeatLevels == nullptr || !m_state.has_value() || m_state->lineRanges == nullptr || at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    if (m_rowsHeatLevels == nullptr || !m_state.has_value() || m_state->lineRanges == nullptr || !m_view->IsInGutterBand (atDip) ||
+        at.row < 0 || at.row >= (int) m_view->GetRows().size() || !m_view->GetRowSide (at.row, side) || side != 0 ||
+        !m_state->lineRanges->contains ({ m_fileId, at.row + 1 }))
     {
         return false;
     }
 
-    row = &m_view->GetRows()[(size_t) at.row];
+    range  = &m_state->lineRanges->at ({ m_fileId, at.row + 1 });
+    tip    = HeatStrip::GetTip (*m_rowsHeatLevels, range->first, (size_t) (range->second - range->first) + 1, false);
+    anchor = RECT { atDip.x, atDip.y, atDip.x + 1, atDip.y + 1 };
 
-    if (row->cells.size() <= (size_t) kNumberCell)
-    {
-        return false;
-    }
-
-    start = (int) row->cells[0].size() + 1;
-
-    if (!m_state->lineRanges->contains ({ m_fileId, at.row + 1 }) || at.offset < start || at.offset >= start + (int) HeatStrip::kMaxBlocks)
-    {
-        return false;
-    }
-
-    range = &m_state->lineRanges->at ({ m_fileId, at.row + 1 });
-    tip   = HeatStrip::GetTip (*m_rowsHeatLevels, range->first, (size_t) (range->second - range->first) + 1, false);
-
-    if (tip.text.empty() || !m_view->GetCellAnchorPx (at.row, kNumberCell, x, y))
-    {
-        return false;
-    }
-
-    anchor = RECT { (LONG) x, (LONG) y, (LONG) x + 1, (LONG) y + 1 };
-    return true;
+    return !tip.text.empty();
 }
 
 
@@ -816,10 +780,164 @@ void SourcePane::OnDoubleClick (POINT atDip)
 
 
     //  The window builds the action at once, in the session's mode.
-    if (line.has_value() && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
+    if (line.has_value() && HasCode (*line) && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
     {
         m_run ([this, file, at = *line] (CommandMode mode) { return *GetToggleAction (*m_state, file, at, mode); });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::HasCode
+//
+//  Whether the debug file's line table maps a line of this file to an
+//  address, which is where a breakpoint can go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::HasCode (int line) const
+{
+    return m_state.has_value() && m_state->lineAddresses != nullptr && m_state->lineAddresses->contains ({ m_fileId, line });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::SetGutterHover
+//
+//  Rows are built again only when the line under the pointer changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::SetGutterHover (POINT atDip)
+{
+    std::optional<int>  line  = m_view->IsInGutter (atDip) ? GetLineAt (atDip) : std::nullopt;
+    int                 hover = (line.has_value() && HasCode (*line)) ? *line : -1;
+
+
+
+    if (hover == m_hoverLine)
+    {
+        return false;
+    }
+
+    m_hoverLine = hover;
+
+    if (m_state.has_value())
+    {
+        Rebuild();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::ClickGutter
+//
+//  A press anywhere on the margin is the margin's, so it doesn't start a
+//  selection in the text; on a line with no code it does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::ClickGutter (POINT atDip)
+{
+    std::optional<int>  line = GetLineAt (atDip);
+    int                 file = m_fileId;
+
+
+
+    if (!m_view->IsInGutter (atDip))
+    {
+        return false;
+    }
+
+    if (line.has_value() && HasCode (*line) && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
+    {
+        m_run ([this, file, at = *line] (CommandMode mode) { return *GetToggleAction (*m_state, file, at, mode); });
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetLineBreakpoint
+//
+//  A line with an enabled breakpoint and a disabled one reads as the
+//  enabled one, as its glyph does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetLineBreakpoint (POINT atDip, int & line, std::optional<LineBreakpoint> & breakpoint) const
+{
+    std::optional<int>  at = GetLineAt (atDip);
+
+
+
+    breakpoint.reset();
+
+    if (!at.has_value() || !HasCode (*at))
+    {
+        return false;
+    }
+
+    line = *at;
+
+    for (const std::tuple<int, int, int> & each : m_state->breakpointLines)
+    {
+        bool  isEnabled = !m_disabledIds.contains (std::get<2> (each));
+
+        if (std::get<0> (each) == m_fileId && std::get<1> (each) == line && (!breakpoint.has_value() || (isEnabled && !breakpoint->isEnabled)))
+        {
+            breakpoint = LineBreakpoint { std::get<2> (each), isEnabled };
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetSetBreakpointAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebuggerAction> SourcePane::GetSetBreakpointAction (int line, CommandMode mode) const
+{
+    if (!HasCode (line))
+    {
+        return std::nullopt;
+    }
+
+    for (const DebugSourceFile & record : m_state->files)
+    {
+        if (record.id == m_fileId)
+        {
+            return DebuggerActions::GetSourceBreakpoint (record.name, line, mode);
+        }
+    }
+
+    return std::nullopt;
 }
 
 
@@ -1232,6 +1350,37 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::IsOverArrowLanes
+//
+//  The lanes span the arrow's distance left of the text, with a second
+//  arrow a lane further out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::IsOverArrowLanes (POINT atDip) const
+{
+    const float              kLanesDip = kArrowMarginDip + BranchArrow::Input().stubPx + DisassemblyCells::kArrowLaneDip;
+    DxuiTextView::Position   at        = m_view->HitTest (atDip);
+    int                      side      = 0;
+    float                    x         = 0.0f;
+
+
+
+    if (!DxuiDockSite::Contains (m_view->GetBounds(), atDip) || at.row < 0 || at.row >= (int) m_view->GetRows().size() ||
+        !m_view->GetRowSide (at.row, side) || side != 0 || !m_view->GetCellLeftPx (at.row, kTextCell, x))
+    {
+        return false;
+    }
+
+    return (float) atDip.x >= x - kLanesDip * m_view->GetPxPerDip() && (float) atDip.x < x;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::FindSymbolAt
 //
 //  The symbol under a point, in the text cell after the marker and number.
@@ -1467,7 +1616,8 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands,
                                                       SourceSyntax::Assembler assembler,
                                                       SourceSyntax::Listing   listing,
-                                                      bool                    isC)
+                                                      bool                    isC,
+                                                      int                     hoverLine)
 {
     std::vector<DxuiTextView::Row>  rows;
     int                             width       = (int) std::to_wstring (lines.size()).size();
@@ -1499,6 +1649,10 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
         if (icons && breakpointLines.contains (number))
         {
             row.icon = disabledLines.contains (number) ? style.disabledIcon : style.enabledIcon;
+        }
+        else if (number == hoverLine)
+        {
+            row.icon = style.hoverIcon;
         }
 
         if (isMarked)
