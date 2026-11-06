@@ -621,10 +621,12 @@ std::shared_ptr<LinkOperation> CassoLinkSession::Queue (LinkOperationKind kind, 
 
 void CassoLinkSession::Run (std::stop_token stop)
 {
-    HRESULT                         hr     = S_OK;
-    HRESULT                         logged = S_OK;
-    bool                            lost   = false;
-    bool                            server = m_settings.transport == LinkTransport::AdtProServer;
+    HRESULT                         hr      = S_OK;
+    HRESULT                         logged  = S_OK;
+    bool                            lost    = false;
+    bool                            summary = false;
+    const char                    * status  = nullptr;
+    bool                            server  = m_settings.transport == LinkTransport::AdtProServer;
     std::shared_ptr<LinkOperation>  operation;
 
 
@@ -749,7 +751,11 @@ void CassoLinkSession::Run (std::stop_token stop)
 
         if (!lost && operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
-            logged = m_connector.LogOnApple (std::format ("{} {}", (SUCCEEDED (hr) || (operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))) ? "OK " : "ERR", DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)));
+            //  A Full Send's summary fills a history line, so it has no OK.
+            status  = (SUCCEEDED (hr) || (operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))) ? "OK " : "ERR";
+            summary = operation->kind == LinkOperationKind::FullSend && !operation->fullSendSummary.empty() && status[0] == 'O';
+            logged  = m_connector.LogOnApple (summary ? DescribeOperation (*operation, std::nullopt, true)
+                                                      : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 

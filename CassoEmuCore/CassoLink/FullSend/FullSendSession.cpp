@@ -23,21 +23,23 @@
 
 std::vector<std::string> FullSendScreen::GetRows() const
 {
-    std::vector<std::string>  rows = { "FULL SEND    VERIFY: OFF", std::format ("SENT {}   DUP {}   BAD {}", sent, duplicates, bad), std::string (40, '-') };
+    std::string               shown = prefix.empty() ? std::string ("NONE") : "\"" + prefix + "\"";
+    std::string               flag  = "VERIFY: OFF";
+    std::vector<std::string>  rows;
 
 
 
     if (verify)
     {
-        std::string  flag = "VERIFY: ON";
+        flag = "VERIFY: ON";
 
         for (char & ch : flag)
         {
             ch = (char) (ch | 0x80);
         }
-
-        rows[0] = "FULL SEND    " + flag;
     }
+
+    rows = { "FULL SEND    " + flag + "  PREFIX: " + shown, std::format ("SENT {}   DUP {}   BAD {}", sent, duplicates, bad), std::string (40, '-') };
 
     if (recovered != 0)
     {
@@ -63,6 +65,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
             case FullSendDriveState::Protected: row += "LIKELY COPY-PROTECTED " + names[i]; break;
+            case FullSendDriveState::Changed:  row += "CHANGED WHILE IT WAS READ"; break;
             case FullSendDriveState::OnDeck:
                 row += "ON DECK--";
                 row += quip == 0 ? "INSERT A DISK TO SEND NEXT" : GetQuipText (quip);
@@ -308,6 +311,7 @@ HRESULT FullSendSession::AwaitBegin()
         lines.push_back ("PRESS <SPACE> TO BEGIN");
 
         m_screen.verify = m_link.IsVerifying();
+        m_screen.prefix = m_prefix;
 
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
@@ -484,6 +488,7 @@ HRESULT FullSendSession::Pause()
         m_state         = State::Paused;
         m_screen.quip   = PickQuip();
         m_screen.verify = m_link.IsVerifying();
+        m_screen.prefix = m_prefix;
 
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
@@ -564,26 +569,43 @@ Error:
 
 std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 2> & repeats) const
 {
-    std::vector<std::string>  lines = { "PUT IN A NEW DISK AND PRESS SPACE" };
+    std::vector<std::string>  lines;
+    std::vector<int>          sent;
+    int                       drive = repeats[0] ? 1 : 2;
 
 
+
+    //  The notes, what to do, and a blank row before the quip.
+    for (int d : { 1, 2 })
+    {
+        if (repeats[(size_t) d - 1] && m_swapped[(size_t) d - 1])
+        {
+            lines.push_back (std::format ("D{} CHANGED WHILE IT WAS READ.", d));
+        }
+        else if (repeats[(size_t) d - 1])
+        {
+            sent.push_back (d);
+        }
+    }
+
+    if (!sent.empty())
+    {
+        lines.push_back (sent.size() == 2 ? std::string ("D1 AND D2 MAY ALREADY HAVE BEEN SENT.") : std::format ("D{} MAY ALREADY HAVE BEEN SENT.", sent[0]));
+        lines.push_back ("SEE CASSO EXPLORER'S ACTIVITY LOG.");
+    }
 
     if (repeats[0] && repeats[1])
     {
-        lines.push_back ("D1 AND D2 MAY ALREADY HAVE BEEN SENT.");
-        lines.push_back ("SEE CASSO EXPLORER'S ACTIVITY LOG.");
-        lines.push_back ("PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY.");
+        lines.insert (lines.end(), { "", "PUT IN A NEW DISK AND PRESS SPACE,", "OR PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY.", "" });
     }
     else if (repeats[0] || repeats[1])
     {
-        int  drive = repeats[0] ? 1 : 2;
-
-        lines.push_back (std::format ("D{} MAY ALREADY HAVE BEEN SENT.", drive));
-        lines.push_back ("SEE CASSO EXPLORER'S ACTIVITY LOG.");
-        lines.push_back (std::format ("PRESS {} TO SEND D{} ANYWAY.", drive, drive));
+        lines.insert (lines.end(), { "", "PUT IN A NEW DISK AND PRESS SPACE,", std::format ("OR PRESS {} TO SEND D{} ANYWAY.", drive, drive), "" });
     }
-
-    lines.push_back (GetPrefixLine());
+    else
+    {
+        lines = { "PUT IN A NEW DISK AND PRESS SPACE.", "" };
+    }
 
     return lines;
 }
@@ -601,13 +623,20 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
 void FullSendSession::ReportRepeat (int drive, const CheckedDisk & disk)
 {
     const FullSendRow  * match = m_manifest.FindByFingerprint (disk.fingerprint);
-    std::string          file  = match == nullptr ? std::string ("an earlier disk") : match->file.empty() ? match->duplicateOf : match->file;
+    std::string          file  = match == nullptr ? std::string() : match->file.empty() ? match->duplicateOf : match->file;
 
 
 
-    m_screen.names[(size_t) drive - 1] = match == nullptr ? std::string ("AN EARLIER READ") : file;
+    if (match == nullptr)
+    {
+        m_link.Report (std::format ("The disk in drive {} changed while it was read. Press {} on the Apple to read it again.", drive, drive));
+    }
+    else
+    {
+        m_screen.names[(size_t) drive - 1] = file;
 
-    m_link.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, file, drive));
+        m_link.Report (std::format ("The disk in drive {} matches {}. A match compares only a few tracks, so different disks can match. Press {} on the Apple to send it anyway.", drive, file, drive));
+    }
 }
 
 
@@ -661,11 +690,13 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     HRESULT  hr      = S_OK;
     bool     present = m_link.HasDrive (drive);
     bool     stable  = false;
+    bool     swapped = false;
 
 
 
     outDisk = {};
     m_repeats[(size_t) drive - 1] = false;
+    m_swapped[(size_t) drive - 1] = false;
 
     BAIL_OUT_IF (!present, S_OK);
 
@@ -683,9 +714,15 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
         outDisk.check = (m_manifest.HasFingerprint (outDisk.fingerprint) || m_changed.contains (outDisk.fingerprint)) ? DiskCheck::Repeat : DiskCheck::New;
     }
 
+    //  A disk that changed during its read is checked again as a repeat, but
+    //  it isn't one of the manifest's.
+    swapped = outDisk.check == DiskCheck::Repeat && !m_manifest.HasFingerprint (outDisk.fingerprint);
+
+    m_swapped[(size_t) drive - 1] = swapped;
+
     //  A repeat is a duplicate once while it stays in its drive, however many
     //  times the drive is checked.
-    if (outDisk.check == DiskCheck::Repeat && m_counted[(size_t) drive - 1] != outDisk.fingerprint)
+    if (outDisk.check == DiskCheck::Repeat && !swapped && m_counted[(size_t) drive - 1] != outDisk.fingerprint)
     {
         m_counted[(size_t) drive - 1] = outDisk.fingerprint;
         m_screen.duplicates++;
@@ -702,6 +739,7 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     }
 
     SetDriveState (drive, outDisk.check == DiskCheck::None   ? FullSendDriveState::Empty
+                        : swapped                            ? FullSendDriveState::Changed
                         : outDisk.check == DiskCheck::Repeat ? FullSendDriveState::Repeat
                                                              : FullSendDriveState::Idle);
 
@@ -841,6 +879,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     std::string                         imageFingerprint;
     std::string                         afterFingerprint;
     std::string                         hash;
+    bool                                comparable       = false;
     const FullSendRow                 * earlier          = nullptr;
     const FullSendRow                 * match            = nullptr;
     FullSendRow                         row;
@@ -869,6 +908,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     CHR (hr);
 
     m_screen.verify = m_link.IsVerifying();
+    m_screen.prefix = m_prefix;
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -888,8 +928,11 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     CHR (hr);
 
     //  A sector that reads differently from read to read isn't a swap, which a
-    //  verified read has already voted on.
-    same          = hasDisk && ((imageFingerprint == fingerprint && afterFingerprint == fingerprint) || !report.marks.empty());
+    //  verified read has already voted on. Nor is a track that wasn't read whole
+    //  during the check, as a copy-protected disk's track 0 or catalog track can
+    //  be: each read's retries recover a different set of its sectors.
+    comparable    = checked.IsReadWhole (0) && (FullSendDisk::IsCatalogOnTrackZero (checked.image) || checked.IsReadWhole (FullSendDisk::kDosCatalogTrack));
+    same          = hasDisk && (!comparable || (imageFingerprint == fingerprint && afterFingerprint == fingerprint) || !report.marks.empty());
     m_screen.quip = 0;
 
     if (!same)

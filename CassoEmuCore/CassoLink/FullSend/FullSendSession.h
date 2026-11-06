@@ -31,6 +31,7 @@ enum class FullSendDriveState : Byte
     Sent,
     OnDeck,
     Protected,
+    Changed,
 };
 
 enum class FullSendTone : Byte
@@ -65,11 +66,13 @@ struct FullSendScreen
     bool                               verify     = false;  // verified reads are on
     int                                recovered  = 0;      // disks with a sector recovered
     int                                prot       = 0;      // disks that are likely copy-protected
+    std::string                        prefix;              // what begins each image's file name
 
     static constexpr int  kQuipCount = 16;
 
-    //  The rows the Apple draws: the title, the counts, a line, and each drive's
-    //  row and map.
+    //  The rows the Apple draws: the title with the settings, the counts, a
+    //  line, and each drive's row and map. The prefix is quoted, so a space at
+    //  its end shows.
     std::vector<std::string>  GetRows () const;
 
     //  A prompt line, from 1. Each fits after ON DECK-- on a 40-column row.
@@ -230,6 +233,8 @@ private:
         std::string        fingerprint;
         std::vector<Byte>  image;
         std::vector<int>   wholeTracks;
+
+        bool  IsReadWhole (int track) const { return std::find (wholeTracks.begin(), wholeTracks.end(), track) != wholeTracks.end(); }
     };
 
     static constexpr int     kFingerprintReads = 3;
@@ -271,6 +276,7 @@ private:
     bool                        m_lastSent   = false;
     std::array<bool, 2>         m_deckShown  = { false, false };
     std::array<bool, 2>         m_repeats    = { false, false };   // drives whose last check matched the manifest
+    std::array<bool, 2>         m_swapped    = { false, false };   // and of those, the disks that changed during their read
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
     uint64_t                    m_commitTag  = 1;
     std::mt19937                m_random     { std::random_device{}() };

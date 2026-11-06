@@ -625,7 +625,7 @@ public:
 
         std::vector<std::string>  rows = screen.GetRows();
 
-        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF"), rows[0]);
+        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF  PREFIX: NONE"), rows[0]);
         Assert::AreEqual (std::string ("SENT 12   DUP 0   BAD 0"), rows[1]);
         Assert::AreEqual (std::string (40, '-'), rows[2]);
         Assert::AreEqual (std::string ("D1: SENDING 13 GAMES DISK"), rows[3]);
@@ -808,9 +808,9 @@ public:
         auto  session = rig.Run();
 
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1 }));
-        Assert::AreEqual (0, session->GetScreen().duplicates);
-        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines.back()[1]);
-        Assert::AreEqual (std::string ("PRESS 1 TO SEND D1 ANYWAY."), rig.link.pauseLines.back()[3]);
+        Assert::AreEqual (1, session->GetScreen().duplicates);
+        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines.back()[0]);
+        Assert::AreEqual (std::string ("OR PRESS 1 TO SEND D1 ANYWAY."), rig.link.pauseLines.back()[4]);
     }
 
     TEST_METHOD (Session_DriveKey_SendsTheListedDisk_EvenAsAnExactCopy)
@@ -825,7 +825,7 @@ public:
 
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
-        Assert::AreEqual (0, session->GetScreen().duplicates);
+        Assert::AreEqual (1, session->GetScreen().duplicates);
         Assert::AreEqual (std::string ("D1: SENT 2"), session->GetScreen().GetRows()[3]);
     }
 
@@ -853,10 +853,10 @@ public:
         rig.Run();
 
         //  The drive just sent isn't checked again before the first pause.
-        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[0][1]);
+        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[0][0]);
         Assert::AreEqual (std::string ("D1: DUPE OF 0001.dsk?"), rig.link.screens[rig.link.screens.size() - 1].GetRows()[3]);
-        Assert::AreEqual (std::string ("D1 AND D2 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[1][1]);
-        Assert::AreEqual (std::string ("PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY."), rig.link.pauseLines[1][3]);
+        Assert::AreEqual (std::string ("D1 AND D2 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[1][0]);
+        Assert::AreEqual (std::string ("OR PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY."), rig.link.pauseLines[1][4]);
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 2, 2 }));
     }
 

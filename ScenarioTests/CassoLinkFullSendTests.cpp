@@ -659,7 +659,7 @@ public:
 
         Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rig.Row (kRowDrive2));
         Assert::IsTrue (rig.Row (kRowDrive1).starts_with ("D1: SENDING 1"), TextEncoding::NarrowToWide (rig.Row (kRowDrive1)).c_str());
-        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF"), rig.Row (kRowTitle));
+        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF  PREFIX: NONE"), rig.Row (kRowTitle));
         Assert::AreEqual (std::string (40, '-'), rig.Row (kRowDivider));
         Assert::AreEqual (std::string(), rig.Row (kRowHeading));
 
@@ -667,7 +667,7 @@ public:
         Assert::AreEqual<int> ('T' & 0x3F, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 14)) & 0x3F);
         Assert::AreEqual<int> (0x20, rig.machine.GetCpu()->ReadByte (kRowBar1), L"the first cell is filled");
         Assert::AreEqual<int> (0xAE, rig.machine.GetCpu()->ReadByte ((Word) (kRowBar1 + 34)), L"the last cell is not");
-        Assert::AreEqual (std::string ("    V: VERIFY  Q: BACK TO CASSOLINK"), rig.Row (kRowKeys));
+        Assert::AreEqual (std::string ("   V: VERIFY  P: PREFIX  Q: CASSOLINK"), rig.Row (kRowKeys));
 
         rig.Press (0x1B);
         rig.machine.RunCycles (kCyclesPerS);

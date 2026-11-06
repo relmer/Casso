@@ -3020,7 +3020,7 @@ BARTEXT = 14                    ; the column of the track and sector over the ba
 BARTEXTW = 31                   ; and in 80 columns, where a track has two cells
 ROWKEYS = $07D0                 ; row 23: the keys
 KEYSCOL = 4                     ; centered on the standard screen
-FSKEYSCOL = 4                   ; and in a Full Send
+FSKEYSCOL = 3                   ; and in a Full Send
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
@@ -4296,9 +4296,11 @@ keystxt: .text "F"
         .byte 0
 fskeystxt: .text "V"
         .byte $3A
-        .text " VERIFY  Q"
+        .text " VERIFY  P"
         .byte $3A
-        .text " BACK TO CASSOLINK"
+        .text " PREFIX  Q"
+        .byte $3A
+        .text " CASSOLINK"
         .byte 0
 
 ; fsrow: scr at the history row of index X, and the row cleared. Y is 0.
