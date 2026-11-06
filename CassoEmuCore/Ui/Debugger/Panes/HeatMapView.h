@@ -29,8 +29,9 @@ class  HeatMapSymbols;
 //  its label down the left reads as one. The count is the one that brings
 //  the cells nearest the zoom's size, and the cells are then widened or
 //  narrowed so the row spans the pane exactly, every column within a pixel of
-//  the others; a row is always as tall as the zoom's cell. Only kMinColumns
-//  wider than the pane at the zoom's size scroll across.
+//  the others; a row is always as tall as the zoom's cell. A row never runs
+//  past the pane, so the map scrolls only up and down: at a larger zoom a row
+//  has fewer addresses and the map has more rows.
 //
 //  Over the map a row of views: All shows everything, with code ahead of data
 //  where an address is both; Code shows executes alone; Data shows reads and
@@ -39,11 +40,11 @@ class  HeatMapSymbols;
 //  since power-on shows in its own color over the rest, as hot as such
 //  reads were. Beside them the colors' key.
 //
-//  The wheel scrolls up and down, Shift with it across, and Ctrl with it
-//  zooms about the mouse; a drag pans, and the scrollbars show and move the
-//  part in view. The zoom widget in the corner shows the zoom and opens a
-//  slider (HeatMapZoomWidget). A click on a cell shows its address in a
-//  memory window.
+//  The wheel scrolls up and down, and Ctrl with the wheel zooms about the
+//  mouse; a drag pans, and dragging the scrollbar moves the part in view. The
+//  zoom widget in the corner displays the zoom and opens a slider
+//  (HeatMapZoomWidget). A click on a cell displays its address in a memory
+//  window.
 //  While cells are small the cell the mouse picks is the busiest one near it,
 //  so a lone hot byte is easy to land on. With Ctrl the click shows the
 //  instruction that last wrote the address in the disassembly, with Shift
@@ -171,7 +172,7 @@ public:
     static uint32_t      GetDetailTextColor (uint32_t cell, uint32_t foreground, uint32_t background);
 
     static constexpr int    kAddressCount   = 0x10000;
-    static constexpr int    kMinColumns     = 16;
+    static constexpr int    kMinColumns     = 1;
     static constexpr int    kMaxColumns     = 1024;
     static constexpr int    kBarDip         = 22;      // the row of views over the map
     static constexpr int    kTabDip         = 52;
@@ -191,7 +192,8 @@ public:
     //  The most a row's cells are widened to fill the pane before the row
     //  takes twice the addresses instead, each a little narrower than the
     //  zoom's: a column stays between three quarters and one and a half times
-    //  the zoom's width, except where kMaxColumns or a one-pixel cell stop it.
+    //  the zoom's width, except where kMaxColumns or a one-pixel cell stop it,
+    //  or where a single cell at the zoom's width is wider than the pane.
     static constexpr double kMaxStretch     = 1.5;
 
     //  How far one notch of the wheel scrolls, rounded to whole rows.
@@ -299,17 +301,17 @@ public:
 
     //  The zoom, as a cell's height in pixels and the width a row's cells are
     //  stretched from; the addresses in a row and the rows; and how far the
-    //  map is scrolled in pixels from its top left.
-    int    GetCellPx  () const { return m_cellPx; }
-    int    GetColumns () const { return m_columns; }
-    int    GetRows    () const;
-    POINT  GetScroll  () const { return m_scroll; }
-    void   ZoomAt     (POINT point, float notches);
-    void   ZoomIn     ();
-    void   ZoomOut    ();
-    void   ZoomTo     (int cellPx);
-    void   ScrollBy   (int dx, int dy);
-    void   ResetZoom  ();
+    //  map is scrolled down in pixels from its top.
+    int    GetCellPx    () const { return m_cellPx; }
+    int    GetColumns   () const { return m_columns; }
+    int    GetRows      () const;
+    long   GetScrollTop () const { return m_scrollTop; }
+    void   ZoomAt       (POINT point, float notches);
+    void   ZoomIn       ();
+    void   ZoomOut      ();
+    void   ZoomTo       (int cellPx);
+    void   ScrollBy     (int dy);
+    void   ResetZoom    ();
 
     //  The cell size the map starts at, which the zoom's percentage is of;
     //  the zoom widget in the map's bottom-right corner; and its tip, for a
@@ -320,21 +322,19 @@ public:
 
     //  The addresses a row holds for a width at a pitch: the largest power of
     //  two from kMinColumns to kMaxColumns whose cells fit, or twice that when
-    //  those would stretch past kMaxStretch and a cell still has a pixel.
+    //  those would stretch past kMaxStretch and each cell is at least a pixel
+    //  wide; one address when even one cell at the pitch is wider than the
+    //  width.
     static int  GetColumnsFor (long widthPx, long pitchPx);
 
     //  The addresses a row of a range holds, out of the map's columns: no
     //  more than the next power of two up from the range's size.
     static int  GetColumnsOf  (int columns, int count);
 
-    //  Whether the map is wider or taller than its area, so it scrolls that
-    //  way and shows a scrollbar for it.
-    bool   HasHorizontalScroll () const { return m_hasHorzBar; }
-    bool   HasVerticalScroll   () const { return m_hasVertBar; }
-
-    //  Where each scrollbar is drawn; empty when it is not.
-    RECT   GetHorizontalBarRect () const;
-    RECT   GetVerticalBarRect   () const;
+    //  Whether the map is taller than its area, so it scrolls and has a
+    //  scrollbar; and where the scrollbar is drawn, empty without one.
+    bool   HasVerticalScroll  () const { return m_hasVertBar; }
+    RECT   GetVerticalBarRect () const;
 
     //  The map as drawn, a pixel each, the size of the map's area, drawn again
     //  first if anything changed it since; and the color one address is drawn in.
@@ -353,7 +353,7 @@ public:
     static std::wstring  GetModeLabel (Mode mode);
 
     //  The map's area within the pane: the part of the rows in view, without
-    //  the scrollbars; and an address's cell within the pane, as scrolled.
+    //  the scrollbar; and an address's cell within the pane, as scrolled.
     RECT                 GetMapRect  () const { return m_map; }
 
     //  The row of views, where the window puts the strip that picks the
@@ -371,7 +371,7 @@ public:
     std::optional<Word>  GetHover     () const;
     bool                 IsPressed    () const;
 
-    //  Whether a point is over the map or its scrollbars.
+    //  Whether a point is over the map or its scrollbar.
     bool                 IsOverMap    (POINT point) const;
 
     //  The tip for a point on the map: the cell it picks, framed, and its
@@ -463,7 +463,6 @@ private:
     Palette                    m_palette;
     HeatMapOptions             m_options;
     DxuiDpiScaler              m_scaler;
-    DxuiScrollbar              m_horzBar;
     DxuiScrollbar              m_vertBar;
     std::optional<Place>       m_hover;
     std::vector<Band>          m_bands        = { Band { {}, 0, kAddressCount } };
@@ -471,12 +470,6 @@ private:
     long                       m_contentH     = 0;
     bool                       m_hasRanges    = false;
     bool                       m_isFitted     = true;
-
-    //  The number of addresses in a row when the user began to zoom from the
-    //  fitted size. Zoomed in, a row has that many and the rows scroll across,
-    //  so the map grows as a picture does and the address under the pointer
-    //  stays under it; none while fitted.
-    std::optional<int>         m_zoomColumns;
     RECT                       m_fittedFor    = {};     // the bounds the map was last fitted to
     int                        m_fitCellPx    = 0;      // the fitted cell size, the zoom's 100%
     double                     m_top          = 0.0;
@@ -486,11 +479,10 @@ private:
     int                        m_gutterPx     = 0;
     long                       m_labelLinePx  = 0;       // a row label's line, measured with the gutter
     RECT                       m_map          = {};
-    bool                       m_hasHorzBar   = false;
     bool                       m_hasVertBar   = false;
-    POINT                      m_scroll       = {};
+    long                       m_scrollTop    = 0;
     std::optional<POINT>       m_press;
-    POINT                      m_pressScroll  = {};
+    long                       m_pressTop     = 0;
     bool                       m_isDragging   = false;
     bool                       m_isFrameStale = false;
     bool                       m_isRebuilding = false;

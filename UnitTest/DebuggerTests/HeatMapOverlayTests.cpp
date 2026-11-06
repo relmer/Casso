@@ -195,7 +195,7 @@ namespace DebuggerTests
             Assert::IsFalse (HasText (text, L"A9"), L"three-pixel cells hold no text");
 
             view.ZoomAt ({ 300, 200 }, 40.0f);
-            view.ScrollBy (-1000000, -1000000);
+            view.ScrollBy (-1000000);
             Paint (view, text);
 
             Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx());

@@ -124,7 +124,7 @@ void HeatMapView::SetRanges (std::vector<Band> ranges)
 
     m_bands     = std::move (ranges);
     m_hasRanges = true;
-    m_scroll    = {};
+    m_scrollTop = 0;
 
     m_hover.reset();
     FitRanges();
@@ -164,18 +164,17 @@ void HeatMapView::ClearRanges()
 //
 //  HeatMapView::FitRanges
 //
-//  The largest cell whose rows all fit the pane, with no scrolling either
-//  way, for the ranges or for all of memory; a pane too small for even one
-//  pixel a cell scrolls at one. While the user has not zoomed, a resize fits
-//  them again. The fitted size is the zoom's 100%.
+//  The largest cell whose rows all fit the pane, with no scrolling, for the
+//  ranges or for all of memory; a pane too small for even one pixel a cell
+//  scrolls at one. While the user has not zoomed, a resize fits them again.
+//  The fitted size is the zoom's 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::FitRanges()
 {
-    m_isFitted    = true;
-    m_zoomColumns = std::nullopt;
-    m_scroll      = {};
+    m_isFitted  = true;
+    m_scrollTop = 0;
     m_fittedFor = m_boundsDip;
 
     for (int cell = kMaxCellPx; cell >= 1; cell--)
@@ -183,7 +182,7 @@ void HeatMapView::FitRanges()
         m_cellPx = cell;
         PlaceMap();
 
-        if (!m_hasVertBar && !m_hasHorzBar)
+        if (!m_hasVertBar)
         {
             break;
         }
@@ -342,8 +341,8 @@ std::optional<HeatMapView::Place> HeatMapView::GetPlaceAt (POINT point) const
 {
     const Placed  * placed = nullptr;
     long            pitch  = GetPitch();
-    long            atX    = point.x - m_map.left + m_scroll.x;
-    long            atY    = point.y - m_map.top  + m_scroll.y;
+    long            atX    = point.x - m_map.left;
+    long            atY    = point.y - m_map.top + m_scrollTop;
     long            band   = -1;
     long            offset = 0;
 
@@ -432,8 +431,8 @@ RECT HeatMapView::GetPlaceRect (const Place & place) const
     long            column = place.offset % placed.columns;
     long            start  = GetColumnLeft (placed, column);
     long            wide   = GetColumnLeft (placed, column + 1) - start - kStreetPx;
-    long            left   = m_map.left + start - m_scroll.x;
-    long            top    = m_map.top  + placed.rowsTop + (place.offset / placed.columns) * GetPitch() - m_scroll.y;
+    long            left   = m_map.left + start;
+    long            top    = m_map.top  + placed.rowsTop + (place.offset / placed.columns) * GetPitch() - m_scrollTop;
 
 
 
@@ -461,7 +460,7 @@ RECT HeatMapView::GetHeaderRect (size_t range) const
         return {};
     }
 
-    top = m_map.top + m_placed[range].headerTop - m_scroll.y;
+    top = m_map.top + m_placed[range].headerTop - m_scrollTop;
 
     return { m_boundsDip.left, top, m_map.right, top + m_scaler.ToPx (kHeaderDip) };
 }
@@ -490,11 +489,12 @@ std::optional<Word> HeatMapView::GetHover() const
 //  HeatMapView::GetColumnsFor
 //
 //  Powers of two keep every row starting at a round address, so a row's label
-//  reads as the addresses it holds. Even kMinColumns that do not fit are
-//  kept, and the map scrolls across instead. The row is then stretched to
-//  the width, by less than twice over; past kMaxStretch twice the addresses
-//  are narrowed to it instead, by no more than a quarter, so the cells stay
-//  nearer the zoom's size, as long as each keeps a pixel beside its street.
+//  is the first address in it. The row is then stretched to the width, by
+//  less than twice over; past kMaxStretch twice the addresses are narrowed to
+//  it instead, by no more than a quarter, so the cells are nearer the zoom's
+//  size, as long as each cell is at least a pixel wide beside its street. A
+//  width narrower than one cell at the pitch has a row of one address,
+//  narrowed to the width, so a row never runs past it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -535,9 +535,8 @@ int HeatMapView::GetColumnsFor (long widthPx, long pitchPx)
 //
 //  Where a column starts within a range's row, from its left: the row's
 //  width shared among its columns, the leftover pixels spread one to a
-//  column, so no column is more than a pixel wider than another. Rows that
-//  fit the pane at the zoom's size are as wide as the pane; kMinColumns that
-//  do not are a pitch a column, and scroll.
+//  column, so no column is more than a pixel wider than another. Every row
+//  is as wide as the map's area.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -590,17 +589,16 @@ long HeatMapView::GetColumnAt (const Placed & placed, long x) const
 //
 //  The addresses a row holds at the zoom in force, the row's width, and the
 //  map's area: right of the row labels and below the bar, as wide as the
-//  room and as tall as the rows or the room, less a scrollbar along each side
-//  the rows overflow. A row is stretched to the room's width unless even
-//  kMinColumns at the zoom's size are wider. Taking a scrollbar's room can
-//  change the row, so the fit is found again until it settles, which takes
-//  at most a pass for each side.
+//  room and as tall as the rows or the room, less a scrollbar down the right
+//  when the rows overflow. A row is stretched or narrowed to the room's
+//  width, so the map never scrolls across. Taking the scrollbar's room can
+//  change the row, so the fit is found again until it settles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::PlaceMap()
 {
-    constexpr int  kPasses  = 3;
+    constexpr int  kPasses  = 2;
     long           pitch    = GetPitch();
     long           bar      = m_scaler.ToPx (kScrollbarDip);
     long           left     = m_boundsDip.left + m_gutterPx;
@@ -608,50 +606,32 @@ void HeatMapView::PlaceMap()
     long           right    = std::max (left, m_boundsDip.right  - m_scaler.ToPx (kInsetDip));
     long           bottom   = std::max (top,  m_boundsDip.bottom - m_scaler.ToPx (kInsetDip));
     long           width    = 0;
-    long           height   = 0;
-    long           contentW = 0;
-    long           contentH = 0;
-    bool           hasHorz  = false;
+    long           height   = std::max (0L, bottom - top);
     bool           hasVert  = false;
-    bool           needHorz = false;
     bool           needVert = false;
 
 
 
     for (int pass = 0; pass <= kPasses; pass++)
     {
-        width     = std::max (0L, right  - left - (hasVert ? bar : 0));
-        height    = std::max (0L, bottom - top  - (hasHorz ? bar : 0));
+        width     = std::max (0L, right - left - (hasVert ? bar : 0));
         m_columns = GetColumnsFor (width, pitch);
-        contentW  = std::max (width, (m_columns == kMinColumns) ? (long) m_columns * pitch : 0L);
-
-        //  Zoomed in past the fitted size, a row has m_zoomColumns addresses,
-        //  the number it had when the zoom began, and the rows scroll across.
-        if (m_zoomColumns.has_value() && m_cellPx > m_fitCellPx && *m_zoomColumns > m_columns)
-        {
-            m_columns = *m_zoomColumns;
-            contentW  = std::max (width, (long) m_columns * pitch);
-        }
 
         PlaceBands();
 
-        contentH  = m_contentH;
-        needHorz  = contentW > width;
-        needVert  = contentH > height;
+        needVert = m_contentH > height;
 
-        if (needHorz == hasHorz && needVert == hasVert)
+        if (needVert == hasVert)
         {
             break;
         }
 
-        hasHorz = needHorz;
         hasVert = needVert;
     }
 
-    m_hasHorzBar = hasHorz;
     m_hasVertBar = hasVert;
-    m_rowPx      = contentW;
-    m_map        = { left, top, left + std::min (width, contentW), top + std::min (height, contentH) };
+    m_rowPx      = width;
+    m_map        = { left, top, left + width, top + std::min (height, m_contentH) };
 
     PlaceZoomWidget();
     ClampScroll();
@@ -665,11 +645,12 @@ void HeatMapView::PlaceMap()
 //
 //  HeatMapView::ApplyCellPx
 //
-//  A new cell size, with the address under the point kept under it, the
-//  same fraction of the way across its cell: the rows may hold a different
-//  number of addresses afterward, so the address is found again by its
-//  range and its place in the range rather than by its row and column. A
-//  point over a header keeps the same fraction of the way down the map.
+//  A new cell size, with the row of the address under the point scrolled to
+//  the point's height, the same fraction of the way down its cell: the rows
+//  may contain a different number of addresses afterward, so the address is
+//  found again by its range and its place in the range rather than by its
+//  row. Over a header, the scroll is the same fraction of the way down the
+//  map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -678,14 +659,9 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
     std::optional<Place>  place  = GetPlaceAt (point);
     const Placed        * placed = place.has_value() ? &m_placed[place->band] : nullptr;
     long                  pitch  = GetPitch();
-    long                  atX    = point.x - m_map.left + m_scroll.x;
-    long                  atY    = point.y - m_map.top  + m_scroll.y;
-    long                  column = (placed != nullptr) ? place->offset % placed->columns : 0;
+    long                  atY    = point.y - m_map.top + m_scrollTop;
     long                  row    = (placed != nullptr) ? place->offset / placed->columns : 0;
-    long                  left   = (placed != nullptr) ? GetColumnLeft (*placed, column) : 0;
-    long                  wide   = (placed != nullptr) ? std::max (1L, GetColumnLeft (*placed, column + 1) - left) : 1;
     long                  rowTop = (placed != nullptr) ? placed->rowsTop + row * pitch : 0;
-    double                fracX  = (double) std::clamp (atX - left, 0L, wide) / (double) wide;
     double                fracY  = (double) std::clamp (atY - rowTop, 0L, pitch) / (double) pitch;
     double                down   = (double) atY / (double) std::max (1L, m_contentH);
 
@@ -698,7 +674,7 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
 
     if (!place.has_value())
     {
-        m_scroll.y = (long) std::lround (down * (double) m_contentH) - (point.y - m_map.top);
+        m_scrollTop = (long) std::lround (down * (double) m_contentH) - (point.y - m_map.top);
 
         ClampScroll();
         m_isFrameStale = true;
@@ -707,13 +683,9 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
 
     placed = &m_placed[place->band];
     pitch  = GetPitch();
-    column = place->offset % placed->columns;
     row    = place->offset / placed->columns;
-    left   = GetColumnLeft (*placed, column);
-    wide   = GetColumnLeft (*placed, column + 1) - left;
 
-    m_scroll.x = left + (long) std::lround (fracX * (double) wide) - (point.x - m_map.left);
-    m_scroll.y = placed->rowsTop + (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
+    m_scrollTop = placed->rowsTop + (long) std::lround (((double) row + fracY) * (double) pitch) - (point.y - m_map.top);
 
     ClampScroll();
     m_isFrameStale = true;
@@ -728,10 +700,8 @@ void HeatMapView::ApplyCellPx (int cellPx, POINT point)
 //  HeatMapView::ZoomAt
 //
 //  Each notch up makes a cell kZoomPerNotch times larger, and each down that
-//  much smaller, by at least a pixel; the address under the point stays under
-//  it. Zoomed in past the fitted size, a row has the number of addresses it
-//  had when the zoom began, and the rows scroll across, as a picture grows,
-//  so the address stays under the point across as well as down. A point off the map zooms about the map's center.
+//  much smaller, by at least a pixel; the row of the address under the point
+//  stays at its height. A point off the map zooms about the map's center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -756,13 +726,6 @@ void HeatMapView::ZoomAt (POINT point, float notches)
     if (cell == m_cellPx)
     {
         cell += (notches > 0.0f) ? 1 : -1;
-    }
-
-    //  A zoom in from the fitted size or below starts from the row's
-    //  addresses as they are.
-    if (m_cellPx <= m_fitCellPx || !m_zoomColumns.has_value())
-    {
-        m_zoomColumns = m_columns;
     }
 
     ApplyCellPx (cell, point);
@@ -815,8 +778,6 @@ void HeatMapView::ZoomOut()
 
 void HeatMapView::ZoomTo (int cellPx)
 {
-    m_zoomColumns = std::nullopt;
-
     ApplyCellPx (cellPx, { m_map.left, m_map.top });
 }
 
@@ -830,10 +791,9 @@ void HeatMapView::ZoomTo (int cellPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HeatMapView::ScrollBy (int dx, int dy)
+void HeatMapView::ScrollBy (int dy)
 {
-    m_scroll.x += dx;
-    m_scroll.y += dy;
+    m_scrollTop += dy;
 
     ClampScroll();
     m_isFrameStale = true;
@@ -864,37 +824,17 @@ void HeatMapView::ResetZoom()
 //
 //  HeatMapView::ClampScroll
 //
-//  The map scrolls no further than its far edge reaching the area's; a map
-//  that fits its area does not scroll that way at all. The scrollbars follow.
+//  The scroll is clamped so the map's bottom is no higher than the area's; a
+//  map that fits its area does not scroll at all. The scrollbar is updated to
+//  match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HeatMapView::ClampScroll()
 {
-    m_scroll.x = std::clamp (m_scroll.x, 0L, std::max (0L, m_rowPx - (m_map.right - m_map.left)));
-    m_scroll.y = std::clamp (m_scroll.y, 0L, std::max (0L, m_contentH - (m_map.bottom - m_map.top)));
+    m_scrollTop = std::clamp (m_scrollTop, 0L, std::max (0L, m_contentH - (m_map.bottom - m_map.top)));
 
     SyncScrollbars();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HeatMapView::GetHorizontalBarRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT HeatMapView::GetHorizontalBarRect() const
-{
-    if (!m_hasHorzBar)
-    {
-        return {};
-    }
-
-    return { m_map.left, m_map.bottom, m_map.right, m_map.bottom + m_scaler.ToPx (kScrollbarDip) };
 }
 
 
@@ -925,7 +865,7 @@ RECT HeatMapView::GetVerticalBarRect() const
 //
 //  HeatMapView::SyncScrollbars
 //
-//  Each bar in pixels: the rows' length, the part in view and the scroll.
+//  The bar in pixels: the rows' height, the part in view and the scroll.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -945,16 +885,8 @@ void HeatMapView::SyncScrollbars()
 
     info.nMax  = (int) m_contentH;
     info.nPage = (UINT) std::max (0L, m_map.bottom - m_map.top);
-    info.nPos  = (int) m_scroll.y;
+    info.nPos  = (int) m_scrollTop;
     m_vertBar.SetScrollInfo (info);
-
-    m_horzBar.Configure (DxuiScrollbar::Orientation::Horizontal, bar, bar, pitch);
-    m_horzBar.SetTrack  (GetHorizontalBarRect());
-
-    info.nMax  = (int) m_rowPx;
-    info.nPage = (UINT) std::max (0L, m_map.right - m_map.left);
-    info.nPos  = (int) m_scroll.x;
-    m_horzBar.SetScrollInfo (info);
 }
 
 
@@ -969,7 +901,7 @@ void HeatMapView::SyncScrollbars()
 
 bool HeatMapView::TickScrollbars (int64_t nowMs)
 {
-    return ((int) m_vertBar.Tick (nowMs) | (int) m_horzBar.Tick (nowMs)) != 0;
+    return m_vertBar.Tick (nowMs);
 }
 
 
@@ -1505,7 +1437,7 @@ void HeatMapView::BuildFrame()
 
     for (long y = 0; y < height; y++)
     {
-        long  at   = y + m_scroll.y;
+        long  at   = y + m_scrollTop;
         long  band = GetBandAt (at);
         long  into = (band < 0) ? 0 : at - m_placed[(size_t) band].rowsTop;
 
@@ -1543,12 +1475,11 @@ void HeatMapView::BuildFrame()
 
             for (long x = 0; x < width; x++)
             {
-                long  at     = x + m_scroll.x;
-                long  column = GetColumnAt (placed, at);
+                long  column = GetColumnAt (placed, x);
 
 
 
-                (*across)[(size_t) x] = (at < m_rowPx && at < GetColumnLeft (placed, column + 1) - kStreetPx) ? (int) column : -1;
+                (*across)[(size_t) x] = (x < m_rowPx && x < GetColumnLeft (placed, column + 1) - kStreetPx) ? (int) column : -1;
             }
         }
 
@@ -1676,8 +1607,8 @@ std::optional<HeatMapView::Place> HeatMapView::GetPickPlaceAt (POINT point) cons
     std::optional<Place>  under   = GetPlaceAt (point);
     long                  pitch   = GetPitch();
     long                  reach   = m_scaler.ToPx (kSnapDip);
-    long                  atX     = point.x - m_map.left + m_scroll.x;
-    long                  atY     = point.y - m_map.top  + m_scroll.y;
+    long                  atX     = point.x - m_map.left;
+    long                  atY     = point.y - m_map.top + m_scrollTop;
     Place                 best;
     Byte                  hottest = 0;
     double                nearest = 0.0;
@@ -1742,13 +1673,13 @@ std::optional<HeatMapView::Place> HeatMapView::GetPickPlaceAt (POINT point) cons
 //
 //  HeatMapView::IsPressed
 //
-//  A press on the map, or a scrollbar's thumb being dragged.
+//  A press on the map, or the scrollbar's thumb or the zoom being dragged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatMapView::IsPressed() const
 {
-    return m_press.has_value() || m_vertBar.IsDragging() || m_horzBar.IsDragging() || m_zoomWidget.IsDragging();
+    return m_press.has_value() || m_vertBar.IsDragging() || m_zoomWidget.IsDragging();
 }
 
 
@@ -1763,7 +1694,7 @@ bool HeatMapView::IsPressed() const
 
 bool HeatMapView::IsOverMap (POINT point) const
 {
-    for (const RECT & area : { m_map, GetVerticalBarRect(), GetHorizontalBarRect() })
+    for (const RECT & area : { m_map, GetVerticalBarRect() })
     {
         if (point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom)
         {
@@ -2100,9 +2031,9 @@ void HeatMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 
 int HeatMapView::ComputeFitCellPx()
 {
-    int    zoomed = m_cellPx;
-    POINT  scroll = m_scroll;
-    int    fit    = 1;
+    int   zoomed = m_cellPx;
+    long  scroll = m_scrollTop;
+    int   fit    = 1;
 
 
 
@@ -2111,15 +2042,15 @@ int HeatMapView::ComputeFitCellPx()
         m_cellPx = cell;
         PlaceMap();
 
-        if (!m_hasVertBar && !m_hasHorzBar)
+        if (!m_hasVertBar)
         {
             fit = cell;
             break;
         }
     }
 
-    m_cellPx = zoomed;
-    m_scroll = scroll;
+    m_cellPx    = zoomed;
+    m_scrollTop = scroll;
     PlaceMap();
 
     return fit;
@@ -2233,11 +2164,6 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     {
         m_vertBar.Paint (painter, theme.ForegroundMuted());
     }
-
-    if (m_hasHorzBar)
-    {
-        m_horzBar.Paint (painter, theme.ForegroundMuted());
-    }
 }
 
 
@@ -2323,11 +2249,11 @@ void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & t
         }
 
         //  The first labeled row at or below the area's top.
-        row = ((std::max (0L, m_scroll.y - placed.rowsTop) / pitch + step - 1) / step) * step;
+        row = ((std::max (0L, m_scrollTop - placed.rowsTop) / pitch + step - 1) / step) * step;
 
         for (; row < placed.rows; row += step)
         {
-            y = (float) (m_map.top + placed.rowsTop + row * pitch - m_scroll.y);
+            y = (float) (m_map.top + placed.rowsTop + row * pitch - m_scrollTop);
 
             if (y + size > (float) m_map.bottom)
             {
@@ -2432,12 +2358,10 @@ void HeatMapView::ForEachVisible (const std::function<void (const Place &, Word)
     for (size_t band = 0; band < m_placed.size() && band < m_bands.size(); band++)
     {
         const Placed  & placed   = m_placed[band];
-        long            top      = m_scroll.y - placed.rowsTop;
+        long            top      = m_scrollTop - placed.rowsTop;
         long            bottom   = top + height;
         long            firstRow = std::max (0L, top / pitch);
         long            lastRow  = std::min (placed.rows - 1, bottom / pitch);
-        long            firstCol = GetColumnAt (placed, m_scroll.x);
-        long            lastCol  = GetColumnAt (placed, m_scroll.x + width);
 
 
 
@@ -2448,7 +2372,7 @@ void HeatMapView::ForEachVisible (const std::function<void (const Place &, Word)
 
         for (long row = firstRow; row <= lastRow; row++)
         {
-            for (long column = firstCol; column <= lastCol; column++)
+            for (long column = 0; column < placed.columns; column++)
             {
                 Place  place = { band, row * placed.columns + column };
 
@@ -2791,7 +2715,7 @@ void HeatMapView::PaintHover (IDxuiTextRenderer & text, const IDxuiTheme & theme
 //
 //  HeatMapView::OnPress
 //
-//  A press on a scrollbar moves it, its thumb by a drag; one on the map
+//  A press on the scrollbar moves it, its thumb by a drag; one on the map
 //  starts what is a click or a drag, which the release and the moves decide.
 //  The view is chosen on the window's strip in the row of views.
 //
@@ -2806,14 +2730,7 @@ bool HeatMapView::OnPress (const DxuiMouseEvent & ev)
     if (m_hasVertBar && m_vertBar.HitTest (at.x, at.y))
     {
         m_vertBar.OnMouseDown (at.x, at.y);
-        ScrollBy (0, m_vertBar.GetScrollPos() - (int) m_scroll.y);
-        return true;
-    }
-
-    if (m_hasHorzBar && m_horzBar.HitTest (at.x, at.y))
-    {
-        m_horzBar.OnMouseDown (at.x, at.y);
-        ScrollBy (m_horzBar.GetScrollPos() - (int) m_scroll.x, 0);
+        ScrollBy (m_vertBar.GetScrollPos() - (int) m_scrollTop);
         return true;
     }
 
@@ -2822,9 +2739,9 @@ bool HeatMapView::OnPress (const DxuiMouseEvent & ev)
         return false;
     }
 
-    m_press       = at;
-    m_pressScroll = m_scroll;
-    m_isDragging  = false;
+    m_press      = at;
+    m_pressTop   = m_scrollTop;
+    m_isDragging = false;
     return true;
 }
 
@@ -2848,10 +2765,9 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
 
 
 
-    if (m_vertBar.IsDragging() || m_horzBar.IsDragging())
+    if (m_vertBar.IsDragging())
     {
         m_vertBar.OnMouseUp();
-        m_horzBar.OnMouseUp();
         return true;
     }
 
@@ -2897,9 +2813,10 @@ bool HeatMapView::OnRelease (const DxuiMouseEvent & ev)
 //
 //  HeatMapView::OnDragOrHover
 //
-//  A scrollbar's thumb follows the mouse while it is dragged. With the button
-//  down on the map, once the mouse has gone kDragDip the map follows it;
-//  otherwise the pick follows the mouse, and a scrollbar under it widens.
+//  The scrollbar's thumb follows the mouse while it is dragged. With the
+//  button down on the map, once the mouse has gone kDragDip the map follows
+//  it up and down; otherwise the pick follows the mouse, and the scrollbar
+//  under it widens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2914,21 +2831,13 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
     if (m_vertBar.IsDragging())
     {
         m_vertBar.OnMouseMove (at.x, at.y);
-        ScrollBy (0, m_vertBar.GetScrollPos() - (int) m_scroll.y);
-        return true;
-    }
-
-    if (m_horzBar.IsDragging())
-    {
-        m_horzBar.OnMouseMove (at.x, at.y);
-        ScrollBy (m_horzBar.GetScrollPos() - (int) m_scroll.x, 0);
+        ScrollBy (m_vertBar.GetScrollPos() - (int) m_scrollTop);
         return true;
     }
 
     if (!m_press.has_value())
     {
         (void) m_vertBar.SetHover (m_hasVertBar && m_vertBar.HitTest (at.x, at.y), at);
-        (void) m_horzBar.SetHover (m_hasHorzBar && m_horzBar.HitTest (at.x, at.y), at);
 
         SetHover (GetPickPlaceAt (at));
         return false;
@@ -2948,7 +2857,7 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
         return true;
     }
 
-    m_scroll = { m_pressScroll.x - dx, m_pressScroll.y - dy };
+    m_scrollTop = m_pressTop - dy;
 
     ClampScroll();
     m_isFrameStale = true;
@@ -2963,9 +2872,10 @@ bool HeatMapView::OnDragOrHover (const DxuiMouseEvent & ev)
 //
 //  HeatMapView::OnWheel
 //
-//  Over the map or its scrollbars: Ctrl with the wheel zooms about the mouse;
-//  Shift with it, or a sideways wheel, scrolls across when the rows are wider
-//  than the area; the wheel alone scrolls up and down, a few rows a notch.
+//  Over the map or its scrollbar: Ctrl with the wheel zooms about the mouse;
+//  the wheel alone scrolls up and down, a few rows a notch. The rows always
+//  fit across, so Shift with the wheel, or a sideways wheel, is left for the
+//  window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2977,27 +2887,22 @@ bool HeatMapView::OnWheel (const DxuiMouseEvent & ev)
 
 
 
-    if (!IsOverMap (ev.positionDip) || ev.wheelDelta == 0.0f)
+    if (!IsOverMap (ev.positionDip) || ev.wheelDelta == 0.0f || ev.wheelHorizontal)
     {
         return false;
     }
 
-    if (ev.ctrl && !ev.wheelHorizontal)
+    if (ev.ctrl)
     {
         ZoomAt (ev.positionDip, ev.wheelDelta);
     }
-    else if (ev.wheelHorizontal || ev.shift)
+    else if (ev.shift)
     {
-        if (!m_hasHorzBar)
-        {
-            return false;
-        }
-
-        ScrollBy (ev.wheelHorizontal ? step : -step, 0);
+        return false;
     }
     else
     {
-        ScrollBy (0, -step);
+        ScrollBy (-step);
     }
 
     SetHover (GetPickPlaceAt (ev.positionDip));
@@ -3117,7 +3022,7 @@ RECT HeatMapView::GetViewRowFreeRect() const
 //  HeatMapView::PlaceZoomWidget
 //
 //  In the corner, except while its slider is open in a pane the same size:
-//  zooming there brings scrollbars and takes them away, and the slider
+//  zooming there brings the scrollbar and takes it away, and the slider
 //  stays under the pointer rather than moving with the corner.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3141,20 +3046,19 @@ void HeatMapView::PlaceZoomWidget()
 //
 //  HeatMapView::GetZoomCorner
 //
-//  The pane's bottom right, inside whichever scrollbar shows there, so the
-//  zoom widget sits its own margin in from the corner. The map starts
-//  fitted, with no scrollbars, so that is where it usually is.
+//  The pane's bottom right, inside the scrollbar when it is visible, so the
+//  zoom widget is placed its margin in from the corner. The map starts
+//  fitted, with no scrollbar, so that is where it usually is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT HeatMapView::GetZoomCorner() const
 {
-    long  right  = m_boundsDip.right  - (m_hasVertBar ? m_scaler.ToPx (kScrollbarDip) : 0);
-    long  bottom = m_boundsDip.bottom - (m_hasHorzBar ? m_scaler.ToPx (kScrollbarDip) : 0);
+    long  right = m_boundsDip.right - (m_hasVertBar ? m_scaler.ToPx (kScrollbarDip) : 0);
 
 
 
-    return { m_boundsDip.left + m_gutterPx, m_boundsDip.top + m_scaler.ToPx (kBarDip), right, bottom };
+    return { m_boundsDip.left + m_gutterPx, m_boundsDip.top + m_scaler.ToPx (kBarDip), right, m_boundsDip.bottom };
 }
 
 
@@ -3213,7 +3117,6 @@ bool HeatMapView::OnMouse (const DxuiMouseEvent & ev)
         {
             SetHover (std::nullopt);
             (void) m_vertBar.SetHover (false);
-            (void) m_horzBar.SetHover (false);
         }
 
         return false;
