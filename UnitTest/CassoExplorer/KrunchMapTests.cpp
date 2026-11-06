@@ -75,19 +75,41 @@ public:
     }
 
 
-    TEST_METHOD (Build_LaysEachFilesNameAcrossItsBlocks)
+    TEST_METHOD (FindLabelRow_PicksThePlacesLongestRow)
     {
-        std::vector<KrunchMap::Block>  cells = KrunchMap::Build (MakeFiles(), false, 0, 0);
-
-
-
-        Assert::AreEqual (L'B', cells[20].letter);
-        Assert::AreEqual (L'.', cells[21].letter);
-        Assert::AreEqual (L'A', cells[25].letter);
-        Assert::AreEqual ((wchar_t) 0, cells[26].letter);
-        Assert::AreEqual ((wchar_t) 0, cells[20].activity);
+        Assert::IsTrue (KrunchMapPanel::FindLabelRow (30, 47) == std::pair<int, int> (30, 39));
+        Assert::IsTrue (KrunchMapPanel::FindLabelRow (36, 52) == std::pair<int, int> (40, 52));
+        Assert::IsTrue (KrunchMapPanel::FindLabelRow (12, 12) == std::pair<int, int> (12, 12));
     }
 
+
+    TEST_METHOD (Panel_LabelsEachPlace_AroundTheBlocksInFlight)
+    {
+        KrunchMapPanel        panel;
+        KrunchMapPanel::View  view;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        DxuiDpiScaler         scaler;
+
+
+
+        //  B.DATA's second part is in flight: its written place has W at 14
+        //  and 15, and its old place R at 24 and 25, so its name is drawn in
+        //  10 to 13, 20 to 23 and 26 to 29.
+        view.files  = MakeFiles();
+        view.blocks = KrunchMap::Build (view.files, true, 1, 0);
+
+        panel.Layout  (RECT { 0, 0, 640, 400 }, scaler);
+        panel.SetView (view);
+        panel.Paint   (painter, text, theme);
+
+        Assert::AreEqual (1, CountText (text, L"A.DATA"));
+        Assert::AreEqual (3, CountText (text, L"B.DATA"));
+        Assert::AreEqual (1, CountText (text, L"C.DATA"));
+        Assert::AreEqual (2, CountText (text, L"R"));
+        Assert::AreEqual (2, CountText (text, L"W"));
+    }
 
     TEST_METHOD (Build_PartWayThroughAFile_MarksThePartInFlight)
     {
@@ -102,7 +124,6 @@ public:
         AssertCells (cells, 40, 8,  Cell::ToMove);
 
         Assert::AreEqual ((wchar_t) 0, cells[10].activity);
-        Assert::AreEqual (L'B',        cells[10].letter);
         Assert::AreEqual (L'W',        cells[14].activity);
         Assert::AreEqual (L'W',        cells[15].activity);
         Assert::AreEqual (L'R',        cells[24].activity);
@@ -118,7 +139,6 @@ public:
 
 
         Assert::AreEqual ((wchar_t) 0, cells[14].activity);
-        Assert::AreEqual (L'T',        cells[14].letter);
         Assert::AreEqual (L'R',        cells[26].activity);
     }
 
@@ -149,7 +169,6 @@ public:
         AssertCells (cells, 0,  6,   Cell::System);
         AssertCells (cells, 6,  22,  Cell::InPlace);
         AssertCells (cells, 28, 252, Cell::Free);
-        Assert::AreEqual (L'C', cells[20].letter);
     }
 
 
@@ -274,6 +293,10 @@ public:
     static bool  HasText (const MockDxuiTextRenderer & text, const std::wstring & line)
     {
         return std::any_of (text.Calls().begin(), text.Calls().end(), [&] (const RecordedTextCall & call) { return call.text == line; });
+    }
+    static int  CountText (const MockDxuiTextRenderer & text, const std::wstring & line)
+    {
+        return (int) std::count_if (text.Calls().begin(), text.Calls().end(), [&] (const RecordedTextCall & call) { return call.text == line; });
     }
 
 

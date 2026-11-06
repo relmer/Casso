@@ -47,12 +47,12 @@ public:
     static constexpr float  kOutlineDip     = 2.0f;
     static constexpr int    kLegendColumns  = 3;
 
-    static constexpr float  kLetterScale    = 0.8f;   // a block's letter, to the cell's side
+    static constexpr float  kLabelScale     = 0.75f;   // a file's name and R and W, to the cell's side
+    static constexpr float  kLabelPadDip    = 3.0f;
 
-    static constexpr const wchar_t *  s_kpszFont       = L"Segoe UI";
-    static constexpr const wchar_t *  s_kpszLetterFont = L"Consolas";
-    static constexpr uint32_t         s_kLetterColor   = 0xFFFFFFFF;
-    static constexpr uint32_t         s_kBusyColor     = 0xFFFFFF40;   // R and W, yellow over the white letters
+    static constexpr const wchar_t *  s_kpszFont    = L"Segoe UI";
+    static constexpr uint32_t         s_kLabelColor = 0xFFFFFFFF;
+    static constexpr uint32_t         s_kBusyColor  = 0xFFFFFF40;   // R and W, yellow beside the white file labels
 
     //  The colors of the Windows 95 Disk Defragmenter's map, which don't
     //  change with the theme, so the map reads as that one does.
@@ -62,6 +62,11 @@ public:
     //  The line for the file under the pointer: its name, its blocks, and
     //  where it moves, from its cell.
     static std::wstring  DescribeFile (const PascalKrunchMove & file, KrunchMap::Cell cell);
+
+    //  Each run of one file's blocks with one cell, and the longest row of a
+    //  run, where its name is drawn, as first and last blocks.
+    static std::vector<std::pair<int, int>>  FindPlaces   (const std::vector<KrunchMap::Block> & blocks);
+    static std::pair<int, int>               FindLabelRow (int first, int last);
 
     void  SetView (View view);
 
@@ -81,6 +86,8 @@ private:
     Grid  GetGrid       () const;
     int   FindBlockAt   (POINT pointPx) const;
     void  PaintMap      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & grid) const;
+    void  PaintLabels   (IDxuiTextRenderer & text, const Grid & grid) const;
+    void  PaintActivity (IDxuiTextRenderer & text, const Grid & grid) const;
     void  PaintLegend   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     bool  IsJoinedRight (int block) const;
 

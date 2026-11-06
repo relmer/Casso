@@ -37,14 +37,12 @@ public:
         Writing,    // and the parts of it written at its new place
     };
 
-    //  A block's cell, the index in `files` of the file in it or -1, the
-    //  character of the file's name drawn in it or 0, and R or W for a block
-    //  of the part being read or written, which is drawn over the character.
+    //  A block's cell, the index in `files` of the file in it or -1, and R or
+    //  W for a block of the part being read or written.
     struct Block
     {
         Cell     cell     = Cell::Free;
         int      file     = -1;
-        wchar_t  letter   = 0;
         wchar_t  activity = 0;
     };
 
@@ -80,7 +78,6 @@ public:
     static int  FindMovingFile (const std::vector<PascalKrunchMove> & files, int partsDone);
 
 private:
-    static void  Fill      (std::vector<Block> & ioBlocks, int first, int count, Cell cell, int file);
-    static void  Letter    (std::vector<Block> & ioBlocks, int first, int count, const std::string & name);
-    static void  MarkBusy  (std::vector<Block> & ioBlocks, int first, int count, wchar_t activity);
+    static void  Fill     (std::vector<Block> & ioBlocks, int first, int count, Cell cell, int file);
+    static void  MarkBusy (std::vector<Block> & ioBlocks, int first, int count, wchar_t activity);
 };

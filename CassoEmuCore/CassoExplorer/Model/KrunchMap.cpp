@@ -14,7 +14,7 @@
 //  rewritten: its old place is read, and its parts written so far and the
 //  part in flight are at its new place. Its old place is free once its entry
 //  is rewritten, apart from where a new place covers it, as new places are
-//  never past old ones. Each place has the file's name across its blocks.
+//  never past old ones.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,8 +39,7 @@ std::vector<KrunchMap::Block> KrunchMap::Build (const std::vector<PascalKrunchMo
 
         if (file.to == file.from)
         {
-            Fill   (blocks, file.to, file.blocks, Cell::InPlace, index);
-            Letter (blocks, file.to, file.blocks, file.name);
+            Fill (blocks, file.to, file.blocks, Cell::InPlace, index);
             continue;
         }
 
@@ -58,17 +57,14 @@ std::vector<KrunchMap::Block> KrunchMap::Build (const std::vector<PascalKrunchMo
 
         if (moveIndex < filesMoved)
         {
-            Fill   (blocks, file.to, file.blocks, Cell::InPlace, index);
-            Letter (blocks, file.to, file.blocks, file.name);
+            Fill (blocks, file.to, file.blocks, Cell::InPlace, index);
         }
         else if (started && first <= partsDone)
         {
             int  covered = written + ((busy != nullptr) ? busy->blocks : 0);
 
-            Fill   (blocks, file.from, file.blocks, Cell::Reading, index);
-            Letter (blocks, file.from, file.blocks, file.name);
-            Fill   (blocks, file.to,   covered,     Cell::Writing, index);
-            Letter (blocks, file.to,   covered,     file.name);
+            Fill (blocks, file.from, file.blocks, Cell::Reading, index);
+            Fill (blocks, file.to,   covered,     Cell::Writing, index);
 
             if (busy != nullptr)
             {
@@ -78,8 +74,7 @@ std::vector<KrunchMap::Block> KrunchMap::Build (const std::vector<PascalKrunchMo
         }
         else
         {
-            Fill   (blocks, file.from, file.blocks, Cell::ToMove, index);
-            Letter (blocks, file.from, file.blocks, file.name);
+            Fill (blocks, file.from, file.blocks, Cell::ToMove, index);
         }
 
         moveIndex++;
@@ -208,8 +203,7 @@ int KrunchMap::FindMovingFile (const std::vector<PascalKrunchMove> & files, int 
 //
 //  KrunchMap::Fill
 //
-//  Blocks past the map are left out. A filled block's letter and activity
-//  are cleared.
+//  Blocks past the map are left out. A filled block's activity is cleared.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,34 +214,7 @@ void KrunchMap::Fill (std::vector<Block> & ioBlocks, int first, int count, Cell 
 
 
 
-    std::fill (ioBlocks.begin() + start, ioBlocks.begin() + std::max (start, end), Block { cell, file, 0, 0 });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  KrunchMap::Letter
-//
-//  The name from the place's first block, as much of it as fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void KrunchMap::Letter (std::vector<Block> & ioBlocks, int first, int count, const std::string & name)
-{
-    int  letters = std::min (count, (int) name.size());
-
-
-
-    for (int j = 0; j < letters; j++)
-    {
-        if (first + j >= 0 && (size_t) (first + j) < ioBlocks.size())
-        {
-            ioBlocks[(size_t) (first + j)].letter = (wchar_t) (unsigned char) name[(size_t) j];
-        }
-    }
+    std::fill (ioBlocks.begin() + start, ioBlocks.begin() + std::max (start, end), Block { cell, file, 0 });
 }
 
 

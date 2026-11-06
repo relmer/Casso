@@ -324,8 +324,7 @@ void KrunchMapPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //  KrunchMapPanel::PaintMap
 //
 //  Block 0 is at the top left, a row a kColumns blocks. A map with no
-//  blocks yet is drawn as free space. Each block has its file's letter, or R
-//  or W while its part is read or written. Each run of the file under the
+//  blocks yet is drawn as free space. Each run of the file under the
 //  pointer is outlined after every cell is filled, so no cell covers an
 //  outline.
 //
@@ -333,11 +332,10 @@ void KrunchMapPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 void KrunchMapPanel::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const Grid & grid) const
 {
-    HRESULT  hr      = S_OK;
-    float    pitch   = grid.cell + grid.gap;
-    float    outline = m_scaler.ToPxf (kOutlineDip);
-    int      file    = -1;
-    int      start   = -1;
+    float  pitch   = grid.cell + grid.gap;
+    float  outline = m_scaler.ToPxf (kOutlineDip);
+    int    file    = -1;
+    int    start   = -1;
 
 
 
@@ -351,29 +349,8 @@ void KrunchMapPanel::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text,
         painter.FillRect (x, y, width, grid.cell, GetColor (cell.cell));
     }
 
-    for (int block = 0; block < (int) m_view.blocks.size() && block < KrunchMap::kBlocks; block++)
-    {
-        const KrunchMap::Block  & cell    = m_view.blocks[(size_t) block];
-        wchar_t                   glyph   = (cell.activity != 0) ? cell.activity : cell.letter;
-        wchar_t                   chars[] = { glyph, 0 };
-
-        if (glyph == 0)
-        {
-            continue;
-        }
-
-        hr = text.DrawString (chars,
-                              grid.left + (block % KrunchMap::kColumns) * pitch,
-                              grid.top  + (block / KrunchMap::kColumns) * pitch,
-                              grid.cell,
-                              grid.cell,
-                              (cell.activity != 0) ? s_kBusyColor : s_kLetterColor,
-                              grid.cell * kLetterScale,
-                              s_kpszLetterFont,
-                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                              (cell.activity != 0) ? DxuiFontWeight::Bold : DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    PaintLabels   (text, grid);
+    PaintActivity (text, grid);
 
     if (m_hoverBlock >= 0 && (size_t) m_hoverBlock < m_view.blocks.size())
     {
@@ -403,6 +380,193 @@ void KrunchMapPanel::PaintMap (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
             start = -1;
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KrunchMapPanel::FindPlaces
+//
+//  A place is a run of blocks of one file with one cell, which can cross
+//  rows; each is listed as its first and last blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<int, int>> KrunchMapPanel::FindPlaces (const std::vector<KrunchMap::Block> & blocks)
+{
+    std::vector<std::pair<int, int>>  places;
+    int                               count = (int) std::min (blocks.size(), (size_t) KrunchMap::kBlocks);
+
+
+
+    for (int block = 0; block < count; block++)
+    {
+        const KrunchMap::Block  & cell    = blocks[(size_t) block];
+        bool                      isStart = block == 0 || blocks[(size_t) block - 1].file != cell.file || blocks[(size_t) block - 1].cell != cell.cell;
+
+        if (cell.file < 0)
+        {
+            continue;
+        }
+
+        if (isStart)
+        {
+            places.push_back ({ block, block });
+        }
+        else
+        {
+            places.back().second = block;
+        }
+    }
+
+    return places;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KrunchMapPanel::FindLabelRow
+//
+//  The longest row of a place, the first of those as long, as its first
+//  and last blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<int, int> KrunchMapPanel::FindLabelRow (int first, int last)
+{
+    std::pair<int, int>  best  = { first, first };
+    int                  start = first;
+
+
+
+    for (int block = first; block <= last; block++)
+    {
+        bool  rowEnds = block == last || (block + 1) % KrunchMap::kColumns == 0;
+
+        if (!rowEnds)
+        {
+            continue;
+        }
+
+        if (block - start > best.second - best.first)
+        {
+            best = { start, block };
+        }
+
+        start = block + 1;
+    }
+
+    return best;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KrunchMapPanel::PaintLabels
+//
+//  Each place has its file's name in the longest of its rows, clipped to
+//  that row. The name is drawn once for each run of blocks in the row that
+//  aren't being read or written, clipped to the run, so R and W take the
+//  place of the name in the other blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KrunchMapPanel::PaintLabels (IDxuiTextRenderer & text, const Grid & grid) const
+{
+    HRESULT  hr     = S_OK;
+    float    pitch  = grid.cell + grid.gap;
+    float    pad    = m_scaler.ToPxf (kLabelPadDip);
+    float    fontPx = grid.cell * kLabelScale;
+
+
+
+    for (const std::pair<int, int> & place : FindPlaces (m_view.blocks))
+    {
+        std::pair<int, int>  row   = FindLabelRow (place.first, place.second);
+        int                  file  = m_view.blocks[(size_t) place.first].file;
+        std::wstring         name  = ((size_t) file < m_view.files.size()) ? TextEncoding::NarrowToWide (m_view.files[(size_t) file].name) : std::wstring();
+        float                x     = grid.left + (row.first % KrunchMap::kColumns) * pitch;
+        float                y     = grid.top  + (row.first / KrunchMap::kColumns) * pitch;
+        float                width = (row.second - row.first) * pitch + grid.cell;
+        int                  run   = -1;
+
+        for (int block = row.first; block <= row.second + 1 && !name.empty(); block++)
+        {
+            bool  isFree = block <= row.second && m_view.blocks[(size_t) block].activity == 0;
+
+            if (isFree && run < 0)
+            {
+                run = block;
+            }
+
+            if (!isFree && run >= 0)
+            {
+                hr = text.PushClipRect (x + (run - row.first) * pitch, y, (block - run) * pitch - grid.gap, grid.cell);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                hr = text.DrawString (name.c_str(), x + pad, y, width - pad, grid.cell,
+                                      s_kLabelColor, fontPx, s_kpszFont,
+                                      DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                hr = text.PopClipRect();
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                run = -1;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KrunchMapPanel::PaintActivity
+//
+//  R or W in each block of the part being read or written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KrunchMapPanel::PaintActivity (IDxuiTextRenderer & text, const Grid & grid) const
+{
+    HRESULT  hr    = S_OK;
+    float    pitch = grid.cell + grid.gap;
+
+
+
+    for (int block = 0; block < (int) m_view.blocks.size() && block < KrunchMap::kBlocks; block++)
+    {
+        wchar_t  glyph[] = { m_view.blocks[(size_t) block].activity, 0 };
+
+        if (glyph[0] == 0)
+        {
+            continue;
+        }
+
+        hr = text.DrawString (glyph,
+                              grid.left + (block % KrunchMap::kColumns) * pitch,
+                              grid.top  + (block / KrunchMap::kColumns) * pitch,
+                              grid.cell,
+                              grid.cell,
+                              s_kBusyColor,
+                              grid.cell * kLabelScale,
+                              s_kpszFont,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                              DxuiFontWeight::Bold, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
