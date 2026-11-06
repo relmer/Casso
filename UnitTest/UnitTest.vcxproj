@@ -311,6 +311,7 @@
     <ClCompile Include="DebuggerTests\EngineMarkerTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorFormatterTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\ChannelLineBufferTests.cpp" />
     <ClCompile Include="DebuggerTests\ChannelProtocolTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugChannelServerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
