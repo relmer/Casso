@@ -3804,7 +3804,7 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-373**: A file in a console line MUST be a link in the console pane,
   with its full path as its tip, that opens File Explorer with the file
   selected; the line MUST NOT write out the full path, while the reply's text
-  for the debug channel and batch mode MUST still have it.
+  for the debug channel and batch mode MUST have it.
 - **FR-374**: A tab dragged past either end of its tab strip MUST be dragged off
   its group, as one dragged up or down is.
 - **FR-375**: Pinning a pane and unpinning it MUST animate its rectangle between
