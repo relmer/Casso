@@ -416,31 +416,39 @@ std::vector<std::wstring> DebuggerLayout::GetToolPaneIds()
 //
 //  DebuggerLayout::GetViewMenuRank
 //
+//  Each hundred is a section of the menu, with a separator between
+//  sections: the code, then the machine's state and memory, then the
+//  window's output, then the device panels.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
 {
     static const std::pair<const wchar_t *, int>  kFixed[] =
     {
-        { kRegisters,    100 },
-        { kStack,        101 },
-        { kCallStack,    102 },
-        { kBreakpoints,  120 },
-        { kWatches,      121 },
-        { kTrace,        122 },
-        { kHeatMap,      123 },
-        { kHeatRanges,   124 },
-        { kDiskLog,      125 },
-        { kInputLog,     126 },
-        { kVideoLog,     127 },
-        { kSoundLog,     128 },
-        { kSerialLog,    129 },
-        { kNetworkLog,   130 },
-        { kBasicProgram, 131 },
-        { kConsole,      150 },
+        { kBasicProgram,   89 },
+        { kCallStack,      90 },
+        { kBreakpoints,    91 },
+        { kBookmarks,      92 },
+        { kSymbols,        93 },
+        { kMachineSymbols, 94 },
+        { kRegisters,     100 },
+        { kStack,         101 },
+        { kWatches,       102 },
+        { kDataBlocks,    120 },
+        { kHeatMap,       121 },
+        { kHeatRanges,    122 },
+        { kConsole,       200 },
+        { kTrace,         201 },
+        { kProfiler,      202 },
+        { kDiskLog,       210 },
+        { kInputLog,      211 },
+        { kVideoLog,      212 },
+        { kSoundLog,      213 },
+        { kSerialLog,     214 },
+        { kNetworkLog,    215 },
     };
-    std::vector<std::wstring>  tools = GetToolPaneIds();
-    std::string                diagnosticsId;
+    std::string  diagnosticsId;
 
 
 
@@ -473,14 +481,6 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
         if (pane == id)
         {
             return rank;
-        }
-    }
-
-    for (size_t i = 0; i < tools.size(); i++)
-    {
-        if (pane == tools[i])
-        {
-            return 140 + (int) i;
         }
     }
 

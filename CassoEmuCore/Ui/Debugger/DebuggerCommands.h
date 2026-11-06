@@ -99,7 +99,7 @@ private:
     static void  PaintStepOut      (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
     static void  PaintRunToCursor  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t arrow, uint32_t bar);
     static void  PaintShowNext     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
-    static void  PaintLoadFile     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t bits, uint32_t chip);
+    static void  PaintLoadFile     (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ones, uint32_t zeros);
     static void  PaintStepBackInto (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
     static void  PaintStepBackOver (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);
     static void  PaintStepBackOut  (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t color);

@@ -203,10 +203,13 @@ Shift+F3 the one before, and Escape closes the bar.
   Project settings... and Close.
 - **Edit**: Copy, Select all, Find, Find next and Find previous.
 - **Machine**: Reset and Power cycle.
-- **View**: every pane, with the disassembly views, the memory windows, the
-  source files and the BASIC program, the logs and the device panels each in a
-  submenu, then **Reset window layout**. Each pane's key is beside it; see
-  [key schemes](#key-schemes).
+- **View**: every pane, in sections divided by separators. The code first:
+  the disassembly views and the source files, each a submenu, then Call stack,
+  Breakpoints, Bookmarks and the symbol tables. Then the machine's state and
+  memory: Registers, Stack, Watches, the memory windows' submenu, Data ranges
+  and the heat map's panes. Then Console, Trace, Profiler and the **Logs**
+  submenu, then the **Device panels** submenu, and last **Reset window
+  layout**. Each pane's key is beside it; see [key schemes](#key-schemes).
 - **Debug**: Run, Break and Detach; Step into, Step over, Step out, Run to
   cursor, Run one frame, Show beam on screen and Show next statement; Step back
   into, Step back over, Step back out, Reverse continue and Go live; Step by
@@ -255,8 +258,8 @@ as the command that does the same, with its reply.
 
 A file that a console line mentions, such as the file `SYM LOAD`, `BLOAD`,
 `BSAVE` or `BPSAVE` read or wrote, is a link with the file's name in place of
-its full path. Its tip has the full path, and a click on it opens File
-Explorer at the file's folder with the file selected. When a debug project
+its full path. Its tip has the full path, and a click on it opens a new File
+Explorer window at the file's folder with the file selected. When a debug project
 loads, the console has "Loaded the debug project for symbols-demo.dbg", where
 "project" is a link to the `.cassoproj` file and the debug file's name is a
 link to the debug file, or to the binary for a binary's project. The debug

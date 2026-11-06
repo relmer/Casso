@@ -3833,8 +3833,8 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-380**: The Dock to menu MUST open from a pane's tab, its title bar or
   the menu button beside its pin and close buttons, and MUST NOT open from a
   right-click over the pane's content, which opens the content's menu or none.
-- **FR-381**: The Load file into memory button MUST draw a 1 and a 0 beside a
-  chip with pins, in the toolbar's colors in every theme.
+- **FR-381**: The Load file into memory button MUST draw a two-by-two grid of
+  1s and 0s, in the toolbar's colors in every theme.
 - **FR-382**: The Symbols pane MUST list AppleWin's spare tables, USER2, SRC
   and SRC2, only once a command has loaded something into one; the User table
   MUST always be listed.
@@ -3844,6 +3844,15 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   label, and the zoom slider MUST close when the focus moves to another pane.
 - **FR-384**: A floating pane dragged from a monitor at one scale MUST bring up the
   drop targets over a window on a monitor at another scale, in one drag.
+- **FR-385**: The View menu MUST list the panes in sections divided by
+  separators: the code (disassembly views, source files, call stack,
+  breakpoints, bookmarks, symbol tables), then the machine's state and memory
+  (registers, stack, watches, memory windows, data ranges, heat map, heat map
+  ranges), then the output (console, trace, profiler, logs), then the device
+  panels. Of those, only the panes in several instances, the logs and the
+  device panels MUST be submenus.
+- **FR-386**: A click on a file's link in the console MUST open a new File
+  Explorer window at the file's folder with the file selected.
 
 ### Key Entities
 

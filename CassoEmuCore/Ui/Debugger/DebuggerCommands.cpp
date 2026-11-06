@@ -484,38 +484,40 @@ void DebuggerCommands::PaintRunToCursor (IDxuiPainter & painter, const DxuiToolb
 //
 //  DebuggerCommands::PaintLoadFile
 //
-//  A file's bytes going into memory: a 1 and a 0 on the left, and a chip on
-//  the right with three pins along its top and bottom. It is drawn a little
-//  larger than its box, so its parts read at toolbar size.
+//  A file's bytes: a two-by-two grid of 1s and 0s, each half the box wide,
+//  the 1s in one color and the 0s in the other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerCommands::PaintLoadFile (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t bits, uint32_t chip)
+void DebuggerCommands::PaintLoadFile (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t ones, uint32_t zeros)
 {
-    float  s      = icon.size * 1.15f;
-    float  x      = icon.x - icon.size * 0.08f;
-    float  cy     = icon.top + icon.rowH * 0.5f;
-    float  stroke = (std::max) (1.3f, s / 9.0f);
-    float  thin   = (std::max) (1.0f, s / 14.0f);
-    float  bitH   = s * 0.56f;
-    float  chipL  = x + s * 0.52f;
-    float  chipW  = s * 0.46f;
-    float  chipH  = s * 0.62f;
-    float  pinL   = s * 0.13f;
+    static constexpr bool  s_kGrid[2][2] = { { true,  false },
+                                             { false, true  } };
+    float                  s             = icon.size * 1.25f;
+    float                  cell          = s / 2.0f;
+    float                  top           = icon.top + (icon.rowH - s) * 0.5f;
+    float                  thin          = (std::max) (1.0f, s / 14.0f);
+    float                  digitH        = cell * 0.78f;
+    float                  zeroW         = cell * 0.48f;
 
 
 
-    painter.DrawLine           (x + s * 0.06f, cy - bitH * 0.5f, x + s * 0.06f, cy + bitH * 0.5f, thin, bits);
-    painter.OutlineRoundedRect (x + s * 0.15f, cy - bitH * 0.5f, s * 0.24f, bitH, s * 0.10f, thin, bits);
-
-    painter.OutlineRoundedRect (chipL, cy - chipH * 0.5f, chipW, chipH, s * 0.05f, stroke, chip);
-
-    for (int pin = 1; pin <= 3; pin++)
+    for (int row = 0; row < 2; row++)
     {
-        float  pinX = chipL + chipW * (float) pin / 4.0f;
+        for (int col = 0; col < 2; col++)
+        {
+            float  cx = icon.x - icon.size * 0.125f + cell * ((float) col + 0.5f);
+            float  cy = top + cell * ((float) row + 0.5f);
 
-        painter.DrawLine (pinX, cy - chipH * 0.5f - pinL, pinX, cy - chipH * 0.5f, stroke, chip);
-        painter.DrawLine (pinX, cy + chipH * 0.5f, pinX, cy + chipH * 0.5f + pinL, stroke, chip);
+            if (s_kGrid[row][col])
+            {
+                painter.DrawLine (cx, cy - digitH * 0.5f, cx, cy + digitH * 0.5f, thin, ones);
+            }
+            else
+            {
+                painter.OutlineRoundedRect (cx - zeroW * 0.5f, cy - digitH * 0.5f, zeroW, digitH, zeroW * 0.45f, thin, zeros);
+            }
+        }
     }
 }
 

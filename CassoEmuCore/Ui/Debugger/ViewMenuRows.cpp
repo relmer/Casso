@@ -10,16 +10,15 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ViewMenuRows::GetPanes
+//  ViewMenuRows::GetRankedPanes
 //
 //  Panes of equal rank are in the pane list's order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::wstring> ViewMenuRows::GetPanes (const std::vector<std::unique_ptr<IDebuggerPane>> & panes, const DebuggerViewSnapshot * snapshot)
+std::vector<std::pair<int, std::wstring>> ViewMenuRows::GetRankedPanes (const std::vector<std::unique_ptr<IDebuggerPane>> & panes, const DebuggerViewSnapshot * snapshot)
 {
     std::vector<std::pair<int, std::wstring>>  ranked;
-    std::vector<std::wstring>                  ids;
 
 
 
@@ -35,7 +34,26 @@ std::vector<std::wstring> ViewMenuRows::GetPanes (const std::vector<std::unique_
 
     std::ranges::stable_sort (ranked, {}, [] (const std::pair<int, std::wstring> & each) { return each.first; });
 
-    for (const auto & [rank, id] : ranked)
+    return ranked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ViewMenuRows::GetPanes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ViewMenuRows::GetPanes (const std::vector<std::unique_ptr<IDebuggerPane>> & panes, const DebuggerViewSnapshot * snapshot)
+{
+    std::vector<std::wstring>  ids;
+
+
+
+    for (const auto & [rank, id] : GetRankedPanes (panes, snapshot))
     {
         ids.push_back (id);
     }
@@ -64,28 +82,39 @@ std::vector<DxuiPopupMenuItem> ViewMenuRows::Build (const std::vector<std::uniqu
     std::vector<std::wstring>                    cascades;
     std::vector<std::vector<DxuiPopupMenuItem>>  cascadeRows;
     std::vector<size_t>                          cascadeAt;
+    std::optional<int>                           section;
 
 
 
-    for (const std::wstring & id : GetPanes (panes, snapshot))
+    for (const auto & [rank, id] : GetRankedPanes (panes, snapshot))
     {
         auto                           found = std::ranges::find_if (panes, [&id] (const std::unique_ptr<IDebuggerPane> & each) { return each->GetId() == id; });
         std::wstring                   group = (*found)->GetViewMenuGroup();
         std::shared_ptr<DxuiCommand>   row   = DebuggerMenuCommand::Make ((*found)->GetTitle(), [open, id] { open (id); });
-        size_t                         index = 0;
+        size_t                         index = (size_t) (std::ranges::find (cascades, group) - cascades.begin());
+        bool                           isNew = group.empty() || index == cascades.size();
 
         row->isChecked   = [isOpen, id] { return isOpen (id); };
         row->accelerator = keyOf (id);
 
         commands.push_back (row);
 
+        //  A row, or a cascade's first pane, in a new hundred starts a section.
+        if (isNew && section.has_value() && *section != rank / 100)
+        {
+            view.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        if (isNew)
+        {
+            section = rank / 100;
+        }
+
         if (group.empty())
         {
             view.push_back (DxuiPopupMenuItem::ForCommand (row));
             continue;
         }
-
-        index = (size_t) (std::ranges::find (cascades, group) - cascades.begin());
 
         if (index == cascades.size())
         {

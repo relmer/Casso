@@ -61,7 +61,7 @@ public:
     //  one; empty for a row of View itself.
     static std::optional<int>         GetViewMenuRank  (const std::wstring & pane);
     static std::wstring               GetViewMenuGroup (const std::wstring & pane);
-    static constexpr int              kDevicePanelRank = 200;
+    static constexpr int              kDevicePanelRank = 300;
 
     //  The BASIC program pane and the tool panes stay closed until each is
     //  first opened; the open-views text has " open=" and the pane once it

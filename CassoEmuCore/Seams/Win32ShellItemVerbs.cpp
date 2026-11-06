@@ -58,31 +58,31 @@ Error:
 //
 //  Win32ShellItemVerbs::ShowInFolder
 //
-//  SHOpenFolderAndSelectItems, given a file's full path and no items, opens
-//  the file's folder with the file selected, reusing an Explorer window open
-//  on that folder.
+//  A new File Explorer window at the file's folder with the file selected.
+//  Explorer has no supported way to bring forward a tab already open on the
+//  folder, and reusing a window without selecting the file in it is worse
+//  than a new one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ShellItemVerbs::ShowInFolder (const std::wstring & path)
 {
-    HRESULT           hr   = S_OK;
-    PIDLIST_ABSOLUTE  pidl = nullptr;
+    HRESULT           hr     = S_OK;
+    SHELLEXECUTEINFOW info   = { sizeof (info) };
+    std::wstring      params = L"/n,/select,\"" + path + L"\"";
+    BOOL              ran    = FALSE;
 
 
 
-    hr = SHParseDisplayName (path.c_str(), nullptr, &pidl, 0, nullptr);
-    CHR (hr);
+    info.fMask        = SEE_MASK_FLAG_NO_UI;
+    info.lpFile       = L"explorer.exe";
+    info.lpParameters = params.c_str();
+    info.nShow        = SW_SHOWNORMAL;
 
-    hr = SHOpenFolderAndSelectItems (pidl, 0, nullptr, 0);
-    CHR (hr);
+    ran = ShellExecuteExW (&info);
+    CWR (ran);
 
 Error:
-    if (pidl != nullptr)
-    {
-        CoTaskMemFree (pidl);
-    }
-
     return hr;
 }
 

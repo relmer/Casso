@@ -223,5 +223,46 @@ namespace DebuggerViewCascadeTests
             Assert::IsNull (GetRow (GetView (window), L"Sound log"),     L"Sound log is a row of the cascade");
             Assert::IsNull (GetRow (GetView (window), L"BASIC program"), L"BASIC program is a row of the cascade");
         }
+
+
+        //  The code, then the machine's state and memory, then the window's
+        //  output, each section divided from the next. Console, Trace and the
+        //  Profiler are rows of View; only the logs are a cascade.
+        TEST_METHOD (TheViewMenuIsInSections)
+        {
+            CassoTheme                 theme    = CassoTheme::MakeSkeuomorphic();
+            CascadeHost                host;
+            CascadeWindow              window   (theme, host);
+            std::vector<std::wstring>  expected =
+            {
+                L"Disassembly", L"Source files", L"Call stack", L"Breakpoints", L"Bookmarks", L"User symbols", L"Machine symbols",
+                L"-",
+                L"Registers", L"Stack", L"Watches", L"Memory", L"Data ranges", L"Heat map", L"Heat map ranges",
+                L"-",
+                L"Console", L"Trace", L"Profiler", L"Logs",
+                L"-",
+                L"Reset window layout",
+            };
+            std::wstring               actual;
+            std::wstring               wanted;
+
+
+
+            window.OnCreate();
+            window.SetWindowMenus();
+
+            for (const DxuiPopupMenuItem & row : GetView (window))
+            {
+                actual += (row.kind == DxuiPopupMenuItem::Kind::Separator) ? std::wstring (L"-") : row.command->label;
+                actual += L"|";
+            }
+
+            for (const std::wstring & label : expected)
+            {
+                wanted += label + L"|";
+            }
+
+            Assert::AreEqual (wanted, actual);
+        }
     };
 }
