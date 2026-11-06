@@ -868,8 +868,9 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  A pane's own use of the mouse ahead of every other control, such as
-    //  Ctrl+wheel over the heat map, which zooms the map rather than the text.
+    //  A pane's use of the mouse ahead of every other control, such as the
+    //  wheel over the profiler's timeline, which zooms the timeline rather
+    //  than scrolling or sizing the text.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteEarlyMouse (ev))
@@ -878,11 +879,18 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  Ctrl+wheel sizes the panes' text as Ctrl+Plus and Ctrl+Minus do, over
-    //  any pane, before a view that would take the wheel for itself.
+    //  Ctrl+wheel anywhere over a pane whose content zooms, such as the heat
+    //  map, zooms that content, over its bar and its empty space as much as
+    //  over the content itself. Over any other pane it sizes the panes' text
+    //  as Ctrl+Plus and Ctrl+Minus do, before a view that would take the
+    //  wheel for itself.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
     {
-        StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
+        if (!ZoomPaneContent (GetRoutedPaneAt (ev.positionDip), ev.wheelDelta, ev.positionDip))
+        {
+            StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
+        }
+
         return true;
     }
 
@@ -1166,6 +1174,94 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     default:
         return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetRoutedPaneAt
+//
+//  In a floating window, its pane in front; in this window, the pane the
+//  dock site has at the point, a pane slid out from an edge ahead of any
+//  under it. Empty off the panes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetRoutedPaneAt (POINT clientPx) const
+{
+    if (!m_floating->GetRoutingPane().empty())
+    {
+        return m_floating->GetRoutingPane();
+    }
+
+    return (m_dockSite != nullptr) ? m_dockSite->GetPaneAt (clientPx) : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ZoomPaneContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ZoomPaneContent (const std::wstring & pane, float notches, std::optional<POINT> clientPx)
+{
+    IDebuggerPane  * found = pane.empty() ? nullptr : FindPane (pane);
+
+
+
+    return found != nullptr && found->ZoomContent (notches, clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::StepFocusedZoom
+//
+//  The focused pane's content zooms about its middle, as a focused printer
+//  page does, when the pane has a zoom apart from the text; otherwise the
+//  panes' text steps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::StepFocusedZoom (int steps)
+{
+    if (!ZoomPaneContent (GetPaneOfFocus(), (float) steps, std::nullopt))
+    {
+        StepTextZoom (steps);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ResetFocusedZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ResetFocusedZoom()
+{
+    std::wstring     pane  = GetPaneOfFocus();
+    IDebuggerPane  * found = pane.empty() ? nullptr : FindPane (pane);
+
+
+
+    if (found == nullptr || !found->ResetContentZoom())
+    {
+        ApplyTextZoom (1.0f);
     }
 }
 
@@ -1514,14 +1610,16 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return IsTextBox (focused) && focused->OnKey (ev);
     }
 
-    //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text (FR-083).
+    //  Ctrl+Plus, Ctrl+Minus and Ctrl+0 size the panes' text, or zoom the
+    //  content of a pane with a zoom apart from the text while it has the
+    //  focus.
     if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt)
     {
         switch (ev.vk)
         {
-        case VK_OEM_PLUS:  case VK_ADD:       StepTextZoom (+1);                 return true;
-        case VK_OEM_MINUS: case VK_SUBTRACT:  StepTextZoom (-1);                 return true;
-        case '0':          case VK_NUMPAD0:   ApplyTextZoom (1.0f);              return true;
+        case VK_OEM_PLUS:  case VK_ADD:       StepFocusedZoom (+1);              return true;
+        case VK_OEM_MINUS: case VK_SUBTRACT:  StepFocusedZoom (-1);              return true;
+        case '0':          case VK_NUMPAD0:   ResetFocusedZoom();                return true;
         default:                                                                 break;
         }
     }

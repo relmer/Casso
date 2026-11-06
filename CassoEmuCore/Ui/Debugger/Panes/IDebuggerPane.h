@@ -270,6 +270,12 @@ public:
     virtual void                   UpdateTooltip    (POINT clientPx) = 0;
     virtual bool                   IsTooltipVisible () const = 0;
 
+    //  The same for a pane's tip outside a mouse event, such as after what it
+    //  lists comes in, in the window the pane is in now: the debugger window
+    //  or the floating one.
+    virtual void                   UpdatePaneTooltip    (const std::wstring & pane, POINT clientPx) { (void) pane; UpdateTooltip (clientPx); }
+    virtual bool                   IsPaneTooltipVisible (const std::wstring & pane) const { (void) pane; return IsTooltipVisible(); }
+
     //  Whether a pane is open and not closed from its close button, as the
     //  View menu's check has it.
     virtual bool                   IsPaneOpen       (const std::wstring & pane) const = 0;
@@ -456,13 +462,24 @@ public:
     virtual void                         PlaceBar       () {}
 
     //  The mouse, at four points of the window's routing: a box being
-    //  edited in place; ahead of every other control, as a Ctrl+wheel over a
-    //  map that zooms it; at the pane's bar, ahead of the panes' contents; and
-    //  at what the pane draws, after the dock's strips and sashes.
+    //  edited in place; ahead of every other control, as the wheel over the
+    //  profiler's timeline, which zooms it; at the pane's bar, ahead of the
+    //  panes' contents; and at what the pane draws, after the dock's strips
+    //  and sashes.
     virtual bool                         RouteEditMouse    (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteEarlyMouse   (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteBarMouse     (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteContentMouse (const DxuiMouseEvent & ev) { (void) ev; return false; }
+
+    //  The zoom of a pane whose content zooms apart from the panes' text,
+    //  such as the heat map: a step of notches about a point in the window,
+    //  or about the content's middle with none; and back to the zoom the
+    //  content starts at. Ctrl+wheel anywhere over the pane, and Ctrl+Plus,
+    //  Ctrl+Minus and Ctrl+0 while it has the focus, are routed here first.
+    //  False for a pane with no zoom apart from the text, whose Ctrl+wheel
+    //  and keys then size the text.
+    virtual bool                         ZoomContent       (float notches, std::optional<POINT> clientPx) { (void) notches; (void) clientPx; return false; }
+    virtual bool                         ResetContentZoom  () { return false; }
 
     //  A key for a box being edited in place, or for the pane's own control
     //  with the focus, ahead of the window's keys.

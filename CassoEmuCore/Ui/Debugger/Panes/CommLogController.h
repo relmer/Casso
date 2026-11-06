@@ -44,6 +44,10 @@ public:
     void                          ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) override;
     bool                          TryGetTipAt    (POINT clientPx, DxuiTip & tip);
 
+    //  The graph's zoom, apart from the panes' text.
+    bool                          ZoomContent      (float notches, std::optional<POINT> clientPx) override;
+    bool                          ResetContentZoom () override;
+
     void                          Zoom           (bool isIn);
     void                          ShowLane       (size_t lane, bool isShown);
 

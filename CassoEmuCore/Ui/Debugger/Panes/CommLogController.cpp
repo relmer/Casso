@@ -199,6 +199,58 @@ void CommLogController::Zoom (bool isIn)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommLogController::ZoomContent
+//
+//  Ctrl+wheel anywhere over the pane, or Ctrl+Plus and Ctrl+Minus while it
+//  has the focus, zooms the graph as Zoom in and Zoom out do, a step for
+//  each event whatever its notches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommLogController::ZoomContent (float notches, std::optional<POINT> clientPx)
+{
+    (void) clientPx;
+
+    if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->IsVisible())
+    {
+        return false;
+    }
+
+    Zoom (notches > 0.0f);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommLogController::ResetContentZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CommLogController::ResetContentZoom()
+{
+    if (m_graph == nullptr || !m_host.IsRoutable (m_graph) || !m_graph->IsVisible())
+    {
+        return false;
+    }
+
+    m_span         = kDefaultSpan;
+    m_graphedCount = SIZE_MAX;
+
+    UpdateGraph();
+    m_host.Repaint();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommLogController::ShowLane
 //
 //  The graph's height follows the lanes shown, so the pane is laid out again.

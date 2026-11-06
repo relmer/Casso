@@ -156,6 +156,49 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::UpdatePaneTooltip
+//
+//  Outside a mouse event no window's event is being routed, so the tip of a
+//  floating pane is routed as an event from its window would be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdatePaneTooltip (const std::wstring & pane, POINT clientPx)
+{
+    FloatingPanes::RouteScope  scope (*m_floating, m_floating->Contains (pane) ? pane : std::wstring());
+
+
+
+    UpdateTooltip (clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsPaneTooltipVisible
+//
+//  Whether the tooltip of the window the pane is in now is up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsPaneTooltipVisible (const std::wstring & pane) const
+{
+    const DxuiTooltip  * tip = m_floating->Contains (pane) ? m_floating->FindTip (pane) : &m_tooltip;
+
+
+
+    return tip != nullptr && tip->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::FindOperandTipView
 //
 //  The disassembly view under a point in the window the event being routed
@@ -347,23 +390,29 @@ bool DebuggerWindow::Meets (
 //
 //  DebuggerWindow::TryGetRoutedTip
 //
-//  A floating window has its site's title bar and tabs, and the panes'
-//  controls, which are this window's children. A point there is tested
-//  against the site first, then only against the controls of the panes in
-//  that window.
+//  A floating window has its site's title bar and tabs, and the controls of
+//  the panes in it, which move out of this window into that one. A point
+//  there is tested against the site first, then against that window's
+//  controls; none of this window's lie under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::TryGetRoutedTip (POINT clientPx, DxuiTip & tip) const
 {
-    const std::wstring  & routing = m_floating->GetRoutingPane();
-    const DxuiDockSite  * site    = routing.empty() ? nullptr : m_floating->FindSite (routing);
+    const std::wstring      & routing = m_floating->GetRoutingPane();
+    const DxuiDockSite      * site    = routing.empty() ? nullptr : m_floating->FindSite (routing);
+    const DxuiDockedWindow  * window  = routing.empty() ? nullptr : m_floating->Find (routing);
 
 
 
     if (site != nullptr && site->IsHitAt (clientPx))
     {
         return site->TryGetTip (clientPx, tip);
+    }
+
+    if (window != nullptr)
+    {
+        return window->TryGetTip (clientPx, tip);
     }
 
     return TryGetTip (clientPx, tip);

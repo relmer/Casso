@@ -1484,6 +1484,79 @@ bool ProfilerPane::ZoomAt (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProfilerPane::ZoomContent
+//
+//  Ctrl+wheel over the rest of the pane zooms the timeline as it does over
+//  the timeline, around the cycle above the pointer, since the lists and
+//  the flame graph span the timeline's width. The keys zoom around the
+//  middle of the view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfilerPane::ZoomContent (float notches, std::optional<POINT> clientPx)
+{
+    RECT            bounds = {};
+    DxuiMouseEvent  wheel;
+
+
+
+    if (m_timeline == nullptr || !m_host.IsRoutable (m_timeline) || !m_timeline->IsVisible())
+    {
+        return false;
+    }
+
+    bounds = m_timeline->GetBounds();
+
+    wheel.kind        = DxuiMouseEventKind::Wheel;
+    wheel.ctrl        = true;
+    wheel.wheelDelta  = notches;
+    wheel.positionDip = clientPx.value_or (POINT { (bounds.left + bounds.right) / 2, bounds.top });
+
+    return ZoomAt (wheel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::ResetContentZoom
+//
+//  The whole profile in the timeline again, as a new state, so the back
+//  button and Alt+Left move to the zoom before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfilerPane::ResetContentZoom()
+{
+    ProfileZoom::State  state = m_zoom.GetState();
+
+
+
+    if (m_timeline == nullptr || !m_host.IsRoutable (m_timeline) || !m_timeline->IsVisible())
+    {
+        return false;
+    }
+
+    if (state.view.has_value())
+    {
+        state.view.reset();
+
+        m_zoomDueMs.reset();
+        PushState (state);
+        m_host.Repaint();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProfilerPane::IsOverTimeline
 //
 ////////////////////////////////////////////////////////////////////////////////
