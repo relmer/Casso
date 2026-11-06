@@ -434,9 +434,10 @@ private:
     void      ResetGroup        ();
     void      ExportEntry       (const Entry & entry, SavedKeyframeSegment & segment, std::vector<Byte> & arena) const;
 
-    static bool  IsValidSaved   (const SavedKeyframes & saved);
     void      ScheduleAfter     (uint64_t cycle);
 
+    static bool      IsValidSaved  (const SavedKeyframes & saved);
+    static bool      IsRootedSaved (const SavedKeyframes & saved, size_t s);
     static uint64_t  ReadWallClock ();
     static void      RunJob        (void * context);
     static ArenaPtr  AllocateArena (size_t bytes);

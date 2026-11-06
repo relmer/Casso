@@ -321,6 +321,7 @@ HRESULT SavedHistory::ReadSegments (
     uint16_t              version        = 0;
     uint32_t              count          = 0;
     uint32_t              keyframes      = 0;
+    size_t                total          = 0;
     uint64_t              value          = 0;
     bool                  fits           = false;
     SavedKeyframeSegment  segment;
@@ -348,8 +349,12 @@ HRESULT SavedHistory::ReadSegments (
         reader.ReadUInt64 (segment.info.liveEndCycle);
         reader.ReadUInt32 (keyframes);
 
-        fits = keyframes <= size / kKeyframeBytes;
+        //  Every segment's keyframes together fit in the body, not only each
+        //  segment's.
+        fits = keyframes <= size / kKeyframeBytes - total;
         CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        total += keyframes;
 
         segment.firstJournalIndex  = static_cast<size_t> (value);
         segment.info.keyframeCount = keyframes;

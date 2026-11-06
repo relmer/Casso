@@ -126,7 +126,6 @@ HRESULT KeyframeStore::Import (
     size_t    s          = 0;
     bool      isValid    = IsValidSaved (saved);
     bool      isPlaced   = false;
-    Byte    * arena      = nullptr;
     Entry     entry;
     Branch    branch;
 
@@ -142,10 +141,9 @@ HRESULT KeyframeStore::Import (
     m_settings             = saved.settings;
     m_settings.budgetBytes = budget;
 
-    arena = new (std::nothrow) Byte[saved.arena.size()];
-    CPRA (arena);
+    m_arena = AllocateArena (saved.arena.size());
+    CPRA (m_arena.get());
 
-    m_arena.reset (arena);
     memcpy (m_arena.get(), saved.arena.data(), saved.arena.size());
 
     m_arenaBytes = saved.arena.size();
@@ -278,8 +276,54 @@ bool KeyframeStore::IsValidSaved (const SavedKeyframes & saved)
 
     for (s = 1; isValid && s < saved.segments.size(); s++)
     {
-        isValid = saved.segments[s].info.parent == 0 || std::find (ids.begin(), ids.end(), saved.segments[s].info.parent) != ids.end();
+        isValid = IsRootedSaved (saved, s);
     }
 
     return isValid && end == saved.arena.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsRootedSaved
+//
+//  Whether the chain of parents from branch segment s ends at the active
+//  path, parent 0, in fewer steps than there are branches. A parent missing
+//  from the saved branches, or a chain that loops, fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KeyframeStore::IsRootedSaved (
+    const SavedKeyframes  & saved,
+    size_t                  s)
+{
+    size_t    steps    = 0;
+    size_t    j        = 0;
+    uint32_t  parent   = saved.segments[s].info.parent;
+    bool      isFound  = false;
+    bool      isRooted = true;
+
+
+
+    while (isRooted && parent != 0)
+    {
+        isFound = false;
+
+        for (j = 1; !isFound && j < saved.segments.size(); j++)
+        {
+            if (saved.segments[j].info.id == parent)
+            {
+                isFound = true;
+                parent  = saved.segments[j].info.parent;
+            }
+        }
+
+        steps++;
+        isRooted = isFound && steps < saved.segments.size();
+    }
+
+    return isRooted;
 }

@@ -595,6 +595,37 @@ namespace SavedHistoryTests
         }
 
 
+        //  A branch whose parent is itself has no chain to the active path,
+        //  so Import fails with ERROR_INVALID_DATA.
+        TEST_METHOD (ImportRefusesABranchThatIsItsOwnParent)
+        {
+            TestMachine     machine ("Apple2e");
+            ReverseHost     host    (machine);
+            SavedKeyframes  saved;
+            KeyframeStore   store;
+            InputJournal    journal;
+            HRESULT         hr      = S_OK;
+
+
+
+            RecordWithFork (machine, host);
+
+            hr = host.GetController().SaveHistory (saved);
+            AssertSucceeded (hr, L"SaveHistory");
+
+            Assert::IsTrue (saved.segments.size() > 1, L"a branch was saved");
+
+            saved.segments[1].info.parent = saved.segments[1].info.id;
+
+            store.Configure (saved.settings);
+
+            hr = store.Import (saved, journal);
+
+            Assert::AreEqual         (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"refused");
+            Assert::AreEqual<size_t> (0, store.GetCount(), L"no keyframe");
+        }
+
+
         //  A medium given back its saved id moves later ids past it.
         TEST_METHOD (AnIdGivenBackMovesTheNextIdsPastIt)
         {
