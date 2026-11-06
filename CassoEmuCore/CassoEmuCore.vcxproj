@@ -406,6 +406,7 @@
     <ClCompile Include="Debugger\MonitorFormatter.cpp" />
     <ClCompile Include="Debugger\CommandSuggestion.cpp" />
     <ClCompile Include="Debugger\GSSquaredFormatter.cpp" />
+    <ClCompile Include="Debugger\Channel\ChannelLineBuffer.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelProtocol.cpp" />
     <ClCompile Include="Debugger\Channel\DebugChannelServer.cpp" />
     <ClCompile Include="Debugger\Channel\InstanceLister.cpp" />
@@ -419,6 +420,7 @@
     <ClCompile Include="Cli\DebugBatchSink.cpp" />
     <ClCompile Include="Cli\DebugBatchRunner.cpp" />
     <ClCompile Include="Cli\DebugMode.cpp" />
+    <ClCompile Include="Cli\CommandLineQuoting.cpp" />
     <ClCompile Include="Cli\McpChannel.cpp" />
     <ClCompile Include="Cli\McpMode.cpp" />
     <ClCompile Include="Cli\McpServer.cpp" />
@@ -1106,6 +1108,7 @@
     <ClInclude Include="Debugger\GSSquaredFormatter.h" />
     <ClInclude Include="Debugger\Channel\ChannelProtocol.h" />
     <ClInclude Include="Debugger\Channel\IPipeTransport.h" />
+    <ClInclude Include="Debugger\Channel\ChannelLineBuffer.h" />
     <ClInclude Include="Debugger\Channel\IDebugCommandRunner.h" />
     <ClInclude Include="Debugger\Channel\DebugChannelServer.h" />
     <ClInclude Include="Debugger\Channel\INamedPipeApi.h" />
@@ -1122,6 +1125,7 @@
     <ClInclude Include="Cli\DebugBatchRunner.h" />
     <ClInclude Include="Cli\DebugMode.h" />
     <ClInclude Include="Cli\ICassoLauncher.h" />
+    <ClInclude Include="Cli\CommandLineQuoting.h" />
     <ClInclude Include="Cli\McpChannel.h" />
     <ClInclude Include="Cli\McpMode.h" />
     <ClInclude Include="Cli\McpServer.h" />

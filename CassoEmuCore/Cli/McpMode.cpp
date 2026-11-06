@@ -5,6 +5,7 @@
 #include "Cli/ICassoLauncher.h"
 #include "Cli/McpServer.h"
 #include "Cli/McpTools.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 #include "Debugger/Channel/Win32InstanceDirectory.h"
 
 
@@ -26,14 +27,40 @@ int McpMode::Run()
     Win32CassoLauncher      launcher;
     McpTools                tools (directory, launcher);
     McpServer               server (tools);
-    std::string             line;
-    int                     ch        = 0;
-    bool                    isEnd     = false;
 
 
 
     (void) _setmode (_fileno (stdin),  _O_BINARY);
     (void) _setmode (_fileno (stdout), _O_BINARY);
+
+    Serve (server, std::cin, std::cout);
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  McpMode::Serve
+//
+//  A line longer than the debug channel's ChannelProtocol::kMaxLineBytes gets
+//  the "line too long" error as soon as it passes the limit. The rest of that
+//  line is discarded as it arrives, so the buffer never grows past the limit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void McpMode::Serve (McpServer & server, std::istream & in, std::ostream & out)
+{
+    std::string  line;
+    int          ch           = 0;
+    bool         isEnd        = false;
+    bool         isDiscarding = false;
+    bool         isTooLong    = false;
+
+
 
     while (!isEnd)
     {
@@ -41,30 +68,44 @@ int McpMode::Run()
 
 
 
-        ch    = getchar();
-        isEnd = ch == EOF;
+        ch    = in.get();
+        isEnd = ch == std::istream::traits_type::eof();
 
-        if (!isEnd && ch != '\n')
+        if (isDiscarding)
         {
-            line += (char) ch;
+            isDiscarding = !isEnd && ch != '\n';
             continue;
         }
 
-        if (!line.empty() && line.back() == '\r')
+        if (!isEnd && ch != '\n')
         {
-            line.pop_back();
+            line      += (char) ch;
+            isTooLong  = line.size() > ChannelProtocol::kMaxLineBytes;
+
+            if (!isTooLong)
+            {
+                continue;
+            }
+
+            response     = McpServer::RespondLineTooLong();
+            isDiscarding = true;
+        }
+        else
+        {
+            if (!line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+
+            response = line.empty() ? std::string() : server.HandleLine (line);
         }
 
-        response = line.empty() ? std::string() : server.HandleLine (line);
         line.clear();
 
         if (!response.empty())
         {
-            response += '\n';
-            fwrite (response.data(), 1, response.size(), stdout);
-            fflush (stdout);
+            out << response << '\n';
+            out.flush();
         }
     }
-
-    return 0;
 }

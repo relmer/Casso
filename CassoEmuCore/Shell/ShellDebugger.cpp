@@ -1717,12 +1717,13 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
 
 HRESULT ShellDebugger::OpenDebugger()
 {
-    HRESULT                              hr         = S_OK;
+    HRESULT                              hr           = S_OK;
     std::vector<BYTE>                    userSid;
+    DWORD                                integrityRid = 0;
     std::unique_ptr<Win32NamedPipeApi>   api;
     std::unique_ptr<Win32PipeTransport>  transport;
     std::unique_ptr<DebuggerController>  controller;
-    uint32_t                             processId  = GetCurrentProcessId();
+    uint32_t                             processId    = GetCurrentProcessId();
 
 
 
@@ -1741,8 +1742,11 @@ HRESULT ShellDebugger::OpenDebugger()
     hr = PipeSecurityDescriptor::GetCurrentUserSid (userSid);
     CHR (hr);
 
+    hr = PipeSecurityDescriptor::GetCurrentIntegrityLevel (integrityRid);
+    CHR (hr);
+
     api        = std::make_unique<Win32NamedPipeApi>();
-    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid));
+    transport  = std::make_unique<Win32PipeTransport> (*api, processId, std::move (userSid), integrityRid);
     controller = std::make_unique<DebuggerController> (m_machine, m_cpuManager, *transport, m_debugFiles,
         [this] (ChannelHello & hello)
         {

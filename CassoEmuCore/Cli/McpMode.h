@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+class McpServer;
+
 
 
 
@@ -19,5 +21,9 @@
 class McpMode
 {
 public:
-    static int  Run ();
+    static int   Run   ();
+
+    //  Each line of `in` to the server and each response to `out`, until
+    //  `in` ends.
+    static void  Serve (McpServer & server, std::istream & in, std::ostream & out);
 };

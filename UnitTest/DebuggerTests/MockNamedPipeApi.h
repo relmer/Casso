@@ -31,6 +31,9 @@ public:
         DWORD         maxInstances  = 0;
         DWORD         aceCount      = 0;
         bool          isAllowForSid = false;
+        bool          isLabeled     = false;
+        DWORD         labelRid      = 0;
+        ACCESS_MASK   labelPolicy   = 0;
     };
 
     std::vector<CreatedInstance>  created;
@@ -42,6 +45,46 @@ public:
 
     //  When set, writes go pending and never complete.
     bool                          stallWrites = false;
+
+
+
+    //  The integrity level and policy of a descriptor's mandatory label: true
+    //  only when its SACL is present and has exactly one entry, a label.
+    static bool TryGetLabel (PSECURITY_DESCRIPTOR descriptor, DWORD & rid, ACCESS_MASK & policy)
+    {
+        BOOL                          present   = FALSE;
+        BOOL                          defaulted = FALSE;
+        PACL                          sacl      = nullptr;
+        ACL_SIZE_INFORMATION          info      = {};
+        void                        * ace       = nullptr;
+        SYSTEM_MANDATORY_LABEL_ACE  * label     = nullptr;
+        PSID                          sid       = nullptr;
+
+
+
+        if (!GetSecurityDescriptorSacl (descriptor, &present, &sacl, &defaulted) || !present || sacl == nullptr)
+        {
+            return false;
+        }
+
+        if (!GetAclInformation (sacl, &info, sizeof (info), AclSizeInformation) || info.AceCount != 1 || !GetAce (sacl, 0, &ace))
+        {
+            return false;
+        }
+
+        label = (SYSTEM_MANDATORY_LABEL_ACE *) ace;
+
+        if (label->Header.AceType != SYSTEM_MANDATORY_LABEL_ACE_TYPE)
+        {
+            return false;
+        }
+
+        sid    = (PSID) &label->SidStart;
+        rid    = *GetSidSubAuthority (sid, *GetSidSubAuthorityCount (sid) - 1);
+        policy = label->Mask;
+
+        return true;
+    }
 
 
 
@@ -395,6 +438,8 @@ private:
         {
             return;
         }
+
+        instance.isLabeled = TryGetLabel (security->lpSecurityDescriptor, instance.labelRid, instance.labelPolicy);
 
         if (!GetSecurityDescriptorDacl (security->lpSecurityDescriptor, &present, &dacl, &defaulted) || !present || dacl == nullptr)
         {

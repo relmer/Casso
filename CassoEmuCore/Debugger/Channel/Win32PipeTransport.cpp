@@ -15,10 +15,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Win32PipeTransport::Win32PipeTransport (INamedPipeApi & api, uint32_t processId, std::vector<BYTE> userSid) :
-    m_api     (api),
-    m_name    (GetPipeName (processId)),
-    m_userSid (std::move (userSid))
+Win32PipeTransport::Win32PipeTransport (INamedPipeApi & api, uint32_t processId, std::vector<BYTE> userSid, DWORD integrityRid) :
+    m_api          (api),
+    m_name         (GetPipeName (processId)),
+    m_userSid      (std::move (userSid)),
+    m_integrityRid (integrityRid)
 {
 }
 
@@ -75,7 +76,7 @@ HRESULT Win32PipeTransport::Listen()
     {
         CBRAEx (hasSid, E_INVALIDARG);
 
-        hr = m_security.BuildForUser ((PSID) m_userSid.data());
+        hr = m_security.BuildForUser ((PSID) m_userSid.data(), m_integrityRid);
         CHR (hr);
 
         m_isSecurityBuilt = true;
