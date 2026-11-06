@@ -1901,13 +1901,14 @@ void DisassemblyGroup::ClickSourceArrow (SourcePane & document)
     if (m_isArrowAtTarget)
     {
         document.ShowMarkedLine();
+        m_isArrowAtTarget = false;
     }
     else
     {
-        (void) document.ShowArrowTarget();
+        //  A target in no line of this file doesn't scroll the document, so
+        //  the next click tries it again.
+        m_isArrowAtTarget = document.ShowArrowTarget();
     }
-
-    m_isArrowAtTarget = !m_isArrowAtTarget;
 }
 
 

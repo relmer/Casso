@@ -1716,7 +1716,9 @@ DxuiTextInput * DebuggerWindow::GetTextBoxAt (POINT clientPx) const
 //  DebuggerWindow::IsOverPaneContent
 //
 //  Whether a point is on a pane's content, below its tab or title, in the
-//  window the pane is docked in or floats in.
+//  window the pane is docked in or floats in. An auto-hidden pane's content
+//  is hidden with the bounds it had when docked, which can cover its edge
+//  tab, so hidden content is never under the point.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1727,7 +1729,7 @@ bool DebuggerWindow::IsOverPaneContent (const std::wstring & pane, POINT clientP
 
 
 
-    return content != nullptr && DxuiDockSite::Contains (content->GetBounds(), clientPx);
+    return content != nullptr && content->IsVisible() && DxuiDockSite::Contains (content->GetBounds(), clientPx);
 }
 
 
