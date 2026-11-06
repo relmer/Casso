@@ -2209,7 +2209,7 @@ bool DxuiDockSite::TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) 
         {
             if (GetPaneOf (group->GetContent (i)) == pane)
             {
-                rect = (group->GetTabCount() > 1) ? group->GetTabRect (i) : group->GetBounds();
+                rect = group->GetBounds();
                 return rect.right > rect.left && rect.bottom > rect.top;
             }
         }
