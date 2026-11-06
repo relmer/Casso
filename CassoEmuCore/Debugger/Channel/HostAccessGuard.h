@@ -48,7 +48,7 @@ public:
 
 private:
     bool  AddAccessLine (const char * verb, const std::wstring & path);
-    void  Fail          (const std::string & reason, bool isListed);
+    void  Fail          (const std::string & reason, const std::wstring & path, bool isListed);
 
     static std::wstring  GetKey (const std::wstring & path);
 

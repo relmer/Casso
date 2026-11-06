@@ -44,7 +44,7 @@ bool HostAccessGuard::TryAccess (const std::wstring & path, HostAccess access)
 
     if (!verdict.isAllowed)
     {
-        Fail (verdict.reason, isListed);
+        Fail (verdict.reason, verdict.fullPath, isListed);
     }
 
     return verdict.isAllowed;
@@ -127,7 +127,8 @@ std::vector<std::string> HostAccessGuard::TakeConsoleLines()
 //  HostAccessGuard::AddAccessLine
 //
 //  One line for each path and kind of access in a line: writing a file in
-//  pieces is one access. False when the access was already listed.
+//  pieces is one access. The file name is a link, and its tip is the path.
+//  False when the access was already listed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +144,7 @@ bool HostAccessGuard::AddAccessLine (const char * verb, const std::wstring & pat
         return false;
     }
 
-    m_consoleLines.push_back (std::format ("{} {} {}", m_clientName, verb, ConsoleLinks::MakeLink (narrow, narrow)));
+    m_consoleLines.push_back (std::format ("{} {} {}", m_clientName, verb, ConsoleLinks::MakeFileLink (narrow)));
     return true;
 }
 
@@ -155,16 +156,18 @@ bool HostAccessGuard::AddAccessLine (const char * verb, const std::wstring & pat
 //
 //  HostAccessGuard::Fail
 //
+//  The path in the reason becomes a link on its file name.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void HostAccessGuard::Fail (const std::string & reason, bool isListed)
+void HostAccessGuard::Fail (const std::string & reason, const std::wstring & path, bool isListed)
 {
     m_failureCount++;
     m_lastReason = reason;
 
     if (isListed)
     {
-        m_consoleLines.push_back ("Failed: " + reason);
+        m_consoleLines.push_back ("Failed: " + ConsoleLinks::LinkFiles (reason, { TextEncoding::WideToNarrow (path) }));
     }
 }
 

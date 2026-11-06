@@ -51,6 +51,7 @@ namespace DebuggerControllerTests
             FakeHostPathResolver      resolver { &files };
             DebuggerController        controller;
             std::vector<std::string>  console;
+            std::vector<std::string>  linked;
             ChannelConnectionId       connection = 0;
             int64_t                   nextId     = 1;
 
@@ -73,6 +74,7 @@ namespace DebuggerControllerTests
                 {
                     for (const std::string & line : lines)
                     {
+                        linked.push_back (line);
                         console.push_back (ConsoleLinks::GetShownText (line));
                     }
                 });
@@ -191,8 +193,37 @@ namespace DebuggerControllerTests
             Assert::IsFalse  (rig.files.Exists (L"C:\\Elsewhere\\x.bin"), L"nothing was written");
 
             Assert::AreEqual ((size_t) 2, rig.console.size(), Joined (rig.console).c_str());
-            Assert::AreEqual (std::string ("MCP client write C:\\Elsewhere\\x.bin"), rig.console[0]);
-            Assert::AreEqual (std::string ("Failed: C:\\Elsewhere\\x.bin is outside the allowed folders."), rig.console[1]);
+            Assert::AreEqual (std::string ("MCP client write x.bin"), rig.console[0]);
+            Assert::AreEqual (std::string ("Failed: x.bin is outside the allowed folders."), rig.console[1]);
+        }
+
+
+
+
+
+        TEST_METHOD (AnAccessLine_ShowsTheFileNameAndLinksTheFullPath)
+        {
+            Rig                              rig;
+            std::vector<ConsoleLinks::Link>  links;
+            std::wstring                     shown;
+
+
+
+            rig.Hello ("MCP client", {});
+            (void) rig.Send ("BSAVE C:\\Elsewhere\\x.bin 300,10");
+
+            Assert::AreEqual ((size_t) 2, rig.linked.size(), Joined (rig.linked).c_str());
+
+            shown = ConsoleLinks::Parse (rig.linked[0], links);
+            Assert::AreEqual (std::wstring (L"MCP client write x.bin"), shown);
+            Assert::AreEqual ((size_t) 1, links.size());
+            Assert::AreEqual (std::wstring (L"C:\\Elsewhere\\x.bin"), links[0].path);
+
+            links.clear();
+            shown = ConsoleLinks::Parse (rig.linked[1], links);
+            Assert::AreEqual (std::wstring (L"Failed: x.bin is outside the allowed folders."), shown);
+            Assert::AreEqual ((size_t) 1, links.size());
+            Assert::AreEqual (std::wstring (L"C:\\Elsewhere\\x.bin"), links[0].path);
         }
 
 
@@ -212,7 +243,7 @@ namespace DebuggerControllerTests
             Assert::AreEqual (std::string ("ok"), Rig::StatusOf (reply), Widen (Rig::DetailOf (reply)).c_str());
             Assert::IsTrue   (rig.files.Exists (L"C:\\Work\\x.bin"));
             Assert::AreEqual ((size_t) 1, rig.console.size(), Joined (rig.console).c_str());
-            Assert::AreEqual (std::string ("MCP client write C:\\Work\\x.bin"), rig.console[0]);
+            Assert::AreEqual (std::string ("MCP client write x.bin"), rig.console[0]);
         }
 
 
@@ -292,15 +323,15 @@ namespace DebuggerControllerTests
             reply = rig.Send ("RUN C:\\Work\\ok.txt");
 
             Assert::AreEqual (std::string ("ok"), Rig::StatusOf (reply), Widen (Rig::DetailOf (reply)).c_str());
-            Assert::AreEqual (std::string ("MCP client run C:\\Work\\ok.txt"), rig.console.at (0));
-            Assert::AreEqual (std::string ("MCP client read C:\\Work\\ok.txt"), rig.console.at (1));
+            Assert::AreEqual (std::string ("MCP client run ok.txt"), rig.console.at (0));
+            Assert::AreEqual (std::string ("MCP client read ok.txt"), rig.console.at (1));
 
             rig.console.clear();
             reply = rig.Send ("RUN C:\\Work\\bad.txt");
 
             Assert::IsTrue   (Rig::StatusOf (reply) != "ok", L"the line outside the allowed folders failed");
             Assert::AreNotEqual ((Byte) 'A', rig.machine.GetMemoryBus().ReadByte (0x300), L"nothing was loaded");
-            Assert::IsTrue   (Joined (rig.console).find (L"C:\\Elsewhere\\x.bin is outside the allowed folders.") != std::wstring::npos, Joined (rig.console).c_str());
+            Assert::IsTrue   (Joined (rig.console).find (L"x.bin is outside the allowed folders.") != std::wstring::npos, Joined (rig.console).c_str());
         }
 
 
@@ -351,7 +382,7 @@ namespace DebuggerControllerTests
             reply = rig.Send ("BSAVE C:\\Work\\x.bin 300,10");
 
             Assert::AreEqual (std::string ("C:\\Work\\x.bin is outside the allowed folders."), Rig::DetailOf (reply));
-            Assert::AreEqual (std::string (HostAccessGuard::kDefaultClientName) + " write C:\\Work\\x.bin", rig.console.at (0));
+            Assert::AreEqual (std::string (HostAccessGuard::kDefaultClientName) + " write x.bin", rig.console.at (0));
 
             reply = rig.Send ("BSAVE C:\\Users\\Tester\\Documents\\Casso\\x.bin 300,10");
             Assert::AreEqual (std::string ("ok"), Rig::StatusOf (reply), Widen (Rig::DetailOf (reply)).c_str());

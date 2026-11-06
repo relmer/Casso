@@ -3914,8 +3914,9 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   extension `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.js`, `.lnk` or
   `.scr`, or into a Startup folder, at all.
 - **FR-391**: Every host file read or write a debug channel client makes MUST
-  add a console line with the client's name and the full path, and one that fails
-  a line with the reason.
+  add a console line with the client's name and the file name as a link, with the
+  full path in the link's tip, and one that fails a line with the reason, in which
+  the file name is the same link.
 - **FR-392**: The heat map's fills for run, read, written, self-modifying, read
   before written and value changed MUST each be clearly distinct from the
   others in every theme, by a measured color distance, so that the self-modifying,
