@@ -452,4 +452,82 @@ namespace DebugOptionsParseTests
             }
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  McpOptionsParseTests
+    //
+    //  `CassoCli mcp`'s options: the folders and the scripts setting its
+    //  client's commands take.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (McpOptionsParseTests)
+    {
+    public:
+        TEST_METHOD (AllowPath_IsRepeatable_AndAllowScriptsIsAFlag)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "mcp", "--allow-path", "C:\\Work", "--allow-scripts", "--allow-path", "D:\\Games" });
+
+
+
+            Assert::IsFalse  (IsRefused (options), Widen (options.refusalMessage).c_str());
+            Assert::IsTrue   (options.subcommand == CommandLineOptions::Subcommand::Mcp);
+            Assert::AreEqual ((size_t) 2, options.mcp.allowPaths.size());
+            Assert::AreEqual (std::string ("C:\\Work"),  options.mcp.allowPaths[0]);
+            Assert::AreEqual (std::string ("D:\\Games"), options.mcp.allowPaths[1]);
+            Assert::IsTrue   (options.mcp.allowScripts);
+        }
+
+        TEST_METHOD (NoOptions_MeansTheDefaults)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "mcp" });
+
+
+
+            Assert::IsFalse (IsRefused (options));
+            Assert::IsTrue  (options.subcommand == CommandLineOptions::Subcommand::Mcp);
+            Assert::IsTrue  (options.mcp.allowPaths.empty());
+            Assert::IsFalse (options.mcp.allowScripts);
+        }
+
+        TEST_METHOD (SlashPrefixedOptions_AreTheSameOptions)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "mcp", "/allow-path", "C:\\Work", "/allow-scripts" });
+
+
+
+            Assert::IsFalse  (IsRefused (options), Widen (options.refusalMessage).c_str());
+            Assert::AreEqual ((size_t) 1, options.mcp.allowPaths.size());
+            Assert::IsTrue   (options.mcp.allowScripts);
+        }
+
+        TEST_METHOD (AnOptionItDoesNotTake_AnOperand_OrAMissingFolder_IsRefused)
+        {
+            CommandLineOptions  unknown = Parse ({ "CassoCli", "mcp", "--allow-everything" });
+            CommandLineOptions  operand = Parse ({ "CassoCli", "mcp", "C:\\Work" });
+            CommandLineOptions  missing = Parse ({ "CassoCli", "mcp", "--allow-path" });
+
+
+
+            Assert::IsTrue (IsRefused (unknown));
+            Assert::IsTrue (IsRefused (operand));
+            Assert::IsTrue (IsRefused (missing));
+            Assert::IsTrue (missing.refusalMessage.find ("requires a folder") != std::string::npos, Widen (missing.refusalMessage).c_str());
+        }
+
+        TEST_METHOD (Help_OpensTheMcpPage)
+        {
+            CommandLineOptions  options = Parse ({ "CassoCli", "mcp", "--help" });
+
+
+
+            Assert::IsTrue (options.showHelp);
+            Assert::IsTrue (options.helpPage == CommandLineOptions::HelpPage::Mcp);
+        }
+    };
 }

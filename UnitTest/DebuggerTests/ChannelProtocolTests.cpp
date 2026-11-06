@@ -476,5 +476,72 @@ namespace DebuggerTests
             Assert::AreEqual (9, Number (record, "causeId"));
             Assert::AreEqual (std::string ("budget"), Field (record, "reason"));
         }
+
+
+
+        //  The client's folders and scripts setting go out with its hello and
+        //  come back as they were, a folder outside ASCII included.
+        TEST_METHOD (AHellosFoldersAndScriptsSetting_RoundTrip)
+        {
+            ChannelClient   client  { "MCP client", { L"C:\\Work", L"D:\\Donn\u00E9es\\Jeu" }, true };
+            ChannelRequest  request = ParseOk (ChannelProtocol::WriteHelloRequest (7, client));
+
+
+
+            Assert::IsTrue   (request.type == ChannelRequestType::Hello);
+            Assert::AreEqual ((int64_t) 7, request.id);
+            Assert::AreEqual (std::string ("MCP client"), request.client);
+            Assert::AreEqual (ChannelProtocol::kProtocolVersion, request.protocol);
+            Assert::AreEqual ((size_t) 2, request.allowPaths.size());
+            Assert::AreEqual (std::wstring (L"C:\\Work"), request.allowPaths[0]);
+            Assert::AreEqual (std::wstring (L"D:\\Donn\u00E9es\\Jeu"), request.allowPaths[1]);
+            Assert::IsTrue   (request.allowScripts);
+
+            request = ParseOk (ChannelProtocol::WriteHelloRequest (8, ChannelClient { "x", {}, false }));
+
+            Assert::IsTrue  (request.allowPaths.empty());
+            Assert::IsFalse (request.allowScripts);
+        }
+
+
+
+        //  The hello a client built before the fields sends: no folders and
+        //  no scripts.
+        TEST_METHOD (AnOlderClientsHello_HasTheDefaults)
+        {
+            ChannelRequest  request = ParseOk ("{\"type\":\"hello\",\"id\":1,\"client\":\"casso-mcp\",\"protocol\":1}");
+
+
+
+            Assert::IsTrue  (request.allowPaths.empty());
+            Assert::IsFalse (request.allowScripts);
+        }
+
+
+
+        TEST_METHOD (ACommandsOverwriteOption_RoundTrips)
+        {
+            ChannelRequest  request = ParseOk ("{\"type\":\"command\",\"id\":3,\"line\":\"BSAVE x 300,1\",\"overwrite\":true}");
+
+
+
+            Assert::IsTrue  (request.overwrite);
+
+            request = ParseOk ("{\"type\":\"command\",\"id\":3,\"line\":\"BSAVE x 300,1\"}");
+            Assert::IsFalse (request.overwrite, L"absent is false");
+
+            request = ParseOk ("{\"type\":\"command\",\"id\":3,\"line\":\"R\",\"overwrite\":false}");
+            Assert::IsFalse (request.overwrite);
+        }
+
+
+
+        TEST_METHOD (TheFileAccessFields_MustHaveTheirTypes)
+        {
+            Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"command\",\"id\":1,\"line\":\"R\",\"overwrite\":\"yes\"}").label);
+            Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"hello\",\"id\":1,\"allowScripts\":1}").label);
+            Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"hello\",\"id\":1,\"allowPaths\":\"C:\\\\Work\"}").label);
+            Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"hello\",\"id\":1,\"allowPaths\":[\"C:\\\\Work\",2]}").label);
+        }
     };
 }

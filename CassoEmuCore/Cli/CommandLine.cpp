@@ -58,6 +58,14 @@ static const char *  s_kDebugOptionLines[] =
 };
 
 
+//  The mcp options, in the same layout.
+static const char *  s_kMcpOptionLines[] =
+{
+    "  {0}allow-path <folder>{1}  A folder the client's commands may also read and write; repeatable",
+    "  {0}allow-scripts{1}        Let the client's commands run a file of commands, such as RUN, LOAD or STARTUP",
+};
+
+
 
 
 
@@ -646,6 +654,10 @@ void CommandLine::PrintUsage (const CommandLineOptions & options)
         PrintDebugPage (prefix);
         break;
 
+    case CommandLineOptions::HelpPage::Mcp:
+        PrintMcpPage (prefix);
+        break;
+
     default:
         PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
         break;
@@ -693,6 +705,10 @@ void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix
 
     case CommandLineOptions::Subcommand::Debug:
         PrintDebugPage (prefix);
+        break;
+
+    case CommandLineOptions::Subcommand::Mcp:
+        PrintMcpPage (prefix);
         break;
 
     case CommandLineOptions::Subcommand::Disk:
@@ -818,6 +834,42 @@ void CommandLine::PrintDebugPage (char prefix)
     PrintUsageLine ("      Prints the registers of the running Casso whose process id is 1234.");
 
     PrintExitCodes (std::string (CommandLineParser::kDebugExitStatusHelpText));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLine::PrintMcpPage
+//
+//  Printed for `mcp --help` in any form: what the server does, and the
+//  options that widen the host file access of its client's commands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLine::PrintMcpPage (char prefix)
+{
+    const char *  lp  = (prefix == '/') ? "/"  : "--";
+    const char *  pad = (prefix == '/') ? " "  : "";
+
+
+
+    PrintPageBanner (CommandLineOptions::Subcommand::Mcp);
+    CliOutput::PrintLine (s_pUsageStream);
+    PrintUsageLine ("  Serves the debugger of a running Casso to an MCP client, one JSON-RPC message a line on standard input and output. The client's commands read and write host files only in the folders of the mounted disk images and the loaded debug and symbol files, Documents\\Casso, and any folder given with --allow-path. A write never replaces a file unless the command's overwrite option is set, and never writes a program, script or shortcut file or into a Startup folder.");
+
+    PrintSectionHeading ("MCP options");
+
+    for (const char * fmt : s_kMcpOptionLines)
+    {
+        PrintUsageLine (std::vformat (fmt, std::make_format_args (lp, pad)));
+    }
+
+    PrintSectionHeading ("Examples");
+    PrintUsageLine (std::format ("  CassoCli mcp {0}allow-path C:\\Work\\Game", lp));
+    PrintUsageLine ("      Serves the debugger, and lets the client's commands read and write files under C:\\Work\\Game too.");
 }
 
 

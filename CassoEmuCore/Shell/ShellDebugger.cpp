@@ -1755,6 +1755,8 @@ HRESULT ShellDebugger::OpenDebugger()
         },
         processId);
 
+    controller->SetConsoleSink ([this] (const std::vector<std::string> & lines) { AddConsoleLines (lines); });
+
     hr = controller->Open();
     CHR (hr);
 

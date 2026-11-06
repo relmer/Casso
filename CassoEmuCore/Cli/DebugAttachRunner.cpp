@@ -17,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DebugAttachRunner::BuildCommand (int64_t id, const std::string & line, const std::string & mode, uint64_t budget)
+std::string DebugAttachRunner::BuildCommand (int64_t id, const std::string & line, const std::string & mode, uint64_t budget, bool overwrite)
 {
     std::vector<std::pair<std::string, JsonValue>>  members;
     JsonWriter::Options                             options;
@@ -31,6 +31,13 @@ std::string DebugAttachRunner::BuildCommand (int64_t id, const std::string & lin
     members.emplace_back ("line",   JsonValue (line));
     members.emplace_back ("mode",   JsonValue (mode));
     members.emplace_back ("budget", JsonValue ((double) budget));
+
+    //  Absent unless set, so a server built before the option reads the
+    //  same request it always did.
+    if (overwrite)
+    {
+        members.emplace_back ("overwrite", JsonValue (true));
+    }
 
     options.fPretty = false;
     hr = JsonWriter::Write (JsonValue (std::move (members)), options, text);

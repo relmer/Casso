@@ -2,6 +2,10 @@
 
 #include "Debugger/DebuggerController.h"
 
+#include "Core/TextEncoding.h"
+#include "Debugger/Channel/GuardedFileSystem.h"
+#include "Debugger/Channel/HostAccessGuard.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
 #include "Shell/CpuManager.h"
 #include "Shell/MachineHost.h"
 
@@ -25,6 +29,7 @@ DebuggerController::DebuggerController (MachineHost & host, CpuManager & cpuMana
     m_cpuManager (cpuManager),
     m_describe   (std::move (describe)),
     m_processId  (processId),
+    m_files      (files),
     m_target     (host),
     m_driver     (host, cpuManager, m_target.GetRunHook()),
     m_server     (transport, *this),
@@ -126,11 +131,58 @@ void DebuggerController::Pump()
 //  back once the line is done; a mode it named likewise applies to this line
 //  only and never switches the mode other clients are using.
 //
+//  The line's host file access goes through the client's policy: the
+//  session's file system is wrapped for the line, and the session has the
+//  guard, so a command that accesses a host file another way checks it too.
+//  The console lines for the access are sent once the line is done.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Reply DebuggerController::RunLine (const std::string          & line,
                                    std::optional<CommandMode>   mode,
-                                   std::optional<uint64_t>      budget)
+                                   std::optional<uint64_t>      budget,
+                                   const ChannelClient        & client,
+                                   bool                         overwrite)
+{
+    HostAccessPolicy           policy (*m_resolver, GetAllowedFolders (client));
+    HostAccessGuard            guard  (policy, client.name, client.allowScripts, overwrite);
+    GuardedFileSystem          guarded (m_files, guard);
+    std::vector<std::string>   lines;
+    Reply                      reply;
+
+
+
+    m_session.SetFileSystem      (&guarded);
+    m_session.SetHostAccessGuard (&guard);
+
+    reply = RunGuardedLine (line, mode, budget);
+
+    m_session.SetHostAccessGuard (nullptr);
+    m_session.SetFileSystem      (&m_files);
+
+    lines = guard.TakeConsoleLines();
+
+    if (!lines.empty() && m_consoleSink)
+    {
+        m_consoleSink (lines);
+    }
+
+    return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerController::RunGuardedLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Reply DebuggerController::RunGuardedLine (const std::string          & line,
+                                          std::optional<CommandMode>   mode,
+                                          std::optional<uint64_t>      budget)
 {
     std::optional<uint64_t>  previousBudget = m_session.GetBudget();
     CommandMode              lineMode       = mode.value_or (m_session.GetMode());
@@ -228,4 +280,65 @@ ChannelHello DebuggerController::GetInstance() const
     }
 
     return hello;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerController::GetAllowedFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DebuggerController::GetAllowedFolders (const ChannelClient & client) const
+{
+    std::vector<std::wstring>  folders = client.allowPaths;
+    DebugMachineInfo           info    = m_target.GetMachineInfo();
+    const DebugSession       & session = m_session;
+
+
+
+    for (const std::string & disk : info.disks)
+    {
+        if (!disk.empty())
+        {
+            folders.push_back (GetFolder (TextEncoding::NarrowToWide (disk)));
+        }
+    }
+
+    if (session.HasDebugFile())
+    {
+        folders.push_back (GetFolder (session.GetDebugFilePath()));
+    }
+
+    for (const DebugSession::SymbolLoad & load : session.GetSymbolLoads())
+    {
+        folders.push_back (GetFolder (load.path));
+    }
+
+    std::erase_if (folders, [] (const std::wstring & folder) { return folder.empty(); });
+    return folders;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerController::GetFolder
+//
+//  The folder a file is in; empty for a name with no folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerController::GetFolder (const std::wstring & path)
+{
+    size_t  slash = path.find_last_of (L"\\/");
+
+
+
+    return (slash == std::wstring::npos) ? std::wstring() : path.substr (0, slash);
 }

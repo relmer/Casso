@@ -408,6 +408,10 @@
     <ClCompile Include="Debugger\GSSquaredFormatter.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelLineBuffer.cpp" />
     <ClCompile Include="Debugger\Channel\ChannelProtocol.cpp" />
+    <ClCompile Include="Debugger\Channel\GuardedFileSystem.cpp" />
+    <ClCompile Include="Debugger\Channel\HostAccessGuard.cpp" />
+    <ClCompile Include="Debugger\Channel\HostAccessPolicy.cpp" />
+    <ClCompile Include="Debugger\Channel\Win32HostPathResolver.cpp" />
     <ClCompile Include="Debugger\Channel\DebugChannelServer.cpp" />
     <ClCompile Include="Debugger\Channel\InstanceLister.cpp" />
     <ClCompile Include="Debugger\Channel\PipeSecurity.cpp" />
@@ -1107,6 +1111,11 @@
     <ClInclude Include="Debugger\CommandSuggestion.h" />
     <ClInclude Include="Debugger\GSSquaredFormatter.h" />
     <ClInclude Include="Debugger\Channel\ChannelProtocol.h" />
+    <ClInclude Include="Debugger\Channel\GuardedFileSystem.h" />
+    <ClInclude Include="Debugger\Channel\HostAccessGuard.h" />
+    <ClInclude Include="Debugger\Channel\HostAccessPolicy.h" />
+    <ClInclude Include="Debugger\Channel\IHostPathResolver.h" />
+    <ClInclude Include="Debugger\Channel\Win32HostPathResolver.h" />
     <ClInclude Include="Debugger\Channel\IPipeTransport.h" />
     <ClInclude Include="Debugger\Channel\ChannelLineBuffer.h" />
     <ClInclude Include="Debugger\Channel\IDebugCommandRunner.h" />

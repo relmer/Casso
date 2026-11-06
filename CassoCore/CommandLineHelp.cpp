@@ -149,7 +149,7 @@ std::string CommandLineHelp::GetUsageLine (CommandLineOptions::Subcommand mode)
     }
     else if (mode == CommandLineOptions::Subcommand::Mcp)
     {
-        line = "  CassoCli mcp                                  Serve Casso's debugger to an MCP client on stdin and stdout";
+        line = "  CassoCli mcp [options]                        Serve Casso's debugger to an MCP client on stdin and stdout";
     }
     else if (mode == CommandLineOptions::Subcommand::Merlin)
     {

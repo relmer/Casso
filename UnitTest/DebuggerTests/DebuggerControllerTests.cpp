@@ -205,8 +205,8 @@ namespace DebuggerControllerTests
 
 
 
-            rig.controller.RunLine ("R", CommandMode::AppleWin, {});
-            rig.controller.RunLine ("not a command", CommandMode::AppleWin, {});
+            rig.controller.RunLine ("R", CommandMode::AppleWin, {}, {}, false);
+            rig.controller.RunLine ("not a command", CommandMode::AppleWin, {}, {}, false);
 
             Assert::AreEqual (before + 2, rig.controller.GetLinesRun(), L"a line that fails is counted too");
         }
@@ -226,13 +226,13 @@ namespace DebuggerControllerTests
 
             //  `300.30F` is an examine in the Monitor and not a command at all
             //  in AppleWin, so its status says which mode the line ran in.
-            reply = rig.controller.RunLine ("300.30F", CommandMode::Monitor, {});
+            reply = rig.controller.RunLine ("300.30F", CommandMode::Monitor, {}, {}, false);
             Assert::IsTrue (reply.status == CommandStatus::Ok, L"the line ran in the mode the request named");
 
             Assert::IsTrue (rig.controller.GetSession().GetMode() == CommandMode::AppleWin,
                             L"and the session's own mode is unchanged");
 
-            reply = rig.controller.RunLine ("300.30F", {}, {});
+            reply = rig.controller.RunLine ("300.30F", {}, {}, {}, false);
             Assert::IsTrue (reply.status == CommandStatus::Unknown, L"a request naming no mode uses the session's");
         }
 
@@ -251,7 +251,7 @@ namespace DebuggerControllerTests
 
             rig.controller.GetSession().SetBudget (5000);
 
-            reply = rig.controller.RunLine ("R", {}, 123);
+            reply = rig.controller.RunLine ("R", {}, 123, {}, false);
             Assert::IsFalse (reply.command.empty(), L"the line ran");
 
             Assert::IsTrue   (rig.controller.GetSession().GetBudget().has_value());
@@ -270,7 +270,7 @@ namespace DebuggerControllerTests
 
 
 
-            (void) rig.controller.RunLine ("BUDGET 777", {}, 123);
+            (void) rig.controller.RunLine ("BUDGET 777", {}, 123, {}, false);
 
             Assert::IsTrue   (rig.controller.GetSession().GetBudget().has_value());
             Assert::AreEqual ((uint64_t) 777, *rig.controller.GetSession().GetBudget());
@@ -282,17 +282,17 @@ namespace DebuggerControllerTests
         TEST_METHOD (ABlankLineEndsAnAssemblyBlockAndIsOtherwiseNothing)
         {
             Rig    rig (true);
-            Reply  reply = rig.controller.RunLine ("", {}, {});
+            Reply  reply = rig.controller.RunLine ("", {}, {}, {}, false);
 
 
 
             Assert::IsTrue (reply.status == CommandStatus::Ok, L"outside a block, nothing");
 
-            (void) rig.controller.RunLine ("A 300", {}, {});
-            (void) rig.controller.RunLine ("LDA #$41", {}, {});
+            (void) rig.controller.RunLine ("A 300", {}, {}, {}, false);
+            (void) rig.controller.RunLine ("LDA #$41", {}, {}, {}, false);
             Assert::IsTrue  (rig.controller.GetSession().IsAssembling());
 
-            (void) rig.controller.RunLine ("", {}, {});
+            (void) rig.controller.RunLine ("", {}, {}, {}, false);
             Assert::IsFalse (rig.controller.GetSession().IsAssembling(), L"the blank line ended the block");
         }
 
@@ -306,7 +306,7 @@ namespace DebuggerControllerTests
 
 
 
-            (void) rig.controller.RunLine ("A 300", {}, {});
+            (void) rig.controller.RunLine ("A 300", {}, {}, {}, false);
             Assert::IsTrue (rig.controller.GetSession().IsAssembling());
 
             rig.controller.GetSession().OnMachineChanged ("Apple //c", false);

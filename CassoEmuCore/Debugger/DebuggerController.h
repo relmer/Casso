@@ -3,6 +3,7 @@
 #include "Debugger/CallStackHistory.h"
 #include "Debugger/Channel/DebugChannelServer.h"
 #include "Debugger/Channel/IDebugCommandRunner.h"
+#include "Debugger/Channel/Win32HostPathResolver.h"
 #include "Debugger/CpuManagerRunDriver.h"
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/DebugSession.h"
@@ -78,17 +79,44 @@ public:
     // IDebugCommandRunner
     Reply         RunLine      (const std::string          & line,
                                 std::optional<CommandMode>   mode,
-                                std::optional<uint64_t>      budget) override;
+                                std::optional<uint64_t>      budget,
+                                const ChannelClient        & client,
+                                bool                         overwrite) override;
     void          RequestPause () override;
     bool          IsRunInProgress () const override { return m_driver.IsRunning(); }
     ChannelHello  GetInstance  () const override;
 
+    //  Where the console lines for a channel client's host file access go:
+    //  the debugger window's console. None by default.
+    using ConsoleSink = std::function<void (const std::vector<std::string> & lines)>;
+
+    void          SetConsoleSink      (ConsoleSink sink)               { m_consoleSink = std::move (sink); }
+
+    //  The host file system the access policy resolves paths on; a test
+    //  supplies a fake one.
+    void          SetHostPathResolver (IHostPathResolver & resolver)   { m_resolver = &resolver; }
+
+    //  The folders a channel client's line may read and write besides
+    //  Documents\Casso: the mounted disks', the debug and symbol files', and
+    //  the client's `allowPaths`.
+    std::vector<std::wstring>  GetAllowedFolders (const ChannelClient & client) const;
+
 private:
+    Reply                RunGuardedLine (const std::string          & line,
+                                         std::optional<CommandMode>   mode,
+                                         std::optional<uint64_t>      budget);
+
+    static std::wstring  GetFolder      (const std::wstring & path);
+
     MachineHost          & m_host;
     CpuManager           & m_cpuManager;
     InstanceDescriber      m_describe;
     uint32_t               m_processId = 0;
     uint64_t               m_linesRun  = 0;
+    IFileSystem          & m_files;
+    Win32HostPathResolver  m_win32Resolver;
+    IHostPathResolver    * m_resolver  = &m_win32Resolver;
+    ConsoleSink            m_consoleSink;
 
     //  Declared in construction order: the session attaches itself to the
     //  target, and the server is the session's notification sink.

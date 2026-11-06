@@ -31,12 +31,15 @@ public:
     virtual ~IDebugCommandRunner() = default;
 
     //  One line in the mode the request chose, or the session's when it chose
-    //  none, with a budget for a run this line starts. The reply comes back
-    //  formatted, because which mode's text it carries is the session's to
-    //  decide rather than the channel's.
+    //  none, with a budget for a run this line starts. The reply is formatted
+    //  in the session, since the mode of its text is a session setting rather
+    //  than a channel one. The line's host file access is
+    //  limited by the client's hello and the request's overwrite option.
     virtual Reply  RunLine      (const std::string          & line,
                                  std::optional<CommandMode>   mode,
-                                 std::optional<uint64_t>      budget) = 0;
+                                 std::optional<uint64_t>      budget,
+                                 const ChannelClient        & client,
+                                 bool                         overwrite) = 0;
 
     //  Stops a running machine. The stop itself arrives as a notification.
     virtual void   RequestPause () = 0;

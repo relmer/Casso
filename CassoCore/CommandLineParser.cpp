@@ -444,6 +444,15 @@ static constexpr const char *  s_kpszDebugLongOptions[] =
 };
 
 
+//  The `mcp` grammar's long options. Its client writes requests to its
+//  standard input, so the subcommand doesn't take an operand.
+static constexpr const char *  s_kpszMcpLongOptions[] =
+{
+    "allow-path",
+    "allow-scripts",
+};
+
+
 
 
 //
@@ -1921,6 +1930,23 @@ std::span<const char * const> CommandLineParser::GetRunLongOptions()
 std::span<const char * const> CommandLineParser::GetDebugLongOptions()
 {
     return std::span<const char * const> (s_kpszDebugLongOptions);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::GetMcpLongOptions
+//
+//  The long options `mcp` takes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const char * const> CommandLineParser::GetMcpLongOptions()
+{
+    return std::span<const char * const> (s_kpszMcpLongOptions);
 }
 
 
@@ -4365,6 +4391,89 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ParseMcpOptions
+//
+//  The `mcp` grammar: --allow-path <folder>, repeatable, and --allow-scripts.
+//  Anything else fails, as in the `debug` grammar, since a dropped option
+//  would change which files the client's commands can access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ParseMcpOptions (int argc, char * argv[], int argIndex, CommandLineOptions & options)
+{
+    CommandLineOptions::McpOptions & mcp       = options.mcp;
+    bool                             wantsHelp = IsLoneQuestionMark (argc, argv, argIndex);
+
+
+
+    for (int probe = argIndex; probe < argc; probe++)
+    {
+        if (IsHelpRequest (argv[probe]))
+        {
+            wantsHelp = true;
+
+            if (argv[probe][0] == '/')
+            {
+                options.flagPrefix = '/';
+            }
+        }
+    }
+
+    if (wantsHelp)
+    {
+        options.showHelp = true;
+        options.helpPage = CommandLineOptions::HelpPage::Mcp;
+        return;
+    }
+
+    while (argIndex < argc)
+    {
+        std::string  arg      = GetCanonicalLongFlag (argv[argIndex], std::span<const char * const> (s_kpszMcpLongOptions));
+        bool         hasValue = argIndex + 1 < argc;
+
+
+
+        if (argv[argIndex][0] == '/')
+        {
+            NoteFlagPrefix ('/', options);
+        }
+
+        if (IsLongOption (arg, "--allow-path", options) && hasValue)
+        {
+            mcp.allowPaths.push_back (argv[++argIndex]);
+        }
+        else if (IsLongOption (arg, "--allow-scripts", options))
+        {
+            mcp.allowScripts = true;
+        }
+        else if (arg == "--allow-path")
+        {
+            Refusal (options) << "Error: " << argv[argIndex] << " requires a folder after it\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+        else if (IsFlagShaped (arg))
+        {
+            Refusal (options) << "Error: unknown option: " << arg << "\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+            RecordUnrecognizedFlag (arg, options);
+        }
+        else
+        {
+            Refusal (options) << "Error: surplus argument: " << arg << "\n"
+                              << "       `mcp` doesn't take an operand. Its client writes to its standard input.\n";
+            options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        }
+
+        argIndex++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RefuseSourceWithoutDialect
 //
 //  Refuses a `run` command line that hands over source without saying which
@@ -4599,11 +4708,9 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     {
         ParseDebugOptions (argc, argv, 2, options);
     }
-    else if (named == CommandLineOptions::Subcommand::Mcp && argc > 2)
+    else if (named == CommandLineOptions::Subcommand::Mcp)
     {
-        //  `mcp` doesn't take options: its client writes to its standard input.
-        options.unrecognizedArgument = argv[2];
-        options.subcommand           = CommandLineOptions::Subcommand::None;
+        ParseMcpOptions (argc, argv, 2, options);
     }
 
 Error:

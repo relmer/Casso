@@ -5,6 +5,7 @@
 #include "Config/DebuggerSettings.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
 #include "Debugger/DebuggerController.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
@@ -724,6 +725,7 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
     std::vector<std::string>    notices;
     DebugProject                opened;
     const DebugProject        * reported = &m_project;
+    DebugSession              & session  = m_debugController->GetSession();
     HRESULT                     hr       = S_OK;
 
 
@@ -743,6 +745,11 @@ void ShellDebugger::RunProjectRequest (const std::string & text, Reply & reply)
     if (!m_hasProject)
     {
         reply.SetError (CommandStatus::Error, "no debug projects", "The folder for debug projects could not be made.");
+        return;
+    }
+
+    if (!path.empty() && !session.CheckHostAccess (session.ResolvePath (path), verb == "SAVEAS" ? HostAccess::Write : HostAccess::Read, reply))
+    {
         return;
     }
 

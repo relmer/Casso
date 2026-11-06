@@ -61,7 +61,7 @@ public:
                       DebugAttachResult                      & result);
 
     //  One command request, the line escaped as JSON.
-    static std::string  BuildCommand (int64_t id, const std::string & line, const std::string & mode, uint64_t budget);
+    static std::string  BuildCommand (int64_t id, const std::string & line, const std::string & mode, uint64_t budget, bool overwrite = false);
 
 private:
     enum class Wait

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/JsonValue.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 
 class ICassoLauncher;
 class IInstanceDirectory;
@@ -60,7 +61,16 @@ public:
     static constexpr uint64_t  kDefaultBudget       = 100000000;
     static constexpr int       kMaxReadLength       = 0x1000;
 
-    McpTools (IInstanceDirectory & directory, ICassoLauncher & launcher);
+    //  The client name in the hello, which is in the console lines for host
+    //  file access.
+    static constexpr const char * kClientName = "MCP client";
+
+    //  `client` is what the hello sends each Casso: the name, the extra
+    //  folders and the scripts setting. `scratchFolder` is where a screenshot
+    //  is written for its bytes to be read back; the temporary folder when
+    //  empty. It has to be one of the client's folders for the write to be
+    //  allowed.
+    McpTools (IInstanceDirectory & directory, ICassoLauncher & launcher, ChannelClient client = {}, std::wstring scratchFolder = {});
     ~McpTools();
 
     McpTools (const McpTools &)             = delete;
@@ -99,7 +109,7 @@ private:
 
     bool  EnsureAttached   (McpToolResult & result);
     bool  Connect          (uint32_t processId, std::string & error);
-    void  RunLine          (const std::string & line, const std::string & mode, DWORD timeoutMs, uint64_t budget, McpToolResult & result);
+    void  RunLine          (const std::string & line, const std::string & mode, DWORD timeoutMs, uint64_t budget, bool overwrite, McpToolResult & result);
     void  RunLine          (const std::string & line, McpToolResult & result);
     void  ToResult         (const McpChannelResult & channel, McpToolResult & result);
     void  AddMachineState  (McpToolResult & result);
@@ -136,5 +146,7 @@ private:
     ICassoLauncher               & m_launcher;
     std::unique_ptr<McpChannel>    m_channel;
     uint32_t                       m_processId = 0;
+    ChannelClient                  m_client;
+    std::wstring                   m_scratchFolder;
     std::set<uint32_t>             m_launched;
 };

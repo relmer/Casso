@@ -39,6 +39,8 @@ namespace DebuggerTests
             std::string                 line;
             std::optional<CommandMode>  mode;
             std::optional<uint64_t>     budget;
+            ChannelClient               client;
+            bool                        overwrite = false;
         };
 
         std::vector<Ran>       ran;
@@ -50,11 +52,12 @@ namespace DebuggerTests
         IDebugNotificationSink *  stopFrom = nullptr;
         std::optional<StopReason> stopWith;
 
-        Reply RunLine (const std::string & line, std::optional<CommandMode> mode, std::optional<uint64_t> budget) override
+        Reply RunLine (const std::string & line, std::optional<CommandMode> mode, std::optional<uint64_t> budget,
+                       const ChannelClient & client, bool overwrite) override
         {
             Reply  reply;
 
-            ran.push_back (Ran { line, mode, budget });
+            ran.push_back (Ran { line, mode, budget, client, overwrite });
             reply.command = line;
 
             if (startsRun)
@@ -801,6 +804,66 @@ namespace DebuggerTests
 
             Assert::AreEqual ((size_t) 0, runner.ran.size());
             Assert::IsTrue   (transport.Written (client).empty());
+        }
+
+
+
+        //  A hello's name, folders and scripts setting apply to that client's
+        //  commands and no one else's: a client without a hello has the
+        //  defaults.
+        TEST_METHOD (AHellosFileAccess_AppliesToThatClientsCommandsOnly)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    first  = 0;
+            ChannelConnectionId    second = 0;
+
+
+
+            Assert::AreEqual (S_OK, server.Open());
+
+            first  = transport.Connect();
+            second = transport.Connect();
+
+            transport.Send (first,  ChannelProtocol::WriteHelloRequest (1, ChannelClient { "MCP client", { L"C:\\Work" }, true }));
+            transport.Send (first,  Command ("r", 2));
+            transport.Send (second, Command ("r", 3));
+
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2, runner.ran.size());
+            Assert::AreEqual (std::string ("MCP client"), runner.ran[0].client.name);
+            Assert::AreEqual ((size_t) 1, runner.ran[0].client.allowPaths.size());
+            Assert::AreEqual (std::wstring (L"C:\\Work"), runner.ran[0].client.allowPaths[0]);
+            Assert::IsTrue   (runner.ran[0].client.allowScripts);
+
+            Assert::IsTrue   (runner.ran[1].client.name.empty(), L"the other client sent no hello");
+            Assert::IsTrue   (runner.ran[1].client.allowPaths.empty());
+            Assert::IsFalse  (runner.ran[1].client.allowScripts);
+        }
+
+
+
+        TEST_METHOD (ACommandsOverwriteOption_ReachesTheRunner)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client = 0;
+
+
+
+            Assert::AreEqual (S_OK, server.Open());
+
+            client = transport.Connect();
+            transport.Send (client, R"({"type":"command","id":1,"line":"BSAVE x 300,1","overwrite":true})");
+            transport.Send (client, Command ("BSAVE x 300,1", 2));
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 2, runner.ran.size());
+            Assert::IsTrue   (runner.ran[0].overwrite);
+            Assert::IsFalse  (runner.ran[1].overwrite);
         }
     };
 }

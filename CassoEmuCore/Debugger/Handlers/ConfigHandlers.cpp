@@ -6,6 +6,7 @@
 #include "Config/IFileSystem.h"
 #include "Core/TextEncoding.h"
 #include "Debugger/AppleWinCommandTable.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/CommandModeNames.h"
@@ -243,6 +244,11 @@ void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand
         directory.pop_back();
     }
 
+    if (!session.CheckHostAccess (directory, HostAccess::Read, reply))
+    {
+        return;
+    }
+
     session.SetCurrentDirectory (directory);
     PrintDirectory (session, reply);
 }
@@ -278,6 +284,11 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
     if (files == nullptr)
     {
         reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
+        return;
+    }
+
+    if (!session.CheckScriptRun (session.ResolvePath (name), reply))
+    {
         return;
     }
 
@@ -490,6 +501,11 @@ void ConfigHandlers::InsertOrEject (DebugSession & session, const DebugCommand &
 
     path = session.ResolvePath (name);
 
+    if (!session.CheckHostAccess (path, HostAccess::Read, reply))
+    {
+        return;
+    }
+
     if (GetFileAttributesW (path.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
         reply.SetError (CommandStatus::Error, "file not found", std::format ("{} doesn't exist.", TextEncoding::WideToNarrow (path)));
@@ -603,6 +619,11 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
 
     if (keys != nullptr)
     {
+        if (!session.CheckHostAccess (session.ResolvePath (name), HostAccess::Read, reply))
+        {
+            return;
+        }
+
         keys->InsertTapeFile (session.ResolvePath (name));
         reply.data = MessageData { { std::format ("Loading the tape{}.", session.GetPathEcho (name, "from", reply)) } };
         return;

@@ -19,6 +19,7 @@
 #include "Debugger/WatchpointTable.h"
 #include "Debugger/Reverse/ReverseCommand.h"
 
+class HostAccessGuard;
 class IDebugCommandHandler;
 class IDebugNotificationSink;
 class IFileSystem;
@@ -28,6 +29,7 @@ class IMachineControl;
 class ITapeControl;
 class OpcodeTable;
 struct DebugSessionView;
+enum class HostAccess;
 
 
 
@@ -343,6 +345,16 @@ public:
     void                  SetCurrentDirectory  (const std::wstring & directory)   { m_currentDirectory = directory; }
     std::wstring          ResolvePath          (const std::string & path) const;
 
+    //  The host file access rules of the debug channel client whose line is
+    //  running; null while a console line or a batch line runs, where the
+    //  rules don't apply. A command that reads or writes a host file other
+    //  than through the file system checks the path here; false sets the
+    //  reply's error to the reason.
+    void                  SetHostAccessGuard   (HostAccessGuard * guard)          { m_hostAccessGuard = guard; }
+    HostAccessGuard     * GetHostAccessGuard   () const                           { return m_hostAccessGuard; }
+    bool                  CheckHostAccess      (const std::wstring & path, HostAccess access, Reply & reply);
+    bool                  CheckScriptRun       (const std::wstring & path, Reply & reply);
+
     // The video and sound logs VIDEOLOG and SOUNDLOG list; only the debugger
     // window's shell and a batch run have them, and without them both
     // commands are not available.
@@ -547,6 +559,7 @@ private:
     static bool         TryGetFlagMask (const std::string & name, Byte & mask);
     static void         SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
     static std::string  Trim           (const std::string & text);
+    void                ApplyHostAccessFailure (uint64_t failuresBefore, Reply & reply) const;
 
     IDebugTarget                        & m_target;
     IDebugNotificationSink              & m_sink;
@@ -556,6 +569,7 @@ private:
     IIoEventSource                      * m_ioEventSource       = nullptr;
     ITapeControl                        * m_tapeControl         = nullptr;
     IMachineControl                     * m_machineControl      = nullptr;
+    HostAccessGuard                     * m_hostAccessGuard     = nullptr;
     std::wstring                          m_currentDirectory;
 
     int                                   m_nextId        = 0;

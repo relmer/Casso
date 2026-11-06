@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/StateFileHandlers.h"
 
 #include "Core/TextEncoding.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
 #include "Debugger/DebugSession.h"
 
 
@@ -60,6 +61,11 @@ void StateFileHandlers::Request (DebugSession & session, const DebugCommand & co
     }
 
     path = session.ResolvePath (name);
+
+    if (!session.CheckHostAccess (path, isLoad ? HostAccess::Read : HostAccess::Write, reply))
+    {
+        return;
+    }
 
     if (requester != nullptr)
     {

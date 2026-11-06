@@ -19,6 +19,7 @@
 #include "Debugger/GSSquaredParser.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/CommandSuggestion.h"
+#include "Debugger/Channel/HostAccessGuard.h"
 #include "Debugger/DiskCallVector.h"
 #include "Debugger/DiskValueSymbols.h"
 #include "Debugger/WinDbgFormatter.h"
@@ -481,7 +482,8 @@ DebugSession::~DebugSession()
 
 Reply DebugSession::Execute (const DebugCommand & command)
 {
-    Reply  reply;
+    Reply     reply;
+    uint64_t  failuresBefore = (m_hostAccessGuard != nullptr) ? m_hostAccessGuard->GetFailureCount() : 0;
 
 
 
@@ -536,6 +538,8 @@ Reply DebugSession::Execute (const DebugCommand & command)
     {
         if (handler->TryExecute (*this, command, reply))
         {
+            ApplyHostAccessFailure (failuresBefore, reply);
+
             if (IsMachineWrite (command.verb))
             {
                 ResolveDiskCalls();
@@ -1249,6 +1253,73 @@ std::string DebugSession::GetPathEcho (const std::string & path, const char * pr
     }
 
     return echo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::CheckHostAccess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::CheckHostAccess (const std::wstring & path, HostAccess access, Reply & reply)
+{
+    if (m_hostAccessGuard == nullptr || m_hostAccessGuard->TryAccess (path, access))
+    {
+        return true;
+    }
+
+    reply.SetError (CommandStatus::Error, HostAccessGuard::kFailedLabel, m_hostAccessGuard->GetLastReason());
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::CheckScriptRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::CheckScriptRun (const std::wstring & path, Reply & reply)
+{
+    if (m_hostAccessGuard == nullptr || m_hostAccessGuard->TryRunScript (path))
+    {
+        return true;
+    }
+
+    reply.SetError (CommandStatus::Error, HostAccessGuard::kFailedLabel, m_hostAccessGuard->GetLastReason());
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::ApplyHostAccessFailure
+//
+//  A command whose file access failed through the guarded file system
+//  replies with the policy's reason in place of the command's failure text,
+//  which reports only that the file could not be read or written. A reply already
+//  formatted, as a script's is, has the reason in its lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugSession::ApplyHostAccessFailure (uint64_t failuresBefore, Reply & reply) const
+{
+    if (m_hostAccessGuard == nullptr || reply.isFormatted || m_hostAccessGuard->GetFailureCount() == failuresBefore)
+    {
+        return;
+    }
+
+    reply.SetError (CommandStatus::Error, HostAccessGuard::kFailedLabel, m_hostAccessGuard->GetLastReason());
 }
 
 

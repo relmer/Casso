@@ -507,6 +507,17 @@ namespace CliSwitchCoverageTests
             { "debug", "timeout", { "CassoCli", "debug", "--attach", "1234", "--command", "r", "--timeout", "9" },
               [] (const CommandLineOptions & o) { return o.debug.timeoutSeconds == 9; },
               "--timeout bounds the wait for a run" },
+
+            //
+            //  mcp
+            //
+            { "mcp", "allow-path", { "CassoCli", "mcp", "--allow-path", "C:\\Work" },
+              [] (const CommandLineOptions & o) { return o.mcp.allowPaths == std::vector<std::string> { "C:\\Work" }; },
+              "--allow-path adds a folder the client's commands may use" },
+
+            { "mcp", "allow-scripts", { "CassoCli", "mcp", "--allow-scripts" },
+              [] (const CommandLineOptions & o) { return o.mcp.allowScripts; },
+              "--allow-scripts lets the client's commands run a file of commands" },
         };
     }
 
@@ -592,6 +603,13 @@ namespace CliSwitchCoverageTests
                 names.insert (Bare (option));
             }
         }
+        else if (mode == "mcp")
+        {
+            for (const char * option : CommandLineParser::GetMcpLongOptions())
+            {
+                names.insert (Bare (option));
+            }
+        }
 
         return names;
     }
@@ -599,7 +617,7 @@ namespace CliSwitchCoverageTests
 
 
 
-    static const char *  kModes[] = { "as65", "merlin", "run", "disk", "debug" };
+    static const char *  kModes[] = { "as65", "merlin", "run", "disk", "debug", "mcp" };
 
 
 
@@ -636,6 +654,7 @@ namespace CliSwitchCoverageTests
             Assert::IsTrue (GrammarSwitches ("run").size()    >= 8,  L"run");
             Assert::IsTrue (GrammarSwitches ("disk").size()   >= 12, L"disk");
             Assert::IsTrue (GrammarSwitches ("debug").size()  >= 8,  L"debug");
+            Assert::IsTrue (GrammarSwitches ("mcp").size()    >= 2,  L"mcp");
 
             Assert::IsTrue (Cases().size() >= 55, L"and the case table is populated");
         }

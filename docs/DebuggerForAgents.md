@@ -197,3 +197,50 @@ A session that types in and runs a program, as GSSquared's demo does:
    `10 GR`, `20 FOR I = 0 TO 15`, `30 COLOR= I`, `40 VLIN 0,39 AT I * 2 + 4`,
    `50 NEXT`.
 4. `wait` a few seconds, then `screenshot`.
+
+### Host files
+
+A command from the channel that reads or writes a file on the host, such as
+`BLOAD`, `BSAVE`, `W`, `R`, `SYM LOAD`, `DISK INSERT`, `SCREENSHOT`, `SAVE` or
+`CD`, can access only these folders:
+
+- the folders of the mounted disk images;
+- the folders of the loaded debug and symbol files;
+- `Documents\Casso`;
+- each folder given with `--allow-path`.
+
+The path is checked after `.`, `..`, relative parts, links and junctions are
+resolved, so a link inside an allowed folder that points out of it fails. These
+always fail:
+
+- a UNC or network path (`\\server\share`, `\\?\UNC\...`, or a mapped drive),
+  or a device path (`\\.\`, `\\?\`);
+- a write of a file with the extension `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`,
+  `.vbs`, `.js`, `.lnk` or `.scr`, or into a Startup folder;
+- a write over a file that exists, unless the `command` tool's `overwrite`
+  argument is `true`;
+- a command that runs a file of commands (`RUN`, `LOAD`, `STARTUP`), unless
+  the server was started with `--allow-scripts`.
+
+A failure is an error result with the label `file access denied` and the
+reason as its detail, such as `C:\Games\x.bin is outside the allowed folders.`
+Every access adds a line to the console in Casso's debugger window with the
+client's name and the full path, and a failure adds a line with the reason.
+
+To let the client work in a project folder, and run scripts:
+
+```json
+{
+  "mcpServers": {
+    "casso": {
+      "command": "C:\\Program Files\\Casso\\CassoCli.exe",
+      "args": ["mcp", "--allow-path", "C:\\Work\\Game", "--allow-scripts"]
+    }
+  }
+}
+```
+
+A relative `--allow-path` is taken from the directory the server starts in.
+The rules apply to every command from the channel, so `CassoCli debug --attach`
+has them too, with no extra folders and no scripts. Commands typed in Casso's
+console, and scripts run from it, have none of them.
