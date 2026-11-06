@@ -39,6 +39,7 @@ public:
     static constexpr uint64_t  kProgressDelayMs = 200;
 
     static std::wstring  GetZoomText     (float zoom);
+    static std::wstring  GetZoomResetTip ();
 
     //  The emulator's speed as its menu writes it: 1x, 2x or Maximum.
     static std::wstring  GetSpeedText    (SpeedMode speed);

@@ -560,7 +560,8 @@ bool DebuggerWindow::TryGetRoutedTip (POINT clientPx, DxuiTip & tip) const
 //  DebuggerWindow::TryGetTip
 //
 //  The zoom popup and a pinned color key are drawn over the panes but are
-//  not controls, so over them no control's tip opens.
+//  not controls, so over them no control's tip opens, except over the popup's
+//  percentage, which has a tip for the click that sets 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -573,7 +574,14 @@ bool DebuggerWindow::TryGetTip (POINT clientPx, DxuiTip & tip) const
 
     if (isMain && m_zoomOpen && DxuiDockSite::Contains (m_zoomRect, clientPx))
     {
-        return false;
+        if (!DxuiDockSite::Contains (GetZoomResetRect(), clientPx))
+        {
+            return false;
+        }
+
+        tip.text   = DebuggerStatusText::GetZoomResetTip();
+        tip.anchor = GetZoomResetRect();
+        return true;
     }
 
     if (isMain && m_colorKeys->TryGetPinnedRect (pinned) && DxuiDockSite::Contains (pinned, clientPx))

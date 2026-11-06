@@ -6,6 +6,7 @@
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -285,12 +286,36 @@ void DxuiSlider::ApplyValueWithStep (float v, float step)
 
 bool DxuiSlider::OnLButtonDown (int x, int y)
 {
+    return OnLButtonDownAt (x, y, (int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnLButtonDownAt
+//
+//  A second press within the double-click time, on a slider with a default
+//  value, sets the default instead of starting a drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiSlider::OnLButtonDownAt (int x, int y, int64_t nowMs)
+{
     bool  startedDrag = false;
     bool  isHit       = HitTest (x, y);
+    bool  isDouble    = isHit && IsDoubleClick (nowMs);
 
 
 
-    if (isHit)
+    if (isDouble)
+    {
+        m_dragging = false;
+        ApplyValue (m_defaultValue);
+    }
+    else if (isHit)
     {
         startedDrag = !m_dragging;
         m_dragging  = true;
@@ -303,6 +328,150 @@ bool DxuiSlider::OnLButtonDown (int x, int y)
     }
 
     return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDoubleClick
+//
+//  Whether this press follows the last one within the double-click time. A
+//  press that completes the pair consumes it, so a third press starts a new
+//  count. Always false without a default value to reset to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiSlider::IsDoubleClick (int64_t nowMs)
+{
+    bool  isDouble = false;
+
+
+
+    if (!m_hasDefault)
+    {
+        return false;
+    }
+
+    isDouble = m_hasLastDown && (nowMs - m_lastDownMs) <= (int64_t) DxuiSystemSettings::Instance().GetDoubleClickMs();
+
+    m_hasLastDown = !isDouble;
+    m_lastDownMs  = nowMs;
+
+    return isDouble;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnWheel
+//
+//  One step per notch, a notch up toward the maximum. A fraction of a notch,
+//  as a precision touchpad reports, moves nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiSlider::OnWheel (float notches)
+{
+    int   steps = (int) notches;
+    bool  isOn  = m_enabled && m_wheelStepping;
+
+
+
+    if (isOn && steps != 0)
+    {
+        ApplyValue (m_value + (float) steps * m_step);
+    }
+
+    return isOn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTickValues
+//
+//  The explicit ticks when set, otherwise one every tick interval (every step
+//  when there is no interval), from the minimum to the maximum.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<float> DxuiSlider::GetTickValues() const
+{
+    std::vector<float>  values;
+    float               tickStep  = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
+    int                 tickCount = 0;
+    int                 i         = 0;
+
+
+
+    if (!m_tickValues.empty())
+    {
+        values = m_tickValues;
+        std::sort (values.begin(), values.end());
+        return values;
+    }
+
+    if (tickStep > s_kEpsilon && m_max - m_min > s_kEpsilon)
+    {
+        tickCount = (int) std::round ((m_max - m_min) / tickStep) + 1;
+
+        for (i = 0; i < tickCount; i++)
+        {
+            values.push_back (m_min + (m_max - m_min) * (float) i / (float) (std::max) (1, tickCount - 1));
+        }
+    }
+
+    return values;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetValueRect
+//
+//  Where Paint draws the readout: right of the track on a horizontal slider,
+//  under the track on a vertical one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiSlider::GetValueRect() const
+{
+    constexpr int  s_kHorizWidthDip = 56;
+    constexpr int  s_kVertHeightDip = 18;
+    bool           showValue        = m_explicitShowValue ? m_showValue : !m_suffix.empty();
+    RECT           rect             = {};
+    int            widthPx          = m_scaler.ToPx (s_kHorizWidthDip);
+    int            heightPx         = m_scaler.ToPx (s_kVertHeightDip);
+
+
+
+    if (!showValue)
+    {
+        return rect;
+    }
+
+    if (m_vertical)
+    {
+        rect = RECT { m_boundsDip.left, m_boundsDip.bottom - heightPx, m_boundsDip.right, m_boundsDip.bottom };
+    }
+    else
+    {
+        rect = RECT { m_boundsDip.right - widthPx, m_boundsDip.top, m_boundsDip.right, m_boundsDip.bottom };
+    }
+
+    return rect;
 }
 
 
@@ -462,7 +631,6 @@ bool DxuiSlider::OnKey (WPARAM vk)
 void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
 {
     constexpr float  s_kInactiveTrackContrast = 1.6f;   // inactive track must stand off the panel bg
-    float            tickStep                 = 0.0f;
 
 
 
@@ -567,17 +735,13 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                              std::min (trackHeight, fillWidth) * 0.5f, accentArgb);
 
     // Tick marks below the track.
-    tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
-
-    if (m_showTicks && tickStep > s_kEpsilon && trackAvailW > 0.0f)
+    if (m_showTicks && m_max - m_min > s_kEpsilon && trackAvailW > 0.0f)
     {
-        int    tickCount = (int) std::round ((m_max - m_min) / tickStep) + 1;
-        int    i         = 0;
-        float  tickTop   = centerY + trackHeight * 0.5f + tickGap;
+        float  tickTop = centerY + trackHeight * 0.5f + tickGap;
 
-        for (i = 0; i < tickCount; i++)
+        for (float tickValue : GetTickValues())
         {
-            float  tickT  = (float) i / (float) (tickCount - 1);
+            float  tickT  = (tickValue - m_min) / (m_max - m_min);
             float  tickCx = trackLeft + trackAvailW * tickT;
 
             painter.FillRect (tickCx - 0.5f, tickTop, 1.0f, tickHeight, s_kTick);
@@ -705,7 +869,6 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
     float     t           = 0.0f;
     float     puckCy      = 0.0f;
     float     puckR       = m_scaler.ToPxf (s_kPuckRadiusDip);
-    float     tickStep    = 0.0f;
     uint32_t  coreColor   = m_enabled ? DxuiColor::ComputeAccentForWhiteContrast (accentArgb, s_kPuckCoreRatio)
                                       : s_kPuckCoreDis;
 
@@ -739,16 +902,13 @@ void DxuiSlider::PaintVerticalInternal (IDxuiPainter & painter, IDxuiTextRendere
                              trackWidth, trackTop + trackAvailH - puckCy,
                              std::min (trackWidth, trackTop + trackAvailH - puckCy) * 0.5f, accentArgb);
 
-    tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
-
-    if (m_showTicks && tickStep > s_kEpsilon && trackAvailH > 0.0f)
+    if (m_showTicks && m_max - m_min > s_kEpsilon && trackAvailH > 0.0f)
     {
-        int    tickCount = (int) std::round ((m_max - m_min) / tickStep) + 1;
-        float  tickLeft  = centerX + trackWidth * 0.5f + tickGap;
+        float  tickLeft = centerX + trackWidth * 0.5f + tickGap;
 
-        for (int i = 0; i < tickCount; i++)
+        for (float tickValue : GetTickValues())
         {
-            float  tickT  = (float) i / (float) (tickCount - 1);
+            float  tickT  = (tickValue - m_min) / (m_max - m_min);
             float  tickCy = trackTop + trackAvailH * tickT;
 
             painter.FillRect (tickLeft, tickCy - 0.5f, tickWidth, 1.0f, s_kTick);
@@ -865,6 +1025,13 @@ bool DxuiSlider::OnMouse (const DxuiMouseEvent & ev)
         if (ev.button == DxuiMouseButton::Left)
         {
             handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+
+        break;
+    case DxuiMouseEventKind::Wheel:
+        if (!ev.wheelHorizontal && HitTest (ev.positionDip.x, ev.positionDip.y))
+        {
+            handled = OnWheel (ev.wheelDelta);
         }
 
         break;

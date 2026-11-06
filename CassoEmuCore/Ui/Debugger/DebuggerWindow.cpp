@@ -608,6 +608,23 @@ void DebuggerWindow::StepTextZoom (int steps)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::ResetTextZoom
+//
+//  The status bar's size back to 100%. The panes' sizes are not touched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ResetTextZoom()
+{
+    ApplyTextZoom (kDefaultTextZoom);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ApplyTextZoom
 //
 //  The status bar's size, not a zoom of the window: every content pane's
