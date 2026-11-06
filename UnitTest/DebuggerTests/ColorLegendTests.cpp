@@ -421,8 +421,9 @@ namespace ColorLegendTests
 
 
         //  The operand column's colors mean the same on every row, so its
-        //  heading has the tip; past the last column there is none.
-        TEST_METHOD (TheOperandHeadingHasTheTipAndNothingPastTheLastColumnHasOne)
+        //  heading has the tip. The column runs to the pane's edge, so no
+        //  space past the last column is left without one.
+        TEST_METHOD (TheOperandHeadingHasTheTipAndTheColumnRunsToThePanesEdge)
         {
             CassoTheme              theme = CassoTheme::MakeSkeuomorphic();
             LegendHost              host;
@@ -460,8 +461,7 @@ namespace ColorLegendTests
                 right += list->GetColumnEffectiveWidthPx (c);
             }
 
-            Assert::IsTrue  (bounds.left + right + 20 < bounds.right, L"the pane is wider than its columns");
-            Assert::IsFalse (window.GetTipCoordinator().TryGetTip (POINT { bounds.left + right + 20, (cell.top + cell.bottom) / 2 + bounds.top }, tip, isColorTip), L"past the PC's row's last column");
+            Assert::IsTrue (bounds.left + right >= bounds.right - list->GetScrollbarWidthPx(), L"the last column runs to the pane's edge");
         }
     };
 }
