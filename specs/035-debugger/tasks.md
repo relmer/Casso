@@ -2262,7 +2262,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1385 Docs: `docs/Debugger-Reference.md`.
 - [X] T1386 Console links (FR-373): `ConsoleLinks`, `Reply::files`, link spans in `DxuiTextView`, `IDebuggerWindowHost::OpenDebuggerFile`, `IShellItemVerbs::ShowInFolder`. Tests: `ConsoleLinksTests`, `ConsoleLinkTests`, `ProjectShellTests`; the line and the hover underline checked on screen.
 - [X] T1387 Docking (FR-374, FR-375): the sideways drag in `DxuiTabStrip`, `DxuiRectMorph`, the tab index on the layout's `hide` line. Tests: `DxuiTabStripTests`, `DxuiDockSiteDragTests`, `DxuiPaneLayoutDockBackTests`, `DxuiRectMorphTests`, `DxuiDockSiteAutoHideTests`; pin, unpin and the sideways drag checked on screen.
-- [ ] T1388 Open console links in Casso Explorer, with an option for File Explorer, once 033 is on master (FR-373).
+- [ ] T1388 Open console links in Casso Explorer, with an option for File Explorer, once 033 is on master (FR-373). 033 built the interface as its T429 (`e466df261`): `CassoExplorer.exe /select,<full path>` opens the folder with the file selected, bringing forward a tab on that folder in the front window if there is one, and a running instance gets the command line. `/n` and `/separate` open a new window; `/e` and `/root` aren't accepted.
 
 ## Phase 65: Owner review, 2026-11-05 night (FR-374 to FR-384)
 
