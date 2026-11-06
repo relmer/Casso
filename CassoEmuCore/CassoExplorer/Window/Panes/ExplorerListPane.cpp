@@ -1007,6 +1007,7 @@ void ExplorerListPane::FillList()
     //  view's size.
     m_columns.ApplyFolderView();
     SizeListIcons();
+    m_list->SetItemCheckBoxes (m_context.browser.GetFolderOptions().checkBoxes);
 
     //  The shell's properties are read only when a property column is visible.
     m_propertiesShown = false;
@@ -1273,13 +1274,13 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
         m_rowBuilt[(size_t) row] = true;
     }
 
-    //  Item check boxes in Details, as File Explorer draws them: a checked
-    //  box on a selected row, an empty one on the row under the pointer, and
-    //  none on the rest.
-    m_rowCells[(size_t) row][0].check = !(m_context.browser.GetFolderOptions().checkBoxes && m_columns.GetView() == DxuiListView::View::Details) ? DxuiListView::Cell::Check::None
-                                      : m_list->IsRowSelected (row)                                                                               ? DxuiListView::Cell::Check::On
-                                      : (row == m_list->GetHoveredRow())                                                                          ? DxuiListView::Cell::Check::Off
-                                                                                                                                                  : DxuiListView::Cell::Check::None;
+    //  Item check boxes, as File Explorer draws them in every view: a checked
+    //  box on a selected item, an empty one on the item under the pointer,
+    //  and none on the rest.
+    m_rowCells[(size_t) row][0].check = !m_context.browser.GetFolderOptions().checkBoxes ? DxuiListView::Cell::Check::None
+                                      : m_list->IsRowSelected (row)                       ? DxuiListView::Cell::Check::On
+                                      : (row == m_list->GetHoveredRow())                  ? DxuiListView::Cell::Check::Off
+                                                                                          : DxuiListView::Cell::Check::None;
 
     return m_rowCells[(size_t) row];
 }

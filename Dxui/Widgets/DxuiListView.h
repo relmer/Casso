@@ -52,6 +52,13 @@ public:
     //  left, the name's icon and each column's text where Explorer puts them,
     //  and a slightly shorter header. Off by default.
     void  SetExplorerDetails (bool on)                       { m_explorerDetails = on; }
+
+    //  Room for an item check box on every item, drawn or not, as File
+    //  Explorer has with item check boxes on: a column ahead of the name in
+    //  Details, and space left of the icon in the views with the name beside
+    //  it. Tiles and the big icon views draw a box over the item's corner.
+    void  SetItemCheckBoxes  (bool on)                       { m_itemCheckBoxes = on; }
+    bool  HasCheckBoxSpace   (const Cell & cell, size_t column) const { return cell.check != Cell::Check::None || (column == 0 && m_itemCheckBoxes); }
     void  SetHoveredRow      (int row)                        { m_hovered = row; if (row >= 0) { m_grouping.ClearHover(); } }
 
     //  The row a drag would drop on, drawn as Explorer draws its drop target: in
@@ -624,6 +631,7 @@ private:
     bool   m_monospace       = false;
     int    m_rowHeightDip    = s_kRowHeightDip;
     bool   m_explorerDetails = false;
+    bool   m_itemCheckBoxes  = false;
     float  m_fontDip         = s_kFontDip;
     std::function<int (UINT)> m_rowHeightPxFn;
     DxuiDpiScaler             m_scaler;

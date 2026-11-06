@@ -1714,7 +1714,7 @@ int DxuiListItemLayout::GetItemIconLeftPx() const
 {
     if (m_list.m_view == DxuiListViewTypes::View::SmallIcons || m_list.m_view == DxuiListViewTypes::View::List)
     {
-        return (int) std::lround (m_list.m_scaler.ToPxf (s_kNameIconLeftDip));
+        return (int) std::lround (m_list.m_scaler.ToPxf (s_kNameIconLeftDip)) + GetCheckBoxRoomPx();
     }
 
     if (m_list.m_view == DxuiListViewTypes::View::Tiles)
@@ -1722,7 +1722,29 @@ int DxuiListItemLayout::GetItemIconLeftPx() const
         return (int) std::lround (m_list.m_scaler.ToPxf (s_kTileIconLeftDip));
     }
 
-    return (m_list.m_view == DxuiListViewTypes::View::Content) ? (int) std::lround (m_list.m_scaler.ToPxf (s_kContentIconLeftDip)) : m_list.m_scaler.ToPx (DxuiListView::s_kItemPadDip);
+    return (m_list.m_view == DxuiListViewTypes::View::Content) ? (int) std::lround (m_list.m_scaler.ToPxf (s_kContentIconLeftDip)) + GetCheckBoxRoomPx() : m_list.m_scaler.ToPx (DxuiListView::s_kItemPadDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemLayout::GetCheckBoxRoomPx
+//
+//  The room left of the icon for an item check box in the views with the
+//  name beside the icon, or 0 with item check boxes off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListItemLayout::GetCheckBoxRoomPx() const
+{
+    bool  beside = m_list.m_view == DxuiListViewTypes::View::SmallIcons || m_list.m_view == DxuiListViewTypes::View::List || m_list.m_view == DxuiListViewTypes::View::Content;
+
+
+
+    return (m_list.m_itemCheckBoxes && beside) ? m_list.GetCheckBoxSpanPx() : 0;
 }
 
 

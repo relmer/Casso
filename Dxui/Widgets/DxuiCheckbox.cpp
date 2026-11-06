@@ -189,6 +189,53 @@ void DxuiCheckbox::PaintBox (IDxuiPainter      & painter,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiCheckbox::PaintBoxOverText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCheckbox::PaintBoxOverText (IDxuiTextRenderer & text,
+                                     float               left,
+                                     float               top,
+                                     float               sizePx,
+                                     float               onePx,
+                                     bool                checked,
+                                     uint32_t            emptyFill,
+                                     uint32_t            outline,
+                                     uint32_t            checkedFill,
+                                     uint32_t            glyph)
+{
+    HRESULT  hr    = S_OK;
+    float    right = left + sizePx;
+    float    below = top + sizePx;
+
+
+
+    hr = text.FillRect (left, top, sizePx, sizePx, checked ? checkedFill : emptyFill);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (!checked)
+    {
+        for (const auto & [x0, y0, x1, y1] : { std::array<float, 4> { left, top, right, top }, std::array<float, 4> { right, top, right, below },
+                                               std::array<float, 4> { right, below, left, below }, std::array<float, 4> { left, below, left, top } })
+        {
+            hr = text.DrawLine (x0, y0, x1, y1, onePx, outline);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+    else
+    {
+        hr = text.DrawString (s_kpszCheckMark, left, top, sizePx, sizePx, glyph, sizePx * 0.95f, L"Segoe UI Symbol",
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Hard-coded neutral palette for now. Slice C / P4 wires real theme

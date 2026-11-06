@@ -135,7 +135,8 @@ void DxuiListRows::PaintCheckBox (IDxuiPainter                     & painter,
                                   DxuiListViewTypes::Cell::Check     check,
                                   float                              left,
                                   float                              rowTop,
-                                  float                              rowH) const
+                                  float                              rowH,
+                                  bool                               overText) const
 {
     const IDxuiTheme &  theme   = *m_list.m_theme;
     float               sizePx  = m_list.m_scaler.ToPxf ((float) DxuiListView::s_kCheckBoxDip);
@@ -144,8 +145,16 @@ void DxuiListRows::PaintCheckBox (IDxuiPainter                     & painter,
 
 
 
-    DxuiCheckbox::PaintBox (painter, text, left, rowTop + (rowH - sizePx) * 0.5f, sizePx, m_list.m_scaler.ToPxf (1.0f),
-                            check != DxuiListViewTypes::Cell::Check::Off, theme.ButtonIdle(), outline, fill, DxuiTheme::GetContrastingText (fill));
+    if (overText)
+    {
+        DxuiCheckbox::PaintBoxOverText (text, left, rowTop + (rowH - sizePx) * 0.5f, sizePx, m_list.m_scaler.ToPxf (1.0f),
+                                        check != DxuiListViewTypes::Cell::Check::Off, theme.ButtonIdle(), outline, fill, DxuiTheme::GetContrastingText (fill));
+    }
+    else
+    {
+        DxuiCheckbox::PaintBox (painter, text, left, rowTop + (rowH - sizePx) * 0.5f, sizePx, m_list.m_scaler.ToPxf (1.0f),
+                                check != DxuiListViewTypes::Cell::Check::Off, theme.ButtonIdle(), outline, fill, DxuiTheme::GetContrastingText (fill));
+    }
 }
 
 
@@ -450,9 +459,13 @@ void DxuiListRows::Paint (
                 continue;
             }
 
-            if (cells[c].check != DxuiListViewTypes::Cell::Check::None)
+            if (m_list.HasCheckBoxSpace (cells[c], c))
             {
-                PaintCheckBox (painter, text, cells[c].check, x + colOff + (float) colXPx[c] + padL, ry, rowH);
+                if (cells[c].check != DxuiListViewTypes::Cell::Check::None)
+                {
+                    PaintCheckBox (painter, text, cells[c].check, x + colOff + (float) colXPx[c] + padL, ry, rowH);
+                }
+
                 padL += (float) m_list.GetCheckBoxSpanPx();
             }
 

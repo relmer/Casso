@@ -79,6 +79,20 @@ public:
                            uint32_t            checkedFill,
                            uint32_t            glyph);
 
+    //  The same box drawn with the text renderer alone, so it is drawn over
+    //  anything the renderer drew before it, such as an icon. Its corners
+    //  are square.
+    static void  PaintBoxOverText (IDxuiTextRenderer & text,
+                                   float               left,
+                                   float               top,
+                                   float               sizePx,
+                                   float               onePx,
+                                   bool                checked,
+                                   uint32_t            emptyFill,
+                                   uint32_t            outline,
+                                   uint32_t            checkedFill,
+                                   uint32_t            glyph);
+
     //
     //  IDxuiControl overrides — additive shims so DxuiCheckbox slots
     //  into DxuiPanel trees alongside the rest of the chrome.

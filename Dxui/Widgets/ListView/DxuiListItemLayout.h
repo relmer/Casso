@@ -108,6 +108,7 @@ public:
     int                              HitTestItem             (int xPx, int yPx) const;
     void                             EnsureItemVisible       (int item);
     int                              GetItemIconLeftPx       () const;
+    int                              GetCheckBoxRoomPx       () const;
     RECT                             GetItemLabelRectPx      (const RECT & cell) const;
     POINT                            GetItemScrollOffsetPx   () const;
 

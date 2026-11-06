@@ -297,7 +297,7 @@ void DxuiListColumns::MeasureColumnsPx (IDxuiTextRenderer & text) const
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 wpx = std::max (wpx, (int) std::ceil (w) + (row[c].icon ? m_list.m_scaler.ToPx (DxuiListView::s_kCellIconDip + s_kCellIconGapDip) : 0)
-                                     + ((row[c].check != DxuiListViewTypes::Cell::Check::None) ? m_list.GetCheckBoxSpanPx() : 0));
+                                     + (m_list.HasCheckBoxSpace (row[c], c) ? m_list.GetCheckBoxSpanPx() : 0));
             }
         }
 
@@ -582,7 +582,7 @@ int DxuiListColumns::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c
             IGNORE_RETURN_VALUE (hr, S_OK);
 
             wpx = (std::max) (wpx, (int) std::ceil (w) + ((cells[c].icon || (int) c == m_list.m_iconColumn) ? iconPx : 0)
-                                + ((cells[c].check != DxuiListViewTypes::Cell::Check::None) ? m_list.GetCheckBoxSpanPx() : 0));
+                                + (m_list.HasCheckBoxSpace (cells[c], c) ? m_list.GetCheckBoxSpanPx() : 0));
         }
     }
 
@@ -893,7 +893,7 @@ bool DxuiListColumns::GetCellTextRectPx (int row, size_t column, RECT & outRect)
 
     left = colXPx[column] + colOff + GetCellPadLeftPx (column);
 
-    if (column < m_list.GetRowCells (row).size() && m_list.GetRowCells (row)[column].check != DxuiListViewTypes::Cell::Check::None)
+    if (column < m_list.GetRowCells (row).size() && m_list.HasCheckBoxSpace (m_list.GetRowCells (row)[column], column))
     {
         left += m_list.GetCheckBoxSpanPx();
     }

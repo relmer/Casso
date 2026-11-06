@@ -57,17 +57,19 @@ public:
                  const std::vector<int>           & colXPx,
                  const std::vector<int>           & colWPx) const;
 
-private:
-    //  Extends the selection from the row the drag began on to the row under
-    //  the pointer.
-    void  DragSelectTo (int ly);
-
+    //  An item check box, centered in the height from rowTop, at left.
     void  PaintCheckBox (IDxuiPainter                     & painter,
                          IDxuiTextRenderer                & text,
                          DxuiListViewTypes::Cell::Check     check,
                          float                              left,
                          float                              rowTop,
-                         float                              rowH) const;
+                         float                              rowH,
+                         bool                               overText = false) const;
+
+private:
+    //  Extends the selection from the row the drag began on to the row under
+    //  the pointer.
+    void  DragSelectTo (int ly);
 
     DxuiListView  & m_list;
 

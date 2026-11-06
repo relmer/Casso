@@ -343,6 +343,24 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
             DxuiListIcons::PaintBrokenBadge (text, iconX, iconY, (float) iconPx, m_list.m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
         }
 
+        //  An item check box: left of the icon where the name is beside it,
+        //  and over the item's top left corner in Tiles and the big icon views,
+        //  as File Explorer draws them.
+        if (cells[0].check != DxuiListViewTypes::Cell::Check::None)
+        {
+            float  boxPx = m_list.m_scaler.ToPxf ((float) DxuiListView::s_kCheckBoxDip);
+            float  padPx = m_list.m_scaler.ToPxf ((float) DxuiListView::s_kItemPadDip);
+
+            if (m_list.m_items.GetCheckBoxRoomPx() > 0)
+            {
+                m_list.m_rows.PaintCheckBox (painter, text, cells[0].check, iconX - (float) m_list.m_items.GetCheckBoxRoomPx(), (float) cell.top, (float) (cell.bottom - cell.top));
+            }
+            else
+            {
+                m_list.m_rows.PaintCheckBox (painter, text, cells[0].check, (float) cell.left + padPx, (float) cell.top + padPx, boxPx, true);
+            }
+        }
+
         label = m_list.m_items.GetItemLabelRectPx (cell);
 
         //  Explorer's Content: the name with a line under it, then a middle
