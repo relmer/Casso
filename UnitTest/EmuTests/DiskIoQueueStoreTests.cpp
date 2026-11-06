@@ -492,6 +492,41 @@ public:
     }
 
 
+    //  Another program writes the disk's file after the flag's patch is
+    //  posted and before its work runs. The patch is not applied, so the other
+    //  program's file is as it wrote it, and its change is picked up as any
+    //  other change is.
+    TEST_METHOD (AWriteProtectPatchOfAFileAnotherProgramChangedIsNotApplied)
+    {
+        static constexpr const char *  kChanged = "Q:/casso-no-such-root/changed.woz";
+
+        auto                 store   = std::make_unique<DiskImageStore>();
+        DeferredDiskIoQueue  queue;
+        FakeDiskFileIo       io;
+        vector<Byte>         theirs  = MakeWoz (true);
+        HRESULT              patched = E_PENDING;
+
+
+
+        UseFileIo (*store, io);
+        io.SeedDurable (kChanged, MakeWoz());
+
+        AssertSucceeded (store->Mount (kSlot, kDrive, kChanged));
+        store->SetIoQueue (&queue);
+
+        store->SetImageWriteProtect (kSlot, kDrive, true, [&patched] (HRESULT hr) { patched = hr; });
+
+        io.files[kChanged]       = theirs;
+        io.mutateStampOnNextStat = true;
+        queue.RunAll();
+
+        Assert::IsTrue (FAILED (patched), L"the patch is not applied");
+        Assert::IsTrue (io.files[kChanged] == theirs, L"and the other program's file is as it wrote it");
+
+        store->SetIoQueue (nullptr);
+    }
+
+
     //  A settled change found while a save of the disk is in flight is checked
     //  after the save, against the identity after the save's commit, so
     //  Casso's write does not read as another program's.
@@ -566,6 +601,44 @@ public:
         Assert::AreEqual (1, writes, L"the save wrote once");
         Assert::IsTrue   (writer == queue.GetThreadId(), L"on the queue's thread");
         Assert::IsFalse  (store->GetImage (kSlot, kDrive)->IsDirty(), L"and the completion, drained here, marked the disk saved");
+
+        store->SetIoQueue (nullptr);
+    }
+
+
+    //  A save waited for inside another job's completion, as the conflict
+    //  path's copy is, on the threaded queue the shell uses: the wait ends
+    //  when the save's completion has run, with the save's result.
+    TEST_METHOD (AWaitInsideACompletionEndsWithItsOwnJob)
+    {
+        auto                                   store     = std::make_unique<DiskImageStore>();
+        ThreadedDiskIoQueue                    queue;
+        HRESULT                                hrInner   = E_PENDING;
+        HRESULT                                hr        = S_OK;
+        std::chrono::steady_clock::time_point  started;
+        std::chrono::milliseconds              elapsed   {};
+
+
+
+        store->SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store->MountFromBytes (kSlot, kDrive, kPath, DiskFormat::Woz, MakeWoz()));
+        store->GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        store->SetIoQueue (&queue);
+
+        queue.Post ([] {}, [&]
+        {
+            started = std::chrono::steady_clock::now();
+            hrInner = store->Flush (kSlot, kDrive);
+            elapsed = std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now() - started);
+        });
+
+        hr = queue.WaitUntilIdle (60000);
+
+        AssertSucceeded (hr, L"WaitUntilIdle");
+        AssertSucceeded (hrInner, L"the save inside the completion");
+        Assert::IsTrue  (elapsed.count() < 5000, L"without a wait for the timeout");
+        Assert::IsFalse (store->GetImage (kSlot, kDrive)->IsDirty(), L"and the disk is saved");
 
         store->SetIoQueue (nullptr);
     }

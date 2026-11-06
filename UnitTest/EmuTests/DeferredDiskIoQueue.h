@@ -52,6 +52,34 @@ public:
         return S_OK;
     }
 
+    //  As the threaded queue's: ready completions first, in posting order,
+    //  then the oldest posted work, until isDone returns true.
+    HRESULT  WaitUntil        (const std::function<bool ()> & isDone, DWORD timeoutMs) override
+    {
+        UNREFERENCED_PARAMETER (timeoutMs);
+
+        while (!isDone() && IsBusy())
+        {
+            if (!m_ready.empty())
+            {
+                Completion  completion = std::move (m_ready.front());
+
+                m_ready.pop_front();
+
+                if (completion)
+                {
+                    completion();
+                }
+            }
+            else
+            {
+                RunNextWork();
+            }
+        }
+
+        return isDone() ? S_OK : HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
+    }
+
     //  Runs the oldest posted work, and readies its completion. Returns
     //  whether there was work to run.
     bool     RunNextWork ()

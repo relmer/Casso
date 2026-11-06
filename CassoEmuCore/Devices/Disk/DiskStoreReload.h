@@ -132,6 +132,7 @@ private:
 
     //  ApplyPendingReloadToBay's file work and the decision after it.
     static void    RunReloadWork    (ReloadJob & job, const DiskFileOps & ops);
+    static bool    HasDisk          (const Entry & entry, uint64_t imageId);
     void           ApplyChangedFile (ReloadJob & job);
 
     DiskImageStore &  m_store;

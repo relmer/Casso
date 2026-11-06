@@ -358,6 +358,42 @@ public:
     }
 
 
+    //  The user picks chosen.dsk for the WOZ copy, and a chosen.woz is already
+    //  beside it. The copy does not replace that file, which the user never
+    //  picked, and goes to the first free recovery name instead.
+    TEST_METHOD (Eject_WozCopyBesideAnotherWoz_TakesAFreeName)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        AskRecorder     asks;
+        string          wozPath   = "Q:/casso-no-such-root/chosen.woz";
+        string          freePath  = "Q:/casso-no-such-root/chosen.recovered.woz";
+        vector<Byte>    other     = MakeWoz (true);
+
+
+
+        UseFileIo (store, io);
+        RecordAsks (store, asks);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+        io.SeedDurable (wozPath, other);
+        io.failWritesContaining = ".recovered";
+        io.nextWriteError       = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        store.Eject (kSlot, kDrive);
+        Assert::AreEqual (size_t (1), asks.prompts.size(), L"one question");
+
+        io.failWritesContaining.clear();
+        store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, "Q:/casso-no-such-root/chosen.dsk");
+
+        Assert::IsFalse (store.IsMounted (kSlot, kDrive), L"the answer finishes the eject");
+        Assert::IsTrue  (io.files[wozPath] == other, L"the other WOZ is as it was");
+        Assert::IsTrue  (io.files.contains (freePath), L"and the changes are at the free recovery name");
+    }
+
+
     //  The last save of the process offers the rescue for a disk whose file
     //  could not be written.
     TEST_METHOD (FlushAllForShutdown_Unwritable_OffersTheRescue)

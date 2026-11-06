@@ -35,6 +35,27 @@ void MountedImageState::Mount (const ImageIdentity & identity)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MountedImageState::ClearQuestion
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::ClearQuestion()
+{
+    m_pending           = PendingChange();
+    m_askOutstanding    = false;
+    m_askedAction       = ChangeAction::Ignore;
+    m_askedCause        = SaveFailureCause::ExternalChange;
+    m_ejectWhenAnswered = false;
+
+    ClearPreserved();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MountedImageState::Eject
 //
 //  Everything goes. Nothing recorded about a disk survives it leaving the

@@ -50,6 +50,26 @@ HRESULT InlineDiskIoQueue::WaitUntilIdle (DWORD timeoutMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InlineDiskIoQueue::WaitUntil
+//
+//  Every job has run by the time Post returns, so a job not done by now
+//  never will be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InlineDiskIoQueue::WaitUntil (const std::function<bool()> & isDone, DWORD timeoutMs)
+{
+    UNREFERENCED_PARAMETER (timeoutMs);
+
+    return isDone() ? S_OK : HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThreadedDiskIoQueue::ThreadedDiskIoQueue
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,36 +135,68 @@ void ThreadedDiskIoQueue::Post (Work work, Completion completion)
 //
 //  ThreadedDiskIoQueue::DrainCompletions
 //
-//  Takes the ready completions under the lock and runs them outside it, so
-//  a completion that posts again does not deadlock.
+//  Runs the ready completions one at a time, each taken under the lock and
+//  run outside it, so a completion that posts again does not deadlock, and a
+//  drain inside a completion runs the rest in posting order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThreadedDiskIoQueue::DrainCompletions()
 {
-    std::deque<Completion>  ready;
+    bool  isRun = true;
+
+
+
+    while (isRun)
+    {
+        isRun = RunOneCompletion();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThreadedDiskIoQueue::RunOneCompletion
+//
+//  Runs the oldest ready completion. Returns whether there was one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThreadedDiskIoQueue::RunOneCompletion()
+{
+    Completion  completion;
+    bool        isReady    = false;
 
 
 
     {
         std::lock_guard<std::mutex>  lock (m_lock);
 
-        ready.swap (m_completions);
+        isReady = !m_completions.empty();
+
+        if (isReady)
+        {
+            completion = std::move (m_completions.front());
+            m_completions.pop_front();
+        }
     }
 
-    for (Completion & completion : ready)
+    if (isReady)
     {
         if (completion)
         {
             completion();
         }
 
-        {
-            std::lock_guard<std::mutex>  lock (m_lock);
+        std::lock_guard<std::mutex>  lock (m_lock);
 
-            m_outstanding--;
-        }
+        m_outstanding--;
     }
+
+    return isReady;
 }
 
 
@@ -204,6 +256,52 @@ HRESULT ThreadedDiskIoQueue::WaitUntilIdle (DWORD timeoutMs)
         }
 
         BAIL_OUT_IF (isIdle, S_OK);
+        CBREx (isReady, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThreadedDiskIoQueue::WaitUntil
+//
+//  Runs completions one at a time as they arrive, and stops at the first
+//  one after which isDone returns true.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ThreadedDiskIoQueue::WaitUntil (const std::function<bool()> & isDone, DWORD timeoutMs)
+{
+    HRESULT                                hr       = S_OK;
+    std::chrono::steady_clock::time_point  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (timeoutMs);
+    bool                                   isRun    = true;
+    bool                                   isReady  = false;
+
+
+
+    for (;;)
+    {
+        isRun = true;
+
+        while (!isDone() && isRun)
+        {
+            isRun = RunOneCompletion();
+        }
+
+        BAIL_OUT_IF (isDone(), S_OK);
+
+        {
+            std::unique_lock<std::mutex>  lock (m_lock);
+
+            isReady = m_ready.wait_until (lock, deadline, [this] () { return !m_completions.empty(); });
+        }
+
         CBREx (isReady, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
     }
 

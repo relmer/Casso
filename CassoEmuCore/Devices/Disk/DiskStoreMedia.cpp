@@ -222,6 +222,11 @@ void DiskStoreMedia::RetireBay (Entry & entry)
         kept.sharedState    = entry.sharedState;
         kept.retiredAt      = entry.isOutOfDrive ? entry.outOfDriveAt : GetPosition();
 
+        //  Put back by reverse execution, the disk has no dialog up for it,
+        //  so no question goes with it, and no name its next copy would
+        //  replace.
+        kept.sharedState.ClearQuestion();
+
         m_retained.push_back (std::move (kept));
     }
 

@@ -155,6 +155,10 @@ public:
     //  A copy under this name is no longer this bay's concern.
     void  ClearPreserved ();
 
+    //  The pending change, the question about it and the copy's name are
+    //  cleared, for a retained disk out of its bay with no dialog up for it.
+    void  ClearQuestion ();
+
     //  The recovery copy this mount wrote for writes its format cannot store,
     //  and what it was written from: the image, its track generations, and the
     //  copy file's identity once written.

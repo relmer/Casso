@@ -61,6 +61,11 @@ public:
     //  whose sink captures every write.
     HRESULT        WriteNewRecoveryImage (const std::string & imagePath, const std::vector<Byte> & wozBytes, bool isNameFixed, std::string & outPath) const;
 
+    //  A WOZ copy at the path the user chose with its extension changed to
+    //  .woz. Only the chosen file itself is replaced: when another file is at
+    //  the .woz name, the copy takes the first free recovery name instead.
+    HRESULT        CommitWozCopy (const std::string & chosen, const std::vector<Byte> & wozBytes, std::string & outPath) const;
+
     //  Whether the host file can be written back to: its read-only attribute,
     //  or, when that is clear, a denied or locked read-write open. A missing
     //  or empty path is writable -- there is nothing to protect.

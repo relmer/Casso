@@ -42,4 +42,11 @@ public:
     //  Drains until no posted job's completion is left to run, and returns
     //  ERROR_TIMEOUT when timeoutMs passes first.
     virtual HRESULT   WaitUntilIdle    (DWORD timeoutMs) = 0;
+
+    //  Drains, in posting order, until isDone returns true, and returns
+    //  ERROR_TIMEOUT when timeoutMs passes first. For a wait for one job,
+    //  which can start inside another job's completion: the completion that
+    //  is running counts as outstanding until it returns, so the queue is
+    //  never idle inside it.
+    virtual HRESULT   WaitUntil        (const std::function<bool ()> & isDone, DWORD timeoutMs) = 0;
 };

@@ -25,6 +25,7 @@ public:
     void     DrainCompletions () override {}
     bool     IsBusy           () const override { return false; }
     HRESULT  WaitUntilIdle    (DWORD timeoutMs) override;
+    HRESULT  WaitUntil        (const std::function<bool ()> & isDone, DWORD timeoutMs) override;
 };
 
 
@@ -61,6 +62,7 @@ public:
     void     DrainCompletions () override;
     bool     IsBusy           () const override;
     HRESULT  WaitUntilIdle    (DWORD timeoutMs) override;
+    HRESULT  WaitUntil        (const std::function<bool ()> & isDone, DWORD timeoutMs) override;
 
     //  The I/O thread's id, for a test that checks where work ran.
     std::thread::id  GetThreadId () const { return m_thread.get_id(); }
@@ -72,7 +74,8 @@ private:
         Completion  completion;
     };
 
-    void  Run ();
+    void  Run               ();
+    bool  RunOneCompletion  ();
 
     mutable std::mutex       m_lock;
     std::condition_variable  m_wake;

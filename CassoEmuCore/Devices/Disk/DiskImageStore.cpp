@@ -655,6 +655,11 @@ Error:
 //  one made outside Casso. Saves of the disk start only after that, so a save
 //  compares the file with the identity after the patch.
 //
+//  A FILE ANOTHER PROGRAM CHANGED IS NOT PATCHED. The job compares the file
+//  with the bay's identity first, as a save does; patching it would write
+//  over the change with the flag set, and moving the identity to the patched
+//  file would hide the change from the reload, which picks it up instead.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::PatchWriteProtectFlag (int slot, int drive, uint64_t imageId, const string & path,
@@ -662,7 +667,9 @@ void DiskImageStore::PatchWriteProtectFlag (int slot, int drive, uint64_t imageI
 {
     struct PatchJob
     {
-        HRESULT        hr = S_OK;
+        HRESULT        hr        = S_OK;
+        bool           isChanged = false;
+        ImageIdentity  recorded;
         ImageIdentity  after;
     };
 
@@ -671,13 +678,24 @@ void DiskImageStore::PatchWriteProtectFlag (int slot, int drive, uint64_t imageI
 
 
 
+    if (GetEntry (slot, drive).mounted && GetEntry (slot, drive).image != nullptr && GetEntry (slot, drive).image->GetImageId() == imageId)
+    {
+        job->recorded = GetEntry (slot, drive).sharedState.GetIdentity();
+    }
+
     m_ioQueue->Post ([job, ops, path, writeProtected]
     {
         vector<Byte>  bytes;
 
 
 
-        job->hr = ops.Read (path, bytes);
+        job->isChanged = job->recorded.recorded && !job->recorded.Matches (ops.ReadIdentity (path));
+        job->hr        = job->isChanged ? E_CHANGED_STATE : S_OK;
+
+        if (SUCCEEDED (job->hr))
+        {
+            job->hr = ops.Read (path, bytes);
+        }
 
         if (SUCCEEDED (job->hr))
         {
@@ -701,11 +719,11 @@ void DiskImageStore::PatchWriteProtectFlag (int slot, int drive, uint64_t imageI
 
 
 
-        if (FAILED (job->hr))
+        if (FAILED (job->hr) && !job->isChanged)
         {
             EhmNotifyUser (DiskStoreText::FormatFlushLossMessage (path, job->hr).c_str());
         }
-        else if (isSame)
+        else if (SUCCEEDED (job->hr) && isSame)
         {
             entry.image->SetImageWriteProtected (writeProtected);
             MarkStatusChanged();
@@ -1913,7 +1931,7 @@ HRESULT DiskImageStore::WaitForIo (const bool & isDone)
 
     if (!isDone)
     {
-        hr = m_ioQueue->WaitUntilIdle (s_kSyncIoTimeoutMs);
+        hr = m_ioQueue->WaitUntil ([&isDone] () { return isDone; }, s_kSyncIoTimeoutMs);
         CHR (hr);
     }
 

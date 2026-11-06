@@ -163,6 +163,52 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskFileOps::CommitWozCopy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskFileOps::CommitWozCopy (const std::string & chosen, const std::vector<Byte> & wozBytes, std::string & outPath) const
+{
+    HRESULT  hr      = S_OK;
+    bool     isTaken = false;
+
+
+
+    outPath = fs::path (chosen).replace_extension (".woz").string();
+
+    if (DiskImageStore::IsSameFile (outPath, chosen))
+    {
+        hr = Commit (outPath, wozBytes, CommitMode::Replace);
+        CHR (hr);
+    }
+    else
+    {
+        isTaken = Exists (outPath);
+
+        if (!isTaken)
+        {
+            hr      = Commit (outPath, wozBytes, CommitMode::CreateNew);
+            isTaken = hr == HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS) || hr == HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS);
+        }
+
+        if (isTaken)
+        {
+            hr = WriteNewRecoveryImage (chosen, wozBytes, false, outPath);
+        }
+
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskFileOps::WriteNewRecoveryImage
 //
 ////////////////////////////////////////////////////////////////////////////////

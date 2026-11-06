@@ -246,7 +246,8 @@ bool DiskStoreSave::AskBeforeEject (Entry & entry, const FlushOutcome & outcome)
 //
 //  The bay's image, as WOZ, at the path the user chose with its extension
 //  changed to .woz. A sector format cannot store what the guest wrote, so a
-//  file with that format's extension would misstate its contents.
+//  file with that format's extension would misstate its contents. Another
+//  file at the .woz name is not replaced; see DiskFileOps::CommitWozCopy.
 //
 //  IT BECOMES THE RECOVERY COPY, marked as reported, because the user chose
 //  where it went. The bay stays on its file, and at a later save that cannot
@@ -266,7 +267,7 @@ HRESULT DiskStoreSave::WriteWozCopy (Entry & entry, const string & path, string 
     hr = WozLoader::Serialize (*entry.image, wozBytes);
     CHR (hr);
 
-    hr = CommitFile (outPath, wozBytes, CommitMode::Replace);
+    hr = m_store.GetFileOps().CommitWozCopy (path, wozBytes, outPath);
     CHR (hr);
 
     entry.sharedState.SetRecovery (outPath, entry.image->GetImageId(), entry.image->GetTrackGenerations(), m_store.ReadIdentity (outPath));
@@ -333,9 +334,10 @@ void DiskStoreSave::SaveAnswerCopy (Entry & entry, const string & savePath, bool
     }
     else
     {
-        m_store.m_ioQueue->Post ([job, ops]
+        m_store.m_ioQueue->Post ([job, ops, savePath]
         {
-            job->hr = ops.Commit (job->outPath, job->bytes, CommitMode::Replace);
+            job->hr = job->isWoz ? ops.CommitWozCopy (savePath, job->bytes, job->outPath)
+                                 : ops.Commit (job->outPath, job->bytes, CommitMode::Replace);
 
             if (SUCCEEDED (job->hr))
             {
@@ -1304,7 +1306,7 @@ HRESULT DiskStoreSave::WaitForIo (const IoWait & wait)
 
     if (!wait.isDone)
     {
-        hr = m_store.m_ioQueue->WaitUntilIdle (s_kSyncIoTimeoutMs);
+        hr = m_store.m_ioQueue->WaitUntil ([&wait] () { return wait.isDone; }, s_kSyncIoTimeoutMs);
         CHR (hr);
     }
 

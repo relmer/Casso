@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FakeImageWatcher.h"
+#include "DeferredDiskIoQueue.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -1662,6 +1663,130 @@ public:
                         L"and the bay is on the file the user was promised");
     }
 
+
+
+    //  The guest has written to the disk and another program has changed its
+    //  file, so the reload is a conflict, and the copy of the guest's version
+    //  runs other completions while it is written. An eject posted after the
+    //  reload empties the bay, and every question raised is about the disk's
+    //  file, never about an empty bay.
+    TEST_METHOD (AnEjectDuringAConflictsCopyEmptiesTheBayAndNoQuestionIsAboutAnEmptyBay)
+    {
+        auto                 rig      = std::make_unique<Rig>();
+        DeferredDiskIoQueue  queue;
+        DiskImage          * image    = nullptr;
+        bool                 ejected  = false;
+
+
+
+        rig->WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+        rig->store.SetIoQueue (&queue);
+
+        image = rig->store.GetImage (kSlot, kDrive);
+        image->WriteBit (0, 0, (uint8_t) (image->ReadBit (0, 0) ^ 1));
+
+        rig->WriteImage (kImagePath, 0x22);
+        rig->FireAndSettle (kImagePath);
+        rig->store.Eject (kSlot, kDrive, [&ejected] (bool isEjected) { ejected = isEjected; });
+        queue.RunAll();
+
+        Assert::IsTrue  (ejected, L"the eject empties the bay");
+        Assert::IsFalse (rig->store.IsMounted (kSlot, kDrive), L"the bay is empty");
+
+        for (const ChangePrompt & question : rig->questions)
+        {
+            Assert::IsTrue (question.message.find (L"Loader.dsk") != std::wstring::npos, L"each question is about the disk's file");
+        }
+
+        rig->store.SetIoQueue (nullptr);
+    }
+
+
+    //  A KeepHeld answer writes the disk's copy, and other completions run
+    //  while it is written. A mount of another disk posted after the answer
+    //  puts that disk in the drive then, and the new disk is not moved onto
+    //  the copy.
+    TEST_METHOD (AMountCompletedInsideAKeepAnswersCopyIsOnItsOwnFile)
+    {
+        static constexpr const char *  kOther = "C:\\work\\Other.dsk";
+
+        auto                 rig     = std::make_unique<Rig>();
+        DeferredDiskIoQueue  queue;
+        HRESULT              mounted = E_PENDING;
+
+
+
+        rig->WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+
+        rig->WriteImage (kImagePath, 0x22);
+        rig->FireAndSettle (kImagePath);
+        Assert::AreEqual ((size_t) 1, rig->questions.size(), L"an unexplained change is a question");
+
+        rig->WriteImage (kOther, 0x33);
+        rig->store.SetIoQueue (&queue);
+
+        rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+        rig->store.Mount (kSlot, kDrive, kOther, [&mounted] (HRESULT hr, const MountDiagnosis &) { mounted = hr; });
+        queue.RunAll();
+
+        AssertSucceeded  (mounted, L"the other disk is mounted");
+        Assert::AreEqual (std::string (kOther), rig->store.GetSourcePath (kSlot, kDrive), L"on the file it was mounted from");
+
+        rig->store.SetIoQueue (nullptr);
+    }
+
+
+    //  A KeepHeld answer whose copy cannot be written puts a question. When
+    //  the shell could not put it on screen, the bay has no question
+    //  outstanding, so the next change to the file is acted on.
+    TEST_METHOD (AQuestionNotDeliveredAfterAFailedKeepIsNotOutstanding)
+    {
+        auto  rig = std::make_unique<Rig>();
+
+
+
+        rig->WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+
+        rig->WriteImage (kImagePath, 0x22);
+        rig->FireAndSettle (kImagePath);
+
+        rig->refusePreserve  = true;
+        rig->askSinkDelivers = false;
+        rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::KeepHeld);
+
+        Assert::IsFalse (rig->store.GetSharedState (kSlot, kDrive)->IsAskOutstanding(), L"no question is outstanding");
+    }
+
+
+    //  A disk ejected while a question about it is on screen is retained for
+    //  reverse execution. Put back in the drive, it has no question
+    //  outstanding, since no dialog is up for it.
+    TEST_METHOD (ARetainedDiskPutBackHasNoQuestionOutstanding)
+    {
+        auto      rig     = std::make_unique<Rig>();
+        uint64_t  mediaId = 0;
+        bool      changed = false;
+
+
+
+        rig->store.SetMediaRetention (true);
+        rig->WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+        mediaId = rig->store.GetImage (kSlot, kDrive)->GetImageId();
+
+        rig->WriteImage (kImagePath, 0x22);
+        rig->FireAndSettle (kImagePath);
+        Assert::IsTrue (rig->store.GetSharedState (kSlot, kDrive)->IsAskOutstanding(), L"the question is up");
+
+        rig->store.Eject (kSlot, kDrive);
+        AssertSucceeded (rig->store.SeatMedia (kSlot, kDrive, mediaId, changed), L"SeatMedia");
+
+        Assert::IsTrue  (changed, L"the disk is back in the bay");
+        Assert::IsFalse (rig->store.GetSharedState (kSlot, kDrive)->IsAskOutstanding(), L"with no question outstanding");
+    }
 
 
     //  THE ONE SIGNAL EVERY PATH FIRES. The shell turns a bay change into the

@@ -265,6 +265,23 @@ void DiskStoreReload::RunReloadWork (ReloadJob & job, const DiskFileOps & ops)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskStoreReload::HasDisk
+//
+//  Whether the bay has the disk with imageId.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskStoreReload::HasDisk (const Entry & entry, uint64_t imageId)
+{
+    return entry.mounted && entry.image != nullptr && entry.image->GetImageId() == imageId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskStoreReload::ApplyChangedFile
 //
 //  The decision, after the file work. A CHANGE THAT TURNS OUT NOT TO BE ONE IS
@@ -486,19 +503,30 @@ bool DiskStoreReload::IsLoadable (const string & path, const vector<Byte> & byte
 //
 //  Writes the guest's version to a separate file, so the change that
 //  follows is no longer a conflict. False when the copy could not be written,
-//  after the failure has been dealt with.
+//  after the failure has been dealt with, and when another disk, or none, is
+//  in the bay after the copy.
+//
+//  THE COPY'S WAIT RUNS OTHER COMPLETIONS, and an eject or a mount among
+//  them can empty the bay or put another disk in it. Nothing after the wait
+//  applies to that disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskStoreReload::PreserveGuestCopyForConflict (int slot, int drive, Entry & entry, string & outSavePath)
 {
-    HRESULT  hr = S_OK;
+    HRESULT   hr      = S_OK;
+    uint64_t  imageId = entry.image->GetImageId();
 
 
 
     outSavePath = entry.sharedState.GetPreservedPath();
 
     hr = m_store.m_save.SaveLoadedImage (entry, outSavePath);
+
+    if (!HasDisk (entry, imageId))
+    {
+        return false;
+    }
 
     entry.sharedState.SetPreservedPath (outSavePath);
 
@@ -1020,17 +1048,18 @@ void DiskStoreReload::CarryOutChangeAction (int slot, int drive, ChangeAction ac
                                            const vector<Byte> & bytes, ChangeAuthor author,
                                            const ImageIdentity & identity)
 {
-    HRESULT  hr           = S_OK;
-    Entry &  entry        = m_store.GetEntry (slot, drive);
-    bool     restarted    = false;
-    bool     tookUp       = false;
-    bool     preserved    = false;
-    bool     preserveFail = false;
-    string   preservedPath;
+    HRESULT   hr           = S_OK;
+    Entry &   entry        = m_store.GetEntry (slot, drive);
+    uint64_t  imageId      = (entry.image != nullptr) ? entry.image->GetImageId() : 0;
+    bool      restarted    = false;
+    bool      tookUp       = false;
+    bool      preserved    = false;
+    bool      preserveFail = false;
+    string    preservedPath;
     //  KEEPING MOVES THE BAY ONTO THE COPY, so entry.path is no longer the file
     //  any of these messages are about by the time they are composed. Captured
     //  before anything can move it.
-    string   original     = entry.path;
+    string    original     = entry.path;
 
 
 
@@ -1073,6 +1102,14 @@ void DiskStoreReload::CarryOutChangeAction (int slot, int drive, ChangeAction ac
         if (!entry.sharedState.IsPreservedWritten())
         {
             hr = m_store.m_save.SaveLoadedImage (entry, preservedPath);
+
+            //  The copy's wait runs other completions, as in
+            //  PreserveGuestCopyForConflict. A disk mounted among them is a
+            //  different disk, and is not moved onto the copy.
+            if (!HasDisk (entry, imageId))
+            {
+                return;
+            }
 
             entry.sharedState.SetPreservedPath (preservedPath);
 
@@ -1147,12 +1184,12 @@ void DiskStoreReload::CarryOutChangeAction (int slot, int drive, ChangeAction ac
     {
         if (m_store.m_askSink && !entry.sharedState.IsAskOutstanding())
         {
-            entry.sharedState.SetAskOutstanding (true);
             entry.sharedState.SetAskedAction (ChangeAction::Conflict);
 
-            m_store.m_askSink (slot, drive,
-                       ChangePrompt::ComposeSaveFailure (original, drive, preservedPath, hr,
-                                                         SaveFailureCause::ExternalChange));
+            entry.sharedState.SetAskOutstanding (
+                m_store.m_askSink (slot, drive,
+                           ChangePrompt::ComposeSaveFailure (original, drive, preservedPath, hr,
+                                                             SaveFailureCause::ExternalChange)));
         }
 
         return;
