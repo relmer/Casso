@@ -683,6 +683,18 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
         outDisk.check = (m_manifest.HasFingerprint (outDisk.fingerprint) || m_changed.contains (outDisk.fingerprint)) ? DiskCheck::Repeat : DiskCheck::New;
     }
 
+    //  A repeat is a duplicate once while it stays in its drive, however many
+    //  times the drive is checked.
+    if (outDisk.check == DiskCheck::Repeat && m_counted[(size_t) drive - 1] != outDisk.fingerprint)
+    {
+        m_counted[(size_t) drive - 1] = outDisk.fingerprint;
+        m_screen.duplicates++;
+    }
+    else if (outDisk.check != DiskCheck::Repeat)
+    {
+        m_counted[(size_t) drive - 1].clear();
+    }
+
     if (outDisk.check == DiskCheck::Repeat)
     {
         m_repeats[(size_t) drive - 1] = true;

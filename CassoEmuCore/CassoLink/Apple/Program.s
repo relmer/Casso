@@ -4069,7 +4069,6 @@ logrowhi: .byte $07, $04, $04, $05, $05, $06, $06, $07
 ; ---------------------------------------------------------------------------
 
 FSPROMPT = 0                    ; the first of Wait for key's lines, by its index in logrowlo
-FSPROMPTS = 8                   ; every row of the history, so the longest prompt is cleared
 FSROWS   = 7                    ; Session screen's rows
 FSTONE   = 1                    ; its tone, in PKTBUF
 FSTEXT   = 2                    ; and the start of its rows' text
@@ -4094,12 +4093,15 @@ keyend:
 ; dowaitkey: a Full Send's pause. The motor is off and a key pressed during the
 ; transfer is dropped, so Space means the disks in the drives now. The request's
 ; first byte is nonzero while a line is typed, and every key is sent; the lines
-; follow it.
+; follow it. The prompt is drawn on the history's rows, which are saved in KHIST
+; first and drawn again once a key is sent.
 dowaitkey: jsr motoroff
         lda #OPDISK
         sta op
         jsr showop
         sta $C010
+        lda #0
+        jsr khcopy
         lda PKTBUF
         sta wkany
         lda #1
@@ -4162,10 +4164,8 @@ wkhost: jsr pollcancel
         endif
         jmp wksec
 wkkey:  jsr sendkey
-        ldx #FSPROMPT+FSPROMPTS-1
-wkclear: jsr fsrow
-        dex
-        bpl wkclear
+        lda #1
+        jsr khcopy
         jmp main
 
 wkany:  .byte 0                 ; nonzero while a line is typed
