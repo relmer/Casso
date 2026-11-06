@@ -109,6 +109,8 @@ public:
     void                             EnsureItemVisible       (int item);
     int                              GetItemIconLeftPx       () const;
     int                              GetCheckBoxRoomPx       () const;
+    RECT                             GetItemCheckBoxRectPx   (const RECT & cell) const;
+    bool                             IsOnItemCheckBox        (int item, int xPx, int yPx) const;
     RECT                             GetItemLabelRectPx      (const RECT & cell) const;
     POINT                            GetItemScrollOffsetPx   () const;
 
@@ -167,6 +169,11 @@ public:
     static constexpr float  s_kTileTextGapDip    = 5.33f;
     static constexpr float  s_kTilePadDip        = 14.0f;
     static constexpr int    s_kTilePadTrimPx     = 6;
+
+    //  How far File Explorer's item check box moves the icon in Content and
+    //  Tiles, measured at 150%.
+    static constexpr float  s_kExplorerContentBoxRoomDip = 26.0f;
+    static constexpr float  s_kExplorerTileBoxRoomDip    = 21.33f;
     int           GetSmallRowPx           () const;
     int           GetItemLinesHPx         (const DxuiListViewTypes::ItemGrid & grid, int rows) const;
     static int    GetFirstItemLine        (const DxuiListViewTypes::ItemLayout & layout);

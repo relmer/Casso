@@ -100,6 +100,7 @@ void ExplorerListPane::Configure()
     m_list->SetShowHeader (true);
     m_list->SetIconColumn (0);
     m_list->SetExplorerDetails (true);
+    m_list->SetExplorerCheckBoxes (true);
     ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kProse);
     m_list->SetRowHeightPxFn (m_context.explorerOptions.compactView ? &ExplorerLayout::GetCompactRowPx : &ExplorerLayout::GetListRowHeightPx);
     m_columns.LoadPropertyColumns();

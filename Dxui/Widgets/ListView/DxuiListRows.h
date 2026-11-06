@@ -71,6 +71,9 @@ private:
     //  the pointer.
     void  DragSelectTo (int ly);
 
+    //  Where a column's check box starts in its cell.
+    float GetCheckBoxLeftPx (size_t column, float padL) const;
+
     DxuiListView  & m_list;
 
     bool     m_activateOnDoubleClick = false;

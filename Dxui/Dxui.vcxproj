@@ -176,6 +176,7 @@
     <ClCompile Include="Theme\DxuiDwm.cpp" />
     <ClCompile Include="Theme\DxuiMenuMetrics.cpp" />
     <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
+    <ClCompile Include="Theme\DxuiVisualStyleCheckBox.cpp" />
     <ClCompile Include="Widgets\DxuiButton.cpp" />
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
     <ClCompile Include="Widgets\DxuiCalendar.cpp" />
@@ -303,6 +304,7 @@
     <ClInclude Include="Theme\DxuiDwm.h" />
     <ClInclude Include="Theme\DxuiMenuMetrics.h" />
     <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
+    <ClInclude Include="Theme\DxuiVisualStyleCheckBox.h" />
     <ClInclude Include="Theme\DxuiColor.h" />
     <ClInclude Include="Theme\DxuiTheme.h" />
     <ClInclude Include="Theme\DxuiRowLook.h" />

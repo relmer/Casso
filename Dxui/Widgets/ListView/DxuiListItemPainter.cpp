@@ -346,7 +346,16 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
         //  An item check box: left of the icon where the name is beside it,
         //  and over the item's top left corner in Tiles and the big icon views,
         //  as File Explorer draws them.
-        if (cells[0].check != DxuiListViewTypes::Cell::Check::None)
+        //  File Explorer's sits at the item's left edge, centered in its height
+        //  where the name is beside the icon, and at its top left corner in the
+        //  big icon views.
+        if (cells[0].check != DxuiListViewTypes::Cell::Check::None && m_list.m_explorerCheckBoxes)
+        {
+            RECT  box = m_list.m_items.GetItemCheckBoxRectPx (cell);
+
+            m_list.m_rows.PaintCheckBox (painter, text, cells[0].check, (float) box.left, (float) box.top, (float) (box.bottom - box.top), true);
+        }
+        else if (cells[0].check != DxuiListViewTypes::Cell::Check::None)
         {
             float  boxPx = m_list.m_scaler.ToPxf ((float) DxuiListView::s_kCheckBoxDip);
             float  padPx = m_list.m_scaler.ToPxf ((float) DxuiListView::s_kItemPadDip);

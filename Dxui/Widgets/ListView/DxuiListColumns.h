@@ -57,9 +57,10 @@ public:
     int   GetContentWidthPx        () const;
 
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const;
-    static constexpr float  s_kExplorerIconPadDip    = 4.67f;    // the name's icon, into its column
-    static constexpr float  s_kExplorerCellPadDip    = 6.67f;    // every other column's text
-    static constexpr float  s_kExplorerNameTitleDip  = 16.67f;   // the name column's title
+    static constexpr float  s_kExplorerIconPadDip       = 4.67f;    // the name's icon, into its column
+    static constexpr float  s_kExplorerCellPadDip       = 6.67f;    // every other column's text
+    static constexpr float  s_kExplorerNameTitleDip     = 16.67f;   // the name column's title
+    static constexpr float  s_kExplorerSelectAllRoomDip = 17.33f;   // how far the header's select-all box moves that title
     int   GetCellPadLeftPx    (size_t column) const;
     int   GetHeaderTitlePadPx (size_t column) const;
     static constexpr int    s_kCellPadLeftDip        = 12;

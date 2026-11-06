@@ -198,13 +198,15 @@ void DxuiListHeader::PaintHeader (
     const std::vector<int> & colXPx,
     const std::vector<int> & colWPx) const
 {
-    HRESULT  hr        = S_OK;
-    float    headerH   = (float) m_list.GetHeaderBarPx();
-    float    cellPadR  = (float) m_list.m_scaler.ToPx (DxuiListView::s_kCellPadRightDip);
-    float    hdrFontPx = (float) m_list.m_scaler.ToPxf (m_list.m_fontDip);
-    float    colOff    = m_list.m_hScrollEnabled ? -(float) m_list.m_leftPx : 0.0f;
+    HRESULT  hr          = S_OK;
+    float    headerH     = (float) m_list.GetHeaderBarPx();
+    float    cellPadR    = (float) m_list.m_scaler.ToPx (DxuiListView::s_kCellPadRightDip);
+    float    hdrFontPx   = (float) m_list.m_scaler.ToPxf (m_list.m_fontDip);
+    float    colOff      = m_list.m_hScrollEnabled ? -(float) m_list.m_leftPx : 0.0f;
     //  Explorer sets its titles and dividers in a band shorter than the bar.
-    float    titleH    = m_list.m_explorerDetails ? (std::min) (headerH, m_list.m_scaler.ToPxf (s_kExplorerTitleBandDip)) : headerH;
+    float    titleH      = m_list.m_explorerDetails ? (std::min) (headerH, m_list.m_scaler.ToPxf (s_kExplorerTitleBandDip)) : headerH;
+    int      rowCount    = m_list.GetRowCount();
+    bool     allSelected = rowCount > 0 && (int) m_list.m_selectedRows.size() == rowCount;
 
 
 
@@ -271,6 +273,14 @@ void DxuiListHeader::PaintHeader (
                               DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if ((int) c == m_list.m_iconColumn && HasSelectAllBox())
+        {
+            RECT  box = GetSelectAllBoxPx (colXPx[c]);
+
+            m_list.m_rows.PaintCheckBox (painter, text, allSelected ? DxuiListViewTypes::Cell::Check::On : DxuiListViewTypes::Cell::Check::Off,
+                                         x + colOff + shift + (float) box.left, y + (float) box.top, (float) (box.bottom - box.top), true);
+        }
 
         //  File Explorer's filter button, at the cell's right end while the
         //  header is hovered, and always while the column is filtered: a
@@ -347,6 +357,98 @@ void DxuiListHeader::PaintHeader (
         }
     }
 
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasSelectAllBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::HasSelectAllBox() const
+{
+    return m_list.m_explorerCheckBoxes && m_list.m_itemCheckBoxes && m_list.m_explorerDetails && m_list.m_multiSelect
+           && m_list.m_iconColumn >= 0 && (size_t) m_list.m_iconColumn < m_list.m_columns.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSelectAllBoxPx
+//
+//  The box Explorer puts ahead of the name column's title, centered in the
+//  title band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiListHeader::GetSelectAllBoxPx (int colLeftPx) const
+{
+    int    boxPx  = m_list.GetCheckBoxPx();
+    float  titleH = (std::min) ((float) m_list.GetHeaderBarPx(), m_list.m_scaler.ToPxf (s_kExplorerTitleBandDip));
+    int    left   = colLeftPx + (int) std::lround (m_list.m_scaler.ToPxf (s_kExplorerSelectAllLeftDip));
+    int    top    = (int) std::floor ((titleH - (float) boxPx) * 0.5f);
+
+
+
+    return RECT { left, top, left + boxPx, top + boxPx };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSelectAllPress
+//
+//  A press on the header's box selects every row, or none when every row is
+//  selected already, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnSelectAllPress (int lx, int ly)
+{
+    int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
+    bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
+    int               fullW   = (m_list.m_boundsDip.right - m_list.m_boundsDip.left) - (needBar ? m_list.GetScrollbarWidthPx() : 0);
+    int               xAdj    = m_list.m_hScrollEnabled ? (lx + m_list.m_leftPx) : lx;
+    int               count   = m_list.GetRowCount();
+    RECT              box     = {};
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (!HasSelectAllBox() || !m_list.m_showHeader)
+    {
+        return false;
+    }
+
+    m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
+    box = GetSelectAllBoxPx (colXPx[(size_t) m_list.m_iconColumn]);
+
+    if (xAdj < box.left || xAdj >= box.right || ly < box.top || ly >= box.bottom)
+    {
+        return false;
+    }
+
+    if (count > 0 && (int) m_list.m_selectedRows.size() == count)
+    {
+        m_list.ClearSelection();
+    }
+    else
+    {
+        m_list.SelectAllRows();
+    }
+
+    return true;
 }
 
 
@@ -740,6 +842,11 @@ bool DxuiListHeader::OnPress (int lx, int ly)
             m_onFilter (filter, chevron);
             return true;
         }
+    }
+
+    if (OnSelectAllPress (lx, ly))
+    {
+        return true;
     }
 
     headerCol = HitTestHeaderColumn (lx, ly);

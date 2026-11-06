@@ -1719,7 +1719,7 @@ int DxuiListItemLayout::GetItemIconLeftPx() const
 
     if (m_list.m_view == DxuiListViewTypes::View::Tiles)
     {
-        return (int) std::lround (m_list.m_scaler.ToPxf (s_kTileIconLeftDip));
+        return (int) std::lround (m_list.m_scaler.ToPxf (s_kTileIconLeftDip)) + GetCheckBoxRoomPx();
     }
 
     return (m_list.m_view == DxuiListViewTypes::View::Content) ? (int) std::lround (m_list.m_scaler.ToPxf (s_kContentIconLeftDip)) + GetCheckBoxRoomPx() : m_list.m_scaler.ToPx (DxuiListView::s_kItemPadDip);
@@ -1734,17 +1734,91 @@ int DxuiListItemLayout::GetItemIconLeftPx() const
 //  DxuiListItemLayout::GetCheckBoxRoomPx
 //
 //  The room left of the icon for an item check box in the views with the
-//  name beside the icon, or 0 with item check boxes off.
+//  name beside the icon, or 0 with item check boxes off. In File Explorer's
+//  Content and Tiles the room is wider than the box, and in Tiles the icon
+//  moves right instead of sitting under the box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiListItemLayout::GetCheckBoxRoomPx() const
 {
-    bool  beside = m_list.m_view == DxuiListViewTypes::View::SmallIcons || m_list.m_view == DxuiListViewTypes::View::List || m_list.m_view == DxuiListViewTypes::View::Content;
+    bool  beside   = m_list.m_view == DxuiListViewTypes::View::SmallIcons || m_list.m_view == DxuiListViewTypes::View::List || m_list.m_view == DxuiListViewTypes::View::Content;
+    bool  explorer = m_list.m_explorerCheckBoxes;
 
 
 
-    return (m_list.m_itemCheckBoxes && beside) ? m_list.GetCheckBoxSpanPx() : 0;
+    if (!m_list.m_itemCheckBoxes)
+    {
+        return 0;
+    }
+
+    if (explorer && m_list.m_view == DxuiListViewTypes::View::Content)
+    {
+        return (int) std::lround (m_list.m_scaler.ToPxf (s_kExplorerContentBoxRoomDip));
+    }
+
+    if (explorer && m_list.m_view == DxuiListViewTypes::View::Tiles)
+    {
+        return (int) std::lround (m_list.m_scaler.ToPxf (s_kExplorerTileBoxRoomDip));
+    }
+
+    return beside ? m_list.GetCheckBoxSpanPx() : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemLayout::GetItemCheckBoxRectPx
+//
+//  File Explorer's item check box in an item's cell: at the cell's left edge,
+//  at its top in the big icon views and centered in its height elsewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiListItemLayout::GetItemCheckBoxRectPx (const RECT & cell) const
+{
+    int  boxPx = m_list.GetCheckBoxPx();
+    int  left  = cell.left + m_list.GetCheckBoxLeftPx();
+    int  top   = GetItemMetrics (m_list.m_view).labelBelow ? cell.top + m_list.GetCheckBoxTopPx()
+                                                           : cell.top + ((cell.bottom - cell.top) - boxPx) / 2;
+
+
+
+    return RECT { left, top, left + boxPx, top + boxPx };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemLayout::IsOnItemCheckBox
+//
+//  Whether a point is on an item's File Explorer check box, which toggles the
+//  item's selection rather than select it alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListItemLayout::IsOnItemCheckBox (int item, int xPx, int yPx) const
+{
+    RECT   cell  = {};
+    RECT   box   = {};
+    POINT  point { xPx, yPx };
+    bool   has   = m_list.m_explorerCheckBoxes && m_list.m_itemCheckBoxes && m_list.IsItemsView() && m_list.m_view != DxuiListViewTypes::View::Home
+                   && item >= 0 && GetItemRectPx (item, cell);
+
+
+
+    if (has)
+    {
+        box = GetItemCheckBoxRectPx (cell);
+    }
+
+    return has && PtInRect (&box, point);
 }
 
 

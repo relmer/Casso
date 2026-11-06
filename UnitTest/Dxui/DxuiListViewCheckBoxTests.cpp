@@ -87,4 +87,33 @@ public:
         Assert::IsTrue   (f.toggled.empty());
         Assert::AreEqual (1, f.list.GetSelectedRow(), L"Date created");
     }
+
+
+
+    TEST_METHOD (AnItemCheckBoxPress_TogglesItsRow_AndKeepsTheSelection)
+    {
+        constexpr int  kRowHeightPx = 30;
+        constexpr int  kBoxInsidePx = 16;   // past the cell's padding, inside its box
+
+        Fixture         f;
+        DxuiMouseEvent  press;
+
+
+
+        f.list.SetShowHeader     (false);
+        f.list.SetItemCheckBoxes (true);
+        f.list.SetSelectedRows   ({ 0 }, 0);
+
+        press.kind        = DxuiMouseEventKind::Down;
+        press.button      = DxuiMouseButton::Left;
+        press.positionDip = POINT { kBoxInsidePx, kRowHeightPx * 2 + kRowHeightPx / 2 };
+
+        Assert::IsTrue (f.list.OnMouse (press));
+
+        press.kind = DxuiMouseEventKind::Up;
+
+        Assert::IsTrue (f.list.OnMouse (press));
+        Assert::IsTrue (f.toggled == std::vector<int> ({ 2 }));
+        Assert::IsTrue (f.list.GetSelectedRows() == std::vector<int> ({ 0 }), L"Only the host's toggle changes the selection");
+    }
 };

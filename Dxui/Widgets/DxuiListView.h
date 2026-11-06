@@ -61,6 +61,11 @@ public:
     bool  HasCheckBoxSpace   (const Cell & cell, size_t column) const { return cell.check != Cell::Check::None || (column == 0 && m_itemCheckBoxes); }
     void  SetHoveredRow      (int row)                        { m_hovered = row; if (row >= 0) { m_grouping.ClearHover(); } }
 
+    //  Draws check boxes as File Explorer does: the visual style's box, where
+    //  Explorer draws it in each view, and with item check boxes a box in the
+    //  Details header that selects every row. Off by default.
+    void  SetExplorerCheckBoxes (bool on)                    { m_explorerCheckBoxes = on; }
+
     //  The row a drag would drop on, drawn as Explorer draws its drop target: in
     //  the hover fill, outlined in the accent. -1 draws none.
     void  SetDropRow      (int row)                        { m_dropRow = row; }
@@ -404,6 +409,7 @@ public:
     int                            m_homePressRow       = -1;
     int                            m_homePressAction    = -1;
     int                            m_homeHoverAction    = -1;
+    bool                           m_checkPressed       = false;   // set by a press on a check box; the release that follows is ignored
     static constexpr float         s_kBrokenBadgeMinDip = 10.0f;
     bool                GetItemRectPx    (int item, RECT & outRect) const { return m_items.GetItemRectPx (item, outRect); }
 
@@ -537,9 +543,20 @@ private:
     int   GetHeaderGapPx      () const { return m_scaler.ToPx (m_explorerDetails ? s_kExplorerHeaderGapDip : s_kHeaderGapDip); }
     int   GetCellIconGapPx    () const { return m_explorerDetails ? (int) std::lround (m_scaler.ToPxf (s_kExplorerIconGapDip)) : m_scaler.ToPx (DxuiListColumns::s_kCellIconGapDip); }
     int   GetDetailsLeftPx    () const { return m_explorerDetails ? (int) std::lround (m_scaler.ToPxf (s_kItemsLeftDip)) : 0; }
-    int   GetCheckBoxSpanPx   () const { return m_scaler.ToPx (s_kCheckBoxDip + s_kCheckBoxGapDip); }
+    int   GetCheckBoxPx       () const;
+    int   GetCheckBoxSpanPx   () const;
+    int   GetCheckBoxLeftPx   () const { return (int) std::lround (m_scaler.ToPxf (s_kExplorerCheckBoxLeftDip)); }
+    int   GetCheckBoxTopPx    () const { return (int) std::lround (m_scaler.ToPxf (s_kExplorerCheckBoxTopDip)); }
     static constexpr int    s_kCheckBoxDip       = 16;
     static constexpr int    s_kCheckBoxGapDip    = 8;
+
+    //  Explorer's item check box, measured at 150%: its left from the item's
+    //  left edge, its top in the big icon views from the item's top, and the
+    //  gap from it to the icon in the views with the name beside the icon.
+    static constexpr float  s_kExplorerCheckBoxLeftDip = 4.0f;
+    static constexpr float  s_kExplorerCheckBoxTopDip  = 2.0f;
+    static constexpr float  s_kExplorerCheckBoxGapDip  = 2.0f;
+
     static constexpr int    s_kGroupLabelDip     = 22;   // the header's label, from the list's left
     static constexpr int    s_kCellPadRightDip   = 16;
     static constexpr int    s_kSortGlyphWidthDip = 10;
@@ -628,11 +645,12 @@ private:
     const wchar_t *  GetBodyFace   () const  { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace; }
     int              GetRowHeightPx() const  { return m_rowHeightPxFn ? m_rowHeightPxFn (m_scaler.GetDpi()) : (int) m_scaler.ToPxf ((float) m_rowHeightDip); }
 
-    bool   m_monospace       = false;
-    int    m_rowHeightDip    = s_kRowHeightDip;
-    bool   m_explorerDetails = false;
-    bool   m_itemCheckBoxes  = false;
-    float  m_fontDip         = s_kFontDip;
+    bool   m_monospace          = false;
+    int    m_rowHeightDip       = s_kRowHeightDip;
+    bool   m_explorerDetails    = false;
+    bool   m_itemCheckBoxes     = false;
+    bool   m_explorerCheckBoxes = false;
+    float  m_fontDip            = s_kFontDip;
     std::function<int (UINT)> m_rowHeightPxFn;
     DxuiDpiScaler             m_scaler;
     // Virtual (provider) row model ? see SetRowProvider. When m_virtual is

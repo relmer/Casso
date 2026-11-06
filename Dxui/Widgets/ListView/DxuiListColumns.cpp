@@ -948,9 +948,13 @@ int DxuiListColumns::GetCellPadLeftPx (size_t column) const
 
 int DxuiListColumns::GetHeaderTitlePadPx (size_t column) const
 {
+    bool  hasBox = m_list.m_header.HasSelectAllBox();
+
+
+
     if (m_list.m_explorerDetails && (int) column == m_list.m_iconColumn)
     {
-        return (int) std::lround (m_list.m_scaler.ToPxf (s_kExplorerNameTitleDip));
+        return (int) std::lround (m_list.m_scaler.ToPxf (s_kExplorerNameTitleDip + (hasBox ? s_kExplorerSelectAllRoomDip : 0.0f)));
     }
 
     return GetCellPadLeftPx (column);

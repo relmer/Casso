@@ -4,6 +4,7 @@
 #include "Widgets/DxuiListView.h"
 #include "Core/DxuiIconImage.h"
 #include "Theme/DxuiColor.h"
+#include "Theme/DxuiVisualStyleCheckBox.h"
 
 
 
@@ -1253,6 +1254,14 @@ bool DxuiListView::OnPress (const DxuiMouseEvent & ev, int lx, int ly, bool insi
 
     if (m_rows.OnCheckPress (lx, row))
     {
+        m_checkPressed = true;
+        return true;
+    }
+
+    if (m_onCheckToggled && m_items.IsOnItemCheckBox (row, lx, ly))
+    {
+        m_onCheckToggled (row);
+        m_checkPressed = true;
         return true;
     }
 
@@ -1339,6 +1348,12 @@ bool DxuiListView::OnRelease (int lx, int ly, bool inside)
     bool  ranged = m_rows.EndPress();
 
 
+
+    if (m_checkPressed)
+    {
+        m_checkPressed = false;
+        return true;
+    }
 
     if (m_homePressRow >= 0)
     {
@@ -1602,3 +1617,43 @@ void DxuiListView::SetColumnFilter (size_t column, bool filterable, bool filtere
         m_columns[column].filtered   = filtered;
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCheckBoxPx
+//
+//  A check box's width and height: the visual style's box for the DPI when
+//  the boxes are File Explorer's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetCheckBoxPx() const
+{
+    return m_explorerCheckBoxes ? DxuiVisualStyleCheckBox::GetSizePx (m_scaler.GetDpi()) : m_scaler.ToPx (s_kCheckBoxDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCheckBoxSpanPx
+//
+//  How far a check box moves what follows it: the box and the gap after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiListView::GetCheckBoxSpanPx() const
+{
+    return m_explorerCheckBoxes ? GetCheckBoxPx() + (int) std::lround (m_scaler.ToPxf (s_kExplorerCheckBoxGapDip)) : m_scaler.ToPx (s_kCheckBoxDip + s_kCheckBoxGapDip);
+}
+
+
+
+
+

@@ -54,6 +54,15 @@ public:
     int   HitTestFilterChevron (int xPx, int yPx, RECT & outChevron) const;
 
     static constexpr int  s_kChevronDip = 16;
+
+    //  File Explorer's box in the name column's header, with item check
+    //  boxes, that selects every row or none. Its rect is from the header's
+    //  top left, in the column starting at colLeftPx.
+    bool  HasSelectAllBox     () const;
+    RECT  GetSelectAllBoxPx   (int colLeftPx) const;
+    bool  OnSelectAllPress    (int lx, int ly);
+    static constexpr float  s_kExplorerSelectAllLeftDip = 10.0f;   // the box, into the name column, measured at 150%
+
     void  SetColumnOrder      (const std::vector<size_t> & order);
 
     int   GetColumnDropPosition (int xPx) const;
