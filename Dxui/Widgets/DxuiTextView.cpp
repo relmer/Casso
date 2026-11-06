@@ -183,9 +183,10 @@ int DxuiTextView::GetContentColumns() const
 
 
 
+    //  A warning wraps, so it doesn't widen the content.
     for (const Row & row : m_rows)
     {
-        if (!row.cells.empty())
+        if (!row.cells.empty() && !row.warning)
         {
             widest = (std::max) (widest, GetCellStart (row, (int) row.cells.size() - 1) + (int) row.cells.back().size());
         }
@@ -422,7 +423,8 @@ void DxuiTextView::Rebuild()
 //  DxuiTextView::BuildLines
 //
 //  Wraps each row's last cell at the last space that fits, or mid-word when
-//  none does. With no wrap, a row is one line.
+//  none does. With no wrap, a row is one line, except a warning, which wraps
+//  in the view's width so its message can be read without scrolling.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -436,7 +438,7 @@ void DxuiTextView::BuildLines (int columns)
         std::wstring    last   = row.cells.empty() ? std::wstring() : row.cells.back();
         int             start  = GetCellStart (row, (int) row.cells.size() - 1);
         int             length = (int) last.size();
-        int             avail  = m_noWrap ? (std::max) (1, length) : (std::max) (1, columns - start);
+        int             avail  = (m_noWrap && !row.warning) ? (std::max) (1, length) : (std::max) (1, columns - start);
         int             pos    = 0;
         bool            first  = true;
 
