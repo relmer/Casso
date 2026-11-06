@@ -322,8 +322,9 @@ void ExplorerTabManager::OpenInNewWindow (const std::wstring & path)
 //
 //  ExplorerTabManager::SelectInFolder
 //
-//  The file's folder in the tab already on it, switched to, or in a new tab,
-//  with the file selected once it is listed.
+//  The item's folder in the tab already on it, switched to, or in a new tab,
+//  with the item selected once it is listed. A disk image, an archive or a
+//  folder is selected in its parent as a file is, not opened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -346,7 +347,8 @@ void ExplorerTabManager::SelectInFolder (const std::wstring & path)
         }
     }
 
-    OpenPathInNewTab (path);
+    m_context.browser.OpenInNewTab (Location::MakeHostFolder (folder));
+    m_context.listPane.SelectWhenListed (folder, { name });
 }
 
 

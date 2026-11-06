@@ -1274,14 +1274,18 @@ void CassoExplorerShell::RunLaunch (const std::wstring & arguments)
     //  /select picks the tab of that window already on the file's folder.
     tabbed = front != nullptr && (!options.openPath.empty() || !options.selectPath.empty()) && !options.newWindow && !options.hasOwner;
 
+    //  The window is drawn again: a tab opened or switched to from here isn't
+    //  otherwise drawn until the window next has input.
     if (tabbed && !options.selectPath.empty())
     {
         front->SelectInFolder (options.selectPath);
+        front->Invalidate();
         FrontWindow (front->GetHwnd());
     }
     else if (tabbed)
     {
         front->OpenPathInNewTab (options.openPath);
+        front->Invalidate();
         FrontWindow (front->GetHwnd());
     }
 
