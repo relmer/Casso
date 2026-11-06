@@ -174,6 +174,7 @@ protected:
     //  step one pane's as the keys and Ctrl+wheel do.
     void     ApplyTextZoom    (float zoom);
     void     StepTextZoom     (int steps);
+    void     ResetTextZoom    ();
     float    GetTextZoom      () const { return m_textZoom; }
     void     StepPaneTextZoom (const std::wstring & pane, int steps);
     float    GetPaneTextZoom  (const std::wstring & pane) const;
@@ -357,6 +358,7 @@ protected:
     DxuiSlider &     GetZoomSlider       ()       { return m_zoomSlider; }
     bool             IsZoomPopupOpen     () const { return m_zoomOpen; }
     RECT             GetZoomPopupRect    () const { return m_zoomRect; }
+    RECT             GetZoomResetRect    () const { return m_zoomSlider.GetValueRect(); }
     void             UpdateStatusBar     ();
     bool             RouteStatusBarMouse (const DxuiMouseEvent & ev);
     void             FitHistoryField     (IDxuiTextRenderer & text);
@@ -453,6 +455,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static constexpr float  kMinTextZoom           = 0.5f;
     static constexpr float  kMaxTextZoom           = 3.0f;
     static constexpr float  kTextZoomStep          = 0.1f;
+    static constexpr float  kDefaultTextZoom       = 1.0f;
 
 
     void     ConfigureWidgets ();

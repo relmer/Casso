@@ -19,6 +19,9 @@
 //  on and off, then the history section, whose bar under its text fills as
 //  the history budget does, and the text zoom at the right. Pressing the zoom opens a slider over
 //  it, from the smallest text size to the largest in the steps the keys take.
+//  The slider has marks at the smallest size, 100% and the largest only. The
+//  wheel over it steps the size, and a double-click on it or a click on its
+//  percentage sets 100%.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +51,9 @@ void DebuggerWindow::CreateStatusBar()
     m_zoomSlider.SetDecimalPlaces (0);
     m_zoomSlider.SetValue         (m_textZoom * DebuggerStatusText::kPercent);
     m_zoomSlider.SetOnChange      ([this] (float percent) { ApplyTextZoom (percent / DebuggerStatusText::kPercent); });
+    m_zoomSlider.SetTickValues    ({ kMinTextZoom * DebuggerStatusText::kPercent, kDefaultTextZoom * DebuggerStatusText::kPercent, kMaxTextZoom * DebuggerStatusText::kPercent });
+    m_zoomSlider.SetDefaultValue  (kDefaultTextZoom * DebuggerStatusText::kPercent);
+    m_zoomSlider.SetWheelStepping (true);
 }
 
 
@@ -275,7 +281,9 @@ void DebuggerWindow::CloseZoomPopup()
 //  While the zoom popup is open, the slider takes the pointer over the popup
 //  and for the whole of a drag, and a press anywhere else closes it; a press
 //  on the zoom field that opened it only closes it, so the field toggles.
-//  Then the status bar takes the pointer over its band.
+//  A press on the slider's percentage sets 100%. The wheel over the zoom field
+//  steps the size with the popup closed. Then the status bar takes the pointer
+//  over its band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,6 +302,14 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
     {
         if (DxuiDockSite::Contains (m_zoomRect, point) || m_zoomSlider.IsDragging())
         {
+            if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left &&
+                DxuiDockSite::Contains (GetZoomResetRect(), point))
+            {
+                ResetTextZoom();
+                Invalidate();
+                return true;
+            }
+
             m_zoomSlider.OnMouse (ev);
             Invalidate();
             return true;
@@ -308,6 +324,13 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
                 return true;
             }
         }
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ev.wheelDelta != 0.0f &&
+        m_statusBar->FindFieldAt (point) == (int) kStatusZoom)
+    {
+        StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
+        return true;
     }
 
     //  Options opens at its History page as a click on the history field

@@ -234,4 +234,179 @@ public:
         Assert::IsTrue (s.OnKey (VK_DOWN));
         Assert::IsTrue (NearlyEqual (0.0f, s.GetValue()));
     }
+
+    DxuiSlider  MakeZoomSlider()
+    {
+        DxuiSlider  s;
+
+        s.SetRect  (MakeRect (0, 0, 300, 24));
+        s.SetRange (50.0f, 300.0f);
+        s.SetStep  (10.0f);
+        s.SetValue (100.0f);
+        return s;
+    }
+
+    TEST_METHOD (Ticks_DefaultToOnePerStep)
+    {
+        DxuiSlider          s     = MakeUnitSlider();
+        std::vector<float>  ticks = s.GetTickValues();
+
+        Assert::AreEqual ((size_t) 11, ticks.size());
+        Assert::IsTrue (NearlyEqual (0.0f, ticks.front()));
+        Assert::IsTrue (NearlyEqual (0.5f, ticks[5]));
+        Assert::IsTrue (NearlyEqual (1.0f, ticks.back()));
+    }
+
+    TEST_METHOD (Ticks_FollowTheTickInterval)
+    {
+        DxuiSlider          s = MakeUnitSlider();
+        std::vector<float>  ticks;
+
+        s.SetTickInterval (0.5f);
+        ticks = s.GetTickValues();
+
+        Assert::AreEqual ((size_t) 3, ticks.size());
+        Assert::IsTrue (NearlyEqual (0.5f, ticks[1]));
+    }
+
+    TEST_METHOD (Ticks_ExplicitValuesReplaceTheIntervalTicksInOrder)
+    {
+        DxuiSlider          s = MakeZoomSlider();
+        std::vector<float>  ticks;
+
+        s.SetTickValues ({ 300.0f, 50.0f, 100.0f });
+        ticks = s.GetTickValues();
+
+        Assert::AreEqual ((size_t) 3, ticks.size());
+        Assert::IsTrue (NearlyEqual (50.0f,  ticks[0]));
+        Assert::IsTrue (NearlyEqual (100.0f, ticks[1]));
+        Assert::IsTrue (NearlyEqual (300.0f, ticks[2]));
+    }
+
+    TEST_METHOD (Wheel_IsOffByDefault)
+    {
+        DxuiSlider  s = MakeZoomSlider();
+
+        Assert::IsFalse (s.OnWheel (1.0f));
+        Assert::IsTrue (NearlyEqual (100.0f, s.GetValue()));
+    }
+
+    TEST_METHOD (Wheel_StepsOneStepPerNotchUpIsLarger)
+    {
+        DxuiSlider  s       = MakeZoomSlider();
+        int         changes = 0;
+
+        s.SetWheelStepping (true);
+        s.SetOnChange ([&changes] (float) { changes++; });
+
+        Assert::IsTrue (s.OnWheel (1.0f));
+        Assert::IsTrue (NearlyEqual (110.0f, s.GetValue()));
+
+        s.OnWheel (-3.0f);
+        Assert::IsTrue (NearlyEqual (80.0f, s.GetValue()));
+        Assert::AreEqual (2, changes);
+    }
+
+    TEST_METHOD (Wheel_ClampsAtTheRailsAndIgnoresPartialNotches)
+    {
+        DxuiSlider  s = MakeZoomSlider();
+
+        s.SetWheelStepping (true);
+
+        s.OnWheel (100.0f);
+        Assert::IsTrue (NearlyEqual (300.0f, s.GetValue()));
+
+        s.OnWheel (-100.0f);
+        Assert::IsTrue (NearlyEqual (50.0f, s.GetValue()));
+
+        s.OnWheel (0.4f);
+        Assert::IsTrue (NearlyEqual (50.0f, s.GetValue()));
+    }
+
+    TEST_METHOD (Wheel_ArrivesThroughOnMouseOnlyOverTheSlider)
+    {
+        DxuiSlider      s  = MakeZoomSlider();
+        DxuiMouseEvent  ev;
+
+        s.SetWheelStepping (true);
+        ev.kind        = DxuiMouseEventKind::Wheel;
+        ev.wheelDelta  = 1.0f;
+        ev.positionDip = POINT { 100, 12 };
+
+        Assert::IsTrue (s.OnMouse (ev));
+        Assert::IsTrue (NearlyEqual (110.0f, s.GetValue()));
+
+        ev.positionDip = POINT { 100, 200 };
+        Assert::IsFalse (s.OnMouse (ev));
+        Assert::IsTrue (NearlyEqual (110.0f, s.GetValue()));
+
+        ev.positionDip     = POINT { 100, 12 };
+        ev.wheelHorizontal = true;
+        Assert::IsFalse (s.OnMouse (ev));
+    }
+
+    TEST_METHOD (DoubleClick_ResetsToTheDefaultValue)
+    {
+        DxuiSlider  s = MakeZoomSlider();
+
+        s.SetDefaultValue (100.0f);
+
+        Assert::IsTrue (s.OnLButtonDownAt (250, 12, 1000));
+        s.OnLButtonUp (250, 12);
+        Assert::IsTrue (s.GetValue() > 150.0f, L"the first press moves the value to the point");
+
+        Assert::IsTrue (s.OnLButtonDownAt (250, 12, 1100));
+        Assert::IsTrue (NearlyEqual (100.0f, s.GetValue()));
+        Assert::IsFalse (s.IsDragging(), L"the second press resets without starting a drag");
+    }
+
+    TEST_METHOD (DoubleClick_NeedsThePressesCloseTogetherAndConsumesThePair)
+    {
+        DxuiSlider  s       = MakeZoomSlider();
+        int         slowMs  = DxuiSystemSettings::Instance().GetDoubleClickMs() + 100;
+
+        s.SetDefaultValue (100.0f);
+
+        s.OnLButtonDownAt (250, 12, 1000);
+        s.OnLButtonUp (250, 12);
+        s.OnLButtonDownAt (250, 12, 1000 + slowMs);
+        s.OnLButtonUp (250, 12);
+        Assert::IsTrue (s.GetValue() > 150.0f, L"presses too far apart are two presses");
+
+        s.OnLButtonDownAt (250, 12, 1000 + slowMs + 50);
+        s.OnLButtonUp (250, 12);
+        Assert::IsTrue (NearlyEqual (100.0f, s.GetValue()));
+
+        s.OnLButtonDownAt (250, 12, 1000 + slowMs + 100);
+        s.OnLButtonUp (250, 12);
+        Assert::IsTrue (s.GetValue() > 150.0f, L"a third press starts a new count");
+    }
+
+    TEST_METHOD (DoubleClick_DoesNothingWithoutADefaultValue)
+    {
+        DxuiSlider  s = MakeZoomSlider();
+
+        s.OnLButtonDownAt (250, 12, 1000);
+        s.OnLButtonUp (250, 12);
+        s.OnLButtonDownAt (250, 12, 1050);
+        s.OnLButtonUp (250, 12);
+
+        Assert::IsTrue (s.GetValue() > 150.0f);
+    }
+
+    TEST_METHOD (ValueRect_IsTheReadoutAtTheRightEndWhenShown)
+    {
+        DxuiSlider  s = MakeZoomSlider();
+        RECT        r = s.GetValueRect();
+
+        Assert::IsTrue (IsRectEmpty (&r) != FALSE, L"no readout, no rect");
+
+        s.SetSuffix (L"%");
+        r = s.GetValueRect();
+
+        Assert::AreEqual (300L, r.right);
+        Assert::IsTrue (r.left > 200L && r.left < r.right);
+        Assert::AreEqual (0L,  r.top);
+        Assert::AreEqual (24L, r.bottom);
+    }
 };

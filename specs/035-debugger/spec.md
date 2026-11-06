@@ -2187,7 +2187,14 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-083**: Ctrl+Plus, Ctrl+Minus and Ctrl+0 MUST enlarge, reduce and reset
   the text size of every debugger content pane, floating panes included, and
   MUST NOT change any other Casso window, the debugger's caption, or its
-  command bar.
+  command bar. The status bar's zoom field MUST open a slider that sets the
+  overall text size from 50% to 300% in steps of 10%, which each pane's own
+  size multiplies. The slider MUST have tick marks only at its two ends and at
+  100%. The mouse wheel over the slider, or over the zoom field with the
+  slider closed, MUST change the size by one step per notch, up being larger,
+  without Ctrl. A double-click on the slider, or a click on the percentage
+  beside it, which has the tip "Reset to 100%", MUST set 100%. Ctrl+0 MUST
+  still reset only the pane it is used over.
 - **FR-084**: Every pane MUST have a context menu of actions on its content,
   drawn by the debugger's own menu widget like every other menu in Casso.
   Actions on the tab or window (dock, float, auto-hide, close) MUST be in the

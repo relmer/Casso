@@ -28,6 +28,9 @@
 //      LButtonDown on track    -> jump to point + begin drag
 //      MouseMove   while drag  -> follow cursor
 //      LButtonUp               -> end drag
+//      Wheel (when enabled)    -> +/- one step per notch, up = larger
+//      Second LButtonDown within the double-click time (when a default value
+//      is set)                 -> reset to the default value
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +78,14 @@ public:
     //  per drag step; set a coarser interval when the step is fine (e.g. a
     //  0-100 step-1 volume slider) so the ticks don't become a solid picket.
     void   SetTickInterval (float interval) { m_tickInterval = interval; }
+    //  Explicit tick positions in value units, replacing the interval ticks.
+    //  Empty (default) draws the interval ticks.
+    void   SetTickValues (std::vector<float> values) { m_tickValues = std::move (values); }
+    //  The mouse wheel over the slider steps the value, one step per notch.
+    //  Off by default, so a slider in a scrolling page does not take the wheel.
+    void   SetWheelStepping (bool enabled) { m_wheelStepping = enabled; }
+    //  The value a double-click resets to.
+    void   SetDefaultValue (float value) { m_defaultValue = value; m_hasDefault = true; }
     void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
     void   SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
     void   SetFocused (bool focused) { m_focused = focused; }
@@ -92,10 +103,18 @@ public:
     bool         IsFocused  () const { return m_focused;  }
     bool         IsHovered  () const { return m_hover;    }
     bool         IsDragging () const { return m_dragging; }
+    bool         HasWheelStepping () const { return m_wheelStepping; }
+
+    //  The ticks Paint draws, in value units, in increasing order.
+    std::vector<float>  GetTickValues () const;
+    //  The value readout's rect; empty without a readout.
+    RECT                GetValueRect  () const;
 
     bool   HitTest        (int x, int y) const;
     void   SetMouseHover  (int x, int y);
     bool   OnLButtonDown  (int x, int y);
+    bool   OnLButtonDownAt (int x, int y, int64_t nowMs);
+    bool   OnWheel        (float notches);
     bool   OnLButtonUp    (int x, int y);
     bool   OnMouseMove    (int x, int y);
     bool   OnKey          (WPARAM vk);
@@ -123,28 +142,35 @@ private:
     float  ValueFromY     (int y) const;
     float  ValueFromPoint (int x, int y) const { return m_vertical ? ValueFromY (y) : ValueFromX (x); }
     void   FormatValue    (wchar_t (&buf)[32]) const;
-    ChangeFn       m_change;
-    InteractionFn  m_onDragStart;
-    InteractionFn  m_onDragEnd;
-    InteractionFn  m_onKeyboard;
-    FormatFn       m_formatter;
-    std::wstring   m_suffix;
-    DxuiDpiScaler  m_scaler;
-    float          m_min               = 0.0f;
-    float          m_max               = 1.0f;
-    float          m_step              = 0.01f;
-    float          m_dragStep          = 0.0f;   // 0 => drag snaps to m_step
-    float          m_pageStep          = 0.0f;   // 0 => ten of m_step
-    float          m_value             = 0.0f;
-    bool           m_enabled           = true;
-    bool           m_focused           = false;
-    bool           m_hover             = false;
-    bool           m_dragging          = false;
-    bool           m_showTicks         = true;
-    float          m_tickInterval      = 0.0f;   // 0 => one tick per step
-    bool           m_showValue         = false;
-    bool           m_explicitShowValue = false;
-    bool           m_centerOriginFill  = false;
-    bool           m_vertical          = false;
-    int            m_decimalPlaces     = 0;
+    bool   IsDoubleClick  (int64_t nowMs);
+    ChangeFn            m_change;
+    InteractionFn       m_onDragStart;
+    InteractionFn       m_onDragEnd;
+    InteractionFn       m_onKeyboard;
+    FormatFn            m_formatter;
+    std::wstring        m_suffix;
+    DxuiDpiScaler       m_scaler;
+    float               m_min               = 0.0f;
+    float               m_max               = 1.0f;
+    float               m_step              = 0.01f;
+    float               m_dragStep          = 0.0f;   // 0 => drag snaps to m_step
+    float               m_pageStep          = 0.0f;   // 0 => ten of m_step
+    float               m_value             = 0.0f;
+    bool                m_enabled           = true;
+    bool                m_focused           = false;
+    bool                m_hover             = false;
+    bool                m_dragging          = false;
+    bool                m_showTicks         = true;
+    float               m_tickInterval      = 0.0f;   // 0 => one tick per step
+    std::vector<float>  m_tickValues;                    // non-empty => these ticks only
+    bool                m_wheelStepping     = false;
+    bool                m_hasDefault        = false;
+    float               m_defaultValue      = 0.0f;
+    int64_t             m_lastDownMs        = 0;
+    bool                m_hasLastDown       = false;
+    bool                m_showValue         = false;
+    bool                m_explicitShowValue = false;
+    bool                m_centerOriginFill  = false;
+    bool                m_vertical          = false;
+    int                 m_decimalPlaces     = 0;
 };
