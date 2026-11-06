@@ -531,8 +531,8 @@ namespace SourceDocumentInputTests
 
         //  A source line's operand and result that the view cuts off at its
         //  right edge are laid over their cell whole, as a disassembly row's
-        //  are: the tip's text starts where the cell's does. A short one that
-        //  fits has no tip.
+        //  are: the tip's text starts where the cell's does, on one line past
+        //  the view's edge. A short one that fits has no tip.
         TEST_METHOD (ACutOffSourceOperandHasTheTipOverIt)
         {
             CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
@@ -568,7 +568,8 @@ namespace SourceDocumentInputTests
                               L"the view cuts the long operand off");
             Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell], layout.text);
             Assert::AreEqual (cell.left, layout.textOrigin.x, L"the tip's text starts at the cell's");
-            Assert::IsTrue   (layout.lines.size() > 1, L"and wraps in the view's width");
+            Assert::AreEqual ((size_t) 1, layout.lines.size(), L"and wraps in the view's width");
+            Assert::IsTrue   (layout.rect.right > view->GetTextAreaRightPx(), L"the tip stops at the view's edge");
 
             Assert::IsTrue   (view->GetCellRectPx (2, SourcePane::kAnnotationCell, cell));
             Assert::IsFalse  (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),

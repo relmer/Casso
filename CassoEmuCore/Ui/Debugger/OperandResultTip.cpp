@@ -13,11 +13,12 @@
 //  OperandResultTip::TryMakeLayout
 //
 //  Only where the list cuts the text off: at the pane's edge, or at the
-//  column's own where the column has been made narrower than its text. The
-//  tip wraps in the room the text has there, so it grows down rather than
-//  out, and covers the whole of the cell the pane shows, so none of the cut
-//  text shows beside it; the cell's padding is either side of the text, and
-//  its outline a pixel past the row above and below, as Explorer's is.
+//  column's edge where the column has been made narrower than its text. The
+//  tip is one line high, from the cell's left past the pane's edge to the
+//  end of the text, and covers the whole visible part of the cell, so none
+//  of the cut text is visible beside it; the cell's padding is either side
+//  of the text. It has no outline, so it reads as the row's highlight
+//  continued past the pane.
 //
 //  The tip stays inside the work area it is given without moving off the
 //  cell: a popup kept on the screen by being moved would no longer line its
@@ -62,14 +63,13 @@ bool OperandResultTip::TryMakeLayout (
     layout.fontPx     = placement.fontPx;
     layout.face       = placement.face;
     layout.lineHeight = rowHeight;
-    layout.border     = placement.border;
     layout.textOrigin = POINT { textLeft, rowTop };
 
     //  Text that cannot be measured cannot be said to be cut off.
     fullPx = MeasurePx (text, cell.text, placement.fontPx, placement.face);
     CBR (fullPx > 0.0f && fullPx > (float) (shownRight - textLeft));
 
-    doesFit = TryWrapOnScreen (text, placement, (float) (cellRight - placement.padRightPx - textLeft), layout, widestPx);
+    doesFit = TryWrapOnScreen (text, placement, layout, widestPx);
     CBR (doesFit);
 
     layout.fill      = MakeFill   (cell, placement.rowFill, placement.contentBackground);
@@ -109,7 +109,6 @@ bool OperandResultTip::IsSame (
            a.fontPx       == b.fontPx       &&
            a.face         == b.face         &&
            a.fill         == b.fill         &&
-           a.border       == b.border       &&
            a.text         == b.text         &&
            a.colors       == b.colors       &&
            a.lines        == b.lines;
@@ -124,9 +123,10 @@ bool OperandResultTip::IsSame (
 //  OperandResultTip::Paint
 //
 //  A rectangular tip's popup is cleared to the layout's fill before this
-//  runs, so only the outline and the text are drawn. An L-shaped tip's is
-//  cleared to transparent, so its row's own columns show left of its first
-//  line, and the fill is drawn here.
+//  runs, so only the text is drawn. An L tip's popup is cleared to
+//  transparent, so the row's other columns are visible left of its first
+//  line, and the fill is drawn here: the first line from the cell's left,
+//  the lines below it across the pane.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,29 +141,13 @@ void OperandResultTip::Paint (
     float  y      = (float) (layout.textOrigin.y - layout.rect.top);
     float  step   = (float) (layout.firstLeft - layout.rect.left);
     float  below  = y + (float) layout.lineHeight;
-    float  edge   = (float) kBorderPx;
 
 
 
-    if (!IsShaped (layout))
+    if (IsShaped (layout))
     {
-        painter.OutlineRect (0.0f, 0.0f, width, height, edge, layout.border);
-    }
-    else
-    {
-        //  The first line from the cell's left, the lines below it across
-        //  the pane; then the L's six edges. The step's edge runs one pixel
-        //  past the first line's left edge, which ends at the step, to close
-        //  the corner between them.
         painter.FillRect (step, 0.0f,  width - step, below,          layout.fill);
         painter.FillRect (0.0f, below, width,        height - below, layout.fill);
-
-        painter.FillRect (step,         0.0f,          width - step, edge,           layout.border);
-        painter.FillRect (width - edge, 0.0f,          edge,         height,         layout.border);
-        painter.FillRect (0.0f,         height - edge, width,        edge,           layout.border);
-        painter.FillRect (0.0f,         below,         edge,         height - below, layout.border);
-        painter.FillRect (0.0f,         below,         step + edge,  edge,           layout.border);
-        painter.FillRect (step,         0.0f,          edge,         below,          layout.border);
     }
 
     for (const Line & line : layout.lines)
@@ -263,13 +247,13 @@ float OperandResultTip::MeasureWidestPx (
 //
 //  OperandResultTip::GetBottomPx
 //
-//  A row for each line, and the outline a pixel past the last.
+//  A row for each line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int OperandResultTip::GetBottomPx (const Layout & layout)
 {
-    return (int) layout.textOrigin.y + (int) layout.lines.size() * layout.lineHeight + kBorderPx;
+    return (int) layout.textOrigin.y + (int) layout.lines.size() * layout.lineHeight;
 }
 
 
@@ -280,35 +264,25 @@ int OperandResultTip::GetBottomPx (const Layout & layout)
 //
 //  OperandResultTip::TryWrapOnScreen
 //
-//  The text wraps in the room the pane gives it, never narrower than the
-//  tip's least width and never wider than the screen has room for right of
-//  the text; at the screen's right edge it grows down instead. Where that is
-//  too tall for the screen below the row, it wraps again across all the room
-//  the screen has. False where it still does not fit.
+//  The text on one line where the screen has room for it right of the
+//  cell's left, past the pane's edge to the end of the text; otherwise
+//  wrapped at the screen's right edge. False where that is too tall for the
+//  screen below the row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool OperandResultTip::TryWrapOnScreen (
     IDxuiTextRenderer  & text,
     const Placement    & placement,
-    float                paneRoomPx,
     Layout             & layout,
     float              & widestPx)
 {
     float  roomPx   = (float) (placement.workArea.right - placement.padRightPx - layout.textOrigin.x);
-    float  minPx    = MeasurePx (text, std::wstring (kMinWrapChars, L'0'), placement.fontPx, placement.face);
-    float  wrapPx   = (std::min) ((std::max) (paneRoomPx, minPx), roomPx);
     bool   hasLines = false;
 
 
 
-    WrapCell (text, layout, wrapPx);
-
-    if (GetBottomPx (layout) > placement.workArea.bottom && wrapPx < roomPx)
-    {
-        layout.lines.clear();
-        WrapCell (text, layout, roomPx);
-    }
+    WrapCell (text, layout, roomPx);
 
     hasLines = !layout.lines.empty();
     widestPx = MeasureWidestPx (text, layout);
@@ -326,16 +300,16 @@ bool OperandResultTip::TryWrapOnScreen (
 //
 //  From the cell's left to the end of its widest line, or to the edge of the
 //  cell the pane shows where that is further, so the tip covers the whole of
-//  what the list draws. The cell's padding and the outline give way at the
-//  pane's edge and the screen's.
+//  what the list draws. The cell's padding is dropped at the pane's edge and
+//  the screen's.
 //
 //  The lines after the first start at the pane's left edge instead, so the
 //  rows they lie on show nothing of their own beside the tip's text; the
 //  layout's firstLeft keeps the cell's left for the first line.
 //
 //  Its width and height are ones its popup comes up at exactly, larger where
-//  the screen has room and smaller where it does not, so no strip of the
-//  popup's fill shows past the outline.
+//  the screen has room and smaller where it does not, so the popup covers
+//  the rows exactly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -358,7 +332,7 @@ RECT OperandResultTip::PlaceRect (
         rect.left = (std::max) (placement.visibleLeft, (int) placement.workArea.left);
     }
 
-    rect.top    = (std::max) ((int) layout.textOrigin.y - kBorderPx, (int) placement.workArea.top);
+    rect.top    = (std::max) ((int) layout.textOrigin.y, (int) placement.workArea.top);
     rect.right  = (std::min) ((std::max) (cellRight, textRight), (int) placement.workArea.right);
     rect.bottom = GetBottomPx (layout);
 
@@ -474,9 +448,10 @@ std::vector<uint32_t> OperandResultTip::MakeColors (
 //
 //  OperandResultTip::WrapCell
 //
-//  The operand, then the result from the start of a line of its own. The
-//  result is where the cell's text gives its prefix; the spaces that set it
-//  apart from the operand on one line go with the break.
+//  The whole text on one line, as the cell draws it, where it fits.
+//  Otherwise the operand, then the result starting a new line. The result
+//  starts at its prefix in the cell's text; the spaces between it and the
+//  operand are dropped at the break.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -487,9 +462,24 @@ void OperandResultTip::WrapCell (
 {
     size_t  resultAt   = layout.text.find (SourcePane::kpszResultPrefix);
     int     size       = (int) layout.text.size();
+    int     textEnd    = size;
     int     operandEnd = (resultAt == std::wstring::npos) ? size : (int) resultAt;
+    bool    isOneLine  = false;
 
 
+
+    while (textEnd > 0 && layout.text[(size_t) (textEnd - 1)] == L' ')
+    {
+        textEnd--;
+    }
+
+    isOneLine = textEnd > 0 && MeasurePx (text, layout.text.substr (0, (size_t) textEnd), layout.fontPx, layout.face) <= maxWidthPx;
+
+    if (isOneLine)
+    {
+        layout.lines.push_back ({ 0, textEnd });
+        return;
+    }
 
     while (operandEnd > 0 && layout.text[(size_t) (operandEnd - 1)] == L' ')
     {

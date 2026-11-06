@@ -516,7 +516,6 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     placement.contentBackground = list->GetRowBackground (*theme);
     placement.rowFill           = GetRowFill (list, row);
     placement.ink               = theme->Foreground();
-    placement.border            = theme->TooltipBorder();
     placement.dpi               = scaler.GetDpi();
 
     edge               = RECT { placement.textRect.left, placement.textRect.top, (std::min) (placement.textRect.right, (LONG) placement.visibleRight), placement.textRect.top };
@@ -594,7 +593,6 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
     placement.contentBackground = theme->TextViewBackground();
     placement.rowFill           = shown->background;
     placement.ink               = theme->Foreground();
-    placement.border            = theme->TooltipBorder();
     placement.dpi               = scaler.GetDpi();
 
     edge               = RECT { placement.textRect.left, placement.textRect.top, (std::min) (placement.textRect.right, (LONG) placement.visibleRight), placement.textRect.top };
@@ -625,8 +623,8 @@ Error:
 //  OperandTipController::IsTextSelectedUnderTip
 //
 //  Text selected in a row's operand, or in that of a row the tip extends
-//  over, below it or, by the outline's pixel, above it. The list fills a
-//  selection the full height of its row.
+//  over below it, or above it where the tip's top lies above its row. The
+//  list fills a selection the full height of its row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -665,8 +663,11 @@ bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, in
 //
 //  What a disassembly list fills a row with under its cells, as it paints
 //  them: the selection on the selected row while the list has the focus and
-//  no text is selected, the hover on the row under the pointer, or its own
-//  background.
+//  no text is selected, or else the hover. A tip's row is always the row
+//  under the pointer, and the window passes a move to the tip ahead of the
+//  list, so the list may not have marked the row as hovered yet; a fill
+//  read from the list's hover then changed under a tip already up, and took
+//  it down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -675,11 +676,10 @@ uint32_t OperandTipController::GetRowFill (const DxuiListView * list, int row) c
     const DxuiTheme  & theme      = *m_host.GetTipTheme();
     bool               isSelected = list->IsListFocused() && !list->HasTextSelection() &&
                                     (list->IsMultiSelect() ? list->IsRowSelected (row) : row == list->GetSelectedRow());
-    bool               isHovered  = row == list->GetHoveredRow();
 
 
 
-    return isSelected ? theme.ContentSelection() : (isHovered ? theme.ContentHover() : list->GetRowBackground (theme));
+    return isSelected ? theme.ContentSelection() : theme.ContentHover();
 }
 
 
