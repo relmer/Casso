@@ -53,6 +53,9 @@ struct JsonParseError
 class JsonParser
 {
 public:
+    //  The deepest objects and arrays may nest.
+    static constexpr int  kMaxDepth = 64;
+
     static HRESULT Parse (const string & input, JsonValue & outValue, JsonParseError & outError);
 
 private:
@@ -75,5 +78,6 @@ private:
     size_t            m_pos;
     int               m_line;
     int               m_column;
+    int               m_depth = 0;
     JsonParseError    m_error;
 };

@@ -42,6 +42,9 @@ public:
     //  A JSON value on one line.
     static std::string  WriteCompact (const JsonValue & value);
 
+    //  The error response to a line longer than ChannelProtocol::kMaxLineBytes.
+    static std::string  RespondLineTooLong ();
+
 private:
     using Members = std::vector<std::pair<std::string, JsonValue>>;
 

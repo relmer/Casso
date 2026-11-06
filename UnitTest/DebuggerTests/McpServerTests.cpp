@@ -2,10 +2,12 @@
 
 #include "Cli/CommandLineQuoting.h"
 #include "Cli/ICassoLauncher.h"
+#include "Cli/McpMode.h"
 #include "Cli/McpServer.h"
 #include "Cli/McpTools.h"
 #include "Core/JsonParser.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/Channel/ChannelProtocol.h"
 #include "Debugger/Channel/IInstanceDirectory.h"
 
 #include "CppUnitTest.h"
@@ -524,6 +526,40 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"\"a\\\\b\""),                    CommandLineQuoting::QuoteArgument (L"a\\\\b"), L"backslashes before a letter are literal");
             Assert::AreEqual (std::wstring (L"\"a\\\\\\\"b\""),                CommandLineQuoting::QuoteArgument (L"a\\\"b"));
             Assert::AreEqual (std::wstring (L"\"a\\\\\""),                     CommandLineQuoting::QuoteArgument (L"a\\"));
+        }
+
+
+
+        //  A line one byte past the limit gets the "line too long" error
+        //  without being parsed. The rest of it is discarded, and the line
+        //  after it is served.
+        TEST_METHOD (OneLinePastTheLimitIsAnErrorAndTheNextLineIsServed)
+        {
+            Rig                       rig;
+            std::string               atLimit  (ChannelProtocol::kMaxLineBytes, 'x');
+            std::string               tooLong  (ChannelProtocol::kMaxLineBytes + 5000, 'x');
+            std::istringstream        in       (atLimit + "\n" + tooLong + "\n" + R"({"jsonrpc":"2.0","id":7,"method":"ping"})" + "\n");
+            std::ostringstream        out;
+            std::istringstream        written;
+            std::vector<std::string>  responses;
+            std::string               each;
+
+
+
+            McpMode::Serve (rig.server, in, out);
+
+            written.str (out.str());
+
+            while (std::getline (written, each))
+            {
+                responses.push_back (each);
+            }
+
+            Assert::AreEqual ((size_t) 3, responses.size());
+            Assert::IsTrue   (responses[0].find ("-32700") != std::string::npos, L"a line at the limit is parsed");
+            Assert::IsTrue   (responses[1].find ("line too long") != std::string::npos, TextEncoding::NarrowToWide (responses[1].substr (0, 200)).c_str());
+            Assert::IsTrue   (responses[1].find ("-32600") != std::string::npos);
+            Assert::IsTrue   (responses[2].find ("\"id\":7") != std::string::npos, TextEncoding::NarrowToWide (responses[2]).c_str());
         }
 
 
