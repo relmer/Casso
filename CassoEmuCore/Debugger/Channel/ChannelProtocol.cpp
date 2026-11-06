@@ -89,12 +89,6 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
 
         request.protocol = (int) number;
 
-        if (GetFlag (root, "allowScripts", request.allowScripts) == Member::Invalid)
-        {
-            SetError (error, "malformed request", "allowScripts must be true or false.");
-            return false;
-        }
-
         if (GetFolders (root, request.allowPaths) == Member::Invalid)
         {
             SetError (error, "malformed request", "allowPaths must be an array of folder paths.");
@@ -336,7 +330,6 @@ std::string ChannelProtocol::WriteHelloRequest (int64_t id, const ChannelClient 
         members.emplace_back ("allowPaths", JsonValue (std::move (folders)));
     }
 
-    members.emplace_back ("allowScripts", JsonValue (client.allowScripts));
 
     return WriteLine (std::move (members));
 }

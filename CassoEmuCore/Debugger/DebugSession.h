@@ -353,7 +353,7 @@ public:
     void                  SetHostAccessGuard   (HostAccessGuard * guard)          { m_hostAccessGuard = guard; }
     HostAccessGuard     * GetHostAccessGuard   () const                           { return m_hostAccessGuard; }
     bool                  CheckHostAccess      (const std::wstring & path, HostAccess access, Reply & reply);
-    bool                  CheckScriptRun       (const std::wstring & path, Reply & reply);
+    void                  NoteScriptRun        (const std::wstring & path);
 
     // The video and sound logs VIDEOLOG and SOUNDLOG list; only the debugger
     // window's shell and a batch run have them, and without them both

@@ -469,9 +469,9 @@ namespace DebugOptionsParseTests
     TEST_CLASS (McpOptionsParseTests)
     {
     public:
-        TEST_METHOD (AllowPath_IsRepeatable_AndAllowScriptsIsAFlag)
+        TEST_METHOD (AllowPath_IsRepeatable)
         {
-            CommandLineOptions  options = Parse ({ "CassoCli", "mcp", "--allow-path", "C:\\Work", "--allow-scripts", "--allow-path", "D:\\Games" });
+            CommandLineOptions  options = Parse ({ "CassoCli", "mcp", "--allow-path", "C:\\Work", "--allow-path", "D:\\Games" });
 
 
 
@@ -480,7 +480,6 @@ namespace DebugOptionsParseTests
             Assert::AreEqual ((size_t) 2, options.mcp.allowPaths.size());
             Assert::AreEqual (std::string ("C:\\Work"),  options.mcp.allowPaths[0]);
             Assert::AreEqual (std::string ("D:\\Games"), options.mcp.allowPaths[1]);
-            Assert::IsTrue   (options.mcp.allowScripts);
         }
 
         TEST_METHOD (NoOptions_MeansTheDefaults)
@@ -492,18 +491,16 @@ namespace DebugOptionsParseTests
             Assert::IsFalse (IsRefused (options));
             Assert::IsTrue  (options.subcommand == CommandLineOptions::Subcommand::Mcp);
             Assert::IsTrue  (options.mcp.allowPaths.empty());
-            Assert::IsFalse (options.mcp.allowScripts);
         }
 
         TEST_METHOD (SlashPrefixedOptions_AreTheSameOptions)
         {
-            CommandLineOptions  options = Parse ({ "CassoCli", "mcp", "/allow-path", "C:\\Work", "/allow-scripts" });
+            CommandLineOptions  options = Parse ({ "CassoCli", "mcp", "/allow-path", "C:\\Work" });
 
 
 
             Assert::IsFalse  (IsRefused (options), Widen (options.refusalMessage).c_str());
             Assert::AreEqual ((size_t) 1, options.mcp.allowPaths.size());
-            Assert::IsTrue   (options.mcp.allowScripts);
         }
 
         TEST_METHOD (AnOptionItDoesNotTake_AnOperand_OrAMissingFolder_IsRefused)

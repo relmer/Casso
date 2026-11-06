@@ -218,23 +218,25 @@ always fail:
 - a write of a file with the extension `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`,
   `.vbs`, `.js`, `.lnk` or `.scr`, or into a Startup folder;
 - a write over a file that exists, unless the `command` tool's `overwrite`
-  argument is `true`;
-- a command that runs a file of commands (`RUN`, `LOAD`, `STARTUP`), unless
-  the server was started with `--allow-scripts`.
+  argument is `true`.
+
+A command that runs a file of commands (`RUN`, `LOAD`, `STARTUP`) is allowed.
+Reading the file is a read access, and each line in it is limited as a line
+from the channel is.
 
 A failure is an error result with the label `file access denied` and the
 reason as its detail, such as `C:\Games\x.bin is outside the allowed folders.`
 Every access adds a line to the console in Casso's debugger window with the
 client's name and the full path, and a failure adds a line with the reason.
 
-To let the client work in a project folder, and run scripts:
+To let the client work in a project folder:
 
 ```json
 {
   "mcpServers": {
     "casso": {
       "command": "C:\\Program Files\\Casso\\CassoCli.exe",
-      "args": ["mcp", "--allow-path", "C:\\Work\\Game", "--allow-scripts"]
+      "args": ["mcp", "--allow-path", "C:\\Work\\Game"]
     }
   }
 }
@@ -242,5 +244,5 @@ To let the client work in a project folder, and run scripts:
 
 A relative `--allow-path` is taken from the directory the server starts in.
 The rules apply to every command from the channel, so `CassoCli debug --attach`
-has them too, with no extra folders and no scripts. Commands typed in Casso's
+has them too, with no extra folders. Commands typed in Casso's
 console, and scripts run from it, have none of them.

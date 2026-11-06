@@ -455,13 +455,11 @@ struct CommandLineOptions
 
     //
     //  What the `mcp` subcommand expresses: the host folders its client's
-    //  commands may read and write besides the default ones, and whether
-    //  they may run a file of commands.
+    //  commands may read and write besides the default ones.
     //
     struct McpOptions
     {
         std::vector<std::string>  allowPaths;                    // --allow-path <folder>, repeatable
-        bool                      allowScripts  = false;         // --allow-scripts
     };
 
     McpOptions    mcp;

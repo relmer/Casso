@@ -351,6 +351,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Should the console link files rather than list their paths? -> A: Yes. The owner: "Could we hyperlink 'project' in 'Debug project for <dbg filename>...' to have it open Explorer to that directory with that cassoproj selected? ... Links should show tooltips with the file's full path name." Opening links in Casso Explorer, with a choice between it and File Explorer, is put off until 033 is on master (FR-373).
 - Q: Which window stays in front after a step? -> A: The owner: "I should stay in whichever window I hit step from, unless I'm stepping from source in the source window to an instruction that doesn't have a source line mapped--then it should move me to disasm" (FR-368).
 
+### Session 2026-11-06 (owner decision: running a script from the channel)
+
+- Q: Do channel clients need permission to run a script? -> A: No. Each line of a script is checked as a channel line is, so the --allow-scripts gate was removed.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3875,10 +3879,10 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   `W`, `BSAVE`, `SCREENSHOT`, a symbol table save) alike.
 - **FR-389**: Commands from the debug channel MUST fall into these classes:
   inspecting state and controlling the machine, which are allowed; host file
-  access, which FR-387 and FR-388 limit; and running a file of commands,
-  which MUST fail unless the channel's client was started with
-  `CassoCli mcp --allow-scripts`. Commands typed in the console, and those in
-  a script the user ran there, MUST NOT be limited by FR-387 to FR-389.
+  access, which FR-387 and FR-388 limit; and running a file of commands, which
+  is allowed, with each line of the file limited as a channel line is. Commands
+  typed in the console, and those in a script the user ran there, MUST NOT be
+  limited by FR-387 to FR-389.
 - **FR-390**: A write from the debug channel MUST NOT replace an existing file
   unless the request has the overwrite option set, and MUST NOT write a file with the
   extension `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.js`, `.lnk` or

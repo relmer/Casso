@@ -1282,19 +1282,20 @@ bool DebugSession::CheckHostAccess (const std::wstring & path, HostAccess access
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebugSession::CheckScriptRun
+//  DebugSession::NoteScriptRun
+//
+//  Adds the console line for a file of commands a channel line runs. The
+//  guarded file system checks reading the file, and each command in it is
+//  checked as a channel line is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugSession::CheckScriptRun (const std::wstring & path, Reply & reply)
+void DebugSession::NoteScriptRun (const std::wstring & path)
 {
-    if (m_hostAccessGuard == nullptr || m_hostAccessGuard->TryRunScript (path))
+    if (m_hostAccessGuard != nullptr)
     {
-        return true;
+        m_hostAccessGuard->ListScriptRun (path);
     }
-
-    reply.SetError (CommandStatus::Error, HostAccessGuard::kFailedLabel, m_hostAccessGuard->GetLastReason());
-    return false;
 }
 
 

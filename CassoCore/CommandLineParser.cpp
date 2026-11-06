@@ -449,7 +449,6 @@ static constexpr const char *  s_kpszDebugLongOptions[] =
 static constexpr const char *  s_kpszMcpLongOptions[] =
 {
     "allow-path",
-    "allow-scripts",
 };
 
 
@@ -4393,7 +4392,7 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
 //
 //  ParseMcpOptions
 //
-//  The `mcp` grammar: --allow-path <folder>, repeatable, and --allow-scripts.
+//  The `mcp` grammar: --allow-path <folder>, repeatable.
 //  Anything else fails, as in the `debug` grammar, since a dropped option
 //  would change which files the client's commands can access.
 //
@@ -4441,10 +4440,6 @@ void CommandLineParser::ParseMcpOptions (int argc, char * argv[], int argIndex, 
         if (IsLongOption (arg, "--allow-path", options) && hasValue)
         {
             mcp.allowPaths.push_back (argv[++argIndex]);
-        }
-        else if (IsLongOption (arg, "--allow-scripts", options))
-        {
-            mcp.allowScripts = true;
         }
         else if (arg == "--allow-path")
         {

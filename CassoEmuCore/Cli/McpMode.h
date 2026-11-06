@@ -30,8 +30,7 @@ public:
     static void           Serve (McpServer & server, std::istream & in, std::ostream & out);
 
     //  The hello's client: the name, each --allow-path folder made full
-    //  against the current directory, the scratch folder when there is one,
-    //  and --allow-scripts.
+    //  against the current directory, and the scratch folder when there is one.
     static ChannelClient  MakeClient (const CommandLineOptions & options, const std::wstring & scratchFolder);
 
 private:

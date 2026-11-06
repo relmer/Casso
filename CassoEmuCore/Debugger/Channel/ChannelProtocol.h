@@ -46,12 +46,11 @@ struct ChannelRequest
     // command only: a write may replace a file that exists.
     bool                        overwrite = false;
 
-    // hello only, and all optional. A hello without the folders and the
-    // scripts setting has the defaults: no extra folders and no scripts.
+    // hello only, and all optional. A hello without the folders has the
+    // default: no extra folders.
     std::string                client;
-    int                        protocol     = 0;
+    int                        protocol = 0;
     std::vector<std::wstring>  allowPaths;
-    bool                       allowScripts = false;
 };
 
 
@@ -63,9 +62,8 @@ struct ChannelRequest
 //  ChannelClient
 //
 //  What a client's hello set for the client's commands: its name for the
-//  console, the folders it may read and write besides the default ones, and
-//  whether it may run a file of commands. A client that sent no hello has
-//  the defaults.
+//  console and the folders it may read and write besides the default ones.
+//  A client that sent no hello has the defaults.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +71,6 @@ struct ChannelClient
 {
     std::string                 name;
     std::vector<std::wstring>   allowPaths;
-    bool                        allowScripts = false;
 };
 
 

@@ -15,11 +15,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HostAccessGuard::HostAccessGuard (HostAccessPolicy & policy, const std::string & clientName, bool allowScripts, bool overwrite) :
-    m_policy       (policy),
-    m_clientName   (clientName.empty() ? std::string (kDefaultClientName) : clientName),
-    m_allowScripts (allowScripts),
-    m_overwrite    (overwrite)
+HostAccessGuard::HostAccessGuard (HostAccessPolicy & policy, const std::string & clientName, bool overwrite) :
+    m_policy     (policy),
+    m_clientName (clientName.empty() ? std::string (kDefaultClientName) : clientName),
+    m_overwrite  (overwrite)
 {
 }
 
@@ -72,22 +71,16 @@ bool HostAccessGuard::IsReadable (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HostAccessGuard::TryRunScript
+//  HostAccessGuard::ListScriptRun
+//
+//  Adds the console line for a file of commands the line runs. Reading the file
+//  is checked by TryAccess, and so is each command in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HostAccessGuard::TryRunScript (const std::wstring & path)
+void HostAccessGuard::ListScriptRun (const std::wstring & path)
 {
-    bool  isListed = AddAccessLine ("run", path);
-
-
-
-    if (!m_allowScripts)
-    {
-        Fail (GetScriptReason(), isListed);
-    }
-
-    return m_allowScripts;
+    AddAccessLine ("run", path);
 }
 
 
@@ -123,21 +116,6 @@ std::vector<std::string> HostAccessGuard::TakeConsoleLines()
 
     lines.swap (m_consoleLines);
     return lines;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HostAccessGuard::GetScriptReason
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string HostAccessGuard::GetScriptReason()
-{
-    return "Running a file of commands from the debug channel is not allowed. Start CassoCli mcp with --allow-scripts to allow it.";
 }
 
 

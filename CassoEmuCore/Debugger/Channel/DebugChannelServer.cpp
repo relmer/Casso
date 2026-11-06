@@ -179,7 +179,7 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
     switch (request.type)
     {
     case ChannelRequestType::Hello:
-        m_clients[connection] = ChannelClient { request.client, request.allowPaths, request.allowScripts };
+        m_clients[connection] = ChannelClient { request.client, request.allowPaths };
 
         hello    = m_runner.GetInstance();
         hello.id = request.id;

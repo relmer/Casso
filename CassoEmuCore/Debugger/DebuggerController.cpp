@@ -145,7 +145,7 @@ Reply DebuggerController::RunLine (const std::string          & line,
                                    bool                         overwrite)
 {
     HostAccessPolicy           policy (*m_resolver, GetAllowedFolders (client));
-    HostAccessGuard            guard  (policy, client.name, client.allowScripts, overwrite);
+    HostAccessGuard            guard  (policy, client.name, overwrite);
     GuardedFileSystem          guarded (m_files, guard);
     std::vector<std::string>   lines;
     Reply                      reply;

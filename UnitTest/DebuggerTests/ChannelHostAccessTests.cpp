@@ -93,9 +93,9 @@ namespace DebuggerControllerTests
 
 
 
-            void Hello (const std::string & name, std::vector<std::wstring> allowPaths, bool allowScripts)
+            void Hello (const std::string & name, std::vector<std::wstring> allowPaths)
             {
-                transport.Send (connection, ChannelProtocol::WriteHelloRequest (nextId++, ChannelClient { name, std::move (allowPaths), allowScripts }));
+                transport.Send (connection, ChannelProtocol::WriteHelloRequest (nextId++, ChannelClient { name, std::move (allowPaths) }));
                 controller.Pump();
             }
 
@@ -183,7 +183,7 @@ namespace DebuggerControllerTests
 
 
 
-            rig.Hello ("MCP client", {}, false);
+            rig.Hello ("MCP client", {});
             reply = rig.Send ("BSAVE C:\\Elsewhere\\x.bin 300,10");
 
             Assert::AreEqual (std::string ("error"), Rig::StatusOf (reply));
@@ -206,7 +206,7 @@ namespace DebuggerControllerTests
 
 
 
-            rig.Hello ("MCP client", { L"C:\\Work" }, false);
+            rig.Hello ("MCP client", { L"C:\\Work" });
             reply = rig.Send ("BSAVE C:\\Work\\x.bin 300,10");
 
             Assert::AreEqual (std::string ("ok"), Rig::StatusOf (reply), Widen (Rig::DetailOf (reply)).c_str());
@@ -250,7 +250,7 @@ namespace DebuggerControllerTests
 
 
             Assert::AreEqual (S_OK, hr);
-            rig.Hello ("MCP client", { L"C:\\Work" }, false);
+            rig.Hello ("MCP client", { L"C:\\Work" });
 
             reply = rig.Send ("BSAVE C:\\Work\\x.bin 300,10");
 
@@ -271,45 +271,37 @@ namespace DebuggerControllerTests
 
 
 
-        TEST_METHOD (AScriptFails_WithoutAllowScripts)
+        //  A script runs with no setting. Reading it is a read access, and a
+        //  line in it is limited as a channel line is.
+        TEST_METHOD (AScriptRuns_AndItsLinesAreLimitedAsAChannelLineIs)
         {
             Rig        rig;
             JsonValue  reply;
-            HRESULT    hr = rig.files.WriteAllText (L"C:\\Work\\s.txt", "R\n");
+            HRESULT    hr = rig.files.WriteAllText (L"C:\\Work\\ok.txt", "R\n");
 
 
 
             Assert::AreEqual (S_OK, hr);
-            rig.Hello ("MCP client", { L"C:\\Work" }, false);
-
-            reply = rig.Send ("RUN C:\\Work\\s.txt");
-
-            Assert::AreEqual (std::string ("error"), Rig::StatusOf (reply));
-            Assert::AreEqual (HostAccessGuard::GetScriptReason(), Rig::DetailOf (reply));
-            Assert::AreEqual (std::string ("MCP client run C:\\Work\\s.txt"), rig.console.at (0));
-            Assert::AreEqual ("Failed: " + HostAccessGuard::GetScriptReason(), rig.console.at (1));
-        }
-
-
-
-
-
-        TEST_METHOD (AScriptRuns_WithAllowScripts)
-        {
-            Rig        rig;
-            JsonValue  reply;
-            HRESULT    hr = rig.files.WriteAllText (L"C:\\Work\\s.txt", "R\n");
-
-
-
+            hr = rig.files.WriteAllText (L"C:\\Elsewhere\\x.bin", std::string (16, 'A'));
             Assert::AreEqual (S_OK, hr);
-            rig.Hello ("MCP client", { L"C:\\Work" }, true);
+            hr = rig.files.WriteAllText (L"C:\\Work\\bad.txt", "BLOAD C:\\Elsewhere\\x.bin 300\n");
+            Assert::AreEqual (S_OK, hr);
 
-            reply = rig.Send ("RUN C:\\Work\\s.txt");
+            rig.Hello ("MCP client", { L"C:\\Work" });
+
+            reply = rig.Send ("RUN C:\\Work\\ok.txt");
 
             Assert::AreEqual (std::string ("ok"), Rig::StatusOf (reply), Widen (Rig::DetailOf (reply)).c_str());
-        }
+            Assert::AreEqual (std::string ("MCP client run C:\\Work\\ok.txt"), rig.console.at (0));
+            Assert::AreEqual (std::string ("MCP client read C:\\Work\\ok.txt"), rig.console.at (1));
 
+            rig.console.clear();
+            reply = rig.Send ("RUN C:\\Work\\bad.txt");
+
+            Assert::IsTrue   (Rig::StatusOf (reply) != "ok", L"the line outside the allowed folders failed");
+            Assert::AreNotEqual ((Byte) 'A', rig.machine.GetMemoryBus().ReadByte (0x300), L"nothing was loaded");
+            Assert::IsTrue   (Joined (rig.console).find (L"C:\\Elsewhere\\x.bin is outside the allowed folders.") != std::wstring::npos, Joined (rig.console).c_str());
+        }
 
 
 
@@ -348,7 +340,7 @@ namespace DebuggerControllerTests
 
 
         //  A client without a hello, as an older one is: no extra
-        //  folders, no scripts, and the default name.
+        //  folders and the default name.
         TEST_METHOD (AClientWithoutAHello_HasTheDefaults)
         {
             Rig        rig;
@@ -419,7 +411,7 @@ namespace DebuggerControllerTests
 
 
 
-            rig.Hello ("MCP client", { L"C:\\Work" }, false);
+            rig.Hello ("MCP client", { L"C:\\Work" });
             reply = rig.Send ("BLOAD C:\\Work\\missing.bin 300");
 
             Assert::AreEqual (std::string ("error"), Rig::StatusOf (reply));

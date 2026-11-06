@@ -287,10 +287,7 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
         return;
     }
 
-    if (!session.CheckScriptRun (session.ResolvePath (name), reply))
-    {
-        return;
-    }
+    session.NoteScriptRun (session.ResolvePath (name));
 
     hr = files->ReadAllText (session.ResolvePath (name), content);
 

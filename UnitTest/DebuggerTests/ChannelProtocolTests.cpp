@@ -483,7 +483,7 @@ namespace DebuggerTests
         //  come back as they were, a folder outside ASCII included.
         TEST_METHOD (AHellosFoldersAndScriptsSetting_RoundTrip)
         {
-            ChannelClient   client  { "MCP client", { L"C:\\Work", L"D:\\Donn\u00E9es\\Jeu" }, true };
+            ChannelClient   client  { "MCP client", { L"C:\\Work", L"D:\\Donn\u00E9es\\Jeu" } };
             ChannelRequest  request = ParseOk (ChannelProtocol::WriteHelloRequest (7, client));
 
 
@@ -495,18 +495,15 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 2, request.allowPaths.size());
             Assert::AreEqual (std::wstring (L"C:\\Work"), request.allowPaths[0]);
             Assert::AreEqual (std::wstring (L"D:\\Donn\u00E9es\\Jeu"), request.allowPaths[1]);
-            Assert::IsTrue   (request.allowScripts);
 
-            request = ParseOk (ChannelProtocol::WriteHelloRequest (8, ChannelClient { "x", {}, false }));
+            request = ParseOk (ChannelProtocol::WriteHelloRequest (8, ChannelClient { "x", {} }));
 
             Assert::IsTrue  (request.allowPaths.empty());
-            Assert::IsFalse (request.allowScripts);
         }
 
 
 
-        //  The hello a client built before the fields sends: no folders and
-        //  no scripts.
+        //  The hello a client built before the fields sends: no folders.
         TEST_METHOD (AnOlderClientsHello_HasTheDefaults)
         {
             ChannelRequest  request = ParseOk ("{\"type\":\"hello\",\"id\":1,\"client\":\"casso-mcp\",\"protocol\":1}");
@@ -514,7 +511,20 @@ namespace DebuggerTests
 
 
             Assert::IsTrue  (request.allowPaths.empty());
-            Assert::IsFalse (request.allowScripts);
+        }
+
+
+
+        //  A hello with the retired allowScripts member is accepted, and the
+        //  member is ignored.
+        TEST_METHOD (ARetiredAllowScriptsMember_IsIgnored)
+        {
+            ChannelRequest  request = ParseOk ("{\"type\":\"hello\",\"id\":1,\"allowScripts\":true}");
+
+
+
+            Assert::IsTrue (request.type == ChannelRequestType::Hello);
+            Assert::IsTrue (request.allowPaths.empty());
         }
 
 
@@ -539,7 +549,6 @@ namespace DebuggerTests
         TEST_METHOD (TheFileAccessFields_MustHaveTheirTypes)
         {
             Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"command\",\"id\":1,\"line\":\"R\",\"overwrite\":\"yes\"}").label);
-            Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"hello\",\"id\":1,\"allowScripts\":1}").label);
             Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"hello\",\"id\":1,\"allowPaths\":\"C:\\\\Work\"}").label);
             Assert::AreEqual (std::string ("malformed request"), ParseFails ("{\"type\":\"hello\",\"id\":1,\"allowPaths\":[\"C:\\\\Work\",2]}").label);
         }

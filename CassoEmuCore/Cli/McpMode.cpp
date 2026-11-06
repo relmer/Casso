@@ -141,8 +141,7 @@ ChannelClient McpMode::MakeClient (const CommandLineOptions & options, const std
 
 
 
-    client.name         = McpTools::kClientName;
-    client.allowScripts = options.mcp.allowScripts;
+    client.name = McpTools::kClientName;
 
     for (const std::string & path : options.mcp.allowPaths)
     {

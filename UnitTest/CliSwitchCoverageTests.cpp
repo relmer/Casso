@@ -514,10 +514,6 @@ namespace CliSwitchCoverageTests
             { "mcp", "allow-path", { "CassoCli", "mcp", "--allow-path", "C:\\Work" },
               [] (const CommandLineOptions & o) { return o.mcp.allowPaths == std::vector<std::string> { "C:\\Work" }; },
               "--allow-path adds a folder the client's commands may use" },
-
-            { "mcp", "allow-scripts", { "CassoCli", "mcp", "--allow-scripts" },
-              [] (const CommandLineOptions & o) { return o.mcp.allowScripts; },
-              "--allow-scripts lets the client's commands run a file of commands" },
         };
     }
 
@@ -654,7 +650,7 @@ namespace CliSwitchCoverageTests
             Assert::IsTrue (GrammarSwitches ("run").size()    >= 8,  L"run");
             Assert::IsTrue (GrammarSwitches ("disk").size()   >= 12, L"disk");
             Assert::IsTrue (GrammarSwitches ("debug").size()  >= 8,  L"debug");
-            Assert::IsTrue (GrammarSwitches ("mcp").size()    >= 2,  L"mcp");
+            Assert::IsTrue (GrammarSwitches ("mcp").size()    >= 1,  L"mcp");
 
             Assert::IsTrue (Cases().size() >= 55, L"and the case table is populated");
         }

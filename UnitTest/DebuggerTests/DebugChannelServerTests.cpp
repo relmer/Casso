@@ -826,7 +826,7 @@ namespace DebuggerTests
             first  = transport.Connect();
             second = transport.Connect();
 
-            transport.Send (first,  ChannelProtocol::WriteHelloRequest (1, ChannelClient { "MCP client", { L"C:\\Work" }, true }));
+            transport.Send (first,  ChannelProtocol::WriteHelloRequest (1, ChannelClient { "MCP client", { L"C:\\Work" } }));
             transport.Send (first,  Command ("r", 2));
             transport.Send (second, Command ("r", 3));
 
@@ -836,11 +836,9 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("MCP client"), runner.ran[0].client.name);
             Assert::AreEqual ((size_t) 1, runner.ran[0].client.allowPaths.size());
             Assert::AreEqual (std::wstring (L"C:\\Work"), runner.ran[0].client.allowPaths[0]);
-            Assert::IsTrue   (runner.ran[0].client.allowScripts);
 
             Assert::IsTrue   (runner.ran[1].client.name.empty(), L"the other client sent no hello");
             Assert::IsTrue   (runner.ran[1].client.allowPaths.empty());
-            Assert::IsFalse  (runner.ran[1].client.allowScripts);
         }
 
 

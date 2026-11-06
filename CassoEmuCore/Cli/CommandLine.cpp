@@ -62,7 +62,6 @@ static const char *  s_kDebugOptionLines[] =
 static const char *  s_kMcpOptionLines[] =
 {
     "  {0}allow-path <folder>{1}  A folder the client's commands may also read and write; repeatable",
-    "  {0}allow-scripts{1}        Let the client's commands run a file of commands, such as RUN, LOAD or STARTUP",
 };
 
 
