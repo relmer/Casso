@@ -416,5 +416,36 @@ namespace BranchArrowClickTests
             Assert::AreEqual (0, view->GetTopLine(), L"the next click scrolls back to the PC's line");
             Assert::IsTrue   (host.addresses.empty());
         }
+
+
+        //  A branch whose target is on no line of the document scrolls
+        //  nothing, and the next click is toward the target again rather
+        //  than back to the PC's line.
+        TEST_METHOD (ATargetOnNoLineOfTheDocumentIsTriedAgain)
+        {
+            constexpr int          kScrolledTo = 50;
+            CassoTheme             theme       = CassoTheme::MakeSkeuomorphic();
+            ArrowHost              host;
+            ArrowWindow            window      (theme, host);
+            DxuiTextView         * view        = OpenDocument (window, theme, 0x9000);
+            std::optional<POINT>   at;
+
+
+
+            at = FindSourceArrowPoint (window);
+            Assert::IsTrue (at.has_value(), L"the arrow runs to the edge of the lines");
+
+            Click (window, *at);
+            Assert::AreEqual (0, view->GetTopLine(), L"no line to scroll to");
+
+            view->SetTopLine (kScrolledTo);
+
+            at = FindSourceArrowPoint (window);
+            Assert::IsTrue (at.has_value(), L"the arrow runs across the lines from the PC's line above them");
+
+            Click (window, *at);
+            Assert::AreEqual (kScrolledTo, view->GetTopLine(), L"the second click is toward the target, not back to the PC's line");
+            Assert::IsTrue   (host.addresses.empty());
+        }
     };
 }

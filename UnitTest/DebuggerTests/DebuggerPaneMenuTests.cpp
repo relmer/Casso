@@ -208,6 +208,39 @@ namespace DebuggerPaneMenuTests
             Assert::AreEqual ((size_t) 1, window.dockMenus.size(), L"the tab's Dock to menu");
             Assert::AreEqual (code, window.dockMenus.back());
         }
+
+
+        //  A pane hidden on an edge has the Dock to menu on its edge tab,
+        //  also where the tab lies over the place its content had while it
+        //  was docked: the hidden content isn't under the pointer. The first
+        //  code view, hidden on the left, has its tab there.
+        TEST_METHOD (TheDockToMenuOpensFromAnEdgeTab)
+        {
+            CassoTheme       theme   = CassoTheme::MakeSkeuomorphic();
+            MenuHost         host;
+            MenuWindow       window  (theme, host);
+            IDxuiControl   * content = nullptr;
+            RECT             tab     = {};
+            POINT            middle  = {};
+
+
+
+            window.TakeSnapshot (MakeSnapshot());
+
+            content = window.GetDockSite()->GetPaneContent (DebuggerLayout::kCode);
+            Assert::IsNotNull (content, L"the first code view is docked");
+            Assert::IsTrue    (window.GetDockSite()->EditPaneLayout().AutoHide (DebuggerLayout::kCode, DxuiDockSide::Left), L"hidden on the left");
+            window.Relayout();
+
+            tab    = window.GetDockSite()->GetEdgeTabRect (DebuggerLayout::kCode);
+            middle = POINT { (tab.left + tab.right) / 2, (tab.top + tab.bottom) / 2 };
+            Assert::IsTrue (DxuiDockSite::Contains (content->GetBounds(), middle), L"the edge tab lies over the content's docked place");
+            Assert::IsFalse (content->IsVisible(), L"the hidden content isn't drawn");
+
+            RightClick (window, middle);
+            Assert::AreEqual ((size_t) 1, window.dockMenus.size(), L"the edge tab's Dock to menu");
+            Assert::AreEqual (std::wstring (DebuggerLayout::kCode), window.dockMenus.back());
+        }
     };
 
 
