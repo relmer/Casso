@@ -481,7 +481,7 @@ namespace Acia6551TestNs
             acia.Tick (charCycles);
             Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusOverrun) != 0,
                             L"a byte landing over an unread one sets overrun");
-            Assert::AreEqual<Byte> (0x22, acia.Read (kAddrData), L"the new byte replaces the unread one");
+            Assert::AreEqual<Byte> (0x11, acia.Read (kAddrData), L"the new byte is dropped; the register has the last valid byte");
             Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusOverrun) == 0,
                             L"reading the data register clears overrun");
         }

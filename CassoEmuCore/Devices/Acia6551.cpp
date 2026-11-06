@@ -1404,9 +1404,10 @@ Error:
 //
 //  Moves one byte into the receive data register, masked to the word
 //  length. Its parity and framing errors replace the last byte's, as the
-//  6551 reports them per character. A byte landing over an unread one, or
-//  one the PC lost bytes before, sets overrun. In echo mode the byte is also
-//  sent back out when the shift register is idle.
+//  6551 reports them per character. A byte landing over an unread one is
+//  dropped and sets overrun, so the register has the last valid byte. A byte
+//  with the PC's overrun error also sets overrun. In echo mode the byte is
+//  also sent back out when the shift register is idle.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1420,7 +1421,8 @@ void Acia6551::LandReceivedByte (Byte value, Byte errors)
     if (m_status & kStatusRxFull)
     {
         m_status |= kStatusOverrun;
-        EmitComm (IoEventKind::SerialOverrun, m_rxData);
+        EmitComm (IoEventKind::SerialOverrun, static_cast<Byte> (value & mask));
+        return;
     }
 
     m_rxData  = static_cast<Byte> (value & mask);

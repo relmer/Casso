@@ -163,15 +163,27 @@ namespace AciaTcpEndpointTestNs
 
         TEST_METHOD (BytesPassBothWaysFFIncluded)
         {
-            TcpRig                            rig (MakeListening());
-            std::shared_ptr<FakeSocketState>  client = rig.Accept();
+            constexpr uint32_t                kStep    = 8;
+            TcpRig                            rig      (MakeListening());
+            std::shared_ptr<FakeSocketState>  client   = rig.Accept();
+            std::vector<Byte>                 received;
+            uint64_t                          ran      = 0;
 
 
 
             client->inbound = { 0xFF, 'A' };
-            rig.Run (Acia6551::kIdlePollCycles * 2);
 
-            Assert::AreEqual<Byte> ('A', rig.acia.Read (kAddrData), L"the last of the two landed");
+            for (ran = 0; ran < Acia6551::kIdlePollCycles * 4 && received.size() < 2; ran += kStep)
+            {
+                rig.acia.Tick (kStep);
+
+                if (rig.acia.GetStatus() & Acia6551::kStatusRxFull)
+                {
+                    received.push_back (rig.acia.Read (kAddrData));
+                }
+            }
+
+            Assert::IsTrue (std::vector<Byte> { 0xFF, 'A' } == received, L"both bytes land, in order");
 
             rig.acia.Write (kAddrData, 0xFF);
             rig.Run (Acia6551::kIdlePollCycles * 2);
