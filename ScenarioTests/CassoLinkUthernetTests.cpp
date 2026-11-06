@@ -363,7 +363,9 @@ public:
         VolumeListing          catalog;
         Win32LinkAnnouncements listener (LinkProgram::kAnnouncePort);
         std::string            row;
-        std::string            dhcp   = std::format ("UTHERNET II, SLOT 3, {}.{}.{}.{}:{}",
+        std::array<Byte, 6>    cardMac = {};
+        LinkAnnouncement       ours;
+        std::string            dhcp    = std::format ("UTHERNET II, SLOT 3, {}.{}.{}.{}:{}",
                                                      VirtualSubnet::kGuestIp >> 24, (VirtualSubnet::kGuestIp >> 16) & 0xFF,
                                                      (VirtualSubnet::kGuestIp >> 8) & 0xFF, VirtualSubnet::kGuestIp & 0xFF, kUniversalPort);
 
@@ -385,12 +387,35 @@ public:
         rig.RunUntil ([&] () { row = rig.Row (kRow4); return row.find (" AT ") != std::string::npos; }, kWaitMs);
         Assert::AreEqual (dhcp, row, L"the address from DHCP, not the one built in");
 
-        rig.RunUntil ([&] () { return !listener.GetAnnounced().empty(); }, kWaitMs);
-        Assert::IsFalse (listener.GetAnnounced().empty(), L"an announcement");
-        Assert::AreEqual (std::format ("127.0.0.1:{}", kUniversalPort), listener.GetAnnounced()[0].GetAddressText(),
-                          L"from this PC, so at the address the card's socket is on");
-        Assert::IsTrue (std::equal (options.network.mac.begin(), options.network.mac.begin() + 3, listener.GetAnnounced()[0].mac.begin()),
+        //  Announcements from other Apples on the LAN arrive on the same
+        //  port, so the one to check is matched by this card's MAC address,
+        //  read from the program's memory.
+        for (size_t at = 0; at < cardMac.size(); at++)
+        {
+            cardMac[at] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kUniversalW5100 + LinkProgram::kNetMacOffset + at));
+        }
+
+        Assert::IsTrue (std::equal (options.network.mac.begin(), options.network.mac.begin() + 3, cardMac.begin()),
                         L"the MAC address's first three bytes as built, the rest salted on the Apple");
+
+        auto  findOurs = [&] ()
+        {
+            for (const LinkAnnouncement & announcement : listener.GetAnnounced())
+            {
+                if (announcement.mac == cardMac)
+                {
+                    ours = announcement;
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        rig.RunUntil (findOurs, kWaitMs);
+        Assert::IsTrue (findOurs(), L"an announcement from this card's MAC address");
+        Assert::AreEqual (std::format ("127.0.0.1:{}", kUniversalPort), ours.GetAddressText(),
+                          L"from this PC, so at the address the card's socket is on");
         AssertSucceeded (listener.SetListening (false));
 
         settings.name      = "Uthernet";
