@@ -3282,6 +3282,75 @@ bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetCellTextClipPx
+//
+//  The box PaintDataRows draws a cell's text in, computed the same way: from
+//  past the cell's padding, checkbox, icon and swatch to its column's edge,
+//  or the row's end for a cell that spans the row, short of its padding and
+//  trail. DrawString clips the text to that box, and Paint clips everything
+//  to the list's width short of its scrollbar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::TryGetCellTextClipPx (int row, size_t column, float & left, float & right) const
+{
+    HRESULT           hr       = S_OK;
+    float             layoutW  = (float) ComputeScrollLayout().viewportW;
+    float             colOff   = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
+    float             cellPadL = (float) m_scaler.ToPx (m_cellPadLeftDip);
+    float             cellPadR = (float) m_scaler.ToPx (m_cellPadRightDip);
+    float             cellW    = 0.0f;
+    float             shift    = 0.0f;
+    const Cell      * cell     = nullptr;
+    RECT              text     = {};
+    bool              isShown  = false;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    isShown = !IsItemsView() && GetCellTextRectPx (row, column, text) && column < GetRowCells (row).size();
+    CBR (isShown);
+
+    cell = &GetRowCells (row)[column];
+
+    ComputeColumnLayout (layoutW, colXPx, colWPx);
+
+    cellW = (float) colWPx[column];
+
+    if (cell->spansRow)
+    {
+        cellW = (std::max) (cellW, layoutW - colOff - (float) colXPx[column]);
+    }
+
+    if (cell->check.has_value())
+    {
+        shift += (float) m_scaler.ToPx (s_kCellCheckDip) + m_scaler.ToPxf ((float) s_kCellCheckGapDip);
+    }
+
+    if (cell->icon && !cell->icon->bgraPremul.empty())
+    {
+        shift += m_scaler.ToPxf ((float) s_kCellIconDip) + m_scaler.ToPxf ((float) s_kCellIconGapDip);
+    }
+
+    if (cell->swatch != 0)
+    {
+        shift += m_scaler.ToPxf ((float) s_kCellSwatchDip) + m_scaler.ToPxf ((float) s_kCellIconGapDip);
+    }
+
+    left  = colOff + (float) colXPx[column] + cellPadL + shift;
+    right = (std::min) (colOff + (float) colXPx[column] + cellW - cellPadR - m_scaler.ToPxf ((float) cell->trailDip), layoutW);
+
+Error:
+    return isShown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetCheckRectPx
 //
 //  At the start of the cell, past its left padding, centered in the row.

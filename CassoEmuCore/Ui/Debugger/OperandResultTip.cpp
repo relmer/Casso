@@ -47,7 +47,6 @@ bool OperandResultTip::TryMakeLayout (
     int      rowTop     = (int) placement.textRect.top;
     int      rowHeight  = (int) (placement.textRect.bottom - placement.textRect.top);
     int      cellRight  = (std::min) ((int) placement.textRect.right, placement.visibleRight);
-    int      shownRight = (std::min) ((int) placement.textRect.right - placement.padRightPx, placement.visibleRight);
     float    fullPx     = 0.0f;
     float    widestPx   = 0.0f;
 
@@ -67,7 +66,7 @@ bool OperandResultTip::TryMakeLayout (
 
     //  A start scrolled out of sight, or off the screen, leaves nothing to
     //  lay the tip over.
-    isOnScreen = (isHidden || (textLeft >= placement.visibleLeft && textLeft < shownRight)) &&
+    isOnScreen = (isHidden || (textLeft >= placement.visibleLeft && placement.clipLeftPx < placement.clipRightPx)) &&
                  textLeft >= placement.workArea.left && textLeft + placement.padRightPx < placement.workArea.right &&
                  rowTop >= placement.workArea.top;
     CBR (isOnScreen);
@@ -79,9 +78,11 @@ bool OperandResultTip::TryMakeLayout (
     layout.border     = placement.border;
     layout.textOrigin = POINT { textLeft, rowTop };
 
-    //  Text that cannot be measured cannot be said to be cut off.
+    //  Text that cannot be measured cannot be said to be cut off. Measured
+    //  against the box the view clips its text to, the tip is up exactly
+    //  when the view's drawing of the text is clipped.
     fullPx = MeasurePx (text, cell.text, placement.fontPx, placement.face);
-    CBR (fullPx > 0.0f && (isHidden || fullPx > (float) (shownRight - textLeft)));
+    CBR (fullPx > 0.0f && (isHidden || fullPx > placement.clipRightPx - placement.clipLeftPx));
 
     doesFit = TryWrapOnScreen (text, placement, (float) (cellRight - placement.padRightPx - textLeft), layout, widestPx);
     CBR (doesFit);
@@ -106,10 +107,9 @@ Error:
 //
 //  OperandResultTip::IsCellHidden
 //
-//  Past the right edge where its text starts there; left of the left edge
-//  where it ends there, at its column's edge or a padding past its text,
-//  whichever comes first. A cell with no text, or text that cannot be
-//  measured, is not hidden.
+//  Its text starts where the view clips it, or past the pane's right edge;
+//  or the drawn part of its text ends left of the pane's left edge. A cell
+//  with no text, or text that cannot be measured, is not hidden.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,14 +119,13 @@ bool OperandResultTip::IsCellHidden (
     IDxuiTextRenderer         & text)
 {
     bool   isUsable  = !cell.text.empty() && placement.fontPx > 0.0f && placement.face != nullptr;
-    int    textLeft  = (int) placement.textRect.left;
     float  textPx    = isUsable ? MeasurePx (text, cell.text, placement.fontPx, placement.face) : 0.0f;
-    int    textRight = textLeft + (int) std::ceil (textPx) + placement.padRightPx;
-    int    cellRight = (std::min) ((int) placement.textRect.right, textRight);
+    float  shownEnd  = (std::min) (placement.clipLeftPx + textPx, placement.clipRightPx);
+    float  rightEdge = (std::min) (placement.clipRightPx, (float) placement.visibleRight);
 
 
 
-    return textPx > 0.0f && (textLeft >= placement.visibleRight || cellRight <= placement.visibleLeft);
+    return textPx > 0.0f && (placement.clipLeftPx >= rightEdge || shownEnd <= (float) placement.visibleLeft);
 }
 
 

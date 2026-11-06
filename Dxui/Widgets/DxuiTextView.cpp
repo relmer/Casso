@@ -2628,6 +2628,32 @@ bool DxuiTextView::GetCellRectPx (int row, int cell, RECT & outRect) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::TryGetCellTextClipPx
+//
+//  DrawRun starts a cell's characters at its column, unrounded, and Paint
+//  clips the text at the view's right edge. The scroll bar has no track,
+//  so text under it is visible.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTextView::TryGetCellTextClipPx (int row, int cell, float & left, float & right) const
+{
+    RECT  rect    = {};
+    bool  isShown = GetCellRectPx (row, cell, rect) && GetCellLeftPx (row, cell, left);
+
+
+
+    right = (float) m_boundsDip.right;
+
+    return isShown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::SetFocusRow
 //
 //  The focused row replaces any selection, so it is drawn, and is scrolled

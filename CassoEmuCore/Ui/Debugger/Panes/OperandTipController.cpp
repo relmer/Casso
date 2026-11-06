@@ -459,10 +459,10 @@ bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & sca
 //  OperandTipController::TryMakeOnList
 //
 //  The tip over a row's operand and result when the pane cuts them off,
-//  placed as the list draws the cell: where its text starts, the pane's
-//  edges short of its scrollbar, its padding, face and size, and the theme's
-//  colors under and around it, the row's own fill among them. The cell's
-//  area is the part of it visible in the pane.
+//  placed as the list draws the cell: where its text starts and where it is
+//  clipped, the pane's edges short of its scrollbar, its padding, face and
+//  size, and the theme's colors under and around it, the row's own fill
+//  among them. The cell's area is the part of it visible in the pane.
 //
 //  The tip is within the work area of the monitor where the cell's text
 //  starts, joined by the next monitor's where the cell runs on into it, the
@@ -492,7 +492,8 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
 
 
     isShown = theme != nullptr && list != nullptr && list->IsVisible() &&
-              list->GetCellTextRectPx (row, column, placement.textRect);
+              list->GetCellTextRectPx (row, column, placement.textRect) &&
+              list->TryGetCellTextClipPx (row, column, placement.clipLeftPx, placement.clipRightPx);
     CBR (isShown);
 
     cells     = &list->GetCellsOfRow (row);
@@ -508,6 +509,8 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
 
     OffsetRect (&placement.textRect, bounds.left, bounds.top);
 
+    placement.clipLeftPx       += (float) bounds.left;
+    placement.clipRightPx      += (float) bounds.left;
     placement.visibleLeft       = bounds.left;
     placement.visibleRight      = bounds.right - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0);
     placement.padLeftPx         = scaler.ToPx (list->GetCellPadLeftDip());
@@ -546,8 +549,8 @@ Error:
 //
 //  The tip over a source line's operand and result when the view cuts them
 //  off at its right edge, placed as the view draws them: where the cell's
-//  text starts, in the view's face at its zoom, in the colors of the cell's
-//  runs, on the line's fill.
+//  text starts and where it is clipped, in the view's face at its zoom, in
+//  the colors of the cell's runs, on the line's fill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -570,7 +573,8 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
 
 
     isShown = theme != nullptr && textView != nullptr && textView->IsVisible() && row >= 0 && row < (int) textView->GetRows().size() &&
-              textView->GetRows()[(size_t) row].cells.size() > column && textView->GetCellRectPx (row, (int) column, placement.textRect);
+              textView->GetRows()[(size_t) row].cells.size() > column && textView->GetCellRectPx (row, (int) column, placement.textRect) &&
+              textView->TryGetCellTextClipPx (row, (int) column, placement.clipLeftPx, placement.clipRightPx);
     CBR (isShown);
 
     shown     = &textView->GetRows()[(size_t) row];

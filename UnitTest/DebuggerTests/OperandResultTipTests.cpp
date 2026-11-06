@@ -137,7 +137,17 @@ namespace OperandResultTipTests
             placement.border            = kBorder;
             placement.workArea          = kScreen;
 
+            SetListClip (placement);
             return placement;
+        }
+
+
+        //  The list clips a cell's text at its column's edge short of the
+        //  padding, or at the pane's edge.
+        static void  SetListClip (OperandResultTip::Placement & placement)
+        {
+            placement.clipLeftPx  = (float) placement.textRect.left;
+            placement.clipRightPx = (float) (std::min) ((int) placement.textRect.right - placement.padRightPx, placement.visibleRight);
         }
 
 
@@ -184,6 +194,34 @@ namespace OperandResultTipTests
         }
 
 
+        //  Measured against the box the view clips the text to, from a start
+        //  between two pixels as a text view's can be: text a pixel wider
+        //  than the box has a tip, and text that fills it exactly has no tip.
+        TEST_METHOD (TheTipIsUpExactlyWhenTheViewClipsTheText)
+        {
+            constexpr int                kTextPx   = 907;
+            constexpr float              kStartPx  = (float) kTextLeft + 0.5f;
+
+            DxuiListView::Cell           cell      = MakeCell ("A=00 X=01 $1234=41", "A=41");
+            OperandResultTip::Placement  placement = MakePlacement (kColumnRight);
+            MockDxuiTextRenderer         text;
+            OperandResultTip::Layout     layout;
+
+
+
+            text.SetCannedMetrics (cell.text, SIZE { kTextPx, kRowHeight });
+
+            placement.clipLeftPx  = kStartPx;
+            placement.clipRightPx = kStartPx + (float) kTextPx;
+
+            Assert::IsFalse (OperandResultTip::TryMakeLayout (cell, placement, text, layout), L"text that fills the box exactly has no tip");
+
+            placement.clipRightPx -= 1.0f;
+
+            Assert::IsTrue  (OperandResultTip::TryMakeLayout (cell, placement, text, layout), L"text a pixel wider than the box has a tip");
+        }
+
+
         TEST_METHOD (AColumnNarrowerThanItsTextCutsItOffToo)
         {
             DxuiListView::Cell           cell      = MakeCell ("$0010=41", "A=41");
@@ -194,6 +232,7 @@ namespace OperandResultTipTests
 
 
             placement.textRect.right = GetEdgeFor (10);
+            SetListClip (placement);
 
             Assert::IsTrue (OperandResultTip::TryMakeLayout (cell, placement, text, layout), L"the column cuts the text off");
             Assert::IsTrue (layout.rect.right >= placement.textRect.right, L"the tip covers the whole of the column");
@@ -407,6 +446,7 @@ namespace OperandResultTipTests
             placement.visibleLeft     = kPaneLeft;
             placement.textRect.left   = kPaneRight + kPadPx;
             placement.textRect.right  = kColumnRight;
+            SetListClip (placement);
 
             Assert::IsTrue   (OperandResultTip::IsCellHidden (cell, placement, text), L"the cell is wholly past the pane");
             Assert::IsTrue   (OperandResultTip::TryMakeLayout (cell, placement, text, layout), L"a hidden cell has a tip");
@@ -486,6 +526,7 @@ namespace OperandResultTipTests
             //  tip's least width, which holds all twenty-three.
             placement.visibleLeft    = 20;
             placement.textRect.right = GetEdgeFor (20);
+            SetListClip (placement);
 
             Assert::IsTrue   (OperandResultTip::TryMakeLayout (cell, placement, text, layout));
             Assert::AreEqual ((size_t) 1, layout.lines.size(), L"the operand fits the tip's least width on one line");
@@ -844,6 +885,71 @@ namespace OperandResultTipTests
 
             Assert::IsFalse (window.GetOperandTips().TryGet (GetOperandPoint (window, 1), scaler, text, MakeScreen(), layout, tipCell),
                              L"a short operand fits");
+        }
+
+
+        //  The tip is up exactly when the list's drawing of the operand is
+        //  clipped: to the box its paint draws the text in, or the list's
+        //  clip short of its scrollbar, whichever comes first.
+        TEST_METHOD (TheWindowsTipIsUpExactlyWhenTheListClipsTheOperand)
+        {
+            CassoTheme                theme     = CassoTheme::MakeSkeuomorphic();
+            TipHost                   host;
+            TipWindow                 window (theme, host);
+            MockDxuiTextRenderer      text;
+            MockDxuiPainter           painter;
+            DxuiListView            * list      = nullptr;
+            RECT                      bounds    = {};
+            RECT                      cell      = {};
+            float                     textLeft  = 0.0f;
+            float                     boxRight  = 0.0f;
+            float                     clipRight = 0.0f;
+            bool                      hasClip   = false;
+            bool                      hasRun    = false;
+            int                       roomPx    = 0;
+            std::wstring              operand;
+            OperandResultTip::Layout  layout;
+
+
+
+            Build (window, theme, text);
+
+            list    = window.GetCodeList (0);
+            bounds  = list->GetBounds();
+            operand = list->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text;
+
+            Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kOperandColumn, cell), L"the long row's operand is in view");
+
+            textLeft = (float) (bounds.left + cell.left);
+
+            text.Reset();
+            list->Paint (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::PushClipRect && !hasClip)
+                {
+                    clipRight = call.x + call.width;
+                    hasClip   = true;
+                }
+
+                if (call.kind == RecordedTextKind::DrawString && !hasRun && call.x == textLeft && !call.text.empty() && operand.starts_with (call.text))
+                {
+                    boxRight = call.x + call.width;
+                    hasRun   = true;
+                }
+            }
+
+            Assert::IsTrue (hasClip, L"the list clips its paint");
+            Assert::IsTrue (hasRun,  L"the list draws the operand where its text starts");
+
+            roomPx = (int) ((std::min) (boxRight, clipRight) - textLeft);
+
+            text.SetCannedMetrics (operand, SIZE { roomPx, kRowHeight });
+            Assert::IsFalse (TryGetTip (window, GetOperandPoint (window, 0), text, layout), L"an operand that fills its box exactly has no tip");
+
+            text.SetCannedMetrics (operand, SIZE { roomPx + 1, kRowHeight });
+            Assert::IsTrue  (TryGetTip (window, GetOperandPoint (window, 0), text, layout), L"an operand a pixel wider than its box has a tip");
         }
 
 

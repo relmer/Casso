@@ -30,6 +30,8 @@ public:
         RECT              textRect          = {};        // left is where the text starts, right the column's edge; top and bottom are its row's
         int               visibleLeft       = 0;         // the pane's edges, past which the list draws nothing
         int               visibleRight      = 0;
+        float             clipLeftPx        = 0.0f;      // where the view starts the cell's text, and where its drawing of the text is clipped
+        float             clipRightPx       = 0.0f;
         int               padLeftPx         = 0;         // the cell's room either side of its text
         int               padRightPx        = 0;
         float             fontPx            = 0.0f;

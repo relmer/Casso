@@ -553,6 +553,11 @@ public:
     //  hidden column.
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const;
 
+    //  Where Paint starts a visible row's text in a column and where its
+    //  drawing of the text is clipped, in the same coordinates. False where
+    //  GetCellTextRectPx is false.
+    bool  TryGetCellTextClipPx (int row, size_t column, float & left, float & right) const;
+
     //  Where a cell's checkbox is drawn and hit, in the same coordinates;
     //  false for a cell with none, a row out of view or a hidden column.
     bool  GetCheckRectPx      (int row, size_t column, RECT & outRect) const;

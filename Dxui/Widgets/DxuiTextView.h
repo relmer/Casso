@@ -160,6 +160,11 @@ public:
     int   GetTextAreaRightPx () const;
     bool  GetCellRectPx      (int row, int cell, RECT & outRect) const;
 
+    //  Where Paint starts a cell's text on the first line of its row and where
+    //  its drawing of a cell in a clipped column is clipped, false when that
+    //  line is not drawn.
+    bool  TryGetCellTextClipPx (int row, int cell, float & left, float & right) const;
+
     //  A view that fills a pane: its text starts where the pane's title
     //  does, rather than a pad in from its left. Off by default.
     void  SetPaneTextInset (bool on)              { m_paneTextInset = on; }
