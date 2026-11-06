@@ -946,6 +946,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     bool                                hasDisk          = false;
     bool                                whole            = false;
     bool                                same             = false;
+    int                                 afterTrack       = 0;
     std::unique_lock<std::mutex>        folderLock       = std::unique_lock<std::mutex> (GetFolderLock (m_folder), std::defer_lock);
 
 
@@ -980,9 +981,13 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     hr = FullSendDisk::ComputeFingerprint (image, imageFingerprint);
     CHR (hr);
 
-    after = image;
+    after      = image;
+    afterTrack = (FullSendDisk::IsCatalogOnTrackZero (image) || !checked.IsReadWhole (FullSendDisk::kDosCatalogTrack)) ? 0 : FullSendDisk::kDosCatalogTrack;
 
-    hr = m_link.ReadTrack (drive, FullSendDisk::IsCatalogOnTrackZero (image) ? 0 : FullSendDisk::kDosCatalogTrack, after, hasDisk, whole);
+    //  The catalog track is read again, or track 0 when the check could not
+    //  read the catalog track whole: a copy-protected disk's can have no sector
+    //  that reads at all, which would look like an empty drive.
+    hr = m_link.ReadTrack (drive, afterTrack, after, hasDisk, whole);
     CHR (hr);
 
     hr = FullSendDisk::ComputeFingerprint (after, afterFingerprint);
@@ -992,7 +997,12 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     //  verified read has already voted on. Nor is a track that wasn't read whole
     //  during the check, as a copy-protected disk's track 0 or catalog track can
     //  be: each read's retries recover a different set of its sectors.
-    comparable    = checked.IsReadWhole (0) && (FullSendDisk::IsCatalogOnTrackZero (checked.image) || checked.IsReadWhole (FullSendDisk::kDosCatalogTrack));
+    //  Every track of the fingerprint counts, CP/M's directory track too on a
+    //  disk with no file system Casso recognizes.
+    comparable    = checked.IsReadWhole (0)
+                    && (FullSendDisk::IsCatalogOnTrackZero (checked.image)
+                        || (checked.IsReadWhole (FullSendDisk::kDosCatalogTrack)
+                            && (!FullSendDisk::NeedsDirectoryTrack (checked.image) || checked.IsReadWhole (FullSendDisk::kCpmDirectoryTrack))));
     same          = hasDisk && (!comparable || (imageFingerprint == fingerprint && afterFingerprint == fingerprint) || !report.marks.empty());
     m_screen.quip = 0;
 

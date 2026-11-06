@@ -223,9 +223,20 @@ std::string FullSendDisk::GetCatalogTitle (const std::vector<Byte> & image)
 
         if (SUCCEEDED (listed))
         {
-            auto  program = std::find_if (listing.entries.begin(), listing.entries.end(), [] (const FileEntry & entry) { return (entry.type & kDosProgramTypes) != 0; });
+            //  A name with no letter or digit, such as a name of control
+            //  characters on a protected disk, is passed over.
+            auto  program = std::find_if (listing.entries.begin(), listing.entries.end(), [] (const FileEntry & entry)
+            {
+                return (entry.type & kDosProgramTypes) != 0 && std::any_of (entry.name.begin(), entry.name.end(), [] (char ch) { return std::isalnum ((unsigned char) ch) != 0; });
+            });
 
             title = (program == listing.entries.end()) ? std::string() : program->name;
+
+            //  Its control characters are dropped, not made legal for a file
+            //  name, and the spaces around what is left.
+            std::erase_if (title, [] (char ch) { return (unsigned char) ch < ' ' || ch == '\x7F'; });
+            title.erase (0, title.find_first_not_of (' '));
+            title.erase (title.find_last_not_of (' ') + 1);
         }
     }
     else if (!TryGetPascalVolume (image, title))

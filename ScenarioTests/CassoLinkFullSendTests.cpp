@@ -93,6 +93,7 @@ public:
         std::mutex                                    lock;
         std::vector<std::shared_ptr<LinkOperation>>   done;
         std::vector<std::shared_ptr<LinkOperation>>   queued;
+        std::vector<std::string>                      activity;
 
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
         {
@@ -117,6 +118,13 @@ public:
             std::lock_guard<std::mutex>  guard (lock);
 
             done.push_back (operation);
+        }
+
+        void  OnActivity (const std::string & text) override
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            activity.push_back (text);
         }
 
         bool  IsDone (const std::shared_ptr<LinkOperation> & operation)
@@ -718,6 +726,81 @@ public:
         rig.RunUntil ([&] () { return rig.sink.IsDone (list); }, L"the link goes on");
         AssertSucceeded (list->result);
         Assert::IsFalse (list->listing.entries.empty());
+    }
+
+
+
+
+    //  Copy-protected originals, as WOZ images of them. None is taken for a
+    //  disk swapped during its read: Hard Hat Mack's catalog track has no
+    //  sector that reads, and it is sent as likely protected, and The Print
+    //  Shop's first program has a name of control characters, which is no
+    //  title. A disk with no standard sector on track 0 has nothing to read.
+    TEST_METHOD (CopyProtectedWozImages_AreNotTakenForASwap)
+    {
+        struct Expected
+        {
+            const char *  image;
+            size_t        rows;
+            const char *  status;
+        };
+
+        static constexpr Expected  s_kExpected[] =
+        {
+            { "Karateka.woz",                                     0, ""                                },
+            { "Choplifter.woz",                                   0, ""                                },
+            { "LodeRunner.woz",                                   0, ""                                },
+            { "RockysBoots.woz",                                  0, ""                                },
+            { "Where in the World is Carmen Sandiego side A.woz", 0, ""                                },
+            { "HardHatMack.woz",                                  1, FullSendManifest::kStatusProtected },
+            { "AppleStellarInvaders.woz",                         1, FullSendManifest::kStatusDamaged   },
+            { "The Print Shop Color side A.woz",                  1, FullSendManifest::kStatusUnclear   },
+            { "Where in the World is Carmen Sandiego side B.woz", 1, FullSendManifest::kStatusSent      },
+        };
+
+        FixtureProvider  fixtures;
+        auto             demos = std::filesystem::path (fixtures.GetRoot()).parent_path().parent_path() / "Apple2" / "Demos";
+
+
+
+        for (const Expected & expected : s_kExpected)
+        {
+            Rig            rig;
+            std::ifstream  in (demos / expected.image, std::ios::binary);
+            Image          woz ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+            std::wstring   what = TextEncoding::NarrowToWide (expected.image);
+
+            Assert::IsFalse (woz.empty(), what.c_str());
+
+            rig.machine.GetDiskStore().Eject (kSlot, 1);
+            rig.Mount (1, DiskFormat::Woz, woz);
+            rig.RunUntil ([&] () { return rig.session->GetState() == LinkState::Ready; }, L"the link connects");
+            rig.send = rig.session->FullSend ("C:\\Box", "", "");
+            rig.Begin();
+            rig.RunUntil ([&] () { return rig.IsPrompting(); }, L"the session pauses");
+
+            for (const std::string & line : rig.sink.activity)
+            {
+                Assert::IsTrue (line.find ("changed while it was read") == std::string::npos, what.c_str());
+            }
+
+            if (expected.rows == 0)
+            {
+                Assert::IsFalse (rig.fileIo.files.contains ("C:\\Box\\manifest.fullsend"), what.c_str());
+            }
+            else
+            {
+                std::vector<FullSendRow>  rows = rig.Rows();
+
+                Assert::AreEqual (expected.rows, rows.size(), what.c_str());
+                Assert::AreEqual (std::string (expected.status), rows[0].status, what.c_str());
+                Assert::IsTrue   (rows[0].file.find ('_') == std::string::npos, TextEncoding::NarrowToWide (rows[0].file).c_str());
+                Assert::IsTrue   (rig.Row (kRowBar1).ends_with ("100%"), L"the bar ends full");
+            }
+
+            rig.Press ('Q');
+            rig.Finish();
+        }
     }
 
 

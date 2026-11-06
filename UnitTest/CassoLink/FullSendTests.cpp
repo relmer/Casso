@@ -67,6 +67,7 @@ public:
         std::vector<std::vector<std::string>> typedLines;
         bool                                  wholeTracksBad = false;     // badDisk's tracks are not read whole in a check
         std::vector<int>                      tracksRead;                 // the tracks of the whole-disk reads
+        std::set<int>                         blankTracks;                // tracks with no sector that reads, as on some protected disks
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -86,7 +87,7 @@ public:
             const Image  & disk = drives[(size_t) drive - 1];
 
             trackDrives.push_back (drive);
-            outHasDisk = !disk.empty();
+            outHasDisk = !disk.empty() && !blankTracks.contains (track);
             outWhole   = outHasDisk && !(disk == badDisk && wholeTracksBad) && unseatedReads[(size_t) drive - 1] == 0;
 
             if (outHasDisk)
@@ -472,6 +473,40 @@ public:
     TEST_METHOD (Title_CleansCharactersAHostNameCannotHave)
     {
         Assert::AreEqual (std::string ("0001 A_B"), FullSendDisk::MakeImageTitle (1, "A/B", ""));
+    }
+
+    //  The first program on a protected disk can have a name of control
+    //  characters, as on The Print Shop, which is no title at all.
+    TEST_METHOD (Title_DropsControlCharacters_AndSkipsANameOfThemAlone)
+    {
+        constexpr size_t  kCatalogSector = (size_t) (17 * 16 + 15) * 256;
+        constexpr size_t  kFirstName     = kCatalogSector + 0x0B + 3;
+        constexpr size_t  kNameLength    = 30;
+        constexpr Byte    kBackspace     = 0x88;
+        constexpr Byte    kSpace         = 0xA0;
+        constexpr Byte    kShopName[]    = { kBackspace, kBackspace, 0xD3, 0xC8, 0xCF, 0xD0 };   // two backspaces, then SHOP with the high bit set
+
+        Image        disk = Dos ("HELLO");
+        Image        next;
+        FilePayload  payload;
+
+
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.loadAddress    = 0x2000;
+        payload.hasLoadAddress = true;
+        payload.bytes.assign (100, 3);
+
+        AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("GAME"), payload, next));
+        std::fill_n (next.begin() + (ptrdiff_t) kFirstName, kNameLength, kBackspace);
+
+        Assert::AreEqual (std::string ("GAME"), FullSendDisk::GetCatalogTitle (next));
+
+        //  Control characters ahead of a name are dropped from the title.
+        std::fill_n (next.begin() + (ptrdiff_t) kFirstName, kNameLength, kSpace);
+        std::copy_n (std::begin (kShopName), std::size (kShopName), next.begin() + (ptrdiff_t) kFirstName);
+
+        Assert::AreEqual (std::string ("SHOP"), FullSendDisk::GetCatalogTitle (next));
     }
 
     TEST_METHOD (Session_NeverOverwritesAFile)
@@ -870,6 +905,23 @@ public:
 
         Assert::IsTrue   (second.link.diskReads.empty(), L"The disk the first session sent isn't read again");
         Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), second.link.pauseLines.back()[0]);
+    }
+
+    //  A protected disk whose catalog track has no sector that reads: the read
+    //  after the disk's is of track 0, so the disk isn't taken for a swap.
+    TEST_METHOD (Session_ADiskWithABlankCatalogTrack_IsSent)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]   = Other (4);
+        rig.link.present[1]  = false;
+        rig.link.blankTracks = { FullSendDisk::kDosCatalogTrack };
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1 }));
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+        Assert::IsTrue   (std::none_of (rig.link.reports.begin(), rig.link.reports.end(), [] (const std::string & line) { return line.find ("changed while it was read") != std::string::npos; }));
     }
 
     TEST_METHOD (Session_DriveKey_SendsTheListedDisk_EvenAsAnExactCopy)
