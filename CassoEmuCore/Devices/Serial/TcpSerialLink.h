@@ -17,8 +17,10 @@
 //  non-blocking sockets, advanced only by Poll: a connect out, which looks
 //  up the host first, or a listening port that takes one connection at a
 //  time and closes any other at once. Data to send is queued and sent as the
-//  socket takes it; data received is read up to the caller's limit, so the
-//  rest waits in the PC's socket buffer. With Telnet on, both directions go
+//  socket takes it. Data received is read into a buffer of up to
+//  kInboundLimit bytes, so a close is seen while the caller takes nothing,
+//  and is passed on up to the caller's limit; beyond the buffer, the rest
+//  waits in the PC's socket buffer. With Telnet on, both directions go
 //  through a TelnetCodec, and its replies to the remote end's negotiation
 //  are sent with the data.
 //
@@ -52,20 +54,24 @@ public:
         HRESULT  failure         = S_OK;
     };
 
+    static constexpr size_t  kInboundLimit = 4096;
+
     explicit TcpSerialLink (IHostNetwork * network) : m_network (network) {}
 
-    void     SetTelnet     (bool isOn) { m_isTelnet = isOn; }
-    HRESULT  Connect       (const std::string & host, uint16_t port);
-    HRESULT  Listen        (uint16_t port);
-    void     StopListening ();
-    void     Close         ();
-    void     Send          (std::span<const Byte> data);
-    void     Poll          (size_t receiveLimit, std::vector<Byte> & outData, PollResult & outResult);
+    void     SetTelnet      (bool isOn) { m_isTelnet = isOn; }
+    HRESULT  Connect        (const std::string & host, uint16_t port);
+    HRESULT  Listen         (uint16_t port);
+    void     StopListening  ();
+    void     Close          ();
+    void     Send           (std::span<const Byte> data);
+    void     Poll           (size_t receiveLimit, std::vector<Byte> & outData, PollResult & outResult);
+    void     DiscardInbound ();
 
-    State                GetState    () const { return m_state; }
-    bool                 IsConnected () const { return m_state == State::Connected; }
-    bool                 IsListening () const { return m_listener != nullptr; }
-    const std::string  & GetPeer     () const { return m_peer; }
+    State                GetState        () const { return m_state; }
+    bool                 IsConnected     () const { return m_state == State::Connected; }
+    bool                 IsListening     () const { return m_listener != nullptr; }
+    bool                 HasRemoteClosed () const { return m_hasRemoteClosed; }
+    const std::string  & GetPeer         () const { return m_peer; }
 
 private:
     static constexpr size_t  kReadChunk = 512;
@@ -76,20 +82,23 @@ private:
     void  PollConnect    (PollResult & outResult);
     void  PollListener   (PollResult & outResult);
     void  PollReceive    (size_t receiveLimit, std::vector<Byte> & outData, PollResult & outResult);
+    void  ReadInbound    (PollResult & outResult);
     void  PollSend       (PollResult & outResult);
     void  OpenConnection (std::unique_ptr<IHostSocket> socket, const std::string & peer);
     void  Fail           (HRESULT hr, bool isLookup, PollResult & outResult);
     void  EndConnection  (PollResult & outResult);
 
-    IHostNetwork                      * m_network  = nullptr;
-    State                               m_state    = State::Idle;
+    IHostNetwork                      * m_network         = nullptr;
+    State                               m_state           = State::Idle;
     std::unique_ptr<IHostNameLookup>    m_lookup;
     std::unique_ptr<IHostSocket>        m_socket;
     std::unique_ptr<IHostSocket>        m_listener;
     std::string                         m_host;
-    uint16_t                            m_port     = 0;
+    uint16_t                            m_port            = 0;
     std::string                         m_peer;
-    bool                                m_isTelnet = false;
+    bool                                m_isTelnet        = false;
     TelnetCodec                         m_telnet;
     std::vector<Byte>                   m_outgoing;
+    std::vector<Byte>                   m_inbound;
+    bool                                m_hasRemoteClosed = false;
 };

@@ -262,7 +262,7 @@ namespace AciaTcpEndpointTestNs
             rig.Run (Acia6551::kIdlePollCycles);
 
             Assert::IsTrue (rig.acia.GetQueuedReceiveCount() <= AciaTcpEndpoint::kReceiveQueueLimit);
-            Assert::IsTrue (client->inbound.size() > 9000, L"the rest stays on the PC's side");
+            Assert::IsTrue (client->inbound.size() >= 10000 - TcpSerialLink::kInboundLimit - AciaTcpEndpoint::kReceiveQueueLimit, L"the rest stays on the PC's side");
         }
 
 

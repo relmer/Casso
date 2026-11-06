@@ -110,8 +110,10 @@ void TcpSerialLink::Close()
     m_lookup.reset();
     m_socket.reset();
     m_outgoing.clear();
+    m_inbound.clear();
     m_telnet.Reset();
-    m_state = State::Idle;
+    m_state           = State::Idle;
+    m_hasRemoteClosed = false;
 }
 
 
@@ -141,6 +143,24 @@ void TcpSerialLink::Send (std::span<const Byte> data)
     {
         m_outgoing.insert (m_outgoing.end(), data.begin(), data.end());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TcpSerialLink::DiscardInbound
+//
+//  Drops the data read but not yet taken. After the remote end closes, the
+//  next poll then ends the connection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TcpSerialLink::DiscardInbound()
+{
+    m_inbound.clear();
 }
 
 
@@ -303,8 +323,8 @@ Error:
 //
 //  TcpSerialLink::PollReceive
 //
-//  Reads up to the limit. An orderly close or an error ends the connection
-//  once the bytes before it are read.
+//  Passes up to the limit from the inbound buffer. An orderly close or an
+//  error ends the connection once the bytes before it are taken.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,20 +333,57 @@ void TcpSerialLink::PollReceive (
     std::vector<Byte>   & outData,
     PollResult          & outResult)
 {
+    size_t  count = 0;
+
+
+
+    ReadInbound (outResult);
+
+    count = std::min (receiveLimit, m_inbound.size());
+
+    if (count != 0)
+    {
+        outData.insert (outData.end(), m_inbound.begin(), m_inbound.begin() + count);
+        m_inbound.erase (m_inbound.begin(), m_inbound.begin() + count);
+        outResult.isBusy = true;
+    }
+
+    if (m_hasRemoteClosed && m_inbound.empty())
+    {
+        EndConnection (outResult);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TcpSerialLink::ReadInbound
+//
+//  Reads what fits in the inbound buffer. With Telnet on, the data is
+//  decoded as it is read, and the replies are queued to send.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TcpSerialLink::ReadInbound (PollResult & outResult)
+{
     HRESULT                       hr       = S_OK;
     std::array<Byte, kReadChunk>  buffer   = {};
     size_t                        received = 0;
     bool                          isEof    = false;
-    size_t                        wanted   = std::min (receiveLimit, buffer.size());
+    size_t                        room     = (m_inbound.size() < kInboundLimit) ? kInboundLimit - m_inbound.size() : 0;
+    size_t                        wanted   = std::min (room, buffer.size());
     std::vector<Byte>             replies;
 
 
 
-    BAIL_OUT_IF (wanted == 0, S_OK);
+    BAIL_OUT_IF (m_hasRemoteClosed || wanted == 0, S_OK);
 
     hr = m_socket->Receive (std::span<Byte> (buffer.data(), wanted), received, isEof);
-    CHRF (hr, EndConnection (outResult));
-    CBRF (!isEof, EndConnection (outResult));
+    CHRF (hr,     m_hasRemoteClosed = true);
+    CBRF (!isEof, m_hasRemoteClosed = true);
 
     BAIL_OUT_IF (received == 0, S_OK);
 
@@ -334,12 +391,12 @@ void TcpSerialLink::PollReceive (
 
     if (m_isTelnet)
     {
-        m_telnet.Decode (std::span<const Byte> (buffer.data(), received), outData, replies);
+        m_telnet.Decode (std::span<const Byte> (buffer.data(), received), m_inbound, replies);
         m_outgoing.insert (m_outgoing.end(), replies.begin(), replies.end());
     }
     else
     {
-        outData.insert (outData.end(), buffer.begin(), buffer.begin() + received);
+        m_inbound.insert (m_inbound.end(), buffer.begin(), buffer.begin() + received);
     }
 
 Error:
@@ -390,10 +447,12 @@ void TcpSerialLink::OpenConnection (
     std::unique_ptr<IHostSocket>    socket,
     const std::string             & peer)
 {
-    m_socket = std::move (socket);
-    m_peer   = peer;
-    m_state  = State::Connected;
+    m_socket          = std::move (socket);
+    m_peer            = peer;
+    m_state           = State::Connected;
+    m_hasRemoteClosed = false;
     m_outgoing.clear();
+    m_inbound.clear();
     m_telnet.Reset();
 }
 
