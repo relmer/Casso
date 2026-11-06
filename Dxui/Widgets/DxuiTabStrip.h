@@ -282,6 +282,7 @@ private:
 
     void  Commit            (int newIndex);
     bool  HasBounds         () const { return m_boundsDip.right > m_boundsDip.left; }
+    bool  IsOffTheTabs      (int x, int y, int threshold) const;
     int   GetMaxScrollPx    () const;
     int   GetDropIndex      (int x) const;
     void  ClampScroll       ();

@@ -136,6 +136,11 @@ public:
     //  slid-out pane slides back once another pane takes the focus.
     void  SetFocusedPane  (const std::wstring & pane);
 
+    //  A pane docked back from an edge is focused as a press on its tab
+    //  focuses it: its group is drawn with the focus outline at once, and
+    //  `fn` is called to move the keyboard focus to the pane.
+    void  SetOnFocusRequested (PaneFn fn) { m_onFocusRequested = std::move (fn); }
+
     //  The room between docked panes and around them, as Visual Studio leaves
     //  it, filled with the theme's DockGap. Zero for both, the default, puts
     //  the panes edge to edge.
@@ -402,6 +407,7 @@ private:
     bool          PinPane       (const std::wstring & pane, DxuiDockSide edge);
     bool          UnpinPane     (const std::wstring & pane);
     void          StartMorph    (const RECT & from, const RECT & to);
+    RECT          GetPaneTabRect (const std::wstring & pane) const;
     bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
     void          UpdateCompass (POINT pointDip);
@@ -436,6 +442,7 @@ private:
     PaneFn                                        m_onClosePane;
     PaneTestFn                                    m_canClosePane;
     PaneFn                                        m_onDock;
+    PaneFn                                        m_onFocusRequested;
     std::wstring                                  m_focusedPane;
     DxuiTabGroup                                  m_slidGroup;
     PaneFn                                        m_onSlid;

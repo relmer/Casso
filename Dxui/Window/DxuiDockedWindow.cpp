@@ -560,16 +560,58 @@ void DxuiDockedWindow::OnWindowPlaced()
 //
 //  DxuiDockedWindow::OnDpiChanged
 //
-//  Dragged onto a monitor at another scale, the window takes the size the
-//  system gives it there. That is not a resize, so the drag goes on.
+//  Dragged onto a monitor at another scale, the window changes size to keep
+//  its size in DIPs. The drag is rebased at the new size rather than taken
+//  for a resize, so it goes on. During a move by BeginMove the grab point
+//  is scaled with the window, so the pointer is over the same place in it
+//  in proportion and a window that shrank is not left beside the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockedWindow::OnDpiChanged (UINT newDpi)
 {
+    SIZE  size = GetScreenSize();
+
+
+
     UNREFERENCED_PARAMETER (newDpi);
 
-    m_drag.Rebase (GetScreenSize());
+    m_drag.Rebase (size);
+
+    if (m_isMoving)
+    {
+        m_moveGrab = ScaleGrab (m_moveGrab, m_moveSize, size);
+        m_moveSize = size;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockedWindow::ScaleGrab
+//
+//  A point in a window of size `from`, at the same place in proportion in a
+//  window of size `to`, rounded to the nearest pixel; `grab` itself when
+//  `from` is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiDockedWindow::ScaleGrab (POINT grab, SIZE from, SIZE to)
+{
+    POINT  scaled = grab;
+
+
+
+    if (from.cx > 0 && from.cy > 0)
+    {
+        scaled.x = (LONG) std::lround ((double) grab.x * (double) to.cx / (double) from.cx);
+        scaled.y = (LONG) std::lround ((double) grab.y * (double) to.cy / (double) from.cy);
+    }
+
+    return scaled;
 }
 
 
@@ -653,6 +695,7 @@ void DxuiDockedWindow::BeginMove()
     m_isMoving  = true;
     m_moveGrab  = POINT { cursor.x - rect.left, cursor.y - rect.top };
     m_moveStart = rect;
+    m_moveSize  = SIZE { rect.right - rect.left, rect.bottom - rect.top };
 
     GetSource()->CaptureMouse();
 }
@@ -667,6 +710,12 @@ void DxuiDockedWindow::BeginMove()
 //
 //  The window follows the pointer, and each step reports a move, as a tick
 //  of the system's move loop did.
+//
+//  THE TICK HAS THE SIZE AFTER THE WINDOW IS PLACED. A step that moves the
+//  window onto a monitor at another scale changes its size inside
+//  SetWindowRectPx, which rebases the drag at the new size; a tick at the
+//  size from before would read as a resize and cancel the drag, and no drop
+//  targets would be drawn for the rest of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -686,7 +735,7 @@ void DxuiDockedWindow::MoveWithPointer()
 
     GetSource()->SetWindowRectPx (rect);
 
-    Report (m_drag.OnTick (buttonDown, size));
+    Report (m_drag.OnTick (buttonDown, GetScreenSize()));
 }
 
 

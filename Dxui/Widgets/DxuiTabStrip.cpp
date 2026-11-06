@@ -322,9 +322,9 @@ bool DxuiTabStrip::OnKey (WPARAM vk)
 //  With no button held a move is hover. A held press that travels past the
 //  threshold becomes a drag: the pressed tab follows the pointer, taking the
 //  place of each neighbor it crosses, and while the pointer is over either
-//  end of the strip the tabs scroll toward it. A tab dragged past any edge of
-//  the strip, its top, its bottom or either end, goes to the drag-out
-//  handler when one is set.
+//  end of the strip the tabs scroll toward it. A tab dragged off the tabs,
+//  past the strip's top or bottom or past either end of the row of tabs,
+//  goes to the drag-out handler when one is set.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,8 +333,7 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
     int   threshold = m_scaler.ToPx (s_kDragThresholdDip);
     int   step      = m_scaler.ToPx (s_kDragScrollDip);
     bool  handled   = false;
-    bool  leftStrip = HasBounds() && (y < m_boundsDip.top - threshold || y >= m_boundsDip.bottom + threshold ||
-                                      x < m_boundsDip.left - threshold || x >= m_boundsDip.right + threshold);
+    bool  leftStrip = IsOffTheTabs (x, y, threshold);
     bool  moved     = std::abs (x - m_pressX) > threshold || std::abs (y - m_pressY) > threshold;
     int   carried   = m_pressed;
     int   prevHover = m_hover;
@@ -387,6 +386,38 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
     }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOffTheTabs
+//
+//  Past the strip's top or bottom, or past the row of tabs at either end:
+//  the first tab's left edge or the last tab's right edge, as far as they
+//  lie within the strip, by more than the threshold. While the tabs
+//  overflow, the row's ends are the strip's, so a drag over the arrows scrolls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTabStrip::IsOffTheTabs (int x, int y, int threshold) const
+{
+    long  left  = m_boundsDip.left;
+    long  right = m_boundsDip.right;
+
+
+
+    if (!m_tabs.empty())
+    {
+        left  = std::max (left,  GetTabScreenRect (0).left);
+        right = std::min (right, GetTabScreenRect ((int) m_tabs.size() - 1).right);
+    }
+
+    return HasBounds() && (y < m_boundsDip.top - threshold || y >= m_boundsDip.bottom + threshold ||
+                           x < left - threshold || x >= right + threshold);
 }
 
 

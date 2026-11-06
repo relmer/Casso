@@ -583,9 +583,10 @@ public:
         Assert::AreEqual (0, moves);
     }
 
-    //  A tab dragged past either end of the strip goes to the host too, as
-    //  one dragged past its top or bottom does. While the pointer is over
-    //  the strip the tab moves among the others.
+    //  A tab dragged past either end of the row of tabs goes to the host
+    //  too, as one dragged past the strip's top or bottom does, though the
+    //  strip runs on past the last tab. While the pointer is over the tabs
+    //  the tab moves among the others.
     TEST_METHOD (DragPastEitherEnd_HandsTheTabToTheHost)
     {
         DxuiTabStrip  ts;
@@ -599,18 +600,18 @@ public:
 
         ts.OnLButtonDown (100, 12);
         ts.OnMouseMove   (200, 12);
-        ts.OnMouseMove   (296, 12);
-        Assert::AreEqual (1,  moves,  L"along the strip the tab moves to the end");
-        Assert::AreEqual (-1, handed, L"and the drag-out handler is not called");
+        ts.OnMouseMove   (242, 12);
+        Assert::AreEqual (1,  moves,  L"along the tabs the tab moves to the end");
+        Assert::AreEqual (-1, handed, L"and within the threshold past the last tab, the drag-out handler is not called");
 
-        ts.OnMouseMove   (340, 12);
-        Assert::AreEqual (2, handed, L"past the right end, the tab goes to the host from its new index");
+        ts.OnMouseMove   (250, 12);
+        Assert::AreEqual (2, handed, L"past the last tab, short of the strip's end, the tab goes to the host from its new index");
         Assert::IsFalse  (ts.IsInteracting());
 
         handed = -1;
         ts.OnLButtonDown (100, 12);
-        ts.OnMouseMove   (-40, 12);
-        Assert::AreEqual (1, handed, L"past the left end, the tab goes to the host too");
+        ts.OnMouseMove   (-10, 12);
+        Assert::AreEqual (1, handed, L"past the first tab, the tab goes to the host too");
         Assert::IsFalse  (ts.IsInteracting());
     }
 
