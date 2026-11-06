@@ -14,6 +14,7 @@ class DisassemblyGutter;
 class DxuiActionBanner;
 class HistoryBand;
 class SourceDocumentGroup;
+class SourcePane;
 class ToolbarCheckEntry;
 
 
@@ -185,6 +186,7 @@ public:
     //  written with -- its address and what it is.
     bool                             TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool                             TryGetSourceSymbolTip (const DxuiListView & list, POINT clientPx, RECT & anchor, std::wstring & text) const;
+    bool                             TryGetSymbolAt   (POINT clientPx, std::string & name, Word & address) const;
     static bool                      TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegister> & registers, Word address, std::wstring & text);
 
     //  The source row representing the PC's instruction, the first its line
@@ -196,6 +198,10 @@ private:
     void                             UpdateChanges  (const DebuggerViewSnapshot & snapshot);
     void                             FitLabels      (const DebuggerViewSnapshot & snapshot);
     void                             SendShownLines (int view, const std::vector<DisassemblyOptions::Row> & built);
+    void                             SetAddressScroll (int view, const std::vector<DebuggerViewSnapshot::CodeLine> & lines, const std::vector<DisassemblyOptions::Row> & built);
+    void                             ClickSourceArrow (SourcePane & document);
+    DxuiListView                   * FindCodeListAt (POINT clientPx, int & view) const;
+    static void                      GetLineSymbol  (const DebuggerViewSnapshot::CodeLine & line, int column, std::string & name, Word & address);
     void                             MarkRow        (int view, int row, const DebuggerViewSnapshot::CodeLine & line, std::optional<Word> target, bool isMarked,
                                                      std::vector<DxuiListView::Cell> & cells, uint32_t & fill, std::wstring & rowTip);
     bool                             SelectScrolledEdge (int view, const std::vector<DisassemblyOptions::Row> & built);

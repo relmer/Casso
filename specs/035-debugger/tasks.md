@@ -2263,3 +2263,14 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1386 Console links (FR-373): `ConsoleLinks`, `Reply::files`, link spans in `DxuiTextView`, `IDebuggerWindowHost::OpenDebuggerFile`, `IShellItemVerbs::ShowInFolder`. Tests: `ConsoleLinksTests`, `ConsoleLinkTests`, `ProjectShellTests`; the line and the hover underline checked on screen.
 - [X] T1387 Docking (FR-374, FR-375): the sideways drag in `DxuiTabStrip`, `DxuiRectMorph`, the tab index on the layout's `hide` line. Tests: `DxuiTabStripTests`, `DxuiDockSiteDragTests`, `DxuiPaneLayoutDockBackTests`, `DxuiRectMorphTests`, `DxuiDockSiteAutoHideTests`; pin, unpin and the sideways drag checked on screen.
 - [ ] T1388 Open console links in Casso Explorer, with an option for File Explorer, once 033 is on master (FR-373).
+
+## Phase 65: Owner review, 2026-11-05 night (FR-376 to FR-382)
+
+- [X] T1389 Debug channel refresh (FR-376): `DebuggerController::GetLinesRun`, compared across `Pump` in `ShellDebugger::ServiceDebugger` to mark the view dirty. Test: `DebuggerControllerTests::EveryLineRunIsCounted`. Checked on screen: a step sent through the channel moves the PC row.
+- [X] T1390 Address-space scroll bar (FR-377): `DxuiListView::SetVertScrollModel`, set by `DisassemblyGroup::SetAddressScroll` after each view's rows are built. Tests: `DxuiListViewScrollModelTests`. Checked on screen after wheeling down from $60BA.
+- [X] T1391 Branch arrow clicks (FR-378): `DisassemblyGroup::ClickBranchArrow` hit-tests the dotted arrow and the PC's arrow in turn, and `ClickSourceArrow` scrolls a source document through `SourcePane::ShowArrowTarget` and `ShowMarkedLine`.
+- [X] T1392 Go to definition (FR-379): `DebuggerWindow::AddGoToDefinition` and `GoToDefinition`, with `DisassemblyGroup::TryGetSymbolAt` and `SourcePane::FindSymbolAt`; the line from `SymbolComments::FindDefiningLine`. Test: `SourceSymbolTipTests::TheSymbolUnderACharacterIsFound`.
+- [X] T1393 Dock to menu only on the tab, title bar and menu button (FR-380): `DebuggerWindow::IsOverPaneContent`. Pane menu rows are checkable only when marked with `PaneMenu::kChecked`.
+- [X] T1394 Load file icon (FR-381): `DebuggerCommands::PaintLoadFile`.
+- [X] T1395 Spare symbol tables hidden while empty (FR-382): `SymbolsPane::GetRows`. Test: `DebuggerToolPanesTests::AnEmptySpareTableIsNotListed`.
+- [X] T1396 Requeue the host's serial bytes before `ReverseController::HandleDivergence` truncates the input journal, through `ResyncHostConnections`, as reported by the 047 session.

@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/GutterGlyph.h"
+#include "Ui/Debugger/SymbolComments.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/Source/SourcePathList.h"
 #include "Config/WindowPlacementProfile.h"
@@ -243,6 +244,8 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         FindPane (pane)->AddContentMenuItems (clientPx, items);
     }
 
+    AddGoToDefinition (clientPx, items);
+
     if (items.empty())
     {
         return false;
@@ -290,6 +293,99 @@ void DebuggerWindow::HoldCodeView (int view)
     {
         m_host->HoldDebuggerCode (view, true);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddGoToDefinition
+//
+//  Insert Go to definition first on the menu when the point is over a
+//  symbol in a code view or a source document. A constant has no
+//  defining line to go to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddGoToDefinition (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
+{
+    const SymbolInfo  * found   = nullptr;
+    std::string         name;
+    Word                address = 0;
+
+
+
+    if (m_snapshot == nullptr || m_snapshot->symbols == nullptr)
+    {
+        return;
+    }
+
+    if (!m_code->TryGetSymbolAt (clientPx, name, address))
+    {
+        for (int slot = 0; slot < SourceDocuments::kMaxDocuments && found == nullptr; slot++)
+        {
+            const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+
+            if (document.IsShown() && document.GetView() != nullptr && DxuiDockSite::Contains (document.GetView()->GetBounds(), clientPx))
+            {
+                found = document.GetModel().FindSymbolAt (clientPx, m_snapshot->symbols->symbols);
+            }
+        }
+
+        if (found == nullptr)
+        {
+            return;
+        }
+
+        name    = found->name;
+        address = found->address;
+    }
+
+    for (const SymbolInfo & symbol : m_snapshot->symbols->symbols)
+    {
+        if (symbol.name == name && symbol.isConstant)
+        {
+            return;
+        }
+    }
+
+    items.insert (items.begin(), { L"Go to definition", [this, address] { GoToDefinition (address); } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GoToDefinition
+//
+//  The source line that defines the label at an address, in its document,
+//  when a debug file maps one there; otherwise the address in the
+//  disassembly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::GoToDefinition (Word address)
+{
+    std::optional<std::pair<int, int>>  place;
+
+
+
+    if (m_snapshot != nullptr && m_snapshot->source.has_value() && m_snapshot->source->lineAddresses != nullptr)
+    {
+        place = SymbolComments::FindDefiningLine (*m_snapshot->source->lineAddresses, address);
+    }
+
+    if (place.has_value())
+    {
+        m_sources->Open (place->first, place->second, true);
+        return;
+    }
+
+    ShowCode (address);
 }
 
 
@@ -358,7 +454,7 @@ std::vector<DxuiPopupMenuItem> DebuggerWindow::MakePaneMenuRows (const PaneMenuI
             continue;
         }
 
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (rowLabel), PaneMenu::IsChecked (rowLabel), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (rowLabel) ? DebuggerMenuCommand::Make (PaneMenu::GetText (rowLabel), true, action) : DebuggerMenuCommand::Make (rowLabel, action));
         m_menuCommands.back()->isEnabled = [isEnabled] { return isEnabled; };
 
         if (parent.empty())

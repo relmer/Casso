@@ -222,6 +222,28 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  AppleWin's spare tables are listed once something is in one; the
+        //  User table always is.
+        TEST_METHOD (AnEmptySpareTableIsNotListed)
+        {
+            auto                           symbols = std::make_shared<DebuggerViewSnapshot::SymbolsState> (*MakeSymbols());
+            std::vector<SymbolsPane::Row>  rows;
+
+
+
+            symbols->tables.push_back ({ "user2", 0, true, SymbolTableId::User2 });
+            symbols->tables.push_back ({ "src",   0, true, SymbolTableId::Src   });
+            symbols->tables.push_back ({ "src2",  3, true, SymbolTableId::Src2  });
+
+            rows = SymbolsPane::GetRows (*symbols, SymbolsPane::Kind::User, {});
+
+            Assert::AreEqual ((size_t) 2, rows.size(), L"user, and src2, which has symbols");
+            Assert::AreEqual (std::string ("user"), rows[0].table);
+            Assert::AreEqual (std::string ("src2"), rows[1].table);
+        }
+
+
+
         TEST_METHOD (TheNextBookmarkGoesRoundFromTheLast)
         {
             std::vector<DebuggerViewSnapshot::WatchLine>  bookmarks = { { 0, 0x0400, "", true }, { 1, 0x0300, "", true } };

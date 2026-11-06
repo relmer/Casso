@@ -300,8 +300,9 @@ beside another pane, against an edge of the window, or as a tab of another
 group; drag a divider to resize. A tab dragged out of the window floats in a
 separate window. Every pane, docked or floating, has a close button; the
 **View** menu lists every pane and brings the chosen one back where it was,
-docked or floating. Right-click a pane, or press Shift+F10, for **Dock to**,
-which offers each edge, each group, Float and Auto hide; Alt+Shift with an
+docked or floating. Right-click a pane's tab or title bar, or press Shift+F10,
+for **Dock to**, which offers each edge, each group, Float and Auto hide; a
+right-click over a pane's content opens only the content's menu, if it has one; Alt+Shift with an
 arrow key moves the focused pane. The pin on a pane's title bar hides it too.
 An auto-hidden pane is a tab on the window's edge: click it and the pane
 slides out over the others, click it again or anywhere else and it slides
@@ -366,6 +367,14 @@ lines or Neither), and a Preview. **View > Disassembly** opens another view.
   back at once.
 - The tips over a symbol, a branch arrow or a heat cell in a code view or a
   source document open at once, without the hover delay.
+- A code view's scroll bar covers the whole address space. The top of the
+  puck is the first address in view and its length the addresses in view, so
+  dragging it moves the view anywhere in memory; the arrows scroll an
+  instruction and the track a view's worth.
+- Right-click a symbol in a code view or a source document for **Go to
+  definition**: the source line that defines it opens in its document, or,
+  without a debug file that maps it, its address comes into view in the
+  disassembly. A constant has no definition to go to.
 
 ### Source rows
 
@@ -387,6 +396,11 @@ the row where the branch goes is in the accent color. A dotted arrow marks
 the branch, jump or call the last step took; its tip is "This branch was
 taken". A green row is the line brought into view by Go to, the call stack or
 a branch arrow.
+
+Click the PC's arrow to go to where it points, and the dotted arrow to go to
+the branch taken by the last step, even where the two overlap; the next click
+on either goes back to the PC. In a source document the click scrolls the
+document rather than bringing up the disassembly.
 
 An arrow whose PC row or target is scrolled out of view runs to that edge of
 the view, in the disassembly and in a source document, so it can be followed
@@ -969,7 +983,8 @@ SYM                       count the symbols in each table
 `SYM` alone acts on the User table for `LOAD`, `SAVE`, `CLEAR`, `ON`, `OFF`,
 `name = addr` (add) and `! name` (remove). Each other table has a separate
 command: `SYMMAIN`, `SYMBASIC`, `SYMUSER2`, `SYMSRC` and so on. Loading
-replaces the table's contents. **File > Open symbol or debug file...**, or a
+replaces the table's contents, so a second debug file loaded with `SYM LOAD`
+replaces the first; `SYMUSER2 LOAD` loads another file's symbols beside it. **File > Open symbol or debug file...**, or a
 file dropped on the window, loads a file as `SYM LOAD` does, and **File >
 Unload symbol file** clears one.
 
@@ -1106,7 +1121,9 @@ Merlin 8/16 listing, which becomes a source view.
 file loaded into it, with its count and a check box that runs `SYM<table> ON`
 or `OFF`, and its symbols under it. The tip over the file's name has its full
 path. A symbol's menu has **Go to** and **Remove**, and any row's has **Clear
-table** and **Save table...**; Find searches the symbols.
+table** and **Save table...**; Find searches the symbols. AppleWin's spare
+tables, USER2, SRC and SRC2, are listed only once `SYMUSER2`, `SYMSRC` or
+`SYMSRC2` has loaded something into one.
 
 ## Memory, watches and heat
 

@@ -1827,15 +1827,24 @@ void ShellDebugger::CloseDebugger()
 //  The CPU manager's service tick: once per pass through its loop, paused or
 //  running, so a client gets a reply either way. The call record's rebuild
 //  from history and the event logs are looked after here too, before the
-//  panes are gathered.
+//  panes are gathered. A line a client of the channel ran, such as a step,
+//  can change everything in the window, so the panes are built again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::ServiceDebugger()
 {
+    uint64_t  linesRun = 0;
+
+
+
     if (m_debugController != nullptr)
     {
+        linesRun = m_debugController->GetLinesRun();
+
         m_debugController->Pump();
+
+        m_isDebugViewDirty = m_isDebugViewDirty || m_debugController->GetLinesRun() != linesRun;
         ServiceProject();
         ServiceCallHistory();
         ServiceEventLogs();

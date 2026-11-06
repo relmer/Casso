@@ -3810,6 +3810,30 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-375**: Pinning a pane and unpinning it MUST animate its rectangle between
   its group and its edge button, unless the system's animations are off, and
   unpinning MUST put the tab back at the index it had in its group.
+- **FR-376**: A line a client runs through the debug channel, such as a step,
+  MUST bring the debugger window's panes up to date, as the same line typed in
+  the console does.
+- **FR-377**: A code view's vertical scroll bar MUST cover the whole address
+  space: the top of the puck at the first address in view and its length the
+  addresses in view. Its arrows MUST scroll an instruction, its track a view's
+  worth, and a drag of the puck MUST center the view on the address under it.
+- **FR-378**: A click on the PC's branch arrow MUST go to its target and a
+  click on the dotted arrow MUST go to the branch taken by the last step, also
+  where their lines overlap; the next click on either
+  MUST go back to the PC. In a source document the click MUST scroll that
+  document rather than bring the disassembly to the front.
+- **FR-379**: A right-click on a symbol in a code view or a source document
+  MUST offer Go to definition, first on the menu, which opens the source line
+  that defines the symbol when a debug file maps one, and otherwise brings its
+  address into view in the disassembly. It MUST NOT be offered for a constant.
+- **FR-380**: The Dock to menu MUST open from a pane's tab, its title bar or
+  the menu button beside its pin and close buttons, and MUST NOT open from a
+  right-click over the pane's content, which opens the content's menu or none.
+- **FR-381**: The Load file into memory button MUST draw a 1 and a 0 beside a
+  chip with pins, in the toolbar's colors in every theme.
+- **FR-382**: The Symbols pane MUST list AppleWin's spare tables, USER2, SRC
+  and SRC2, only once a command has loaded something into one; the User table
+  MUST always be listed.
 
 ### Key Entities
 

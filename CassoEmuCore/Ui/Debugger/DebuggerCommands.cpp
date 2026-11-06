@@ -19,7 +19,7 @@ static constexpr const wchar_t *  s_kGlyphStepOut     = L"\uE898";   // arrow up
 static constexpr const wchar_t *  s_kGlyphRunToCursor = L"";         // MDL2 has no arrow into a bar, so the entry draws its own icon
 static constexpr const wchar_t *  s_kGlyphShowNext    = L"\uE72A";   // a plain arrow to the right
 static constexpr const wchar_t *  s_kGlyphTrace       = L"\uE81C";   // clock with a turning arrow
-static constexpr const wchar_t *  s_kGlyphLoadFile    = s_kpszMdl2OpenFile;
+static constexpr const wchar_t *  s_kGlyphLoadFile    = L"";         // a chip that a 1 and a 0 go into, drawn by the entry
 static constexpr const wchar_t *  s_kGlyphDrawn       = L"";         // the step back and reverse entries draw their own icons
 
 
@@ -150,7 +150,7 @@ std::vector<DxuiToolbar::Entry> DebuggerCommands::BuildEntries() const
         entry.group    = row.group;
         entry.iconOnly = row.iconOnly;
 
-        if (row.id != kTrace && row.id != kLoadFile)
+        if (row.id != kTrace)
         {
             //  Drawn rather than a glyph, but through the strip's own icon
             //  path: hover and disabling are decided once, for every entry,
@@ -244,6 +244,7 @@ void DebuggerCommands::PaintIcon (int id, IDxuiPainter & painter, const DxuiTool
     case kStepBackOver:    PaintStepBackOver (painter, icon, step);              break;
     case kStepBackOut:     PaintStepBackOut  (painter, icon, step);              break;
     case kReverseContinue: PaintReverseRun   (painter, icon, run);               break;
+    case kLoadFile:        PaintLoadFile     (painter, icon, step, icon.ink);    break;
     default:                                                                     break;
     }
 }
@@ -473,6 +474,49 @@ void DebuggerCommands::PaintRunToCursor (IDxuiPainter & painter, const DxuiToolb
     painter.DrawLine (icon.x + s * 0.02f, cy, tipX, cy, stroke, arrow);
     PaintArrowHead   (painter, tipX, cy, 1.0f, 0.0f, s * 0.30f, stroke, arrow);
     painter.DrawLine (barX, cy - s * 0.42f, barX, cy + s * 0.42f, stroke, bar);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerCommands::PaintLoadFile
+//
+//  A file's bytes going into memory: a 1 and a 0 on the left, and a chip on
+//  the right with three pins along its top and bottom. It is drawn a little
+//  larger than its box, so its parts read at toolbar size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerCommands::PaintLoadFile (IDxuiPainter & painter, const DxuiToolbarIconBox & icon, uint32_t bits, uint32_t chip)
+{
+    float  s      = icon.size * 1.15f;
+    float  x      = icon.x - icon.size * 0.08f;
+    float  cy     = icon.top + icon.rowH * 0.5f;
+    float  stroke = (std::max) (1.3f, s / 9.0f);
+    float  thin   = (std::max) (1.0f, s / 14.0f);
+    float  bitH   = s * 0.56f;
+    float  chipL  = x + s * 0.52f;
+    float  chipW  = s * 0.46f;
+    float  chipH  = s * 0.62f;
+    float  pinL   = s * 0.13f;
+
+
+
+    painter.DrawLine           (x + s * 0.06f, cy - bitH * 0.5f, x + s * 0.06f, cy + bitH * 0.5f, thin, bits);
+    painter.OutlineRoundedRect (x + s * 0.15f, cy - bitH * 0.5f, s * 0.24f, bitH, s * 0.10f, thin, bits);
+
+    painter.OutlineRoundedRect (chipL, cy - chipH * 0.5f, chipW, chipH, s * 0.05f, stroke, chip);
+
+    for (int pin = 1; pin <= 3; pin++)
+    {
+        float  pinX = chipL + chipW * (float) pin / 4.0f;
+
+        painter.DrawLine (pinX, cy - chipH * 0.5f - pinL, pinX, cy - chipH * 0.5f, stroke, chip);
+        painter.DrawLine (pinX, cy + chipH * 0.5f, pinX, cy + chipH * 0.5f + pinL, stroke, chip);
+    }
 }
 
 

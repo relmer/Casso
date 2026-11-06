@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -929,6 +929,7 @@
     <ClCompile Include="Dxui\DxuiListViewTextSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrolledHitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewScrollModelTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewBackgroundRangeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />

@@ -550,6 +550,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                           PumpFloatFrame      () override { RunModalLoopTick(); }
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     HoldCodeView       (int view);
+    bool     IsOverPaneContent  (const std::wstring & pane, POINT clientPx) const;
+    void     AddGoToDefinition  (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void     GoToDefinition     (Word address);
     bool     IsCodeList         (const DxuiListView * list) const;
     std::vector<DxuiPopupMenuItem>  MakePaneMenuRows (const PaneMenuItems & items);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);

@@ -654,6 +654,50 @@ void SourcePane::ShowLine (int fileId, int line)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::ShowArrowTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::ShowArrowTarget()
+{
+    std::optional<int>  targetLine;
+    bool                isBelow = true;
+
+
+
+    if (!m_state.has_value() || !GetArrowTarget (*m_state, m_fileId, m_rowsLine, targetLine, isBelow) || !targetLine.has_value())
+    {
+        return false;
+    }
+
+    ScrollTo (*targetLine);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::ShowMarkedLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourcePane::ShowMarkedLine()
+{
+    if (m_rowsLine > 0)
+    {
+        ScrollTo (m_rowsLine);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::GetLineAt
 //
 //  The 1-based line under a point, when a file with a line mapping is shown.
@@ -1188,6 +1232,49 @@ bool SourcePane::GetBranchArrow (BranchArrow::Input & input, Word & goesTo, bool
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SourcePane::FindSymbolAt
+//
+//  The symbol under a point, in the text cell after the marker and number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const SymbolInfo * SourcePane::FindSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const
+{
+    DxuiTextView::Position     at    = m_view->HitTest (atDip);
+    const DxuiTextView::Row  * row   = nullptr;
+    int                        start = 0;
+    int                        word  = 0;
+
+
+
+    if (at.row < 0 || at.row >= (int) m_view->GetRows().size())
+    {
+        return nullptr;
+    }
+
+    row = &m_view->GetRows()[(size_t) at.row];
+
+    if (row->cells.size() <= (size_t) kTextCell)
+    {
+        return nullptr;
+    }
+
+    start = (int) (row->cells[0].size() + 1 + row->cells[1].size() + 1);
+
+    if (at.offset < start || at.offset > start + (int) row->cells[(size_t) kTextCell].size())
+    {
+        return nullptr;
+    }
+
+    return FindSymbolAt (row->cells[(size_t) kTextCell], at.offset - start, symbols, word);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SourcePane::TryGetSymbolTip
 //
 //  The symbol under the pointer, in the text cell after the marker and number.
@@ -1232,29 +1319,28 @@ bool SourcePane::TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SourcePane::TryGetSymbolText
+//  SourcePane::FindSymbolAt
 //
 //  A word is letters, digits, _, . and @, as a cheap local symbol is written
 //  in ca65. A symbol is matched by its case first, then in any case.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text)
+const SymbolInfo * SourcePane::FindSymbolAt (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, int & start)
 {
     auto                isWordChar = [] (wchar_t each) { return iswalnum (each) || each == L'_' || each == L'.' || each == L'@'; };
     int                 size        = (int) line.size();
-    int                 start       = ch;
     int                 end         = 0;
     std::string         name;
     const SymbolInfo  * found       = nullptr;
-    wchar_t             op          = 0;
-    bool                isImmediate = false;
 
 
+
+    start = ch;
 
     if (ch < 0 || ch > size)
     {
-        return false;
+        return nullptr;
     }
 
     //  A caret just past a word is on that word.
@@ -1265,7 +1351,7 @@ bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std:
 
     if (start >= size || !isWordChar (line[(size_t) start]) || line.substr (0, (size_t) start).find (L';') != std::wstring::npos)
     {
-        return false;
+        return nullptr;
     }
 
     while (start > 0 && isWordChar (line[(size_t) start - 1]))
@@ -1289,6 +1375,28 @@ bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std:
 
         found = (found == nullptr && _stricmp (symbol.name.c_str(), name.c_str()) == 0) ? &symbol : found;
     }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetSymbolText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text)
+{
+    int                 start       = 0;
+    const SymbolInfo  * found       = FindSymbolAt (line, ch, symbols, start);
+    wchar_t             op          = 0;
+    bool                isImmediate = false;
+
+
 
     if (found == nullptr)
     {

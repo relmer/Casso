@@ -927,7 +927,7 @@ void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
@@ -955,7 +955,7 @@ void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & an
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
