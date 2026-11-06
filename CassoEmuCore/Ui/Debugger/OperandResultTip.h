@@ -11,11 +11,10 @@
 //  A disassembly row's operand and result shown whole where the pane cuts
 //  them off, laid over their cell as Explorer lays a cut-off name over its
 //  row. The text starts exactly where the cell's does, in the cell's face,
-//  size and colors on the row's fill, so the tip reads as the cell grown to
-//  fit: one line a row high, running past the pane's edge to the end of the
-//  text. Only a screen too narrow for that line wraps it: the operand over
-//  as many lines as necessary, then the result starting a new line, wrapped
-//  the same way.
+//  size and colors on the cell's own fill, so the tip reads as the cell grown
+//  to fit: the operand wrapped over as many lines as it needs, then the
+//  result from the start of a line of its own, wrapped the same way, each
+//  line a row high.
 //
 //  Pure layout in the window's pixels, so the window only shows what this
 //  gives it.
@@ -38,6 +37,7 @@ public:
         uint32_t          contentBackground = 0;         // the list's fill
         uint32_t          rowFill           = 0;         // the row's own over it: the selection's, the hover's, or none
         uint32_t          ink               = 0;         // the text's color where the cell gives none
+        uint32_t          border            = 0;
         RECT              workArea          = {};        // the monitor's work area, in the same pixels
         UINT              dpi               = DxuiDpiScaler::kBaseDpi;   // the scale the tip's popup is sized at
     };
@@ -66,10 +66,18 @@ public:
         float                    fontPx     = 0.0f;
         const wchar_t          * face       = nullptr;
         uint32_t                 fill       = 0;
+        uint32_t                 border     = 0;
         std::wstring             text;
         std::vector<uint32_t>    colors;
         std::vector<Line>        lines;
     };
+
+    //  The tip is never narrower than this many characters, past the pane if
+    //  it must be, so a cell scrolled nearly out of sight is not wrapped a
+    //  character or two to a line; only the edge of the screen makes it
+    //  narrower.
+    static constexpr int  kMinWrapChars = 24;
+    static constexpr int  kBorderPx     = 1;
 
     //  False where the cell's text fits where the list draws it, and where
     //  there is no text, its start is out of sight or off the screen, it
@@ -79,9 +87,9 @@ public:
     //  Whether two layouts draw the same thing in the same place.
     static bool  IsSame        (const Layout & a, const Layout & b);
 
-    //  Draws the tip's lines, its top left at the origin, as a popup's
-    //  content is drawn, and an L tip's fill on a popup cleared to
-    //  transparent.
+    //  The tip's outline and lines, its top left at the origin, as a popup's
+    //  content is drawn. An L-shaped tip also draws its own fill, on a popup
+    //  cleared to transparent.
     static void  Paint         (const Layout & layout, IDxuiPainter & painter, IDxuiTextRenderer & text);
 
     //  Whether the tip is an L rather than a rectangle: its first line starts
@@ -96,7 +104,7 @@ private:
     static float                  MeasurePx       (IDxuiTextRenderer & text, const std::wstring & chars, float fontPx, const wchar_t * face);
     static float                  MeasureWidestPx (IDxuiTextRenderer & text, const Layout & layout);
     static int                    GetBottomPx     (const Layout & layout);
-    static bool                   TryWrapOnScreen (IDxuiTextRenderer & text, const Placement & placement, Layout & layout, float & widestPx);
+    static bool                   TryWrapOnScreen (IDxuiTextRenderer & text, const Placement & placement, float paneRoomPx, Layout & layout, float & widestPx);
     static RECT                   PlaceRect       (const Placement & placement, const Layout & layout, int cellRight, float widestPx);
     static int                    FitPopupPx      (int px, int limitPx, UINT dpi);
     static uint32_t               MakeFill        (const DxuiListView::Cell & cell, uint32_t rowFill, uint32_t contentBackground);

@@ -623,8 +623,8 @@ Error:
 //  OperandTipController::IsTextSelectedUnderTip
 //
 //  Text selected in a row's operand, or in that of a row the tip extends
-//  over below it, or above it where the tip's top lies above its row. The
-//  list fills a selection the full height of its row.
+//  over, below it or, by the outline's pixel, above it. The list fills a
+//  selection the full height of its row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
