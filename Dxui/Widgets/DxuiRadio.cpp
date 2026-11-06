@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
+#include "Render/DxuiTextRenderer.h"
 
 #include "DxuiRadio.h"
 
@@ -218,6 +219,42 @@ void DxuiRadioGroup::Commit (int newIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiRadioGroup::MeasureOptionHeightPx
+//
+//  The description wraps in the width beside the button, in the label's
+//  font, as Paint draws it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiRadioGroup::MeasureOptionHeightPx (const DxuiRadioOption & option, int widthPx, const DxuiDpiScaler & scaler)
+{
+    HRESULT  hr        = S_OK;
+    float    textPx    = (float) widthPx - scaler.ToPxf (s_kBoxSizeDip) - scaler.ToPxf (s_kLabelGapDip);
+    float    widthDip  = textPx * (float) DxuiDpiScaler::kBaseDpi / (float) scaler.GetDpi();
+    float    heightDip = 0.0f;
+    int      heightPx  = (int) std::ceil (scaler.ToPxf (s_kLabelLineDip));
+
+
+
+    if (!option.description.empty() && widthDip > 0.0f)
+    {
+        hr = DxuiTextRenderer::MeasureWrappedDip (option.description.c_str(), s_kFontDip, DxuiTheme::GetUiFace(), DxuiFontWeight::Normal, widthDip, heightDip);
+
+        if (SUCCEEDED (hr))
+        {
+            heightPx += (int) std::ceil (scaler.ToPxf (heightDip));
+        }
+    }
+
+    return heightPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Draws each option: the circle, the selected dot, the focus ring, and the
@@ -245,15 +282,6 @@ void DxuiRadioGroup::Commit (int newIndex)
 
 void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr float  s_kBoxSizeDip    = 16.0f;
-    constexpr float  s_kDotInsetDip   = 4.0f;
-    constexpr float  s_kLabelGapDip   = 6.0f;
-    constexpr float  s_kFontDip       = 13.0f;
-    // The first line of a described option. The label sits in this band, the
-    // BUTTON CENTERS ON IT, and the description gets whatever the caller's
-    // rect has left over. Centering the button on the whole box instead would
-    // float it down beside the description, pointing at neither line.
-    constexpr float  s_kLabelLineDip  = 20.0f;
 
 
 

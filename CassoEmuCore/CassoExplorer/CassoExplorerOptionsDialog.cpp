@@ -230,21 +230,31 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int                           browseX        = boundsDip.right - scaler.ToPx (kBrowseWidthDip);
     int                           formatLabelTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int                           formatTop      = formatLabelTop + labelH;
-    int                           optionH        = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip + kOptionGapDip);
-    int                           esotericaTop   = formatTop + optionH * kCommonFormatCount + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int                           esotericaEnd   = esotericaTop + labelH;
+    int                           minOptionH     = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip);
+    int                           optionGap      = scaler.ToPx (kOptionGapDip);
+    int                           width          = boundsDip.right - boundsDip.left;
     std::vector<DxuiRadioOption>  options        = m_format->GetOptions();
-    int                           formatEnd      = esotericaEnd + optionH * ((int) options.size() - kCommonFormatCount);
+    int                           esotericaTop   = 0;
+    int                           esotericaEnd   = 0;
     int                           top            = formatTop;
 
 
 
     SetBounds (boundsDip);
 
-    //  The common types, then the heading, then the rest.
+    //  The common types, then the heading, then the rest. Each option is as
+    //  tall as its description wraps, so a description of two lines pushes
+    //  the options below it down.
     for (size_t i = 0; i < options.size(); i++)
     {
-        top = (i == kCommonFormatCount) ? esotericaEnd : top;
+        int  optionH = std::max (minOptionH, DxuiRadioGroup::MeasureOptionHeightPx (options[i], width, scaler)) + optionGap;
+
+        if (i == kCommonFormatCount)
+        {
+            esotericaTop = top + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+            esotericaEnd = esotericaTop + labelH;
+            top          = esotericaEnd;
+        }
 
         options[i].rect = RECT { boundsDip.left, top, boundsDip.right, top + optionH };
         top            += optionH;
@@ -258,10 +268,10 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     m_folder->Layout (RECT { boundsDip.left, folderTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), folderEnd }, scaler);
     m_browse->SetDpi (scaler.GetDpi());
     m_browse->Layout (RECT { browseX, folderTop, boundsDip.right, folderEnd });
-    m_format->Layout (RECT { boundsDip.left, formatTop, boundsDip.right, formatEnd }, scaler);
+    m_format->Layout (RECT { boundsDip.left, formatTop, boundsDip.right, top }, scaler);
     m_esotericaLabel->Layout (RECT { boundsDip.left, esotericaTop, boundsDip.right, esotericaEnd }, scaler);
 
-    SetContentHeightPx (formatEnd - boundsDip.top);
+    SetContentHeightPx (top - boundsDip.top);
 }
 
 
