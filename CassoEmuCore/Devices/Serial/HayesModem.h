@@ -62,6 +62,7 @@ public:
     static constexpr size_t    kCommandBufferSize = 40;
     static constexpr size_t    kRegisterCount     = 38;
     static constexpr uint32_t  kRingSeconds       = 6;
+    static constexpr int       kMaxResultSet      = 4;
 
     // S-registers the modem reads.
     static constexpr size_t    kRegAutoAnswer     = 0;
@@ -118,7 +119,7 @@ private:
     };
 
     void  ResetSettings      ();
-    void  ReceiveCommandByte (Byte value, uint64_t cycle);
+    void  ReceiveCommandByte (Byte sent, uint64_t cycle);
     void  ReceiveDataByte    (Byte value, uint64_t cycle);
     void  ExecuteLine        (const std::string & line, uint64_t cycle);
     bool  ExecuteCommand     (const std::string & line, size_t & at, uint64_t cycle, bool & outHasResult);

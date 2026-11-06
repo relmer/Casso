@@ -122,6 +122,8 @@ void AciaModemEndpoint::OnByteTransmitted (Byte value)
 //  to the modem, then what is waiting for each side: the remote end's data,
 //  read only in data mode and only as fast as the chip takes it, the
 //  modem's output to the guest, and the guest's data to the remote end.
+//  Once the remote end closes outside data mode, the data it sent is
+//  dropped, so the call ends at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +148,11 @@ bool AciaModemEndpoint::Poll (uint64_t cycles)
 
     m_modem.Tick (cycles);
     CarryOutRequests();
+
+    if (!m_modem.IsDataMode() && m_link.HasRemoteClosed())
+    {
+        m_link.DiscardInbound();
+    }
 
     m_received.clear();
     m_link.Poll (m_modem.IsDataMode() ? room : 0, m_received, result);
@@ -180,7 +187,8 @@ bool AciaModemEndpoint::Poll (uint64_t cycles)
 //  AciaModemEndpoint::CarryOutRequests
 //
 //  A dial without the PC's network fails at once. An answer requires nothing
-//  more: the caller's connection is open already.
+//  more: the caller's connection is open already. A hang-up of an open
+//  connection is logged as its close.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,6 +216,11 @@ void AciaModemEndpoint::CarryOutRequests()
             break;
 
         case HayesModem::LinkRequestKind::HangUp:
+            if (m_link.IsConnected())
+            {
+                m_acia.NoteHostConnection (false, m_link.GetPeer());
+            }
+
             m_link.Close();
             break;
         }

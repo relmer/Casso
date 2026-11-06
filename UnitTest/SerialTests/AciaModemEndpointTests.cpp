@@ -364,6 +364,121 @@ namespace AciaModemEndpointTestNs
         }
 
 
+        TEST_METHOD (ACallerHangingUpWhileRingingStopsTheRinging)
+        {
+            ModemRig                          rig    (MakeListening());
+            std::shared_ptr<FakeSocketState>  caller;
+            std::shared_ptr<FakeSocketState>  second;
+
+
+
+            caller = rig.network.OfferConnection (rig.network.FindBound (HostSocketKind::Tcp, kListenPort), { 0x7F000001, 50000 });
+            rig.Run (Acia6551::kIdlePollCycles * 2 + ModemRig::kCharacter * 10);
+            Assert::AreEqual (std::string ("\r\nRING\r\n"), rig.TakeOutput());
+
+            caller->inboundEof = true;
+            rig.Run (kSecond * (HayesModem::kRingSeconds + 1));
+            Assert::AreEqual (std::string(), rig.TakeOutput(), L"no more rings");
+            Assert::IsTrue (caller->destroyed);
+
+            second = rig.network.OfferConnection (rig.network.FindBound (HostSocketKind::Tcp, kListenPort), { 0x7F000001, 50001 });
+            rig.Run (Acia6551::kIdlePollCycles * 2 + ModemRig::kCharacter * 10);
+            Assert::AreEqual (std::string ("\r\nRING\r\n"), rig.TakeOutput(), L"the next caller rings");
+        }
+
+
+        TEST_METHOD (TheBbsHangingUpAfterAnEscapeReturnsNoCarrier)
+        {
+            ModemRig                          rig;
+            std::shared_ptr<FakeSocketState>  server = rig.DialBbs();
+
+
+
+            rig.Run (kSecond + kSecond / 10);
+            rig.Type ("+++");
+            rig.Run (kSecond + kSecond / 5);
+            rig.TakeOutput();
+
+            server->inbound    = { 'b', 'y', 'e' };
+            server->inboundEof = true;
+            rig.Run (Acia6551::kIdlePollCycles * 4 + ModemRig::kCharacter * 16);
+
+            Assert::AreEqual (std::string ("\r\nNO CARRIER\r\n"), rig.TakeOutput());
+            Assert::IsFalse (rig.IsDcdOn());
+        }
+
+
+        TEST_METHOD (HighBitAsciiCommandsReturnOk)
+        {
+            ModemRig  rig;
+
+
+
+            rig.Type ("\xC1\xD4\r");
+            rig.Run (Acia6551::kIdlePollCycles * 2 + ModemRig::kCharacter * 8);
+
+            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nOK\r\n"));
+        }
+
+
+        TEST_METHOD (AResultSetAboveX4IsAnError)
+        {
+            ModemRig  rig;
+
+
+
+            rig.Type ("ATX9\r");
+            rig.Run (Acia6551::kIdlePollCycles * 2 + ModemRig::kCharacter * 8);
+
+            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nERROR\r\n"));
+        }
+
+
+        TEST_METHOD (DtrTurningOffWithD2AbandonsADial)
+        {
+            ModemRig                          rig;
+            std::shared_ptr<FakeSocketState>  server;
+
+
+
+            rig.Type ("AT&D2\r");
+            rig.Type ("ATDT bbs.example.org\r");
+            rig.Run (Acia6551::kIdlePollCycles * 2);
+            rig.TakeOutput();
+
+            server = rig.network.FindConnected ({ kBbs, 23 });
+            Assert::IsNotNull (server.get(), L"the modem is connecting");
+
+            rig.acia.Write (kAddrCmd, kCmdPolled & ~Acia6551::kCommandDtr);
+            rig.Run (Acia6551::kIdlePollCycles * 2);
+            rig.acia.Write (kAddrCmd, kCmdPolled);
+            rig.Run (Acia6551::kIdlePollCycles * 2 + ModemRig::kCharacter * 16);
+
+            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nNO CARRIER\r\n"));
+            Assert::IsTrue (server->destroyed, L"the connect under way is closed");
+        }
+
+
+        TEST_METHOD (ADialDuringACallClosesTheCall)
+        {
+            ModemRig                          rig;
+            std::shared_ptr<FakeSocketState>  server = rig.DialBbs();
+
+
+
+            rig.Run (kSecond + kSecond / 10);
+            rig.Type ("+++");
+            rig.Run (kSecond + kSecond / 5);
+
+            rig.network.SetHostAddress ("other.example.org", kBbs + 1);
+            rig.Type ("ATDT other.example.org\r");
+            rig.Run (Acia6551::kIdlePollCycles * 2);
+
+            Assert::IsTrue    (server->destroyed, L"the first call is closed");
+            Assert::IsNotNull (rig.network.FindConnected ({ kBbs + 1, 23 }).get(), L"the second is dialed");
+        }
+
+
         TEST_METHOD (TelnetIsOnByDefault)
         {
             ModemRig                          rig;

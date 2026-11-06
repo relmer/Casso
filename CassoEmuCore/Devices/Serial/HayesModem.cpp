@@ -168,19 +168,23 @@ void HayesModem::ReceiveDataByte (
 //
 //  A command line starts with AT, in either case, and ends with S3; A/
 //  repeats the last line at once. Characters outside a line are echoed and
-//  ignored. A line longer than the buffer is an error when it ends.
+//  ignored. A line longer than the buffer is an error when it ends. Bit 7
+//  is a parity bit to a Hayes, so it is cleared before the byte is read;
+//  the echo is the byte as sent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HayesModem::ReceiveCommandByte (
-    Byte      value,
+    Byte      sent,
     uint64_t  cycle)
 {
-    char  upper = (char) toupper (value);
+    constexpr Byte  kCharacterBits = 0x7F;
+    Byte            value          = sent & kCharacterBits;
+    char            upper          = (char) toupper (value);
 
 
 
-    Echo (value);
+    Echo (sent);
 
     switch (m_prefix)
     {
@@ -304,6 +308,7 @@ bool HayesModem::ExecuteCommand (
     char                        command   = (char) toupper (line[at++]);
     bool                        hasDigits = false;
     bool                        isOk      = true;
+    int                         level     = 0;
 
 
 
@@ -348,7 +353,16 @@ bool HayesModem::ExecuteCommand (
     case 'E': m_isEcho    = ReadNumber (line, at, hasDigits) != 0; break;
     case 'Q': m_isQuiet   = ReadNumber (line, at, hasDigits) != 0; break;
     case 'V': m_isVerbose = ReadNumber (line, at, hasDigits) != 0; break;
-    case 'X': m_xLevel    = ReadNumber (line, at, hasDigits);      break;
+    case 'X':
+        level = ReadNumber (line, at, hasDigits);
+        isOk  = level <= kMaxResultSet;
+
+        if (isOk)
+        {
+            m_xLevel = level;
+        }
+
+        break;
 
     case 'I':
         (void) ReadNumber (line, at, hasDigits);
@@ -521,6 +535,7 @@ bool HayesModem::Dial (
     request.host = target;
     request.port = (uint16_t) port;
 
+    HangUp();
     m_requests.push_back (request);
     m_mode         = Mode::Dialing;
     m_isRinging    = false;
@@ -680,7 +695,7 @@ void HayesModem::Tick (uint64_t cycle)
 //
 //  HayesModem::OnDtrChanged
 //
-//  With &D2, DTR turning off ends a call.
+//  With &D2, DTR turning off ends a call, or a dial under way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -694,7 +709,7 @@ void HayesModem::OnDtrChanged (
 
     (void) cycle;
 
-    if (!isOn && m_dtrMode == kHangUpOnDtr && IsOnline())
+    if (!isOn && m_dtrMode == kHangUpOnDtr && (IsOnline() || m_mode == Mode::Dialing))
     {
         HangUp();
         SendResult (Result::NoCarrier);
