@@ -153,9 +153,12 @@ HRESULT CassoLinkFullSend::ReadTrack (int drive, int track, std::vector<Byte> & 
 
 
 
-    outHasDisk         = false;
-    outWhole           = false;
-    m_operation->drive = drive;
+    outHasDisk                    = false;
+    outWhole                      = false;
+    m_operation->drive            = drive;
+    m_operation->fullSendChecking = true;
+
+    m_session.Report (*m_operation, 0);
 
     hr = CheckStop();
     CHR (hr);
@@ -234,7 +237,8 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
 
 
 
-    m_operation->drive = drive;
+    m_operation->drive            = drive;
+    m_operation->fullSendChecking = false;
 
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
