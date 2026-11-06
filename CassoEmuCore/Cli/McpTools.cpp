@@ -2,6 +2,7 @@
 
 #include "Cli/McpTools.h"
 
+#include "Cli/CommandLineQuoting.h"
 #include "Cli/ICassoLauncher.h"
 #include "Cli/McpChannel.h"
 #include "Core/JsonParser.h"
@@ -554,7 +555,7 @@ void McpTools::Launch (const JsonValue & arguments, McpToolResult & result)
 
         if (!value.empty())
         {
-            commandLine += std::format (L" {} \"{}\"", flag, TextEncoding::NarrowToWide (value));
+            commandLine += std::format (L" {} {}", flag, CommandLineQuoting::QuoteArgument (TextEncoding::NarrowToWide (value)));
         }
     }
 

@@ -419,6 +419,7 @@
     <ClCompile Include="Cli\DebugBatchSink.cpp" />
     <ClCompile Include="Cli\DebugBatchRunner.cpp" />
     <ClCompile Include="Cli\DebugMode.cpp" />
+    <ClCompile Include="Cli\CommandLineQuoting.cpp" />
     <ClCompile Include="Cli\McpChannel.cpp" />
     <ClCompile Include="Cli\McpMode.cpp" />
     <ClCompile Include="Cli\McpServer.cpp" />
@@ -1122,6 +1123,7 @@
     <ClInclude Include="Cli\DebugBatchRunner.h" />
     <ClInclude Include="Cli\DebugMode.h" />
     <ClInclude Include="Cli\ICassoLauncher.h" />
+    <ClInclude Include="Cli\CommandLineQuoting.h" />
     <ClInclude Include="Cli\McpChannel.h" />
     <ClInclude Include="Cli\McpMode.h" />
     <ClInclude Include="Cli\McpServer.h" />
