@@ -241,15 +241,17 @@ namespace DebuggerViewMenuTests
         }
 
 
-        TEST_METHOD (TheLogsAreTogetherAheadOfTheTools)
+        //  The output section: Console, Trace and the Profiler, then the logs
+        //  together.
+        TEST_METHOD (TheLogsAreTogetherAfterTheProfiler)
         {
             CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
             ViewMenuHost               host;
             ViewMenuWindow             window (theme, host);
             std::vector<std::wstring>  panes;
-            std::vector<std::wstring>  order  = { DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
-                                                  DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog,
-                                                  DebuggerLayout::kBasicProgram, DebuggerLayout::kSymbols };
+            std::vector<std::wstring>  order  = { DebuggerLayout::kConsole, DebuggerLayout::kTrace, DebuggerLayout::kProfiler,
+                                                  DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
+                                                  DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog };
             auto                       begin  = panes.end();
 
 
