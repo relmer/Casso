@@ -1251,19 +1251,20 @@ on a Memory pane's menu over a byte in zero page, run `ZP`.
 The heat map is a tab beside **Memory 1** in the default layout, and **View >
 Heat map** (Ctrl+Alt+H) brings it forward. It displays the whole 64 KB address
 space as a grid, one cell an address, filling the pane: each row has a power of
-two of addresses from 16 to 1,024, so every row starts at a round address and
+two of addresses from 1 to 1,024, so every row starts at a round address and
 its label down the left (such as $0400) is the first address in it. The row
 has the count whose cells come nearest the zoom's size, and the cells are then
 widened or narrowed so the row spans the pane's whole width, every column
 within a pixel of the others; a cell is between three quarters and one and a
 half times the zoom's width (wider at the smallest zoom, which cannot narrow a
-one-pixel cell, and in rows of 1,024), and always the zoom's height. Only when
-even 16 cells at the zoom's size are wider than the pane does the map scroll
-across instead. Each address is drawn in the color of what touched it: code
-(the bytes of every instruction run) in the disassembly's instruction color,
-reads in green and writes in red. An address nothing touched is a dark gray (a
-light gray on a light theme), and every cell is set apart from its neighbors
-by a one-pixel gap of the page. **All**, **Code**, **Data** and **Changed**
+one-pixel cell, and in rows of 1,024, and narrower in a pane too narrow for
+even one cell at the zoom's width), and always the zoom's height. A row never
+runs past the pane, so the map never scrolls across: a larger zoom puts fewer
+addresses in a row and more rows down the map. Each address is drawn in the
+color of what touched it: code (the bytes of every instruction run) in the
+disassembly's instruction color, reads in green and writes in red. An address
+nothing touched is a dark gray (a light gray on a light theme), and every cell
+is set apart from its neighbors by a one-pixel gap of the page. **All**, **Code**, **Data** and **Changed**
 above the map choose what it displays: everything, with code ahead of data
 where an address is both; executes alone; reads and writes alone; or only the
 writes that changed a value (see
@@ -1282,14 +1283,14 @@ against the busiest address, so a few hot loops do not wash out the rest.
 The Reset counts glyph starts the totals over. The choice and the fade time
 are saved between sessions.
 
-The mouse wheel over the map scrolls it up and down, and Shift with the wheel
-scrolls it across when the rows are wider than the pane; scrollbars appear
-along each side the map overflows, and dragging the map pans it. Ctrl with the
-wheel over the map zooms it in and out; elsewhere in the debugger Ctrl with the
-wheel sizes the text. Zooming changes the cells' height at every step and,
-about every third step, how many addresses a row has; the row under the mouse
-stays at the mouse's height, and when the row length does not change, or the
-rows are wider than the pane, the address under the mouse stays under it too.
+The mouse wheel over the map scrolls it up and down; a scrollbar appears
+beside the map when its rows are taller than the pane, and dragging the map
+pans it up and down. Ctrl with the wheel over the map zooms it in and out;
+elsewhere in the debugger Ctrl with the wheel sizes the text. Zooming changes
+the cells' height at every step and, about every third step, how many
+addresses a row has; the row under the mouse stays at the mouse's height, and
+when the row length does not change, the address under the mouse stays under
+it too.
 
 The zoom appears in the map's bottom-right corner as a percentage of the
 starting size, three pixels a cell at 100% scaling. Hovering over it brings up
