@@ -251,9 +251,13 @@ private:
     HRESULT  SendDisk        (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  WriteImage      (const std::string & title, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
     HRESULT  WriteManifest   ();
+    HRESULT  FindMovedImages (const std::function<bool (const FullSendRow & row)> & matches);
+    HRESULT  HashUnlisted    ();
+    bool     HasImage        (const FullSendRow & row);
     void     End             (HRESULT hr);
 
     void                             ReportRepeat  (int drive, const CheckedDisk & disk);
+    const FullSendRow              * FindWithImage (const std::function<bool (const FullSendRow & row)> & matches);
     Byte                             PickQuip      ();
     std::vector<std::string>         GetPauseLines (const std::array<bool, 2> & repeats) const;
     std::string                      GetPrefixLine () const;
@@ -284,4 +288,9 @@ private:
     Byte                        m_lastQuip   = 0;
     bool                        m_fileFailed = false;
     std::set<std::string>       m_changed;       // fingerprints of disks that changed during a read, sent only after Space
+
+    //  The folder's images that the manifest doesn't list, by file name and
+    //  hash, read once the first time a row's image is missing.
+    std::vector<std::pair<std::string, std::string>>  m_unlisted;
+    bool                                              m_unlistedRead = false;
 };

@@ -879,6 +879,7 @@ public:
         manifest.Add (row);
 
         rig.io.files["C:\\Box\\full-send.csv"] = manifest.Format();
+        rig.io.files["C:\\Box\\0007.dsk"]      = disk;
         rig.link.drives[0] = disk;
 
         rig.Run();
@@ -1133,12 +1134,13 @@ public:
         manifest.Add (earlier);
 
         rig.io.files["C:\\Box\\manifest.fullsend"] = manifest.Format();
+        rig.io.files["C:\\Box\\0001.dsk"]          = disk;
         rig.link.drives[0]  = disk;
         rig.link.present[1] = false;
 
         auto  session = rig.Run();
 
-        Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0002.dsk", "manifest.fullsend" }));
+        Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
         Assert::AreEqual (std::string ("D1: SENT 2, DUPE OF 0001.dsk"), session->GetScreen().GetRows()[3]);
 
         const auto  & rows = session->GetManifest().GetRows();
@@ -1298,6 +1300,7 @@ public:
         manifest.Add (row);
 
         rig.io.files["C:\\Box\\manifest.fullsend"] = manifest.Format();
+        rig.io.files["C:\\Box\\0041.dsk"]          = old;
         rig.link.drives[0] = old;
         rig.link.drives[1] = Other (2);
 
@@ -1334,5 +1337,118 @@ public:
         auto  session = rig.Run (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
 
         Assert::IsTrue (session->GetEndReason() == FullSendSession::EndReason::FileFailed);
+    }
+
+    //  A manifest with a sent row for `disk` under each of `files`, in
+    //  sequence from 1, written to the folder.
+    static void  WriteManifestOf (Rig & rig, const Image & disk, const std::vector<std::string> & files)
+    {
+        FullSendManifest  manifest;
+        int               sequence = 1;
+
+        for (const std::string & file : files)
+        {
+            FullSendRow  row = Row (sequence++, file);
+
+            AssertSucceeded (FullSendDisk::ComputeFingerprint (disk, row.fingerprint));
+            AssertSucceeded (FullSendDisk::ComputeHash (disk, row.hash));
+
+            row.status = FullSendManifest::kStatusSent;
+            manifest.Add (row);
+        }
+
+        rig.io.files["C:\\Box\\manifest.fullsend"] = manifest.Format();
+    }
+
+    TEST_METHOD (Session_ARenamedImage_IsStillARepeat_AndItsRowHasItsNewName)
+    {
+        Rig  rig;
+
+        WriteManifestOf (rig, Other (1), { "0001.dsk" });
+        rig.io.files["C:\\Box\\Games.dsk"] = Other (1);
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue   (rig.link.diskReads.empty(), L"a repeat isn't read");
+        Assert::AreEqual (std::string ("Games.dsk"), session->GetManifest().GetRows()[0].file);
+    }
+
+    TEST_METHOD (Session_ADeletedImage_MakesItsDiskNew)
+    {
+        Rig  rig;
+
+        WriteManifestOf (rig, Other (1), { "0001.dsk" });
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1 }));
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0002.dsk"));
+    }
+
+    TEST_METHOD (Session_TwoRenamedImagesOfADisk_EachGoToOneRow)
+    {
+        Rig  rig;
+
+        WriteManifestOf (rig, Other (1), { "0001.dsk", "0002.dsk" });
+        rig.io.files["C:\\Box\\A.dsk"] = Other (1);
+        rig.io.files["C:\\Box\\B.dsk"] = Other (1);
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue   (rig.link.diskReads.empty());
+        Assert::AreEqual (std::string ("A.dsk"), session->GetManifest().GetRows()[0].file);
+        Assert::AreEqual (std::string ("B.dsk"), session->GetManifest().GetRows()[1].file);
+    }
+
+    TEST_METHOD (Session_TwoDeletedImagesOfADisk_MakeItNew)
+    {
+        Rig  rig;
+
+        WriteManifestOf (rig, Other (1), { "0001.dsk", "0002.dsk" });
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        rig.Run();
+
+        Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1 }));
+    }
+
+    TEST_METHOD (Session_OneRenamedAndOneDeleted_RenamesOneRow_AndKeepsTheOther)
+    {
+        Rig  rig;
+
+        WriteManifestOf (rig, Other (1), { "0001.dsk", "0002.dsk" });
+        rig.io.files["C:\\Box\\Kept.dsk"] = Other (1);
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue   (rig.link.diskReads.empty());
+        Assert::AreEqual (std::string ("Kept.dsk"), session->GetManifest().GetRows()[0].file);
+        Assert::AreEqual (std::string ("0002.dsk"), session->GetManifest().GetRows()[1].file);
+    }
+
+    TEST_METHOD (Session_OneRenamedAndOneInPlace_RenamesOnlyTheMissingRow)
+    {
+        Rig  rig;
+
+        WriteManifestOf (rig, Other (1), { "0001.dsk", "0002.dsk" });
+        rig.io.files["C:\\Box\\0001.dsk"] = Other (1);
+        rig.io.files["C:\\Box\\New.dsk"]  = Other (1);
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue   (rig.link.diskReads.empty());
+        Assert::AreEqual (std::string ("0001.dsk"), session->GetManifest().GetRows()[0].file);
+        Assert::AreEqual (std::string ("New.dsk"),  session->GetManifest().GetRows()[1].file);
     }
 };

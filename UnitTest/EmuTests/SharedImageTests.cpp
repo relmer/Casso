@@ -62,6 +62,7 @@ public:
         //  Nothing below is reached: the store reads, writes and stats through
         //  its own seams, and this exists for the two questions above.
         HRESULT  ReadAllBytes  (const std::string &, std::vector<Byte> &) override { return E_NOTIMPL; }
+        HRESULT  ListFiles     (const std::string &, std::vector<std::string> &) override { return E_NOTIMPL; }
         HRESULT  WriteAllBytes (const std::string &, const std::vector<Byte> &) override { return E_NOTIMPL; }
         HRESULT  WriteAt       (const std::string &, uint64_t, std::span<const Byte>) override { return E_NOTIMPL; }
         HRESULT  Stat          (const std::string &, FileStamp &) override { return E_NOTIMPL; }

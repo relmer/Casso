@@ -169,6 +169,26 @@ public:
         return files.find (path) != files.end();
     }
 
+    HRESULT  ListFiles (const std::string & folder, std::vector<std::string> & outNames) override
+    {
+        std::string  prefix = folder + "\\";
+
+
+
+        outNames.clear();
+
+        for (const auto & [path, bytes] : files)
+        {
+            if (path.starts_with (prefix) && path.find ('\\', prefix.size()) == std::string::npos)
+            {
+                outNames.push_back (path.substr (prefix.size()));
+            }
+        }
+
+        std::sort (outNames.begin(), outNames.end());
+        return S_OK;
+    }
+
     HRESULT  Remove (const std::string & path) override
     {
         removeCount++;

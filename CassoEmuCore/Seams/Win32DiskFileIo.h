@@ -35,6 +35,7 @@ public:
     HRESULT  Stat          (const std::string & path, FileStamp & outStamp) override;
 
     bool     Exists        (const std::string & path) override;
+    HRESULT  ListFiles     (const std::string & folder, std::vector<std::string> & outNames) override;
     HRESULT  Remove        (const std::string & path) override;
 
     HRESULT  ReplaceAtomically (const std::string & tempPath,

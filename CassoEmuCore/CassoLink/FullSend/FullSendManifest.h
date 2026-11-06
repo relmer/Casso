@@ -69,6 +69,7 @@ public:
     bool               HasFingerprint  (const std::string & fingerprint) const;
 
     const std::vector<FullSendRow> &  GetRows () const { return m_rows; }
+    std::vector<FullSendRow>       &  GetRows ()       { return m_rows; }
 
     //  The row of the image with this hash, or nullptr. A duplicate's row has
     //  no image, so it is passed over.

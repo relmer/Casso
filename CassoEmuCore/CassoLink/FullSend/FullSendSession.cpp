@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 
@@ -622,8 +623,8 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
 
 void FullSendSession::ReportRepeat (int drive, const CheckedDisk & disk)
 {
-    const FullSendRow  * match = m_manifest.FindByFingerprint (disk.fingerprint);
-    std::string          file  = match == nullptr ? std::string() : match->file.empty() ? match->duplicateOf : match->file;
+    const FullSendRow  * match = FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
+    std::string          file  = match == nullptr ? std::string() : match->file;
 
 
 
@@ -691,6 +692,7 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     bool     present = m_link.HasDrive (drive);
     bool     stable  = false;
     bool     swapped = false;
+    bool     known   = false;
 
 
 
@@ -709,14 +711,20 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     hr = ReadFingerprint (drive, outDisk, stable);
     CHR (hr);
 
+    //  A disk is a repeat when an image of it is still in the folder, under
+    //  the name it was saved as or a new one.
     if (stable)
     {
-        outDisk.check = (m_manifest.HasFingerprint (outDisk.fingerprint) || m_changed.contains (outDisk.fingerprint)) ? DiskCheck::Repeat : DiskCheck::New;
+        hr = FindMovedImages ([&] (const FullSendRow & row) { return row.fingerprint == outDisk.fingerprint; });
+        CHR (hr);
+
+        known         = FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == outDisk.fingerprint; }) != nullptr;
+        outDisk.check = (known || m_changed.contains (outDisk.fingerprint)) ? DiskCheck::Repeat : DiskCheck::New;
     }
 
     //  A disk that changed during its read is checked again as a repeat, but
     //  it isn't one of the manifest's.
-    swapped = outDisk.check == DiskCheck::Repeat && !m_manifest.HasFingerprint (outDisk.fingerprint);
+    swapped = outDisk.check == DiskCheck::Repeat && !known;
 
     m_swapped[(size_t) drive - 1] = swapped;
 
@@ -954,7 +962,10 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     //  Every disk read is written; one that matches an earlier image is noted as
     //  its duplicate. One sent anyway is a sent disk whose row has the earlier
     //  image too, so the repeat is in the manifest.
-    match   = m_manifest.FindImageByHash (hash);
+    hr = FindMovedImages ([&] (const FullSendRow & candidate) { return candidate.hash == hash; });
+    CHR (hr);
+
+    match   = FindWithImage ([&] (const FullSendRow & candidate) { return candidate.hash == hash; });
     earlier = anyway ? nullptr : match;
 
     row.sequence    = sequence;
@@ -1116,6 +1127,175 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::FindMovedImages
+//
+//  Uploads are saved as numbered files and are likely to be renamed. Each row
+//  that matches and whose image is missing from the folder is assigned a
+//  different one of the folder's unlisted images with its hash, in sequence
+//  and file name order. A row whose image is in the folder isn't changed, and
+//  one with no image left keeps its file name. A duplicateOf with the old
+//  name takes the new one too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::FindMovedImages (const std::function<bool (const FullSendRow & row)> & matches)
+{
+    HRESULT                     hr      = S_OK;
+    std::vector<FullSendRow> &  rows    = m_manifest.GetRows();
+    bool                        changed = false;
+    std::string                 old;
+
+
+
+    for (FullSendRow & row : rows)
+    {
+        if (!matches (row) || row.file.empty() || m_fileIo.Exists (GetPath (row.file)))
+        {
+            continue;
+        }
+
+        hr = HashUnlisted();
+        CHR (hr);
+
+        auto  found = std::find_if (m_unlisted.begin(), m_unlisted.end(), [&] (const auto & image) { return image.second == row.hash; });
+
+        if (found == m_unlisted.end())
+        {
+            continue;
+        }
+
+        old      = row.file;
+        row.file = found->first;
+        changed  = true;
+
+        m_unlisted.erase (found);
+
+        for (FullSendRow & other : rows)
+        {
+            if (other.duplicateOf == old)
+            {
+                other.duplicateOf = row.file;
+            }
+        }
+
+        m_link.Report (std::format ("{} was renamed {}, and its row in the manifest is updated", old, row.file));
+    }
+
+    if (changed)
+    {
+        hr = WriteManifest();
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::HashUnlisted
+//
+//  Each file in the folder that the manifest doesn't list and that loads as a
+//  disk image, hashed as its sectors were when it was read: in DOS order, so
+//  a .po or .woz has the hash of the disk it holds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::HashUnlisted()
+{
+    HRESULT                   hr     = S_OK;
+    HRESULT                   hrFile = S_OK;
+    std::vector<std::string>  names;
+    std::vector<Byte>         bytes;
+    std::vector<Byte>         sectors;
+    SectorDecodeReport        report;
+    std::string               hash;
+
+
+
+    BAIL_OUT_IF (m_unlistedRead, S_OK);
+
+    m_unlistedRead = true;
+
+    hr = m_fileIo.ListFiles (m_folder, names);
+    CHR (hr);
+
+    std::sort (names.begin(), names.end());
+
+    for (const std::string & name : names)
+    {
+        bool  listed = std::any_of (m_manifest.GetRows().begin(), m_manifest.GetRows().end(), [&] (const FullSendRow & row) { return row.file == name; });
+
+        if (listed || name == FullSendManifest::kFileName || name == FullSendManifest::kLegacyFileName)
+        {
+            continue;
+        }
+
+        //  A file that doesn't load as a disk image isn't one of the images.
+        hrFile = m_fileIo.ReadAllBytes (GetPath (name), bytes);
+        hrFile = SUCCEEDED (hrFile) ? VolumeImage::Load (bytes, GetPath (name), sectors, report) : hrFile;
+        hrFile = SUCCEEDED (hrFile) ? FullSendDisk::ComputeHash (sectors, hash) : hrFile;
+
+        if (SUCCEEDED (hrFile))
+        {
+            m_unlisted.push_back ({ name, hash });
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::HasImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendSession::HasImage (const FullSendRow & row)
+{
+    return !row.file.empty() && m_fileIo.Exists (GetPath (row.file));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::FindWithImage
+//
+//  The first matching row whose image is in the folder, or nullptr.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const FullSendRow * FullSendSession::FindWithImage (const std::function<bool (const FullSendRow & row)> & matches)
+{
+    const std::vector<FullSendRow> &  rows = m_manifest.GetRows();
+
+
+
+    auto  found = std::find_if (rows.begin(), rows.end(), [&] (const FullSendRow & row) { return matches (row) && HasImage (row); });
+
+
+
+    return found == rows.end() ? nullptr : &*found;
 }
 
 

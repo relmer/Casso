@@ -78,6 +78,9 @@ public:
     virtual bool     Exists        (const std::string & path) = 0;
     virtual HRESULT  Remove        (const std::string & path) = 0;
 
+    //  The names of the files in a folder, without its subfolders.
+    virtual HRESULT  ListFiles     (const std::string & folder, std::vector<std::string> & outNames) = 0;
+
     //  Replaces the target with the temporary in one step, so an interrupted
     //  write cannot leave a half-written image behind.
     virtual HRESULT  ReplaceAtomically (const std::string & tempPath,

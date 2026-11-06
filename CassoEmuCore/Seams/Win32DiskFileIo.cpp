@@ -284,6 +284,39 @@ bool Win32DiskFileIo::Exists (const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32DiskFileIo::ListFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::ListFiles (const std::string & folder, std::vector<std::string> & outNames)
+{
+    HRESULT          hr = S_OK;
+    std::error_code  ec;
+
+
+
+    outNames.clear();
+
+    for (std::filesystem::directory_iterator it (std::filesystem::path (folder), ec), end; !ec && it != end; it.increment (ec))
+    {
+        if (it->is_regular_file (ec))
+        {
+            outNames.push_back (it->path().filename().string());
+        }
+    }
+
+    CBREx (!ec, HRESULT_FROM_WIN32 ((DWORD) ec.value()));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32DiskFileIo::Remove
 //
 ////////////////////////////////////////////////////////////////////////////////
