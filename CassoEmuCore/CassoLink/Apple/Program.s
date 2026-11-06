@@ -1899,18 +1899,18 @@ putraw: stx savex
         sta tmo+1
 pbwait: lda ACIASTAT,x
         and #TDRE
-        bne pbsend
+        bne pwsend
         lda txstuck
-        bne pbdrop
+        bne pwdrop
         inc tmo
         bne pbwait
         inc tmo+1
         bne pbwait              ; 65,536 rounds of 22 cycles
         inc txstuck
-pbdrop: pla
+pwdrop: pla
         ldx savex
         rts
-pbsend: lda #0
+pwsend: lda #0
         sta txstuck
         pla
 pbsta:  sta ACIADATA
