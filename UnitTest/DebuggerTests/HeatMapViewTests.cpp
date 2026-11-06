@@ -774,6 +774,44 @@ namespace DebuggerTests
 
 
 
+        //  The zoom's percentage is the user's zoom, not a size in pixels, so
+        //  it is the same after a floating map is dragged to a monitor of
+        //  another scale. The cells grow with the monitor's scale as the text
+        //  does.
+        TEST_METHOD (AMoveToAnotherScaleKeepsTheZoomPercentage)
+        {
+            constexpr int   kZoom     = 4;
+            HeatMapView     view;
+            DxuiDpiScaler   landscape;
+            DxuiDpiScaler   portrait;
+            int             startPx   = 0;
+            int             zoomedPx  = 0;
+
+
+
+            landscape.SetDpi (96);
+            portrait.SetDpi  (192);
+
+            view.SetPalette (MakePalette());
+            view.Layout     (RECT { 0, 0, kWidth * 2, kHeight * 3 }, landscape);
+            view.ZoomTo     (view.GetStartCellPx() * kZoom);
+
+            startPx  = view.GetStartCellPx();
+            zoomedPx = view.GetCellPx();
+            Assert::AreEqual (400, HeatMapZoomWidget::GetPercent (view.GetCellPx(), view.GetStartCellPx()), L"zoomed to 400%");
+
+            view.Layout (RECT { 0, 0, kWidth * 4, kHeight * 6 }, portrait);
+            Assert::AreEqual (400, HeatMapZoomWidget::GetPercent (view.GetCellPx(), view.GetStartCellPx()), L"400% at twice the scale");
+            Assert::IsTrue   (view.GetStartCellPx() > startPx, std::format (L"the size that fits the larger pane is larger: {} then {}", startPx, view.GetStartCellPx()).c_str());
+            Assert::IsTrue   (view.GetCellPx() > zoomedPx, L"the cells grow with the scale");
+
+            view.Layout (RECT { 0, 0, kWidth * 2, kHeight * 3 }, landscape);
+            Assert::AreEqual (400,      HeatMapZoomWidget::GetPercent (view.GetCellPx(), view.GetStartCellPx()), L"400% back at the first scale");
+            Assert::AreEqual (zoomedPx, view.GetCellPx(), L"at the cell it had there");
+        }
+
+
+
         TEST_METHOD (ZoomInAndZoomOutGoAboutTheMiddleOfTheMap)
         {
             HeatMapView  view;

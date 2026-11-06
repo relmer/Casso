@@ -1042,15 +1042,18 @@ bool MemoryWindowGroup::Tick (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryWindowGroup::SetTextZoom
+//  MemoryWindowPane::SetTextZoom
+//
+//  Each memory window's bytes are sized apart from the other windows', so
+//  zooming one does not resize the rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryWindowGroup::SetTextZoom (float zoom)
+void MemoryWindowPane::SetTextZoom (float zoom)
 {
-    for (MemoryWindowPane * window : m_windows)
+    if (m_view != nullptr)
     {
-        window->GetView()->SetZoom (zoom);
+        m_view->SetZoom (zoom);
     }
 }
 

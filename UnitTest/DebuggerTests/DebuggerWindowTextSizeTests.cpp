@@ -108,6 +108,9 @@ namespace DebuggerTests
         using DebuggerWindow::ApplyTextZoom;
         using DebuggerWindow::StepTextZoom;
         using DebuggerWindow::GetTextZoom;
+        using DebuggerWindow::GetPaneTextZoom;
+        using DebuggerWindow::OnMouse;
+        using DebuggerWindow::FindPaneForTest;
         using DebuggerWindow::GetMemoryGroup;
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::FocusControl;
@@ -338,17 +341,220 @@ namespace DebuggerTests
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
             Assert::IsTrue (window.OnKey (plus));
             Assert::IsTrue (window.OnKey (plus));
             Assert::IsTrue (window.OnKey (plus));
-            Assert::AreEqual (1.3f, window.GetTextZoom(), 0.001f, L"three steps up with Ctrl+Plus");
+            Assert::AreEqual (1.3f, window.GetPaneTextZoom (DebuggerLayout::kConsole), 0.001f, L"three steps up with Ctrl+Plus");
 
             Assert::IsTrue (window.OnKey (minus));
-            Assert::AreEqual (1.2f, window.GetTextZoom(), 0.001f, L"one back with Ctrl+Minus");
+            Assert::AreEqual (1.2f, window.GetPaneTextZoom (DebuggerLayout::kConsole), 0.001f, L"one back with Ctrl+Minus");
+            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"the status bar's size is the window's, not the focused pane's");
 
             Assert::IsTrue (window.OnKey (zero));
-            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"Ctrl+0 back to the usual size");
+            Assert::AreEqual (1.0f, window.GetPaneTextZoom (DebuggerLayout::kConsole), 0.001f, L"Ctrl+0 back to the usual size");
+        }
+
+
+
+        //  Every list, memory window and text view in the window by its text
+        //  size, so a test can find what one zoom changed.
+        static std::map<IDxuiControl *, float> GetTextSizes (TextSizeWindow & window)
+        {
+            std::map<IDxuiControl *, float>  sizes;
+
+
+
+            for (size_t i = 0; i < window.GetChildCount(); i++)
+            {
+                IDxuiControl  * child = window.GetChild (i);
+
+                if (auto * list = dynamic_cast<DxuiListView *> (child))
+                {
+                    sizes[child] = list->GetFontSizeDip();
+                }
+                else if (auto * hex = dynamic_cast<DxuiHexView *> (child))
+                {
+                    sizes[child] = hex->GetZoom();
+                }
+                else if (auto * text = dynamic_cast<DxuiTextView *> (child))
+                {
+                    sizes[child] = text->GetZoom();
+                }
+            }
+
+            return sizes;
+        }
+
+
+
+        //  Ctrl+wheel over a pane with no zoom apart from its text, and
+        //  Ctrl+Plus with the focus in it, size that pane's text and no other
+        //  pane's; the status bar's size stays where it was, and Ctrl+0 puts
+        //  the pane back.
+        static void  CheckZoomsOnlyThePane (TextSizeWindow & window, const std::wstring & pane, IDxuiControl * over)
+        {
+            IDebuggerPane                    * found  = window.FindPaneForTest (pane);
+            std::set<IDxuiControl *>           own;
+            std::map<IDxuiControl *, float>    before;
+            std::map<IDxuiControl *, float>    after;
+            DxuiMouseEvent                     wheel;
+            DxuiKeyEvent                       plus   = { DxuiKeyEventKind::Down, VK_OEM_PLUS, false, false, true, false };
+            DxuiKeyEvent                       zero   = { DxuiKeyEventKind::Down, '0',         false, false, true, false };
+            RECT                               bounds = over->GetBounds();
+            int                                grown  = 0;
+
+
+
+            Assert::IsNotNull (found, pane.c_str());
+            Assert::IsTrue    (over->IsVisible() && bounds.right > bounds.left && bounds.bottom > bounds.top, L"the pane is on screen");
+
+            for (IDxuiControl * control : found->GetControls())
+            {
+                own.insert (control);
+            }
+
+            for (DxuiListView * list : found->GetLists())
+            {
+                own.insert (list);
+            }
+
+            before = GetTextSizes (window);
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = 1.0f;
+            wheel.positionDip = { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+
+            Assert::IsTrue (window.OnMouse (wheel));
+
+            after = GetTextSizes (window);
+
+            for (const auto & [control, size] : before)
+            {
+                if (own.contains (control))
+                {
+                    Assert::IsTrue (after[control] > size, std::format (L"{}: the pane's text grew", pane).c_str());
+                    grown++;
+                }
+                else
+                {
+                    Assert::AreEqual (size, after[control], 0.001f, std::format (L"{}: another pane's text is the same size", pane).c_str());
+                }
+            }
+
+            Assert::IsTrue   (grown > 0, std::format (L"{}: the pane has text that zooms", pane).c_str());
+            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"the status bar's size did not change");
+            Assert::AreEqual (1.1f, window.GetPaneTextZoom (pane), 0.001f, L"one step up");
+
+            window.FocusControl (over);
+            Assert::IsTrue   (window.OnKey (plus));
+            Assert::AreEqual (1.2f, window.GetPaneTextZoom (pane), 0.001f, L"Ctrl+Plus with the focus in the pane");
+
+            Assert::IsTrue   (window.OnKey (zero));
+            Assert::AreEqual (1.0f, window.GetPaneTextZoom (pane), 0.001f, L"Ctrl+0 puts the pane back");
+
+            after = GetTextSizes (window);
+
+            for (const auto & [control, size] : before)
+            {
+                Assert::AreEqual (size, after[control], 0.001f, std::format (L"{}: every pane at its first size again", pane).c_str());
+            }
+        }
+
+
+
+        TEST_METHOD (CtrlWheelOverTheDisassemblyZoomsOnlyTheDisassembly)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            CheckZoomsOnlyThePane (window, DebuggerLayout::GetCodePaneId (0), window.GetCodeList (0));
+        }
+
+
+
+        TEST_METHOD (CtrlWheelOverTheRegistersZoomsOnlyTheRegisters)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            CheckZoomsOnlyThePane (window, DebuggerLayout::kRegisters, window.FindPaneForTest (DebuggerLayout::kRegisters)->GetLists().front());
+        }
+
+
+
+        TEST_METHOD (CtrlWheelOverAMemoryWindowZoomsOnlyThatWindow)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            CheckZoomsOnlyThePane (window, DebuggerLayout::GetMemoryPaneId (1), window.GetMemoryGroup().GetWindow (1)->GetView());
+        }
+
+
+
+        //  Ctrl+wheel off every pane, over the command bar, zooms nothing.
+        TEST_METHOD (CtrlWheelOffThePanesZoomsNothing)
+        {
+            CassoTheme                        theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            TextSizeWindow                    window (theme, host);
+            DxuiDpiScaler                     scaler;
+            DxuiToolbar                     * bar    = nullptr;
+            DxuiMouseEvent                    wheel;
+            std::map<IDxuiControl *, float>   before;
+            RECT                              bounds = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            for (size_t i = 0; i < window.GetChildCount() && bar == nullptr; i++)
+            {
+                bar = dynamic_cast<DxuiToolbar *> (window.GetChild (i));
+            }
+
+            Assert::IsNotNull (bar, L"the command bar");
+
+            bounds            = bar->GetBounds();
+            before            = GetTextSizes (window);
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.ctrl        = true;
+            wheel.wheelDelta  = 1.0f;
+            wheel.positionDip = { bounds.left + 2, (bounds.top + bounds.bottom) / 2 };
+
+            (void) window.OnMouse (wheel);
+
+            Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"the status bar's size did not change");
+            Assert::IsTrue   (before == GetTextSizes (window), L"no pane's text changed size");
         }
 
 

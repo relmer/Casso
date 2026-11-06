@@ -458,6 +458,7 @@ private:
     void                 PlaceBands     ();
     void                 FitRanges      ();
     int                  ComputeFitCellPx ();
+    void                 RescaleForDpi  (const RECT & boundsPx, const DxuiDpiScaler & scaler);
     std::wstring         FormatAmount   (Byte level) const;
     void                 ApplyCellPx    (int cellPx, POINT point);
     void                 PlaceMap       ();

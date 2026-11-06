@@ -109,6 +109,7 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::GetHeatMapPane;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::GetTextZoom;
+        using DebuggerWindow::GetPaneTextZoom;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::FocusControl;
@@ -639,8 +640,8 @@ namespace HeatMapPaneWindowTests
 
         //  Ctrl+wheel anywhere in the pane zooms the map: over a cell about
         //  the pointer, and over the bar or the empty area under a map
-        //  zoomed out about the map's middle. Over another pane it sizes the
-        //  panes' text.
+        //  zoomed out about the map's middle. Over another pane it sizes that
+        //  pane's text.
         TEST_METHOD (CtrlWheelAnywhereInThePaneZoomsTheMapAndElsewhereTheText)
         {
             CassoTheme      theme   = CassoTheme::MakeSkeuomorphic();
@@ -695,7 +696,8 @@ namespace HeatMapPaneWindowTests
 
             console = window.GetPaneContentForTest (DebuggerLayout::kConsole)->GetBounds();
             Assert::IsTrue   (window.OnMouse (MakeCtrlWheel (GetCenter (console), 1.0f)));
-            Assert::IsTrue   (window.GetTextZoom() > zoom, L"over the console, Ctrl+wheel sizes the text");
+            Assert::IsTrue   (window.GetPaneTextZoom (DebuggerLayout::kConsole) > 1.0f, L"over the console, Ctrl+wheel sizes the console's text");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and not every pane's");
             Assert::AreEqual (2, view->GetCellPx(), L"and the map stays at its zoom");
         }
 
@@ -703,7 +705,7 @@ namespace HeatMapPaneWindowTests
 
         //  Ctrl+Plus and Ctrl+Minus zoom the map while it has the focus, as
         //  Ctrl+wheel over it does, and Ctrl+0 fits it again. With the focus
-        //  in another pane they size the panes' text.
+        //  in another pane they size that pane's text.
         TEST_METHOD (CtrlPlusAndMinusZoomTheMapWhileItHasTheFocus)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
@@ -742,7 +744,8 @@ namespace HeatMapPaneWindowTests
             window.FocusControl (window.FindPaneForTest (DebuggerLayout::kRegisters)->GetLists().front());
 
             Assert::IsTrue   (window.OnKey (plus));
-            Assert::IsTrue   (window.GetTextZoom() > zoom, L"with the focus on the registers, Ctrl+Plus sizes the text");
+            Assert::IsTrue   (window.GetPaneTextZoom (DebuggerLayout::kRegisters) > 1.0f, L"with the focus on the registers, Ctrl+Plus sizes the registers' text");
+            Assert::AreEqual (zoom, window.GetTextZoom(), L"and not every pane's");
             Assert::AreEqual (view->GetStartCellPx(), view->GetCellPx(), L"and the map stays at its zoom");
         }
 

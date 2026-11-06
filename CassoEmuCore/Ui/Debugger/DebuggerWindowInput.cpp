@@ -929,14 +929,18 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  Ctrl+wheel anywhere over a pane whose content zooms, such as the heat
     //  map, zooms that content, over its bar and its empty space as much as
-    //  over the content itself. Over any other pane it sizes the panes' text
-    //  as Ctrl+Plus and Ctrl+Minus do, before a view that would take the
-    //  wheel for itself.
+    //  over the content itself. Over any other pane it sizes that pane's text
+    //  alone, as Ctrl+Plus and Ctrl+Minus do, before a view that would take
+    //  the wheel for itself. Off the panes it does nothing.
     if (ev.kind == DxuiMouseEventKind::Wheel && ev.ctrl && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
     {
-        if (!ZoomPaneContent (GetRoutedPaneAt (ev.positionDip), ev.wheelDelta, ev.positionDip))
+        std::wstring  pane = GetRoutedPaneAt (ev.positionDip);
+
+
+
+        if (!ZoomPaneContent (pane, ev.wheelDelta, ev.positionDip))
         {
-            StepTextZoom (ev.wheelDelta > 0.0f ? 1 : -1);
+            StepPaneTextZoom (pane, ev.wheelDelta > 0.0f ? 1 : -1);
         }
 
         return true;
@@ -1277,16 +1281,20 @@ bool DebuggerWindow::ZoomPaneContent (const std::wstring & pane, float notches, 
 //  DebuggerWindow::StepFocusedZoom
 //
 //  The focused pane's content zooms about its middle, as a focused printer
-//  page does, when the pane has a zoom apart from the text; otherwise the
-//  panes' text steps.
+//  page does, when the pane has a zoom apart from the text; otherwise that
+//  pane's text steps, and no other pane's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::StepFocusedZoom (int steps)
 {
-    if (!ZoomPaneContent (GetPaneOfFocus(), (float) steps, std::nullopt))
+    std::wstring  pane = GetPaneOfFocus();
+
+
+
+    if (!ZoomPaneContent (pane, (float) steps, std::nullopt))
     {
-        StepTextZoom (steps);
+        StepPaneTextZoom (pane, steps);
     }
 }
 
@@ -1298,6 +1306,9 @@ void DebuggerWindow::StepFocusedZoom (int steps)
 //
 //  DebuggerWindow::ResetFocusedZoom
 //
+//  The focused pane's content back to its starting zoom, or for a pane with
+//  no zoom apart from the text, its text back to the window's size.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ResetFocusedZoom()
@@ -1307,9 +1318,9 @@ void DebuggerWindow::ResetFocusedZoom()
 
 
 
-    if (found == nullptr || !found->ResetContentZoom())
+    if (found != nullptr && !found->ResetContentZoom())
     {
-        ApplyTextZoom (1.0f);
+        StepPaneTextZoom (pane, 0);
     }
 }
 

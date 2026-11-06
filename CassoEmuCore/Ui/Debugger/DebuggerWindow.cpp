@@ -610,11 +610,11 @@ void DebuggerWindow::StepTextZoom (int steps)
 //
 //  DebuggerWindow::ApplyTextZoom
 //
-//  A size change, not a zoom of the window: every content pane's text and
-//  rows grow or shrink together, floating ones included since they are the
-//  same controls, and the caption, the command bar and every other Casso
-//  window keep their size. The code pane refits its line count at the next
-//  layout. The size is saved through the host, so it survives the window.
+//  The status bar's size, not a zoom of the window: every content pane's
+//  text and rows grow or shrink together, floating ones included since they
+//  are the same controls. The caption, the command bar and every other Casso
+//  window are not resized. Each pane's text is this size times the pane's.
+//  The size is saved through the host, so it survives the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -627,24 +627,107 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
         m_host->SetDebuggerTextZoomPercent ((int) std::lround (m_textZoom * DebuggerStatusText::kPercent));
     }
 
-    for (DxuiListView * list : GetLists())
-    {
-        list->SetFontSizeDip     (kPaneFontDip * m_textZoom);
-        list->SetRowHeightDip    ((int) std::lround (kPaneRowDip * m_textZoom));
-        list->SetHeaderHeightDip ((int) std::lround (kPaneHeaderDip * m_textZoom));
-        list->ResetAutoFit();
-    }
-
-    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
-    {
-        pane->SetTextZoom (m_textZoom);
-    }
-
-
-    //  The status bar's zoom and its slider follow a change from the keys or
-    //  the wheel as well as from the slider itself.
+    //  The status bar's zoom and its slider follow a change from anywhere,
+    //  the slider included.
     m_zoomSlider.SetValue (m_textZoom * DebuggerStatusText::kPercent);
     UpdateStatusBar();
+
+    ApplyTextSizes();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetPaneTextZoom
+//
+//  A pane's text size over the window's, 1 for a pane never zoomed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DebuggerWindow::GetPaneTextZoom (const std::wstring & pane) const
+{
+    auto  found = m_paneTextZooms.find (pane);
+
+
+
+    return (found != m_paneTextZooms.end()) ? found->second : 1.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::StepPaneTextZoom
+//
+//  One pane's text alone, in the same ten-percentage-point steps as the
+//  window's. Ctrl+wheel over one pane changes neither the other panes' text
+//  nor the status bar's size. Zero steps returns the pane to the window's
+//  size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::StepPaneTextZoom (const std::wstring & pane, int steps)
+{
+    int  smallest = (int) std::lround (kMinTextZoom / kTextZoomStep);
+    int  largest  = (int) std::lround (kMaxTextZoom / kTextZoomStep);
+    int  step     = (int) std::lround (GetPaneTextZoom (pane) / kTextZoomStep);
+
+
+
+    if (pane.empty() || FindPane (pane) == nullptr)
+    {
+        return;
+    }
+
+    if (steps == 0)
+    {
+        m_paneTextZooms.erase (pane);
+    }
+    else
+    {
+        step                  = std::clamp (step + steps, smallest, largest);
+        m_paneTextZooms[pane] = (float) step * kTextZoomStep;
+    }
+
+    ApplyTextSizes();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyTextSizes
+//
+//  Each pane's lists and text views at the window's size times the pane's.
+//  The code pane refits its line count at the next layout.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyTextSizes()
+{
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        float  zoom = std::clamp (m_textZoom * GetPaneTextZoom (pane->GetId()), kMinTextZoom, kMaxTextZoom);
+
+
+
+        for (DxuiListView * list : pane->GetLists())
+        {
+            list->SetFontSizeDip     (kPaneFontDip * zoom);
+            list->SetRowHeightDip    ((int) std::lround (kPaneRowDip * zoom));
+            list->SetHeaderHeightDip ((int) std::lround (kPaneHeaderDip * zoom));
+            list->ResetAutoFit();
+        }
+
+        pane->SetTextZoom (zoom);
+    }
 
     LayoutWidgets();
     Invalidate();
