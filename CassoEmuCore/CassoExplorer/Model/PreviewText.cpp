@@ -169,13 +169,27 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
         }
     }
 
+    //  A catalog's rows don't wrap, so a warning of several sentences, as a
+    //  damaged directory's is, goes in a row a sentence.
     if (!preview.warning.empty())
     {
-        warning.cells.push_back (preview.warning);
-        warning.warning = true;
+        size_t  start = 0;
 
         rows.push_back (DxuiTextView::Row());
-        rows.push_back (warning);
+
+        while (start < preview.warning.size())
+        {
+            size_t  end = preview.warning.find (L". ", start);
+
+            end = (end == std::wstring::npos) ? preview.warning.size() : end + 1;
+
+            warning.cells   = { preview.warning.substr (start, end - start) };
+            warning.warning = true;
+            rows.push_back (warning);
+
+            start = preview.warning.find_first_not_of (L' ', end);
+            start = (start == std::wstring::npos) ? preview.warning.size() : start;
+        }
     }
 
     return rows;

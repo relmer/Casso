@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/ArchiveProbe.h"
@@ -317,6 +318,15 @@ void BrowserPreviewer::UpdatePreview()
     {
         if (!m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && TryPreviewAppleSingle (folder, m_browser.m_rows[m_browser.m_selectedRows[0]]))
         {
+            return;
+        }
+
+        //  A Full Send's manifest is Casso's record of the folder, not a file
+        //  to read here.
+        if (!m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && _wcsicmp (m_browser.m_rows[m_browser.m_selectedRows[0]].name.c_str(), TextEncoding::NarrowToWide (FullSendManifest::kFileName).c_str()) == 0)
+        {
+            m_preview.kind    = PreviewContent::Kind::Error;
+            m_preview.message = L"Casso's record of the disks a Full Send received in this folder. Don't edit, rename or move it: Casso reads it to pass over disks already received.";
             return;
         }
 

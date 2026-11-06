@@ -119,6 +119,10 @@ struct LinkOperation
     std::string                      imagePrefix;
     bool                             blankUnreadable = false;
 
+    //  Full Send: set while the Apple waits for a disk and a key, so the
+    //  status bar reads that rather than the last read's percentage.
+    std::atomic<bool>                fullSendWaiting { false };
+
     //  Write disk for a format: the new volume, as VOL 254 or /NAME, so the
     //  label for a format differs from one for an image written.
     std::string                      formatted;

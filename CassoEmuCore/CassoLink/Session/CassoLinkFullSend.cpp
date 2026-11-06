@@ -384,6 +384,9 @@ HRESULT CassoLinkFullSend::WaitForKey (const std::vector<std::string> & lines, F
     hr = CheckStop();
     CHR (hr);
 
+    m_operation->fullSendWaiting = true;
+    m_session.Report (*m_operation, m_operation->progress);
+
     hr = m_session.m_host->WaitForKey (lines, code);
     CHR (hr);
 
@@ -395,6 +398,7 @@ HRESULT CassoLinkFullSend::WaitForKey (const std::vector<std::string> & lines, F
                                                 : FullSendKey::Space;
 
 Error:
+    m_operation->fullSendWaiting = false;
     return hr;
 }
 

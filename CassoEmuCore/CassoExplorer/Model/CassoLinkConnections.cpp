@@ -1344,7 +1344,9 @@ std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_p
         default:                                 what = L"Working";           break;
     }
 
-    text = std::format (L"{} in drive {}: {}%", what, jobs[0]->drive, jobs[0]->progress.load());
+    text = (jobs[0]->kind == LinkOperationKind::FullSend && jobs[0]->fullSendWaiting)
+         ? std::wstring (L"Full Send: waiting for a disk on the Apple")
+         : std::format (L"{} in drive {}: {}%", what, jobs[0]->drive, jobs[0]->progress.load());
 
     if (jobs.size() > 1)
     {

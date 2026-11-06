@@ -11,9 +11,11 @@
 //  FirewallCheck::Evaluate
 //
 //  With no network, no traffic arrives, so the port is admitted. On a
-//  profile the firewall is off for, every port is admitted. The public
-//  profile is evaluated first, so it is the one reported when two profiles
-//  have the same verdict: on a public network both remedies are offered.
+//  profile the firewall is off for, every port is admitted. When two
+//  profiles have the same refusal, the private or domain one is reported: the
+//  PC's LAN is on it, and making a network private can't help while the rule
+//  covers the private profile too. The public profile is reported when the
+//  refusal is on it alone, where both remedies apply.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +62,10 @@ FirewallVerdict FirewallCheck::Evaluate (const FirewallSnapshot & snapshot, cons
                        : elsewhere ? FirewallAdmission::OtherProfile
                                    : FirewallAdmission::NoRule;
 
-        if (GetSeverity (here.admission) > GetSeverity (verdict.admission))
+        bool  worse = GetSeverity (here.admission) >  GetSeverity (verdict.admission);
+        bool  tie   = GetSeverity (here.admission) == GetSeverity (verdict.admission) && verdict.profile == FirewallProfile::Public && !here.IsAdmitted();
+
+        if (worse || tie)
         {
             verdict = here;
         }

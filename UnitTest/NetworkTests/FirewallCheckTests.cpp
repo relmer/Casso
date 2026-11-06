@@ -120,11 +120,22 @@ public:
     }
 
 
-    //  Blocked on both, the public network is the one reported, since both
-    //  remedies apply there.
-    TEST_METHOD (TwoProfilesBlocked_ReportThePublicOne)
+    //  Blocked on both, the private network is the one reported: the LAN is
+    //  on it, and making the public network private can't help.
+    TEST_METHOD (TwoProfilesBlocked_ReportThePrivateOne)
     {
         FirewallVerdict  verdict = Check (MakeSnapshot (FirewallProfile::Private | FirewallProfile::Public, { MakeRule (false, FirewallProfile::All) }));
+
+        Assert::IsTrue (verdict.admission == FirewallAdmission::Refused);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Private, (uint32_t) verdict.profile);
+    }
+
+
+    //  Blocked on the public network alone, that one is reported, as both
+    //  remedies apply there.
+    TEST_METHOD (PublicAloneBlocked_ReportsThePublicOne)
+    {
+        FirewallVerdict  verdict = Check (MakeSnapshot (FirewallProfile::Private | FirewallProfile::Public, { MakeRule (true, FirewallProfile::All), MakeRule (false, FirewallProfile::Public) }));
 
         Assert::IsTrue (verdict.admission == FirewallAdmission::Refused);
         Assert::AreEqual ((uint32_t) FirewallProfile::Public, (uint32_t) verdict.profile);

@@ -1631,17 +1631,17 @@ Session 2026-11-04. T079 and T082 follow.
 - [X] T431 Set a Full Send's operation drive to the drive being read, in `CassoLinkFullSend`, so the status bar's drive number is that drive's, not 1 throughout
 - [ ] T432 Find where a Full Send's 30 to 31 s a disk goes at 115,200 baud, and bring it under SC-038's 30 s
 - [ ] T433 Mark a repeated disk sent anyway with its drive's number as a duplicate of the earlier image in the manifest; settle with the owner whether it is saved as an image too
-- [ ] T434 Exclude `manifest.fullsend` from the preview pane
-- [ ] T435 Wrap a disk image preview's warning, such as a Pascal directory's overlapping files, in the pane's width
-- [ ] T436 Clip a text preview's selection highlight to the preview pane when the text is scrolled sideways
-- [ ] T437 While a Full Send waits for a disk, put that in the status bar instead of the last read's percentage
+- [X] T434 Exclude `manifest.fullsend` from the preview pane
+- [X] T435 Wrap a disk image preview's warning, such as a Pascal directory's overlapping files, in the pane's width
+- [X] T436 Clip a text preview's selection highlight to the preview pane when the text is scrolled sideways
+- [X] T437 While a Full Send waits for a disk, put that in the status bar instead of the last read's percentage
 - [ ] T438 Check that the Apple's duplicate prompt, which points to Casso Explorer for details, has those details somewhere in Casso Explorer
 - [ ] T439 Drop the NO SECTOR lines an empty drive adds to the Apple's history during a Full Send, as the drive's row has NO READABLE DISK
 - [ ] T440 Number the track map under a Full Send's progress bar on the Apple, so a bad track can be identified
 - [ ] T441 Sort a Full Send image's unreadable list by track and sector
 - [ ] T442 Restore the Apple's history after a Full Send, with a line totaling the disks sent, duplicated and bad
-- [ ] T443 Correct quickstart 7c: the manifest is `manifest.fullsend`, not `full-send.csv`, and a protected disk's status is `likely-copy-protected`
-- [ ] T444 Word a firewall block for the profile that is active and blocked: on a PC whose networks are all private, with a block rule for private and public, the page's text was "this public network" and offered Make this network private, which can't help there. Offer only Allow then. Found 2026-11-05 on the owner's desktop
+- [X] T443 Correct quickstart 7c: the manifest is `manifest.fullsend`, not `full-send.csv`, and a protected disk's status is `likely-copy-protected`
+- [X] T444 Word a firewall block for the profile that is active and blocked: on a PC whose networks are all private, with a block rule for private and public, the page's text was "this public network" and offered Make this network private, which can't help there. Offer only Allow then. Found 2026-11-05 on the owner's desktop
 - [ ] T445 Make the firewall badge on a connection's tree row easier to see: the small amber triangle over the gray Apple icon is easy to miss at the tree's size
 - [ ] T446 Draw a list row's item checkbox as File Explorer does when item checkboxes are on: an empty box on the row under the pointer, a checked box on a checked row, and a checked box on the row with keyboard focus. Found on the owner's laptop, where every row of a details view had one
 - [ ] T447 Connect to an Apple whose announcement has an address with no route from the PC, such as an emulated Uthernet II's private address (10.0.65.15) behind another PC's Casso: use the announcement's source address, with the port that PC's Casso forwards, or put the host's LAN address and forwarded port in the announcement Casso relays. Found 2026-11-05: the desktop listed the laptop's //e and then stayed on Connecting

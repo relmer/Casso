@@ -1121,10 +1121,12 @@ void DxuiTextView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & 
 
 void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT         hr   = S_OK;
-    DxuiFontHandle  font = m_proportional ? theme.BodyFont() : theme.MonospaceFont();
-    int             last = 0;
-    int             barW = 0;
+    HRESULT         hr    = S_OK;
+    DxuiFontHandle  font  = m_proportional ? theme.BodyFont() : theme.MonospaceFont();
+    int             last  = 0;
+    int             barW  = 0;
+    float           clipW = 0.0f;
+    float           clipH = 0.0f;
 
 
 
@@ -1152,9 +1154,15 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     barW = m_scaler.ToPx (s_kScrollbarWidthDip);
 
-    hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                            (float) (m_boundsDip.right - m_boundsDip.left - ((m_horzVisible && IsScrollbarVisible()) ? barW : 0)),
-                            (float) (m_boundsDip.bottom - m_boundsDip.top - (m_horzVisible ? barW : 0)));
+    //  The selection fills go through the painter and the characters through
+    //  the text renderer, so both are clipped: a line scrolled sideways
+    //  otherwise fills past the view's edges.
+    clipW = (float) (m_boundsDip.right - m_boundsDip.left - ((m_horzVisible && IsScrollbarVisible()) ? barW : 0));
+    clipH = (float) (m_boundsDip.bottom - m_boundsDip.top - (m_horzVisible ? barW : 0));
+
+    painter.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top, clipW, clipH);
+
+    hr = text.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top, clipW, clipH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     for (int lineIndex = m_topLine; lineIndex < last; lineIndex++)
@@ -1164,6 +1172,8 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    painter.PopClipRect();
 
     if (IsScrollbarVisible())
     {
