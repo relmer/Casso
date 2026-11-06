@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Shell/Components/ShellFrameRateReadout.h"
+#include "Shell/Components/ShellHistoryOverlays.h"
 #include "Shell/Components/ShellNotices.h"
 #include "Shell/Components/ShellStandInBar.h"
 #include "Shell/Components/ShellToolbarEntries.h"
@@ -10,9 +11,6 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/ChromeBand.h"
 #include "Ui/Chrome/MainMenu.h"
-#include "Ui/Chrome/BranchPreview.h"
-#include "Ui/Chrome/ReplayIndicator.h"
-#include "Ui/Chrome/RewindBar.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 
 
@@ -55,9 +53,10 @@ public:
     MainMenu     &  GetMainMenu () { return m_mainMenu; }
     DxuiToolbar  &  GetToolbar  () { return m_toolbar; }
 
-    // The rewind bar over the bottom of the emulated screen, for the shell's
-    // pointer routing and per-frame upkeep.
-    RewindBar    &  GetRewindBar () { return m_rewindBar; }
+    // History's overlays on the emulated screen, for the per-frame upkeep,
+    // and their rewind bar, for the shell's pointer routing.
+    ShellHistoryOverlays &  GetHistoryOverlays () { return m_historyOverlays; }
+    RewindBar            &  GetRewindBar       () { return m_historyOverlays.GetRewindBar(); }
 
     // Registers the chrome bands and the center with the dock layout, once.
     void  RegisterDock ();
@@ -210,10 +209,6 @@ public:
     // //c switch strip -- so the glass-fill scene owns the whole client.
     void    SetChromeHiddenForFullscreenScene (bool hidden);
 
-    // The replay indicator and the branch preview, driven from the per-frame
-    // UI upkeep.
-    void    SyncReplayIndicator ();
-    void    SyncBranchPreview   ();
 
     // The fullscreen top-edge chrome reveal, driven from the per-frame UI
     // upkeep.
@@ -331,22 +326,8 @@ private:
     // The transient notices, as message bars across the top.
     ShellNotices                   m_notifications { m_shell, *this };
 
-    // History's timeline over the bottom of the emulated screen, open while
-    // the pointer is on it.
-    RewindBar                      m_rewindBar;
-
-    // "Replaying" over the top of the screen while the machine runs behind
-    // live, and whether a capture paint has the overlays hidden.
-    ReplayIndicator                m_replayIndicator;
-
-    // The last frame of the branch whose fork row is under the pointer,
-    // over the screen.
-    BranchPreview                  m_branchPreview;
-    bool                           m_areOverlaysHidden = false;
-
-    // The emulated screen as drawn, from the last layout: on the desk scene,
-    // the tube's bounds, which the composition's glass rectangle is not.
-    RECT                           m_screenRectPx      = {};
+    // History's rewind bar, replay indicator and branch preview.
+    ShellHistoryOverlays           m_historyOverlays { m_shell, *this };
 
     // The frames-per-second readout.
     ShellFrameRateReadout      m_frameRate { m_shell, *this };

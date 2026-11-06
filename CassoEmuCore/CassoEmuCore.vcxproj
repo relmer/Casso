@@ -351,6 +351,7 @@
     <ClCompile Include="Debugger\Reverse\ArenaExtents.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryMarks.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryThumbnails.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistoryThumbnailGrid.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryThumbnailMarks.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryTimelineClick.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryTimelineScrub.cpp" />
@@ -359,6 +360,7 @@
     <ClCompile Include="Debugger\Reverse\ReplayDiskCopier.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseStepSearch.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseStepTable.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
     <ClCompile Include="Debugger\Reverse\DivergenceGate.cpp" />
     <ClCompile Include="Debugger\Reverse\HeldInputWatch.cpp" />
@@ -781,6 +783,7 @@
     <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
     <ClCompile Include="Shell\Components\ShellSerialCard.cpp" />
     <ClCompile Include="Shell\Components\ShellHistory.cpp" />
+    <ClCompile Include="Shell\Components\ShellHistoryOverlays.cpp" />
     <ClCompile Include="Shell\Components\ShellHistorySaved.cpp" />
     <ClCompile Include="Shell\SerialCardNotice.cpp" />
     <ClCompile Include="Shell\Components\ShellSettings.cpp" />
@@ -1059,6 +1062,7 @@
     <ClInclude Include="Debugger\Reverse\ArenaExtents.h" />
     <ClInclude Include="Debugger\Reverse\HistoryMarks.h" />
     <ClInclude Include="Debugger\Reverse\HistoryThumbnails.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryThumbnailGrid.h" />
     <ClInclude Include="Debugger\Reverse\HistoryTimelineClick.h" />
     <ClInclude Include="Debugger\Reverse\HistoryTimelineScrub.h" />
     <ClInclude Include="Debugger\Reverse\HistoryWallTimes.h" />
@@ -1068,6 +1072,7 @@
     <ClInclude Include="Debugger\Reverse\ReplayDiskCopier.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />
     <ClInclude Include="Debugger\Reverse\ReverseStepSearch.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseStepTable.h" />
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
     <ClInclude Include="Debugger\Reverse\ReverseHost.h" />
     <ClInclude Include="Debugger\Reverse\DivergenceGate.h" />
@@ -1566,6 +1571,7 @@
     <ClInclude Include="Shell\Components\ShellPrinter.h" />
     <ClInclude Include="Shell\Components\ShellSerialCard.h" />
     <ClInclude Include="Shell\Components\ShellHistory.h" />
+    <ClInclude Include="Shell\Components\ShellHistoryOverlays.h" />
     <ClInclude Include="Shell\SerialCardNotice.h" />
     <ClInclude Include="Shell\Components\ShellSettings.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />

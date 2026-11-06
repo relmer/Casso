@@ -225,7 +225,7 @@ public:
         Assert::IsTrue (wallGap >= kMinuteTicks, L"the wall time stamped after going live jumps by the minute");
         Assert::IsTrue (after.cycle - before.cycle <= KeyframeSettings::kFrameCycles * 2, L"but the machine time between them is one interval");
 
-        HistoryThumbnails::PlanCells (store, kCellCount, step, cells);
+        HistoryThumbnailGrid::PlanCells (store, kCellCount, step, cells);
 
         Assert::IsTrue (cells.size() > 2, L"cells were planned");
 

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 #include "DxuiToolbar.h"
-#include "DxuiStripFlyout.h"
+#include "DxuiStripMarks.h"
 #include "DxuiStripPreview.h"
 #include "IDxuiImageStripSource.h"
 #include "DxuiTooltip.h"
@@ -54,7 +54,7 @@ public:
     ~DxuiImageStrip() override;
 
     void  SetSource        (IDxuiImageStripSource * source) { m_source = source; }
-    void  SetAspect        (float widthOverHeight)          { m_aspect = widthOverHeight; m_flyout.SetAspect (widthOverHeight); }
+    void  SetAspect        (float widthOverHeight)          { m_aspect = widthOverHeight; m_marks.GetFlyout().SetAspect (widthOverHeight); }
     void  SetPopupHost     (DxuiHwndSource * host);
 
     //  The length the entry asks for, in pixels; 0 asks for kDefaultLengthDp.
@@ -97,24 +97,11 @@ public:
     int   GetHoveredCell   () const { return m_hovered; }
     bool  IsPreviewShown   () const { return m_preview.IsShown(); }
 
-    //  A mark's badge as the last paint placed it: its rectangle, where its
-    //  line crosses the strip, its tip (every mark merged into it, one to a
-    //  line), the source's key for its first mark, and whether it opens rows.
-    struct MarkBadge
-    {
-        RECT          rect    = {};
-        float         along   = 0.0f;
-        std::wstring  tip;
-        uint64_t      id      = 0;
-        bool          hasRows = false;
-    };
-
-    const std::vector<MarkBadge> &  GetMarkBadges () const { return m_badges; }
-    bool  TryGetBadgeAt    (int x, int y, size_t & outIndex) const;
-
-    //  The flyout a mark with rows opens.
-    DxuiStripFlyout       &  GetFlyout ()       { return m_flyout; }
-    const DxuiStripFlyout &  GetFlyout () const { return m_flyout; }
+    //  The marks' badges as the last paint placed them, and the flyout a mark
+    //  with rows opens.
+    const std::vector<DxuiStripMarks::Badge> &  GetMarkBadges () const { return m_marks.GetBadges(); }
+    DxuiStripFlyout                          &  GetFlyout     ()       { return m_marks.GetFlyout(); }
+    const DxuiStripFlyout                    &  GetFlyout     () const { return m_marks.GetFlyout(); }
 
     //  Where the preview's picture sits on screen, empty with none up, and
     //  the picture it shows.
@@ -161,11 +148,6 @@ private:
     static constexpr float  kSidePadDip     = 6.0f;
     static constexpr float  kLiveDotDip     = 6.0f;
     static constexpr float  kHoverLineDip   = 1.0f;   // the line at the pointer, thinner than the playhead's
-    static constexpr float  kMarkLineDip    = 1.0f;   // a mark's line across the pictures
-    static constexpr float  kMarkBadgeDip   = 14.0f;  // a mark's badge, square for a glyph alone
-    static constexpr float  kMarkGlyphDip   = 10.0f;  // the glyph in it
-
-    static constexpr wchar_t  kGlyphFace[]  = L"Segoe MDL2 Assets";
 
     //  The end labels, each a button.
     enum class Part { None, Leading, Trailing };
@@ -175,10 +157,6 @@ private:
     bool  IsPartClickable  (Part part) const;
     void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
     void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  PaintMarks       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  JoinMarks        (float badgePx);
-    void  PaintBranchArt   (IDxuiTextRenderer & text, float x, float y, float sizePx, uint32_t ink);
-    void  TrackFlyout      (int x, int y);
     void  ShowOutsideLabels (const IDxuiTheme & theme);
     void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
     void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
@@ -235,11 +213,6 @@ private:
 
     mutable std::wstring  m_tip;          // an end label's tip, kept while it shows
 
-    std::vector<DxuiStripMark>  m_marks;   // the source's marks, read each paint
-    std::vector<MarkBadge>      m_badges;  // where the last paint placed them
-    std::vector<uint32_t>       m_branchArt;            // a branch mark's pixels, redrawn when the size or ink changes
-    int                         m_branchArtSize = 0;
-    uint32_t                    m_branchArtInk  = 0;
-    DxuiStripFlyout             m_flyout;
-    DxuiStripPreview            m_preview;
+    DxuiStripMarks     m_marks;
+    DxuiStripPreview   m_preview;
 };

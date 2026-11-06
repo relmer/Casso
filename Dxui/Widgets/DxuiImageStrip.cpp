@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "DxuiImageStrip.h"
-#include "DxuiBranchArt.h"
 #include "Theme/DxuiTheme.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
@@ -46,7 +45,7 @@ void DxuiImageStrip::SetPopupHost (DxuiHwndSource * host)
 
     m_preview.SetPopupHost (host);
     m_preview.SetAnchor    ([this] (SIZE sizeDip) { return GetPreviewAnchor (sizeDip); });
-    m_flyout.SetPopupHost  (host);
+    m_marks.GetFlyout().SetPopupHost (host);
 
     m_topLabel.SetPopupHost    (host);
     m_topLabel.SetPlacement    (DxuiPopupPlacement::Above);
@@ -404,7 +403,12 @@ void DxuiImageStrip::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    PaintMarks (text, theme);
+    m_marks.ClearBadges();
+
+    if (m_source != nullptr && !m_vertical && m_count > 0)
+    {
+        m_marks.Paint (*m_source, *this, m_scaler, text, theme);
+    }
 
     //  The point under the pointer has a thin gray line, and its labels are
     //  the source's for that point, centered on it.
@@ -478,15 +482,15 @@ const wchar_t * DxuiImageStrip::GetTooltipAt (
 
 
     //  A mark with rows opens its flyout in place of a tip.
-    if (TryGetBadgeAt (x, y, badge) && m_badges[badge].hasRows)
+    if (m_marks.TryGetBadgeAt (x, y, badge) && m_marks.GetBadges()[badge].hasRows)
     {
         return nullptr;
     }
 
-    if (TryGetBadgeAt (x, y, badge))
+    if (m_marks.TryGetBadgeAt (x, y, badge))
     {
-        m_tip  = m_badges[badge].tip;
-        anchor = m_badges[badge].rect;
+        m_tip  = m_marks.GetBadges()[badge].tip;
+        anchor = m_marks.GetBadges()[badge].rect;
 
         return m_tip.empty() ? nullptr : m_tip.c_str();
     }
@@ -686,7 +690,7 @@ bool DxuiImageStrip::OnMouseMove (
     m_pointer   = POINT { x, y };
     m_hoverPart = HitTestPart (x, y);
 
-    TrackFlyout (x, y);
+    m_marks.Track (m_source, m_popupHost, x, y);
 
     if (index != m_hovered)
     {
@@ -800,7 +804,7 @@ void DxuiImageStrip::OnMouseLeave()
     SetHovered (-1);
     HidePreview();
 
-    m_flyout.Track (m_source, false, 0, RECT {}, (int64_t) GetTickCount64());
+    m_marks.Untrack (m_source);
 }
 
 
@@ -818,9 +822,9 @@ void DxuiImageStrip::OnMouseLeave()
 
 void DxuiImageStrip::Sync()
 {
-    m_flyout.Sync ((int64_t) GetTickCount64());
+    m_marks.GetFlyout().Sync ((int64_t) GetTickCount64());
 
-    if (m_hovered < 0 || m_source == nullptr || m_flyout.IsOpen())
+    if (m_hovered < 0 || m_source == nullptr || m_marks.GetFlyout().IsOpen())
     {
         m_preview.Hide();
         return;
@@ -930,264 +934,6 @@ void DxuiImageStrip::PaintHoverLine (
 
     hr = text.DrawIconBitmap (&ink, 1, 1, (float) m_pointer.x, (float) m_rc.top - reach, thick, (float) (m_rc.bottom - m_rc.top) + reach * 2.0f);
     IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::PaintMarks
-//
-//  Each of the source's marks on a strip lying down: a thin line across the
-//  pictures at its offset, and its glyph or branch in a badge on the
-//  pictures' bottom edge, with the count beside it when it is above 1. Marks
-//  closer together than a badge's width share one badge (JoinMarks). Drawn as
-//  pictures are, since pictures draw over shapes. The badges are saved for
-//  the tooltip's hit test.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::PaintMarks (
-    IDxuiTextRenderer & text,
-    const IDxuiTheme  & theme)
-{
-    constexpr uint32_t  kOpaque    = 0xFF000000u;
-    constexpr uint32_t  kColorMask = 0x00FFFFFFu;
-    constexpr uint32_t  kBadgeArgb = 0xE0000000u;
-    constexpr float     kCountWide = 2.0f;
-    HRESULT             hr         = S_OK;
-    float               thick      = std::max (1.0f, (float) std::lround (m_scaler.ToPxf (kMarkLineDip)));
-    float               badge      = m_scaler.ToPxf (kMarkBadgeDip);
-    float               size       = m_scaler.ToPxf (kMarkGlyphDip);
-    float               top        = (float) m_rc.bottom - badge;
-    float               along      = 0.0f;
-    float               width      = 0.0f;
-    uint32_t            ink        = theme.Foreground() | kOpaque;
-    uint32_t            back       = (theme.Background() & kColorMask) | kBadgeArgb;
-    std::wstring        label;
-    float               labelLeft  = 0.0f;
-    float               labelWidth = 0.0f;
-    MarkBadge           placed;
-
-
-
-    m_badges.clear();
-
-    if (m_source == nullptr || m_vertical || m_count <= 0)
-    {
-        return;
-    }
-
-    m_source->GetMarks (m_marks);
-
-    JoinMarks (badge);
-
-    for (const DxuiStripMark & mark : m_marks)
-    {
-        along = GetLineAlong (mark.offset);
-
-        label = (mark.art == DxuiStripMarkArt::Glyph) ? std::wstring (1, mark.glyph) : std::wstring();
-
-        if (mark.count > 1)
-        {
-            label += std::to_wstring (mark.count);
-        }
-
-        width = (mark.count > 1) ? badge * kCountWide : badge;
-
-        hr = text.DrawIconBitmap (&ink, 1, 1, along - thick / 2.0f, (float) m_rc.top, thick, (float) (m_rc.bottom - m_rc.top));
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        hr = text.DrawIconBitmap (&back, 1, 1, along - width / 2.0f, top, width, badge);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        labelLeft  = along - width / 2.0f;
-        labelWidth = width;
-
-        //  A branch takes the badge's first square, and the count the rest.
-        if (mark.art == DxuiStripMarkArt::Branch)
-        {
-            PaintBranchArt (text, labelLeft + (badge - size) / 2.0f, top + (badge - size) / 2.0f, size, ink);
-
-            labelLeft  += badge;
-            labelWidth -= badge;
-        }
-
-        if (!label.empty())
-        {
-            hr = text.DrawString (label.c_str(), labelLeft, top, labelWidth, badge, ink, size, kGlyphFace,
-                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-
-        placed.rect    = RECT { (LONG) std::lround (along - width / 2.0f), (LONG) std::lround (top), (LONG) std::lround (along + width / 2.0f), m_rc.bottom };
-        placed.along   = along;
-        placed.tip     = mark.tip;
-        placed.id      = mark.id;
-        placed.hasRows = mark.hasRows;
-
-        m_badges.push_back (placed);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::JoinMarks
-//
-//  A mark closer to the one before than a badge's width joins that mark's
-//  badge, whose tip lists both. A mark with rows takes the badge's art, id
-//  and rows from a mark without, since only it opens a flyout: a fork made
-//  by a reset is joined by the reset's mark, one keyframe after it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::JoinMarks (float badgePx)
-{
-    std::vector<DxuiStripMark>  joined;
-    float                       lastAlong = 0.0f;
-    float                       along     = 0.0f;
-
-
-
-    for (const DxuiStripMark & mark : m_marks)
-    {
-        along = GetLineAlong (mark.offset);
-
-        if (!joined.empty() && along - lastAlong < badgePx)
-        {
-            DxuiStripMark  & first = joined.back();
-            std::wstring     tip   = first.tip + L"\n" + mark.tip;
-            float            at    = first.offset;
-
-
-
-            if (mark.hasRows && !first.hasRows)
-            {
-                first        = mark;
-                first.offset = at;
-            }
-
-            first.tip = std::move (tip);
-            continue;
-        }
-
-        joined.push_back (mark);
-        lastAlong = along;
-    }
-
-    m_marks.swap (joined);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::PaintBranchArt
-//
-//  A branch mark's art, square at sizePx, drawn again only when its size or
-//  ink changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::PaintBranchArt (
-    IDxuiTextRenderer  & text,
-    float                x,
-    float                y,
-    float                sizePx,
-    uint32_t             ink)
-{
-    HRESULT  hr     = S_OK;
-    int      sizeAt = std::max ((int) std::lround (sizePx), 1);
-
-
-
-    if (sizeAt != m_branchArtSize || ink != m_branchArtInk)
-    {
-        DxuiBranchArt::Draw (sizeAt, ink, m_branchArt);
-
-        m_branchArtSize = sizeAt;
-        m_branchArtInk  = ink;
-    }
-
-    hr = text.DrawIconBitmap (m_branchArt.data(), sizeAt, sizeAt, x, y, sizePx, sizePx);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::TrackFlyout
-//
-//  The pointer over a mark with rows, or not, for the flyout, with the
-//  mark's badge on screen as where it opens.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiImageStrip::TrackFlyout (
-    int  x,
-    int  y)
-{
-    size_t  badge    = 0;
-    bool    isOver   = TryGetBadgeAt (x, y, badge) && m_badges[badge].hasRows;
-    RECT    anchor   = isOver ? m_badges[badge].rect : RECT {};
-    POINT   topLeft  = { anchor.left,  anchor.top };
-    POINT   botRight = { anchor.right, anchor.bottom };
-    HWND    owner    = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
-
-
-
-    if (isOver && owner != nullptr)
-    {
-        ClientToScreen (owner, &topLeft);
-        ClientToScreen (owner, &botRight);
-    }
-
-    m_flyout.Track (m_source, isOver, isOver ? m_badges[badge].id : 0, RECT { topLeft.x, topLeft.y, botRight.x, botRight.y }, (int64_t) GetTickCount64());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiImageStrip::TryGetBadgeAt
-//
-//  The badge the last paint placed under a point, if any.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiImageStrip::TryGetBadgeAt (
-    int       x,
-    int       y,
-    size_t  & outIndex) const
-{
-    POINT   pt = { x, y };
-    size_t  i  = 0;
-
-
-
-    for (i = 0; i < m_badges.size(); i++)
-    {
-        if (PtInRect (&m_badges[i].rect, pt))
-        {
-            outIndex = i;
-            return true;
-        }
-    }
-
-    return false;
 }
 
 
@@ -2053,7 +1799,6 @@ void DxuiImageStrip::PaintStandingLabel (
                           DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
-
 
 
 

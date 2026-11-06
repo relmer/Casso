@@ -13,7 +13,7 @@
 //
 //  ReverseStepSearch
 //
-//  Where a step back over and a step back out land, for the controller
+//  Step back over, step back out and reverse continue, for the controller
 //  that owns it. The search replays history one stretch at a time and keeps
 //  only each instruction's stack pointer. A step back out takes its target
 //  from the debugger's call record first, when one is attached and has the
@@ -31,6 +31,10 @@ public:
     void      SetCallerLinksProbe (ReverseController::CallerLinksProbe probe)      { m_callerLinksProbe = std::move (probe); }
     void      ReserveStackLevels  (size_t count)                                   { m_stackPointers.reserve (count); }
     void      ReleaseStackLevels  ()                                               { m_stackPointers = std::vector<Byte>(); }
+
+    HRESULT   StepBackOver        (ReverseResult & result);
+    HRESULT   StepBackOut         (ReverseResult & result);
+    HRESULT   ReverseContinue     (IReverseStopTest & stopTest, ReverseResult & result);
 
     HRESULT   FindStepOverTarget  (uint64_t current, int spNow, bool & outFound, uint64_t & outTarget, bool & outIsGap);
     HRESULT   FindStepOutTarget   (uint64_t current, int spNow, bool & outFound, uint64_t & outTarget, bool & outIsGap);

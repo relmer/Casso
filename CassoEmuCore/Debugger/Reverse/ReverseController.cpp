@@ -121,7 +121,7 @@ HRESULT ReverseController::Start (const ReverseSettings & settings)
     hr = UseWorkQueue();
     CHR (hr);
 
-    m_steps.reserve         (static_cast<size_t> (settings.keyframes.intervalCycles / kMinInstructionCycles) + kStepSlack);
+    m_stepTable.Reserve          (static_cast<size_t> (settings.keyframes.intervalCycles / kMinInstructionCycles) + kStepSlack);
     m_search->ReserveStackLevels (static_cast<size_t> (settings.keyframes.intervalCycles / kMinInstructionCycles) + kStepSlack);
 
     m_machine.GetInputJournal().Clear();
@@ -251,9 +251,8 @@ void ReverseController::Stop()
 
     m_keyframes.Release();
 
-    DiscardStepTable();
+    m_stepTable.Release();
     m_search->DiscardCallerLinks();
-    m_steps         = std::vector<ReplayStep>();
     m_search->ReleaseStackLevels();
 
     m_isRecording   = false;
@@ -544,41 +543,11 @@ HRESULT ReverseController::StepForward (ReverseResult & result)
 //
 //  StepBackOver
 //
-//  To the instruction before this one at the same stack depth: when the one
-//  before was a return, back over the whole call to its JSR.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::StepBackOver (ReverseResult & result)
 {
-    HRESULT         hr      = S_OK;
-    bool            isFound = false;
-    bool            isGap   = false;
-    uint64_t        target  = 0;
-    ReverseOutcome  outcome = ReverseOutcome::Moved;
-
-
-
-    m_isCut     = false;
-    m_isStopped = false;
-
-    hr = m_search->FindStepOverTarget (m_machine.GetPosition(), m_machine.GetCpu()->GetSP(), isFound, target, isGap);
-    CHR (hr);
-
-    if (m_isCut)
-    {
-        result = m_cutResult;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
-    outcome = m_isStopped ? ReverseOutcome::Stopped : outcome;
-
-    hr = LandAt (isFound ? target : GetOldestPosition(), outcome, result);
-    CHR (hr);
-
-Error:
-    return hr;
+    return m_search->StepBackOver (result);
 }
 
 
@@ -589,59 +558,28 @@ Error:
 //
 //  StepBackOut
 //
-//  To the JSR, or the interrupt, that entered the current routine. Live,
-//  the debugger's call record answers at once when no call in history
-//  entered it, and the machine stays where it is; when it holds the call,
-//  the machine seeks straight to it. Otherwise the search walks back, and
-//  ends at the call it finds.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ReverseController::StepBackOut (ReverseResult & result)
 {
-    HRESULT         hr      = S_OK;
-    uint64_t        current = m_machine.GetPosition();
-    int             spNow   = m_machine.GetCpu()->GetSP();
-    bool            isDone  = false;
-    bool            isFound = false;
-    bool            isGap   = false;
-    uint64_t        target  = 0;
-    ReverseOutcome  outcome = ReverseOutcome::Moved;
+    return m_search->StepBackOut (result);
+}
 
 
 
-    if (m_search->HasNoCaller())
-    {
-        FillResult (result);
-        result.outcome = ReverseOutcome::NoCaller;
-        BAIL_OUT_IF (true, S_OK);
-    }
 
-    m_isCut     = false;
-    m_isStopped = false;
 
-    hr = m_search->StepOutByRecord (isDone, result);
-    CHR (hr);
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseContinue
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    BAIL_OUT_IF (isDone, S_OK);
-
-    hr = m_search->FindStepOutTarget (current, spNow, isFound, target, isGap);
-    CHR (hr);
-
-    if (m_isCut)
-    {
-        result = m_cutResult;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
-    outcome = m_isStopped ? ReverseOutcome::Stopped : outcome;
-
-    hr = LandAt (isFound ? target : GetOldestPosition(), outcome, result);
-    CHR (hr);
-
-Error:
-    return hr;
+HRESULT ReverseController::ReverseContinue (
+    IReverseStopTest  & stopTest,
+    ReverseResult     & result)
+{
+    return m_search->ReverseContinue (stopTest, result);
 }
 
 
@@ -685,87 +623,6 @@ HRESULT ReverseController::StepBackCycles (
     {
         result.outcome = ReverseOutcome::AtHistoryStart;
     }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReverseContinue
-//
-//  To the latest position before this one where the stop test fires. Each
-//  stretch of history is replayed forward once with the stop test asked
-//  about every instruction, newest stretch first, and the latest hit wins; a
-//  breakpoint lands before its instruction and a watchpoint after the
-//  instruction that tripped it, as running forward would have. Nothing the
-//  replay runs reaches the debugger's own breakpoints or watchpoints.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ReverseController::ReverseContinue (
-    IReverseStopTest  & stopTest,
-    ReverseResult     & result)
-{
-    HRESULT       hr      = S_OK;
-    uint64_t      from    = m_machine.GetPosition();
-    uint64_t      end     = from;
-    uint64_t      oldest  = 0;
-    Stretch       stretch;
-    ReplayTarget  target;
-    ReplayReport  report;
-
-
-
-    CBRAEx (m_isRecording, E_UNEXPECTED);
-
-    hr = LeaveLive();
-    CHR (hr);
-
-    oldest = GetOldestPosition();
-
-    while (end > oldest)
-    {
-        //  Stopped, the run lands on the oldest position it searched, which
-        //  no stop came after.
-        if (IsStopDue (from, end))
-        {
-            hr = LandAt (end, ReverseOutcome::Stopped, result);
-            CHR (hr);
-            BAIL_OUT_IF (true, S_OK);
-        }
-
-        hr = RestoreAtOrBefore (end - 1, 0, false, stretch);
-        CHR (hr);
-
-        target.position = std::min (end, stretch.end);
-
-        hr = m_replayer.RunTo (target, from, &stopTest, report);
-        CHR (hr);
-
-        if (report.isDiverged)
-        {
-            hr = HandleDivergence (report, result);
-            CHR (hr);
-            BAIL_OUT_IF (true, S_OK);
-        }
-
-        if (report.hasHit)
-        {
-            hr = LandAt (report.lastHit, ReverseOutcome::Moved, result);
-            CHR (hr);
-            BAIL_OUT_IF (true, S_OK);
-        }
-
-        end = stretch.start;
-    }
-
-    hr = LandAt (oldest, ReverseOutcome::AtHistoryStart, result);
-    CHR (hr);
 
 Error:
     return hr;
@@ -1266,10 +1123,10 @@ HRESULT ReverseController::GetStep (
     bool        & outIsInGap,
     uint64_t    & outGapStart)
 {
-    HRESULT  hr       = S_OK;
-    Stretch  stretch;
-    bool     isFound  = false;
-    bool     isBuilt  = false;
+    HRESULT       hr      = S_OK;
+    Stretch       stretch;
+    ReplayReport  report;
+    bool          isFound = false;
 
 
 
@@ -1291,73 +1148,22 @@ HRESULT ReverseController::GetStep (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    isBuilt = m_hasSteps && m_stepsStart == stretch.start && m_stepsEnd == stretch.end;
-
-    if (!isBuilt)
+    if (!m_stepTable.IsBuiltFor (stretch.start, stretch.end))
     {
-        hr = BuildStepTable (stretch);
+        hr = m_stepTable.Build (m_replayer, stretch.keyframe, stretch.start, stretch.end, report);
         CHR (hr);
 
-        BAIL_OUT_IF (m_isCut, S_OK);
+        if (report.isDiverged)
+        {
+            hr = HandleDivergence (report, m_cutResult);
+            CHR (hr);
+
+            m_isCut = true;
+            BAIL_OUT_IF (true, S_OK);
+        }
     }
 
-    outStep = m_steps[static_cast<size_t> (position - m_stepsStart)];
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BuildStepTable
-//
-//  Replays the whole stretch once from its keyframe, keeping the PC and
-//  stack pointer of every instruction in it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT ReverseController::BuildStepTable (const Stretch & stretch)
-{
-    HRESULT       hr         = S_OK;
-    ReplayTarget  target;
-    ReplayReport  report;
-    size_t        stepCount  = 0;
-
-
-
-    DiscardStepTable();
-
-    hr = m_replayer.RestoreKeyframe (stretch.keyframe);
-    CHR (hr);
-
-    target.position = stretch.end;
-
-    hr = m_replayer.RunTo (target, stretch.end, nullptr, report, &m_steps);
-    CHR (hr);
-
-    if (report.isDiverged)
-    {
-        DiscardStepTable();
-
-        hr = HandleDivergence (report, m_cutResult);
-        CHR (hr);
-
-        m_isCut = true;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    stepCount = m_steps.size();
-    CBRA (stepCount == stretch.end - stretch.start);
-
-    m_stepsStart = stretch.start;
-    m_stepsEnd   = stretch.end;
-    m_hasSteps   = true;
-
-    m_tableBuilds++;
+    outStep = m_stepTable.GetAt (position);
 
 Error:
     return hr;
@@ -1383,7 +1189,7 @@ HRESULT ReverseController::PrepareRecentSteps (ReverseResult & result)
 {
     HRESULT        hr        = S_OK;
     uint64_t       position  = m_machine.GetPosition();
-    bool           isCovered = m_hasSteps && position > m_stepsStart && position <= m_stepsEnd;
+    bool           isCovered = m_stepTable.IsBehind (position);
     bool           isInGap   = false;
     uint64_t       gapStart  = 0;
     ReplayStep     step;
@@ -1422,7 +1228,7 @@ Error:
 //  GetRecentSteps
 //
 //  Up to count instructions before the current position, oldest first, from
-//  the step table; none when the table does not hold them.
+//  the step table.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1430,23 +1236,7 @@ void ReverseController::GetRecentSteps (
     size_t                     count,
     std::vector<ReplayStep>  & outSteps) const
 {
-    uint64_t  position = m_machine.GetPosition();
-    size_t    last     = 0;
-    size_t    first    = 0;
-
-
-
-    outSteps.clear();
-
-    if (!m_hasSteps || position <= m_stepsStart || position > m_stepsEnd)
-    {
-        return;
-    }
-
-    last  = static_cast<size_t> (position - m_stepsStart);
-    first = (last > count) ? last - count : 0;
-
-    outSteps.assign (m_steps.begin() + static_cast<ptrdiff_t> (first), m_steps.begin() + static_cast<ptrdiff_t> (last));
+    m_stepTable.GetBefore (m_machine.GetPosition(), count, outSteps);
 }
 
 
@@ -1479,10 +1269,7 @@ HRESULT ReverseController::LandAt (
         result.outcome = outcome;
     }
 
-    if (m_hasSteps && (result.position < m_stepsStart || result.position >= m_stepsEnd))
-    {
-        DiscardStepTable();
-    }
+    m_stepTable.DiscardOutside (result.position);
 
 Error:
     return hr;
@@ -1965,7 +1752,7 @@ void ReverseController::BecomeLive()
 
     m_machine.SetHeldInputWatch (nullptr);
 
-    DiscardStepTable();
+    m_stepTable.Discard();
     m_search->DiscardCallerLinks();
 
     if (m_isPaused)
@@ -2012,25 +1799,6 @@ void ReverseController::ScheduleCaptures()
     {
         m_nextDueCycle = m_keyframes.GetNextDueCycle();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiscardStepTable
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ReverseController::DiscardStepTable()
-{
-    m_steps.clear();
-
-    m_hasSteps   = false;
-    m_stepsStart = 0;
-    m_stepsEnd   = 0;
 }
 
 
@@ -2178,8 +1946,5 @@ uint64_t ReverseController::GetSegmentEnd (size_t keyframe) const
 
     return end;
 }
-
-
-
 
 

@@ -6,34 +6,13 @@
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/Reverse/HistoryImageCache.h"
 #include "Debugger/Reverse/HistoryMarks.h"
+#include "Debugger/Reverse/HistoryThumbnailGrid.h"
 #include "Debugger/Reverse/HistoryWallTimes.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 
 class IHistoryFrameRenderer;
 class KeyframeStore;
 enum class KeyframeDrop;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnailCell
-//
-//  One point a history strip shows: the keyframe it is drawn from, by its
-//  position and cycle, the host's clock when it was taken, and whether it
-//  stands for the live end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct HistoryThumbnailCell
-{
-    uint64_t  position = 0;
-    uint64_t  cycle    = 0;
-    uint64_t  wallTime = 0;
-    bool      isLive   = false;
-};
 
 
 
@@ -207,33 +186,18 @@ public:
     double             GetLastRenderMs () const      { return m_lastRenderMs.load (std::memory_order_relaxed); }
     uint64_t           GetRenderCount  () const      { return m_renderCount.load (std::memory_order_relaxed); }
 
-    //  The points for `count` cells over the keyframes held, oldest first, on
-    //  the grid of `ioStep`, which is chosen afresh when it no longer suits.
     //  Whether a thumbnail may go to the worker now, at nowMs, after the last
     //  went at lastSubmitMs and took lastWorkMs: so the worker is busy at most
     //  one part in kWorkShare of the time.
     static bool        IsRenderDue   (double nowMs, double lastSubmitMs, double lastWorkMs);
 
-    static void        PlanCells     (const KeyframeStore & keyframes, int count, uint64_t & ioStep, std::vector<HistoryThumbnailCell> & outCells);
-    static uint64_t    ChooseStep    (uint64_t span, int count, uint64_t step);
-    static uint64_t    GetGridTop    (uint64_t newest, uint64_t step);
-    static bool        DoesGridFit   (const KeyframeStore & keyframes, int count, uint64_t step, uint64_t top);
-    static bool        TryFindAtOrBefore (const KeyframeStore & keyframes, uint64_t position, size_t & outIndex);
-
-    //  The cell that marks where the machine stands, and what the timeline
-    //  calls the state it is in.
-    static int         FindPlayheadCell (const std::vector<HistoryThumbnailCell> & cells, uint64_t position, bool isBehindLive);
-    static PCWSTR      GetModeText      (bool isBehindLive);
+    //  What the timeline calls the state the machine is in.
+    static PCWSTR      GetModeText   (bool isBehindLive);
 
     //  The glyph drawn for a mark, and the text its tip begins with.
     static wchar_t     GetMarkGlyph     (HistoryMarkKind kind);
     static PCWSTR      GetMarkText      (HistoryMarkKind kind);
 
-    //  Where the playhead line stands along the strip, in cells from the
-    //  leading edge, for the machine at cycle with history ending at endCycle,
-    //  or -1 with no cells; and the cycle at such an offset.
-    static float       GetPlayheadOffset (const std::vector<HistoryThumbnailCell> & cells, uint64_t cycle, uint64_t endCycle);
-    static uint64_t    GetCycleAtOffset  (const std::vector<HistoryThumbnailCell> & cells, float offset, uint64_t endCycle);
 
     //  The fixed-size copy every cell size is scaled from: the picture itself
     //  when it is no wider than kBaseMaxWidth, else shrunk by a whole factor
@@ -349,5 +313,5 @@ private:
     double                            m_lastSubmitMs = 0.0;
     std::optional<uint64_t>           m_pendingPick;         // a keyframe still being packed, passed over this turn
     bool                              m_hasSubmitted = false;
-    uint64_t                          m_step         = 0;
+    HistoryThumbnailGrid              m_grid;
 };

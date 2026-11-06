@@ -330,10 +330,7 @@ HRESULT ReverseStepSearch::StepOutByRecord (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    if (m_owner.m_hasSteps && (result.position < m_owner.m_stepsStart || result.position >= m_owner.m_stepsEnd))
-    {
-        m_owner.DiscardStepTable();
-    }
+    m_owner.m_stepTable.DiscardOutside (result.position);
 
     m_callerDepth   = count - 1;
     m_callerLanding = m_owner.m_machine.GetPosition();
@@ -463,4 +460,193 @@ void ReverseStepSearch::DiscardCallerLinks()
 
     m_callerDepth   = 0;
     m_callerLanding = UINT64_MAX;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepBackOver
+//
+//  To the instruction before this one at the same stack depth: when the one
+//  before was a return, back over the whole call to its JSR.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseStepSearch::StepBackOver (ReverseResult & result)
+{
+    HRESULT         hr      = S_OK;
+    bool            isFound = false;
+    bool            isGap   = false;
+    uint64_t        target  = 0;
+    ReverseOutcome  outcome = ReverseOutcome::Moved;
+
+
+
+    m_owner.m_isCut     = false;
+    m_owner.m_isStopped = false;
+
+    hr = FindStepOverTarget (m_owner.m_machine.GetPosition(), m_owner.m_machine.GetCpu()->GetSP(), isFound, target, isGap);
+    CHR (hr);
+
+    if (m_owner.m_isCut)
+    {
+        result = m_owner.m_cutResult;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
+    outcome = m_owner.m_isStopped ? ReverseOutcome::Stopped : outcome;
+
+    hr = m_owner.LandAt (isFound ? target : m_owner.GetOldestPosition(), outcome, result);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepBackOut
+//
+//  To the JSR, or the interrupt, that entered the current routine. Live,
+//  the debugger's call record answers at once when no call in history
+//  entered it, and the machine stays where it is; when it holds the call,
+//  the machine seeks straight to it. Otherwise the search walks back, and
+//  ends at the call it finds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseStepSearch::StepBackOut (ReverseResult & result)
+{
+    HRESULT         hr      = S_OK;
+    uint64_t        current = m_owner.m_machine.GetPosition();
+    int             spNow   = m_owner.m_machine.GetCpu()->GetSP();
+    bool            isDone  = false;
+    bool            isFound = false;
+    bool            isGap   = false;
+    uint64_t        target  = 0;
+    ReverseOutcome  outcome = ReverseOutcome::Moved;
+
+
+
+    if (HasNoCaller())
+    {
+        m_owner.FillResult (result);
+        result.outcome = ReverseOutcome::NoCaller;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    m_owner.m_isCut     = false;
+    m_owner.m_isStopped = false;
+
+    hr = StepOutByRecord (isDone, result);
+    CHR (hr);
+
+    BAIL_OUT_IF (isDone, S_OK);
+
+    hr = FindStepOutTarget (current, spNow, isFound, target, isGap);
+    CHR (hr);
+
+    if (m_owner.m_isCut)
+    {
+        result = m_owner.m_cutResult;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    outcome = isGap ? ReverseOutcome::AtHistoryGap : (isFound ? ReverseOutcome::Moved : ReverseOutcome::AtHistoryStart);
+    outcome = m_owner.m_isStopped ? ReverseOutcome::Stopped : outcome;
+
+    hr = m_owner.LandAt (isFound ? target : m_owner.GetOldestPosition(), outcome, result);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseContinue
+//
+//  To the latest position before this one where the stop test fires. Each
+//  stretch of history is replayed forward once with the stop test asked
+//  about every instruction, newest stretch first, and the latest hit wins; a
+//  breakpoint lands before its instruction and a watchpoint after the
+//  instruction that tripped it, as running forward would have. Nothing the
+//  replay runs reaches the debugger's own breakpoints or watchpoints.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseStepSearch::ReverseContinue (
+    IReverseStopTest  & stopTest,
+    ReverseResult     & result)
+{
+    HRESULT                     hr     = S_OK;
+    uint64_t                    from   = m_owner.m_machine.GetPosition();
+    uint64_t                    end    = from;
+    uint64_t                    oldest = 0;
+    ReverseController::Stretch  stretch;
+    ReplayTarget                target;
+    ReplayReport                report;
+
+
+
+    CBRAEx (m_owner.m_isRecording, E_UNEXPECTED);
+
+    hr = m_owner.LeaveLive();
+    CHR (hr);
+
+    oldest = m_owner.GetOldestPosition();
+
+    while (end > oldest)
+    {
+        //  Stopped, the run lands on the oldest position it searched, which
+        //  no stop came after.
+        if (m_owner.IsStopDue (from, end))
+        {
+            hr = m_owner.LandAt (end, ReverseOutcome::Stopped, result);
+            CHR (hr);
+            BAIL_OUT_IF (true, S_OK);
+        }
+
+        hr = m_owner.RestoreAtOrBefore (end - 1, 0, false, stretch);
+        CHR (hr);
+
+        target.position = std::min (end, stretch.end);
+
+        hr = m_owner.m_replayer.RunTo (target, from, &stopTest, report);
+        CHR (hr);
+
+        if (report.isDiverged)
+        {
+            hr = m_owner.HandleDivergence (report, result);
+            CHR (hr);
+            BAIL_OUT_IF (true, S_OK);
+        }
+
+        if (report.hasHit)
+        {
+            hr = m_owner.LandAt (report.lastHit, ReverseOutcome::Moved, result);
+            CHR (hr);
+            BAIL_OUT_IF (true, S_OK);
+        }
+
+        end = stretch.start;
+    }
+
+    hr = m_owner.LandAt (oldest, ReverseOutcome::AtHistoryStart, result);
+    CHR (hr);
+
+Error:
+    return hr;
 }

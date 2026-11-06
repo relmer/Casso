@@ -432,7 +432,7 @@ public:
         thumbnails.GetCells (cells);
 
         Assert::AreEqual<size_t> (1, strip.size(), L"one mark on the strip");
-        Assert::AreEqual (HistoryThumbnails::GetPlayheadOffset (cells, 3000, 9000), strip[0].offset, L"at its cycle's offset");
+        Assert::AreEqual (HistoryThumbnailGrid::GetPlayheadOffset (cells, 3000, 9000), strip[0].offset, L"at its cycle's offset");
         Assert::AreEqual (s_kpszMdl2Refresh[0], strip[0].glyph, L"a reset's glyph");
         Assert::AreEqual (std::wstring (L"Reset at 3000"), strip[0].tip, L"its text and the labeler's top line");
         Assert::IsFalse  (strip[0].hasRows, L"no flyout");

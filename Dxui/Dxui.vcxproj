@@ -212,6 +212,7 @@
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiImageStrip.cpp" />
     <ClCompile Include="Widgets\DxuiStripFlyout.cpp" />
+    <ClCompile Include="Widgets\DxuiStripMarks.cpp" />
     <ClCompile Include="Widgets\DxuiStripPreview.cpp" />
     <ClCompile Include="Widgets\DxuiBranchArt.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
@@ -346,6 +347,7 @@
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiImageStrip.h" />
     <ClInclude Include="Widgets\DxuiStripFlyout.h" />
+    <ClInclude Include="Widgets\DxuiStripMarks.h" />
     <ClInclude Include="Widgets\DxuiStripPreview.h" />
     <ClInclude Include="Widgets\DxuiBranchArt.h" />
     <ClInclude Include="Widgets\IDxuiImageStripSource.h" />

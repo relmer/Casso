@@ -106,7 +106,7 @@ HRESULT ReverseController::StartFromSaved (
     hr = UseWorkQueue();
     CHR (hr);
 
-    m_steps.reserve         (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
+    m_stepTable.Reserve          (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
     m_search->ReserveStackLevels (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
 
     m_machine.SetPosition (saved.segments[0].info.liveEndPosition);

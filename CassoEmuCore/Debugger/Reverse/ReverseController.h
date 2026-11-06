@@ -9,6 +9,7 @@
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/Replayer.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
+#include "Debugger/Reverse/ReverseStepTable.h"
 
 class IHistoryObserver;
 class IReverseStopTest;
@@ -180,8 +181,8 @@ public:
     uint64_t  GetLiveEndCycle     () const { return m_liveEndCycle; }
     uint64_t  GetWallTimeAt       (uint64_t cycle) const;
     uint64_t  GetWallTimeAtPosition (uint64_t position, uint64_t cycle) const;
-    size_t    GetTableBuildCount  () const { return m_tableBuilds; }
-    bool      HasStepTable        () const { return m_hasSteps; }
+    size_t    GetTableBuildCount  () const { return m_stepTable.GetBuildCount(); }
+    bool      HasStepTable        () const { return m_stepTable.HasSteps(); }
 
     HRESULT   PrepareRecentSteps  (ReverseResult & result);
     void      GetRecentSteps      (size_t count, std::vector<ReplayStep> & outSteps) const;
@@ -206,7 +207,6 @@ private:
     HRESULT   RestoreAtOrBefore  (uint64_t position, uint64_t cycle, bool isByCycle, Stretch & outStretch);
     HRESULT   HandleDivergence   (const ReplayReport & report, ReverseResult & result);
     HRESULT   GetStep            (uint64_t position, ReplayStep & outStep, bool & outIsInGap, uint64_t & outGapStart);
-    HRESULT   BuildStepTable     (const Stretch & stretch);
     HRESULT   LandAt             (uint64_t position, ReverseOutcome outcome, ReverseResult & result);
     HRESULT   CaptureNow         (bool isNotifying = true);
     void      NotifyKeyframe     (uint64_t position);
@@ -219,7 +219,6 @@ private:
     bool      IsStopDue          (uint64_t from, uint64_t reached);
     void      BecomeLive         ();
     void      ScheduleCaptures   ();
-    void      DiscardStepTable   ();
     void      PruneRetainedMedia ();
     HRESULT   UseWorkQueue       ();
     void      FillResult         (ReverseResult & result) const;
@@ -243,11 +242,7 @@ private:
     std::vector<std::pair<const void *, KeyframeListener>>  m_keyframeListeners;
     std::vector<std::pair<const void *, LiveListener>>      m_liveListeners;
 
-    std::vector<ReplayStep>    m_steps;                  // one stretch's registers and bytes per position
-    uint64_t                   m_stepsStart        = 0;
-    uint64_t                   m_stepsEnd          = 0;
-    size_t                     m_tableBuilds       = 0;
-    bool                       m_hasSteps          = false;
+    ReverseStepTable           m_stepTable;
     bool                       m_isCut             = false;  // a table's replay diverged and cut history; m_cutResult says where
     bool                       m_isStopped         = false;  // a search for a step's target was stopped short
     ReverseResult              m_cutResult;

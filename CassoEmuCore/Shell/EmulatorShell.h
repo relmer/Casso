@@ -603,6 +603,7 @@ private:
     // introduced.
     friend class ShellChrome;
     friend class ShellFrameRateReadout;
+    friend class ShellHistoryOverlays;
     friend class ShellNotices;
     friend class ShellStandInBar;
     friend class ShellToolbarEntries;

@@ -56,7 +56,7 @@ void HistoryThumbnails::GetMarks (std::vector<DxuiStripMark> & outMarks)
 
         for (const HistoryMark & mark : m_marks)
         {
-            strip.offset = GetPlayheadOffset (m_cells, mark.cycle, endCycle);
+            strip.offset = HistoryThumbnailGrid::GetPlayheadOffset (m_cells, mark.cycle, endCycle);
 
             if (strip.offset < 0.0f)
             {

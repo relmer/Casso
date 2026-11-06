@@ -88,12 +88,12 @@ public:
 
     TEST_METHOD (TheStepSpreadsTheCellsAndHoldsThroughSmallSwings)
     {
-        Assert::AreEqual<uint64_t> (300, HistoryThumbnails::ChooseStep (900, 4, 0),   L"three steps over 900");
-        Assert::AreEqual<uint64_t> (300, HistoryThumbnails::ChooseStep (800, 4, 300), L"a span a little shorter keeps the step");
-        Assert::AreEqual<uint64_t> (300, HistoryThumbnails::ChooseStep (1100, 4, 300), L"a little longer keeps it too");
-        Assert::AreEqual<uint64_t> (400, HistoryThumbnails::ChooseStep (1200, 4, 300), L"a quarter longer chooses afresh");
-        Assert::AreEqual<uint64_t> (200, HistoryThumbnails::ChooseStep (600, 4, 300),  L"a third shorter chooses afresh");
-        Assert::AreEqual<uint64_t> (1,   HistoryThumbnails::ChooseStep (0, 4, 0),      L"never zero");
+        Assert::AreEqual<uint64_t> (300, HistoryThumbnailGrid::ChooseStep (900, 4, 0),   L"three steps over 900");
+        Assert::AreEqual<uint64_t> (300, HistoryThumbnailGrid::ChooseStep (800, 4, 300), L"a span a little shorter keeps the step");
+        Assert::AreEqual<uint64_t> (300, HistoryThumbnailGrid::ChooseStep (1100, 4, 300), L"a little longer keeps it too");
+        Assert::AreEqual<uint64_t> (400, HistoryThumbnailGrid::ChooseStep (1200, 4, 300), L"a quarter longer chooses afresh");
+        Assert::AreEqual<uint64_t> (200, HistoryThumbnailGrid::ChooseStep (600, 4, 300),  L"a third shorter chooses afresh");
+        Assert::AreEqual<uint64_t> (1,   HistoryThumbnailGrid::ChooseStep (0, 4, 0),      L"never zero");
     }
 
 
@@ -109,7 +109,7 @@ public:
 
         Fill (store, 10);
 
-        HistoryThumbnails::PlanCells (store, kCount, step, cells);
+        HistoryThumbnailGrid::PlanCells (store, kCount, step, cells);
 
         Assert::AreEqual<size_t>   (kCount, cells.size(), L"one point per cell");
         Assert::AreEqual<uint64_t> (300,    step,              L"three steps over 0 to 900");
@@ -121,7 +121,7 @@ public:
         Assert::IsTrue  (cells[3].isLive, L"the last stands for live");
 
         step = 0;
-        HistoryThumbnails::PlanCells (store, 3, step, cells);
+        HistoryThumbnailGrid::PlanCells (store, 3, step, cells);
 
         Assert::AreEqual<uint64_t> (400, cells[1].position, L"the grid point is 450, so the keyframe before it");
     }
@@ -139,10 +139,10 @@ public:
         Fill (before, 10);
         Fill (after,  11);
 
-        HistoryThumbnails::PlanCells (before, 4, step, cells);
+        HistoryThumbnailGrid::PlanCells (before, 4, step, cells);
         Assert::AreEqual<uint64_t> (600, cells[2].position, L"the last grid point before");
 
-        HistoryThumbnails::PlanCells (after, 4, step, cells);
+        HistoryThumbnailGrid::PlanCells (after, 4, step, cells);
 
         Assert::AreEqual<uint64_t> (300,  step,              L"the step holds");
         Assert::AreEqual<uint64_t> (0,    cells[0].position, L"the first cell stays on the oldest keyframe");
@@ -185,7 +185,7 @@ public:
                 continue;
             }
 
-            HistoryThumbnails::PlanCells (store, kCount, step, cells);
+            HistoryThumbnailGrid::PlanCells (store, kCount, step, cells);
 
             Assert::AreEqual<size_t>   (kCount, cells.size(), L"every cell has a point");
             Assert::AreEqual<uint64_t> (store.GetInfo (0).position, cells.front().position, L"the first cell is the oldest keyframe");
@@ -654,12 +654,12 @@ public:
 
 
 
-        HistoryThumbnails::PlanCells (store, 4, step, cells);
+        HistoryThumbnailGrid::PlanCells (store, 4, step, cells);
         Assert::IsTrue (cells.empty(), L"no keyframes, no cells");
 
         Fill (store, 3);
 
-        HistoryThumbnails::PlanCells (store, 0, step, cells);
+        HistoryThumbnailGrid::PlanCells (store, 0, step, cells);
         Assert::IsTrue (cells.empty(), L"no room, no cells");
     }
 

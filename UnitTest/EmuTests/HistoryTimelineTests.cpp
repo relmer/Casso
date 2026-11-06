@@ -89,12 +89,12 @@ public:
 
 
 
-        Assert::AreEqual (3,  HistoryThumbnails::FindPlayheadCell (cells, 450, false), L"live: the live end");
-        Assert::AreEqual (1,  HistoryThumbnails::FindPlayheadCell (cells, 450, true),  L"behind live: the point at or before");
-        Assert::AreEqual (2,  HistoryThumbnails::FindPlayheadCell (cells, 600, true),  L"on a point: that point");
-        Assert::AreEqual (0,  HistoryThumbnails::FindPlayheadCell (cells, 0,   true),  L"the oldest");
-        Assert::AreEqual (3,  HistoryThumbnails::FindPlayheadCell (cells, 950, true),  L"past the newest keyframe: the live end");
-        Assert::AreEqual (-1, HistoryThumbnails::FindPlayheadCell ({},    450, true),  L"no cells, no marker");
+        Assert::AreEqual (3,  HistoryThumbnailGrid::FindPlayheadCell (cells, 450, false), L"live: the live end");
+        Assert::AreEqual (1,  HistoryThumbnailGrid::FindPlayheadCell (cells, 450, true),  L"behind live: the point at or before");
+        Assert::AreEqual (2,  HistoryThumbnailGrid::FindPlayheadCell (cells, 600, true),  L"on a point: that point");
+        Assert::AreEqual (0,  HistoryThumbnailGrid::FindPlayheadCell (cells, 0,   true),  L"the oldest");
+        Assert::AreEqual (3,  HistoryThumbnailGrid::FindPlayheadCell (cells, 950, true),  L"past the newest keyframe: the live end");
+        Assert::AreEqual (-1, HistoryThumbnailGrid::FindPlayheadCell ({},    450, true),  L"no cells, no marker");
     }
 
     //  The playhead line stands between the points it lies between, a cell
@@ -106,12 +106,12 @@ public:
 
 
 
-        Assert::AreEqual (1.5f, HistoryThumbnails::GetPlayheadOffset (cells, 450,  1200), L"halfway from the second point");
-        Assert::AreEqual (2.0f, HistoryThumbnails::GetPlayheadOffset (cells, 600,  1200), L"on a point");
-        Assert::AreEqual (0.0f, HistoryThumbnails::GetPlayheadOffset (cells, 0,    1200), L"the oldest");
-        Assert::AreEqual (3.5f, HistoryThumbnails::GetPlayheadOffset (cells, 1050, 1200), L"through the live cell");
-        Assert::AreEqual (4.0f, HistoryThumbnails::GetPlayheadOffset (cells, 1500, 1200), L"no farther than the end");
-        Assert::AreEqual (-1.0f, HistoryThumbnails::GetPlayheadOffset ({}, 450, 1200), L"no cells, no line");
+        Assert::AreEqual (1.5f, HistoryThumbnailGrid::GetPlayheadOffset (cells, 450,  1200), L"halfway from the second point");
+        Assert::AreEqual (2.0f, HistoryThumbnailGrid::GetPlayheadOffset (cells, 600,  1200), L"on a point");
+        Assert::AreEqual (0.0f, HistoryThumbnailGrid::GetPlayheadOffset (cells, 0,    1200), L"the oldest");
+        Assert::AreEqual (3.5f, HistoryThumbnailGrid::GetPlayheadOffset (cells, 1050, 1200), L"through the live cell");
+        Assert::AreEqual (4.0f, HistoryThumbnailGrid::GetPlayheadOffset (cells, 1500, 1200), L"no farther than the end");
+        Assert::AreEqual (-1.0f, HistoryThumbnailGrid::GetPlayheadOffset ({}, 450, 1200), L"no cells, no line");
     }
 
 
@@ -121,10 +121,10 @@ public:
 
 
 
-        Assert::AreEqual<uint64_t> (450,  HistoryThumbnails::GetCycleAtOffset (cells, 1.5f,  1200));
-        Assert::AreEqual<uint64_t> (1050, HistoryThumbnails::GetCycleAtOffset (cells, 3.5f,  1200));
-        Assert::AreEqual<uint64_t> (0,    HistoryThumbnails::GetCycleAtOffset (cells, -2.0f, 1200), L"before the strip: the oldest");
-        Assert::AreEqual<uint64_t> (1200, HistoryThumbnails::GetCycleAtOffset (cells, 9.0f,  1200), L"past it: the end");
+        Assert::AreEqual<uint64_t> (450,  HistoryThumbnailGrid::GetCycleAtOffset (cells, 1.5f,  1200));
+        Assert::AreEqual<uint64_t> (1050, HistoryThumbnailGrid::GetCycleAtOffset (cells, 3.5f,  1200));
+        Assert::AreEqual<uint64_t> (0,    HistoryThumbnailGrid::GetCycleAtOffset (cells, -2.0f, 1200), L"before the strip: the oldest");
+        Assert::AreEqual<uint64_t> (1200, HistoryThumbnailGrid::GetCycleAtOffset (cells, 9.0f,  1200), L"past it: the end");
     }
 
 

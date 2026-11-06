@@ -596,9 +596,7 @@ bool ShellRenderer::TryPresentUiFrame()
     m_shell.m_input->GetControllers().TraceControllerState();
     m_shell.m_chrome->GetNotices().SyncNotice();
     m_shell.m_chrome->GetFrameRateReadout().SyncFrameRateReadout();
-    m_shell.m_chrome->GetRewindBar().Sync();
-    m_shell.m_chrome->SyncReplayIndicator();
-    m_shell.m_chrome->SyncBranchPreview();
+    m_shell.m_chrome->GetHistoryOverlays().Sync();
     m_shell.m_scene->SyncSceneViewReadout();
 
 
