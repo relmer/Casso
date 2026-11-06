@@ -6,6 +6,8 @@
 #include "Theme/DxuiRowLook.h"
 #include "Widgets/DxuiListView.h"
 #include "Core/DxuiIconImage.h"
+#include "Core/DxuiUnicodeSymbols.h"
+#include "Theme/DxuiTheme.h"
 
 
 
@@ -275,6 +277,11 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
                     {
                         painter.FillRoundedRect ((float) button.left, (float) button.top, (float) (button.right - button.left), (float) (button.bottom - button.top), radius, DxuiColor::Mix (m_list.m_theme->ContentBackground(), m_list.m_theme->Foreground(), 0.14f));
                     }
+                }
+
+                if (m_list.m_explorerCheckBoxes && cells[0].check != DxuiListViewTypes::Cell::Check::None)
+                {
+                    PaintHomeCheckBox (painter, text, cells[0].check, m_list.m_items.GetItemCheckBoxRectPx (cell));
                 }
 
                 PaintHomeItem (text, pal, item, cell, cells);
@@ -609,6 +616,54 @@ void DxuiListItemPainter::PaintItems (IDxuiPainter & painter, IDxuiTextRenderer 
     }
 
     m_list.m_band.Paint (painter, pal, x, y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemPainter::PaintHomeCheckBox
+//
+//  Home's item check box, as File Explorer's Home draws it with the Windows
+//  controls: rounded, filled with the accent and checked in the accent's
+//  contrasting color, or outlined in the text color at the controls' strong
+//  stroke strength.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListItemPainter::PaintHomeCheckBox (IDxuiPainter & painter, IDxuiTextRenderer & text, DxuiListViewTypes::Cell::Check check, const RECT & box) const
+{
+    constexpr float     kCornerDip      = 4.0f;
+    constexpr float     kGlyphScale     = 0.6f;
+    constexpr uint32_t  kDarkStroke     = 0x8B000000u;   // the strong stroke's strength over a dark background
+    constexpr uint32_t  kLightStroke    = 0x72000000u;   // and over a light one
+    constexpr float     kFillStrength   = 0.02f;
+    HRESULT             hr              = S_OK;
+    const IDxuiTheme &  theme           = *m_list.m_theme;
+    float               left            = (float) box.left;
+    float               top             = (float) box.top;
+    float               sizePx          = (float) (box.right - box.left);
+    float               corner          = m_list.m_scaler.ToPxf (kCornerDip);
+    bool                dark            = DxuiTheme::GetContrastingText (theme.ContentBackground()) != 0xFF000000u;
+    uint32_t            accent          = (check == DxuiListViewTypes::Cell::Check::OnFixed) ? theme.ForegroundDisabled() : theme.Accent();
+    uint32_t            stroke          = (theme.Foreground() & 0x00FFFFFFu) | (dark ? kDarkStroke : kLightStroke);
+
+
+
+    if (check == DxuiListViewTypes::Cell::Check::Off)
+    {
+        painter.FillRoundedRect    (left, top, sizePx, sizePx, corner, DxuiColor::Mix (theme.ContentBackground(), theme.Foreground(), kFillStrength));
+        painter.OutlineRoundedRect (left, top, sizePx, sizePx, corner, m_list.m_scaler.ToPxf (1.0f), stroke);
+        return;
+    }
+
+    painter.FillRoundedRect (left, top, sizePx, sizePx, corner, accent);
+
+    hr = text.DrawString (s_kpszMdl2CheckMark, left, top, sizePx, sizePx, DxuiTheme::GetContrastingText (accent), sizePx * kGlyphScale, L"Segoe Fluent Icons",
+                          DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

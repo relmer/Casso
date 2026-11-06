@@ -1775,15 +1775,17 @@ int DxuiListItemLayout::GetCheckBoxRoomPx() const
 //
 //  File Explorer's item check box in an item's cell: at the cell's left edge,
 //  at its top in the big icon views and centered in its height elsewhere.
+//  Home's is the larger box of the Windows controls, further in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DxuiListItemLayout::GetItemCheckBoxRectPx (const RECT & cell) const
 {
-    int  boxPx = m_list.GetCheckBoxPx();
-    int  left  = cell.left + m_list.GetCheckBoxLeftPx();
-    int  top   = GetItemMetrics (m_list.m_view).labelBelow ? cell.top + m_list.GetCheckBoxTopPx()
-                                                           : cell.top + ((cell.bottom - cell.top) - boxPx) / 2;
+    bool  home  = m_list.m_view == DxuiListViewTypes::View::Home;
+    int   boxPx = home ? (int) std::lround (m_list.m_scaler.ToPxf (s_kHomeCheckBoxDip)) : m_list.GetCheckBoxPx();
+    int   left  = cell.left + (home ? (int) std::lround (m_list.m_scaler.ToPxf (s_kHomeCheckBoxLeftDip)) : m_list.GetCheckBoxLeftPx());
+    int   top   = GetItemMetrics (m_list.m_view).labelBelow ? cell.top + m_list.GetCheckBoxTopPx()
+                                                            : cell.top + ((cell.bottom - cell.top) - boxPx) / 2;
 
 
 
@@ -1808,8 +1810,7 @@ bool DxuiListItemLayout::IsOnItemCheckBox (int item, int xPx, int yPx) const
     RECT   cell  = {};
     RECT   box   = {};
     POINT  point { xPx, yPx };
-    bool   has   = m_list.m_explorerCheckBoxes && m_list.m_itemCheckBoxes && m_list.IsItemsView() && m_list.m_view != DxuiListViewTypes::View::Home
-                   && item >= 0 && GetItemRectPx (item, cell);
+    bool   has   = m_list.m_explorerCheckBoxes && m_list.m_itemCheckBoxes && m_list.IsItemsView() && item >= 0 && GetItemRectPx (item, cell);
 
 
 

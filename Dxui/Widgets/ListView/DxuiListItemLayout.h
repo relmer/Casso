@@ -174,6 +174,11 @@ public:
     //  Tiles, measured at 150%.
     static constexpr float  s_kExplorerContentBoxRoomDip = 26.0f;
     static constexpr float  s_kExplorerTileBoxRoomDip    = 21.33f;
+
+    //  Home's check box, from File Explorer's at 150%: the check box of the
+    //  Windows controls, 20 dip square, 13.33 dip into its item.
+    static constexpr float  s_kHomeCheckBoxDip           = 20.0f;
+    static constexpr float  s_kHomeCheckBoxLeftDip       = 13.33f;
     int           GetSmallRowPx           () const;
     int           GetItemLinesHPx         (const DxuiListViewTypes::ItemGrid & grid, int rows) const;
     static int    GetFirstItemLine        (const DxuiListViewTypes::ItemLayout & layout);

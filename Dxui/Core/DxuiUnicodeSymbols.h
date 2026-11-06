@@ -25,6 +25,7 @@ static constexpr LPCWSTR s_kpszTriangleLeft  = L"\x25C0";       // U+25C0 BLACK 
 static constexpr LPCWSTR s_kpszMdl2Add          = L"\xE710";    // U+E710 Segoe MDL2 Add
 static constexpr LPCWSTR s_kpszMdl2More         = L"\xE712";    // U+E712 Segoe MDL2 More (three dots)
 static constexpr LPCWSTR s_kpszMdl2Cancel       = L"\xE711";    // U+E711 Segoe MDL2 Cancel (the clear button's X)
+static constexpr LPCWSTR s_kpszMdl2CheckMark    = L"\xE73E";    // U+E73E Segoe MDL2 CheckMark (a check box's check)
 static constexpr LPCWSTR s_kpszMdl2ChevronDown  = L"\xE70D";    // U+E70D Segoe MDL2 ChevronDown
 static constexpr LPCWSTR s_kpszMdl2ChevronLeft  = L"\xE76B";    // U+E76B Segoe MDL2 ChevronLeft
 static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";    // U+E76C Segoe MDL2 ChevronRight
