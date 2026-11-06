@@ -1129,14 +1129,15 @@ namespace OperandResultTipTests
         }
 
 
-        TEST_METHOD (AMoveShowsTheTipAndAnythingElseTakesItDown)
+        TEST_METHOD (TheTipIsUpAfterAMoveOrTheWheelAndDownAfterAPressOrAKey)
         {
-            CassoTheme            theme = CassoTheme::MakeSkeuomorphic();
-            TipHost               host;
-            TipWindow             window (theme, host);
-            MockDxuiTextRenderer  text;
-            POINT                 at    = {};
-            DxuiKeyEvent          key   = { DxuiKeyEventKind::Down, VK_SHIFT, false, false, false, false };
+            CassoTheme                theme = CassoTheme::MakeSkeuomorphic();
+            TipHost                   host;
+            TipWindow                 window (theme, host);
+            MockDxuiTextRenderer      text;
+            POINT                     at    = {};
+            DxuiKeyEvent              key   = { DxuiKeyEventKind::Down, VK_SHIFT, false, false, false, false };
+            OperandResultTip::Layout  first;
 
 
 
@@ -1148,11 +1149,12 @@ namespace OperandResultTipTests
             Assert::AreEqual (0, window.GetOperandTips().GetCell().view);
             Assert::AreEqual (0, window.GetOperandTips().GetCell().row);
 
-            Send (window, DxuiMouseEventKind::Wheel, at);
-            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the wheel leaves the tip up");
+            first = window.GetOperandTips().GetLayout();
 
-            Send (window, DxuiMouseEventKind::Move, at);
-            Assert::IsTrue  (window.GetOperandTips().HasTip());
+            //  The wheel over rows that stay where they are.
+            Send (window, DxuiMouseEventKind::Wheel, at);
+            Assert::IsTrue  (window.GetOperandTips().HasTip(), L"the wheel takes the tip down");
+            Assert::IsTrue  (OperandResultTip::IsSame (first, window.GetOperandTips().GetLayout()), L"the wheel moves the tip off its cell");
 
             (void) window.OnKey (key);
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"a key leaves the tip up");
@@ -1363,6 +1365,126 @@ namespace OperandResultTipTests
         }
 
 
+        //  After a step under a pointer that has not moved, the tip is up, laid
+        //  out for the row now under the pointer: up with the new text where
+        //  the pane cuts it off, down where it fits, and up again where the
+        //  next step cuts it off, with no move in between.
+        TEST_METHOD (AfterAStepTheTipIsLaidOutForTheRowUnderTheRestingPointer)
+        {
+            CassoTheme                                theme    = CassoTheme::MakeSkeuomorphic();
+            TipHost                                   host;
+            TipWindow                                 window (theme, host);
+            MockDxuiTextRenderer                      text;
+            std::shared_ptr<DebuggerViewSnapshot>     snapshot = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot());
+            std::string                               other;
+            std::wstring                              first;
+
+
+
+            for (int i = 0; i < kLongOperandWords; i++)
+            {
+                other += "Y=02 Z=1 ";
+            }
+
+            Build (window, theme, text);
+            Send  (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
+            Assert::IsTrue (window.GetOperandTips().HasTip());
+
+            first = window.GetOperandTips().GetLayout().text;
+
+            snapshot->codeViews[0][0].annotationParts.registers = other;
+            snapshot->code                                      = snapshot->codeViews[0];
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"the step takes the tip down");
+            Assert::AreEqual (0, window.GetOperandTips().GetCell().row);
+            Assert::AreEqual (window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text, window.GetOperandTips().GetLayout().text,
+                              L"the tip is the row's before the step");
+            Assert::AreNotEqual (first, window.GetOperandTips().GetLayout().text);
+
+            snapshot->codeViews[0][0].annotationParts.registers = "S=FD";
+            snapshot->code                                      = snapshot->codeViews[0];
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a tip is up over an operand that fits");
+
+            snapshot->codeViews[0][0].annotationParts.registers = other;
+            snapshot->code                                      = snapshot->codeViews[0];
+            window.ApplyCodeSnapshot (snapshot, 0);
+
+            Assert::IsTrue  (window.GetOperandTips().HasTip(), L"no tip for the cut-off operand under the resting pointer");
+        }
+
+
+        //  The wheel scrolls the BASIC listing under a pointer that stays
+        //  put: the tip is laid out for the line now under the pointer, with
+        //  no move in between, and goes where that line's values fit.
+        TEST_METHOD (AfterTheWheelTheTipIsLaidOutForTheLineScrolledUnderThePointer)
+        {
+            CassoTheme                                    theme   = CassoTheme::MakeSkeuomorphic();
+            TipHost                                       host;
+            TipWindow                                     window (theme, host);
+            DxuiDpiScaler                                 scaler;
+            MockDxuiTextRenderer                          text;
+            MockDxuiPainter                               painter;
+            DxuiListView                                * list    = nullptr;
+            RECT                                          bounds  = {};
+            RECT                                          cell    = {};
+            POINT                                         at      = {};
+            int                                           top     = 0;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+            constexpr int                                 kLines  = 200;
+
+
+
+            scaler.SetDpi (96);
+            Build (window, theme, text);
+            window.ShowPane (DebuggerLayout::kBasicProgram);
+            window.Layout   (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
+
+            list = window.GetTipList (TipWindow::kBasicTipView);
+            Assert::IsNotNull (list, L"the BASIC program pane's list");
+
+            //  The first half of the lines' values are cut off, each in a
+            //  different letter; the rest fit.
+            for (int i = 0; i < kLines; i++)
+            {
+                std::wstring  values = (i < kLines / 2) ? L"A$=\"" + std::wstring (300, (wchar_t) (L'A' + i)) + L"\"" : std::wstring (L"A=1");
+
+                rows.push_back ({ DxuiListView::Cell {}, DxuiListView::Cell {}, DxuiListView::Cell { L"10 PRINT A$" }, DxuiListView::Cell { values } });
+            }
+
+            list->SetRows (std::move (rows));
+            list->Paint   (painter, text, theme);
+
+            bounds = list->GetBounds();
+            Assert::IsTrue (list->GetCellTextRectPx (0, BasicProgramPane::kValuesColumn, cell), L"the values are in view");
+
+            at = POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 };
+
+            Send (window, DxuiMouseEventKind::Move, at);
+            Assert::IsTrue   (window.GetOperandTips().HasTip());
+            Assert::AreEqual (0, window.GetOperandTips().GetCell().row);
+
+            Send (window, DxuiMouseEventKind::Wheel, at);
+            top = list->GetTopRow();
+
+            Assert::IsTrue   (top > 0, L"the wheel didn't scroll the listing");
+            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"the wheel takes the tip down");
+            Assert::AreEqual (top, window.GetOperandTips().GetCell().row, L"the tip is the line's that scrolled away");
+            Assert::AreEqual (list->GetCellsOfRow (top)[BasicProgramPane::kValuesColumn].text, window.GetOperandTips().GetLayout().text);
+
+            for (int each = 0; each < kLines && list->GetTopRow() < kLines / 2; each++)
+            {
+                Send (window, DxuiMouseEventKind::Wheel, at);
+            }
+
+            Assert::IsTrue  (list->GetTopRow() >= kLines / 2, L"the wheel didn't scroll to the lines that fit");
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"a tip is up over values that fit");
+        }
+
+
         TEST_METHOD (NewRowsThatWidenAColumnAheadTakeTheTipDown)
         {
             CassoTheme                                theme    = CassoTheme::MakeSkeuomorphic();
@@ -1388,19 +1510,22 @@ namespace OperandResultTipTests
         }
 
 
-        TEST_METHOD (ThePcLeavingTheRowTakesTheTipDown)
+        TEST_METHOD (AfterThePcMovesOffTheRowTheTipIsInTheRowsNewFill)
         {
             CassoTheme                                theme    = CassoTheme::MakeSkeuomorphic();
             TipHost                                   host;
             TipWindow                                 window (theme, host);
             MockDxuiTextRenderer                      text;
             std::shared_ptr<DebuggerViewSnapshot>     snapshot = std::make_shared<DebuggerViewSnapshot> (*MakeSnapshot());
+            uint32_t                                  fill     = 0;
 
 
 
             Build (window, theme, text);
             Send  (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
             Assert::IsTrue (window.GetOperandTips().HasTip());
+
+            fill = window.GetOperandTips().GetLayout().fill;
 
             //  The text is the same; only the PC's row fill leaves the row.
             snapshot->codeViews[0][0].isCurrent = false;
@@ -1410,17 +1535,19 @@ namespace OperandResultTipTests
 
             window.ApplyCodeSnapshot (snapshot, 0);
 
-            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip keeps the PC's row fill");
+            Assert::IsTrue      (window.GetOperandTips().HasTip(), L"the PC's move off the row takes the tip down");
+            Assert::AreNotEqual (fill, window.GetOperandTips().GetLayout().fill, L"the tip is in the PC's row fill");
         }
 
 
-        TEST_METHOD (ANewLayoutThatMovesTheCellTakesTheTipDown)
+        TEST_METHOD (AfterANewLayoutTheTipIsLaidOutForThePaneAsItIsNow)
         {
             CassoTheme            theme = CassoTheme::MakeSkeuomorphic();
             TipHost               host;
             TipWindow             window (theme, host);
             MockDxuiTextRenderer  text;
             DxuiDpiScaler         scaler;
+            RECT                  wide  = {};
 
 
 
@@ -1429,9 +1556,12 @@ namespace OperandResultTipTests
             Send  (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
             Assert::IsTrue (window.GetOperandTips().HasTip());
 
+            wide = window.GetOperandTips().GetLayout().rect;
+
             window.Layout (RECT { 0, 0, kWindowWidth - kNarrowerPx, kWindowHeight }, scaler);
 
-            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip keeps the width of a pane that has narrowed");
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"a new layout takes the tip down");
+            Assert::IsTrue (window.GetOperandTips().GetLayout().rect.right < wide.right, L"the tip is as wide as before the pane narrowed");
         }
 
 

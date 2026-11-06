@@ -2138,8 +2138,11 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   tip MUST come up with the pointer anywhere on the row, with all of its
   lines, the operand's and then the result's, below the row from the pane's
   left edge. The same applies to a source document's operand and result. The
-  tip MUST stay up while the pointer moves from the row down into it
-  (amended 2026-11-06).
+  tip MUST stay up while the pointer moves from the row down into it. After
+  the wheel or a step, the tip MUST stay up, laid out for the cell under the
+  resting pointer: the same tip for the same cell and text, the tip of the
+  row now under the pointer where its cell is cut off, and no tip where
+  nothing under the pointer is cut off (amended 2026-11-06).
 - **FR-026b**: A Monitor-mode `R` or `W` entered in the window with no file
   name MUST open a file picker and run the command with the chosen file.
 - **FR-026c**: The window's step, step over, step out, run, pause and toggle-

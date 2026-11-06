@@ -859,9 +859,37 @@ bool DebuggerWindow::RouteFloatingBarMouse (const DxuiMouseEvent & ev)
 //
 //  DebuggerWindow::OnMouse
 //
+//  The pointer does not move with the wheel, so once the view under it has
+//  scrolled or zoomed, the operand tip is laid out again for the cell now
+//  under the pointer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  handled = RouteWindowMouse (ev);
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Wheel)
+    {
+        m_operandTips->PlaceAtPointer();
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RouteWindowMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteWindowMouse (const DxuiMouseEvent & ev)
 {
     int           x       = ev.positionDip.x;
     int           y       = ev.positionDip.y;
@@ -1541,7 +1569,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     }
 
     //  A key can scroll, step or resize what the operand tip lies over, so
-    //  the tip goes; the next move of the pointer brings it back.
+    //  the tip goes; new rows or the next move of the pointer bring it back.
     if (ev.kind == DxuiKeyEventKind::Down)
     {
         m_operandTips->Hide();

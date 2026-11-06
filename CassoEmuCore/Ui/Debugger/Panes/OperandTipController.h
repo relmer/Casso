@@ -113,10 +113,13 @@ public:
     bool                 TryGet         (POINT clientPx, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const;
 
-    //  Takes the tip down; takes it down when new rows or a new layout of a
-    //  view change its cell, or when the pointer moves off the cell; and, once
-    //  a frame, follows the pointer outside the window's mouse events.
+    //  Takes the tip down; lays it out again for the cell under a pointer
+    //  that has not moved, after the wheel or when new rows or a new layout
+    //  of a view change the cells; takes it down when the pointer moves off
+    //  the cell; and, once a frame, follows the pointer outside the window's
+    //  mouse events.
     void                 Hide           ();
+    void                 PlaceAtPointer ();
     void                 Check          (int view);
     void                 CheckPointer   (POINT clientPx);
     bool                 IsOverTipArea  (POINT clientPx) const;
@@ -152,6 +155,9 @@ private:
     };
 
     void                 Show           ();
+    void                 SetTip         (OperandResultTip::Layout && layout, const OperandTipCell & cell, IDxuiTextRenderer & text, const DxuiDpiScaler & scaler,
+                                         const OperandTipScreen & screen);
+    void                 FitColumns     (int view, IDxuiTextRenderer & text) const;
     bool                 TryMake        (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const;
     bool                 TryMakeOnList  (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
@@ -183,4 +189,10 @@ private:
     IDxuiTextRenderer         * m_testText   = nullptr;
     OperandTipScreen            m_testScreen;
     DxuiTooltip               * m_colorTip   = nullptr;
+
+    //  Where the pointer last moved, or turned the wheel, with no button
+    //  down, in the popup host's client pixels; false once a button is
+    //  pressed or the pointer is outside the window.
+    POINT                       m_pointer    = {};
+    bool                        m_isResting  = false;
 };

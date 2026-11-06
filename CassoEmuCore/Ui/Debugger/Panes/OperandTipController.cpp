@@ -78,10 +78,11 @@ void OperandTipController::Update (const DxuiMouseEvent & ev, bool isPressed)
 //  OperandTipController::Place
 //
 //  The tip is up as soon as the pointer is over the cell, and goes when the
-//  pointer moves off the cell or does anything but move: a press, the wheel,
-//  a button pressed and not released, a menu opening, or the PC's marker
-//  being dragged. New text or
-//  a new place takes down the popup that drew the old, so the new is drawn.
+//  pointer moves off the cell or does anything but move or turn the wheel: a
+//  press, a button pressed and not released, a menu opening, or the PC's
+//  marker being dragged. The pointer does not move with the wheel, and the
+//  view scrolls only after this event, so PlaceAtPointer lays the tip out
+//  once the view has scrolled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,8 +95,17 @@ void OperandTipController::Place (const DxuiMouseEvent & ev, bool isPressed, con
 
 
 
-    isOver = ev.kind == DxuiMouseEventKind::Move && !isPressed && !m_host.IsTipBlocked() &&
-             TryGet (ev.positionDip, scaler, text, screen, layout, cell);
+    if (ev.kind == DxuiMouseEventKind::Wheel)
+    {
+        m_pointer   = ev.positionDip;
+        m_isResting = true;
+        return;
+    }
+
+    m_pointer   = ev.positionDip;
+    m_isResting = ev.kind == DxuiMouseEventKind::Move && !isPressed;
+
+    isOver = m_isResting && !m_host.IsTipBlocked() && TryGet (ev.positionDip, scaler, text, screen, layout, cell);
 
     //  A tip that wraps below its row stays up while the pointer moves from
     //  the row into it.
@@ -110,6 +120,96 @@ void OperandTipController::Place (const DxuiMouseEvent & ev, bool isPressed, con
         return;
     }
 
+    SetTip (std::move (layout), cell, text, scaler, screen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::PlaceAtPointer
+//
+//  The tip for the cell under a pointer that has not moved, after the wheel
+//  scrolled or zoomed the view under it or new rows or a new layout moved
+//  its cells: up for a cut-off cell, and down where none is under the
+//  pointer. A tip that wraps below its row stays up for a pointer in it as
+//  long as the tip's cell is as it was. A tip laid out for another cell takes
+//  the color tip below the old one down with it, since nothing moved to put
+//  the color tip up again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OperandTipController::PlaceAtPointer()
+{
+    HRESULT                     hr     = S_OK;
+    DxuiHwndSource            * host   = m_popupHost;
+    IDxuiTextRenderer         * text   = (host != nullptr) ? m_host.GetTipText() : m_testText;
+    DxuiDpiScaler               scaler = (host != nullptr) ? host->GetScaler() : m_host.GetTipScaler();
+    OperandTipScreen            screen = (host != nullptr) ? OperandTipScreen() : m_testScreen;
+    OperandResultTip::Layout    layout;
+    OperandTipCell              cell;
+    int                         view   = -1;
+    int                         row    = -1;
+    bool                        isOver = false;
+    bool                        isSame = false;
+
+
+
+    isOver = m_isResting && text != nullptr && !m_host.IsTipBlocked() && m_host.TryFindTipRow (m_pointer, view, row);
+    CBRF (isOver, Hide());
+
+    if (host != nullptr)
+    {
+        screen = GetScreen (host);
+    }
+
+    FitColumns (view, *text);
+
+    if (m_hasTip && view != m_cell.view)
+    {
+        FitColumns (m_cell.view, *text);
+    }
+
+    isOver = TryGet (m_pointer, scaler, *text, screen, layout, cell);
+    isSame = !isOver && m_hasTip && IsOverTipArea (m_pointer) && TryMake (m_cell.view, m_cell.row, scaler, *text, screen, layout, cell) &&
+             OperandResultTip::IsSame (layout, m_layout);
+    CBRF (isOver || isSame, Hide());
+
+    if (m_hasTip && m_colorTip != nullptr && !OperandResultTip::IsSame (layout, m_layout))
+    {
+        m_colorTip->HideImmediate();
+        m_colorTip = nullptr;
+    }
+
+    SetTip (std::move (layout), cell, *text, scaler, screen);
+
+Error:
+    Show();
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::SetTip
+//
+//  New text or a new place takes down the popup that drew the old, so the
+//  new is drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OperandTipController::SetTip (
+    OperandResultTip::Layout  && layout,
+    const OperandTipCell       & cell,
+    IDxuiTextRenderer          & text,
+    const DxuiDpiScaler        & scaler,
+    const OperandTipScreen     & screen)
+{
     if (m_hasTip && !OperandResultTip::IsSame (layout, m_layout))
     {
         m_tip.Hide();
@@ -121,6 +221,33 @@ void OperandTipController::Place (const DxuiMouseEvent & ev, bool isPressed, con
     m_text   = &text;
     m_scaler = scaler;
     m_screen = screen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::FitColumns
+//
+//  The list fits its columns to new rows only as it paints, so they are
+//  fitted here first, as that paint will fit them: a column ahead of the
+//  operand widened by the new rows moves the cell as surely as new text
+//  does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void OperandTipController::FitColumns (int view, IDxuiTextRenderer & text) const
+{
+    DxuiListView  * list = (view >= 0) ? m_host.GetTipList (view) : nullptr;
+
+
+
+    if (list != nullptr)
+    {
+        list->MeasureColumnsPx (text);
+    }
 }
 
 
@@ -204,12 +331,13 @@ void OperandTipController::Hide()
 //
 //  OperandTipController::Check
 //
-//  The next move of the pointer brings back a tip for the new cell. The
-//  list fits its columns to new rows only as it paints, so they are fitted
-//  here first, as that paint will fit them, and the tip is laid out again in
-//  full, on the screen as it is now: a column ahead of the operand widened
-//  by the new rows moves the cell as surely as new text does, and the PC
-//  leaving the row changes its fill.
+//  With the pointer resting over the view or the tip's cell, in the window
+//  whose events are routed now, the tip stays up after a step or new rows,
+//  laid out again for the cell under the pointer. Outside that window the pointer
+//  cannot be tested against its panes, so a tip whose cell the change moves
+//  goes, and the next move of the pointer brings back a tip for the new
+//  cell. The tip is laid out again in full, on the screen as it is now: the
+//  PC leaving the row changes its fill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -217,9 +345,19 @@ void OperandTipController::Check (int view)
 {
     OperandResultTip::Layout  layout;
     OperandTipCell            cell;
-    bool                      isSame = false;
+    int                       pointerView = -1;
+    int                       pointerRow  = -1;
+    bool                      isAtPointer = m_isResting && m_popupHost == m_host.GetTipPopupHost();
+    bool                      isOver      = isAtPointer && m_host.TryFindTipRow (m_pointer, pointerView, pointerRow) && pointerView == view;
+    bool                      isSame      = false;
 
 
+
+    if (isOver || (isAtPointer && m_hasTip && view == m_cell.view))
+    {
+        PlaceAtPointer();
+        return;
+    }
 
     if (!m_hasTip || view != m_cell.view || m_text == nullptr)
     {
@@ -232,10 +370,7 @@ void OperandTipController::Check (int view)
         m_screen = GetScreen (m_popupHost);
     }
 
-    if (m_host.GetTipList (view) != nullptr)
-    {
-        m_host.GetTipList (view)->MeasureColumnsPx (*m_text);
-    }
+    FitColumns (view, *m_text);
 
     isSame = TryMake (view, m_cell.row, m_scaler, *m_text, m_screen, layout, cell) && OperandResultTip::IsSame (layout, m_layout);
 
@@ -266,6 +401,7 @@ void OperandTipController::CheckPointer (POINT clientPx)
     if (m_hasTip && !IsOverTipArea (clientPx))
     {
         Hide();
+        m_isResting = false;
     }
 }
 
@@ -330,6 +466,8 @@ void OperandTipController::FollowPointer()
     isRead  = DxuiInputState::GetCursorPos (&pointer) != FALSE && ScreenToClient (hwnd, &pointer) != FALSE;
     isShown = IsWindowVisible (hwnd) != FALSE && IsIconic (hwnd) == FALSE;
 
+    m_isResting = m_isResting && isRead && isShown;
+
     CBRF (isRead,  Hide());
     CBRF (isShown, Hide());
 
@@ -355,6 +493,7 @@ void OperandTipController::OnPopupHostClosed (const DxuiHwndSource * host)
     {
         Hide();
         m_popupHost = nullptr;
+        m_isResting = false;
     }
 }
 
