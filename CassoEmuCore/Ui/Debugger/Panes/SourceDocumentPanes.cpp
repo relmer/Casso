@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/DroppedFiles.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -363,8 +364,16 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 
 
 
+    //  The model puts the arrow beside the line's dot, so it takes the arrow
+    //  alone, made again only when its color changes.
+    if (m_pcArrow == nullptr || m_pcArrowArgb != m_host.GetPcMarkerArgb())
+    {
+        m_pcArrowArgb = m_host.GetPcMarkerArgb();
+        m_pcArrow     = GutterGlyph::MakeArrow (m_pcArrowArgb);
+    }
+
     m_model->SetStyle      ({ m_host.GetPcMarkerArgb(), m_host.GetPcRowArgb(), m_host.GetBreakpointIcon (true), m_host.GetBreakpointIcon (false),
-                              m_host.GetSyntaxColors(), m_host.GetResultArgb(), m_host.GetPcMarker (nullptr), m_host.GetHoverBreakpointIcon() });
+                              m_host.GetSyntaxColors(), m_host.GetResultArgb(), m_pcArrow, m_host.GetHoverBreakpointIcon() });
     m_model->SetFile       (fileId);
     m_model->SetMacroLevel (macroLevel);
     m_model->SetHeat       (m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);

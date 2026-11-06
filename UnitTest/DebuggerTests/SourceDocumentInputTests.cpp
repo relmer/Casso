@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/Panes/OperandTipController.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
@@ -568,6 +569,24 @@ namespace SourceDocumentInputTests
             Assert::IsTrue   (view->GetCellRectPx (2, SourcePane::kAnnotationCell, cell));
             Assert::IsFalse  (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
                               L"a short operand fits");
+        }
+
+
+        //  The PC's line has the arrow beside where a breakpoint's dot goes,
+        //  two squares of the glyph margin as in a disassembly view, not past
+        //  them.
+        TEST_METHOD (ThePcsArrowIsBesideTheDot)
+        {
+            CassoTheme       theme  = CassoTheme::MakeSkeuomorphic();
+            SourceHost       host;
+            SourceWindow     window (theme, host);
+            DxuiTextView   * view   = OpenDocument (window, MakeSnapshot());
+
+
+
+            Assert::IsNotNull (view->GetRows()[1].icon.get(), L"the PC's line");
+            Assert::AreEqual  (2 * GutterGlyph::kSizePx, view->GetRows()[1].icon->width, L"the dot's square, then the arrow's");
+            Assert::AreEqual  (2 * GutterGlyph::kSizePx, view->GetRows()[2].icon->width + GutterGlyph::kSizePx, L"a breakpoint's dot alone");
         }
     };
 }
