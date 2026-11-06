@@ -670,6 +670,21 @@ void ShellDebugger::SetBeamOverlayOn (bool on)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDebuggerCodeShown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerCodeShown (int lines, int view)
+{
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("shown{} {:04X}", GetCodeViewSuffix (view), (Word) lines));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ScrollDebuggerCode
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -737,6 +752,25 @@ bool ShellDebugger::TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapsh
     m_debugConsolePending.clear();
 
     return any;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenDebuggerFile
+//
+//  UI thread. A console link opens its file in File Explorer, at the file's
+//  folder with the file selected. Another place to open it in, chosen by a
+//  setting, is added here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::OpenDebuggerFile (const std::wstring & path)
+{
+    m_host.ShowFileInFolder (path);
 }
 
 
@@ -948,6 +982,10 @@ void ShellDebugger::SetDebugView (const std::string & view, std::optional<Word> 
     else if (CpuCommandDispatcher::TryGetCodeView (view, "lines", index) && address.has_value())
     {
         m_debugViewState.SetCodeLines ((int) *address, index);
+    }
+    else if (CpuCommandDispatcher::TryGetCodeView (view, "shown", index) && address.has_value())
+    {
+        m_debugViewState.SetCodeShown ((int) *address, index);
     }
     else if (CpuCommandDispatcher::TryGetCodeView (view, "code", index) && address.has_value() && !m_debugViewState.IsCodeViewOpen (index))
     {
@@ -1789,15 +1827,24 @@ void ShellDebugger::CloseDebugger()
 //  The CPU manager's service tick: once per pass through its loop, paused or
 //  running, so a client gets a reply either way. The call record's rebuild
 //  from history and the event logs are looked after here too, before the
-//  panes are gathered.
+//  panes are gathered. A line a client of the channel ran, such as a step,
+//  can change everything in the window, so the panes are built again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::ServiceDebugger()
 {
+    uint64_t  linesRun = 0;
+
+
+
     if (m_debugController != nullptr)
     {
+        linesRun = m_debugController->GetLinesRun();
+
         m_debugController->Pump();
+
+        m_isDebugViewDirty = m_isDebugViewDirty || m_debugController->GetLinesRun() != linesRun;
         ServiceProject();
         ServiceCallHistory();
         ServiceEventLogs();

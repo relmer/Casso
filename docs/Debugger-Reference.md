@@ -253,6 +253,15 @@ or unless its reply is what it produces, as a search's matches are. **Show UI
 actions as commands** on the console output's context menu prints each action
 as the command that does the same, with its reply.
 
+A file that a console line mentions, such as the file `SYM LOAD`, `BLOAD`,
+`BSAVE` or `BPSAVE` read or wrote, is a link with the file's name in place of
+its full path. Its tip has the full path, and a click on it opens File
+Explorer at the file's folder with the file selected. When a debug project
+loads, the console has "Loaded the debug project for symbols-demo.dbg", where
+"project" is a link to the `.cassoproj` file and the debug file's name is a
+link to the debug file, or to the binary for a binary's project. The debug
+channel and batch mode write the full paths, without links.
+
 ### The status bar
 
 A status bar runs along the bottom of the window. From the right:
@@ -291,8 +300,9 @@ beside another pane, against an edge of the window, or as a tab of another
 group; drag a divider to resize. A tab dragged out of the window floats in a
 separate window. Every pane, docked or floating, has a close button; the
 **View** menu lists every pane and brings the chosen one back where it was,
-docked or floating. Right-click a pane, or press Shift+F10, for **Dock to**,
-which offers each edge, each group, Float and Auto hide; Alt+Shift with an
+docked or floating. Right-click a pane's tab or title bar, or press Shift+F10,
+for **Dock to**, which offers each edge, each group, Float and Auto hide; a
+right-click over a pane's content opens only the content's menu, if it has one; Alt+Shift with an
 arrow key moves the focused pane. The pin on a pane's title bar hides it too.
 An auto-hidden pane is a tab on the window's edge: click it and the pane
 slides out over the others, click it again or anywhere else and it slides
@@ -339,7 +349,12 @@ lines or Neither), and a Preview. **View > Disassembly** opens another view.
 
 - Hovering a disassembly view's breakpoint column draws a gray breakpoint on
   an instruction's row or the source line representing it, where a click sets
-  one.
+  one. The PC's yellow arrow is to the right of the breakpoint's dot, never
+  over it.
+- The Label column is fitted to the labels again whenever symbols or a debug
+  file load, in place of a width it was dragged to or a project saved.
+- With source rows, the view counts only the instructions whose rows are in
+  view: a stop on one below them brings the view to put the PC in the middle.
 - While paused, dragging the PC's yellow arrow to another instruction sets the
   PC there without running anything, as **Set next statement** on a row's
   context menu does.
@@ -352,6 +367,14 @@ lines or Neither), and a Preview. **View > Disassembly** opens another view.
   back at once.
 - The tips over a symbol, a branch arrow or a heat cell in a code view or a
   source document open at once, without the hover delay.
+- A code view's scroll bar covers the whole address space. The top of the
+  puck is the first address in view and its length the addresses in view, so
+  dragging it moves the view anywhere in memory; the arrows scroll an
+  instruction and the track a view's worth.
+- Right-click a symbol in a code view or a source document for **Go to
+  definition**: the source line that defines it opens in its document, or,
+  without a debug file that maps it, its address comes into view in the
+  disassembly. A constant has no definition to go to.
 
 ### Source rows
 
@@ -373,6 +396,11 @@ the row where the branch goes is in the accent color. A dotted arrow marks
 the branch, jump or call the last step took; its tip is "This branch was
 taken". A green row is the line brought into view by Go to, the call stack or
 a branch arrow.
+
+Click the PC's arrow to go to where it points, and the dotted arrow to go to
+the branch taken by the last step, even where the two overlap; the next click
+on either goes back to the PC. In a source document the click scrolls the
+document rather than bringing up the disassembly.
 
 An arrow whose PC row or target is scrolled out of view runs to that edge of
 the view, in the disassembly and in a source document, so it can be followed
@@ -955,7 +983,8 @@ SYM                       count the symbols in each table
 `SYM` alone acts on the User table for `LOAD`, `SAVE`, `CLEAR`, `ON`, `OFF`,
 `name = addr` (add) and `! name` (remove). Each other table has a separate
 command: `SYMMAIN`, `SYMBASIC`, `SYMUSER2`, `SYMSRC` and so on. Loading
-replaces the table's contents. **File > Open symbol or debug file...**, or a
+replaces the table's contents, so a second debug file loaded with `SYM LOAD`
+replaces the first; `SYMUSER2 LOAD` loads another file's symbols beside it. **File > Open symbol or debug file...**, or a
 file dropped on the window, loads a file as `SYM LOAD` does, and **File >
 Unload symbol file** clears one.
 
@@ -1033,6 +1062,11 @@ Merlin 8/16 listing, which becomes a source view.
 - `SYM LOAD file.dbg` loads the symbols and the line table. The window opens a
   source pane beside the disassembly and follows the PC. With source displayed
   in the disassembly, source lines are [rows of the disassembly](#source-rows).
+- At a stop, the source document of the PC's file comes to the front, except
+  over the pane you stepped from: after a step from a disassembly view that
+  shares the document's tab group, the disassembly stays in front. A step from a
+  source document to an instruction with no source line brings the
+  disassembly to the front.
 - The bytes a debug file maps to a data directive are disassembled as data;
   see [data marking](#data-marking).
 - Dropping a debug or symbol file (`.dbg`, `.sym`, `.lbl`, `.vs`) on the
@@ -1087,7 +1121,9 @@ Merlin 8/16 listing, which becomes a source view.
 file loaded into it, with its count and a check box that runs `SYM<table> ON`
 or `OFF`, and its symbols under it. The tip over the file's name has its full
 path. A symbol's menu has **Go to** and **Remove**, and any row's has **Clear
-table** and **Save table...**; Find searches the symbols.
+table** and **Save table...**; Find searches the symbols. AppleWin's spare
+tables, USER2, SRC and SRC2, are listed only once `SYMUSER2`, `SYMSRC` or
+`SYMSRC2` has loaded something into one.
 
 ## Memory, watches and heat
 
@@ -1215,19 +1251,20 @@ on a Memory pane's menu over a byte in zero page, run `ZP`.
 The heat map is a tab beside **Memory 1** in the default layout, and **View >
 Heat map** (Ctrl+Alt+H) brings it forward. It displays the whole 64 KB address
 space as a grid, one cell an address, filling the pane: each row has a power of
-two of addresses from 16 to 1,024, so every row starts at a round address and
+two of addresses from 1 to 1,024, so every row starts at a round address and
 its label down the left (such as $0400) is the first address in it. The row
 has the count whose cells come nearest the zoom's size, and the cells are then
 widened or narrowed so the row spans the pane's whole width, every column
 within a pixel of the others; a cell is between three quarters and one and a
 half times the zoom's width (wider at the smallest zoom, which cannot narrow a
-one-pixel cell, and in rows of 1,024), and always the zoom's height. Only when
-even 16 cells at the zoom's size are wider than the pane does the map scroll
-across instead. Each address is drawn in the color of what touched it: code
-(the bytes of every instruction run) in the disassembly's instruction color,
-reads in green and writes in red. An address nothing touched is a dark gray (a
-light gray on a light theme), and every cell is set apart from its neighbors
-by a one-pixel gap of the page. **All**, **Code**, **Data** and **Changed**
+one-pixel cell, and in rows of 1,024, and narrower in a pane too narrow for
+even one cell at the zoom's width), and always the zoom's height. A row never
+runs past the pane, so the map never scrolls across: a larger zoom puts fewer
+addresses in a row and more rows down the map. Each address is drawn in the
+color of what touched it: code (the bytes of every instruction run) in the
+disassembly's instruction color, reads in green and writes in red. An address
+nothing touched is a dark gray (a light gray on a light theme), and every cell
+is set apart from its neighbors by a one-pixel gap of the page. **All**, **Code**, **Data** and **Changed**
 above the map choose what it displays: everything, with code ahead of data
 where an address is both; executes alone; reads and writes alone; or only the
 writes that changed a value (see
@@ -1246,14 +1283,14 @@ against the busiest address, so a few hot loops do not wash out the rest.
 The Reset counts glyph starts the totals over. The choice and the fade time
 are saved between sessions.
 
-The mouse wheel over the map scrolls it up and down, and Shift with the wheel
-scrolls it across when the rows are wider than the pane; scrollbars appear
-along each side the map overflows, and dragging the map pans it. Ctrl with the
-wheel over the map zooms it in and out; elsewhere in the debugger Ctrl with the
-wheel sizes the text. Zooming changes the cells' height at every step and,
-about every third step, how many addresses a row has; the row under the mouse
-stays at the mouse's height, and when the row length does not change, or the
-rows are wider than the pane, the address under the mouse stays under it too.
+The mouse wheel over the map scrolls it up and down; a scrollbar appears
+beside the map when its rows are taller than the pane, and dragging the map
+pans it up and down. Ctrl with the wheel over the map zooms it in and out;
+elsewhere in the debugger Ctrl with the wheel sizes the text. Zooming changes
+the cells' height at every step and, about every third step, how many
+addresses a row has; the row under the mouse stays at the mouse's height, and
+when the row length does not change, the address under the mouse stays under
+it too.
 
 The zoom appears in the map's bottom-right corner as a percentage of the
 starting size, three pixels a cell at 100% scaling. Hovering over it brings up

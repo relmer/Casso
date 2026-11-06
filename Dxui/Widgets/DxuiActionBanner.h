@@ -46,6 +46,12 @@ public:
 
     void  SetSeverity (DxuiInfoBanner::Severity severity) { m_banner.SetSeverity (severity); }
 
+    //  Space clear of the bordered strip on every side, so its border lies
+    //  inside the pane's rather than on it; and the padding above and below
+    //  its text.
+    void  SetMarginDip          (float marginDip) { m_marginDip = marginDip; }
+    void  SetVerticalPaddingDip (float padDip)    { m_banner.SetVerticalPaddingDip (padDip); }
+
     //  Replaces the whole set. The banner is rebuilt rather than added to,
     //  because a report that absorbs later changes must not accumulate a second
     //  copy of the same action.
@@ -68,9 +74,9 @@ public:
     //  notice reserves out of its text.
     float  GetActionReservePx (const DxuiDpiScaler & scaler) const { return GetActionColumnPx (scaler); }
 
-    //  The height the banner needs at this width, with room for its actions.
-    //  Never shorter than one button, since a notice whose action is clipped
-    //  offers nothing.
+    //  The banner's height at this width, with room for its actions
+    //  and its margin. With an action, never shorter than one button, since
+    //  a notice whose action is clipped offers nothing.
     float  GetPreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const;
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
@@ -103,4 +109,5 @@ private:
     std::vector<std::unique_ptr<DxuiButton>>    m_actions;
     ActionFn                                    m_onAction;
     DxuiDpiScaler                               m_scaler;
+    float                                       m_marginDip = 0.0f;
 };

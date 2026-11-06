@@ -1264,6 +1264,11 @@ bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
     entry.homePane = IsDocked (pane) ? GetNeighbor (pane) : std::wstring();
     parent         = (group != nullptr && group->panes.size() == 1) ? FindParent (m_root.get(), group) : nullptr;
 
+    if (group != nullptr && group->panes.size() > 1)
+    {
+        entry.homeIndex = (int) (std::find (group->panes.begin(), group->panes.end(), pane) - group->panes.begin());
+    }
+
     if (parent != nullptr)
     {
         first              = (parent->first.get() == group);
@@ -1297,6 +1302,8 @@ bool DxuiPaneLayout::AutoHide (const std::wstring & pane, DxuiDockSide edge)
 //
 //  A floating or auto-hidden pane returns to the pane it sat beside, tabbed
 //  with it; when that pane is not docked any more, against the right edge.
+//  An auto-hidden pane that shared its group is inserted at its index among
+//  the group's tabs, or at the end when the group now has fewer tabs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1306,6 +1313,7 @@ bool DxuiPaneLayout::DockBack (const std::wstring & pane)
     AutoHidden    place;
     Node *        group   = nullptr;
     Node *        subtree = nullptr;
+    int           at      = 0;
 
 
 
@@ -1336,8 +1344,10 @@ bool DxuiPaneLayout::DockBack (const std::wstring & pane)
     }
     else if (group != nullptr)
     {
-        group->panes.push_back (pane);
-        group->active = (int) group->panes.size() - 1;
+        at = (place.homeIndex >= 0) ? std::min (place.homeIndex, (int) group->panes.size()) : (int) group->panes.size();
+
+        group->panes.insert (group->panes.begin() + at, pane);
+        group->active = at;
     }
     else if (m_root == nullptr)
     {
@@ -2110,6 +2120,12 @@ std::wstring DxuiPaneLayout::ToText() const
             }
         }
 
+        //  The index among its group's tabs, for a pane that shared a group.
+        if (h.homeIndex >= 0)
+        {
+            out += std::format (L" index {}", h.homeIndex);
+        }
+
         out += L"\n";
     }
 
@@ -2441,6 +2457,23 @@ bool DxuiPaneLayout::TryParse (const std::wstring & text, DxuiPaneLayout & out)
 
                     hidden.homeSiblings.push_back (tokens[at].substr (1));
                 }
+            }
+
+            //  Absent from a layout saved by an older build.
+            if (at + 1 < tokens.size() && tokens[at] == L"index")
+            {
+                wchar_t  * indexEnd = nullptr;
+
+
+
+                hidden.homeIndex = (int) wcstol (tokens[at + 1].c_str(), &indexEnd, 10);
+
+                if (tokens[at + 1].empty() || *indexEnd != L'\0' || hidden.homeIndex < 0)
+                {
+                    return false;
+                }
+
+                at += 2;
             }
 
             layout.m_autoHidden.push_back (hidden);

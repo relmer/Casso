@@ -300,6 +300,28 @@ void DebuggerWindow::ActivatePaneTab (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::IsSameTabGroup
+//
+//  Two panes in one group lie in the same rectangle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsSameTabGroup (const std::wstring & a, const std::wstring & b) const
+{
+    RECT  first  = {};
+    RECT  second = {};
+
+
+
+    return m_dockSite->TryGetPaneGroupRect (a, first) && m_dockSite->TryGetPaneGroupRect (b, second) && EqualRect (&first, &second) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RelayoutDock
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -905,7 +927,7 @@ void DebuggerWindow::ShowPopupMenu (const PaneMenuItems & items, POINT clientPx)
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
@@ -933,7 +955,7 @@ void DebuggerWindow::ShowListAbove (const PaneMenuItems & items, const RECT & an
 
     for (const auto & [label, action] : items)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (PaneMenu::GetText (label), PaneMenu::IsChecked (label), action));
+        m_menuCommands.push_back (PaneMenu::IsChecked (label) ? DebuggerMenuCommand::Make (PaneMenu::GetText (label), true, action) : DebuggerMenuCommand::Make (label, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 

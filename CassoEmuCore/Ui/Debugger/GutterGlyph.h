@@ -10,12 +10,12 @@
 //
 //  GutterGlyph
 //
-//  The images a code view's glyph margin draws, as Visual Studio's glyph
-//  margin does: a breakpoint's dot, filled or a ring, the PC's arrow, and the
-//  arrow over a dot on a line that has both. Each is kSizePx square, drawn in
-//  the margin's icon box. The dot fills 0.7 of the image across, and the
-//  arrow starts at the dot's left edge and is as tall as the dot, so both
-//  sit the same distance inside the view.
+//  The images a code view's glyph margin draws: a breakpoint's dot, filled or
+//  a ring, and the PC's arrow beside it. The dot and the arrow are each
+//  kSizePx square; the PC's line has an image twice as wide, the dot's square
+//  on the left, empty on a line with no breakpoint, and the arrow's on the
+//  right, so the arrow is never drawn over the dot. The dot fills 0.7 of its
+//  square across, and the arrow is as tall as the dot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,8 +30,8 @@ public:
     static std::shared_ptr<DxuiIconImage>  MakeArrow (uint32_t argb);
     static std::shared_ptr<DxuiIconImage>  MakeOver  (const DxuiIconImage & under, const DxuiIconImage & over);
 
-    //  The PC's arrow over a line's dot, or the arrow alone for a line with
-    //  no dot.
+    //  The PC's line's image: the line's dot, or nothing, and the arrow to
+    //  its right.
     static std::shared_ptr<const DxuiIconImage>  MakeMarked (const std::shared_ptr<const DxuiIconImage> & dot,
                                                              const std::shared_ptr<const DxuiIconImage> & arrow);
 

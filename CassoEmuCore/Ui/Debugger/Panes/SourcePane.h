@@ -84,6 +84,10 @@ public:
     //  isn't a symbol.
     static bool  TryGetSymbolText (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, std::wstring & text);
 
+    //  The symbol whose name is the word at a character of a line, before a
+    //  comment, and where the word starts; null for none.
+    static const SymbolInfo *  FindSymbolAt (const std::wstring & line, int ch, const std::vector<SymbolInfo> & symbols, int & start);
+
     SourcePane (DxuiTextView * view, DxuiActionBanner * banner, FindFn find, RunFn run);
 
     SourcePane (const SourcePane &)             = delete;
@@ -149,6 +153,12 @@ public:
     void  ShowLine      (int fileId, int line);
     void  FollowMarkedLine ();
 
+    //  Scrolls to the line the PC's branch goes to, and returns false when
+    //  that address is on no line of this file. ShowMarkedLine scrolls back
+    //  to the PC's line.
+    bool  ShowArrowTarget ();
+    void  ShowMarkedLine  ();
+
     //  The address of the line under a point, for Go to disassembly; a
     //  double click toggles a breakpoint on the line.
     std::optional<Word>  GetAddressAt  (POINT atDip) const;
@@ -187,6 +197,7 @@ public:
 
     //  Over a word of the source text, the symbol it is.
     bool  TryGetSymbolTip (POINT atDip, const std::vector<SymbolInfo> & symbols, std::wstring & text, RECT & anchor) const;
+    const SymbolInfo *  FindSymbolAt (POINT atDip, const std::vector<SymbolInfo> & symbols) const;
 
     //  The line the PC's branch goes to in a file, if a line there starts at
     //  it, and whether it lies below the marked line; false for no branch.

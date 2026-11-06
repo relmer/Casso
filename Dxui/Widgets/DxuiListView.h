@@ -370,6 +370,7 @@ public:
     bool  IsOverScrollbar   (POINT pt) const override { return IsOverBar (m_vertScroll, pt) || IsOverBar (m_horzScroll, pt); }
     bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (IsOverBar (m_vertScroll, pt), GetBarPoint (m_vertScroll, pt)) | (int) m_horzScroll.SetHover (IsOverBar (m_horzScroll, pt), GetBarPoint (m_horzScroll, pt))) != 0; }
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
+    void  ScrollVertLines   (int delta);
     bool  IsOverBar         (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
     POINT GetBarPoint       (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) ? pt : POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top }; }
     int   GetTopRow             () const                 { return m_topRow; }
@@ -380,6 +381,15 @@ public:
     bool  IsStickyTailEnabled   () const                 { return m_stickyTailEnabled; }
     void  SetTopRow             (int topRow);
     void  ScrollByRows          (int delta)              { SetTopRow (m_topRow + delta); }
+
+    //  For a host that scrolls through more than the rows set on the list,
+    //  as a disassembly does through the address space: while a model is
+    //  set, the vertical bar is drawn from its range, page and position, and
+    //  clicks on its arrows and track and drags of its thumb call onScroll
+    //  with a Win32 scroll code (SB_LINEUP, SB_PAGEDOWN, SB_THUMBTRACK and
+    //  so on) and a position, instead of moving the rows. Passing
+    //  std::nullopt returns the bar to the rows.
+    void  SetVertScrollModel    (const std::optional<SCROLLINFO> & model, std::function<void (int sbCode, int pos)> onScroll);
     // Scroll just enough to bring `row` into the visible window, without
     // changing selection (SetSelectedRow does the same but also selects).
     void  EnsureVisible         (int row);
@@ -976,6 +986,9 @@ private:
     std::function<void (int)>         m_onSortColumn;
     CheckToggledFn                    m_onCheckToggled;
     std::function<void (int, int)>    m_onColumnResized;
+
+    std::optional<SCROLLINFO>                  m_vertModel;
+    std::function<void (int sbCode, int pos)>  m_onVertModel;
 
     bool     m_activateOnDoubleClick = false;
     bool     m_alwaysShowSelection   = false;

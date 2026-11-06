@@ -550,6 +550,10 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                           PumpFloatFrame      () override { RunModalLoopTick(); }
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     HoldCodeView       (int view);
+    bool     IsOverPaneContent  (const std::wstring & pane, POINT clientPx) const;
+    void     AddGoToDefinition  (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void     GoToDefinition     (Word address);
+    bool     IsCodeList         (const DxuiListView * list) const;
     std::vector<DxuiPopupMenuItem>  MakePaneMenuRows (const PaneMenuItems & items);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);
     std::vector<std::shared_ptr<DxuiCommand>>  GetConsoleMenuCommands();
@@ -659,6 +663,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  The PC's arrow for the glyph margin, over `dot` when the line has one.
     std::shared_ptr<const DxuiIconImage>  GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot);
     uint32_t  GetPcMarkerArgb      () const override;
+    uint32_t  GetPcTabMarkArgb     () const override;
     uint32_t  GetPcRowArgb         () const override;
     uint32_t  GetNavigatedRowArgb  () const override;
     uint32_t  GetTargetRowArgb     () const override;
@@ -862,6 +867,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     int                  GetPaneRowDip          () const override { return kPaneRowDip; }
     const DebuggerViewSnapshot * GetLatestSnapshot () const override { return m_snapshot.get(); }
     void                 ActivatePaneTab        (const std::wstring & pane) override;
+    bool                 IsSameTabGroup         (const std::wstring & a, const std::wstring & b) const override;
     void                 RelayoutDock           () override;
     void                 RelayoutWindow         () override { LayoutWidgets(); }
     void                 SyncHeatRecording      () override { SyncHeatMapRecording(); }

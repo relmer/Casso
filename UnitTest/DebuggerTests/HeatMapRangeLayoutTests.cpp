@@ -164,6 +164,35 @@ namespace DebuggerTests
 
 
 
+        //  At the largest zoom in a narrow pane a row has two addresses, and
+        //  every range's rows end at the map's right edge.
+        TEST_METHOD (EveryRangesRowsFitANarrowPaneAtTheLargestZoom)
+        {
+            HeatMapView  view;
+            RECT         map = {};
+
+
+
+            Place (view, 200, kHeight);
+            view.SetRanges (MakeRanges());
+            view.ZoomTo (HeatMapView::kMaxCellPx);
+            map = view.GetMapRect();
+
+            Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx());
+            Assert::AreEqual (2, view.GetColumns(), L"two of the largest cells to a row");
+
+            for (const HeatMapView::Band & band : MakeRanges())
+            {
+                Word  last = (Word) (band.first + HeatMapView::GetColumnsOf (view.GetColumns(), band.count) - 1);
+
+
+
+                Assert::AreEqual (map.right, view.GetCellRect (last).right + HeatMapView::kStreetPx, band.title.c_str());
+            }
+        }
+
+
+
         TEST_METHOD (ANewSetFitsThePaneUntilTheUserZooms)
         {
             HeatMapView  view;
@@ -175,7 +204,6 @@ namespace DebuggerTests
             view.SetRanges (MakeRanges());
 
             Assert::IsFalse (view.HasVerticalScroll(),   L"every range in view");
-            Assert::IsFalse (view.HasHorizontalScroll());
 
             view.SetRanges ({ { L"Zero page", 0x0000, 0x0100 }, { L"Text page 1", 0x0400, 0x0400 } });
             fitted = view.GetCellPx();
@@ -183,7 +211,7 @@ namespace DebuggerTests
             Assert::IsFalse (view.HasVerticalScroll(),   L"a new set fits again");
             Assert::IsTrue  (fitted > 3, L"and as large as that allows: these ranges are 1,280 bytes");
             view.ZoomIn();
-            Assert::IsTrue  (view.HasVerticalScroll() || view.HasHorizontalScroll(), L"so one notch larger no longer fits");
+            Assert::IsTrue  (view.HasVerticalScroll(), L"so one notch larger no longer fits");
             view.ZoomOut();
             view.ZoomOut();
             fitted = view.GetCellPx();

@@ -61,6 +61,10 @@ public:
     //  Once per frame, on the CPU thread. A closed controller does nothing.
     void     Pump    ();
 
+    //  The count of lines RunLine has run. A caller compares it across a
+    //  pump to find whether the pump ran a client's command.
+    uint64_t GetLinesRun () const { return m_linesRun; }
+
     DebugSession         & GetSession   () { return m_session; }
     MachineDebugTarget   & GetTarget    () { return m_target; }
     CpuManagerRunDriver  & GetRunDriver () { return m_driver; }
@@ -84,6 +88,7 @@ private:
     CpuManager           & m_cpuManager;
     InstanceDescriber      m_describe;
     uint32_t               m_processId = 0;
+    uint64_t               m_linesRun  = 0;
 
     //  Declared in construction order: the session attaches itself to the
     //  target, and the server is the session's notification sink.

@@ -261,11 +261,12 @@ public:
     const std::vector<AddedSymbol>  & GetAddedSymbols    () const { return m_addedSymbols; }
 
     //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
-    //  and its file's name; a debug project's key while no debug file is
-    //  loaded (FR-167).
-    void                  NoteBinaryLoad (const std::string & hash, Word address, const std::string & name);
+    //  and its file's name and full path; a debug project's key while no
+    //  debug file is loaded (FR-167).
+    void                  NoteBinaryLoad (const std::string & hash, Word address, const std::string & name, const std::wstring & path);
     const std::string   & GetBinaryKey   () const { return m_binaryKey; }
     const std::string   & GetBinaryName  () const { return m_binaryName; }
+    const std::wstring  & GetBinaryPath  () const { return m_binaryPath; }
 
     // The call-stack record (FR-068), kept only while the debugger is attached:
     // while the window or the channel is open, and for a batch run. Turning it
@@ -361,8 +362,10 @@ public:
 
     // For a reply: empty when the path was given rooted, since the command
     // already shows it; otherwise " to C:\Work\out.bin", with the preposition
-    // given and the absolute path the relative one resolved to.
+    // given and the absolute path the relative one resolved to. With the
+    // reply, an echoed path is added to its files, which are linked in the console.
     std::string           GetPathEcho          (const std::string & path, const char * preposition) const;
+    std::string           GetPathEcho          (const std::string & path, const char * preposition, Reply & reply) const;
 
     // The last S or SH results, reachable as @1, @2 and so on.
     const std::vector<Word> & GetSearchResults () const                          { return m_searchResults; }
@@ -580,6 +583,7 @@ private:
     std::vector<AddedSymbol>              m_addedSymbols;
     std::string                           m_binaryKey;
     std::string                           m_binaryName;
+    std::wstring                          m_binaryPath;
     CallStackRecorder                     m_callRecorder;
     std::array<bool, 0x100>               m_callOpcodes   = {};
     CallStackMechanism                    m_callMechanism = CallStackMechanism::Hybrid;

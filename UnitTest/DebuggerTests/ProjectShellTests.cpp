@@ -10,6 +10,7 @@
 #include "Shell/ShellDebugger.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineBuilder.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/ProjectSettingsDialog.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "HResultAssert.h"
@@ -580,6 +581,83 @@ namespace ProjectShellTests
 
             Assert::IsTrue (reply.status == CommandStatus::Error, L"PROJECT fails without a store");
             Assert::AreEqual ((size_t) 0, rig.files.FileCount(), L"and nothing is written");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  TheProjectLineLinksTheProjectAndItsFile
+        //
+        //  "project" is linked to the project's file and the debug file's name
+        //  to the debug file; neither path is written out.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheProjectLineLinksTheProjectAndItsFile)
+        {
+            ProjectScope                     scope = { ProjectScopeKind::DebugFile, "0123", "symbols-demo.dbg" };
+            std::vector<ConsoleLinks::Link>  links;
+            std::wstring                     shown;
+
+
+
+            shown = ConsoleLinks::Parse (ShellDebugger::GetProjectLine (scope, L"C:\\Projects\\debugFile-1.cassoproj", L"C:\\Src\\symbols-demo.dbg"), links);
+
+            Assert::AreEqual (std::wstring (L"Loaded the debug project for symbols-demo.dbg"), shown);
+            Assert::AreEqual ((size_t) 2, links.size());
+            Assert::AreEqual (17, links[0].start, L"the word project");
+            Assert::AreEqual (7,  links[0].length);
+            Assert::AreEqual (std::wstring (L"C:\\Projects\\debugFile-1.cassoproj"), links[0].path);
+            Assert::AreEqual (29, links[1].start, L"the debug file's name");
+            Assert::AreEqual (16, links[1].length);
+            Assert::AreEqual (std::wstring (L"C:\\Src\\symbols-demo.dbg"), links[1].path);
+
+            scope = { ProjectScopeKind::Machine, "Apple2e", "Apple2e" };
+            shown = ConsoleLinks::Parse (ShellDebugger::GetProjectLine (scope, L"C:\\Projects\\machine-1.cassoproj", L""), links);
+
+            Assert::AreEqual (std::wstring (L"Loaded the debug project for Apple2e"), shown, L"a machine's project");
+            Assert::AreEqual ((size_t) 1, links.size(), L"has no file to link");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  TheConsoleGetsTheProjectLineWhenAProjectLoads
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (TheConsoleGetsTheProjectLineWhenAProjectLoads)
+        {
+            ProjectRig                                    rig;
+            std::shared_ptr<const DebuggerViewSnapshot>   snapshot;
+            std::vector<std::string>                      lines;
+            std::vector<ConsoleLinks::Link>               links;
+            bool                                          isFound = false;
+
+
+
+            rig.Attach();
+            rig.Run ("BP 300");
+            rig.Detach();
+            rig.Attach();
+
+            (void) rig.shell->GetDebugger().TakeDebuggerUpdate (snapshot, lines);
+
+            for (const std::string & line : lines)
+            {
+                if (ConsoleLinks::Parse (line, links).starts_with (L"Loaded the debug project for ") && !links.empty())
+                {
+                    isFound = links[0].path.starts_with (L"C:\\Projects\\") && links[0].path.ends_with (L".cassoproj");
+                }
+            }
+
+            Assert::IsTrue (isFound, L"with project linked to the project's file");
         }
     };
 

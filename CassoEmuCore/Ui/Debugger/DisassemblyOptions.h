@@ -110,6 +110,10 @@ public:
     static int   GetLineOfRow (const std::vector<Row> & rows, int row);
     static int   GetRowOfLine (const std::vector<Row> & rows, int codeLine);
 
+    //  How many lines have their instruction's row among the first `capacity`
+    //  rows.
+    static int   CountShownLines (const std::vector<Row> & rows, int capacity);
+
     //  A source row represents the first instruction its line produced, the
     //  one on the row under it: the row has that instruction's breakpoint,
     //  PC marker and row color, and the instruction's row doesn't.

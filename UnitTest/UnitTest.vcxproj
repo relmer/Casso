@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -304,6 +304,7 @@
     <ClCompile Include="DebuggerTests\SymbolFileReaderTests.cpp" />
     <ClCompile Include="DebuggerTests\RomSymbolsTests.cpp" />
     <ClCompile Include="DebuggerTests\SymbolHandlersTests.cpp" />
+    <ClCompile Include="DebuggerTests\ConsoleLinksTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceServiceTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceStepTests.cpp" />
     <ClCompile Include="DebuggerTests\StepFilterTests.cpp" />
@@ -949,6 +950,7 @@
     <ClCompile Include="Dxui\DxuiListViewTextSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrolledHitTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewScrollKeepTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewScrollModelTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewBackgroundRangeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
@@ -977,6 +979,7 @@
     <ClCompile Include="Dxui\DxuiThemePaneColorsTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
+    <ClCompile Include="Dxui\DxuiRectMorphTests.cpp" />
     <ClCompile Include="Dxui\DxuiSlideTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />

@@ -95,6 +95,8 @@ public:
     //  A pane that was alone in its group also keeps the panes on the other
     //  side of the split it left, which side it lay on, and the split's ratio,
     //  so docking it back splits them again rather than tabbing it in.
+    //  `homeIndex` is the pane's index among its group's tabs, or -1 when it
+    //  was alone in its group; DockBack inserts it there rather than last.
     struct AutoHidden
     {
         std::wstring               pane;
@@ -104,6 +106,7 @@ public:
         DxuiDockSide               homeSide  = DxuiDockSide::Left;
         float                      homeRatio = 0.5f;
         std::vector<std::wstring>  homeSiblings;
+        int                        homeIndex = -1;
     };
 
     //  One monitor, as the application identifies it.

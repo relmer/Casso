@@ -180,6 +180,9 @@ public:
     //  gray breakpoint where a click would set one; and the fills of the row
     //  another pane brought into view and of a branch's destination.
     virtual uint32_t               GetPcMarkerArgb  () const = 0;
+
+    //  The PC's marker on a tab, which the tabs' band and fills are behind.
+    virtual uint32_t               GetPcTabMarkArgb () const { return GetPcMarkerArgb(); }
     virtual uint32_t               GetResultArgb    () const = 0;
     virtual std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon () = 0;
     virtual uint32_t               GetNavigatedRowArgb () const = 0;
@@ -290,6 +293,11 @@ public:
     //  Brings a pane's tab forward in its group, and lays the dock out again;
     //  and lays the whole window out again.
     virtual void                   ActivatePaneTab  (const std::wstring & pane) = 0;
+
+    //  The pane with the keyboard focus, empty for none; and whether two
+    //  panes are tabs of one group, so bringing one forward covers the other.
+    virtual std::wstring           GetFocusPane     () const { return {}; }
+    virtual bool                   IsSameTabGroup   (const std::wstring & a, const std::wstring & b) const { (void) a; (void) b; return false; }
     virtual void                   RelayoutDock     () = 0;
     virtual void                   RelayoutWindow   () = 0;
 

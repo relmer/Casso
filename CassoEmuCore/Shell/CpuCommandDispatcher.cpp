@@ -836,7 +836,8 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
 
     //  "codetop[N] <hex>" opens a code view with that address on its top line,
     //  as it was when Casso last closed, rather than centered on it.
-    isCode = TryGetCodeView (view, "code", index) || TryGetCodeView (view, "lines", index) || TryGetCodeView (view, "codetop", index);
+    isCode = TryGetCodeView (view, "code", index) || TryGetCodeView (view, "lines", index) || TryGetCodeView (view, "shown", index) ||
+             TryGetCodeView (view, "codetop", index);
 
     if (view != "memory" && !isCode && !isExtraWin)
     {

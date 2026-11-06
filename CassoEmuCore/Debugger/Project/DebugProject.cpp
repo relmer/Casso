@@ -132,8 +132,39 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
     for (const DebugSession::SymbolLoad & load : session.GetSymbolLoads())
     {
-        symbolFiles.push_back ({ load.table, load.path, load.offset });
+        if (!IsOtherDebugFile (session, load.path))
+        {
+            symbolFiles.push_back ({ load.table, load.path, load.offset });
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProject::IsOtherDebugFile
+//
+//  Whether a symbol file is a debug file other than the one a debug file's
+//  project is for: the loaded debug file when its key isn't the project's,
+//  or another file with a debug file's extension. Loading one switches to
+//  that file's project, so a debug file's project that saved it and loaded
+//  it again would switch to the other project, whose load switched back,
+//  without end. It happened when the outgoing project was saved after the
+//  load that caused the switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugProject::IsOtherDebugFile (const DebugSession & session, const std::wstring & path) const
+{
+    bool  isLoaded = path == session.GetDebugFilePath();
+    bool  isDebug  = _wcsicmp (fs::path (path).extension().c_str(), L".dbg") == 0;
+
+
+
+    return scope.kind == ProjectScopeKind::DebugFile && (isLoaded ? session.GetDebugFileKey() != scope.key : isDebug);
 }
 
 
@@ -176,7 +207,8 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
     //  A load replaces its table, so of a table's files only the last is
     //  loaded; a project saved before that listed every file a table had
     //  ever been loaded from. A BASIC program an earlier Casso loaded as
-    //  symbols is passed over. Either way, the next save drops them.
+    //  symbols is passed over, and so is another debug file a debug file's
+    //  project was saved with. Either way, the next save drops them.
     for (size_t i = 0; i < symbolFiles.size(); i++)
     {
         const SymbolFile  & file     = symbolFiles[i];
@@ -189,7 +221,7 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
 
 
 
-        if (!isLoaded && !isLater && isUsable (file))
+        if (!isLoaded && !isLater && isUsable (file) && !IsOtherDebugFile (session, file.path))
         {
             run (std::format ("SYM{} LOAD \"{}\",{:04X}", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (file.table)),
                               TextEncoding::WideToNarrow (file.path), file.offset));

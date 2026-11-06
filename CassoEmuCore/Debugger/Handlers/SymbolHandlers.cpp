@@ -355,7 +355,7 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
     session.SetLabelCheck (table);
 
-    lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from")));
+    lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from", reply)));
     AddRegisterNameNote (session, table, lines);
     BreakpointHandlers::FollowSymbols (session, lines);
 
@@ -443,7 +443,7 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     session.SetDebugFileData  (DebugFileData::GetBlocks (session.GetDebugFile(), sources));
 
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
-                                    loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from")));
+                                    loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from", reply)));
     AddRegisterNameNote (session, table, message);
     BreakpointHandlers::FollowSymbols (session, message);
 
@@ -699,7 +699,7 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved {} symbols from {}{}.", session.GetSymbols().GetCount (table), ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "to")) } };
+    reply.data = MessageData { { std::format ("Saved {} symbols from {}{}.", session.GetSymbols().GetCount (table), ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "to", reply)) } };
 }
 
 

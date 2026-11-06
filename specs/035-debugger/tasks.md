@@ -2245,5 +2245,36 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1371 Data lines (FR-362): `spansRow` on a data line's instruction cell, and `DataDirectiveHandlers::IsControl` for a string's trailing bytes. Tests: the ASC line in `DataDirectiveHandlersTests`; checked on screen.
 - [X] T1372 No check gutter in action menus (FR-363): `DebuggerMenuCommand::Make (label, chosen)`. Tests: `UnloadSymbolFileListsEachLoadedFile`.
 - [X] T1373 The console line (FR-364): `ProjectScope::Choose` labels by file name. Tests: `ProjectShellTests`; checked on screen.
-- [X] T1374 The C demo: `Apple2/Demos/CDemo` and `cdemo.dsk`, built with a cc65 snapshot in `C:\Users\relmer\Tools\cc65`; the rest of C debugging is issue #182.
+- [X] T1374 The C demo: built (`Apple2/Demos/CDemo` and `cdemo.dsk`, with a cc65 snapshot in `C:\Users\relmer\Tools\cc65`), then taken out of 035 at the owner's request and moved with the rest of C debugging to issue #182, on the branch `182-c-debugging`.
 - [X] T1375 Docs: `docs/Debugger-Tutorial.md` (new) and `docs/Debugger-Reference.md` (renamed from `docs/Debugger.md` and reorganized), linked from `README.md` and `docs/DebuggerForAgents.md`.
+
+## Phase 64: Owner review, 2026-11-05 evening (FR-365 to FR-372)
+
+- [X] T1376 Debug projects that loaded each other's file (FR-365): `DebugProject::IsOtherDebugFile` in capture and apply. Tests: `ADebugFilesProjectNeitherSavesNorLoadsAnotherDebugFile`; checked against the owner's two projects, which were repaired.
+- [X] T1377 The Label column fitted at each load (FR-366): `DisassemblyGroup::FitLabels`, and `DebuggerWindow::ApplyColumnWidths` passes the column over. Checked on screen.
+- [X] T1378 The PC's arrow beside the breakpoint's dot (FR-367): `GutterGlyph::MakeMarked`, icons drawn at their aspect in `DxuiListView` and `DxuiTextView`, `DisassemblyCells::kGutterColumnDip` 34. Tests: `ThePcsArrowIsBesideTheBreakpointsDot`; checked on screen.
+- [X] T1379 The front tab after a step (FR-368): `SourceDocumentGroup::IsFocusKept`, `IDebuggerPaneHost::GetFocusPane` and `IsSameTabGroup`. Checked on screen with F10 in the disassembly.
+- [X] T1380 The lines in view (FR-369): `DisassemblyOptions::CountShownLines`, `SetDebuggerCodeShown` through `shown[N]`, `DebuggerViewState::SetCodeShown`. Tests: `TheShownLinesAreThoseWhoseInstructionRowFits`, `APcPastTheLinesInViewIsBroughtIntoTheirMiddle`.
+- [X] T1381 Theme changes (FR-370): `DebuggerWindow::ApplyTheme` applies the snapshot to the code views and documents again and `HeatMapPane::ApplyPalette`; `GetPcTabMarkArgb`. Checked on screen, dark to light.
+- [X] T1382 Heat cell tips at once (FR-371): `DebuggerWindow::TryGetCodeTip`.
+- [X] T1383 The notice's margin and height (FR-372): `DxuiActionBanner::SetMarginDip` and `SetVerticalPaddingDip`.
+- [X] T1384 The Load file into memory icon: Segoe MDL2's OpenFile, `s_kpszMdl2OpenFile`.
+- [X] T1385 Docs: `docs/Debugger-Reference.md`.
+- [X] T1386 Console links (FR-373): `ConsoleLinks`, `Reply::files`, link spans in `DxuiTextView`, `IDebuggerWindowHost::OpenDebuggerFile`, `IShellItemVerbs::ShowInFolder`. Tests: `ConsoleLinksTests`, `ConsoleLinkTests`, `ProjectShellTests`; the line and the hover underline checked on screen.
+- [X] T1387 Docking (FR-374, FR-375): the sideways drag in `DxuiTabStrip`, `DxuiRectMorph`, the tab index on the layout's `hide` line. Tests: `DxuiTabStripTests`, `DxuiDockSiteDragTests`, `DxuiPaneLayoutDockBackTests`, `DxuiRectMorphTests`, `DxuiDockSiteAutoHideTests`; pin, unpin and the sideways drag checked on screen.
+- [ ] T1388 Open console links in Casso Explorer, with an option for File Explorer, once 033 is on master (FR-373).
+
+## Phase 65: Owner review, 2026-11-05 night (FR-374 to FR-384)
+
+- [X] T1389 Debug channel refresh (FR-376): `DebuggerController::GetLinesRun`, compared across `Pump` in `ShellDebugger::ServiceDebugger` to mark the view dirty. Test: `DebuggerControllerTests::EveryLineRunIsCounted`. Checked on screen: a step sent through the channel moves the PC row.
+- [X] T1390 Address-space scroll bar (FR-377): `DxuiListView::SetVertScrollModel`, set by `DisassemblyGroup::SetAddressScroll` after each view's rows are built. Tests: `DxuiListViewScrollModelTests`. Checked on screen after wheeling down from $60BA.
+- [X] T1391 Branch arrow clicks (FR-378): `DisassemblyGroup::ClickBranchArrow` hit-tests the dotted arrow and the PC's arrow in turn, and `ClickSourceArrow` scrolls a source document through `SourcePane::ShowArrowTarget` and `ShowMarkedLine`.
+- [X] T1392 Go to definition (FR-379): `DebuggerWindow::AddGoToDefinition` and `GoToDefinition`, with `DisassemblyGroup::TryGetSymbolAt` and `SourcePane::FindSymbolAt`; the line from `SymbolComments::FindDefiningLine`. Test: `SourceSymbolTipTests::TheSymbolUnderACharacterIsFound`.
+- [X] T1393 Dock to menu only on the tab, title bar and menu button (FR-380): `DebuggerWindow::IsOverPaneContent`. Pane menu rows are checkable only when marked with `PaneMenu::kChecked`.
+- [X] T1394 Load file icon (FR-381): `DebuggerCommands::PaintLoadFile`.
+- [X] T1395 Spare symbol tables hidden while empty (FR-382): `SymbolsPane::GetRows`. Test: `DebuggerToolPanesTests::AnEmptySpareTableIsNotListed`.
+- [X] T1396 Requeue the host's serial bytes before `ReverseController::HandleDivergence` truncates the input journal, through `ResyncHostConnections`, as reported by the 047 session.
+- [X] T1397 Heat map rows fit the pane at every zoom (FR-383): `HeatMapView::GetColumnsFor` from 1 to 1,024 addresses; horizontal scrolling removed. Tests: `HeatMapViewTests`, `HeatMapRangeLayoutTests`.
+- [X] T1398 Pin and unpin morph between the edge button and the tab, focus the unpinned pane, and detach a tab past the row of tabs (FR-374, FR-375): `DxuiDockSite`, `DxuiTabStrip`, `DxuiDockSite::SetOnFocusRequested`. Tests: `DxuiDockSiteAutoHideTests`, `DxuiTabStripTests`. Checked on screen: the heat map unpins to its old index, active and focused.
+- [X] T1399 A floating window's size is read after each move step, so a drag onto a monitor at another scale continues (FR-384): `DxuiDockedWindow::MoveWithPointer`. Test: `DxuiCaptionDragTrackerDpiTests::TheGrabPointScalesWithTheWindow`. To be confirmed on the owner's two monitors.
+- [X] T1400 No label for a row scrolled partly off, the zoom slider's label without a second "Zoom", and the slider closed when the focus moves (FR-383): `HeatMapView::PaintRowLabels`, `HeatMapView::OnFocusChanged`. Tests: `HeatMapViewTests::ARowPartlyScrolledOffHasNoLabel`, `TheZoomSliderClosesWithTheFocus`.

@@ -186,6 +186,12 @@ namespace DebuggerLooseSourceTests
         }
 
 
+        //  The focus on the first document or the first disassembly view, as
+        //  a click there puts it, for the pane a step is taken from.
+        void  FocusDocument()    { FocusControl (GetSourceGroup().GetDocument (0).GetView()); }
+        void  FocusDisassembly() { FocusControl (GetCodeList (0)); }
+
+
         //  A pane's tab brought to the front of its group.
         void  Activate (const std::wstring & pane)
         {
@@ -531,6 +537,7 @@ namespace DebuggerLooseSourceTests
 
             host.sources["game.s"] = LooseSourceWindow::MakeGameSource();
             window.TabCodeWithSource();
+            window.FocusDocument();
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 5, false));
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 6, false));
             Assert::IsFalse (window.IsCodeShown(), L"the stop at a line did not bring the document forward");
@@ -538,6 +545,27 @@ namespace DebuggerLooseSourceTests
             window.ShowNextStatement();
 
             Assert::IsTrue (window.IsCodeShown(), L"the document is in front");
+        }
+
+
+        //  A step from the disassembly, a tab of the document's group, leaves
+        //  the disassembly in front at a stop at a line.
+        TEST_METHOD (AStepFromTheDisassemblyKeepsItInFront)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            LooseSourceHost    host;
+            LooseSourceWindow  window (theme, host);
+
+
+
+            host.sources["game.s"] = LooseSourceWindow::MakeGameSource();
+            window.TabCodeWithSource();
+            window.Activate (DebuggerLayout::GetCodePaneId (0));
+            window.FocusDisassembly();
+            window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 5, true));
+            window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 6, true));
+
+            Assert::IsTrue (window.IsCodeShown(), L"the document was brought over the disassembly");
         }
 
 
@@ -554,6 +582,7 @@ namespace DebuggerLooseSourceTests
 
             host.sources["game.s"] = LooseSourceWindow::MakeGameSource();
             window.TabCodeWithSource();
+            window.FocusDocument();
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 5, true));
             window.TakeSnapshot (LooseSourceWindow::MakeStop (0, 6, true));
             Assert::IsFalse (window.IsCodeShown(), L"the stop at a line did not bring the document forward");

@@ -362,6 +362,33 @@ namespace DebuggerTests
             Assert::IsFalse (SourcePane::TryGetSymbolText (line, 13, symbols, text), L"a mnemonic, which is no symbol");
             Assert::IsFalse (SourcePane::TryGetSymbolText (L"nop ; count_text", 8, symbols, text), L"a comment");
         }
+
+
+
+
+
+        //  FindSymbolAt returns the symbol under a character as the tip's
+        //  lookup does, with the word's start.
+        TEST_METHOD (TheSymbolUnderACharacterIsFound)
+        {
+            std::vector<SymbolInfo>  symbols = { { "draw_counter", 0x6100 }, { "BAR_LENGTH", 0x0028, SymbolTableId::User, true } };
+            const SymbolInfo       * found   = nullptr;
+            int                      start   = -1;
+
+
+
+            found = SourcePane::FindSymbolAt (L"        jsr draw_counter", 16, symbols, start);
+            Assert::IsNotNull (found);
+            Assert::AreEqual  (std::string ("draw_counter"), found->name);
+            Assert::AreEqual  (12, start);
+
+            found = SourcePane::FindSymbolAt (L"cmp #BAR_LENGTH", 7, symbols, start);
+            Assert::IsNotNull (found, L"a constant is found, and AddGoToDefinition omits it");
+            Assert::IsTrue    (found->isConstant);
+
+            Assert::IsNull (SourcePane::FindSymbolAt (L"        jsr draw_counter", 9, symbols, start), L"a mnemonic");
+            Assert::IsNull (SourcePane::FindSymbolAt (L"rts ; draw_counter", 10, symbols, start), L"a comment");
+        }
     };
 
 

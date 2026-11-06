@@ -196,6 +196,25 @@ namespace DebuggerControllerTests
 
 
 
+        //  The shell compares the count across a pump, so the window is
+        //  refreshed after a step a client runs through the channel.
+        TEST_METHOD (EveryLineRunIsCounted)
+        {
+            Rig       rig (true);
+            uint64_t  before = rig.controller.GetLinesRun();
+
+
+
+            rig.controller.RunLine ("R", CommandMode::AppleWin, {});
+            rig.controller.RunLine ("not a command", CommandMode::AppleWin, {});
+
+            Assert::AreEqual (before + 2, rig.controller.GetLinesRun(), L"a line that fails is counted too");
+        }
+
+
+
+
+
         //  A mode a request names applies to that line only. Switching the
         //  session's mode would change it for every other client.
         TEST_METHOD (ARequestModeDoesNotSwitchTheSession)

@@ -108,6 +108,7 @@
 #include "Core/DxuiFrameRate.h"
 #include "Core/DxuiSystemSettings.h"
 #include "Core/DxuiTextElide.h"
+#include "Core/DxuiRectMorph.h"
 #include "Core/DxuiSlide.h"
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiDockDropZones.h"

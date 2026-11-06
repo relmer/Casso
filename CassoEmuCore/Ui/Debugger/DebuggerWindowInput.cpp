@@ -978,9 +978,10 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
         pane = m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane();
 
-        //  Over a pane's content, the content's own menu (FR-084); over its
-        //  tab or title, the menu of what can be done with the pane.
-        if (!pane.empty() && !ShowContentMenu (pane, ev.positionDip))
+        //  Over a pane's content, the content's menu, and over a part of it
+        //  with none, no menu; over its tab or title, the menu of what can be
+        //  done with the pane.
+        if (!pane.empty() && !ShowContentMenu (pane, ev.positionDip) && !IsOverPaneContent (pane, ev.positionDip))
         {
             ShowDockToMenu (pane, ev.positionDip);
         }
@@ -1606,6 +1607,29 @@ DxuiTextInput * DebuggerWindow::GetTextBoxAt (POINT clientPx) const
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsOverPaneContent
+//
+//  Whether a point is on a pane's content, below its tab or title, in the
+//  window the pane is docked in or floats in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsOverPaneContent (const std::wstring & pane, POINT clientPx) const
+{
+    const DxuiDockSite  * site    = m_floating->GetRoutingPane().empty() ? m_dockSite : m_floating->FindSite (pane);
+    IDxuiControl        * content = (site != nullptr) ? site->GetPaneContent (pane) : nullptr;
+
+
+
+    return content != nullptr && DxuiDockSite::Contains (content->GetBounds(), clientPx);
 }
 
 

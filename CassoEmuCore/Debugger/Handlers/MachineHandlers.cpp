@@ -259,6 +259,7 @@ void MachineHandlers::Screenshot (DebugSession & session, const DebugCommand & c
     }
 
     shot.path  = TextEncoding::WideToNarrow (path);
+    reply.files.push_back (shot.path);
     reply.data = std::move (shot);
 }
 

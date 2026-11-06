@@ -1154,6 +1154,10 @@ HRESULT ReverseController::HandleDivergence (
     hr = m_keyframes.DropAfterPosition (info.position);
     CHR (hr);
 
+    //  The host's connections stay open, so the bytes they sent after the
+    //  keyframe are queued for the guest again before the journal is truncated,
+    //  as a resume from the past does.
+    m_machine.ResyncHostConnections (info.journalIndex);
     m_machine.GetInputJournal().Truncate (info.journalIndex);
 
     BecomeLive();

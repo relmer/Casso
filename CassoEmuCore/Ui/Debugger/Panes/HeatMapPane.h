@@ -85,6 +85,10 @@ public:
     std::vector<DxuiToolbar *>       GetBars             () const override { return { m_bar.GetBar(), m_viewBar }; }
     std::optional<PaneColorKeySpec>  GetColorKey         () const override;
     void                             Apply               (const DebuggerViewSnapshot & snapshot) override;
+
+    //  The theme's heat colors into the map, as at a snapshot: a theme chosen
+    //  while the machine is stopped comes with no snapshot.
+    void                             ApplyPalette        ();
     bool                             Tick                (int64_t nowMs) override;
     void                             OnProjectSwitched   () override;
     void                             PlaceBar            () override;

@@ -6,6 +6,7 @@
 #include "Core/DxuiDockGuide.h"
 #include "Core/DxuiIconImage.h"
 #include "Core/DxuiPaneLayout.h"
+#include "Core/DxuiRectMorph.h"
 #include "Widgets/DxuiTabGroup.h"
 
 
@@ -134,6 +135,11 @@ public:
     //  The pane the user is working in: its group shows the accent border. A
     //  slid-out pane slides back once another pane takes the focus.
     void  SetFocusedPane  (const std::wstring & pane);
+
+    //  A pane docked back from an edge is focused as a press on its tab
+    //  focuses it: its group is drawn with the focus outline at once, and
+    //  `fn` is called to move the keyboard focus to the pane.
+    void  SetOnFocusRequested (PaneFn fn) { m_onFocusRequested = std::move (fn); }
 
     //  The room between docked panes and around them, as Visual Studio leaves
     //  it, filled with the theme's DockGap. Zero for both, the default, puts
@@ -270,8 +276,23 @@ public:
     //  paints them in a layer flushed after the page instead: HasDragLayer
     //  is true while there are any to paint there, and PaintDragLayer paints
     //  them.
-    bool                           HasDragLayer               () const { return IsDragging() && !m_marksElsewhere; }
+    bool                           HasDragLayer               () const { return (IsDragging() && !m_marksElsewhere) || IsMorphing(); }
     void                           PaintDragLayer             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+
+    //  Pinning or unpinning a pane changes the layout at once. A rect then
+    //  shrinks from where the pane was into its edge tab, or grows from the
+    //  edge tab to the pane's group, drawn in the drag layer. Time comes from
+    //  GetTickCount64 unless SetClock replaces it, and the system's animation
+    //  setting applies unless SetAnimationsEnabled overrides it.
+    //  TickAnimation returns true while a frame of the morph is due, and once
+    //  more as it ends, so the frame without it is painted too.
+    using ClockFn = std::function<int64_t ()>;
+
+    void  SetClock             (ClockFn fn) { m_clock = std::move (fn); }
+    void  SetAnimationsEnabled (bool on)    { m_animations = on; }
+    bool  IsMorphing           () const;
+    RECT  GetMorphRect         () const;
+    bool  TickAnimation        ();
 
     size_t                      GetGroupCount  () const { return m_groups.size(); }
     DxuiTabGroup *              GetGroup       (size_t index) const { return m_groups[index].get(); }
@@ -383,6 +404,10 @@ private:
     void          SetDropPreview    (DxuiDockDropZone & zone) const;
     void          SetTabDropPreview (DxuiDockDropZone & zone) const;
     void          OnTitleButton (DxuiTabGroup::TitleButton button, const std::wstring & pane, POINT pointDip);
+    bool          PinPane       (const std::wstring & pane, DxuiDockSide edge);
+    bool          UnpinPane     (const std::wstring & pane);
+    void          StartMorph    (const RECT & from, const RECT & to);
+    RECT          GetPaneTabRect (const std::wstring & pane) const;
     bool          IsDocumentGroup (const std::vector<std::wstring> & panes) const;
     DxuiTabGroup * FindGroupOf  (const std::wstring & pane) const;
     void          UpdateCompass (POINT pointDip);
@@ -417,6 +442,7 @@ private:
     PaneFn                                        m_onClosePane;
     PaneTestFn                                    m_canClosePane;
     PaneFn                                        m_onDock;
+    PaneFn                                        m_onFocusRequested;
     std::wstring                                  m_focusedPane;
     DxuiTabGroup                                  m_slidGroup;
     PaneFn                                        m_onSlid;
@@ -483,4 +509,8 @@ private:
     std::wstring                   m_carriedPane;
     POINT                          m_tearGrab       = {};
     bool                           m_tearFromTab    = false;
+    DxuiRectMorph                  m_morph;
+    bool                           m_morphOn        = false;
+    std::optional<bool>            m_animations;
+    ClockFn                        m_clock          = [] { return (int64_t) GetTickCount64(); };
 };

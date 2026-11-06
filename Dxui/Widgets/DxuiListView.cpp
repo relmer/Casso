@@ -1873,7 +1873,7 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
         bodyH           = (fullH - hgTop) - (layout.hBar ? barW : 0);
         cap             = (rowH > 0 && bodyH > 0) ? (bodyH / rowH) : 0;
         layout.rowCap   = cap;
-        layout.vBar     = (cap > 0) && (rows > cap);
+        layout.vBar     = m_vertModel.has_value() ? (m_vertModel->nMax - m_vertModel->nMin > (int) m_vertModel->nPage) : (cap > 0) && (rows > cap);
         layout.viewportW = fullW - (layout.vBar ? barW : 0);
     }
 
@@ -2149,7 +2149,55 @@ bool DxuiListView::IsScrollbarVisible() const
 
 
 
+    if (m_vertModel.has_value())
+    {
+        return m_vertModel->nMax - m_vertModel->nMin > (int) m_vertModel->nPage;
+    }
+
     return (cap > 0) && (GetRowCount() > cap);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetVertScrollModel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetVertScrollModel (const std::optional<SCROLLINFO> & model, std::function<void (int sbCode, int pos)> onScroll)
+{
+    m_vertModel   = model;
+    m_onVertModel = std::move (onScroll);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScrollVertLines
+//
+//  A click on an arrow of the vertical bar moves the rows a line, or calls
+//  the scroll model's callback while a model is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ScrollVertLines (int delta)
+{
+    if (!m_vertModel.has_value())
+    {
+        ScrollByRows (delta);
+        return;
+    }
+
+    if (m_onVertModel)
+    {
+        m_onVertModel ((delta < 0) ? SB_LINEUP : SB_LINEDOWN, m_vertModel->nPos);
+    }
 }
 
 
@@ -2185,10 +2233,10 @@ void DxuiListView::SyncVertScroll() const
     m_vertScroll.SetTrack (RECT{ fullW - barW, by, fullW, by + bh });
 
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-    info.nMin  = 0;
-    info.nMax  = GetRowCount();
-    info.nPage = layout.rowCap;
-    info.nPos  = m_topRow;
+    info.nMin  = m_vertModel.has_value() ? m_vertModel->nMin  : 0;
+    info.nMax  = m_vertModel.has_value() ? m_vertModel->nMax  : GetRowCount();
+    info.nPage = m_vertModel.has_value() ? m_vertModel->nPage : (UINT) layout.rowCap;
+    info.nPos  = m_vertModel.has_value() ? m_vertModel->nPos  : m_topRow;
     m_vertScroll.SetScrollInfo (info);
 }
 
@@ -2369,7 +2417,14 @@ void DxuiListView::GetPageFromTrackClick (int yPx)
 
     BAIL_OUT_IF (!m.visible || cap <= 0, S_OK);
 
-    if ((float) yPx < m.thumbTop)
+    if (m_vertModel.has_value())
+    {
+        if (m_onVertModel)
+        {
+            m_onVertModel (((float) yPx < m.thumbTop) ? SB_PAGEUP : SB_PAGEDOWN, m_vertModel->nPos);
+        }
+    }
+    else if ((float) yPx < m.thumbTop)
     {
         SetTopRow (m_topRow - cap);
     }
@@ -2437,7 +2492,18 @@ void DxuiListView::UpdateThumbDrag (int yPx)
     ratio    = (travel > 0.0f) ? (thumbTop / travel) : 0.0f;
 
     m_vertScroll.SetDragOffset (thumbTop);
-    SetTopRow ((int) std::lround (ratio * (float) maxTop));
+
+    if (m_vertModel.has_value())
+    {
+        if (m_onVertModel)
+        {
+            m_onVertModel (SB_THUMBTRACK, m_vertModel->nMin + (int) std::lround (ratio * (float) (m_vertModel->nMax - m_vertModel->nMin - (int) m_vertModel->nPage)));
+        }
+    }
+    else
+    {
+        SetTopRow ((int) std::lround (ratio * (float) maxTop));
+    }
 
 Error:
     return;
@@ -4046,9 +4112,11 @@ void DxuiListView::PaintDataRows (
             if (cells[c].icon && !cells[c].icon->bgraPremul.empty())
             {
                 float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
+                float  iconW  = iconPx * (float) cells[c].icon->width / (float) (std::max) (1, cells[c].icon->height);
                 float  iconX  = x + colOff + (float) colXPx[c] + cellPadL + iconShift;
 
-                //  A glyph margin centers its icon on a set line.
+                //  A glyph margin centers its icon's first square on a set line;
+                //  a wider icon runs on to the right.
                 if (c == 0 && m_glyphCenterDip > 0.0f)
                 {
                     iconX = x + colOff + m_scaler.ToPxf (m_glyphCenterDip) - iconPx * 0.5f;
@@ -4057,7 +4125,7 @@ void DxuiListView::PaintDataRows (
                 hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
                                           iconX,
                                           ry + (rowH - iconPx) * 0.5f,
-                                          iconPx, iconPx);
+                                          iconW, iconPx);
                 IGNORE_RETURN_VALUE (hr, S_OK);
 
                 iconShift += iconPx + m_scaler.ToPxf ((float) s_kCellIconGapDip);
@@ -4797,8 +4865,8 @@ bool DxuiListView::DispatchScrollbarPress (int lx, int ly)
     else if (HitTestHorzScrollbarArrowRight (lx, ly)) { SetLeftPx (m_leftPx + hStep);       m_scrollRepeat = ScrollRepeat::HorzArrowRight; }
     else if (HitTestHorzScrollbarThumb      (lx, ly)) { BeginHorzThumbDrag (lx); }
     else if (HitTestHorzScrollbarTrack      (lx, ly)) { GetPageFromHorzTrackClick (lx);        m_scrollRepeat = ScrollRepeat::HorzTrack;      }
-    else if (HitTestScrollbarArrowUp     (lx, ly)) { ScrollByRows (-1);                     m_scrollRepeat = ScrollRepeat::VertArrowUp;    }
-    else if (HitTestScrollbarArrowDown   (lx, ly)) { ScrollByRows (1);                      m_scrollRepeat = ScrollRepeat::VertArrowDown;  }
+    else if (HitTestScrollbarArrowUp     (lx, ly)) { ScrollVertLines (-1);                  m_scrollRepeat = ScrollRepeat::VertArrowUp;    }
+    else if (HitTestScrollbarArrowDown   (lx, ly)) { ScrollVertLines (1);                   m_scrollRepeat = ScrollRepeat::VertArrowDown;  }
     else if (HitTestScrollbarThumb       (lx, ly)) { BeginThumbDrag (ly); }
     else if (HitTestScrollbarTrack       (lx, ly)) { GetPageFromTrackClick (ly);               m_scrollRepeat = ScrollRepeat::VertTrack;      }
     else                                           { handled = false; }
@@ -5158,8 +5226,8 @@ void DxuiListView::Tick (int64_t nowMs)
 
         switch (m_scrollRepeat)
         {
-            case ScrollRepeat::VertArrowUp:    ScrollByRows (-1);            break;
-            case ScrollRepeat::VertArrowDown:  ScrollByRows (1);             break;
+            case ScrollRepeat::VertArrowUp:    ScrollVertLines (-1);         break;
+            case ScrollRepeat::VertArrowDown:  ScrollVertLines (1);          break;
             case ScrollRepeat::HorzArrowLeft:  SetLeftPx (m_leftPx - hStep); break;
             case ScrollRepeat::HorzArrowRight: SetLeftPx (m_leftPx + hStep); break;
 

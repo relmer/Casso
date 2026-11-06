@@ -360,7 +360,7 @@ void HeatMapZoomWidget::Paint (IDxuiTextRenderer & text, const IDxuiTheme & them
 
     PaintBox (text, panel, fill, edge);
 
-    hr = text.DrawString ((L"Zoom: " + percent).c_str(), (float) track.left, (float) reset.top,
+    hr = text.DrawString (percent.c_str(), (float) track.left, (float) reset.top,
                           (float) (reset.left - track.left), (float) (reset.bottom - reset.top),
                           ink, sizePx, font.face, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);

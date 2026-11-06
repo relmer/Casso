@@ -138,6 +138,8 @@ Reply DebuggerController::RunLine (const std::string          & line,
 
 
 
+    m_linesRun++;
+
     //  A blank line matters only inside an A block, where it ends the block.
     //  Elsewhere it is nothing, as it is in a batch script.
     if (line.find_first_not_of (" \t\r") == std::string::npos && !m_session.IsAssembling())

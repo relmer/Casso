@@ -578,6 +578,11 @@ void DebuggerWindow::ConfigureDockSite()
         m_slidPane = pane;
         UpdateTopLayer();
     });
+
+    //  A pane docked back from an edge is focused, as a press on its tab
+    //  focuses it.
+    m_dockSite->SetOnFocusRequested ([this] (const std::wstring & pane) { FocusPane (pane); });
+
     savedText = ReadSavedLayout();
     std::erase_if (m_closedPanes, [this] (const std::wstring & pane) { return !IsFixedPane (pane); });
 

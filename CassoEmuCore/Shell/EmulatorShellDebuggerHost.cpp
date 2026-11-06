@@ -11,6 +11,7 @@
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Core/TextEncoding.h"
+#include "Seams/Win32ShellItemVerbs.h"
 #include "resource.h"
 
 
@@ -282,6 +283,29 @@ IHostDialogs & EmulatorShell::DebuggerHost::GetHostDialogs()
 WindowPlacementProfile EmulatorShell::DebuggerHost::GetWindowPlacements()
 {
     return WindowPlacementProfile (m_shell.m_settings->GetPrefs());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::ShowFileInFolder
+//
+//  For a file that is no longer there, nothing opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DebuggerHost::ShowFileInFolder (const std::wstring & path)
+{
+    Win32ShellItemVerbs  verbs;
+    HRESULT              hr    = S_OK;
+
+
+
+    hr = verbs.ShowInFolder (path);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

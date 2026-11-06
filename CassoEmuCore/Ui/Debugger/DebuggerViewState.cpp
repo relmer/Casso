@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/BreakpointImport.h"
+#include "Ui/Debugger/ConsoleLinks.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/InstructionEffect.h"
 
@@ -29,6 +30,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/HeatAccessJump.h"
 #include "Core/IParallelRunner.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 
 
@@ -2577,6 +2579,7 @@ Reply DebuggerViewState::ExecuteLine (DebugSession & session, const std::string 
 //  The echo takes the prompt of the mode the line was typed in, as batch
 //  writes it, not the mode a MODE line leaves in force. A line sent with its
 //  own mode runs in that mode alone and leaves the session's as it was.
+//  The files the reply writes out are links in the console.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2595,6 +2598,8 @@ std::vector<std::string> DebuggerViewState::ExecuteConsoleLine (
 
     m_suggestion = reply.suggestion;
     ++m_suggestionSerial;
+
+    ConsoleLinks::LinkFiles (reply.text, reply.files);
 
     lines.push_back (DebugSession::GetPrompt (mode) + line);
     lines.insert (lines.end(), reply.text.begin(), reply.text.end());
@@ -2687,7 +2692,10 @@ void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAc
 
     if (action.isEchoed || action.isResult || reply.hasNotice || reply.status != CommandStatus::Ok)
     {
-        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        for (const std::string & text : reply.text)
+        {
+            lines.push_back (ConsoleLinks::LinkFiles (text, reply.files));
+        }
     }
 }
 
@@ -2942,7 +2950,10 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
 
         if (isEchoed || reply.status != CommandStatus::Ok)
         {
-            lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+            for (const std::string & text : reply.text)
+            {
+                lines.push_back (ConsoleLinks::LinkFiles (text, reply.files));
+            }
         }
 
         return reply;
@@ -3002,6 +3013,7 @@ void DebuggerViewState::ImportBreakpoints (
 {
     IFileSystem  * files   = session.GetFileSystem();
     std::string    script;
+    std::string    line;
     int            skipped = 0;
     HRESULT        hr      = S_OK;
 
@@ -3013,8 +3025,9 @@ void DebuggerViewState::ImportBreakpoints (
     CHRF (hr, lines.push_back (std::format ("{} could not be read.", path)));
 
     skipped = BreakpointImport::Run (session, script, run);
-    lines.push_back (std::format ("Imported the breakpoints{}; skipped {} line{} that {} not breakpoints.",
-                                  session.GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are"));
+    line    = std::format ("Imported the breakpoints{}; skipped {} line{} that {} not breakpoints.",
+                           session.GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are");
+    lines.push_back (ConsoleLinks::LinkFiles (line, { TextEncoding::WideToNarrow (session.ResolvePath (path)) }));
 
 Error:
     return;
@@ -3693,7 +3706,9 @@ void DebuggerViewState::HoldCode (bool isHeld, int view)
 //  always showed the PC on its top line with nothing above it.
 //
 //  When the PC does leave, it comes back in the MIDDLE, so what led there is
-//  on screen with it.
+//  on screen with it. With source rows, only some of the lines fit in the
+//  view, and the window reports how many: the PC on a line past those has
+//  left, and the middle is theirs.
 //
 //  While the machine runs, a view the user scrolled isn't moved until
 //  kScrollHoldMs pass with no more scrolling, so the code near the PC can
@@ -3706,7 +3721,9 @@ void DebuggerViewState::HoldCode (bool isHeld, int view)
 Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int view, bool isRunning) const
 {
     CodeView  & v       = m_code[(size_t) view];
-    bool        shown   = std::find (v.shown.begin(), v.shown.end(), pc) != v.shown.end();
+    size_t      inView  = (v.visible > 0) ? (std::min) ((size_t) v.visible, v.shown.size()) : v.shown.size();
+    int         half    = ((v.visible > 0) ? (std::min) (v.visible, v.lines) : v.lines) / 2;
+    bool        shown   = std::find (v.shown.begin(), v.shown.begin() + (std::ptrdiff_t) inView, pc) != v.shown.begin() + (std::ptrdiff_t) inView;
     bool        isHeld  = isRunning && (v.isMenuHeld || (v.scrolledAtMs.has_value() && m_clock() - *v.scrolledAtMs < kScrollHoldMs));
     bool        hasHold = isRunning && v.scrolledAtMs.has_value();
     Word        top     = 0;
@@ -3725,7 +3742,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     //  that runs out while the machine runs puts the PC in the middle.
     if (view == m_follow && v.address.has_value() && v.pinnedAtPc.has_value() && (*v.pinnedAtPc != pc || hasHold) && !isHeld)
     {
-        v.followAnchor = hasHold ? FindStartAbove (session, pc, v.lines / 2) : *v.address;
+        v.followAnchor = hasHold ? FindStartAbove (session, pc, half) : *v.address;
         v.address.reset();
         v.pinnedAtPc.reset();
         v.scrolledAtMs.reset();
@@ -3744,7 +3761,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
     {
         top = *v.centerOn;
 
-        for (int above = v.lines / 2; above > 0 && top == *v.centerOn; above--)
+        for (int above = half; above > 0 && top == *v.centerOn; above--)
         {
             top = FindStartAbove (session, *v.centerOn, above);
         }
@@ -3755,7 +3772,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
     if (v.scrollLines != 0)
     {
-        top = v.address.value_or (shown ? v.followAnchor : FindStartAbove (session, pc, v.lines / 2));
+        top = v.address.value_or (shown ? v.followAnchor : FindStartAbove (session, pc, half));
 
         v.address     = ScrollCodeTop (session, top, v.lines, v.scrollLines);
         v.scrollLines = 0;
@@ -3775,7 +3792,7 @@ Word DebuggerViewState::ChooseCodeStart (DebugSession & session, Word pc, int vi
 
     if (!shown)
     {
-        v.followAnchor = FindStartAbove (session, pc, v.lines / 2);
+        v.followAnchor = FindStartAbove (session, pc, half);
     }
 
     return v.followAnchor;

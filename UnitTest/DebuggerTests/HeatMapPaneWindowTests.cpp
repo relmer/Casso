@@ -580,8 +580,7 @@ namespace HeatMapPaneWindowTests
             Assert::IsTrue   (button.right > button.left, L"the widget is placed");
             Assert::AreEqual (view->GetBounds().right  - HeatMapZoomWidget::kMarginDip - (view->HasVerticalScroll()   ? HeatMapView::kScrollbarDip : 0), button.right,
                               L"its margin in from the pane's right, inside a scrollbar that shows");
-            Assert::AreEqual (view->GetBounds().bottom - HeatMapZoomWidget::kMarginDip - (view->HasHorizontalScroll() ? HeatMapView::kScrollbarDip : 0), button.bottom,
-                              L"and its bottom");
+            Assert::AreEqual (view->GetBounds().bottom - HeatMapZoomWidget::kMarginDip, button.bottom, L"and its bottom");
             Assert::AreEqual (100, HeatMapZoomWidget::GetPercent (view->GetCellPx(), view->GetStartCellPx()), L"the starting zoom is 100%");
 
             Assert::IsTrue   (view->TryGetZoomTipAt (GetCenter (button), anchor, text));

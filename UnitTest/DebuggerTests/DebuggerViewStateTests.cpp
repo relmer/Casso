@@ -1633,6 +1633,38 @@ namespace DebuggerViewStateTests
             return -1;
         }
 
+        //  A view of more lines than fit, as with source rows above them, moves
+        //  when the PC is on a line past the ones in view, and puts the PC in
+        //  the middle of those.
+        TEST_METHOD (APcPastTheLinesInViewIsBroughtIntoTheirMiddle)
+        {
+            std::unique_ptr<MachineRig>   held   = std::make_unique<MachineRig>();
+            MachineRig                  & rig    = *held;
+            DebuggerViewSnapshot          before;
+            DebuggerViewSnapshot          after;
+            Cpu6502Registers              r      = rig.controller.GetSession().GetTarget().GetRegisters();
+
+
+
+            rig.view.SetCodeLines (20);
+            rig.view.SetCodeShown (6);
+            before = rig.view.Build (rig.controller.GetSession());
+
+            r.pc = before.code[10].address;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            after = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreNotEqual (before.code[0].address, after.code[0].address, L"line 10 is past the 6 in view, so the view moves");
+            Assert::AreEqual    (3, GetPcIndex (after), L"to put the PC in the middle of the 6");
+
+            r.pc = after.code[4].address;
+            rig.controller.GetSession().GetTarget().SetRegisters (r);
+            before = after;
+            after  = rig.view.Build (rig.controller.GetSession());
+
+            Assert::AreEqual (before.code[0].address, after.code[0].address, L"a PC on a line in view doesn't move the view");
+        }
+
         //  While a view's menu is open, a running machine doesn't move it; once
         //  it closes, the view isn't moved for the scroll pause, then follows the PC.
         TEST_METHOD (AViewWhoseMenuIsOpenIsntMovedWhileRunning)

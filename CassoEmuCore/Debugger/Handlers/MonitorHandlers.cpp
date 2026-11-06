@@ -444,7 +444,7 @@ void MonitorHandlers::ReadFile (DebugSession & session, const DebugCommand & com
     }
 
     data.path        = command.text;
-    data.echo        = session.GetPathEcho (command.text, "from");
+    data.echo        = session.GetPathEcho (command.text, "from", reply);
     data.address     = (Word) command.a1;
     data.isLoad      = true;
     data.requested   = wanted;
@@ -504,7 +504,7 @@ void MonitorHandlers::WriteFile (DebugSession & session, const DebugCommand & co
     }
 
     data.path        = command.text;
-    data.echo        = session.GetPathEcho (command.text, "to");
+    data.echo        = session.GetPathEcho (command.text, "to", reply);
     data.address     = (Word) command.a1;
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();

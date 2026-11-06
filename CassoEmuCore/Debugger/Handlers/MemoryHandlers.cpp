@@ -561,15 +561,15 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
 
     session.NoteBinaryLoad (Sha1::ToHex (Sha1::Compute (std::span<const uint8_t> ((const uint8_t *) content.data(), content.size()))),
                             image.segments.empty() ? (Word) 0 : image.segments.front().address,
-                            name.substr (name.find_last_of ("/\\") + 1));
+                            name.substr (name.find_last_of ("/\\") + 1), session.ResolvePath (name));
 
     data.path        = std::format ("{} ({})", name, BinaryImageReader::GetFormatName (image.format));
-    data.echo        = session.GetPathEcho (name, "from");
+    data.echo        = session.GetPathEcho (name, "from", reply);
     data.address     = image.segments.empty() ? (Word) 0 : image.segments.front().address;
     data.isLoad      = true;
     data.requested   = (uint32_t) requested;
     data.transferred = (uint32_t) loaded;
-    data.companion   = LoadCompanion (session, *files, name);
+    data.companion   = LoadCompanion (session, *files, name, reply);
     reply.data       = data;
 }
 
@@ -588,7 +588,7 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string MemoryHandlers::LoadCompanion (DebugSession & session, IFileSystem & files, const std::string & name)
+std::string MemoryHandlers::LoadCompanion (DebugSession & session, IFileSystem & files, const std::string & name, Reply & reply)
 {
     static constexpr const char * kExtensions[] = { ".dbg", ".sym" };
     size_t                        slash         = name.find_last_of ("/\\:");
@@ -700,7 +700,7 @@ void MemoryHandlers::SaveBinary (DebugSession & session, const DebugCommand & co
     }
 
     data.path        = Unquote (command.text);
-    data.echo        = session.GetPathEcho (command.text, "to");
+    data.echo        = session.GetPathEcho (command.text, "to", reply);
     data.address     = (Word) command.a1;
     data.requested   = (uint32_t) content.size();
     data.transferred = (uint32_t) content.size();
@@ -988,7 +988,7 @@ void MemoryHandlers::SaveText (DebugSession & session, const DebugCommand & comm
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the text screen{}.", session.GetPathEcho (command.text, "to")) } };
+    reply.data = MessageData { { std::format ("Saved the text screen{}.", session.GetPathEcho (command.text, "to", reply)) } };
 }
 
 

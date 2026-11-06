@@ -496,6 +496,13 @@ std::vector<SymbolsPane::Row> SymbolsPane::GetRows (const DebuggerViewSnapshot::
             continue;
         }
 
+        //  USER2, SRC and SRC2 are AppleWin's spare tables, listed only once a
+        //  SYMUSER2, SYMSRC or SYMSRC2 command has put something in one.
+        if (table.id != SymbolTableId::User && IsUserTable (table.id) && table.count == 0 && table.origins.empty())
+        {
+            continue;
+        }
+
         rows.push_back ({ table.name, std::string(), 0, true });
 
         for (const SymbolInfo & symbol : symbols.symbols)
