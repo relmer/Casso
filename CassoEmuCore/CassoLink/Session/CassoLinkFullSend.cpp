@@ -152,8 +152,9 @@ HRESULT CassoLinkFullSend::ReadTrack (int drive, int track, std::vector<Byte> & 
 
 
 
-    outHasDisk = false;
-    outWhole   = false;
+    outHasDisk         = false;
+    outWhole           = false;
+    m_operation->drive = drive;
 
     hr = CheckStop();
     CHR (hr);
@@ -219,7 +220,8 @@ Error:
 //
 //  Read disk to image's track reads, with an unreadable sector listed and left
 //  as zeros, and the check for Q and Cancel between tracks. The session
-//  writes the file only when every track has been read.
+//  writes the file only when every track has been read. The operation's drive
+//  is the one being read, for the status bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,6 +232,8 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
     bool     stop   = false;
 
 
+
+    m_operation->drive = drive;
 
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
