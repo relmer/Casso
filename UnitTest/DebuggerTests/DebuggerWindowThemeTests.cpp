@@ -4,6 +4,8 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerThemes.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 #include "CppUnitTest.h"
 
@@ -70,6 +72,34 @@ namespace DebuggerWindowThemeTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  SourceThemeHost
+    //
+    //  The same, finding main.a65: a comment, then LDA #$41 at $0300.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class SourceThemeHost : public ThemeHost
+    {
+    public:
+        SourceLookup  FindDebuggerSource (const DebugSourceFile &, const std::wstring &, const std::string &) override
+        {
+            SourceLookup  lookup;
+
+
+
+            lookup.match = SourceMatch::Exact;
+            lookup.path  = L"C:\\Work\\main.a65";
+            lookup.text  = "; main\n        lda #$41\n";
+            return lookup;
+        }
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  ThemeWindow
     //
     //  The debugger window with its controls built and no HWND, over the
@@ -96,10 +126,15 @@ namespace DebuggerWindowThemeTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyTheme;
         using DebuggerWindow::GetMenuCommands;
         using DebuggerWindow::GetThemeName;
         using DebuggerWindow::GetTooltip;
+        using DebuggerWindow::TakeSnapshot;
+        using DebuggerWindow::GetCodeList;
+        using DebuggerWindow::GetSourceGroup;
+        using DebuggerWindow::GetPaneHostForTest;
 
         const DxuiTheme *  GetTheme() const { return m_theme; }
 
@@ -250,6 +285,106 @@ namespace DebuggerWindowThemeTests
             Assert::AreEqual (0xFFFFFFFFu, window.GetTooltip().GetTextArgb(),       L"and its text");
             Assert::AreEqual (6.0f,        window.GetTooltip().GetCornerRadiusPx(), L"Visual Studio's 6.4-DIP corner at 96 DPI");
             Assert::AreEqual (1.0f,        window.GetTooltip().GetBorderPx(),       L"on a whole-pixel border");
+        }
+
+
+        //  Stopped at line 2 of main.a65, the LDA at $0300, which is the
+        //  first view's one row.
+        static std::shared_ptr<DebuggerViewSnapshot>  MakeSourceSnapshot()
+        {
+            auto                            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::CodeLine  line;
+            DebugSourceFile                 file;
+
+
+
+            line.address     = 0x0300;
+            line.bytes       = "A9 41";
+            line.instruction = "LDA #$41";
+            line.isCurrent   = true;
+
+            file.id   = 0;
+            file.name = "main.a65";
+
+            snapshot->isPaused              = true;
+            snapshot->codeOpen[0]           = true;
+            snapshot->pc                    = 0x0300;
+            snapshot->codeViews[0]          = { line };
+            snapshot->code                  = snapshot->codeViews[0];
+            snapshot->source                = DebuggerViewSnapshot::SourceState();
+            snapshot->source->debugFilePath = L"C:\\Work\\main.dbg";
+            snapshot->source->programKey    = "key";
+            snapshot->source->fileId        = 0;
+            snapshot->source->line          = 2;
+            snapshot->source->lineAddresses = std::make_shared<const std::map<std::pair<int, int>, Word>> (
+                                                  std::map<std::pair<int, int>, Word> { { { 0, 2 }, 0x0300 } });
+            snapshot->source->files.push_back (file);
+            return snapshot;
+        }
+
+
+        //  The PC's mark on a tab has at least a glyph's 3:1 contrast with
+        //  the band behind the tabs, in every theme the window offers.
+        TEST_METHOD (ThePcsTabMarkReadsOnTheTabBandInEveryTheme)
+        {
+            constexpr float  kGlyphContrast = 3.0f;
+            CassoTheme       theme          = CassoTheme::MakeSkeuomorphic();
+            ThemeHost        host;
+            ThemeWindow      window         (theme, host);
+            uint32_t         mark           = 0;
+            float            ratio          = 0.0f;
+
+
+
+            window.OnCreate();
+            Assert::IsFalse (DebuggerThemes::GetChoices().empty(), L"the window offers themes");
+
+            for (const DebuggerThemes::Choice & choice : DebuggerThemes::GetChoices())
+            {
+                window.ApplyTheme (choice.name);
+
+                mark  = window.GetPaneHostForTest().GetPcTabMarkArgb();
+                ratio = DxuiColor::ComputeContrastRatio (mark, window.GetTheme()->PaneBand());
+
+                Assert::IsTrue (ratio >= kGlyphContrast, (std::wstring (choice.label) + L": " + std::to_wstring (ratio)).c_str());
+            }
+        }
+
+
+        //  A theme chosen while the machine is stopped colors the code views
+        //  and the source documents again from the last snapshot, so the PC's
+        //  row is in the new theme's color with no new snapshot.
+        TEST_METHOD (AThemeChangeRecolorsTheCodeViewsAndDocuments)
+        {
+            CassoTheme           theme    = CassoTheme::MakeSkeuomorphic();
+            SourceThemeHost      host;
+            ThemeWindow          window   (theme, host);
+            DxuiDpiScaler        scaler;
+            DxuiTextView       * view     = nullptr;
+            uint32_t             before   = 0;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.ApplyTheme ("");
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (MakeSourceSnapshot());
+            window.GetSourceGroup().Activate (0);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            view   = window.GetSourceGroup().GetDocument (0).GetView();
+            before = window.GetPaneHostForTest().GetPcRowArgb();
+
+            Assert::AreEqual (before, window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background, L"the code view's PC row");
+            Assert::AreEqual (before, view->GetRows()[1].background, L"the document's PC line");
+
+            window.ApplyTheme ("SystemLight");
+
+            Assert::AreNotEqual (before, window.GetPaneHostForTest().GetPcRowArgb(), L"the light theme's PC row differs");
+            Assert::AreEqual    (window.GetPaneHostForTest().GetPcRowArgb(), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].background,
+                                 L"the code view's PC row in the new theme's color");
+            Assert::AreEqual    (window.GetPaneHostForTest().GetPcRowArgb(), view->GetRows()[1].background, L"the document's PC line in it too");
         }
     };
 }

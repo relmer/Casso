@@ -415,6 +415,11 @@ protected:
     //  The view of the step mode brought forward, at the PC.
     void                     ShowNextStatement  ();
 
+    //  Protected so a test can read a content menu's Go to definition row,
+    //  and run it.
+    void     AddGoToDefinition  (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
+    void     GoToDefinition     (Word address);
+
 private:
     static constexpr int    kPreferredWidthDip  = 1100;
     static constexpr int    kPreferredHeightDip = 840;
@@ -548,8 +553,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     HoldCodeView       (int view);
     bool     IsOverPaneContent  (const std::wstring & pane, POINT clientPx) const;
-    void     AddGoToDefinition  (POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
-    void     GoToDefinition     (Word address);
     bool     IsCodeList         (const DxuiListView * list) const;
     std::vector<DxuiPopupMenuItem>  MakePaneMenuRows (const PaneMenuItems & items);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);

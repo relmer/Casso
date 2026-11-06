@@ -213,5 +213,67 @@ namespace DxuiActionBannerTests
             //  reserve wrapped the last line underneath the button.
             Assert::IsTrue (banner.GetActionReservePx (scaler) > 0.0f);
         }
+
+
+
+        //  The margin comes off every side of the bounds, so the strip's
+        //  border lies inside them.
+        TEST_METHOD (TheMarginIsClearOnEverySide)
+        {
+            constexpr float   kMarginDip = 5.0f;
+            constexpr LONG    kMargin    = 5;
+            DxuiActionBanner  banner;
+            DxuiDpiScaler     scaler     = Scaler96();
+            RECT              bounds     = MakeRect (20, 30, 620, 90);
+            RECT              notice     = {};
+
+
+
+            banner.SetText      (L"Showing the macro body.");
+            banner.SetActions   ({ L"Show invocation" });
+            banner.SetMarginDip (kMarginDip);
+            banner.Layout       (bounds, scaler);
+
+            notice = banner.GetNoticeBounds();
+
+            Assert::AreEqual (bounds.left   + kMargin, notice.left,   L"left");
+            Assert::AreEqual (bounds.top    + kMargin, notice.top,    L"top");
+            Assert::AreEqual (bounds.right  - kMargin, notice.right,  L"right");
+            Assert::AreEqual (bounds.bottom - kMargin, notice.bottom, L"bottom");
+        }
+
+
+
+        //  With no action, the banner is as tall as its text with the
+        //  padding above and below it, and the margin on either side.
+        TEST_METHOD (WithNoActionTheHeightIsTheTextsAndThePadding)
+        {
+            constexpr float   kMarginDip = 4.0f;
+            constexpr float   kPadDip    = 2.0f;
+            constexpr float   kWidth     = 500.0f;
+            constexpr float   kTolerance = 0.01f;
+            const wchar_t   * text       = L"Showing the macro body.";
+            DxuiActionBanner  banner;
+            DxuiInfoBanner    notice     (text);
+            DxuiDpiScaler     scaler     = Scaler96();
+
+
+
+            banner.SetText               (text);
+            banner.SetMarginDip          (kMarginDip);
+            banner.SetVerticalPaddingDip (kPadDip);
+            notice.SetVerticalPaddingDip (kPadDip);
+
+            Assert::AreEqual (notice.GetPreferredHeightPx (kWidth - 2.0f * kMarginDip, scaler) + 2.0f * kMarginDip,
+                              banner.GetPreferredHeightPx (kWidth, scaler),
+                              kTolerance, L"the text's height with the padding, and the margin");
+
+            notice.SetVerticalPaddingDip (kPadDip * 2.0f);
+            banner.SetVerticalPaddingDip (kPadDip * 2.0f);
+
+            Assert::AreEqual (notice.GetPreferredHeightPx (kWidth - 2.0f * kMarginDip, scaler) + 2.0f * kMarginDip,
+                              banner.GetPreferredHeightPx (kWidth, scaler),
+                              kTolerance, L"more padding, a taller banner");
+        }
     };
 }
