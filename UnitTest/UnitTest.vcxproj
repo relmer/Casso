@@ -415,7 +415,9 @@
     <ClCompile Include="DebuggerTests\GSSquaredWidthNoteTests.cpp" />
     <ClCompile Include="DebuggerTests\MonitorSlotNoteTests.cpp" />
     <ClCompile Include="DebuggerTests\StepSoundTests.cpp" />
+    <ClCompile Include="DebuggerTests\CodeMarginTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceBannerNoFileTests.cpp" />
+    <ClCompile Include="DebuggerTests\SourceDocumentInputTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceDocumentTabMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceMacroLevelTests.cpp" />
     <ClCompile Include="DebuggerTests\SourceLineMarkTests.cpp" />

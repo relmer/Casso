@@ -212,10 +212,16 @@ protected:
     DxuiListView  * GetCodeList       (int view) const override;
 
     //  The operand tip's view for the BASIC program's values, after the
-    //  disassembly views, and the list it covers. Protected for a test.
-    static constexpr int  kBasicTipView = DebuggerViewState::kMaxCodeViews;
+    //  disassembly views, then a view for each source document; and the
+    //  list or text view each covers. Protected for a test.
+    static constexpr int  kBasicTipView  = DebuggerViewState::kMaxCodeViews;
+    static constexpr int  kSourceTipView = kBasicTipView + 1;
     DxuiListView        * GetTipList       (int view) const override;
+    DxuiTextView        * GetTipTextView   (int view) const override;
     bool            ScrollCodeAtEdge  (WPARAM vk, IDxuiControl * focused);
+
+    //  Protected so a test can press Ctrl+Page Up or Ctrl+Page Down in a view.
+    bool            SelectCodeViewEdge (WPARAM vk, IDxuiControl * focused);
 
     //  Protected so a test can read the rows a view shows.
     int                          GetCodeLineOfRow    (int view, int row) const override;
@@ -424,15 +430,6 @@ private:
     static constexpr int    kPanePadDip            = 4;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
-    //  The breakpoint icon's size in a list cell, which the source view's
-    //  gutter draws it at too.
-    static constexpr int    kBreakpointIconDip     = 16;
-    //  The glyph margin a code view keeps for its breakpoints and the PC's
-    //  arrow, as Visual Studio's is: each glyph centered 8.4 DIP in from the
-    //  pane's body, 10.5 pixels at 125%, so its left edge is 2.8 DIP inside
-    //  it, in a column twice that wide; the address follows the column.
-    static constexpr float  kGlyphCenterDip        = DisassemblyCells::kGlyphCenterDip;
-    static constexpr int    kGutterColumnDip       = DisassemblyCells::kGutterColumnDip;
     static constexpr size_t kCodeGutterColumn      = DisassemblyCells::kGutterColumn;
 static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static constexpr size_t kCodeAddressColumn     = DisassemblyCells::kAddressColumn;
@@ -633,12 +630,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     HWND                   GetTipOwner          () const override { return GetHwnd(); }
     bool                   IsTipBlocked         () const override;
     bool                   TryFindTipRow        (POINT clientPx, int & view, int & row) const override { return TryFindOperandTipRow (clientPx, view, row); }
-    size_t                 GetTipColumn         (int view) const override;
+    size_t                 GetTipColumn         (int view, int row) const override;
     bool                   IsTipCovered         (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const override
                                                 { return IsOperandTipCovered (view, clientPx, tipRect, screen); }
     int                    FindOperandTipView   (POINT clientPx) const;
     bool                   TryFindOperandTipRow (POINT clientPx, int & view, int & row) const;
+    bool                   TryFindSourceTipRow  (POINT clientPx, int & view, int & row) const;
     bool                   IsOperandTipCovered  (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const;
+    std::wstring           GetTipPaneId         (int view) const;
     static bool            Meets                (const RECT & over, POINT clientPx, const RECT & tipRect);
 
     //  The tip of the control under a point (ITooltipSources): the floating

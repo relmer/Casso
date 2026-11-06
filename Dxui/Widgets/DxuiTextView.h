@@ -75,6 +75,10 @@ public:
         //  the cell, so a help row's description wraps under itself rather
         //  than under its syntax.
         int                                    wrapIndent = 0;
+
+        //  The fill of the gutter's band (SetGutterBand) on each line the
+        //  row takes; zero for none.
+        uint32_t                               gutterFill = 0;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -123,9 +127,38 @@ public:
     int   GetGutterPx      () const               { return m_scaler.ToPx (m_gutterDip); }
 
     //  The gutter as an editor's glyph margin: its icon centered this far in
-    //  from the view's left edge, as Visual Studio centers a breakpoint. Zero,
-    //  the default, centers it in the gutter.
+    //  from the view's left edge, as Visual Studio centers a breakpoint, and
+    //  the gutter itself starting at that edge, as a list's first column
+    //  does, rather than after the pad. Zero, the default, centers the icon
+    //  in a gutter after the pad.
     void  SetGlyphCenterDip (float dip)           { m_glyphCenterDip = dip; }
+
+    //  A band of the gutter, this far in from the view's left edge and this
+    //  wide, filled on each row's lines with the row's gutterFill, as a list
+    //  fills a narrow column's cells. None by default.
+    void  SetGutterBand    (int leftDip, int widthDip) { m_bandLeftDip = leftDip; m_bandWidthDip = widthDip; }
+
+    //  Whether a point is on the gutter's band, or on the rest of the gutter.
+    bool  IsInGutterBand   (POINT point) const;
+    bool  IsInGutter       (POINT point) const;
+
+    //  With row focus on, a press focuses the row under it, drawn as a list
+    //  draws its selected row while the view has the focus and no text is
+    //  selected, and the keys move that row: Up and Down a row, Page Up and
+    //  Page Down a page, Home and End, or Ctrl+Page Up and Ctrl+Page Down, to
+    //  the top and bottom row in view, and Ctrl+Home and Ctrl+End to the
+    //  first and last row. The view scrolls as little as it can with the
+    //  row in view. Off by default; -1 is no row.
+    void  SetRowFocus      (bool on)              { m_rowFocus = on; }
+    int   GetFocusRow      () const               { return m_focusRow; }
+    void  SetFocusRow      (int row);
+
+    //  The left and right of the text area, past the gutter and short of the
+    //  scroll bar; and a cell's rect from its left to the text area's right,
+    //  on the first line of its row, false when that line is not drawn.
+    int   GetTextAreaLeftPx  () const;
+    int   GetTextAreaRightPx () const;
+    bool  GetCellRectPx      (int row, int cell, RECT & outRect) const;
 
     //  A view that fills a pane: its text starts where the pane's title
     //  does, rather than a pad in from its left. Off by default.
@@ -158,6 +191,12 @@ public:
     int    GetLeftColumn   () const               { return m_leftColumn; }
     void   SetLeftColumn   (int column);
     bool   IsHorzScrollbarVisible () const;
+
+    //  Cells in this column and after it are cut off at the view's right
+    //  edge and don't count toward the sideways scroll, which ends with the
+    //  cells ahead of them; meant for text a tip draws whole. With -1, the
+    //  default, every column scrolls.
+    void   SetFirstClippedColumn (int column);
 
     //  A line's height and the space above its text, in pixels, once the
     //  view has been painted; zero before.
@@ -312,6 +351,7 @@ public:
     bool                OnMouse           (const DxuiMouseEvent & ev) override;
     LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged    (bool focused) override { m_isFocused = focused; }
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand     (DxuiStandardCommand command) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -343,6 +383,7 @@ private:
     int           GetLineColumn     (const Row & row, const Line & line) const;
     int           GetCellBase       (const Row & row, int cell) const;
     int           GetRowLength      (const Row & row) const;
+    int           GetRowExtent      (const Row & row) const;
     std::wstring  GetRowText        (const Row & row) const;
     void          SyncScrollbar     ();
     void          EnsureCellSize    (IDxuiTextRenderer & text, const IDxuiTheme & theme);
@@ -369,9 +410,11 @@ private:
                                      const std::vector<uint32_t> & colors, const std::vector<bool> & lit, uint32_t litArgb) const;
     int           GetTextLeft       () const;
     int           GetPadLeftPx      () const;
+    int           GetGutterLeftPx   () const;
     int           GetTextBaseLeft   () const;
     int           GetHorzBarPx      () const;
-    void          PaintLineGutter   (IDxuiPainter & painter, IDxuiTextRenderer & text, int lineIndex);
+    void          PaintLineGutter   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex);
+    bool          TryMoveFocusRow   (WPARAM vk, bool ctrl);
 
     //  A drawn line's height, a line's top counted from the first line shown,
     //  and the first line to show for a given line to be the last that fits.
@@ -412,6 +455,8 @@ private:
     int                     m_gutterDip       = 0;
     int                     m_gutterIconDip   = 0;
     float                   m_glyphCenterDip  = 0.0f;
+    int                     m_bandLeftDip     = 0;
+    int                     m_bandWidthDip    = 0;
     UINT                    m_measuredDpi     = 0;
     int                     m_topLine         = 0;
     bool                    m_followEnd       = false;
@@ -449,4 +494,8 @@ private:
     bool               m_noWrap        = false;
     int                m_leftColumn    = 0;
     int                m_widestColumns = 0;
+    int                m_firstClipped  = -1;
+    bool               m_rowFocus      = false;
+    int                m_focusRow      = -1;
+    bool               m_isFocused     = false;
 };

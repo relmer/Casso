@@ -198,6 +198,20 @@ namespace DebuggerCodeMenuTests
             found->second();
         }
 
+        static std::wstring JoinLabels (const Items & items)
+        {
+            std::wstring  joined;
+
+
+
+            for (const auto & [label, action] : items)
+            {
+                joined += label + L"|";
+            }
+
+            return joined;
+        }
+
         static bool Has (const Items & items, const std::wstring & label)
         {
             return std::ranges::any_of (items, [&label] (const auto & item) { return item.first == label; });
@@ -452,6 +466,60 @@ namespace DebuggerCodeMenuTests
             Assert::IsTrue  (Has (items, L"Remove breakpoint"), L"the RTS in the second view has a breakpoint");
             Assert::IsFalse (Has (items, L"Set breakpoint"));
             Assert::IsTrue  (Has (items, L"Disable breakpoint"), L"and can turn it off");
+        }
+
+
+
+        //  The breakpoint rows a source document has too: Set breakpoint on a
+        //  line with none, and on a line with one, Enable breakpoint or
+        //  Disable breakpoint for its state, then Remove breakpoint.
+        TEST_METHOD (TheBreakpointRowsAreSetOrEnableThenRemove)
+        {
+            CassoTheme                 theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost          host;
+            MenuWindow                 window   (theme, host);
+            DxuiDpiScaler              scaler;
+            auto                       snapshot = MakeSnapshot();
+            Items                      items;
+            DisassemblyViewPane      * view     = nullptr;
+            std::vector<std::wstring>  rows;
+
+
+
+            snapshot->codeViews[0][2].hasBreakpoint = true;
+            snapshot->codeViews[0][2].isEnabled     = false;
+            snapshot->breakpoints.push_back ({ 1, snapshot->codeViews[0][2].address, "BP", false });
+            snapshot->code                          = snapshot->codeViews[0];
+            snapshot->codeOpen[0]                   = true;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            view = &window.GetCodeGroup().GetView (0);
+
+            for (int row : { 1, 2 })
+            {
+                items.clear();
+                rows.clear();
+                Assert::IsTrue (view->AddMenuItems (view->GetList(), row, items));
+
+                for (const auto & [label, action] : items)
+                {
+                    if (label.ends_with (L" breakpoint"))
+                    {
+                        rows.push_back (label);
+                    }
+                }
+
+                Assert::IsTrue (rows == ((row == 1) ? std::vector<std::wstring> { L"Set breakpoint" }
+                                                    : std::vector<std::wstring> { L"Enable breakpoint", L"Remove breakpoint" }),
+                                JoinLabels (items).c_str());
+            }
+
+            Run (items, L"Enable breakpoint");
+            Assert::AreEqual (DebuggerActions::GetEnableBreakpoint (1, true, snapshot->mode).echo, host.commands.back());
         }
 
 

@@ -931,6 +931,7 @@
     <ClInclude Include="Ui\Debugger\InstructionEffect.h" />
     <ClInclude Include="Ui\Debugger\InstructionTouches.h" />
     <ClInclude Include="Ui\Debugger\BranchArrow.h" />
+    <ClInclude Include="Ui\Debugger\CodeMargins.h" />
     <ClInclude Include="Ui\Debugger\CommandCompletion.h" />
     <ClInclude Include="Ui\Debugger\ByteDialog.h" />
     <ClInclude Include="Ui\Debugger\FieldDialogPanel.h" />

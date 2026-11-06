@@ -83,6 +83,8 @@ private:
     bool                                  m_hasPcMark     = false;
     std::wstring                          m_bannerKey;
     std::wstring                          m_title         = L"Source";
+    uint32_t                              m_pcArrowArgb   = 0;
+    std::shared_ptr<const DxuiIconImage>  m_pcArrow;
 };
 
 
@@ -175,6 +177,7 @@ private:
     void                             FollowPc       (const DebuggerViewSnapshot & snapshot);
     void                             Restore        (const DebuggerViewSnapshot & snapshot);
     int                              GetSlotAt      (POINT atDip) const;
+    void                             HoverGutters   (POINT atDip, int dragSlot);
 
     IDebuggerPaneHost                    & m_host;
     std::vector<SourceDocumentPane *>      m_documents;

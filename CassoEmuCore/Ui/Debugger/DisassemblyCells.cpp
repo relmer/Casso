@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/CodeMargins.h"
 #include "Ui/Debugger/HeatStrip.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
@@ -13,23 +14,26 @@
 //
 //  DisassemblyCells::Configure
 //
-//  Every column is fitted to its contents and none stretches, so a pane is
-//  exactly as wide as its text (FR-026a). The glyph margin alone has a set
-//  width, since its glyphs are not text a fit could measure; it contains the
-//  breakpoints and the PC's arrow, and the address column follows it. The
-//  rows are drawn on a text view's background.
+//  Every column but the last is fitted to its contents. The operand and
+//  result fill the width after the other columns, never less than
+//  kOperandFloorDip, and an annotation wider than that is cut off at the
+//  pane's edge, so the pane scrolls sideways only when the columns ahead of
+//  it don't fit. The glyph margin and the heat strip have fixed widths, the
+//  same as a source document's (CodeMargins), since neither is text a fit
+//  could measure; the glyph margin contains the breakpoints and the PC's
+//  arrow. The rows are drawn on a text view's background.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisassemblyCells::Configure (DxuiListView & list)
 {
-    std::vector<DxuiListView::Column>  columns = { { L"",                   kGutterColumnDip, false, DxuiTextHAlign::Left },
-                                                   { L"Heat",               0,                false, DxuiTextHAlign::Left },
-                                                   { L"Address",            0,                false, DxuiTextHAlign::Left },
-                                                   { L"Bytes",              0,                false, DxuiTextHAlign::Left },
-                                                   { L"Label",              0,                false, DxuiTextHAlign::Left },
-                                                   { L"Instruction",        0,                false, DxuiTextHAlign::Left },
-                                                   { L"Operand and result", 0,                false, DxuiTextHAlign::Left } };
+    std::vector<DxuiListView::Column>  columns = { { L"",                   CodeMargins::kGlyphDip, false, DxuiTextHAlign::Left },
+                                                   { L"Heat",               CodeMargins::kHeatDip,  false, DxuiTextHAlign::Left },
+                                                   { L"Address",            0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Bytes",              0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Label",              0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Instruction",        0,                      false, DxuiTextHAlign::Left },
+                                                   { L"Operand and result", kOperandFloorDip,       true,  DxuiTextHAlign::Left } };
 
 
 
@@ -39,7 +43,7 @@ void DisassemblyCells::Configure (DxuiListView & list)
     columns[kHeatColumn].isText        = false;
 
     list.SetColumns         (std::move (columns));
-    list.SetGlyphCenterDip  (kGlyphCenterDip);
+    list.SetGlyphCenterDip  (CodeMargins::kGlyphCenterDip);
     list.SetTextViewSurface (true);
 }
 
