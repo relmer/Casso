@@ -406,6 +406,75 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  W5100SocketBridge::SetLanAccess
+//
+//  A socket listening when LAN access changes is listening on the address
+//  the old setting gave it, so it is bound again on the new one: the PC's
+//  addresses with LAN access on, 127.0.0.1 with it off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::SetLanAccess (bool lanAccess)
+{
+    bool  changed = lanAccess != m_lanAccess;
+
+
+
+    m_lanAccess = lanAccess;
+
+    for (int socket = 0; changed && socket < kSocketCount; socket++)
+    {
+        if (m_slots[(size_t) socket].phase == Phase::Listening)
+        {
+            Relisten (socket);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::Relisten
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::Relisten (int socket)
+{
+    HRESULT   hr      = S_OK;
+    Slot    & slot    = m_slots[(size_t) socket];
+    uint32_t  address = m_lanAccess ? VirtualSubnet::kAnyIp : VirtualSubnet::kLoopbackIp;
+
+
+
+    slot.host.reset();
+
+    CBR (m_hostNetwork != nullptr);
+
+    hr = m_hostNetwork->CreateSocket (HostSocketKind::Tcp, slot.host);
+    CHR (hr);
+
+    hr = slot.host->Bind ({ address, slot.hostPort }, false);
+    CHRF (hr, NoteListenFailure (slot.hostPort, hr));
+
+    hr = slot.host->Listen();
+    CHRF (hr, NoteListenFailure (slot.hostPort, hr));
+
+Error:
+    if (FAILED (hr))
+    {
+        Fail (socket, R::kSnIrTimeout);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  W5100SocketBridge::OnDisconnect
 //
 //  Queued bytes the host accepts now are sent before the shutdown.
@@ -546,6 +615,13 @@ void W5100SocketBridge::SendUdp (int socket)
     }
     else if (slot.host != nullptr)
     {
+        //  With LAN access off a broadcast stays on the PC, so another PC
+        //  doesn't list an Apple whose ports it can't reach.
+        if (!m_lanAccess && VirtualSubnet::IsBroadcast (remote.ipv4))
+        {
+            remote.ipv4 = VirtualSubnet::kLoopbackIp;
+        }
+
         hr = slot.host->SendTo (remote, payload);
         IGNORE_RETURN_VALUE (hr, S_OK);
 

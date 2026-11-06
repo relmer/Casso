@@ -275,8 +275,68 @@ namespace W5100SocketBridgeTests
         }
 
 
-        //  A listener and a UDP socket on its guest port are what other
-        //  computers send to; the card has them after its next pump.
+        //  Changing LAN access binds a listening socket again on the new
+        //  address, so the Apple goes on listening.
+        TEST_METHOD (ChangingLanAccess_BindsAListenerAgain)
+        {
+            UthernetRig          rig;
+            NetworkCardSettings  settings;
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+
+            settings.lanAccess = true;
+            rig.card.ApplySettings (settings);
+
+            auto  listener = rig.network.FindBound (HostSocketKind::Tcp, kAdtPro);
+
+            Assert::IsNotNull (listener.get());
+            Assert::IsTrue   (listener->listening);
+            Assert::AreEqual (VirtualSubnet::kAnyIp, listener->local.ipv4);
+            Assert::AreEqual (R::kSockListen, rig.bus.Status (0));
+
+            settings.lanAccess = false;
+            rig.card.ApplySettings (settings);
+
+            Assert::AreEqual (VirtualSubnet::kLoopbackIp, rig.network.FindBound (HostSocketKind::Tcp, kAdtPro)->local.ipv4);
+        }
+
+
+        //  Without LAN access a broadcast goes to 127.0.0.1, so another PC
+        //  doesn't hear of an Apple it can't reach.
+        TEST_METHOD (ABroadcastWithoutLanAccess_StaysOnThePc)
+        {
+            UthernetRig        rig;
+            std::vector<Byte>  data = MakePattern (20, 3);
+
+            rig.OpenSocket (1, R::kProtocolUdp, kAdtPro);
+            rig.SetDestination (1, VirtualSubnet::kBroadcastIp, kAdtPro);
+            rig.bus.Send (1, data);
+
+            auto  socket = rig.network.FindBound (HostSocketKind::Udp, kAdtPro);
+
+            Assert::AreEqual ((size_t) 1, socket->sentDatagrams.size());
+            Assert::IsTrue (socket->sentDatagrams[0].peer == HostEndpoint { VirtualSubnet::kLoopbackIp, kAdtPro });
+        }
+
+
+        TEST_METHOD (ABroadcastWithLanAccess_GoesToTheLan)
+        {
+            NetworkCardSettings  settings;
+
+            settings.lanAccess = true;
+
+            UthernetRig        rig (settings);
+            std::vector<Byte>  data = MakePattern (20, 3);
+
+            rig.OpenSocket (1, R::kProtocolUdp, kAdtPro);
+            rig.SetDestination (1, VirtualSubnet::kBroadcastIp, kAdtPro);
+            rig.bus.Send (1, data);
+
+            Assert::IsTrue (rig.network.FindBound (HostSocketKind::Udp, kAdtPro)->sentDatagrams[0].peer == HostEndpoint { VirtualSubnet::kBroadcastIp, kAdtPro });
+        }
+
+
         TEST_METHOD (AListenerAndAUdpSocket_AreInboundPorts)
         {
             UthernetRig                rig;

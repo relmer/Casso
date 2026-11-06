@@ -41,7 +41,7 @@ public:
     ~W5100SocketBridge () override;
 
     void  SetHostNetwork (IHostNetwork * network) { m_hostNetwork = network; }
-    void  SetLanAccess   (bool lanAccess)         { m_lanAccess = lanAccess; }
+    void  SetLanAccess   (bool lanAccess);
 
     void  OnCommand      (int socket, Byte command) override;
     void  OnReset        ()                         override;
@@ -102,6 +102,7 @@ private:
     void  OnOpen            (int socket);
     void  OnConnect         (int socket);
     void  OnListen          (int socket);
+    void  Relisten          (int socket);
     void  OnDisconnect      (int socket);
     void  OnSend            (int socket);
     void  SendTcp           (int socket);
