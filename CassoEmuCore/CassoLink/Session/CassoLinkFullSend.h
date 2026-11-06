@@ -51,5 +51,6 @@ private:
     LinkOperation      * m_operation = nullptr;
     std::atomic<bool>    m_canceled  { false };
     bool                 m_verifying = false;
+    bool                 m_barFull   = false;   // the next request draws the drive's bar full
     FullSendScreen       m_lastScreen;
 };

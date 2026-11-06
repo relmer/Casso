@@ -40,7 +40,7 @@ struct TreeNode
     bool          broken       = false;   // an image that is not a disk at all, as against one with no file system
     bool          dividerAbove = false;   // a line above it, as between Explorer's navigation groups
     bool          offline      = false;   // a linked machine that is not connected, drawn in grays
-    bool          warning      = false;   // a connection Windows Firewall blocks, drawn with an amber badge
+    bool          warning      = false;   // a connection Windows Firewall blocks, drawn as a warning sign
     bool          transferring = false;   // a connection or its receiving folder during a transfer, drawn with a pulsing dot
     int           unseen       = 0;       // a receiving folder's files not yet listed, drawn as a count
     std::wstring  iconId;                 // the shell's name for the entry whose icon it shows

@@ -1343,9 +1343,19 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                 text.SetGlobalAlpha (alpha * s_kGhostedIconAlpha);
             }
 
-            hr = text.DrawIconBitmap (node->icon->bgraPremul.data(), node->icon->width, node->icon->height,
-                                      textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, iconPx);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            //  A node with a warning is drawn as the warning sign in place of
+            //  its icon: a badge over the icon was easy to miss at the tree's
+            //  row height, and its amber was close to a folder's.
+            if (node->iconWarning)
+            {
+                DxuiWarningBadge::Draw (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, iconPx, theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());
+            }
+            else
+            {
+                hr = text.DrawIconBitmap (node->icon->bgraPremul.data(), node->icon->width, node->icon->height,
+                                          textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, iconPx);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+            }
 
             text.SetGlobalAlpha (alpha);
 
@@ -1354,16 +1364,6 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                 DxuiListIcons::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
             }
 
-            //  At the icon's lower left, where the broken badge goes, and
-            //  three quarters of the icon's size: at half it was easy to miss
-            //  at the tree's row height.
-            if (node->iconWarning)
-            {
-                float  badgePx = (std::max) (m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip), iconPx * 0.75f);
-                float  iconTop = rowY + (rowHeight - iconPx) * 0.5f;
-
-                DxuiWarningBadge::Draw (text, textX, iconTop + iconPx - badgePx, badgePx, badgePx, theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());
-            }
 
             if (node->iconActivity)
             {

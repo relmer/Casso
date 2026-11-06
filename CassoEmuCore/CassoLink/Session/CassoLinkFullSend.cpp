@@ -168,8 +168,14 @@ HRESULT CassoLinkFullSend::ReadTrack (int drive, int track, std::vector<Byte> & 
         physicals.push_back ((Byte) physical);
     }
 
-    //  No share of the operation, so the drive's bar is left as it is.
-    m_session.m_host->SetProgress (0, 0);
+    //  No share of the operation, so the drive's bar is left as it is, except
+    //  just after a disk's read.
+    if (!m_barFull)
+    {
+        m_session.m_host->SetProgress (0, 0);
+    }
+
+    m_barFull = false;
 
     hr = m_session.m_host->ReadSectors ((Byte) drive, (Byte) track, physicals, data, status);
     CHR (hr);
@@ -278,6 +284,12 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
 
         outReport.emptyTracks += outUnreadable.size() - before == NibblizationLayer::kSectorsPerTrack ? 1 : 0;
     }
+
+    //  The last track's share ends at 100 only when its request succeeds, so a
+    //  disk whose last track has errors would be left short of it. The read
+    //  after this one draws the bar full.
+    m_session.m_host->SetProgress (100, 100);
+    m_barFull = true;
 
 Error:
     return hr;
