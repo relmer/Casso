@@ -353,7 +353,7 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 ### Session 2026-11-06 (owner decision: running a script from the channel)
 
-- Q: Do channel clients need permission to run a script? -> A: No. Each line of a script is checked as a channel line is, so the --allow-scripts gate was removed.
+- Q: Is a flag required for a channel client to run a script? -> A: No. Each line of a script is checked as a channel line is, so the --allow-scripts gate was removed.
 
 ## User Scenarios & Testing *(mandatory)*
 
