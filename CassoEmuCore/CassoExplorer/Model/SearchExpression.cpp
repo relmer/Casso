@@ -1238,7 +1238,7 @@ bool SearchExpression::EvaluateTerm (const Node & node, const Prepared & file, I
     switch (node.field)
     {
         case Field::Text:         return EvaluateText (node, file, sources);
-        case Field::Name:         return MatchesString (node, file.name);
+        case Field::Name:         return MatchesName   (node, file.name);
         case Field::Extension:    return MatchesString (node, file.extension);
         case Field::Folder:       return MatchesString (node, file.folder);
         case Field::Path:         return MatchesString (node, file.path);
@@ -1264,9 +1264,9 @@ bool SearchExpression::EvaluateTerm (const Node & node, const Prepared & file, I
 //
 //  SearchExpression::EvaluateText
 //
-//  A bare word or phrase is in the name, or with contents on, in the file's
-//  text, which is read only when the name doesn't have it. A pattern or a
-//  regular expression tests the name alone.
+//  A bare word or phrase begins a word of the name, or with contents on, is
+//  in the file's text, which is read only when the name doesn't have it. A
+//  pattern or a regular expression tests the name alone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1276,7 +1276,7 @@ bool SearchExpression::EvaluateText (const Node & node, const Prepared & file, I
 
 
 
-    if (MatchesString (node, file.name))
+    if (MatchesName (node, file.name))
     {
         return true;
     }
@@ -1335,6 +1335,65 @@ bool SearchExpression::EvaluateOther (const Node & node, const Prepared & file, 
         case Operator::Range:          return TryGetNumber (node.high, high) && actual >= target && actual <= high;
         default:                       return actual == target;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchExpression::MatchesName
+//
+//  A name matches a word without a comparison where the word begins one of
+//  its words, as File Explorer's search matches it: "setup" finds
+//  setup.exe, oem_setup.inf and Microsoft-Windows-Setup but not
+//  winsetup.dll. A pattern, a regular expression or ~= finds text anywhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchExpression::MatchesName (const Node & node, const std::wstring & lowerName) const
+{
+    bool  plain = node.op == Operator::Default && node.regex < 0 && !node.invalidRegex && !node.wildcard;
+
+
+
+    return plain ? ContainsWordStart (lowerName, node.value) : MatchesString (node, lowerName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SearchExpression::ContainsWordStart
+//
+//  A word begins at the text's start or after a character that isn't a
+//  letter or digit. A value that starts with one of those, as .txt does,
+//  matches anywhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SearchExpression::ContainsWordStart (const std::wstring & lowerText, const std::wstring & lowerWord)
+{
+    size_t  at    = lowerText.find (lowerWord);
+    bool    found = false;
+
+
+
+    if (lowerWord.empty() || !iswalnum (lowerWord[0]))
+    {
+        return at != std::wstring::npos;
+    }
+
+    while (at != std::wstring::npos && !found)
+    {
+        found = at == 0 || !iswalnum (lowerText[at - 1]);
+        at    = found ? at : lowerText.find (lowerWord, at + 1);
+    }
+
+    return found;
 }
 
 

@@ -88,6 +88,22 @@ public:
         Assert::IsFalse (IsMatch (L"karateka woz", MakeFile (L"Karateka.dsk")));
     }
 
+    TEST_METHOD (APlainWord_BeginsAWordOfTheName_AsFileExplorerMatchesIt)
+    {
+        Assert::IsTrue  (IsMatch (L"setup", MakeFile (L"setup.exe")));
+        Assert::IsTrue  (IsMatch (L"setup", MakeFile (L"oem_setup.inf")));
+        Assert::IsTrue  (IsMatch (L"setup", MakeFile (L"Microsoft-Windows-Setup.mum")));
+        Assert::IsTrue  (IsMatch (L"setup", MakeFile (L"SetupApi.dll")));
+        Assert::IsFalse (IsMatch (L"setup", MakeFile (L"winsetup.dll")));
+        Assert::IsFalse (IsMatch (L"setup", MakeFile (L"WinSetup.dll")), L"a capital inside a word doesn't begin one");
+        Assert::IsFalse (IsMatch (L"name:setup", MakeFile (L"winsetup.dll")));
+        Assert::IsTrue  (IsMatch (L"*setup*", MakeFile (L"winsetup.dll")));
+        Assert::IsTrue  (IsMatch (L"name:~=setup", MakeFile (L"winsetup.dll")));
+        Assert::IsTrue  (IsMatch (L"/setup/", MakeFile (L"winsetup.dll")));
+        Assert::IsTrue  (IsMatch (L".dsk", MakeFile (L"Karateka.dsk")));
+        Assert::IsTrue  (IsMatch (L"setup", MakeFile (L"winsetup-setup.log")), L"a later occurrence can begin a word");
+    }
+
     TEST_METHOD (ContentsOn_AWordMatchesTheNameOrTheContents_WordByWord)
     {
         SearchExpression  expression = SearchExpression::Parse (L"karateka princess", MakeOptions (true));

@@ -143,11 +143,13 @@ private:
     static bool                HasTermWhere      (const Node & node, const std::function<bool (const Node &)> & test);
     static std::wstring        ToLower           (const std::wstring & text);
     static std::wstring        ToLowerUnquoted   (const std::wstring & text);
+    static bool                ContainsWordStart (const std::wstring & lowerText, const std::wstring & lowerWord);
 
     bool  Evaluate          (const Node & node, const Prepared & file, ISearchSources & sources) const;
     bool  EvaluateTerm      (const Node & node, const Prepared & file, ISearchSources & sources) const;
     bool  EvaluateText      (const Node & node, const Prepared & file, ISearchSources & sources) const;
     bool  EvaluateOther     (const Node & node, const Prepared & file, ISearchSources & sources) const;
+    bool  MatchesName       (const Node & node, const std::wstring & lowerName) const;
     bool  MatchesString     (const Node & node, const std::wstring & lowerValue) const;
     bool  MatchesSize       (const Node & node, const Prepared & file) const;
     bool  MatchesDate       (const Node & node, const Date & date) const;
