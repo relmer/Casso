@@ -465,6 +465,18 @@ public:
     }
 
 
+    //  A pass-through popup, such as an in-place tip, is never hit, so the
+    //  window beneath doesn't receive WM_MOUSELEAVE while the pointer is over the
+    //  popup. An interactive popup is hit on its card only.
+    TEST_METHOD (APassThroughPopupIsNeverHit)
+    {
+        Assert::IsTrue  (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::PassThrough, true),  L"a pass-through popup's card is hit");
+        Assert::IsTrue  (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::PassThrough, false), L"a pass-through popup's shadow is hit");
+        Assert::IsFalse (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::Interactive, true),  L"an interactive popup's card is not hit");
+        Assert::IsTrue  (DxuiPopupHost::IsHitTransparent (DxuiPopupInput::Interactive, false), L"an interactive popup's shadow is hit");
+    }
+
+
     TEST_METHOD (OnClickOutside_DismissesOnlyOnOutsideChainClick)
     {
         Assert::IsFalse (DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss::OnClickOutside,
