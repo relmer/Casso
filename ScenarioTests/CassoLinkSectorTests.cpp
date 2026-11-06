@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "EhmTestHelper.h"
+#include "Devices/Acia6551.h"
 #include "FixtureProvider.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
@@ -348,6 +349,31 @@ public:
         Assert::AreNotEqual (std::string::npos, rows[0].find ("WAITING"), L"the PC is waited for");
     }
 
+
+
+
+    //  With the PC's port closed, CTS is false and the 6551 sends nothing.
+    //  The program drops what it can't send, so it counts the PC's silence and
+    //  waits for the PC again, rather than waiting forever to send its next
+    //  Ready with CONNECTED on the screen.
+    TEST_METHOD (APcThatClosesItsPort_IsWaitedForAgain)
+    {
+        Rig                       rig;
+        std::vector<std::string>  rows;
+
+        rig.Connect();
+
+        rig.machine.GetRefs().serialChips[1]->SetModemInputs (false, true, true);
+
+        for (int frame = 0; frame < 60 * 12; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+
+        Assert::AreNotEqual (std::string::npos, rows[0].find ("WAITING"), TextEncoding::NarrowToWide (rows[0]).c_str());
+    }
 
 
 

@@ -1885,16 +1885,39 @@ gbgot:  lda ACIADATA,x
 ; is absolute, set for the port at startup: an indexed store reads its
 ; address first, and a read of the 6551's data register clears its receive
 ; flag.
+;
+; A byte that can't be sent in about a second and a half is dropped, as is
+; every byte after it until the transmitter empties again. With the PC's
+; port closed, its adapter's CTS line is false and the 6551 sends nothing, so
+; without the limit the program would wait here forever, and never count
+; the PC's silence or read the keyboard. tmo is free here: getbt sets it.
 putraw: stx savex
         ldx slotx
         pha
+        lda #0
+        sta tmo
+        sta tmo+1
 pbwait: lda ACIASTAT,x
         and #TDRE
-        beq pbwait
+        bne pbsend
+        lda txstuck
+        bne pbdrop
+        inc tmo
+        bne pbwait
+        inc tmo+1
+        bne pbwait              ; 65,536 rounds of 22 cycles
+        inc txstuck
+pbdrop: pla
+        ldx savex
+        rts
+pbsend: lda #0
+        sta txstuck
         pla
 pbsta:  sta ACIADATA
         ldx savex
         rts
+
+txstuck: .byte 0                ; a byte was dropped, and the 6551 hasn't sent since
         endif
 
 ; putb: a byte through the chip. In Debug builds, the fault armed for the
