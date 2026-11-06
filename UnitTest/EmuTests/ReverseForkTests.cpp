@@ -224,6 +224,38 @@ namespace ReverseForkTests
         }
 
 
+        //  The same fork, switched back from at once, with fewer journal
+        //  entries on the new path than were dropped before the oldest
+        //  keyframe.
+        TEST_METHOD (AForkAtTheOldestKeyframeSwitchesBackAtOnce)
+        {
+            TestMachine                  machine ("Apple2e");
+            ReverseHost                  host    (machine);
+            std::vector<KeyframeBranch>  branches;
+            uint64_t                     liveEnd  = 0;
+            uint64_t                     checksum = 0;
+            HRESULT                      hr       = S_OK;
+
+
+
+            Record (machine, host);
+
+            liveEnd  = machine.GetPosition();
+            checksum = ReverseSessionRig::Checksum (machine);
+
+            Execute (host, ReverseCommand::Seek, host.GetController().GetOldestPosition());
+
+            hr = host.Fork();
+            AssertSucceeded (hr, L"Fork");
+
+            host.GetController().GetKeyframes().GetBranches (branches);
+            Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
+
+            Assert::AreEqual<uint64_t> (liveEnd,  machine.GetPosition(),                L"at the old live end");
+            Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
+        }
+
+
         TEST_METHOD (AReverseContinueAfterASwitchCrossesTheFork)
         {
             TestMachine                  machine ("Apple2e");

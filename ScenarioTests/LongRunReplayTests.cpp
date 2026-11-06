@@ -123,6 +123,7 @@ private:
         std::vector<Byte>  live;
         HRESULT            hr         = S_OK;
         size_t             keyframes  = 0;
+        size_t             liveEnd    = 0;
         uint64_t           oldest     = 0;
         uint64_t           frame      = 0;
         uint64_t           frames     = kSeconds * kFramesPerSecond;
@@ -169,6 +170,10 @@ private:
         keyframes = controller.GetKeyframes().GetCount();
         oldest    = controller.GetOldestPosition();
 
+        //  Leaving live takes a keyframe at the live end, unless the newest
+        //  is there already.
+        liveEnd = (controller.GetKeyframes().GetInfo (keyframes - 1).position == machine.GetPosition()) ? 0 : 1;
+
         Assert::IsTrue (keyframes > kSeconds, (name + L": the run spans many keyframes").c_str());
 
         hr = controller.ReverseContinue (neverStops, result);
@@ -177,7 +182,7 @@ private:
         Assert::IsTrue (result.outcome != ReverseOutcome::HistoryCut, (name + L": the replay matched every keyframe").c_str());
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, (name + L": nothing stopped it, so it reached the start").c_str());
         Assert::AreEqual<uint64_t> (oldest, machine.GetPosition(), (name + L": at the oldest position").c_str());
-        Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetCount(), (name + L": no keyframe was dropped").c_str());
+        Assert::AreEqual<size_t>   (keyframes + liveEnd, controller.GetKeyframes().GetCount(), (name + L": no keyframe was dropped").c_str());
 
         hr = controller.SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, (name + L": SeekToCycle live").c_str());
