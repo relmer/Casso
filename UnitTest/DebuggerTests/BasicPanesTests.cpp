@@ -248,6 +248,42 @@ namespace DebuggerTests
             Assert::IsTrue   (cells[0][BasicProgramPane::kListingColumn].colorRanges == plain[0][BasicProgramPane::kListingColumn].colorRanges, L"the syntax colors");
         }
 
+        //  A statement after a colon is counted at its first token, not
+        //  at the line's: with only the second statement begun, the second
+        //  is tinted and the first is in its syntax colors. A read of the
+        //  first statement's token is not a run of it.
+        TEST_METHOD (AStatementAfterAColonIsCountedAtItsOwnFirstToken)
+        {
+            BasicLine                                     line    = MakeLine (0x0801, 10, { "A", "=", "1", ":", " PRINT ", "A" });
+            DebuggerViewSnapshot::BasicState              state   = MakeState ({ line }, 0, 0);
+            std::vector<BasicProgramPane::Row>            rows    = BasicProgramPane::GetRows (state.lines);
+            DebuggerViewSnapshot::HeatColumnLevels        heat    = MakeHeat();
+            HeatMapView::Palette                          palette;
+            BasicProgramPane::Style                       style   = MakeStyle();
+            std::vector<std::vector<DxuiListView::Cell>>  cells;
+            uint32_t                                      tint    = HeatStrip::GetScaleColor (HeatStrip::Kind::Run, 255, palette);
+            int                                           first   = GetOffset (rows[0], 0);
+            int                                           second  = GetOffset (rows[0], 4);
+
+
+
+            heat.read[0x0805]           = 255;
+            heat.statement[0x0809]      = 255;
+            heat.statementCount[0x0809] = 6;
+
+            cells = BasicProgramPane::GetCells (state, rows, {}, style, &heat, &palette);
+
+            const DxuiListView::Cell  & listing = cells[0][BasicProgramPane::kListingColumn];
+
+            Assert::AreEqual ((size_t) 1, listing.backgroundRanges.size(), L"only the statement that ran is tinted");
+            Assert::AreEqual (second, std::get<0> (listing.backgroundRanges[0]), L"the tint starts at the second statement");
+            Assert::AreEqual (tint, std::get<2> (listing.backgroundRanges[0]));
+            Assert::AreNotEqual (DxuiColor::ChooseInkFor (tint, 0xFF101010u, 0xFFF8F8F8u), GetInk (listing, first), L"the first statement isn't in the tint's ink");
+            Assert::IsTrue   (std::get<2> (listing.rangeTips[0]).find (L"hasn't run") != std::wstring::npos, std::get<2> (listing.rangeTips[0]).c_str());
+            Assert::IsTrue   (std::get<2> (listing.rangeTips[1]).find (L"6 times") != std::wstring::npos, std::get<2> (listing.rangeTips[1]).c_str());
+            Assert::AreEqual (tint, cells[0][BasicProgramPane::kHeatColumn].background, L"the Heat cell has the second statement's heat");
+        }
+
         //  A line the pointer is over fades from its tint to its syntax
         //  colors: halfway, the tint is half as opaque and the ink between
         //  the two; all the way, the line is as it is with heat off.

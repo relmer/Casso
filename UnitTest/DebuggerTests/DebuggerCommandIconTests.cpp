@@ -151,5 +151,49 @@ namespace DebuggerCommandIconTests
             Assert::AreEqual (size_t (3), calls.size());
             Assert::AreEqual (size_t (3), CountIn (calls, s_kInk));
         }
+
+
+
+        //  Load file into memory is a two-by-two grid of digits: a 1 at the
+        //  top left and the bottom right in the steps' color, and a 0 at the
+        //  other two corners in the ink.
+        TEST_METHOD (LoadFileIsAGridOfOnesAndZeros)
+        {
+            std::vector<RecordedPaintCall>  calls = Paint (DebuggerCommands::kLoadFile, true);
+            std::vector<RecordedPaintCall>  ones;
+            std::vector<RecordedPaintCall>  zeros;
+
+
+
+            for (const RecordedPaintCall & call : calls)
+            {
+                if (call.kind == RecordedPaintKind::DrawLine)
+                {
+                    ones.push_back (call);
+                }
+                else if (call.kind == RecordedPaintKind::OutlineRoundedRect)
+                {
+                    zeros.push_back (call);
+                }
+            }
+
+            Assert::AreEqual (size_t (4), calls.size(), L"four digits");
+            Assert::AreEqual (size_t (2), ones.size(),  L"two 1s, each a stroke");
+            Assert::AreEqual (size_t (2), zeros.size(), L"two 0s, each an outline");
+
+            for (const RecordedPaintCall & one : ones)
+            {
+                Assert::AreEqual (s_kDarkBlue, one.argb, L"a 1 in the steps' color");
+            }
+
+            for (const RecordedPaintCall & zero : zeros)
+            {
+                Assert::AreEqual (s_kInk, zero.argb, L"a 0 in the ink");
+            }
+
+            Assert::IsTrue (ones[0].x < zeros[0].x && ones[0].y < zeros[1].y, L"the first 1 at the top left");
+            Assert::IsTrue (ones[1].x > zeros[1].x && ones[1].y > zeros[0].y, L"the second 1 at the bottom right");
+            Assert::IsTrue (zeros[0].x > zeros[1].x && zeros[0].y < zeros[1].y, L"a 0 at the top right and one at the bottom left");
+        }
     };
 }
