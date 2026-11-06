@@ -175,6 +175,7 @@ private:
     void                             FollowPc       (const DebuggerViewSnapshot & snapshot);
     void                             Restore        (const DebuggerViewSnapshot & snapshot);
     int                              GetSlotAt      (POINT atDip) const;
+    void                             HoverGutters   (POINT atDip, int dragSlot);
 
     IDebuggerPaneHost                    & m_host;
     std::vector<SourceDocumentPane *>      m_documents;

@@ -280,13 +280,16 @@ bool SourceDocumentPane::TryGetHeatTip (POINT clientPx, DxuiTip & tip) const
 //  SourceDocumentPane::AddContentMenuItems
 //
 //  Copy, with text selected; and on a line with code, Go to disassembly,
-//  which brings the line's address to the middle of the disassembly.
+//  which brings the line's address to the middle of the disassembly, then
+//  the line's breakpoint rows, as the disassembly's row menu has them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
 {
-    std::optional<Word>  address;
+    std::optional<Word>                        address;
+    std::optional<SourcePane::LineBreakpoint>  breakpoint;
+    int                                        line       = 0;
 
 
 
@@ -306,6 +309,31 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
     {
         items.push_back ({ L"Go to disassembly", [this, at = *address] { m_host.GoToCode (at); } });
     }
+
+    if (!m_model->TryGetLineBreakpoint (clientPx, line, breakpoint))
+    {
+        return;
+    }
+
+    items.push_back (PaneMenu::MakeSeparator());
+
+    if (!breakpoint.has_value())
+    {
+        PaneMenu::AddBreakpointRows (items, std::nullopt, [this, line]
+        {
+            std::optional<DebuggerAction>  action = m_model->GetSetBreakpointAction (line, m_host.GetMode());
+
+            if (action.has_value())
+            {
+                m_host.RunAction (*action);
+            }
+        }, nullptr, nullptr);
+        return;
+    }
+
+    PaneMenu::AddBreakpointRows (items, breakpoint->isEnabled, nullptr,
+                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
+                                 [this, id = breakpoint->id] { m_host.RunAction (DebuggerActions::GetClearBreakpoint (id, m_host.GetMode())); });
 }
 
 
@@ -336,7 +364,7 @@ bool SourceDocumentPane::ApplyDocument (const DebuggerViewSnapshot & snapshot, i
 
 
     m_model->SetStyle      ({ m_host.GetPcMarkerArgb(), m_host.GetPcRowArgb(), m_host.GetBreakpointIcon (true), m_host.GetBreakpointIcon (false),
-                              m_host.GetSyntaxColors(), m_host.GetResultArgb(), m_host.GetPcMarker (nullptr) });
+                              m_host.GetSyntaxColors(), m_host.GetResultArgb(), m_host.GetPcMarker (nullptr), m_host.GetHoverBreakpointIcon() });
     m_model->SetFile       (fileId);
     m_model->SetMacroLevel (macroLevel);
     m_model->SetHeat       (m_host.IsCodeHeatOn() ? std::optional<HeatMapView::Palette> (m_host.GetHeatPalette()) : std::nullopt);
@@ -877,7 +905,9 @@ int SourceDocumentGroup::GetSlotAt (POINT atDip) const
 //
 //  A click moves the code pane to the line, a second click on the same
 //  place within the double-click time toggles the line's breakpoint, and a
-//  drag selects text as it does in any text view.
+//  drag selects text as it does in any text view. A press on the glyph
+//  margin sets or clears the line's breakpoint, and the pointer over it
+//  draws the gray breakpoint there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -903,6 +933,11 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         {
             slot = each;
         }
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        HoverGutters (at, slot);
     }
 
     if (slot < 0)
@@ -971,18 +1006,60 @@ bool SourceDocumentGroup::RouteMouse (const DxuiMouseEvent & ev)
         m_clickMs = isDouble ? 0 : now;
         m_clickAt = at;
 
+        m_activeSlot = slot;
+        m_host.FocusControl  (view);
+        m_host.NoteViewFocus (true);
+
+        //  A press on the glyph margin sets or clears a breakpoint, as the
+        //  disassembly's gutter does, and selects nothing.
+        if (document->GetModel().ClickGutter (at))
+        {
+            m_clickMs = 0;
+            return true;
+        }
+
         if (isDouble && !view->IsOverScrollbar (at))
         {
             document->GetModel().OnDoubleClick (at);
         }
-
-        m_activeSlot = slot;
-        m_host.FocusControl  (view);
-        m_host.NoteViewFocus (true);
     }
 
     (void) view->OnMouse (ev);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourceDocumentGroup::HoverGutters
+//
+//  The gray breakpoint is on the line under the pointer in the glyph margin
+//  of the document the pointer is over, and on no other document's line;
+//  on none while a drag in a document is under way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SourceDocumentGroup::HoverGutters (POINT atDip, int dragSlot)
+{
+    constexpr POINT  kNowhere = { -1, -1 };
+    bool             changed  = false;
+
+
+
+    for (SourceDocumentPane * document : m_documents)
+    {
+        bool  isOver = dragSlot < 0 && document->IsShown() && document->GetView()->IsVisible() && m_host.IsRoutable (document->GetView());
+
+        changed = document->GetModel().SetGutterHover (isOver ? atDip : kNowhere) || changed;
+    }
+
+    if (changed)
+    {
+        m_host.Repaint();
+    }
 }
 
 

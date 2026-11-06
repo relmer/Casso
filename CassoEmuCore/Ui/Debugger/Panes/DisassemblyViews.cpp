@@ -481,13 +481,18 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
     items.push_back ({ L"Show next statement", [this] { m_host.ShowPcCode(); } });
     items.push_back (PaneMenu::MakeSeparator());
 
-    items.push_back ({ line.hasBreakpoint ? L"Remove breakpoint" : L"Set breakpoint",
-                       [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); } });
-
-    if (line.hasBreakpoint && breakpoint != snapshot->breakpoints.end())
+    if (line.hasBreakpoint)
     {
-        items.push_back ({ breakpoint->enabled ? L"Disable breakpoint" : L"Enable breakpoint",
-                           [this, id = breakpoint->id, enable = !breakpoint->enabled] { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); } });
+        PaneMenu::AddBreakpointRows (items, line.isEnabled, nullptr,
+                                     (breakpoint == snapshot->breakpoints.end()) ? std::function<void (bool)>()
+                                         : [this, id = breakpoint->id] (bool enable) { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
+                                     [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); });
+    }
+    else if (DisassemblyOptions::CanTakeBreakpoint (line))
+    {
+        PaneMenu::AddBreakpointRows (items, std::nullopt,
+                                     [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); },
+                                     nullptr, nullptr);
     }
 
     items.push_back (PaneMenu::MakeSeparator());

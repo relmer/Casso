@@ -46,7 +46,8 @@ public:
 
     //  How the PC's line and breakpoints are drawn: the disassembly pane's
     //  own marker color, row fill, breakpoint icons and PC arrow, so the two
-    //  panes mark a line alike, in the view's glyph margin. No breakpoint
+    //  panes mark a line alike, in the view's glyph margin, with the gray
+    //  breakpoint on a line with code under the pointer there. No breakpoint
     //  icons draws a bullet in the marker column, and no PC arrow a triangle
     //  there; no syntax colors leaves the text in the view's own color.
     struct Style
@@ -58,8 +59,16 @@ public:
         SourceSyntax::Colors                   syntax;
         uint32_t                               resultArgb   = 0;
         std::shared_ptr<const DxuiIconImage>   pcIcon;
+        std::shared_ptr<const DxuiIconImage>   hoverIcon;
 
         bool operator== (const Style & other) const = default;
+    };
+
+    //  A line's breakpoint: its id and whether it is enabled.
+    struct LineBreakpoint
+    {
+        int   id        = 0;
+        bool  isEnabled = true;
     };
 
     //  What an operand's result is shown after, here and in the disassembly.
@@ -166,6 +175,19 @@ public:
     std::optional<Word>  GetAddressAt  (POINT atDip) const;
     void                 OnDoubleClick (POINT atDip);
 
+    //  The glyph margin, as the disassembly's gutter: the pointer over it
+    //  puts the gray breakpoint on a line with code, true when that line
+    //  changed; and a press on it sets or clears the line's breakpoint,
+    //  true when the press was on the margin.
+    bool  SetGutterHover (POINT atDip);
+    bool  ClickGutter    (POINT atDip);
+
+    //  The line under a point when it has code, and its breakpoint, if it has
+    //  one; false off every line with code. The breakpoint is set, switched
+    //  on or off, or cleared by the actions that follow.
+    bool  TryGetLineBreakpoint (POINT atDip, int & line, std::optional<LineBreakpoint> & breakpoint) const;
+    std::optional<DebuggerAction>  GetSetBreakpointAction (int line, CommandMode mode) const;
+
     //  The tip of the heat strip under a point, and where to put it: by the
     //  start of the strip on its row. False off a strip, or while heat is off.
     bool  TryGetHeatTip (POINT atDip, HeatStrip::Tip & tip, RECT & anchor) const;
@@ -215,7 +237,8 @@ public:
                                                        const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands = {},
                                                        SourceSyntax::Assembler assembler = SourceSyntax::Assembler::Any,
                                                        SourceSyntax::Listing   listing   = SourceSyntax::Listing::None,
-                                                       bool                    isC       = false);
+                                                       bool                    isC       = false,
+                                                       int                     hoverLine = -1);
 
     //  The source line each row shows.
     static std::vector<int>  GetRowLines (const std::vector<DxuiTextView::Row> & rows);
@@ -264,6 +287,7 @@ private:
     void  ScrollTo   (int line);
     std::optional<int>  GetLineAt (POINT atDip) const;
     int   GetRowOfLine (int line) const;
+    bool  HasCode      (int line) const;
     std::string  GetFileName (int fileId) const;
 
     DxuiTextView                                     * m_view    = nullptr;
@@ -304,4 +328,6 @@ private:
     SourceSyntax::Listing                                              m_listing         = SourceSyntax::Listing::None;
     bool                                                               m_isC             = false;
     int                                                                m_rowsFileId      = -2;
+    int                                                                m_hoverLine       = -1;
+    int                                                                m_rowsHover       = -1;
 };

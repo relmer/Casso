@@ -450,7 +450,8 @@ void SourcePane::Rebuild()
     }
 
     isRowsStale = m_rowsFileId != m_fileId || m_rowsLine != marked || m_rowsBreakpoints != breakpoints ||
-                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands || m_rowsHeatLevels != heat;
+                  m_rowsDisabled != disabled || m_isStyleStale || m_rowsLineOperands != m_state->lineOperands || m_rowsHeatLevels != heat ||
+                  m_rowsHover != m_hoverLine;
 
     if (isRowsStale)
     {
@@ -469,7 +470,7 @@ void SourcePane::Rebuild()
             }
         }
 
-        rows = BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC);
+        rows = BuildRows (m_lines, marked, breakpoints, disabled, m_style, lineOperands, GetAssembler(), m_listing, m_isC, m_hoverLine);
 
         if (heat != nullptr)
         {
@@ -491,6 +492,7 @@ void SourcePane::Rebuild()
         m_rowLines         = GetRowLines (m_view->GetRows());
         m_rowsDisabled     = disabled;
         m_rowsLineOperands = m_state->lineOperands;
+        m_rowsHover        = m_hoverLine;
         m_isStyleStale = false;
         m_view->SetTopLine (top);
 
@@ -776,10 +778,164 @@ void SourcePane::OnDoubleClick (POINT atDip)
 
 
     //  The window builds the action at once, in the session's mode.
-    if (line.has_value() && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
+    if (line.has_value() && HasCode (*line) && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
     {
         m_run ([this, file, at = *line] (CommandMode mode) { return *GetToggleAction (*m_state, file, at, mode); });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::HasCode
+//
+//  Whether the debug file's line table maps a line of this file to an
+//  address, which is where a breakpoint can go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::HasCode (int line) const
+{
+    return m_state.has_value() && m_state->lineAddresses != nullptr && m_state->lineAddresses->contains ({ m_fileId, line });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::SetGutterHover
+//
+//  Rows are built again only when the line under the pointer changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::SetGutterHover (POINT atDip)
+{
+    std::optional<int>  line  = m_view->IsInGutter (atDip) ? GetLineAt (atDip) : std::nullopt;
+    int                 hover = (line.has_value() && HasCode (*line)) ? *line : -1;
+
+
+
+    if (hover == m_hoverLine)
+    {
+        return false;
+    }
+
+    m_hoverLine = hover;
+
+    if (m_state.has_value())
+    {
+        Rebuild();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::ClickGutter
+//
+//  A press anywhere on the margin is the margin's, so it doesn't start a
+//  selection in the text; on a line with no code it does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::ClickGutter (POINT atDip)
+{
+    std::optional<int>  line = GetLineAt (atDip);
+    int                 file = m_fileId;
+
+
+
+    if (!m_view->IsInGutter (atDip))
+    {
+        return false;
+    }
+
+    if (line.has_value() && HasCode (*line) && GetToggleAction (*m_state, file, *line, CommandMode::AppleWin).has_value())
+    {
+        m_run ([this, file, at = *line] (CommandMode mode) { return *GetToggleAction (*m_state, file, at, mode); });
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::TryGetLineBreakpoint
+//
+//  A line with an enabled breakpoint and a disabled one reads as the
+//  enabled one, as its glyph does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SourcePane::TryGetLineBreakpoint (POINT atDip, int & line, std::optional<LineBreakpoint> & breakpoint) const
+{
+    std::optional<int>  at = GetLineAt (atDip);
+
+
+
+    breakpoint.reset();
+
+    if (!at.has_value() || !HasCode (*at))
+    {
+        return false;
+    }
+
+    line = *at;
+
+    for (const std::tuple<int, int, int> & each : m_state->breakpointLines)
+    {
+        bool  isEnabled = !m_disabledIds.contains (std::get<2> (each));
+
+        if (std::get<0> (each) == m_fileId && std::get<1> (each) == line && (!breakpoint.has_value() || (isEnabled && !breakpoint->isEnabled)))
+        {
+            breakpoint = LineBreakpoint { std::get<2> (each), isEnabled };
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SourcePane::GetSetBreakpointAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<DebuggerAction> SourcePane::GetSetBreakpointAction (int line, CommandMode mode) const
+{
+    if (!HasCode (line))
+    {
+        return std::nullopt;
+    }
+
+    for (const DebugSourceFile & record : m_state->files)
+    {
+        if (record.id == m_fileId)
+        {
+            return DebuggerActions::GetSourceBreakpoint (record.name, line, mode);
+        }
+    }
+
+    return std::nullopt;
 }
 
 
@@ -1427,7 +1583,8 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
                                                       const std::map<int, std::pair<std::wstring, std::wstring>> & lineOperands,
                                                       SourceSyntax::Assembler assembler,
                                                       SourceSyntax::Listing   listing,
-                                                      bool                    isC)
+                                                      bool                    isC,
+                                                      int                     hoverLine)
 {
     std::vector<DxuiTextView::Row>  rows;
     int                             width       = (int) std::to_wstring (lines.size()).size();
@@ -1459,6 +1616,10 @@ std::vector<DxuiTextView::Row> SourcePane::BuildRows (const std::vector<std::wst
         if (icons && breakpointLines.contains (number))
         {
             row.icon = disabledLines.contains (number) ? style.disabledIcon : style.enabledIcon;
+        }
+        else if (number == hoverLine)
+        {
+            row.icon = style.hoverIcon;
         }
 
         if (isMarked)
