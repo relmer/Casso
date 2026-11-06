@@ -126,6 +126,7 @@ HRESULT KeyframeStore::Import (
     size_t    s          = 0;
     bool      isValid    = IsValidSaved (saved);
     bool      isPlaced   = false;
+    Byte    * arena      = nullptr;
     Entry     entry;
     Branch    branch;
 
@@ -142,9 +143,10 @@ HRESULT KeyframeStore::Import (
     m_settings.budgetBytes = budget;
 
     m_arena = AllocateArena (saved.arena.size());
-    CPRA (m_arena.get());
+    arena   = m_arena.get();
+    CPRA (arena);
 
-    memcpy (m_arena.get(), saved.arena.data(), saved.arena.size());
+    memcpy (arena, saved.arena.data(), saved.arena.size());
 
     m_arenaBytes = saved.arena.size();
 
