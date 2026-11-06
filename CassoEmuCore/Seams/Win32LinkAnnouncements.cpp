@@ -264,6 +264,7 @@ void Win32LinkAnnouncements::Record (LinkAnnouncement announcement, const sockad
 {
     uint32_t                     sender = ntohl (from.sin_addr.s_addr);
     bool                         local  = (sender >> 24) == 127 || std::find (m_local.begin(), m_local.end(), sender) != m_local.end();
+    std::array<Byte, 4>          origin = { (Byte) (sender >> 24), (Byte) (sender >> 16), (Byte) (sender >> 8), (Byte) sender };
     std::lock_guard<std::mutex>  guard (m_lock);
     auto                         known  = std::find_if (m_announced.begin(), m_announced.end(), [&announcement] (const LinkAnnouncement & listed)
     {
@@ -275,6 +276,14 @@ void Win32LinkAnnouncements::Record (LinkAnnouncement announcement, const sockad
     if (local)
     {
         announcement.address = { 127, 0, 0, 1 };
+    }
+
+    //  An emulated card on another PC has an address on that PC's private
+    //  network, which has no route from here. The Apple's address is then the
+    //  PC that sent the announcement, which forwards the port.
+    if (!local && announcement.address != origin)
+    {
+        announcement.address = origin;
     }
 
     if (known == m_announced.end())

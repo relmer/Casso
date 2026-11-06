@@ -745,10 +745,14 @@ rdsend:
         bne rdnext
         jsr showprog
 ; The motor runs on after an operation, so the next track's read does not wait
-; for it to spin up again; Idle, with nothing more to do, stops it.
+; for it to spin up again; Idle, with nothing more to do, stops it. During a
+; Full Send the error row stays clear: an empty drive's check fails with NO
+; SECTOR, and the drive's row has NO READABLE DISK for it.
 opdone: jsr notedisk
+        lda fsmode
+        bne odstatus
         jsr showerr
-        jsr sendstatus
+odstatus: jsr sendstatus
         jmp main
 
 ; notedisk: the drive's NO READABLE DISK, set by an operation that found no
@@ -4166,12 +4170,13 @@ wkclear: jsr fsrow
 
 wkany:  .byte 0                 ; nonzero while a line is typed
 
-; doscreen: the Session screen's rows, its tone, and Ready again.
+; doscreen: the Session screen's rows, its tone, and Ready again. The history
+; stays through a session: the host logs each disk there, and the lines from
+; before it are of use after.
 doscreen: lda PKTBUF
         beq dsstore
         lda fsmode
         bne dsstore
-        jsr fsclear
         lda #0
         sta barpct
         sta barpct+1
@@ -4230,7 +4235,7 @@ fcclear: jsr fsrow
         rts
 
 ; fsleave: back to the standard screen: the session's rows cleared, and the
-; heading, keys and drives drawn.
+; heading, keys and drives drawn. The history is left as it is.
 fsleave: lda #0
         sta fsmode
         sta sbyte
@@ -4245,7 +4250,6 @@ flrow:  ldx sbyte
         lda sbyte
         cmp #FSROWS
         bne flrow
-        jsr fsclear
         jsr fschrome
         jmp showstatus
 

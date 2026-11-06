@@ -1502,7 +1502,7 @@ The product-wide styles are GitHub issue #179.
 - [X] T328 Add the Full Send page to Options, with the folder, default `Casso Full Send` under Downloads, and the format, per FR-107
 - [X] T329 Show WAITING FOR A DISK in the pause, `F: FULL SEND` on the CassoLink screen, and a Full Send heading and `Q: BACK TO CASSOLINK` in a session, per FR-110, FR-115 and FR-116
 - [X] T330 Add a scenario test that presses F, runs a session, presses Q and reads a catalog, per US17/AC9
-- [ ] T326 Walk quickstart section 7c on a real //c with real floppies, per SC-038 and SC-039. Walked 2026-11-05 at 115,200 baud: steps 1, 3 and 5 to 8 pass, and the Full Send image of TEST matched Create image's byte for byte. Open: each disk took 30 to 31 s with swaps, against SC-038's under 30 (T432), and a repeat sent anyway with 2 is saved as a second image whose row doesn't mark it a duplicate (T433)
+- [X] T326 Walk quickstart section 7c on a real //c with real floppies, per SC-038 and SC-039. Walked 2026-11-05 at 115,200 baud: steps 1, 3 and 5 to 8 pass, and the Full Send image of TEST matched Create image's byte for byte. Open: each disk took 30 to 31 s with swaps, against SC-038's under 30 (T432), and a repeat sent anyway with 2 is saved as a second image whose row doesn't mark it a duplicate (T433)
 - [X] T331 Read a whole disk from a real //c over serial into each image format (.dsk, .do, .po, .woz, .nib, .nb2), write each of those images back to a real floppy, and compare the sectors with the source disk, per quickstart section 7b
 
 ## Phase 30: Group by, Search options and menus
@@ -1630,19 +1630,19 @@ Session 2026-11-04. T079 and T082 follow.
 - [X] T430 Leave every link Casso Explorer opens at launch open while it connects, whether or not a window is on it, in `CassoLinkManager::ReleaseIdleConnections`; and in `Program.s`, drop a byte the 6551 can't send within about a second, so an Apple whose PC closed its port draws NO REPLY and then WAITING instead of CONNECTED, and polls its keyboard again. Before this, a Casso Explorer started on another folder closed the link before its first Ready, and nothing read F from the Apple. Confirmed on the real //c on 2026-11-05. Test in `ScenarioTests/CassoLinkSectorTests.cpp`
 - [X] T431 Set a Full Send's operation drive to the drive being read, in `CassoLinkFullSend`, so the status bar's drive number is that drive's, not 1 throughout
 - [ ] T432 Find where a Full Send's 30 to 31 s a disk goes at 115,200 baud, and bring it under SC-038's 30 s
-- [ ] T433 Mark a repeated disk sent anyway with its drive's number as a duplicate of the earlier image in the manifest; settle with the owner whether it is saved as an image too
+- [X] T433 Mark a repeated disk sent anyway with its drive's number as a duplicate of the earlier image in the manifest; settle with the owner whether it is saved as an image too
 - [X] T434 Exclude `manifest.fullsend` from the preview pane
 - [X] T435 Wrap a disk image preview's warning, such as a Pascal directory's overlapping files, in the pane's width
 - [X] T436 Clip a text preview's selection highlight to the preview pane when the text is scrolled sideways
 - [X] T437 While a Full Send waits for a disk, put that in the status bar instead of the last read's percentage
-- [ ] T438 Check that the Apple's duplicate prompt, which points to Casso Explorer for details, has those details somewhere in Casso Explorer
-- [ ] T439 Drop the NO SECTOR lines an empty drive adds to the Apple's history during a Full Send, as the drive's row has NO READABLE DISK
-- [ ] T440 Number the track map under a Full Send's progress bar on the Apple, so a bad track can be identified
-- [ ] T441 Sort a Full Send image's unreadable list by track and sector
-- [ ] T442 Restore the Apple's history after a Full Send, with a line totaling the disks sent, duplicated and bad
+- [X] T438 Check that the Apple's duplicate prompt, which points to Casso Explorer for details, has those details somewhere in Casso Explorer
+- [X] T439 Drop the NO SECTOR lines an empty drive adds to the Apple's history during a Full Send, as the drive's row has NO READABLE DISK
+- [X] T440 Number the track map under a Full Send's progress bar on the Apple, so a bad track can be identified
+- [X] T441 Sort a Full Send image's unreadable list by track and sector
+- [X] T442 Restore the Apple's history after a Full Send, with a line totaling the disks sent, duplicated and bad
 - [X] T443 Correct quickstart 7c: the manifest is `manifest.fullsend`, not `full-send.csv`, and a protected disk's status is `likely-copy-protected`
 - [X] T444 Word a firewall block for the profile that is active and blocked: on a PC whose networks are all private, with a block rule for private and public, the page's text was "this public network" and offered Make this network private, which can't help there. Offer only Allow then. Found 2026-11-05 on the owner's desktop
-- [ ] T445 Make the firewall badge on a connection's tree row easier to see: the small amber triangle over the gray Apple icon is easy to miss at the tree's size
-- [ ] T446 Draw a list row's item checkbox as File Explorer does when item checkboxes are on: an empty box on the row under the pointer, a checked box on a checked row, and a checked box on the row with keyboard focus. Found on the owner's laptop, where every row of a details view had one
-- [ ] T447 Connect to an Apple whose announcement has an address with no route from the PC, such as an emulated Uthernet II's private address (10.0.65.15) behind another PC's Casso: use the announcement's source address, with the port that PC's Casso forwards, or put the host's LAN address and forwarded port in the announcement Casso relays. Found 2026-11-05: the desktop listed the laptop's //e and then stayed on Connecting
-- [ ] T448 Replace a link's message page's context menu, on a page such as Connecting or a failed connection, with Copy alone, which copies the message, in place of the list's View, Sort by and Group by
+- [X] T445 Make the firewall badge on a connection's tree row easier to see: the small amber triangle over the gray Apple icon is easy to miss at the tree's size
+- [X] T446 Draw a list row's item checkbox as File Explorer does when item checkboxes are on: an empty box on the row under the pointer, a checked box on a checked row, and a checked box on the row with keyboard focus. Found on the owner's laptop, where every row of a details view had one
+- [X] T447 Connect to an Apple whose announcement has an address with no route from the PC, such as an emulated Uthernet II's private address (10.0.65.15) behind another PC's Casso: use the announcement's source address, with the port that PC's Casso forwards, or put the host's LAN address and forwarded port in the announcement Casso relays. Found 2026-11-05: the desktop listed the laptop's //e and then stayed on Connecting
+- [X] T448 Replace a link's message page's context menu, on a page such as Connecting or a failed connection, with Copy alone, which copies the message, in place of the list's View, Sort by and Group by

@@ -41,6 +41,10 @@ public:
     RECT  GetListMessageRect () const;
     void  AlignMessage       (bool aboveActions);
 
+    //  Whether the message is in the list's place, and its text.
+    bool                  IsShowingMessage   () const { return m_list != nullptr && !m_list->IsVisible() && m_listMessage != nullptr && m_listMessage->IsVisible(); }
+    const std::wstring  & GetListMessageText () const { return m_listMessage->GetText(); }
+
     //  The columns and views, and the menus.
     ExplorerListColumns                    & GetColumns              () { return m_columns; }
     ExplorerListMenus                      & GetMenus                () { return m_menus; }

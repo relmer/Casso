@@ -917,7 +917,9 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
                                                           ? std::format ("{} {} IN D{}", finished ? "FORMATTED" : "FORMATTING", operation.formatted, operation.drive)
                                                           : std::format ("{} IMAGE {} TO D{}", finished ? "WROTE" : "WRITING", image, operation.drive); break;
         case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} THE DISK IN {}", finished ? "CHECKED" : "CHECKING", drive);        break;
-        case LinkOperationKind::FullSend:        text = finished ? "FULL SEND DONE" : "FULL SEND TO PC";                                    break;
+        case LinkOperationKind::FullSend:        text = !finished                         ? std::string ("FULL SEND TO PC")
+                                                      : operation.fullSendSummary.empty() ? std::string ("FULL SEND DONE")
+                                                                                          : "FULL SEND DONE: " + operation.fullSendSummary; break;
         case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "KRUNCHED" : "KRUNCHING", drive);                 break;
         default:                                 text = "WORKING";                                                                          break;
     }

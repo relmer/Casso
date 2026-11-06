@@ -397,6 +397,18 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     }
 
     m_context.menus.GetMenuCommands().clear();
+
+    //  A link's message page, as Connecting or a failed connection, has Copy
+    //  alone: the message, and no view to arrange.
+    if (background && m_pane.IsShowingMessage() && shown.kind == Location::Kind::Root && shown.path.starts_with (TreeModel::kLinkRootTag))
+    {
+        m_context.menus.AddMenuCommand (items, L"&Copy", [this]() { DxuiClipboard::SetText (m_context.window.GetHwnd(), m_pane.GetListMessageText()); }, L"Ctrl+C");
+        m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.copy");
+
+        DxuiContextMenu::Show (*m_context.window.GetPopupHost(), x, y, std::move (items), [] (bool) {});
+        return;
+    }
+
     m_context.fileOps.AskCassoToDescribe();
 
     //  The background's menu opens on the view's own choices, as Explorer's

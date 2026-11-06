@@ -77,6 +77,7 @@ struct FullSendScreen
 
     //  DUPE OF and an earlier disk's file, cut short to fit a drive's row.
     static std::string   GetDuplicateText (const std::string & file, const char * mark);
+    static std::string & MakeTrackRuler   (std::string & ioMap);
 };
 
 

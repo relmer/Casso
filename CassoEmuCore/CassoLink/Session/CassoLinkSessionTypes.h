@@ -120,8 +120,10 @@ struct LinkOperation
     bool                             blankUnreadable = false;
 
     //  Full Send: set while the Apple waits for a disk and a key, so the
-    //  status bar reads that rather than the last read's percentage.
+    //  status bar reads that rather than the last read's percentage, and once
+    //  it ends, the disks sent, duplicated and bad, for the Apple's history.
     std::atomic<bool>                fullSendWaiting { false };
+    std::string                      fullSendSummary;
 
     //  Write disk for a format: the new volume, as VOL 254 or /NAME, so the
     //  label for a format differs from one for an image written.

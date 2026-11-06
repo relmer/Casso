@@ -1354,11 +1354,12 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                 DxuiListIcons::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
             }
 
-            //  At the icon's lower left, where the broken badge goes, and as
-            //  large.
+            //  At the icon's lower left, where the broken badge goes, and
+            //  three quarters of the icon's size: at half it was easy to miss
+            //  at the tree's row height.
             if (node->iconWarning)
             {
-                float  badgePx = (std::max) (m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip), iconPx * 0.5f);
+                float  badgePx = (std::max) (m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip), iconPx * 0.75f);
                 float  iconTop = rowY + (rowHeight - iconPx) * 0.5f;
 
                 DxuiWarningBadge::Draw (text, textX, iconTop + iconPx - badgePx, badgePx, badgePx, theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());

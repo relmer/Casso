@@ -82,6 +82,31 @@ std::vector<std::string> FullSendScreen::GetRows() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendScreen::MakeTrackRuler
+//
+//  A cell a track: the tens digit at each tenth track, a colon at each fifth
+//  and a dot elsewhere, so a track marked X can be read off the row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string & FullSendScreen::MakeTrackRuler (std::string & ioMap)
+{
+    ioMap.assign (NibblizationLayer::kTrackCount, '.');
+
+    for (size_t track = 0; track < ioMap.size(); track += 5)
+    {
+        ioMap[track] = (track % 10 == 0) ? (char) ('0' + track / 10) : ':';
+    }
+
+    return ioMap;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendScreen::GetDuplicateText
 //
 //  DUPE OF and the earlier disk's file, cut short so it and the mark fit after
@@ -546,7 +571,7 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
     if (repeats[0] && repeats[1])
     {
         lines.push_back ("D1 AND D2 MAY ALREADY HAVE BEEN SENT.");
-        lines.push_back ("CHECK CASSO EXPLORER FOR DETAILS.");
+        lines.push_back ("SEE CASSO EXPLORER'S ACTIVITY LOG.");
         lines.push_back ("PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY.");
     }
     else if (repeats[0] || repeats[1])
@@ -554,7 +579,7 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
         int  drive = repeats[0] ? 1 : 2;
 
         lines.push_back (std::format ("D{} MAY ALREADY HAVE BEEN SENT.", drive));
-        lines.push_back ("CHECK CASSO EXPLORER FOR DETAILS.");
+        lines.push_back ("SEE CASSO EXPLORER'S ACTIVITY LOG.");
         lines.push_back (std::format ("PRESS {} TO SEND D{} ANYWAY.", drive, drive));
     }
 
@@ -805,6 +830,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     std::string                         afterFingerprint;
     std::string                         hash;
     const FullSendRow                 * earlier          = nullptr;
+    const FullSendRow                 * match            = nullptr;
     FullSendRow                         row;
     bool                                hasDisk          = false;
     bool                                whole            = false;
@@ -871,8 +897,10 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     CHR (hr);
 
     //  Every disk read is written; one that matches an earlier image is noted as
-    //  its duplicate, unless it was sent anyway.
-    earlier = anyway ? nullptr : m_manifest.FindImageByHash (hash);
+    //  its duplicate. One sent anyway is a sent disk whose row has the earlier
+    //  image too, so the repeat is in the manifest.
+    match   = m_manifest.FindImageByHash (hash);
+    earlier = anyway ? nullptr : match;
 
     row.sequence    = sequence;
     row.drive       = drive;
@@ -912,14 +940,17 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
             m_link.Report (std::format ("{} is likely copy-protected, so it was read once with no retries. The image may not run. Use a flux tool such as Applesauce for a working copy.", title));
         }
 
+        row.duplicateOf = (match != nullptr) ? match->file : std::string();
+
         m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image));
         m_screen.sent++;
         m_screen.bad += (unreadable.empty() || isProtected) ? 0 : 1;
         m_screen.recovered += (row.recovered != 0 || row.unreliable != 0) ? 1 : 0;
     }
 
-    m_link.Report (!row.duplicateOf.empty() ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
-                                            : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
+    m_link.Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
+                 : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}", sequence, row.file, row.duplicateOf)
+                                               : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
 
     m_manifest.Add (row);
 
@@ -928,16 +959,15 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     if (!unreadable.empty() || !report.marks.empty())
     {
-        std::string  & map = m_screen.maps[(size_t) drive - 1];
-
-        map.assign (NibblizationLayer::kTrackCount, '.');
+        std::string  & map = FullSendScreen::MakeTrackRuler (m_screen.maps[(size_t) drive - 1]);
 
         //  The worst of a track's sectors.
         for (const SectorMark & mark : report.marks)
         {
-            char  & cell = map[(size_t) mark.track];
+            char  & cell  = map[(size_t) mark.track];
+            bool    clear = cell == '.' || cell == ':' || isdigit ((unsigned char) cell);
 
-            cell = (cell == '.' || mark.mark == 'X' || (mark.mark == 'U' && cell == 'R')) ? mark.mark : cell;
+            cell = (clear || mark.mark == 'X' || (mark.mark == 'U' && cell == 'R')) ? mark.mark : cell;
         }
 
         for (const auto & [track, sector] : unreadable)

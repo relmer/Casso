@@ -164,18 +164,22 @@ std::string CassoLinkDiskTransfer::GetUnreadableListPath (const std::string & im
 //  CassoLinkDiskTransfer::FormatUnreadableList
 //
 //  DOS 3.3 sector numbers whatever the image's format, as a .dsk stores its
-//  sectors in that order and the link reads them by it.
+//  sectors in that order and the link reads them by it. The sectors are
+//  listed by track and sector, not in the order of the reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CassoLinkDiskTransfer::FormatUnreadableList (const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks)
 {
-    std::string  text = "# Sectors that could not be read when this image was made, written as zeros.\r\n"
-                        "# Each line is a sector's track and DOS 3.3 sector, in decimal.\r\n";
+    std::string                       text   = "# Sectors that could not be read when this image was made, written as zeros.\r\n"
+                                               "# Each line is a sector's track and DOS 3.3 sector, in decimal.\r\n";
+    std::vector<std::pair<int, int>>  sorted = unreadable;
 
 
 
-    for (const auto & [track, sector] : unreadable)
+    std::sort (sorted.begin(), sorted.end());
+
+    for (const auto & [track, sector] : sorted)
     {
         text += std::format ("{} {}\r\n", track, sector);
     }
