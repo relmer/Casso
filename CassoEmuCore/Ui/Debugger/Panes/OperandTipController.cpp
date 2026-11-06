@@ -232,7 +232,10 @@ void OperandTipController::Check (int view)
         m_screen = GetScreen (m_popupHost);
     }
 
-    m_host.GetTipList (view)->MeasureColumnsPx (*m_text);
+    if (m_host.GetTipList (view) != nullptr)
+    {
+        m_host.GetTipList (view)->MeasureColumnsPx (*m_text);
+    }
 
     isSame = TryMake (view, m_cell.row, m_scaler, *m_text, m_screen, layout, cell) && OperandResultTip::IsSame (layout, m_layout);
 
@@ -416,7 +419,8 @@ bool OperandTipController::TryGet (POINT clientPx, const DxuiDpiScaler & scaler,
 
     isOver     = DxuiDockSite::Contains (cell.area, clientPx);
     isCovered  = m_host.IsTipCovered (view, clientPx, layout.rect, screen);
-    isSelected = IsTextSelectedUnderTip (m_host.GetTipList (view), row, m_host.GetTipColumn (view), layout);
+    isSelected = (m_host.GetTipList (view) != nullptr) ? IsTextSelectedUnderTip (m_host.GetTipList (view), row, m_host.GetTipColumn (view, row), layout)
+                                                       : m_host.GetTipTextView (view)->HasSelection();
     CBR (isOver && !isCovered && !isSelected);
 
     out     = std::move (layout);
@@ -435,6 +439,25 @@ Error:
 //
 //  OperandTipController::TryMake
 //
+//  Over a list's row, or a text view's for a source document.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
+                                    OperandResultTip::Layout & out, OperandTipCell & outCell) const
+{
+    return (m_host.GetTipTextView (view) != nullptr) ? TryMakeOnText (view, row, scaler, text, screen, out, outCell)
+                                                     : TryMakeOnList (view, row, scaler, text, screen, out, outCell);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::TryMakeOnList
+//
 //  The tip over a row's operand and result when the pane cuts them off,
 //  placed as the list draws the cell: where its text starts, the pane's
 //  edges short of its scrollbar, its padding, face and size, and the theme's
@@ -444,17 +467,18 @@ Error:
 //  The tip is within the work area of the monitor where the cell's text
 //  starts, joined by the next monitor's where the cell runs on into it, the
 //  work area the popup host limits the tip's popup to: a tip over a cell
-//  across two monitors covers it on both.
+//  across two monitors covers it on both. A cell that runs on to the row's
+//  end is cut off only at the pane's edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
-                                    OperandResultTip::Layout & out, OperandTipCell & outCell) const
+bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
+                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const
 {
     HRESULT                                   hr        = S_OK;
     const DxuiTheme                         * theme     = m_host.GetTipTheme();
     DxuiListView                            * list      = m_host.GetTipList (view);
-    size_t                                    column    = m_host.GetTipColumn (view);
+    size_t                                    column    = m_host.GetTipColumn (view, row);
     const std::vector<DxuiListView::Cell>   * cells     = nullptr;
     RECT                                      bounds    = {};
     RECT                                      edge      = {};
@@ -475,6 +499,12 @@ bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & sca
     CBR (cellCount > column);
 
     bounds = list->GetBounds();
+
+    if ((*cells)[column].spansRow)
+    {
+        placement.textRect.right = (std::max) (placement.textRect.right, bounds.right - bounds.left);
+    }
+
     OffsetRect (&placement.textRect, bounds.left, bounds.top);
 
     placement.visibleLeft       = bounds.left;
@@ -500,6 +530,84 @@ bool OperandTipController::TryMake (int view, int row, const DxuiDpiScaler & sca
     outCell.view = view;
     outCell.row  = row;
     outCell.area = RECT { (std::max) (placement.textRect.left - (LONG) placement.padLeftPx, bounds.left),
+                          placement.textRect.top,
+                          (std::min) (placement.textRect.right, (LONG) placement.visibleRight),
+                          placement.textRect.bottom };
+
+Error:
+    return isMade;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::TryMakeOnText
+//
+//  The tip over a source line's operand and result when the view cuts them
+//  off at its right edge, placed as the view draws them: where the cell's
+//  text starts, in the view's face at its zoom, in the colors of the cell's
+//  runs, on the line's fill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
+                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const
+{
+    HRESULT                       hr       = S_OK;
+    const DxuiTheme             * theme    = m_host.GetTipTheme();
+    DxuiTextView                * textView = m_host.GetTipTextView (view);
+    size_t                        column   = m_host.GetTipColumn (view, row);
+    const DxuiTextView::Row     * shown    = nullptr;
+    DxuiListView::Cell            cell;
+    RECT                          edge     = {};
+    bool                          isShown  = false;
+    bool                          hasRoom  = false;
+    bool                          isMade   = false;
+    OperandResultTip::Placement   placement;
+
+
+
+    isShown = theme != nullptr && textView != nullptr && textView->IsVisible() && row >= 0 && row < (int) textView->GetRows().size() &&
+              textView->GetRows()[(size_t) row].cells.size() > column && textView->GetCellRectPx (row, (int) column, placement.textRect);
+    CBR (isShown);
+
+    shown     = &textView->GetRows()[(size_t) row];
+    cell.text = shown->cells[column];
+
+    for (const DxuiTextView::Span & span : shown->spans)
+    {
+        if (span.cell == (int) column && span.argb != 0)
+        {
+            cell.colorRanges.emplace_back (span.start, span.start + span.length, span.argb);
+        }
+    }
+
+    placement.visibleLeft       = textView->GetTextAreaLeftPx();
+    placement.visibleRight      = textView->GetTextAreaRightPx();
+    placement.padLeftPx         = scaler.ToPx (kTextPadDip);
+    placement.padRightPx        = scaler.ToPx (kTextPadDip);
+    placement.fontPx            = scaler.ToPxf (theme->MonospaceFont().sizeDip * textView->GetZoom());
+    placement.face              = theme->MonospaceFont().face;
+    placement.contentBackground = theme->TextViewBackground();
+    placement.rowFill           = shown->background;
+    placement.ink               = theme->Foreground();
+    placement.border            = theme->TooltipBorder();
+    placement.dpi               = scaler.GetDpi();
+
+    edge               = RECT { placement.textRect.left, placement.textRect.top, (std::min) (placement.textRect.right, (LONG) placement.visibleRight), placement.textRect.top };
+    placement.workArea = DxuiPopupHost::GetEdgeWorkArea (edge, screen.workAreas);
+    hasRoom            = placement.workArea.right > placement.workArea.left;
+    CBR (hasRoom);
+
+    isMade = OperandResultTip::TryMakeLayout (cell, placement, text, out);
+    CBR (isMade);
+
+    outCell.view = view;
+    outCell.row  = row;
+    outCell.area = RECT { (std::max) (placement.textRect.left - (LONG) placement.padLeftPx, (LONG) placement.visibleLeft),
                           placement.textRect.top,
                           (std::min) (placement.textRect.right, (LONG) placement.visibleRight),
                           placement.textRect.bottom };

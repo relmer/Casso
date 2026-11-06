@@ -60,10 +60,13 @@ public:
     virtual bool                   IsTipBlocked     () const = 0;
     virtual bool                   TryFindTipRow    (POINT clientPx, int & view, int & row) const = 0;
 
-    //  The list and column a view's tip covers: a disassembly view's operand
-    //  and result, or the BASIC program's values.
+    //  The list or text view a view's tip covers, and the column of a row's
+    //  cells: a disassembly row's operand and result, or the cell spanning
+    //  the row that ends it; the BASIC program's values; or a source line's
+    //  operand and result. A view has a list or a text view, not both.
     virtual DxuiListView *         GetTipList       (int view) const = 0;
-    virtual size_t                 GetTipColumn     (int view) const = 0;
+    virtual DxuiTextView *         GetTipTextView   (int view) const = 0;
+    virtual size_t                 GetTipColumn     (int view, int row) const = 0;
     virtual bool                   IsTipCovered     (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const = 0;
 };
 
@@ -75,8 +78,9 @@ public:
 //
 //  OperandTipController
 //
-//  A disassembly row's operand and result that the pane cuts off, or a BASIC
-//  line's values, drawn whole over their cell in a popup: the window the popup is in, whether
+//  A disassembly row's operand and result, or the cell that runs on to the
+//  row's end, that the pane cuts off, a BASIC line's values, or a source
+//  line's operand and result, drawn whole over their cell in a popup: the window the popup is in, whether
 //  the tip is up, its layout, the cell it covers, and the renderer, scale
 //  and screen it was laid out with, which new rows and layouts are checked
 //  against. A window with no HWND, as a test builds it, measures with the
@@ -150,8 +154,16 @@ private:
     void                 Show           ();
     bool                 TryMake        (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
                                          OperandResultTip::Layout & out, OperandTipCell & outCell) const;
+    bool                 TryMakeOnList  (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
+                                         OperandResultTip::Layout & out, OperandTipCell & outCell) const;
+    bool                 TryMakeOnText  (int view, int row, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen,
+                                         OperandResultTip::Layout & out, OperandTipCell & outCell) const;
     uint32_t             GetRowFill     (const DxuiListView * list, int row) const;
     OperandTipScreen     GetScreen      (const DxuiHwndSource * host) const;
+
+    //  The room either side of a text view's text under the tip, as a dense
+    //  list pads a cell.
+    static constexpr int kTextPadDip = 4;
 
     static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout);
     static BOOL CALLBACK CollectWindowOver      (HWND hwnd, LPARAM param);

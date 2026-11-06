@@ -7,6 +7,8 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyCells.h"
+#include "Ui/Debugger/OperandResultTip.h"
+#include "Ui/Debugger/Panes/OperandTipController.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 
@@ -93,6 +95,9 @@ namespace SourceDocumentInputTests
         using DebuggerWindow::GetFocused;
         using DebuggerWindow::GetCursorForPoint;
         using DebuggerWindow::GetCodeList;
+        using DebuggerWindow::GetOperandTips;
+        using DebuggerWindow::OperandTipCell;
+        using DebuggerWindow::OperandTipScreen;
     };
 
 
@@ -516,6 +521,53 @@ namespace SourceDocumentInputTests
 
             Key (window, VK_PRIOR, true);
             Assert::AreEqual (0, list->GetSelectedRow(), L"Ctrl+Page Up: the top row");
+        }
+
+
+        //  A source line's operand and result that the view cuts off at its
+        //  right edge are laid over their cell whole, as a disassembly row's
+        //  are: the tip's text starts where the cell's does. A short one that
+        //  fits has no tip.
+        TEST_METHOD (ACutOffSourceOperandHasTheTipOverIt)
+        {
+            CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost                         host;
+            SourceWindow                       window   (theme, host);
+            MockDxuiTextRenderer               text;
+            DxuiDpiScaler                      scaler;
+            auto                               snapshot = MakeSnapshot();
+            std::string                        operand;
+            DxuiTextView                     * view     = nullptr;
+            RECT                               cell     = {};
+            OperandResultTip::Layout           layout;
+            SourceWindow::OperandTipCell       tipCell;
+            SourceWindow::OperandTipScreen     screen;
+
+
+
+            for (int i = 0; i < 40; i++)
+            {
+                operand += "A=00 X=01 ";
+            }
+
+            snapshot->source->lineOperands = std::make_shared<const DebuggerViewSnapshot::LineOperands> (
+                                                 DebuggerViewSnapshot::LineOperands { { { 0, 2 }, { operand, "A=41" } }, { { 0, 3 }, { "S=FD", "" } } });
+
+            scaler.SetDpi (96);
+            screen.workAreas.push_back (RECT { 0, 0, 4000, 3000 });
+            view = OpenDocument (window, snapshot);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
+
+            Assert::IsTrue   (view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell), L"LDA's operand is in view");
+            Assert::IsTrue   (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
+                              L"the view cuts the long operand off");
+            Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell], layout.text);
+            Assert::AreEqual (cell.left, layout.textOrigin.x, L"the tip's text starts at the cell's");
+            Assert::IsTrue   (layout.lines.size() > 1, L"and wraps in the view's width");
+
+            Assert::IsTrue   (view->GetCellRectPx (2, SourcePane::kAnnotationCell, cell));
+            Assert::IsFalse  (window.GetOperandTips().TryGet (POINT { cell.left + 1, (cell.top + cell.bottom) / 2 }, scaler, text, screen, layout, tipCell),
+                              L"a short operand fits");
         }
     };
 }

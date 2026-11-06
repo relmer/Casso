@@ -32,6 +32,7 @@
 #include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/FindWidgets.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
@@ -194,7 +195,10 @@ int DebuggerWindow::FindOperandTipView (POINT clientPx) const
 //
 //  DebuggerWindow::TryFindOperandTipRow
 //
-//  The disassembly view and row whose operand and result lie under a point.
+//  The view and row whose cut-off text at the right edge lies under a
+//  point: a disassembly row's operand and result, or the cell spanning the
+//  row that ends it, from that cell's column to the row's end; the BASIC
+//  program's values; or a source line's operand and result.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,32 +207,95 @@ bool DebuggerWindow::TryFindOperandTipRow (
     int    & view,
     int    & row) const
 {
-    HRESULT          hr     = S_OK;
-    DxuiListView   * list   = nullptr;
-    DxuiListView   * basic  = (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
-    RECT             bounds = {};
-    bool             isOver = false;
+    HRESULT          hr       = S_OK;
+    DxuiListView   * list     = nullptr;
+    DxuiListView   * basic    = (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
+    RECT             bounds   = {};
+    bool             isOver   = false;
+    int              column   = -1;
+    size_t           tip      = 0;
+    bool             isSpan   = false;
 
 
 
     view = FindOperandTipView (clientPx);
     row  = -1;
 
-    //  Off the disassembly, the BASIC program's values.
+    //  Off the disassembly, the BASIC program's values, then the source
+    //  documents.
     if (view < 0 && basic != nullptr && IsRoutable (basic) && basic->IsVisible() && DxuiDockSite::Contains (basic->GetBounds(), clientPx))
     {
         view = kBasicTipView;
     }
 
+    if (view < 0)
+    {
+        isOver = TryFindSourceTipRow (clientPx, view, row);
+    }
+
+    //  A source document's view has a text view, not a list.
     list = (view >= 0) ? GetTipList (view) : nullptr;
     CBR (list != nullptr);
 
     bounds = list->GetBounds();
     row    = list->HitTestRow (clientPx.x - bounds.left, clientPx.y - bounds.top);
-    isOver = row >= 0 && GetColumnAt (list, clientPx.x - bounds.left) == (int) GetTipColumn (view);
+    CBR (row >= 0);
+
+    column = GetColumnAt (list, clientPx.x - bounds.left);
+    tip    = GetTipColumn (view, row);
+    isSpan = tip < list->GetCellsOfRow (row).size() && list->GetCellsOfRow (row)[tip].spansRow;
+    isOver = column == (int) tip || (isSpan && column > (int) tip);
 
 Error:
     return isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryFindSourceTipRow
+//
+//  The line of a source document in front whose operand and result lie
+//  under a point.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryFindSourceTipRow (
+    POINT    clientPx,
+    int    & view,
+    int    & row) const
+{
+    RECT  cell = {};
+
+
+
+    for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+    {
+        const SourceDocumentPane  & document = m_sources->GetDocument (slot);
+        DxuiTextView              * text     = document.GetView();
+        int                         at       = -1;
+
+        if (!document.IsShown() || !text->IsVisible() || !IsRoutable (text) || !DxuiDockSite::Contains (text->GetBounds(), clientPx))
+        {
+            continue;
+        }
+
+        at = text->HitTest (clientPx).row;
+
+        if (at >= 0 && at < (int) text->GetRows().size() && text->GetRows()[(size_t) at].cells.size() > (size_t) SourcePane::kAnnotationCell &&
+            !text->GetRows()[(size_t) at].cells[(size_t) SourcePane::kAnnotationCell].empty() &&
+            text->GetCellRectPx (at, SourcePane::kAnnotationCell, cell) && DxuiDockSite::Contains (cell, clientPx))
+        {
+            view = kSourceTipView + slot;
+            row  = at;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -248,7 +315,26 @@ DxuiListView * DebuggerWindow::GetTipList (int view) const
         return (m_basicProgram != nullptr) ? m_basicProgram->GetList() : nullptr;
     }
 
-    return m_code->GetCodeList (view);
+    return (view < kBasicTipView) ? m_code->GetCodeList (view) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTipTextView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextView * DebuggerWindow::GetTipTextView (int view) const
+{
+    int  slot = view - kSourceTipView;
+
+
+
+    return (slot >= 0 && slot < SourceDocuments::kMaxDocuments) ? m_sources->GetDocument (slot).GetView() : nullptr;
 }
 
 
@@ -259,11 +345,58 @@ DxuiListView * DebuggerWindow::GetTipList (int view) const
 //
 //  DebuggerWindow::GetTipColumn
 //
+//
+//  A disassembly row's text at the right edge is in its operand and result,
+//  unless a cell ahead of them runs on to the row's end, as a data line's or
+//  a source line's does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t DebuggerWindow::GetTipColumn (int view) const
+size_t DebuggerWindow::GetTipColumn (int view, int row) const
 {
-    return (view == kBasicTipView) ? BasicProgramPane::kValuesColumn : (size_t) kCodeOperandColumn;
+    DxuiListView  * list = (view < kBasicTipView) ? m_code->GetCodeList (view) : nullptr;
+
+
+
+    if (view == kBasicTipView)
+    {
+        return BasicProgramPane::kValuesColumn;
+    }
+
+    if (view >= kSourceTipView)
+    {
+        return (size_t) SourcePane::kAnnotationCell;
+    }
+
+    for (size_t c = 0; list != nullptr && row >= 0 && row < list->GetRowCount() && c < list->GetCellsOfRow (row).size() && c < kCodeOperandColumn; c++)
+    {
+        if (list->IsColumnVisible (c) && list->GetCellsOfRow (row)[c].spansRow)
+        {
+            return c;
+        }
+    }
+
+    return kCodeOperandColumn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetTipPaneId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetTipPaneId (int view) const
+{
+    if (view >= kSourceTipView)
+    {
+        return DebuggerLayout::GetSourcePaneId (view - kSourceTipView);
+    }
+
+    return (view == kBasicTipView) ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (view);
 }
 
 
@@ -300,7 +433,7 @@ bool DebuggerWindow::IsOperandTipCovered (
     isCovered = isMain && m_zoomOpen && Meets (m_zoomRect, clientPx, tipRect);
 
     isCovered = isCovered || (isMain && m_dockSite != nullptr && !m_dockSite->GetSlidPane().empty() &&
-                              m_dockSite->GetSlidPane() != (view == kBasicTipView ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (view)) &&
+                              m_dockSite->GetSlidPane() != GetTipPaneId (view) &&
                               Meets (m_dockSite->GetSlidRect(), clientPx, tipRect));
 
     isCovered = isCovered || (m_colorKeys->TryGetPinnedRect (pinned) && Meets (pinned, clientPx, tipRect));
