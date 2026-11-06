@@ -419,7 +419,7 @@ bool OperandTipController::TryGet (POINT clientPx, const DxuiDpiScaler & scaler,
 
     isOver     = DxuiDockSite::Contains (cell.area, clientPx);
     isCovered  = m_host.IsTipCovered (view, clientPx, layout.rect, screen);
-    isSelected = (m_host.GetTipList (view) != nullptr) ? IsTextSelectedUnderTip (m_host.GetTipList (view), row, m_host.GetTipColumn (view, row), layout)
+    isSelected = (m_host.GetTipList (view) != nullptr) ? IsTextSelectedUnderTip (m_host.GetTipList (view), row, m_host.GetTipColumn (view, row), layout, cell)
                                                        : m_host.GetTipTextView (view)->HasSelection();
     CBR (isOver && !isCovered && !isSelected);
 
@@ -484,6 +484,7 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     RECT                                      edge      = {};
     size_t                                    cellCount = 0;
     bool                                      isShown   = false;
+    bool                                      isHidden  = false;
     bool                                      hasRoom   = false;
     bool                                      isMade    = false;
     OperandResultTip::Placement               placement;
@@ -518,7 +519,8 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
     placement.ink               = theme->Foreground();
     placement.dpi               = scaler.GetDpi();
 
-    edge               = RECT { placement.textRect.left, placement.textRect.top, (std::min) (placement.textRect.right, (LONG) placement.visibleRight), placement.textRect.top };
+    isHidden           = OperandResultTip::IsCellHidden ((*cells)[column], placement, text);
+    edge               = GetTipEdge (placement, isHidden);
     placement.workArea = DxuiPopupHost::GetEdgeWorkArea (edge, screen.workAreas);
     hasRoom            = placement.workArea.right > placement.workArea.left;
     CBR (hasRoom);
@@ -528,10 +530,7 @@ bool OperandTipController::TryMakeOnList (int view, int row, const DxuiDpiScaler
 
     outCell.view = view;
     outCell.row  = row;
-    outCell.area = RECT { (std::max) (placement.textRect.left - (LONG) placement.padLeftPx, bounds.left),
-                          placement.textRect.top,
-                          (std::min) (placement.textRect.right, (LONG) placement.visibleRight),
-                          placement.textRect.bottom };
+    outCell.area = GetTipArea (placement, isHidden);
 
 Error:
     return isMade;
@@ -563,6 +562,7 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
     DxuiListView::Cell            cell;
     RECT                          edge     = {};
     bool                          isShown  = false;
+    bool                          isHidden = false;
     bool                          hasRoom  = false;
     bool                          isMade   = false;
     OperandResultTip::Placement   placement;
@@ -595,7 +595,8 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
     placement.ink               = theme->Foreground();
     placement.dpi               = scaler.GetDpi();
 
-    edge               = RECT { placement.textRect.left, placement.textRect.top, (std::min) (placement.textRect.right, (LONG) placement.visibleRight), placement.textRect.top };
+    isHidden           = OperandResultTip::IsCellHidden (cell, placement, text);
+    edge               = GetTipEdge (placement, isHidden);
     placement.workArea = DxuiPopupHost::GetEdgeWorkArea (edge, screen.workAreas);
     hasRoom            = placement.workArea.right > placement.workArea.left;
     CBR (hasRoom);
@@ -605,13 +606,69 @@ bool OperandTipController::TryMakeOnText (int view, int row, const DxuiDpiScaler
 
     outCell.view = view;
     outCell.row  = row;
-    outCell.area = RECT { (std::max) (placement.textRect.left - (LONG) placement.padLeftPx, (LONG) placement.visibleLeft),
-                          placement.textRect.top,
-                          (std::min) (placement.textRect.right, (LONG) placement.visibleRight),
-                          placement.textRect.bottom };
+    outCell.area = GetTipArea (placement, isHidden);
 
 Error:
     return isMade;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::GetTipEdge
+//
+//  The top edge of the part of the cell in view. The tip lies within the
+//  work areas of the monitors this edge crosses. For a cell wholly outside
+//  the pane the edge spans the pane, since the tip lies below the row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT OperandTipController::GetTipEdge (const OperandResultTip::Placement & placement, bool isHidden)
+{
+    LONG  top = placement.textRect.top;
+
+
+
+    if (isHidden)
+    {
+        return RECT { (LONG) placement.visibleLeft, top, (LONG) placement.visibleRight, top };
+    }
+
+    return RECT { placement.textRect.left, top, (std::min) (placement.textRect.right, (LONG) placement.visibleRight), top };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandTipController::GetTipArea
+//
+//  Where the pointer has to be for the tip to come up: the part of the cell
+//  in view, or the whole row in view for a cell wholly outside the pane.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT OperandTipController::GetTipArea (const OperandResultTip::Placement & placement, bool isHidden)
+{
+    RECT  area = { (std::max) (placement.textRect.left - (LONG) placement.padLeftPx, (LONG) placement.visibleLeft),
+                   placement.textRect.top,
+                   (std::min) (placement.textRect.right, (LONG) placement.visibleRight),
+                   placement.textRect.bottom };
+
+
+
+    if (isHidden)
+    {
+        area.left  = placement.visibleLeft;
+        area.right = placement.visibleRight;
+    }
+
+    return area;
 }
 
 
@@ -626,14 +683,18 @@ Error:
 //  over, below it or, by the outline's pixel, above it. The list fills a
 //  selection the full height of its row.
 //
+//  A tip for a cell wholly outside the pane starts below the row and covers
+//  every row it lies over in full.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout)
+bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout,
+                                                   const OperandTipCell & cell)
 {
     int     height     = (std::max) (layout.lineHeight, 1);
-    int     rowsAbove  = (layout.textOrigin.y - layout.rect.top + height - 1) / height;
-    int     rowsBelow  = (layout.rect.bottom - layout.textOrigin.y + height - 1) / height;
-    bool    isShaped   = OperandResultTip::IsShaped (layout);
+    int     rowsAbove  = (cell.area.top - layout.rect.top + height - 1) / height;
+    int     rowsBelow  = (layout.rect.bottom - cell.area.top + height - 1) / height;
+    bool    isShaped   = OperandResultTip::IsShaped (layout) || layout.textOrigin.y >= cell.area.bottom;
     size_t  columns    = list->GetColumnCount();
     bool    isSelected = false;
 

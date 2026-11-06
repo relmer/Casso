@@ -243,6 +243,8 @@ int DebuggerWindow::FindOperandTipView (POINT clientPx) const
 //  row that ends it, from that cell's column to the row's end; the BASIC
 //  program's values; or a source line's operand and result.
 //
+//  Where that cell starts out of view, a point anywhere along its row counts.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::TryFindOperandTipRow (
@@ -287,7 +289,7 @@ bool DebuggerWindow::TryFindOperandTipRow (
     column = GetColumnAt (list, clientPx.x - bounds.left);
     tip    = GetTipColumn (view, row);
     isSpan = tip < list->GetCellsOfRow (row).size() && list->GetCellsOfRow (row)[tip].spansRow;
-    isOver = column == (int) tip || (isSpan && column > (int) tip);
+    isOver = column == (int) tip || (isSpan && column > (int) tip) || IsTipCellOutOfView (list, row, tip);
 
 Error:
     return isOver;
@@ -303,6 +305,9 @@ Error:
 //
 //  The line of a source document in front whose operand and result lie
 //  under a point.
+//
+//  Where the operand and result start out of view, a point anywhere along
+//  the line counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,7 +335,8 @@ bool DebuggerWindow::TryFindSourceTipRow (
 
         if (at >= 0 && at < (int) text->GetRows().size() && text->GetRows()[(size_t) at].cells.size() > (size_t) SourcePane::kAnnotationCell &&
             !text->GetRows()[(size_t) at].cells[(size_t) SourcePane::kAnnotationCell].empty() &&
-            text->GetCellRectPx (at, SourcePane::kAnnotationCell, cell) && DxuiDockSite::Contains (cell, clientPx))
+            text->GetCellRectPx (at, SourcePane::kAnnotationCell, cell) &&
+            (DxuiDockSite::Contains (cell, clientPx) || cell.left >= text->GetTextAreaRightPx() || cell.left < text->GetTextAreaLeftPx()))
         {
             view = kSourceTipView + slot;
             row  = at;
@@ -339,6 +345,35 @@ bool DebuggerWindow::TryFindSourceTipRow (
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsTipCellOutOfView
+//
+//  Whether a row's cell starts out of the list's view. A point anywhere on
+//  such a row is then tested for the operand tip: a cell wholly out of view
+//  has its text laid below the row, and a cell partly in view has no tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsTipCellOutOfView (
+    const DxuiListView  * list,
+    int                   row,
+    size_t                column)
+{
+    RECT  bounds  = list->GetBounds();
+    RECT  cell    = {};
+    int   visible = (int) (bounds.right - bounds.left) - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0);
+    bool  isShown = list->GetCellTextRectPx (row, column, cell);
+
+
+
+    return isShown && (cell.left >= visible || cell.right <= 0);
 }
 
 

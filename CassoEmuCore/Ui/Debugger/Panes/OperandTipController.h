@@ -165,7 +165,10 @@ private:
     //  list pads a cell.
     static constexpr int kTextPadDip = 4;
 
-    static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout);
+    static bool          IsTextSelectedUnderTip (const DxuiListView * list, int row, size_t column, const OperandResultTip::Layout & layout,
+                                                 const OperandTipCell & cell);
+    static RECT          GetTipEdge             (const OperandResultTip::Placement & placement, bool isHidden);
+    static RECT          GetTipArea             (const OperandResultTip::Placement & placement, bool isHidden);
     static BOOL CALLBACK CollectWindowOver      (HWND hwnd, LPARAM param);
 
     IOperandTipHost           & m_host;

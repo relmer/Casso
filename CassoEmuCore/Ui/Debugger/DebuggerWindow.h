@@ -646,6 +646,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
                                                 { return IsOperandTipCovered (view, clientPx, tipRect, screen); }
     int                    FindOperandTipView   (POINT clientPx) const;
     bool                   TryFindOperandTipRow (POINT clientPx, int & view, int & row) const;
+    static bool            IsTipCellOutOfView   (const DxuiListView * list, int row, size_t column);
     bool                   TryFindSourceTipRow  (POINT clientPx, int & view, int & row) const;
     bool                   IsOperandTipCovered  (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const;
     std::wstring           GetTipPaneId         (int view) const;

@@ -389,6 +389,89 @@ namespace OperandResultTipTests
         }
 
 
+        //  A cell that starts past the pane's right edge has every line of
+        //  its tip below its row, the operand's and then the result's, from
+        //  the pane's left edge.
+        TEST_METHOD (ACellPastThePanesRightEdgeHasItsTipBelowTheRow)
+        {
+            constexpr int                kPaneLeft  = 20;
+            constexpr int                kPaneRight = 600;
+
+            DxuiListView::Cell           cell      = MakeCell ("A=00 X=01 $1234=41", "A=41");
+            OperandResultTip::Placement  placement = MakePlacement (kPaneRight);
+            MockDxuiTextRenderer         text;
+            OperandResultTip::Layout     layout;
+
+
+
+            placement.visibleLeft     = kPaneLeft;
+            placement.textRect.left   = kPaneRight + kPadPx;
+            placement.textRect.right  = kColumnRight;
+
+            Assert::IsTrue   (OperandResultTip::IsCellHidden (cell, placement, text), L"the cell is wholly past the pane");
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (cell, placement, text, layout), L"a hidden cell has a tip");
+
+            Assert::AreEqual ((LONG) (kPaneLeft + kPadPx),     layout.textOrigin.x, L"the text starts at the pane's left edge");
+            Assert::AreEqual ((LONG) (kRowTop + kRowHeight),   layout.textOrigin.y, L"on the line below the row");
+            Assert::AreEqual ((LONG) kPaneLeft,                layout.rect.left);
+            Assert::AreEqual ((LONG) kPaneLeft,                (LONG) layout.firstLeft, L"no line of it is laid over the row");
+            Assert::IsFalse  (OperandResultTip::IsShaped (layout));
+            Assert::IsTrue   (layout.rect.right >= kPaneRight, L"the tip spans the pane");
+
+            Assert::AreEqual ((size_t) 2,                           layout.lines.size());
+            Assert::AreEqual (std::wstring (L"A=00 X=01 $1234=41"), GetLineText (layout, 0));
+            Assert::AreEqual (std::wstring (L"Result: A=41"),       GetLineText (layout, 1));
+            Assert::AreEqual ((LONG) (kRowTop + 3 * kRowHeight + OperandResultTip::kBorderPx), layout.rect.bottom, L"two lines below the row");
+        }
+
+
+        //  A cell scrolled so far left that its text ends before the pane's
+        //  left edge has its tip below its row too.
+        TEST_METHOD (ACellScrolledLeftOfThePaneHasItsTipBelowTheRow)
+        {
+            constexpr int                kPaneLeft = 300;
+
+            DxuiListView::Cell           cell      = MakeCell ("A=00 X=01", "A=41");
+            OperandResultTip::Placement  placement = MakePlacement (GetEdgeFor (30) + kPaneLeft);
+            MockDxuiTextRenderer         text;
+            OperandResultTip::Layout     layout;
+
+
+
+            placement.visibleLeft = kPaneLeft;
+
+            Assert::IsTrue   (OperandResultTip::IsCellHidden (cell, placement, text), L"the text ends left of the pane");
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (cell, placement, text, layout));
+            Assert::AreEqual ((LONG) (kPaneLeft + kPadPx),   layout.textOrigin.x);
+            Assert::AreEqual ((LONG) (kRowTop + kRowHeight), layout.textOrigin.y);
+            Assert::AreEqual ((size_t) 2,                    layout.lines.size());
+        }
+
+
+        //  A cut-off cell whose start is in view has its first line over the
+        //  cell; a cell whose start alone is out of sight has no tip.
+        TEST_METHOD (ACellPartlyInViewIsNotHidden)
+        {
+            DxuiListView::Cell           cell    = MakeCell ("A=00 X=01 $1234=41", "A=41");
+            OperandResultTip::Placement  visible = MakePlacement (GetEdgeFor (10));
+            OperandResultTip::Placement  start   = MakePlacement (GetEdgeFor (10));
+            MockDxuiTextRenderer         text;
+            OperandResultTip::Layout     layout;
+
+
+
+            start.visibleLeft = kTextLeft + kGlyphPx;
+
+            Assert::IsFalse  (OperandResultTip::IsCellHidden (cell, visible, text));
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (cell, visible, text, layout));
+            Assert::AreEqual ((LONG) kTextLeft, layout.textOrigin.x, L"the first line is over the cell");
+            Assert::AreEqual ((LONG) kRowTop,   layout.textOrigin.y);
+
+            Assert::IsFalse  (OperandResultTip::IsCellHidden (cell, start, text));
+            Assert::IsFalse  (OperandResultTip::TryMakeLayout (cell, start, text, layout), L"a start scrolled out of sight");
+        }
+
+
         //  A tip of one line is the cell's rectangle, as it was.
         TEST_METHOD (AOneLineTipStaysARectangle)
         {
@@ -761,6 +844,60 @@ namespace OperandResultTipTests
 
             Assert::IsFalse (window.GetOperandTips().TryGet (GetOperandPoint (window, 1), scaler, text, MakeScreen(), layout, tipCell),
                              L"a short operand fits");
+        }
+
+
+        //  With the columns ahead of it widened past the pane's right edge,
+        //  the operand and result are wholly out of view. With the pointer
+        //  anywhere on the row, the tip is up below it, and it stays up as
+        //  the pointer moves down into it.
+        TEST_METHOD (AnOperandPastThePanesEdgeShowsBelowItsRowFromAnywhereOnIt)
+        {
+            CassoTheme                 theme   = CassoTheme::MakeSkeuomorphic();
+            TipHost                    host;
+            TipWindow                  window (theme, host);
+            MockDxuiTextRenderer       text;
+            MockDxuiPainter            painter;
+            DxuiListView             * list    = nullptr;
+            RECT                       bounds  = {};
+            RECT                       cell    = {};
+            RECT                       address = {};
+            int                        right   = 0;
+            POINT                      at      = {};
+
+
+
+            Build (window, theme, text);
+
+            list = window.GetCodeList (0);
+            list->SetColumnOverrideWidthPx (DisassemblyCells::kInstructionColumn, kWindowWidth * 2);
+            list->Paint (painter, text, theme);
+
+            bounds = list->GetBounds();
+            right  = bounds.right - (list->IsScrollbarVisible() ? list->GetScrollbarWidthPx() : 0);
+
+            Assert::IsTrue (list->GetCellTextRectPx (kLastRow, DisassemblyCells::kOperandColumn, cell));
+            Assert::IsTrue (bounds.left + cell.left >= right, L"the operand starts past the pane's right edge");
+            Assert::IsTrue (list->GetCellTextRectPx (kLastRow, DisassemblyCells::kAddressColumn, address));
+
+            at = POINT { bounds.left + (address.left + address.right) / 2, bounds.top + (address.top + address.bottom) / 2 };
+            Send (window, DxuiMouseEventKind::Move, at);
+
+            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"no tip after a move onto the row's address");
+            Assert::AreEqual (kLastRow, window.GetOperandTips().GetCell().row);
+            Assert::AreEqual (bounds.left, window.GetOperandTips().GetCell().area.left,  L"the whole row in view is the tip's");
+            Assert::AreEqual ((LONG) right, window.GetOperandTips().GetCell().area.right);
+            Assert::AreEqual (bounds.top + cell.bottom, window.GetOperandTips().GetLayout().textOrigin.y, L"its text is below the row");
+            Assert::AreEqual (bounds.left, window.GetOperandTips().GetLayout().rect.left, L"from the pane's left edge");
+            Assert::IsTrue   (window.GetOperandTips().GetLayout().lines.size() > 1, L"wrapped in the pane's width");
+
+            //  Below the last row, so no other row's tip is under the pointer.
+            Send (window, DxuiMouseEventKind::Move, POINT { at.x, window.GetOperandTips().GetLayout().rect.bottom - 2 });
+            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"the tip went down as the pointer moved into it");
+            Assert::AreEqual (kLastRow, window.GetOperandTips().GetCell().row);
+
+            Send (window, DxuiMouseEventKind::Move, POINT { bounds.left + 1, bounds.bottom + kGapPx });
+            Assert::IsFalse  (window.GetOperandTips().HasTip(), L"the tip is up with the pointer off the pane");
         }
 
 
@@ -1649,6 +1786,7 @@ namespace OperandResultTipTests
         static constexpr int  kOverSizePx       = 200;
         static constexpr int  kSplitIntoTextPx  = 60;
         static constexpr int  kGapPx            = 20;
+        static constexpr int  kLastRow          = 2;
     };
 
 

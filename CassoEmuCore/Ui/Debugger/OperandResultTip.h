@@ -82,7 +82,12 @@ public:
     //  False where the cell's text fits where the list draws it, and where
     //  there is no text, its start is out of sight or off the screen, it
     //  cannot be measured, or it does not fit on the screen below its row.
+    //  A cell wholly outside the pane has all its lines below its row.
     static bool  TryMakeLayout (const DxuiListView::Cell & cell, const Placement & placement, IDxuiTextRenderer & text, Layout & out);
+
+    //  Whether the cell's text lies wholly outside the pane: starting past its
+    //  right edge, or ending left of its left edge.
+    static bool  IsCellHidden  (const DxuiListView::Cell & cell, const Placement & placement, IDxuiTextRenderer & text);
 
     //  Whether two layouts draw the same thing in the same place.
     static bool  IsSame        (const Layout & a, const Layout & b);

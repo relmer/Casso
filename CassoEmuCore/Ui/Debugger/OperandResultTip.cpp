@@ -23,6 +23,10 @@
 //  cell: a popup kept on the screen by being moved would no longer line its
 //  text up with the cell's.
 //
+//  A cell wholly outside the pane has no text in view to lay the first line
+//  over, so every line, the operand's and then the result's, lies below the
+//  row, from the pane's left edge, wrapped in the pane's width.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool OperandResultTip::TryMakeLayout (
@@ -36,6 +40,7 @@ bool OperandResultTip::TryMakeLayout (
     bool     isMade     = false;
     bool     hasText    = !cell.text.empty();
     bool     isUsable   = false;
+    bool     isHidden   = false;
     bool     isOnScreen = false;
     bool     doesFit    = false;
     int      textLeft   = (int) placement.textRect.left;
@@ -51,9 +56,18 @@ bool OperandResultTip::TryMakeLayout (
     isUsable = hasText && placement.fontPx > 0.0f && placement.face != nullptr && rowHeight > 0;
     CBR (isUsable);
 
+    isHidden = IsCellHidden (cell, placement, text);
+
+    if (isHidden)
+    {
+        textLeft  = (std::max) (placement.visibleLeft, (int) placement.workArea.left) + placement.padLeftPx;
+        rowTop   += rowHeight;
+        cellRight = placement.visibleRight;
+    }
+
     //  A start scrolled out of sight, or off the screen, leaves nothing to
     //  lay the tip over.
-    isOnScreen = textLeft >= placement.visibleLeft && textLeft < shownRight &&
+    isOnScreen = (isHidden || (textLeft >= placement.visibleLeft && textLeft < shownRight)) &&
                  textLeft >= placement.workArea.left && textLeft + placement.padRightPx < placement.workArea.right &&
                  rowTop >= placement.workArea.top;
     CBR (isOnScreen);
@@ -67,7 +81,7 @@ bool OperandResultTip::TryMakeLayout (
 
     //  Text that cannot be measured cannot be said to be cut off.
     fullPx = MeasurePx (text, cell.text, placement.fontPx, placement.face);
-    CBR (fullPx > 0.0f && fullPx > (float) (shownRight - textLeft));
+    CBR (fullPx > 0.0f && (isHidden || fullPx > (float) (shownRight - textLeft)));
 
     doesFit = TryWrapOnScreen (text, placement, (float) (cellRight - placement.padRightPx - textLeft), layout, widestPx);
     CBR (doesFit);
@@ -82,6 +96,37 @@ bool OperandResultTip::TryMakeLayout (
 
 Error:
     return isMade;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OperandResultTip::IsCellHidden
+//
+//  Past the right edge where its text starts there; left of the left edge
+//  where it ends there, at its column's edge or a padding past its text,
+//  whichever comes first. A cell with no text, or text that cannot be
+//  measured, is not hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool OperandResultTip::IsCellHidden (
+    const DxuiListView::Cell  & cell,
+    const Placement           & placement,
+    IDxuiTextRenderer         & text)
+{
+    bool   isUsable  = !cell.text.empty() && placement.fontPx > 0.0f && placement.face != nullptr;
+    int    textLeft  = (int) placement.textRect.left;
+    float  textPx    = isUsable ? MeasurePx (text, cell.text, placement.fontPx, placement.face) : 0.0f;
+    int    textRight = textLeft + (int) std::ceil (textPx) + placement.padRightPx;
+    int    cellRight = (std::min) ((int) placement.textRect.right, textRight);
+
+
+
+    return textPx > 0.0f && (textLeft >= placement.visibleRight || cellRight <= placement.visibleLeft);
 }
 
 

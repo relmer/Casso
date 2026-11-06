@@ -576,6 +576,55 @@ namespace SourceDocumentInputTests
         }
 
 
+        //  A source line's operand and result that start past the view's
+        //  right edge are laid below the line, from the view's text, with
+        //  the pointer anywhere on the line.
+        TEST_METHOD (ASourceOperandPastTheViewsEdgeShowsBelowItsLine)
+        {
+            constexpr int                      kStepPx  = 50;
+            constexpr int                      kLeastPx = 200;
+
+            CassoTheme                         theme    = CassoTheme::MakeSkeuomorphic();
+            SourceHost                         host;
+            SourceWindow                       window   (theme, host);
+            MockDxuiTextRenderer               text;
+            DxuiDpiScaler                      scaler;
+            auto                               snapshot = MakeSnapshot();
+            DxuiTextView                     * view     = nullptr;
+            RECT                               cell     = {};
+            bool                               isPast   = false;
+            DxuiMouseEvent                     move;
+            SourceWindow::OperandTipScreen     screen;
+
+
+
+            snapshot->source->lineOperands = std::make_shared<const DebuggerViewSnapshot::LineOperands> (
+                                                 DebuggerViewSnapshot::LineOperands { { { 0, 2 }, { "A=00 X=01", "A=41" } } });
+
+            scaler.SetDpi (96);
+            screen.workAreas.push_back (RECT { 0, 0, 4000, 3000 });
+            view = OpenDocument (window, snapshot);
+            window.GetOperandTips().SetDeviceForTest (&text, screen);
+
+            for (int width = 1400; width > kLeastPx && !isPast; width -= kStepPx)
+            {
+                window.Layout (RECT { 0, 0, width, 900 }, scaler);
+                isPast = view->IsVisible() && view->GetCellRectPx (1, SourcePane::kAnnotationCell, cell) && cell.left >= view->GetTextAreaRightPx();
+            }
+
+            Assert::IsTrue (isPast, L"a narrower window puts LDA's operand past the view's edge");
+
+            move.kind        = DxuiMouseEventKind::Move;
+            move.positionDip = POINT { view->GetTextAreaLeftPx() + 1, (cell.top + cell.bottom) / 2 };
+            (void) window.OnMouse (move);
+
+            Assert::IsTrue   (window.GetOperandTips().HasTip(), L"no tip after a move onto the line's start");
+            Assert::AreEqual (view->GetRows()[1].cells[(size_t) SourcePane::kAnnotationCell], window.GetOperandTips().GetLayout().text);
+            Assert::AreEqual (cell.bottom, window.GetOperandTips().GetLayout().textOrigin.y, L"below the line");
+            Assert::AreEqual ((LONG) view->GetTextAreaLeftPx(), window.GetOperandTips().GetLayout().rect.left, L"from the view's text");
+        }
+
+
         //  The PC's line has the arrow beside where a breakpoint's dot goes,
         //  two squares of the glyph margin as in a disassembly view, not past
         //  them.
