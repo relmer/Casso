@@ -2078,8 +2078,16 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
     anchor = GetPlaceRect (*pick);
     InflateRect (&anchor, kStreetPx, kStreetPx);
     lead   = GetTipLead (GetAddressOf (*pick));
-    text   = lead.meaning + L"\n" + GetTipText (GetAddressOf (*pick));
+    text   = GetTipText (GetAddressOf (*pick));
     swatches.assign (1, lead.argb | 0xFF000000u);
+
+    //  An untouched cell's first line already ends in "untouched", so the
+    //  swatch goes on that line in place of a lead line.
+    if (GetCellKind (GetAddressOf (*pick)) != CellKind::Untouched)
+    {
+        text = lead.meaning + L"\n" + text;
+    }
+
     return true;
 }
 

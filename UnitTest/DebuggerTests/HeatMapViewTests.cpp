@@ -496,7 +496,7 @@ namespace DebuggerTests
                     }
 
                     Assert::IsTrue (view.TryGetTipAt (farEnd, anchor, tip, swatches), label.c_str());
-                    Assert::IsTrue (tip.starts_with (L"Untouched\n" + label), tip.c_str());
+                    Assert::IsTrue (tip.starts_with (label), tip.c_str());
                     Assert::AreEqual ((size_t) 1, swatches.size(), L"a swatch for the first line");
 
                     view.OnMouse (MakeEvent (DxuiMouseEventKind::Down, farEnd));
