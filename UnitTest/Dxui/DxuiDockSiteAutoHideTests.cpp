@@ -90,6 +90,20 @@ namespace DxuiDockSiteAutoHideTests
             return false;
         }
 
+        //  The group whose tabs include a pane's control, or null.
+        DxuiTabGroup * GroupOf (MockDxuiControl & content)
+        {
+            for (size_t i = 0; i < site.GetGroupCount(); i++)
+            {
+                if (site.GetGroup (i)->IndexOf (&content) >= 0)
+                {
+                    return site.GetGroup (i);
+                }
+            }
+
+            return nullptr;
+        }
+
         //  A clock the test sets, and animations on regardless of the host.
         void UseTestClock()
         {
@@ -317,6 +331,97 @@ namespace DxuiDockSiteAutoHideTests
             Assert::IsFalse (rig.site.IsMorphing());
             Assert::IsFalse (rig.site.HasDragLayer());
             Assert::IsFalse (rig.site.TickAnimation());
+        }
+
+
+        //  A tab of a group with other tabs, pinned, shrinks from its tab
+        //  rather than from the whole group.
+        TEST_METHOD (PinningATabOfAGroupStartsFromTheTab)
+        {
+            Rig             rig;
+            DxuiTabGroup  * group = nullptr;
+            RECT            tab   = {};
+            RECT            at    = {};
+
+
+
+            (void) rig.site.EditPaneLayout().TabWithAt (L"regs", L"code", 0);
+            rig.site.Relayout();
+            rig.UseTestClock();
+
+            group = rig.GroupOf (rig.regs);
+            Assert::IsNotNull (group, L"the registers share the code's group");
+            tab = group->GetTabRect (group->IndexOf (&rig.regs));
+
+            Assert::IsTrue   (rig.RunDockTo (L"regs", L"Auto hide"));
+            at = rig.site.GetMorphRect();
+            Assert::AreEqual (tab.left,   at.left,   L"the rect starts at the tab");
+            Assert::AreEqual (tab.top,    at.top);
+            Assert::AreEqual (tab.right,  at.right);
+            Assert::AreEqual (tab.bottom, at.bottom);
+        }
+
+
+        //  Unpinned into a group with other tabs, the rect ends at the tab the
+        //  pane takes, and the pane is the active tab with the focus outline
+        //  on its group, as after a press on its tab.
+        TEST_METHOD (UnpinningIntoAGroupEndsAtTheTabAndFocusesThePane)
+        {
+            Rig             rig;
+            DxuiTabGroup  * group     = nullptr;
+            RECT            tab       = {};
+            RECT            at        = {};
+            std::wstring    requested;
+
+
+
+            (void) rig.site.EditPaneLayout().TabWithAt (L"regs", L"code", 0);
+            rig.site.Relayout();
+            rig.site.SetFocusedPane      (L"code");
+            rig.site.SetOnFocusRequested ([&requested] (const std::wstring & pane) { requested = pane; });
+            Assert::IsTrue (rig.RunDockTo (L"regs", L"Auto hide"));
+
+            rig.UseTestClock();
+            Assert::IsTrue (rig.RunDockTo (L"regs", L"Dock"));
+
+            group = rig.GroupOf (rig.regs);
+            Assert::IsNotNull (group);
+            tab = group->GetTabRect (group->IndexOf (&rig.regs));
+
+            rig.nowMs = Rig::kStartMs + DxuiRectMorph::kDurationMs - 1;
+            at        = rig.site.GetMorphRect();
+            Assert::AreEqual (tab.left,   at.left,   L"the rect ends at the tab");
+            Assert::AreEqual (tab.right,  at.right);
+            Assert::AreEqual (tab.bottom, at.bottom);
+
+            Assert::IsTrue   (group->GetActiveContent() == &rig.regs, L"the pane is the active tab");
+            Assert::IsTrue   (group->HasFocusedLook(),                L"its group has the focus outline");
+            Assert::AreEqual (std::wstring (L"regs"), requested,      L"and the focus handler is called for it");
+        }
+
+
+        //  A pane slid out when it is unpinned starts from where it lies, not
+        //  from its edge tab.
+        TEST_METHOD (UnpinningASlidOutPaneStartsFromTheSlidOutPane)
+        {
+            Rig   rig;
+            RECT  slid = {};
+            RECT  at   = {};
+
+
+
+            rig.Send (DxuiMouseEventKind::Down, rig.GetTabCenter());
+            slid = rig.site.GetSlidRect();
+            Assert::IsTrue (slid.right > slid.left, L"the console is out");
+
+            rig.UseTestClock();
+            Assert::IsTrue (rig.RunDockTo (L"console", L"Dock"));
+
+            at = rig.site.GetMorphRect();
+            Assert::AreEqual (slid.left,   at.left,  L"the rect starts at the slid-out pane");
+            Assert::AreEqual (slid.top,    at.top);
+            Assert::AreEqual (slid.right,  at.right);
+            Assert::AreEqual (slid.bottom, at.bottom);
         }
 
 

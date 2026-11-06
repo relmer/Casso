@@ -125,6 +125,11 @@ public:
     //  when the site has no group.
     static bool  TryGetHeaderFadeRow (const DxuiDockSite & site, RECT & outRowPx);
 
+    //  A point in a window of size `from`, at the same place in proportion
+    //  in a window of size `to`: the grab point of a window moved by
+    //  BeginMove once a scale change resizes it.
+    static POINT  ScaleGrab (POINT grab, SIZE from, SIZE to);
+
 protected:
     void  OnCreate      () override;
     void  OnWindowClose () override;
@@ -174,6 +179,7 @@ private:
     bool                      m_isMoving     = false;
     POINT                     m_moveGrab     = {};   // the pointer from the window's top left, in screen pixels
     RECT                      m_moveStart    = {};
+    SIZE                      m_moveSize     = {};   // the window's size as the grab was last measured
 
     //  The look and border color last applied, so DWM is called only when
     //  one of them changes.

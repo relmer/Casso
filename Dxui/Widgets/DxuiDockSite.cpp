@@ -497,21 +497,17 @@ void DxuiDockSite::OnTitleButton (DxuiTabGroup::TitleButton button, const std::w
 //
 //  DxuiDockSite::PinPane
 //
-//  Hides the pane against an edge, then shrinks a rect from the pane's group
-//  into its edge tab.
+//  Hides the pane against an edge, then shrinks a rect into its edge tab
+//  from the pane's tab, or from its group when it is alone there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDockSite::PinPane (const std::wstring & pane, DxuiDockSide edge)
 {
-    RECT  from    = {};
+    RECT  from    = GetPaneTabRect (pane);
     bool  changed = false;
 
 
-
-    //  The rect is empty when the pane is not docked, and an empty rect
-    //  doesn't start a morph.
-    (void) TryGetPaneGroupRect (pane, from);
 
     changed = m_layout.AutoHide (pane, edge);
 
@@ -533,28 +529,75 @@ bool DxuiDockSite::PinPane (const std::wstring & pane, DxuiDockSide edge)
 //
 //  DxuiDockSite::UnpinPane
 //
-//  Docks a hidden or floating pane back where it came from. A hidden one
-//  then has a rect grow from its edge tab to its group.
+//  Docks a hidden or floating pane back where it came from, as its group's
+//  active tab. A hidden one then has a rect move from its edge tab, or from
+//  the slid-out pane while it is out, to the tab it takes, or to its group
+//  when it is alone there. The pane is then focused, as a press on its tab
+//  focuses it, and its group is drawn with the focus outline.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDockSite::UnpinPane (const std::wstring & pane)
 {
-    RECT  from    = m_layout.IsAutoHidden (pane) ? GetEdgeTabRect (pane) : RECT {};
-    RECT  to      = {};
-    bool  changed = m_layout.DockBack (pane);
+    bool  wasHidden = m_layout.IsAutoHidden (pane);
+    RECT  from      = !wasHidden ? RECT {} : (pane == m_slidPane) ? m_slidRect : GetEdgeTabRect (pane);
+    bool  changed   = false;
 
 
+
+    changed = m_layout.DockBack (pane);
 
     if (changed)
     {
         Arrange();
-        (void) TryGetPaneGroupRect (pane, to);
-        StartMorph (from, to);
+        StartMorph (from, GetPaneTabRect (pane));
         NotifyChanged();
     }
 
+    if (changed && wasHidden)
+    {
+        SetFocusedPane (pane);
+
+        if (m_onFocusRequested)
+        {
+            m_onFocusRequested (pane);
+        }
+    }
+
     return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetPaneTabRect
+//
+//  The pane's tab in its group's strip, or the whole group when the pane is
+//  alone in it; empty when the pane is not docked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiDockSite::GetPaneTabRect (const std::wstring & pane) const
+{
+    RECT  rect = {};
+
+
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        for (int i = 0; group->IsVisible() && i < (int) group->GetTabCount(); i++)
+        {
+            if (GetPaneOf (group->GetContent (i)) == pane)
+            {
+                rect = (group->GetTabCount() > 1) ? group->GetTabRect (i) : group->GetBounds();
+            }
+        }
+    }
+
+    return rect;
 }
 
 
@@ -2166,7 +2209,7 @@ bool DxuiDockSite::TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) 
         {
             if (GetPaneOf (group->GetContent (i)) == pane)
             {
-                rect = group->GetBounds();
+                rect = (group->GetTabCount() > 1) ? group->GetTabRect (i) : group->GetBounds();
                 return rect.right > rect.left && rect.bottom > rect.top;
             }
         }
