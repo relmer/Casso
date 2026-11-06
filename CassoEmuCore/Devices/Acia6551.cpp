@@ -903,6 +903,28 @@ int Acia6551::GetWordLengthBits() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetWordMask
+//
+//  The data bits of a character at the selected word length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Acia6551::GetWordMask() const
+{
+    constexpr int  kByteBits = 8;
+    int            wordBits  = GetWordLengthBits();
+
+
+
+    return (wordBits >= kByteBits) ? 0xFF : static_cast<Byte> ((1u << wordBits) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsRtsOn
 //
 //  RTS is asserted for every transmitter-control value but 00, and in echo
@@ -1239,7 +1261,7 @@ void Acia6551::TryLoadTransmitter()
 
     carry = (m_txRemaining < 0) ? m_txRemaining : 0;
 
-    m_tsr         = m_tdr;
+    m_tsr         = static_cast<Byte> (m_tdr & GetWordMask());
     m_tdrFull     = false;
     m_tsrBusy     = true;
     m_txRemaining = carry + GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
@@ -1390,17 +1412,10 @@ Error:
 
 void Acia6551::LandReceivedByte (Byte value, Byte errors)
 {
-    constexpr int   kByteBits  = 8;
     constexpr Byte  kCharError = kStatusParityError | kStatusFramingError;
-    int             wordBits   = GetWordLengthBits();
-    Byte            mask       = static_cast<Byte> ((1u << wordBits) - 1);
+    Byte            mask       = GetWordMask();
 
 
-
-    if (wordBits >= kByteBits)
-    {
-        mask = 0xFF;
-    }
 
     if (m_status & kStatusRxFull)
     {

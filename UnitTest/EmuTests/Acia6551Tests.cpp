@@ -618,6 +618,26 @@ namespace Acia6551TestNs
         }
 
 
+        //  Only the word's data bits are sent on the wire, so high-bit ASCII
+        //  sent at 7E1 arrives as plain ASCII.
+        TEST_METHOD (TransmittedByteIsMaskedToWordLength)
+        {
+            RecordingEndpoint  endpoint;
+            Acia6551           acia (kBase);
+
+
+
+            acia.SetEndpoint (&endpoint);
+            acia.Write (kAddrCtrl, static_cast<Byte> (kCtrl9600 | 0x20));   // 7 data bits
+            acia.Write (kAddrCmd,  kCmdPolled);
+            acia.Write (kAddrData, 0xC1);
+            acia.Tick (static_cast<uint32_t> (ceil (acia.GetTransmitCharacterCycles())) + 1);
+
+            Assert::AreEqual<size_t> (1, endpoint.Bytes().size());
+            Assert::AreEqual<Byte> (0x41, endpoint.Bytes().front());
+        }
+
+
         TEST_METHOD (ReceiverIrqAssertsAndStatusReadClearsIt)
         {
             const Byte              bytes[] = { 0x5A };

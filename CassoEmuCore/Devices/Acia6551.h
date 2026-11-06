@@ -219,6 +219,7 @@ public:
     Byte    GetCommand () const { return m_command; }
     Byte    GetControl () const { return m_control; }
     int     GetWordLengthBits () const;
+    Byte    GetWordMask       () const;
     bool    IsCtsTrue  () const { return m_cts; }
     bool    IsDcdTrue  () const { return m_dcd; }
     bool    IsDtrOn    () const { return (m_command & kCommandDtr) != 0; }
