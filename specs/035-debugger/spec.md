@@ -3805,11 +3805,15 @@ screenshot: the screenshot has the bars, and every step is one tool call.
   with its full path as its tip, that opens File Explorer with the file
   selected; the line MUST NOT write out the full path, while the reply's text
   for the debug channel and batch mode MUST have it.
-- **FR-374**: A tab dragged past either end of its tab strip MUST be dragged off
-  its group, as one dragged up or down is.
+- **FR-374**: A tab dragged past the first or the last tab of its row, by more
+  than the drag threshold, MUST be dragged off its group, as one dragged up or
+  down is.
 - **FR-375**: Pinning a pane and unpinning it MUST animate its rectangle between
-  its group and its edge button, unless the system's animations are off, and
-  unpinning MUST put the tab back at the index it had in its group.
+  its edge button and its tab in the group, or the whole group's rectangle when
+  the pane is alone in it, unless the system's animations are off. Unpinning a
+  slid-out pane MUST start from the slid-out rectangle. Unpinning MUST put the
+  tab back at the index it had in its group, as the group's active tab, with
+  the focus and its border on the pane.
 - **FR-376**: A line a client runs through the debug channel, such as a step,
   MUST bring the debugger window's panes up to date, as the same line typed in
   the console does.
@@ -3834,6 +3838,12 @@ screenshot: the screenshot has the bars, and every step is one tool call.
 - **FR-382**: The Symbols pane MUST list AppleWin's spare tables, USER2, SRC
   and SRC2, only once a command has loaded something into one; the User table
   MUST always be listed.
+- **FR-383**: At every zoom, every heat map row MUST fit the pane's width, with
+  no horizontal scroll bar: the rows reflow as the pane's width changes, and
+  only the vertical bar scrolls. A row scrolled partly off the top MUST have no
+  label, and the zoom slider MUST close when the focus moves to another pane.
+- **FR-384**: A floating pane dragged from a monitor at one scale MUST bring up the
+  drop targets over a window on a monitor at another scale, in one drag.
 
 ### Key Entities
 

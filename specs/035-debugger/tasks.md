@@ -2264,7 +2264,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1387 Docking (FR-374, FR-375): the sideways drag in `DxuiTabStrip`, `DxuiRectMorph`, the tab index on the layout's `hide` line. Tests: `DxuiTabStripTests`, `DxuiDockSiteDragTests`, `DxuiPaneLayoutDockBackTests`, `DxuiRectMorphTests`, `DxuiDockSiteAutoHideTests`; pin, unpin and the sideways drag checked on screen.
 - [ ] T1388 Open console links in Casso Explorer, with an option for File Explorer, once 033 is on master (FR-373).
 
-## Phase 65: Owner review, 2026-11-05 night (FR-376 to FR-382)
+## Phase 65: Owner review, 2026-11-05 night (FR-374 to FR-384)
 
 - [X] T1389 Debug channel refresh (FR-376): `DebuggerController::GetLinesRun`, compared across `Pump` in `ShellDebugger::ServiceDebugger` to mark the view dirty. Test: `DebuggerControllerTests::EveryLineRunIsCounted`. Checked on screen: a step sent through the channel moves the PC row.
 - [X] T1390 Address-space scroll bar (FR-377): `DxuiListView::SetVertScrollModel`, set by `DisassemblyGroup::SetAddressScroll` after each view's rows are built. Tests: `DxuiListViewScrollModelTests`. Checked on screen after wheeling down from $60BA.
@@ -2274,3 +2274,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1394 Load file icon (FR-381): `DebuggerCommands::PaintLoadFile`.
 - [X] T1395 Spare symbol tables hidden while empty (FR-382): `SymbolsPane::GetRows`. Test: `DebuggerToolPanesTests::AnEmptySpareTableIsNotListed`.
 - [X] T1396 Requeue the host's serial bytes before `ReverseController::HandleDivergence` truncates the input journal, through `ResyncHostConnections`, as reported by the 047 session.
+- [X] T1397 Heat map rows fit the pane at every zoom (FR-383): `HeatMapView::GetColumnsFor` from 1 to 1,024 addresses; horizontal scrolling removed. Tests: `HeatMapViewTests`, `HeatMapRangeLayoutTests`.
+- [X] T1398 Pin and unpin morph between the edge button and the tab, focus the unpinned pane, and detach a tab past the row of tabs (FR-374, FR-375): `DxuiDockSite`, `DxuiTabStrip`, `DxuiDockSite::SetOnFocusRequested`. Tests: `DxuiDockSiteAutoHideTests`, `DxuiTabStripTests`. Checked on screen: the heat map unpins to its old index, active and focused.
+- [X] T1399 A floating window's size is read after each move step, so a drag onto a monitor at another scale continues (FR-384): `DxuiDockedWindow::MoveWithPointer`. Test: `DxuiCaptionDragTrackerDpiTests::TheGrabPointScalesWithTheWindow`. To be confirmed on the owner's two monitors.
+- [X] T1400 No label for a row scrolled partly off, the zoom slider's label without a second "Zoom", and the slider closed when the focus moves (FR-383): `HeatMapView::PaintRowLabels`, `HeatMapView::OnFocusChanged`. Tests: `HeatMapViewTests::ARowPartlyScrolledOffHasNoLabel`, `TheZoomSliderClosesWithTheFocus`.

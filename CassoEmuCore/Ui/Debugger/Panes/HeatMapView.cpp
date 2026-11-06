@@ -2248,8 +2248,10 @@ void HeatMapView::PaintRowLabels (IDxuiTextRenderer & text, const IDxuiTheme & t
             step *= 2;
         }
 
-        //  The first labeled row at or below the area's top.
-        row = ((std::max (0L, m_scrollTop - placed.rowsTop) / pitch + step - 1) / step) * step;
+        //  The first labeled row whose top is at or below the area's top, so
+        //  a row partly scrolled off has no label over the bar.
+        row = (std::max (0L, m_scrollTop - placed.rowsTop) + pitch - 1) / pitch;
+        row = ((row + step - 1) / step) * step;
 
         for (; row < placed.rows; row += step)
         {
@@ -3083,6 +3085,27 @@ bool HeatMapView::TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & te
     anchor = m_zoomWidget.GetButtonRect();
     text   = HeatMapZoomWidget::kpszTip;
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HeatMapView::OnFocusChanged
+//
+//  The zoom slider closes when the focus moves to another pane, as a menu
+//  does, since a click there isn't routed to the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapView::OnFocusChanged (bool focused)
+{
+    if (!focused)
+    {
+        m_zoomWidget.SetOpen (false);
+    }
 }
 
 

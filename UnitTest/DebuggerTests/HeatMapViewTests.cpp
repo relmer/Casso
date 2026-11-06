@@ -316,6 +316,36 @@ namespace DebuggerTests
 
 
 
+        //  A click in another pane is not routed to the map, so the slider
+        //  closes when the focus moves from the map's pane.
+        TEST_METHOD (TheZoomSliderClosesWithTheFocus)
+        {
+            HeatMapView     view;
+            DxuiMouseEvent  ev;
+            RECT            button = {};
+
+
+
+            Place (view);
+            button = view.GetZoomWidget().GetButtonRect();
+
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+            view.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            view.OnMouse (ev);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"a click on the button opens the slider");
+
+            view.OnFocusChanged (true);
+            Assert::IsTrue (view.GetZoomWidget().IsOpen(), L"it is open after the map gains the focus");
+
+            view.OnFocusChanged (false);
+            Assert::IsFalse (view.GetZoomWidget().IsOpen());
+        }
+
+
+
         TEST_METHOD (ARowHoldsThePowerOfTwoOfAddressesNearestTheZoom)
         {
             Assert::AreEqual (256,  HeatMapView::GetColumnsFor (1024,   4), L"256 cells of four pixels fill 1,024");
@@ -1183,6 +1213,48 @@ namespace DebuggerTests
 
                 Assert::IsTrue (labels > 0, (L"rows are labeled " + at).c_str());
             }
+        }
+
+
+
+        //  A row scrolled partly off the top has no label: its label would be
+        //  drawn over the bar above the map.
+        TEST_METHOD (ARowPartlyScrolledOffHasNoLabel)
+        {
+            HeatMapView           view;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            RECT                  map    = {};
+            size_t                labels = 0;
+
+
+
+            scaler.SetDpi (96);
+            view.SetPalette (MakePalette());
+            view.Layout     (RECT { kPaneLeft, 0, kPaneLeft + kWidth, kHeight }, scaler);
+
+            map = view.GetMapRect();
+            view.ZoomAt   ({ map.left, map.top }, 10.0f);
+            view.ScrollBy (3);
+            view.Paint    (painter, text, theme);
+
+            map = view.GetMapRect();
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind != RecordedTextKind::DrawString || call.hAlign != DxuiTextHAlign::Right || !call.text.starts_with (L"$"))
+                {
+                    continue;
+                }
+
+                labels++;
+                Assert::IsTrue (call.y >= (float) map.top, (call.text + L" is drawn below the map's top").c_str());
+            }
+
+            Assert::AreEqual (3L,   view.GetScrollTop(), L"the view is scrolled part of a row");
+            Assert::IsTrue   (labels > 0, L"the rows in full view are labeled");
         }
 
 
