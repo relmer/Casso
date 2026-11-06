@@ -807,8 +807,9 @@ void CassoExplorerWindow::TakeLinkNotifications()
 //  CassoExplorerWindow::OnActivateApp
 //
 //  Coming back to the window reads again the settings that change without a
-//  message to say so: the Windows colors, when the theme follows them, and
-//  Explorer's folder options. Each is applied only when it changed.
+//  message to say so: the Windows colors, when the theme follows them,
+//  Explorer's folder options and Windows Firewall's rules. Each is applied
+//  only when it changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -841,6 +842,13 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
         {
             m_parts->themes.Apply();
         }
+    }
+
+    //  A rule added in Windows Firewall sends no message, so the firewall is
+    //  read again on the next poll.
+    if (active && m_context.firewall != nullptr)
+    {
+        m_context.firewall->Invalidate();
     }
 
     //  Explorer's folder options send no message either, so they too are read

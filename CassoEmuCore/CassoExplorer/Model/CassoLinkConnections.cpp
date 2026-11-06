@@ -1352,6 +1352,10 @@ std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_p
     {
         text = std::format (L"Full Send: checking the disk in drive {}", jobs[0]->drive);
     }
+    else if (jobs[0]->kind == LinkOperationKind::FullSend)
+    {
+        text = std::format (L"Full Send: sending the disk in drive {}: {}%", jobs[0]->drive, jobs[0]->progress.load());
+    }
     else
     {
         text = std::format (L"{} in drive {}: {}%", what, jobs[0]->drive, jobs[0]->progress.load());

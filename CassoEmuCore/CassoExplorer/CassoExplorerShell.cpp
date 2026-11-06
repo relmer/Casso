@@ -1107,6 +1107,8 @@ void CassoExplorerShell::ExitAll()
     SaveSession();
     m_exiting = true;
 
+    CloseDialogs();
+
     if (m_updaterHost != nullptr)
     {
         m_updaterHost->SetWindow (nullptr);
@@ -1120,6 +1122,51 @@ void CassoExplorerShell::ExitAll()
             slot->window->CloseForApp();
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::CloseDialogs
+//
+//  A modal dialog's loop keeps the process running after its windows close,
+//  so File > Exit closes every dialog open on this thread too: each visible
+//  top-level window that isn't an explorer window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::CloseDialogs()
+{
+    EnumThreadWindows (GetCurrentThreadId(), CloseDialog, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::CloseDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BOOL CALLBACK CassoExplorerShell::CloseDialog (HWND hwnd, LPARAM)
+{
+    wchar_t  className[64] = {};
+
+
+
+    GetClassNameW (hwnd, className, (int) std::size (className));
+
+    if (IsWindowVisible (hwnd) && wcscmp (className, kWindowClass) != 0)
+    {
+        PostMessageW (hwnd, WM_CLOSE, 0, 0);
+    }
+
+    return TRUE;
 }
 
 

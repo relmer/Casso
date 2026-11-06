@@ -4093,15 +4093,13 @@ keyend:
 ; dowaitkey: a Full Send's pause. The motor is off and a key pressed during the
 ; transfer is dropped, so Space means the disks in the drives now. The request's
 ; first byte is nonzero while a line is typed, and every key is sent; the lines
-; follow it. The prompt is drawn on the history's rows, which are saved in KHIST
-; first and drawn again once a key is sent.
+; follow it. The prompt is drawn on the history's rows, which a Full Send
+; keeps blank, and they are cleared again once a key is sent.
 dowaitkey: jsr motoroff
         lda #OPDISK
         sta op
         jsr showop
         sta $C010
-        lda #0
-        jsr khcopy
         lda PKTBUF
         sta wkany
         lda #1
@@ -4164,15 +4162,14 @@ wkhost: jsr pollcancel
         endif
         jmp wksec
 wkkey:  jsr sendkey
-        lda #1
-        jsr khcopy
+        jsr fsclear
         jmp main
 
 wkany:  .byte 0                 ; nonzero while a line is typed
 
-; doscreen: the Session screen's rows, its tone, and Ready again. The history
-; stays through a session: the host logs each disk there, and the lines from
-; before it are of use after.
+; doscreen: the Session screen's rows, its tone, and Ready again. A session's
+; first screen saves the history's rows in KHIST and blanks them, as a line
+; there has no heading during a Full Send; fsleave draws them again.
 doscreen: lda PKTBUF
         beq dsstore
         lda fsmode
@@ -4180,6 +4177,10 @@ doscreen: lda PKTBUF
         lda #0
         sta barpct
         sta barpct+1
+        jsr khcopy
+        jsr fsclear
+        lda #1
+        sta fssaved
 dsstore: lda PKTBUF
         sta fsmode
         bne dsdraw
@@ -4234,9 +4235,15 @@ fcclear: jsr fsrow
         bpl fcclear
         rts
 
-; fsleave: back to the standard screen: the session's rows cleared, and the
-; heading, keys and drives drawn. The history is left as it is.
-fsleave: lda #0
+; fsleave: back to the standard screen: the session's rows cleared, the
+; history saved when the session began drawn again, and the heading, keys and
+; drives drawn.
+fsleave: lda fssaved
+        beq flnosave
+        lda #1
+        jsr khcopy
+flnosave: lda #0
+        sta fssaved
         sta fsmode
         sta sbyte
 flrow:  ldx sbyte
@@ -5520,6 +5527,7 @@ kcto:    .byte 0, 0             ; and the block after the last
 kcch:    .byte 0                ; their screen code
 kcv:     .byte 0, 0             ; kcell: the block, less 40 for each row above it
 khdir:   .byte 0                ; khcopy: 1 back onto the screen
+fssaved: .byte 0                ; nonzero while KHIST has the history from before a Full Send
 khaux:   .byte 0                ; its high bit set for auxiliary memory's columns
 khbuf:   .byte 0, 0             ; where the row goes in KHIST, or comes from
 kalt:    .byte 0                ; kmapshow: bit 7 set when the alternate characters were selected

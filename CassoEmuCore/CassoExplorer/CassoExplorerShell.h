@@ -205,6 +205,8 @@ private:
     void                                     ConfigureBrowser     (CassoExplorerBrowser & browser);
     void                                     StartLinkFaults      ();
     void                                     ReleaseClosedWindows ();
+    static void                              CloseDialogs         ();
+    static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
     bool                                     HasOpenWindows       () const;
     std::vector<CassoExplorerSessionWindow>  GetOpenSession       () const;
 

@@ -488,6 +488,11 @@ void ExplorerCommandManager::Dispatch (int id)
 
             m_context.listPane.GetColumns().ReadFolderOptions();
             m_context.folderSync.ReloadKnownFolders();
+
+            if (m_context.app.firewall != nullptr)
+            {
+                m_context.app.firewall->Invalidate();
+            }
             m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
             m_context.browser.ForgetLinkVisit();
             hr = m_context.browser.Refresh();
