@@ -8,6 +8,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/GutterGlyph.h"
+#include "Debugger/Source/SourcePathList.h"
 #include "Ui/Debugger/OperandResultTip.h"
 #include "Ui/Debugger/Panes/OperandTipController.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
@@ -55,7 +56,10 @@ namespace SourceDocumentInputTests
             return lookup;
         }
 
+        std::string  GetDebuggerWindowState (const std::string & name) override { return (name == "columns") ? columns : std::string(); }
+
         std::vector<std::string>  echoes;
+        std::string               columns;
     };
 
 
@@ -587,6 +591,30 @@ namespace SourceDocumentInputTests
             Assert::IsNotNull (view->GetRows()[1].icon.get(), L"the PC's line");
             Assert::AreEqual  (2 * GutterGlyph::kSizePx, view->GetRows()[1].icon->width, L"the dot's square, then the arrow's");
             Assert::AreEqual  (2 * GutterGlyph::kSizePx, view->GetRows()[2].icon->width + GutterGlyph::kSizePx, L"a breakpoint's dot alone");
+        }
+
+
+        //  Widths a project saved for a disassembly view's glyph margin, heat
+        //  strip and operand column are not applied, so the margins match a
+        //  source document's and the last column fills the pane; a saved
+        //  width for another column is.
+        TEST_METHOD (SavedWidthsLeaveTheMarginsAndTheLastColumnAlone)
+        {
+            CassoTheme       theme = CassoTheme::MakeSkeuomorphic();
+            SourceHost       host;
+            DxuiListView   * list  = nullptr;
+
+
+
+            host.columns = SourcePathList::WideToUtf8 (DebuggerLayout::GetCodePaneId (0)) + "=40,50,0,80,90,0,300;";
+
+            SourceWindow  window (theme, host);
+
+            list = window.GetCodeList (0);
+            Assert::AreEqual (80, list->GetColumnOverrideWidthPx (DisassemblyCells::kBytesColumn), L"the bytes' saved width");
+            Assert::AreEqual (-1, list->GetColumnOverrideWidthPx (DisassemblyCells::kGutterColumn), L"the glyph margin's is not applied");
+            Assert::AreEqual (-1, list->GetColumnOverrideWidthPx (DisassemblyCells::kHeatColumn), L"nor the heat strip's");
+            Assert::AreEqual (-1, list->GetColumnOverrideWidthPx (DisassemblyCells::kOperandColumn), L"nor the operand column's");
         }
     };
 }
