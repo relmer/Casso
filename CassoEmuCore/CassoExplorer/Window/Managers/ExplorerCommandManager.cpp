@@ -493,6 +493,7 @@ void ExplorerCommandManager::Dispatch (int id)
             {
                 m_context.app.firewall->Invalidate();
             }
+
             m_context.browser.GetBrowserModel().InvalidateAllCatalogs();
             m_context.browser.ForgetLinkVisit();
             hr = m_context.browser.Refresh();
