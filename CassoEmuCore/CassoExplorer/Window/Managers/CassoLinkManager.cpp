@@ -1549,7 +1549,10 @@ Error:
 //  A link connects only while its machine, or one of its drives, is the
 //  location of some window. One that has not connected by the time every
 //  window has gone elsewhere is stopped, closing its port; one that has
-//  connected, or is bootstrapping or loading the program, stays.
+//  connected, or is bootstrapping or loading the program, stays. So does one
+//  started at launch, which tries again for its Apple whether or not a window
+//  is on it: stopping it before its first Ready left the Apple's requests,
+//  such as F for a Full Send, with nothing to read them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1578,7 +1581,7 @@ void CassoLinkManager::ReleaseIdleConnections()
                                      || state == LinkState::Bootstrapping || state == LinkState::LoadingProgram;
 
         //  ADTPro's client speaks first, so an ADTPro server stays open for it.
-        if (session != nullptr && !connected && settings.transport != LinkTransport::AdtProServer && !m_context.app.links->IsViewed (settings.name))
+        if (session != nullptr && !connected && settings.transport != LinkTransport::AdtProServer && !IsLaunchConnection (settings) && !m_context.app.links->IsViewed (settings.name))
         {
             release.push_back (settings.name);
         }
@@ -1799,11 +1802,8 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
 //
 //  CassoLinkManager::StartConnections
 //
-//  At launch, the most recently chosen first, so it has its port. An ADTPro
-//  server waits for its button, and a running Casso for its list. An any-port
-//  connection needs a port that has connected to an Apple, as opening another
-//  can disturb the device on it, and a Wi-Fi modem needs the firewall's
-//  permission, as listening without it raises a prompt.
+//  At launch, the most recently chosen first, so it has its port, each that
+//  IsLaunchConnection allows. A running Casso waits for its list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1811,7 +1811,6 @@ void CassoLinkManager::StartConnections()
 {
     HRESULT                         hr    = S_OK;
     std::vector<CassoLinkSettings>  links = m_context.prefs.links;
-    LinkTreeEntry                   entry;
 
 
 
@@ -1821,14 +1820,11 @@ void CassoLinkManager::StartConnections()
 
     for (const CassoLinkSettings & settings : links)
     {
-        bool  blocked = TryGetConnectionEntry (TextEncoding::NarrowToWide (settings.name), entry) && !entry.firewall.empty();
-
         if (settings.userDisconnected)
         {
             m_context.app.links->Hold (settings.name);
         }
-        else if (settings.transport != LinkTransport::AdtProServer && !blocked && !(settings.IsComPort() && settings.port.empty() && settings.lastPort.empty())
-                 && !m_context.app.links->IsStarted (settings.name) && !m_context.app.links->IsHeld (settings.name))
+        else if (IsLaunchConnection (settings) && !m_context.app.links->IsStarted (settings.name) && !m_context.app.links->IsHeld (settings.name))
         {
             hr = m_context.app.links->StartIfFree (settings.name);
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1837,6 +1833,31 @@ void CassoLinkManager::StartConnections()
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::IsLaunchConnection
+//
+//  An ADTPro server is started by its button. An any-port connection opens
+//  only a port that has connected to an Apple, as opening another can disturb
+//  the device on it, and a connection the firewall blocks would raise a prompt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::IsLaunchConnection (const CassoLinkSettings & settings) const
+{
+    LinkTreeEntry  entry;
+    bool           blocked = TryGetConnectionEntry (TextEncoding::NarrowToWide (settings.name), entry) && !entry.firewall.empty();
+
+
+
+    return !settings.userDisconnected && settings.transport != LinkTransport::AdtProServer && !blocked
+        && !(settings.IsComPort() && settings.port.empty() && settings.lastPort.empty());
 }
 
 

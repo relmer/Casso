@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/Location.h"
 
 class FirewallMonitor;
+struct CassoLinkSettings;
 class ILinkAnnouncements;
 class KrunchMapDialog;
 struct ExplorerContext;
@@ -70,6 +71,7 @@ public:
     void          StartConnections        ();
     void          SaveConnectionState     ();
     bool          IsConnectionReplying    (const std::string & name) const;
+    bool          IsLaunchConnection      (const CassoLinkSettings & settings) const;
     bool          IsConnectionRemoved     (const std::wstring & link) const;
     void          AddConnectionRows       (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
     bool          IsWifiModemConnection   (const std::string & name) const;
