@@ -43,9 +43,37 @@ struct ChannelRequest
     std::optional<CommandMode>  mode;
     std::optional<uint64_t>     budget;
 
-    // hello only, and both optional: a client need not name itself.
-    std::string                 client;
-    int                         protocol = 0;
+    // command only: a write may replace a file that exists.
+    bool                        overwrite = false;
+
+    // hello only, and all optional. A hello without the folders and the
+    // scripts setting has the defaults: no extra folders and no scripts.
+    std::string                client;
+    int                        protocol     = 0;
+    std::vector<std::wstring>  allowPaths;
+    bool                       allowScripts = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChannelClient
+//
+//  What a client's hello set for the client's commands: its name for the
+//  console, the folders it may read and write besides the default ones, and
+//  whether it may run a file of commands. A client that sent no hello has
+//  the defaults.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ChannelClient
+{
+    std::string                 name;
+    std::vector<std::wstring>   allowPaths;
+    bool                        allowScripts = false;
 };
 
 
@@ -112,6 +140,10 @@ public:
 
     static bool         TryParseRequest (const std::string & line, ChannelRequest & request, ReplyError & error);
     static std::string  WriteHello      (const ChannelHello & hello);
+
+    //  A client's hello request, with the folders and scripts setting for
+    //  its commands. No allowPaths member is written for no folders.
+    static std::string  WriteHelloRequest (int64_t id, const ChannelClient & client);
     static std::string  WriteError      (const std::string & label, const std::string & detail);
 
     static const char * GetRequestTypeName (ChannelRequestType type);
@@ -127,5 +159,7 @@ private:
     //  reported as absent; present but anything else is an error.
     enum class Member { Absent, Valid, Invalid };
     static Member       GetWholeNumber (const JsonValue & root, const std::string & key, double low, double high, int64_t & value);
+    static Member       GetFlag        (const JsonValue & root, const std::string & key, bool & value);
+    static Member       GetFolders     (const JsonValue & root, std::vector<std::wstring> & folders);
     static void         SetError   (ReplyError & error, const std::string & label, const std::string & detail);
 };

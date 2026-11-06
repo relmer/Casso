@@ -313,6 +313,8 @@
     <ClCompile Include="DebuggerTests\MonitorHandlersTests.cpp" />
     <ClCompile Include="DebuggerTests\ChannelProtocolTests.cpp" />
     <ClCompile Include="DebuggerTests\DebugChannelServerTests.cpp" />
+    <ClCompile Include="DebuggerTests\ChannelHostAccessTests.cpp" />
+    <ClCompile Include="DebuggerTests\HostAccessPolicyTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerControllerTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerLayoutTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerViewStateTests.cpp" />
@@ -1105,6 +1107,7 @@
     <ClInclude Include="DebuggerTests\ControllerRig.h" />
     <ClInclude Include="DebuggerTests\FakeDiagnosticsProvider.h" />
     <ClInclude Include="DebuggerTests\HandlerTestRig.h" />
+    <ClInclude Include="DebuggerTests\FakeHostPathResolver.h" />
     <ClInclude Include="DebuggerTests\InMemoryPipeTransport.h" />
     <ClInclude Include="DebuggerTests\MockDebugTarget.h" />
     <ClInclude Include="DebuggerTests\MockExpressionContext.h" />

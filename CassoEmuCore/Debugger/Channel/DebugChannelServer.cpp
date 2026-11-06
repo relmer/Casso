@@ -75,6 +75,8 @@ void DebugChannelServer::Pump()
         //  commands.
     }
 
+    ForgetClosedClients();
+
     //  A stop raised since the last pump goes out before anything new is
     //  taken on, so a client sees its run end before the answer to whatever
     //  it sent next.
@@ -120,6 +122,7 @@ void DebugChannelServer::Close()
         m_causeId.reset();
     }
 
+    m_clients.clear();
     m_transport.Close();
 }
 
@@ -165,16 +168,19 @@ void DebugChannelServer::HandleLine (ChannelConnectionId connection, const std::
 
 void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const ChannelRequest & request)
 {
-    ChannelHello  hello;
-    Reply         reply;
-    bool          wasRunning = false;
-    bool          isRunning  = false;
+    ChannelHello    hello;
+    ChannelClient   client;
+    Reply           reply;
+    bool            wasRunning = false;
+    bool            isRunning  = false;
 
 
 
     switch (request.type)
     {
     case ChannelRequestType::Hello:
+        m_clients[connection] = ChannelClient { request.client, request.allowPaths, request.allowScripts };
+
         hello    = m_runner.GetInstance();
         hello.id = request.id;
         m_transport.WriteLine (connection, ChannelProtocol::WriteHello (hello));
@@ -210,7 +216,12 @@ void DebugChannelServer::HandleRequest (ChannelConnectionId connection, const Ch
         m_causeId = request.id;
     }
 
-    reply = m_runner.RunLine (request.line, request.mode, request.budget);
+    if (m_clients.contains (connection))
+    {
+        client = m_clients[connection];
+    }
+
+    reply = m_runner.RunLine (request.line, request.mode, request.budget, client, request.overwrite);
 
     //  A line that started no run, or whose run has already ended, leaves
     //  nothing for a later stop to be caused by. Without this a pause long
@@ -392,4 +403,28 @@ void DebugChannelServer::Broadcast (const std::string & record)
     {
         m_transport.WriteLine (connection, record);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugChannelServer::ForgetClosedClients
+//
+//  A connection id is never reused, so a hello is dropped only to free it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugChannelServer::ForgetClosedClients()
+{
+    std::vector<ChannelConnectionId>  open = m_transport.GetConnections();
+
+
+
+    std::erase_if (m_clients, [&open] (const auto & entry)
+    {
+        return std::ranges::find (open, entry.first) == open.end();
+    });
 }

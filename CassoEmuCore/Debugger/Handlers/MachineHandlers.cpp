@@ -3,6 +3,7 @@
 #include "Debugger/Handlers/MachineHandlers.h"
 
 #include "Core/TextEncoding.h"
+#include "Debugger/Channel/HostAccessPolicy.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/IMachineControl.h"
 
@@ -250,7 +251,13 @@ void MachineHandlers::Screenshot (DebugSession & session, const DebugCommand & c
     }
 
     path = session.ResolvePath (name);
-    hr   = control->SaveScreenshot (path, shot.width, shot.height);
+
+    if (!session.CheckHostAccess (path, HostAccess::Write, reply))
+    {
+        return;
+    }
+
+    hr = control->SaveScreenshot (path, shot.width, shot.height);
 
     if (FAILED (hr))
     {

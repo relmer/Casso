@@ -4,6 +4,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Core/TextEncoding.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/ReplyJson.h"
 #include "Core/JsonValue.h"
@@ -87,6 +88,19 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
         }
 
         request.protocol = (int) number;
+
+        if (GetFlag (root, "allowScripts", request.allowScripts) == Member::Invalid)
+        {
+            SetError (error, "malformed request", "allowScripts must be true or false.");
+            return false;
+        }
+
+        if (GetFolders (root, request.allowPaths) == Member::Invalid)
+        {
+            SetError (error, "malformed request", "allowPaths must be an array of folder paths.");
+            return false;
+        }
+
         return true;
     }
 
@@ -130,7 +144,92 @@ bool ChannelProtocol::TryParseRequest (const std::string & line, ChannelRequest 
     default:                                                                                                                break;
     }
 
+    if (GetFlag (root, "overwrite", request.overwrite) == Member::Invalid)
+    {
+        SetError (error, "malformed request", "overwrite must be true or false.");
+        return false;
+    }
+
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChannelProtocol::GetFlag
+//
+//  A field of another type is an error rather than false, so a flag sent as
+//  "yes" gets an error reply rather than being ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChannelProtocol::Member ChannelProtocol::GetFlag (const JsonValue & root, const std::string & key, bool & value)
+{
+    double             number      = 0.0;
+    std::string        text;
+    const JsonValue  * nested      = nullptr;
+    bool               isOtherType = false;
+
+
+
+    if (root.HasBool (key, value))
+    {
+        return Member::Valid;
+    }
+
+    isOtherType = root.HasString (key, text) || root.HasNumber (key, number) || root.HasObject (key, nested) || root.HasArray (key, nested);
+    return isOtherType ? Member::Invalid : Member::Absent;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChannelProtocol::GetFolders
+//
+//  An array of strings, read as UTF-8 since JSON text is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChannelProtocol::Member ChannelProtocol::GetFolders (const JsonValue & root, std::vector<std::wstring> & folders)
+{
+    const JsonValue  * array       = nullptr;
+    bool               flag        = false;
+    double             number      = 0.0;
+    std::string        text;
+    bool               isOtherType = false;
+
+
+
+    folders.clear();
+
+    if (!root.HasArray ("allowPaths", array))
+    {
+        isOtherType = root.HasString ("allowPaths", text) || root.HasNumber ("allowPaths", number) || root.HasBool ("allowPaths", flag) || root.HasObject ("allowPaths", array);
+        return isOtherType ? Member::Invalid : Member::Absent;
+    }
+
+    for (size_t index = 0; index < array->GetArraySize(); index++)
+    {
+        const JsonValue  & entry = array->GetArrayElement (index);
+
+
+
+        if (entry.GetType() != JsonType::String)
+        {
+            folders.clear();
+            return Member::Invalid;
+        }
+
+        folders.push_back (TextEncoding::Utf8ToWide (entry.GetString()));
+    }
+
+    return Member::Valid;
 }
 
 
@@ -201,6 +300,43 @@ std::string ChannelProtocol::WriteHello (const ChannelHello & hello)
     members.emplace_back ("disks",    MakeDisks (hello.disks));
     members.emplace_back ("mode",     JsonValue (std::string (ReplyJson::GetModeName (hello.mode))));
     members.emplace_back ("state",    JsonValue (std::string (hello.isPaused ? "paused" : "running")));
+
+    return WriteLine (std::move (members));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChannelProtocol::WriteHelloRequest
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ChannelProtocol::WriteHelloRequest (int64_t id, const ChannelClient & client)
+{
+    Members                 members;
+    std::vector<JsonValue>  folders;
+
+
+
+    members.emplace_back ("type",     JsonValue (std::string ("hello")));
+    members.emplace_back ("id",       JsonValue ((double) id));
+    members.emplace_back ("client",   JsonValue (client.name));
+    members.emplace_back ("protocol", JsonValue ((double) kProtocolVersion));
+
+    for (const std::wstring & folder : client.allowPaths)
+    {
+        folders.push_back (JsonValue (TextEncoding::WideToUtf8 (folder)));
+    }
+
+    if (!folders.empty())
+    {
+        members.emplace_back ("allowPaths", JsonValue (std::move (folders)));
+    }
+
+    members.emplace_back ("allowScripts", JsonValue (client.allowScripts));
 
     return WriteLine (std::move (members));
 }

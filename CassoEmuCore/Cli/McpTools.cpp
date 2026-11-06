@@ -36,8 +36,8 @@ const McpTools::Tool McpTools::s_kTools[] =
     { "close", "Close a Casso this server launched.",
       R"({"type":"object","properties":{}})", &McpTools::Close },
 
-    { "command", "Run one debugger command line, as typed in the debugger's console, and return its reply.",
-      R"({"type":"object","properties":{"line":{"type":"string"},"mode":{"type":"string","enum":["applewin","monitor","gssquared","windbg","casso"],"description":"Command mode; applewin by default"}},"required":["line"]})", &McpTools::Command },
+    { "command", "Run one debugger command line, as typed in the debugger's console, and return its reply. A command that writes a host file fails when the file exists, unless overwrite is true.",
+      R"({"type":"object","properties":{"line":{"type":"string"},"overwrite":{"type":"boolean","description":"Let a write replace a file that exists; false by default"},"mode":{"type":"string","enum":["applewin","monitor","gssquared","windbg","casso"],"description":"Command mode; applewin by default"}},"required":["line"]})", &McpTools::Command },
 
     { "run", "Run the machine under the debugger until a breakpoint, the address given, the cycle budget or the timeout. A run past the timeout is paused.",
       R"({"type":"object","properties":{"until":{"type":"string","description":"Address or symbol to run to"},"timeout_seconds":{"type":"integer","description":"30 by default, at most 600"},"max_cycles":{"type":"integer","description":"100,000,000 by default"}}})", &McpTools::Run },
@@ -155,10 +155,16 @@ void McpToolResult::Fail (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-McpTools::McpTools (IInstanceDirectory & directory, ICassoLauncher & launcher) :
-    m_directory (directory),
-    m_launcher  (launcher)
+McpTools::McpTools (IInstanceDirectory & directory, ICassoLauncher & launcher, ChannelClient client, std::wstring scratchFolder) :
+    m_directory     (directory),
+    m_launcher      (launcher),
+    m_client        (std::move (client)),
+    m_scratchFolder (std::move (scratchFolder))
 {
+    if (m_client.name.empty())
+    {
+        m_client.name = kClientName;
+    }
 }
 
 
@@ -303,7 +309,7 @@ bool McpTools::Connect (uint32_t processId, std::string & error)
 
     channel = std::make_unique<McpChannel> (std::move (client));
 
-    if (!channel->Hello (kHelloTimeoutMs, hello))
+    if (!channel->Hello (kHelloTimeoutMs, m_client, hello))
     {
         error = std::format ("Casso {} didn't answer on its debug channel.", processId);
         return false;
@@ -324,7 +330,7 @@ bool McpTools::Connect (uint32_t processId, std::string & error)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void McpTools::RunLine (const std::string & line, const std::string & mode, DWORD timeoutMs, uint64_t budget, McpToolResult & result)
+void McpTools::RunLine (const std::string & line, const std::string & mode, DWORD timeoutMs, uint64_t budget, bool overwrite, McpToolResult & result)
 {
     McpChannelResult  channel;
 
@@ -335,7 +341,7 @@ void McpTools::RunLine (const std::string & line, const std::string & mode, DWOR
         return;
     }
 
-    m_channel->Execute (line, mode, budget, timeoutMs, channel);
+    m_channel->Execute (line, mode, budget, overwrite, timeoutMs, channel);
     ToResult (channel, result);
 }
 
@@ -351,7 +357,7 @@ void McpTools::RunLine (const std::string & line, const std::string & mode, DWOR
 
 void McpTools::RunLine (const std::string & line, McpToolResult & result)
 {
-    RunLine (line, "applewin", kCommandTimeoutMs, kDefaultBudget, result);
+    RunLine (line, "applewin", kCommandTimeoutMs, kDefaultBudget, false, result);
 }
 
 
@@ -651,7 +657,7 @@ void McpTools::Close (const JsonValue &, McpToolResult & result)
         return;
     }
 
-    m_channel->Execute ("EXIT", "applewin", kDefaultBudget, kCommandTimeoutMs, channel);
+    m_channel->Execute ("EXIT", "applewin", kDefaultBudget, false, kCommandTimeoutMs, channel);
     m_channel.reset();
 
     for (waited = 0; waited < kCloseTimeoutMs && m_launcher.IsRunning (processId); waited += kPollMs)
@@ -682,7 +688,8 @@ void McpTools::Close (const JsonValue &, McpToolResult & result)
 
 void McpTools::Command (const JsonValue & arguments, McpToolResult & result)
 {
-    std::string  line = GetString (arguments, "line");
+    std::string  line      = GetString (arguments, "line");
+    bool         overwrite = false;
 
 
 
@@ -692,7 +699,9 @@ void McpTools::Command (const JsonValue & arguments, McpToolResult & result)
         return;
     }
 
-    RunLine (line, GetString (arguments, "mode", "applewin"), (DWORD) kDefaultRunSeconds * 1000, kDefaultBudget, result);
+    (void) arguments.HasBool ("overwrite", overwrite);
+
+    RunLine (line, GetString (arguments, "mode", "applewin"), (DWORD) kDefaultRunSeconds * 1000, kDefaultBudget, overwrite, result);
 }
 
 
@@ -714,7 +723,7 @@ void McpTools::Run (const JsonValue & arguments, McpToolResult & result)
 
 
     RunLine (until.empty() ? std::string ("G") : "G " + until, "applewin", (DWORD) seconds * 1000,
-             (budget > 0) ? (uint64_t) budget : kDefaultBudget, result);
+             (budget > 0) ? (uint64_t) budget : kDefaultBudget, false, result);
 }
 
 
@@ -781,7 +790,7 @@ void McpTools::Step (const JsonValue & arguments, McpToolResult & result)
         return;
     }
 
-    RunLine (std::format ("{} {:X}", verb, count), "applewin", (DWORD) kDefaultRunSeconds * 1000, kDefaultBudget, result);
+    RunLine (std::format ("{} {:X}", verb, count), "applewin", (DWORD) kDefaultRunSeconds * 1000, kDefaultBudget, false, result);
 }
 
 
@@ -1258,15 +1267,17 @@ void McpTools::ReadScreen (const JsonValue &, McpToolResult & result)
 //
 //  McpTools::Screenshot
 //
-//  SCREENSHOT writes a file in the temporary folder, which this process
-//  shares with Casso; its bytes come back as the image, and the file is
-//  deleted.
+//  SCREENSHOT writes a file in the scratch folder, or with none the temporary
+//  folder, which this process shares with Casso; its bytes come back as the
+//  image, and the file is deleted. The scratch folder is one of the client's
+//  allowed folders, so Casso's file access policy lets the write through.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void McpTools::Screenshot (const JsonValue &, McpToolResult & result)
 {
     wchar_t              folder[MAX_PATH] = {};
+    std::wstring         base;
     std::wstring         path;
     std::ifstream        file;
     std::vector<Byte>    png;
@@ -1275,7 +1286,9 @@ void McpTools::Screenshot (const JsonValue &, McpToolResult & result)
 
 
     GetTempPathW (MAX_PATH, folder);
-    path = std::format (L"{}casso-mcp-{}-{}.png", folder, GetCurrentProcessId(), GetTickCount64());
+
+    base = m_scratchFolder.empty() ? std::wstring (folder) : m_scratchFolder + L"\\";
+    path = std::format (L"{}casso-mcp-{}-{}.png", base, GetCurrentProcessId(), GetTickCount64());
 
     RunLine ("SCREENSHOT \"" + TextEncoding::WideToNarrow (path) + "\"", shot);
 

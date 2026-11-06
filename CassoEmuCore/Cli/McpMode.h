@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+struct ChannelClient;
+struct CommandLineOptions;
+
 
 
 
@@ -19,5 +22,13 @@
 class McpMode
 {
 public:
-    static int  Run ();
+    static int  Run (const CommandLineOptions & options);
+
+    //  The hello's client: the name, each --allow-path folder made full
+    //  against the current directory, the scratch folder when there is one,
+    //  and --allow-scripts.
+    static ChannelClient  MakeClient (const CommandLineOptions & options, const std::wstring & scratchFolder);
+
+private:
+    static std::wstring   CreateScratchFolder ();
 };

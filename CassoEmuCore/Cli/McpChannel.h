@@ -3,6 +3,7 @@
 #include "Core/JsonValue.h"
 
 class IChannelClient;
+struct ChannelClient;
 
 
 
@@ -60,10 +61,12 @@ public:
     McpChannel & operator= (const McpChannel &) = delete;
 
     //  The hello record Casso sent in reply, or false when none arrived.
-    bool  Hello    (DWORD timeoutMs, std::string & record);
+    //  `client` sets the file access of the commands sent after it.
+    bool  Hello    (DWORD timeoutMs, const ChannelClient & client, std::string & record);
 
-    //  `budget` is the cycle limit of a run the line starts.
-    void  Execute  (const std::string & line, const std::string & mode, uint64_t budget, DWORD timeoutMs, McpChannelResult & result);
+    //  `budget` is the cycle limit of a run the line starts; `overwrite`
+    //  lets a write the line makes replace a file that exists.
+    void  Execute  (const std::string & line, const std::string & mode, uint64_t budget, bool overwrite, DWORD timeoutMs, McpChannelResult & result);
 
     //  A line that starts a run with no budget, its reply waited for and its
     //  stop not: the machine runs on as it does after the debugger's Go.

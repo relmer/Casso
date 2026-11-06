@@ -21,5 +21,6 @@
 #include <cstring>
 #include <exception>
 #include <regex>
+#include <winioctl.h>
 
 #include <CppUnitTest.h>

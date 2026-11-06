@@ -221,7 +221,7 @@ int CliMain (int argc, char * argv[])
     {
         //  Standard output is the protocol's, so the blank line below, and
         //  anything else, is never written to it.
-        return McpMode::Run();
+        return McpMode::Run (options);
     }
     else
     {

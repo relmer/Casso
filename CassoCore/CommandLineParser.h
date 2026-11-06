@@ -479,6 +479,7 @@ public:
     static void         RefuseImageOptionsWithoutAnImage (CommandLineOptions & options);
     static std::span<const char * const>    GetRunLongOptions();
     static std::span<const char * const>    GetDebugLongOptions();
+    static std::span<const char * const>    GetMcpLongOptions();
     static std::span<const char * const>    GetDiskOptionNames();
 
     //  Every option the `disk` grammar takes, comma-separated and in their `--` form,
@@ -657,6 +658,7 @@ private:
     static void  ApplyMerlinDefaults (CommandLineOptions & options, const FileExistsFn & fileExists);
     static void  ParseRunOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
     static void  ParseDebugOptions   (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    static void  ParseMcpOptions     (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static bool  RefuseCpuFlagWhereSelectedInSource (CommandLineOptions & options);
     static bool  RefuseSourceWithoutDialect         (CommandLineOptions & options);

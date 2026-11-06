@@ -100,7 +100,7 @@ struct CommandLineOptions
     //  ONE ARM PER GRAMMAR, Merlin included. Its flags, its examples and where
     //  its supported subset ends are all its own, and the dialect that answers
     //  `merlin --help` is not the one that answers `as65 --help`.
-    enum class HelpPage      { General, Assemble, Merlin, Run, Debug };
+    enum class HelpPage      { General, Assemble, Merlin, Run, Debug, Mcp };
 
     //
     //  Everything the `disk` subcommand expresses. Nested rather than
@@ -452,6 +452,19 @@ struct CommandLineOptions
     };
 
     DebugOptions  debug;
+
+    //
+    //  What the `mcp` subcommand expresses: the host folders its client's
+    //  commands may read and write besides the default ones, and whether
+    //  they may run a file of commands.
+    //
+    struct McpOptions
+    {
+        std::vector<std::string>  allowPaths;                    // --allow-path <folder>, repeatable
+        bool                      allowScripts  = false;         // --allow-scripts
+    };
+
+    McpOptions    mcp;
 
     //
     //  What the invocation said about writing the object into a disk image.
